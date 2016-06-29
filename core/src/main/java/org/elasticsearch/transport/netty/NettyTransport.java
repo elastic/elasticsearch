@@ -886,7 +886,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             // the header part is compressed, and the "body" can't be extracted as compressed
             if (options.compress() && (!(request instanceof BytesTransportRequest))) {
                 status = TransportStatus.setCompress(status);
-                stream = CompressorFactory.defaultCompressor().streamOutput(stream);
+                stream = CompressorFactory.COMPRESSOR.streamOutput(stream);
             }
 
             // we pick the smallest of the 2, to support both backward and forward compatibility
@@ -909,14 +909,14 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 bRequest.writeThin(stream);
                 stream.close();
                 bytes = bStream.bytes();
-                ChannelBuffer headerBuffer = bytes.toChannelBuffer();
-                ChannelBuffer contentBuffer = bRequest.bytes().toChannelBuffer();
+                ChannelBuffer headerBuffer = NettyUtils.toChannelBuffer(bytes);
+                ChannelBuffer contentBuffer = NettyUtils.toChannelBuffer(bRequest.bytes());
                 buffer = ChannelBuffers.wrappedBuffer(NettyUtils.DEFAULT_GATHERING, headerBuffer, contentBuffer);
             } else {
                 request.writeTo(stream);
                 stream.close();
                 bytes = bStream.bytes();
-                buffer = bytes.toChannelBuffer();
+                buffer = NettyUtils.toChannelBuffer(bytes);
             }
             NettyHeader.writeHeader(buffer, requestId, status, version);
             ChannelFuture future = targetChannel.write(buffer);

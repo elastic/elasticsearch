@@ -13,7 +13,10 @@ GET /_search
         "bool" : {
             "must" : {
                 "script" : {
-                    "script" : "doc['num1'].value > 1"
+                    "script" : {
+                        "inline": "doc['num1'].value > 1",
+                        "lang": "painless"
+                     }
                 }
             }
         }
@@ -38,7 +41,8 @@ GET /_search
             "must" : {
                 "script" : {
                     "script" : {
-                        "inline" : "doc['num1'].value > param1",
+                        "inline" : "doc['num1'].value > params.param1",
+                        "lang"   : "painless",
                         "params" : {
                             "param1" : 5
                         }

@@ -19,12 +19,31 @@
 
 package org.elasticsearch.plugins;
 
+import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
+import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.util.CollectionUtil;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.Version;
+import org.elasticsearch.bootstrap.JarHell;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.SettingCommand;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserError;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.URL;
+import java.net.URLConnection;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
@@ -48,24 +67,6 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
-import org.apache.lucene.search.spell.LevensteinDistance;
-import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.Version;
-import org.elasticsearch.bootstrap.JarHell;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.SettingCommand;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.UserError;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 
@@ -107,7 +108,7 @@ class InstallPluginCommand extends SettingCommand {
     static final Set<String> MODULES;
     static {
         try (InputStream stream = InstallPluginCommand.class.getResourceAsStream("/modules.txt");
-             BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
             Set<String> modules = new HashSet<>();
             String line = reader.readLine();
             while (line != null) {
@@ -124,7 +125,7 @@ class InstallPluginCommand extends SettingCommand {
     static final Set<String> OFFICIAL_PLUGINS;
     static {
         try (InputStream stream = InstallPluginCommand.class.getResourceAsStream("/plugins.txt");
-             BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
             Set<String> plugins = new TreeSet<>(); // use tree set to get sorting for help command
             String line = reader.readLine();
             while (line != null) {
@@ -140,6 +141,7 @@ class InstallPluginCommand extends SettingCommand {
 
     private final OptionSpec<Void> batchOption;
     private final OptionSpec<String> arguments;
+
 
     public static final Set<PosixFilePermission> DIR_AND_EXECUTABLE_PERMS;
     public static final Set<PosixFilePermission> FILE_PERMS;
@@ -273,11 +275,47 @@ class InstallPluginCommand extends SettingCommand {
         terminal.println(VERBOSE, "Retrieving zip from " + urlString);
         URL url = new URL(urlString);
         Path zip = Files.createTempFile(tmpDir, null, ".zip");
-        try (InputStream in = url.openStream()) {
+        URLConnection urlConnection = url.openConnection();
+        int contentLength = urlConnection.getContentLength();
+        try (InputStream in = new TerminalProgressInputStream(urlConnection.getInputStream(), contentLength, terminal)) {
             // must overwrite since creating the temp file above actually created the file
             Files.copy(in, zip, StandardCopyOption.REPLACE_EXISTING);
         }
         return zip;
+    }
+
+    /**
+     * content length might be -1 for unknown and progress only makes sense if the content length is greater than 0
+     */
+    private class TerminalProgressInputStream extends ProgressInputStream {
+
+        private final Terminal terminal;
+        private int width = 50;
+        private final boolean enabled;
+
+        public TerminalProgressInputStream(InputStream is, int expectedTotalSize, Terminal terminal) {
+            super(is, expectedTotalSize);
+            this.terminal = terminal;
+            this.enabled = expectedTotalSize > 0;
+        }
+
+        @Override
+        public void onProgress(int percent) {
+            if (enabled) {
+                int currentPosition = percent * width / 100;
+                StringBuilder sb = new StringBuilder("\r[");
+                sb.append(String.join("=", Collections.nCopies(currentPosition, "")));
+                if (currentPosition > 0 && percent < 100) {
+                    sb.append(">");
+                }
+                sb.append(String.join(" ", Collections.nCopies(width - currentPosition, "")));
+                sb.append("] %s   ");
+                if (percent == 100) {
+                    sb.append("\n");
+                }
+                terminal.print(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, sb.toString(), percent + "%"));
+            }
+        }
     }
 
     /** Downloads a zip from the url, as well as a SHA1 checksum, and checks the checksum. */

@@ -36,6 +36,8 @@ class CharSequence -> java.lang.CharSequence {
   IntStream chars()
   IntStream codePoints()
   int length()
+  String replaceAll*(Pattern,Function)
+  String replaceFirst*(Pattern,Function)
   CharSequence subSequence(int,int)
   String toString()
 }

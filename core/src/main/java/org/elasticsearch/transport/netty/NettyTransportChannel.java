@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.netty.ReleaseChannelFutureListener;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
@@ -99,14 +100,14 @@ public class NettyTransportChannel implements TransportChannel {
             StreamOutput stream = bStream;
             if (options.compress()) {
                 status = TransportStatus.setCompress(status);
-                stream = CompressorFactory.defaultCompressor().streamOutput(stream);
+                stream = CompressorFactory.COMPRESSOR.streamOutput(stream);
             }
             stream.setVersion(version);
             response.writeTo(stream);
             stream.close();
 
             ReleasablePagedBytesReference bytes = bStream.bytes();
-            ChannelBuffer buffer = bytes.toChannelBuffer();
+            ChannelBuffer buffer = NettyUtils.toChannelBuffer(bytes);
             NettyHeader.writeHeader(buffer, requestId, status, version);
             ChannelFuture future = channel.write(buffer);
             ReleaseChannelFutureListener listener = new ReleaseChannelFutureListener(bytes);
@@ -136,7 +137,7 @@ public class NettyTransportChannel implements TransportChannel {
         status = TransportStatus.setError(status);
 
         BytesReference bytes = stream.bytes();
-        ChannelBuffer buffer = bytes.toChannelBuffer();
+        ChannelBuffer buffer = NettyUtils.toChannelBuffer(bytes);
         NettyHeader.writeHeader(buffer, requestId, status, version);
         ChannelFuture future = channel.write(buffer);
         ChannelFutureListener onResponseSentListener =

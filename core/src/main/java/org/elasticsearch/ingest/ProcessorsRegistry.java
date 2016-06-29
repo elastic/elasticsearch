@@ -19,20 +19,17 @@
 
 package org.elasticsearch.ingest;
 
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.script.ScriptService;
-
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-public final class ProcessorsRegistry implements Closeable {
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.script.ScriptService;
+
+public final class ProcessorsRegistry {
 
     private final Map<String, Processor.Factory> processorFactories;
 
@@ -42,17 +39,6 @@ public final class ProcessorsRegistry implements Closeable {
 
     public Processor.Factory getProcessorFactory(String name) {
         return processorFactories.get(name);
-    }
-
-    @Override
-    public void close() throws IOException {
-        List<Closeable> closeables = new ArrayList<>();
-        for (Processor.Factory factory : processorFactories.values()) {
-            if (factory instanceof Closeable) {
-                closeables.add((Closeable) factory);
-            }
-        }
-        IOUtils.close(closeables);
     }
 
     // For testing:

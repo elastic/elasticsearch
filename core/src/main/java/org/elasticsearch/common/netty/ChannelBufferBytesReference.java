@@ -16,26 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.common.bytes;
+package org.elasticsearch.common.netty;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.transport.netty.ChannelBufferStreamInputFactory;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.channels.GatheringByteChannel;
 import java.nio.charset.StandardCharsets;
 
 /**
  */
-public class ChannelBufferBytesReference implements BytesReference {
+final class ChannelBufferBytesReference implements BytesReference {
 
     private final ChannelBuffer buffer;
 
-    public ChannelBufferBytesReference(ChannelBuffer buffer) {
+    ChannelBufferBytesReference(ChannelBuffer buffer) {
         this.buffer = buffer;
     }
 
@@ -51,7 +51,7 @@ public class ChannelBufferBytesReference implements BytesReference {
 
     @Override
     public BytesReference slice(int from, int length) {
-        return new ChannelBufferBytesReference(buffer.slice(from, length));
+        return new ChannelBufferBytesReference(buffer.slice(buffer.readerIndex() + from, length));
     }
 
     @Override
@@ -62,11 +62,6 @@ public class ChannelBufferBytesReference implements BytesReference {
     @Override
     public void writeTo(OutputStream os) throws IOException {
         buffer.getBytes(buffer.readerIndex(), os, length());
-    }
-
-    @Override
-    public void writeTo(GatheringByteChannel channel) throws IOException {
-        Channels.writeToChannel(buffer, buffer.readerIndex(), length(), channel);
     }
 
     @Override
@@ -89,7 +84,6 @@ public class ChannelBufferBytesReference implements BytesReference {
         return new BytesArray(copy);
     }
 
-    @Override
     public ChannelBuffer toChannelBuffer() {
         return buffer.duplicate();
     }

@@ -19,13 +19,15 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.template.MultiSearchTemplateAction;
 import org.elasticsearch.action.search.template.SearchTemplateAction;
 import org.elasticsearch.action.search.template.TransportMultiSearchTemplateAction;
 import org.elasticsearch.action.search.template.TransportSearchTemplateAction;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.action.search.template.RestDeleteSearchTemplateAction;
@@ -34,20 +36,22 @@ import org.elasticsearch.rest.action.search.template.RestMultiSearchTemplateActi
 import org.elasticsearch.rest.action.search.template.RestPutSearchTemplateAction;
 import org.elasticsearch.rest.action.search.template.RestRenderSearchTemplateAction;
 import org.elasticsearch.rest.action.search.template.RestSearchTemplateAction;
-import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
-import org.elasticsearch.script.ScriptModule;
 
-public class MustachePlugin extends Plugin implements ScriptPlugin {
+import java.util.Arrays;
+import java.util.List;
+
+public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin {
 
     @Override
     public ScriptEngineService getScriptEngineService(Settings settings) {
         return new MustacheScriptEngineService(settings);
     }
 
-    public void onModule(ActionModule module) {
-        module.registerAction(SearchTemplateAction.INSTANCE, TransportSearchTemplateAction.class);
-        module.registerAction(MultiSearchTemplateAction.INSTANCE, TransportMultiSearchTemplateAction.class);
+    @Override
+    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+        return Arrays.asList(new ActionHandler<>(SearchTemplateAction.INSTANCE, TransportSearchTemplateAction.class),
+                new ActionHandler<>(MultiSearchTemplateAction.INSTANCE, TransportMultiSearchTemplateAction.class));
     }
 
     public void onModule(NetworkModule module) {

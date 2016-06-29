@@ -73,7 +73,8 @@ a script to convert them on-the-fly:
             "percentile_ranks" : {
                 "values" : [3, 5],
                 "script" : {
-                    "inline": "doc['load_time'].value / timeUnit", <1>
+                    "lang": "painless",
+                    "inline": "doc['load_time'].value / params.timeUnit", <1>
                     "params" : {
                         "timeUnit" : 1000   <2>
                     }
@@ -87,7 +88,7 @@ a script to convert them on-the-fly:
 script to generate values which percentile ranks are calculated on
 <2> Scripting supports parameterized input just like any other script
 
-This will interpret the `script` parameter as an `inline` script with the default script language and no script parameters. To use a file script use the following syntax:
+This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a file script use the following syntax:
 
 [source,js]
 --------------------------------------------------

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless;
 
+import java.nio.CharBuffer;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.regex.Pattern;
@@ -173,6 +174,61 @@ public class RegexTests extends ScriptTestCase {
 
     public void testManyFlags() {
         assertEquals(Pattern.CANON_EQ | Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE | Pattern.COMMENTS, exec("/./ciux.flags()"));
+    }
+
+    public void testReplaceAllMatchesString() {
+        assertEquals("thE qUIck brOwn fOx", exec("'the quick brown fox'.replaceAll(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))"));
+    }
+
+    public void testReplaceAllMatchesCharSequence() {
+        CharSequence charSequence = CharBuffer.wrap("the quick brown fox");
+        assertEquals("thE qUIck brOwn fOx",
+                exec("params.a.replaceAll(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))", singletonMap("a", charSequence)));
+    }
+
+    public void testReplaceAllNoMatchString() {
+        assertEquals("i am cat", exec("'i am cat'.replaceAll(/dolphin/, m -> m.group().toUpperCase(Locale.ROOT))"));
+    }
+
+    public void testReplaceAllNoMatchCharSequence() {
+        CharSequence charSequence = CharBuffer.wrap("i am cat");
+        assertEquals("i am cat",
+                exec("params.a.replaceAll(/dolphin/, m -> m.group().toUpperCase(Locale.ROOT))", singletonMap("a", charSequence)));
+    }
+
+    public void testReplaceAllQuoteReplacement() {
+        assertEquals("th/E q/U/Ick br/Own f/Ox",
+                exec("'the quick brown fox'.replaceAll(/[aeiou]/, m -> '/' + m.group().toUpperCase(Locale.ROOT))"));
+        assertEquals("th$E q$U$Ick br$Own f$Ox",
+                exec("'the quick brown fox'.replaceAll(/[aeiou]/, m -> '$' + m.group().toUpperCase(Locale.ROOT))"));
+    }
+
+    public void testReplaceFirstMatchesString() {
+        assertEquals("thE quick brown fox",
+                exec("'the quick brown fox'.replaceFirst(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))"));
+    }
+
+    public void testReplaceFirstMatchesCharSequence() {
+        CharSequence charSequence = CharBuffer.wrap("the quick brown fox");
+        assertEquals("thE quick brown fox",
+                exec("params.a.replaceFirst(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))", singletonMap("a", charSequence)));
+    }
+
+    public void testReplaceFirstNoMatchString() {
+        assertEquals("i am cat", exec("'i am cat'.replaceFirst(/dolphin/, m -> m.group().toUpperCase(Locale.ROOT))"));
+    }
+
+    public void testReplaceFirstNoMatchCharSequence() {
+        CharSequence charSequence = CharBuffer.wrap("i am cat");
+        assertEquals("i am cat",
+                exec("params.a.replaceFirst(/dolphin/, m -> m.group().toUpperCase(Locale.ROOT))", singletonMap("a", charSequence)));
+    }
+
+    public void testReplaceFirstQuoteReplacement() {
+        assertEquals("th/E quick brown fox",
+                exec("'the quick brown fox'.replaceFirst(/[aeiou]/, m -> '/' + m.group().toUpperCase(Locale.ROOT))"));
+        assertEquals("th$E quick brown fox",
+                exec("'the quick brown fox'.replaceFirst(/[aeiou]/, m -> '$' + m.group().toUpperCase(Locale.ROOT))"));
     }
 
     public void testCantUsePatternCompile() {

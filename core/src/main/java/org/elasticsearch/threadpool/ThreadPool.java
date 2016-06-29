@@ -196,7 +196,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
             if (executors.containsKey(executorHolder.info.getName())) {
                 throw new IllegalStateException("duplicate executors with name [" + executorHolder.info.getName() + "] registered");
             }
-            logger.debug("created thread pool: " + entry.getValue().formatInfo(executorHolder.info));
+            logger.debug("created thread pool: {}", entry.getValue().formatInfo(executorHolder.info));
             executors.put(entry.getKey(), executorHolder);
         }
 

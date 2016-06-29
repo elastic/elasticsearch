@@ -25,6 +25,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -264,13 +265,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public long timeoutInMillis() {
-        return in.timeoutInMillis();
+    public TimeValue timeout() {
+        return in.timeout();
     }
 
     @Override
-    public void timeoutInMillis(long timeoutInMillis) {
-        in.timeoutInMillis(timeoutInMillis);
+    public void timeout(TimeValue timeout) {
+        in.timeout(timeout);
     }
 
     @Override

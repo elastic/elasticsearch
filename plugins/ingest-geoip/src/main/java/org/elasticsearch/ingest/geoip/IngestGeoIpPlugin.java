@@ -19,18 +19,6 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import com.maxmind.geoip2.DatabaseReader;
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.TemplateService;
-import org.elasticsearch.node.NodeModule;
-import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptService;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,6 +33,16 @@ import java.util.Map;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 
+import com.maxmind.geoip2.DatabaseReader;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.TemplateService;
+import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptService;
+
 public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable {
 
     private Map<String, DatabaseReader> databaseReaders;
@@ -52,13 +50,14 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
     @Override
     public synchronized Map<String, Processor.Factory> getProcessors(
         Environment env, ClusterService clusterService, ScriptService scriptService, TemplateService templateService) {
-        if (databaseReaders == null) {
-            Path geoIpConfigDirectory = env.configFile().resolve("ingest-geoip");
-            try {
-                databaseReaders = loadDatabaseReaders(geoIpConfigDirectory);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+        if (databaseReaders != null) {
+            throw new IllegalStateException("called onModule twice for geoip plugin!!");
+        }
+        Path geoIpConfigDirectory = env.configFile().resolve("ingest-geoip");
+        try {
+            databaseReaders = loadDatabaseReaders(geoIpConfigDirectory);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
         return Collections.singletonMap(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(databaseReaders));
     }
@@ -86,7 +85,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
     }
 
     @Override
-    public synchronized void close() throws IOException {
+    public void close() throws IOException {
         if (databaseReaders != null) {
             IOUtils.close(databaseReaders.values());
         }

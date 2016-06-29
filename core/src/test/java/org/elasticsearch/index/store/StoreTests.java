@@ -1086,7 +1086,7 @@ public class StoreTests extends ESTestCase {
         String uuid = Store.CORRUPTED + UUIDs.randomBase64UUID();
         try (IndexOutput output = dir.createOutput(uuid, IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, Store.CODEC, Store.VERSION_STACK_TRACE);
-            output.writeString(ExceptionsHelper.detailedMessage(exception, true, 0));
+            output.writeString(ExceptionsHelper.detailedMessage(exception));
             output.writeString(ExceptionsHelper.stackTrace(exception));
             CodecUtil.writeFooter(output);
         }
@@ -1102,7 +1102,7 @@ public class StoreTests extends ESTestCase {
 
         try (IndexOutput output = dir.createOutput(uuid, IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, Store.CODEC, Store.VERSION_START);
-            output.writeString(ExceptionsHelper.detailedMessage(exception, true, 0));
+            output.writeString(ExceptionsHelper.detailedMessage(exception));
             CodecUtil.writeFooter(output);
         }
         try {

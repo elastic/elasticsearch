@@ -16,25 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.script.mustache;
+package org.elasticsearch.common.bytes;
 
-import com.github.mustachejava.DefaultMustacheFactory;
-import com.github.mustachejava.MustacheException;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.io.Writer;
 
-/**
- * A MustacheFactory that does no string escaping.
- */
-final class NoneEscapingMustacheFactory extends DefaultMustacheFactory {
-
+public class BytesArrayTests extends AbstractBytesReferenceTestCase {
     @Override
-    public void encode(String value, Writer writer) {
-        try {
-            writer.write(value);
-        } catch (IOException e) {
-            throw new MustacheException("Failed to encode value: " + value);
+    protected BytesReference newBytesReference(int length) throws IOException {
+        // we know bytes stream output always creates a paged bytes reference, we use it to create randomized content
+        final BytesStreamOutput out = new BytesStreamOutput(length);
+        for (int i = 0; i < length; i++) {
+            out.writeByte((byte) random().nextInt(1 << 8));
         }
+        assertEquals(length, out.size());
+        BytesArray ref = out.bytes().toBytesArray();
+        assertEquals(length, ref.length());
+        assertTrue(ref instanceof BytesArray);
+        assertThat(ref.length(), Matchers.equalTo(length));
+        return ref;
     }
 }

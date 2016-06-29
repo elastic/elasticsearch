@@ -37,13 +37,9 @@ import java.util.concurrent.CountDownLatch;
 /**
  * Test streaming compression (e.g. used for recovery)
  */
-public abstract class AbstractCompressedStreamTestCase extends ESTestCase {
+public class DeflateCompressTests extends ESTestCase {
 
-    private final Compressor compressor;
-
-    protected AbstractCompressedStreamTestCase(Compressor compressor) {
-        this.compressor = compressor;
-    }
+    private final Compressor compressor = new DeflateCompressor();
 
     public void testRandom() throws IOException {
         Random r = random();

@@ -81,6 +81,7 @@ import org.elasticsearch.painless.antlr.PainlessParser.ForContext;
 import org.elasticsearch.painless.antlr.PainlessParser.FuncrefContext;
 import org.elasticsearch.painless.antlr.PainlessParser.FunctionContext;
 import org.elasticsearch.painless.antlr.PainlessParser.IfContext;
+import org.elasticsearch.painless.antlr.PainlessParser.IneachContext;
 import org.elasticsearch.painless.antlr.PainlessParser.InitializerContext;
 import org.elasticsearch.painless.antlr.PainlessParser.InstanceofContext;
 import org.elasticsearch.painless.antlr.PainlessParser.LambdaContext;
@@ -357,6 +358,17 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
         SBlock block = (SBlock)visit(ctx.trailer());
 
         return new SEach(location(ctx), type, name, expression, block);
+    }
+    
+    @Override
+    public Object visitIneach(IneachContext ctx) {
+        reserved.peek().setMaxLoopCounter(settings.getMaxLoopCounter());
+
+        String name = ctx.ID().getText();
+        AExpression expression = (AExpression)visitExpression(ctx.expression());
+        SBlock block = (SBlock)visit(ctx.trailer());
+
+        return new SEach(location(ctx), "def", name, expression, block);
     }
 
     @Override

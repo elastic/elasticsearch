@@ -133,4 +133,7 @@ Plugins that register custom analysis components should implement
 Plugins that register custom mappers should implement
 `MapperPlugin` and remove their `onModule(IndicesModule)` implementation.
 
+==== ActionPlugin
 
+Plugins that register custom actions should implement `ActionPlugin` and
+remove their `onModule(ActionModule)` implementation.

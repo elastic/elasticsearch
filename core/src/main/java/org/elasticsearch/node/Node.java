@@ -86,8 +86,9 @@ import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.node.service.NodeService;
-import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -162,6 +163,7 @@ public class Node implements Closeable {
     private final Injector injector;
     private final Settings settings;
     private final Environment environment;
+    private final NodeEnvironment nodeEnvironment;
     private final PluginsService pluginsService;
     private final Client client;
 
@@ -235,7 +237,6 @@ public class Node implements Closeable {
             // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
             // so we might be late here already
             final SettingsModule settingsModule = new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter);
-            final NodeEnvironment nodeEnvironment;
             try {
                 nodeEnvironment = new NodeEnvironment(this.settings, this.environment);
                 resourcesToClose.add(nodeEnvironment);
@@ -258,10 +259,13 @@ public class Node implements Closeable {
             modules.add(new NodeModule(this, monitorService));
             modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry));
             modules.add(new DiscoveryModule(this.settings));
-            modules.add(new ClusterModule(this.settings, clusterService));
+            ClusterModule clusterModule = new ClusterModule(settings, clusterService);
+            modules.add(clusterModule);
             modules.add(new IndicesModule(namedWriteableRegistry, pluginsService.filterPlugins(MapperPlugin.class)));
             modules.add(new SearchModule(settings, namedWriteableRegistry));
-            modules.add(new ActionModule(DiscoveryNode.isIngestNode(settings), false));
+            modules.add(new ActionModule(DiscoveryNode.isIngestNode(settings), false, settings,
+                    clusterModule.getIndexNameExpressionResolver(), settingsModule.getClusterSettings(),
+                    pluginsService.filterPlugins(ActionPlugin.class)));
             modules.add(new GatewayModule());
             modules.add(new RepositoriesModule());
             pluginsService.processModules(modules);
@@ -319,6 +323,14 @@ public class Node implements Closeable {
     public Environment getEnvironment() {
         return environment;
     }
+
+    /**
+     * Returns the {@link NodeEnvironment} instance of this node
+     */
+    public NodeEnvironment getNodeEnvironment() {
+        return nodeEnvironment;
+    }
+
 
     /**
      * Start the node. If the node is already started, this method is no-op.
@@ -540,6 +552,7 @@ public class Node implements Closeable {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getName() + ")"));
             toClose.add(injector.getInstance(plugin));
         }
+        toClose.addAll(pluginsService.filterPlugins(Closeable.class));
 
         toClose.add(() -> stopWatch.stop().start("script"));
         toClose.add(injector.getInstance(ScriptService.class));

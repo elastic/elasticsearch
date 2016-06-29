@@ -140,7 +140,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
             IngestDocument ingestDocument = (IngestDocument) invocationOnMock.getArguments()[0];
             for (IngestDocument.MetaData metaData : IngestDocument.MetaData.values()) {
                 if (metaData == IngestDocument.MetaData.TTL) {
-                    ingestDocument.setFieldValue(IngestDocument.MetaData.TTL.getFieldName(), "5w");
+                    ingestDocument.setFieldValue(IngestDocument.MetaData.TTL.getFieldName(), "35d");
                 } else {
                     ingestDocument.setFieldValue(metaData.getFieldName(), "update" + metaData.getFieldName());
                 }

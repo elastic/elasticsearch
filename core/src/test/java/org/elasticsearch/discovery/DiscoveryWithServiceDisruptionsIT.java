@@ -65,6 +65,7 @@ import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
 import org.elasticsearch.test.disruption.JepsenPartition;
 import org.elasticsearch.test.disruption.LongGCDisruption;
+import org.elasticsearch.test.disruption.NetworkDelaysPartition;
 import org.elasticsearch.test.disruption.NetworkDisconnectPartition;
 import org.elasticsearch.test.disruption.NetworkPartition;
 import org.elasticsearch.test.disruption.NetworkUnresponsivePartition;
@@ -1189,11 +1190,11 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     private ServiceDisruptionScheme addRandomDisruptionScheme() {
         // TODO: add partial partitions
         List<ServiceDisruptionScheme> list = Arrays.asList(
-//                new NetworkUnresponsivePartition(random()),
-//                new NetworkDelaysPartition(random()),
-//                new NetworkDisconnectPartition(random()),
-//                new SlowClusterStateProcessing(random())
-            new JepsenPartition(random(), randomBoolean())
+                new NetworkUnresponsivePartition(random()),
+                new NetworkDelaysPartition(random()),
+                new NetworkDisconnectPartition(random()),
+                new SlowClusterStateProcessing(random()),
+                new JepsenPartition(random(), randomBoolean())
         );
         Collections.shuffle(list, random());
         setDisruptionScheme(list.get(0));

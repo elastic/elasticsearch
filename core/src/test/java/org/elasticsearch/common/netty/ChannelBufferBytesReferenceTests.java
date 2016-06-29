@@ -22,6 +22,7 @@ import org.elasticsearch.common.bytes.AbstractBytesReferenceTestCase;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 
 import java.io.IOException;
@@ -39,5 +40,22 @@ public class ChannelBufferBytesReferenceTests extends AbstractBytesReferenceTest
         BytesArray bytesArray = ref.toBytesArray();
         return NettyUtils.toBytesReference(ChannelBuffers.wrappedBuffer(bytesArray.array(), bytesArray.arrayOffset(),
             bytesArray.length()));
+    }
+
+    public void testSliceOnAdvancedBuffer() throws IOException {
+        BytesReference bytesReference = newBytesReference(randomIntBetween(10, 3 * PAGE_SIZE));
+        BytesArray bytesArray = bytesReference.toBytesArray();
+
+        ChannelBuffer channelBuffer = ChannelBuffers.wrappedBuffer(bytesArray.array(), bytesArray.arrayOffset(),
+            bytesArray.length());
+        int numBytesToRead = randomIntBetween(1, 5);
+        for (int i = 0; i < numBytesToRead; i++) {
+            channelBuffer.readByte();
+        }
+        BytesReference other = NettyUtils.toBytesReference(channelBuffer);
+        BytesReference slice = bytesReference.slice(numBytesToRead, bytesReference.length() - numBytesToRead);
+        assertEquals(other, slice);
+
+        assertEquals(other.slice(3, 1), slice.slice(3, 1));
     }
 }

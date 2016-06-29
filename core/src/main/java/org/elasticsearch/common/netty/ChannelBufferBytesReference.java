@@ -51,7 +51,7 @@ final class ChannelBufferBytesReference implements BytesReference {
 
     @Override
     public BytesReference slice(int from, int length) {
-        return new ChannelBufferBytesReference(buffer.slice(from, length));
+        return new ChannelBufferBytesReference(buffer.slice(buffer.readerIndex() + from, length));
     }
 
     @Override

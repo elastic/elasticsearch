@@ -70,12 +70,8 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         if (slice.hasArray()) {
             assertEquals(sliceOffset, slice.arrayOffset());
         } else {
-            try {
-                slice.arrayOffset();
-                fail("expected IllegalStateException");
-            } catch (IllegalStateException ise) {
-                // expected
-            }
+           expectThrows(IllegalStateException.class, () ->
+                slice.arrayOffset());
         }
     }
 
@@ -125,12 +121,8 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
 
         // try to read more than the stream contains
         si.reset();
-        try {
-            si.readBytes(targetBuf, 0, length * 2);
-            fail("expected IndexOutOfBoundsException: le > stream.length");
-        } catch (IndexOutOfBoundsException ioob) {
-            // expected
-        }
+        expectThrows(IndexOutOfBoundsException.class, () ->
+            si.readBytes(targetBuf, 0, length * 2));
     }
 
     public void testStreamInputBulkReadWithOffset() throws IOException {
@@ -394,12 +386,8 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         if (pbr.hasArray()) {
             assertEquals(0, pbr.arrayOffset());
         } else {
-            try {
-                pbr.arrayOffset();
-                fail("expected IllegalStateException");
-            } catch (IllegalStateException ise) {
-                // expected
-            }
+            expectThrows(IllegalStateException.class, () ->
+                pbr.arrayOffset());
         }
     }
 
@@ -412,12 +400,8 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         if (slice.hasArray()) {
             assertEquals(sliceOffset, slice.arrayOffset());
         } else {
-            try {
-                slice.arrayOffset();
-                fail("expected IllegalStateException");
-            } catch (IllegalStateException ise) {
-                // expected
-            }
+            expectThrows(IllegalStateException.class, () ->
+                slice.arrayOffset());
         }
     }
 

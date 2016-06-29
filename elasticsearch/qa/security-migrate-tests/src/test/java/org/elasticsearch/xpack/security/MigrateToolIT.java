@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security;
 
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.client.Client;
@@ -27,6 +26,7 @@ import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.user.User;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -39,6 +39,16 @@ import static org.hamcrest.Matchers.containsString;
  */
 public class MigrateToolIT extends MigrateToolTestCase {
 
+    @Before
+    public void setupUpTest() throws Exception {
+        Client client = getClient();
+        SecurityClient c = new SecurityClient(client);
+
+        // Add an existing user so the tool will skip it
+        PutUserResponse pur = c.preparePutUser("existing", "s3kirt".toCharArray(), "role1", "user").get();
+        assertTrue(pur.created());
+    }
+
     private static String[] args(String command) {
         if (!Strings.hasLength(command)) {
             return Strings.EMPTY_ARRAY;
@@ -47,30 +57,15 @@ public class MigrateToolIT extends MigrateToolTestCase {
     }
 
     public void testRunMigrateTool() throws Exception {
-        String integHome = System.getProperty("tests.config.dir");
-        logger.info("--> HOME: {}", integHome);
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir().toAbsolutePath().toString())
                 .build();
+        String integHome = System.getProperty("tests.config.dir");
+        logger.info("--> HOME: {}", integHome);
         // Cluster should already be up
         String url = "http://" + getHttpURL();
         logger.info("--> using URL: {}", url);
         MockTerminal t = new MockTerminal();
-        Client client = getClient();
-        SecurityClient c = new SecurityClient(client);
-
-        // Add an existing user so the tool will skip it
-        PutUserResponse pur = c.preparePutUser("existing", "s3kirt".toCharArray(), "role1", "user").get();
-        assertTrue(pur.created());
-
-        // Wait for the security index to be green
-        ClusterHealthResponse actionGet = client.admin().cluster()
-                .health(Requests.clusterHealthRequest(SecurityTemplateService.SECURITY_INDEX_NAME)
-                        .timeout(TimeValue.timeValueSeconds(30))
-                        .waitForGreenStatus()
-                        .waitForEvents(Priority.LANGUID)
-                        .waitForRelocatingShards(0))
-                .actionGet();
         ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();
         OptionParser parser = muor.getParser();
         OptionSet options = parser.parse("-u", "test_admin", "-p", "changeme", "-U", url, "-c", integHome);

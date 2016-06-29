@@ -373,7 +373,7 @@ public class PagedBytesReference implements BytesReference {
             int nextFragmentSize = Math.min(length, initialFragmentSize);
             // this BytesRef is reused across the iteration on purpose - BytesRefIterator interface was designed for this
             final BytesRef slice = new BytesRef();
-            
+
             @Override
             public BytesRef next() throws IOException {
                 if (nextFragmentSize != 0) {

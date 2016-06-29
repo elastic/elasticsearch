@@ -40,17 +40,9 @@ import java.util.Arrays;
 public class PagedBytesReferenceTests extends ESTestCase {
 
     private static final int PAGE_SIZE = BigArrays.BYTE_PAGE_SIZE;
+    private BigArrays bigarrays = new BigArrays(null, new NoneCircuitBreakerService(), false);
 
-    private BigArrays bigarrays;
-
-    @Override
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        bigarrays = new BigArrays(null, new NoneCircuitBreakerService(), false);
-    }
-
-    public void testGet() {
+    public void testGet() throws IOException {
         int length = randomIntBetween(1, PAGE_SIZE * 3);
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         int sliceOffset = randomIntBetween(0, length / 2);
@@ -60,7 +52,7 @@ public class PagedBytesReferenceTests extends ESTestCase {
         assertEquals(pbr.get(sliceOffset + sliceLength - 1), slice.get(sliceLength - 1));
     }
 
-    public void testLength() {
+    public void testLength() throws IOException {
         int[] sizes = {0, randomInt(PAGE_SIZE), PAGE_SIZE, randomInt(PAGE_SIZE * 3)};
 
         for (int i = 0; i < sizes.length; i++) {
@@ -69,7 +61,7 @@ public class PagedBytesReferenceTests extends ESTestCase {
         }
     }
 
-    public void testSlice() {
+    public void testSlice() throws IOException {
         int length = randomInt(PAGE_SIZE * 3);
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         int sliceOffset = randomIntBetween(0, length / 2);
@@ -268,7 +260,7 @@ public class PagedBytesReferenceTests extends ESTestCase {
         sliceOut.close();
     }
 
-    public void testToBytes() {
+    public void testToBytes() throws IOException {
         int[] sizes = {0, randomInt(PAGE_SIZE), PAGE_SIZE, randomIntBetween(2, PAGE_SIZE * randomIntBetween(2, 5))};
 
         for (int i = 0; i < sizes.length; i++) {
@@ -284,7 +276,7 @@ public class PagedBytesReferenceTests extends ESTestCase {
         }
     }
 
-    public void testToBytesArraySharedPage() {
+    public void testToBytesArraySharedPage() throws IOException {
         int length = randomIntBetween(10, PAGE_SIZE);
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         BytesArray ba = pbr.toBytesArray();
@@ -297,7 +289,7 @@ public class PagedBytesReferenceTests extends ESTestCase {
         assertSame(ba.array(), ba2.array());
     }
 
-    public void testToBytesArrayMaterializedPages() {
+    public void testToBytesArrayMaterializedPages() throws IOException {
         // we need a length != (n * pagesize) to avoid page sharing at boundaries
         int length = 0;
         while ((length % PAGE_SIZE) == 0) {
@@ -314,7 +306,7 @@ public class PagedBytesReferenceTests extends ESTestCase {
         assertNotSame(ba.array(), ba2.array());
     }
 
-    public void testCopyBytesArray() {
+    public void testCopyBytesArray() throws IOException {
         // small PBR which would normally share the first page
         int length = randomIntBetween(10, PAGE_SIZE);
         BytesReference pbr = getRandomizedPagedBytesReference(length);
@@ -325,7 +317,7 @@ public class PagedBytesReferenceTests extends ESTestCase {
         assertNotSame(ba.array(), ba2.array());
     }
 
-    public void testSliceCopyBytesArray() {
+    public void testSliceCopyBytesArray() throws IOException {
         int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(2, 8));
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         int sliceOffset = randomIntBetween(0, pbr.length());
@@ -395,14 +387,14 @@ public class PagedBytesReferenceTests extends ESTestCase {
         assertArrayEquals(pbr.toBytes(), BytesRef.deepCopyOf(builder.toBytesRef()).bytes);
     }
 
-    public void testHasArray() {
+    public void testHasArray() throws IOException {
         int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(1, 3));
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         // must return true for <= pagesize
         assertEquals(length <= PAGE_SIZE, pbr.hasArray());
     }
 
-    public void testArray() {
+    public void testArray() throws IOException {
         int[] sizes = {0, randomInt(PAGE_SIZE), PAGE_SIZE, randomIntBetween(2, PAGE_SIZE * randomIntBetween(2, 5))};
 
         for (int i = 0; i < sizes.length; i++) {
@@ -424,7 +416,7 @@ public class PagedBytesReferenceTests extends ESTestCase {
         }
     }
 
-    public void testArrayOffset() {
+    public void testArrayOffset() throws IOException {
         int length = randomInt(PAGE_SIZE * randomIntBetween(2, 5));
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         if (pbr.hasArray()) {
@@ -439,7 +431,7 @@ public class PagedBytesReferenceTests extends ESTestCase {
         }
     }
 
-    public void testSliceArrayOffset() {
+    public void testSliceArrayOffset() throws IOException {
         int length = randomInt(PAGE_SIZE * randomIntBetween(2, 5));
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         int sliceOffset = randomIntBetween(0, pbr.length());
@@ -464,7 +456,7 @@ public class PagedBytesReferenceTests extends ESTestCase {
         // TODO: good way to test?
     }
 
-    public void testToBytesRef() {
+    public void testToBytesRef() throws IOException {
         int length = randomIntBetween(0, PAGE_SIZE);
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         BytesRef ref = pbr.toBytesRef();
@@ -473,7 +465,7 @@ public class PagedBytesReferenceTests extends ESTestCase {
         assertEquals(pbr.length(), ref.length);
     }
 
-    public void testSliceToBytesRef() {
+    public void testSliceToBytesRef() throws IOException {
         int length = randomIntBetween(0, PAGE_SIZE);
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         // get a BytesRef from a slice
@@ -485,7 +477,7 @@ public class PagedBytesReferenceTests extends ESTestCase {
         assertEquals(sliceLength, sliceRef.length);
     }
 
-    public void testCopyBytesRef() {
+    public void testCopyBytesRef() throws IOException {
         int length = randomIntBetween(0, PAGE_SIZE * randomIntBetween(2, 5));
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         BytesRef ref = pbr.copyBytesRef();
@@ -493,7 +485,7 @@ public class PagedBytesReferenceTests extends ESTestCase {
         assertEquals(pbr.length(), ref.length);
     }
 
-    public void testHashCode() {
+    public void testHashCode() throws IOException {
         // empty content must have hash 1 (JDK compat)
         BytesReference pbr = getRandomizedPagedBytesReference(0);
         assertEquals(Arrays.hashCode(BytesRef.EMPTY_BYTES), pbr.hashCode());
@@ -529,7 +521,7 @@ public class PagedBytesReferenceTests extends ESTestCase {
         assertEquals(pbr, pbr2);
     }
 
-    public void testEqualsPeerClass() {
+    public void testEqualsPeerClass() throws IOException {
         int length = randomIntBetween(100, PAGE_SIZE * randomIntBetween(2, 5));
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         BytesReference ba = new BytesArray(pbr.toBytes());
@@ -556,15 +548,11 @@ public class PagedBytesReferenceTests extends ESTestCase {
         }
     }
 
-    private BytesReference getRandomizedPagedBytesReference(int length) {
+    private BytesReference getRandomizedPagedBytesReference(int length) throws IOException {
         // we know bytes stream output always creates a paged bytes reference, we use it to create randomized content
         ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(length, bigarrays);
-        try {
-            for (int i = 0; i < length; i++) {
-                out.writeByte((byte) random().nextInt(1 << 8));
-            }
-        } catch (IOException e) {
-            fail("should not happen " + e.getMessage());
+        for (int i = 0; i < length; i++) {
+            out.writeByte((byte) random().nextInt(1 << 8));
         }
         assertThat(out.size(), Matchers.equalTo(length));
         BytesReference ref = out.bytes();

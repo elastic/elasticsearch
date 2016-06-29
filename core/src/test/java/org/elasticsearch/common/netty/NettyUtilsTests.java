@@ -34,22 +34,14 @@ import java.io.IOException;
 public class NettyUtilsTests extends ESTestCase {
 
     private static final int PAGE_SIZE = BigArrays.BYTE_PAGE_SIZE;
+    private final BigArrays bigarrays = new BigArrays(null, new NoneCircuitBreakerService(), false);
 
-    private BigArrays bigarrays;
-
-    @Override
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        bigarrays = new BigArrays(null, new NoneCircuitBreakerService(), false);
-    }
-
-    public void testToChannelBufferWithEmptyRef() {
+    public void testToChannelBufferWithEmptyRef() throws IOException {
         ChannelBuffer channelBuffer = NettyUtils.toChannelBuffer(getRandomizedBytesReference(0));
         assertSame(ChannelBuffers.EMPTY_BUFFER, channelBuffer);
     }
 
-    public void testToChannelBufferWithSlice() {
+    public void testToChannelBufferWithSlice() throws IOException {
         BytesReference ref = getRandomizedBytesReference(randomIntBetween(1, 3 * PAGE_SIZE));
         int sliceOffset = randomIntBetween(0, ref.length());
         int sliceLength = randomIntBetween(ref.length() - sliceOffset, ref.length() - sliceOffset);
@@ -59,7 +51,7 @@ public class NettyUtilsTests extends ESTestCase {
         assertArrayEquals(slice.toBytes(), bytesReference.toBytes());
     }
 
-    public void testToChannelBufferWithSliceAfter() {
+    public void testToChannelBufferWithSliceAfter() throws IOException {
         BytesReference ref = getRandomizedBytesReference(randomIntBetween(1, 3 * PAGE_SIZE));
         int sliceOffset = randomIntBetween(0, ref.length());
         int sliceLength = randomIntBetween(ref.length() - sliceOffset, ref.length() - sliceOffset);
@@ -68,7 +60,7 @@ public class NettyUtilsTests extends ESTestCase {
         assertArrayEquals(ref.slice(sliceOffset, sliceLength).toBytes(), bytesReference.slice(sliceOffset, sliceLength).toBytes());
     }
 
-    public void testToChannelBuffer() {
+    public void testToChannelBuffer() throws IOException {
         BytesReference ref = getRandomizedBytesReference(randomIntBetween(1, 3 * PAGE_SIZE));
         ChannelBuffer channelBuffer = NettyUtils.toChannelBuffer(ref);
         BytesReference bytesReference = NettyUtils.toBytesReference(channelBuffer);
@@ -80,16 +72,12 @@ public class NettyUtilsTests extends ESTestCase {
         assertArrayEquals(ref.toBytes(), bytesReference.toBytes());
     }
 
-    private BytesReference getRandomizedBytesReference(int length) {
+    private BytesReference getRandomizedBytesReference(int length) throws IOException {
         // TODO we should factor out a BaseBytesReferenceTestCase
         // we know bytes stream output always creates a paged bytes reference, we use it to create randomized content
         ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(length, bigarrays);
-        try {
-            for (int i = 0; i < length; i++) {
-                out.writeByte((byte) random().nextInt(1 << 8));
-            }
-        } catch (IOException e) {
-            fail("should not happen " + e.getMessage());
+        for (int i = 0; i < length; i++) {
+            out.writeByte((byte) random().nextInt(1 << 8));
         }
         assertEquals(out.size(), length);
         BytesReference ref = out.bytes();

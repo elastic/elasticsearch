@@ -26,22 +26,26 @@ import java.util.Random;
 
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 
-public class JepsenPartition extends NetworkPartition {
+/**
+ * A partition that breaks the cluster into two groups of nodes. The two groups are fully isolated
+ * with the exception of a single node that can see and be seen by all nodes in both groups.
+ */
+public class BridgePartition extends NetworkPartition {
 
-    String supperConnectedNode;
+    String bridgeNode;
     final boolean unresponsive;
 
-    public JepsenPartition(Random random, boolean unresponsive) {
+    public BridgePartition(Random random, boolean unresponsive) {
         super(random);
         this.unresponsive = unresponsive;
     }
 
     @Override
     public void applyToCluster(InternalTestCluster cluster) {
-        supperConnectedNode = randomFrom(random, cluster.getNodeNames());
+        bridgeNode = randomFrom(random, cluster.getNodeNames());
         this.cluster = cluster;
         for (String node: cluster.getNodeNames()) {
-            if (node.equals(supperConnectedNode) == false) {
+            if (node.equals(bridgeNode) == false) {
                 super.applyToNode(node, cluster);
             }
         }
@@ -65,6 +69,6 @@ public class JepsenPartition extends NetworkPartition {
 
     @Override
     protected String getPartitionDescription() {
-        return "jepsen (super connected node: [" + supperConnectedNode + "], unresponsive [" + unresponsive + "])";
+        return "bridge (super connected node: [" + bridgeNode + "], unresponsive [" + unresponsive + "])";
     }
 }

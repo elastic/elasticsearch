@@ -62,8 +62,8 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
+import org.elasticsearch.test.disruption.BridgePartition;
 import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
-import org.elasticsearch.test.disruption.JepsenPartition;
 import org.elasticsearch.test.disruption.LongGCDisruption;
 import org.elasticsearch.test.disruption.NetworkDelaysPartition;
 import org.elasticsearch.test.disruption.NetworkDisconnectPartition;
@@ -1194,7 +1194,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                 new NetworkDelaysPartition(random()),
                 new NetworkDisconnectPartition(random()),
                 new SlowClusterStateProcessing(random()),
-                new JepsenPartition(random(), randomBoolean())
+                new BridgePartition(random(), randomBoolean())
         );
         Collections.shuffle(list, random());
         setDisruptionScheme(list.get(0));

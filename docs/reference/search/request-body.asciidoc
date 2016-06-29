@@ -31,13 +31,13 @@ And here is a sample response:
    },
    "hits": {
       "total": 1,
-      "max_score": 1.0,
+      "max_score": 0.2876821,
       "hits": [
          {
             "_index": "twitter",
             "_type": "tweet",
             "_id": "0",
-            "_score": 1.0,
+            "_score": 0.2876821,
             "_source": {
                "user": "kimchy",
                "message" : "trying out Elasticsearch",

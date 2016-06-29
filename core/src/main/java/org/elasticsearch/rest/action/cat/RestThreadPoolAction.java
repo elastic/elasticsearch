@@ -27,7 +27,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
@@ -108,8 +108,8 @@ public class RestThreadPoolAction extends AbstractCatAction {
     }
 
     @Inject
-    public RestThreadPoolAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestThreadPoolAction(Settings settings, RestController controller) {
+        super(settings, controller);
         controller.registerHandler(GET, "/_cat/thread_pool", this);
     }
 
@@ -119,7 +119,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));

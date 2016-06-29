@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -50,8 +50,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestSearchScrollAction extends BaseRestHandler {
 
     @Inject
-    public RestSearchScrollAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestSearchScrollAction(Settings settings, RestController controller) {
+        super(settings);
 
         controller.registerHandler(GET, "/_search/scroll", this);
         controller.registerHandler(POST, "/_search/scroll", this);
@@ -60,7 +60,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         String scrollId = request.param("scroll_id");
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
         searchScrollRequest.scrollId(scrollId);

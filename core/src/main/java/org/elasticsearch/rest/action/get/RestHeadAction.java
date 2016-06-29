@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.get;
 
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
@@ -49,8 +49,8 @@ public abstract class RestHeadAction extends BaseRestHandler {
     public static class Document extends RestHeadAction {
 
         @Inject
-        public Document(Settings settings, RestController controller, Client client) {
-            super(settings, client, false);
+        public Document(Settings settings, RestController controller) {
+            super(settings, false);
             controller.registerHandler(HEAD, "/{index}/{type}/{id}", this);
         }
     }
@@ -61,8 +61,8 @@ public abstract class RestHeadAction extends BaseRestHandler {
     public static class Source extends RestHeadAction {
 
         @Inject
-        public Source(Settings settings, RestController controller, Client client) {
-            super(settings, client, true);
+        public Source(Settings settings, RestController controller) {
+            super(settings, true);
             controller.registerHandler(HEAD, "/{index}/{type}/{id}/_source", this);
         }
     }
@@ -73,17 +73,16 @@ public abstract class RestHeadAction extends BaseRestHandler {
      * All subclasses must be registered in {@link org.elasticsearch.common.network.NetworkModule}.
      *
      * @param settings injected settings
-     * @param client   injected client
      * @param source   {@code false} to check for {@link GetResponse#isExists()}.
      *                 {@code true} to also check for {@link GetResponse#isSourceEmpty()}.
      */
-    public RestHeadAction(Settings settings, Client client, boolean source) {
-        super(settings, client);
+    public RestHeadAction(Settings settings, boolean source) {
+        super(settings);
         this.source = source;
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
         getRequest.operationThreaded(true);
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));

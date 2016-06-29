@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -71,16 +72,13 @@ public class RestFilterChainTests extends ESTestCase {
             }
         }
 
-        restController.registerHandler(RestRequest.Method.GET, "/", new RestHandler() {
-            @Override
-            public void handleRequest(RestRequest request, RestChannel channel) throws Exception {
-                channel.sendResponse(new TestResponse());
-            }
+        restController.registerHandler(RestRequest.Method.GET, "/", (request, channel, client) -> {
+            channel.sendResponse(new TestResponse());
         });
 
         FakeRestRequest fakeRestRequest = new FakeRestRequest();
         FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean(), 1);
-        restController.dispatchRequest(fakeRestRequest, fakeRestChannel, new ThreadContext(Settings.EMPTY));
+        restController.dispatchRequest(fakeRestRequest, fakeRestChannel, null, new ThreadContext(Settings.EMPTY));
         assertThat(fakeRestChannel.await(), equalTo(true));
 
 
@@ -117,12 +115,9 @@ public class RestFilterChainTests extends ESTestCase {
 
         final int additionalContinueCount = randomInt(10);
 
-        TestFilter testFilter = new TestFilter(randomInt(), new Callback() {
-            @Override
-            public void execute(final RestRequest request, final RestChannel channel, final RestFilterChain filterChain) throws Exception {
-                for (int i = 0; i <= additionalContinueCount; i++) {
-                    filterChain.continueProcessing(request, channel);
-                }
+        TestFilter testFilter = new TestFilter(randomInt(), (request, channel, client, filterChain) -> {
+            for (int i = 0; i <= additionalContinueCount; i++) {
+                filterChain.continueProcessing(request, channel, null);
             }
         });
 
@@ -131,14 +126,14 @@ public class RestFilterChainTests extends ESTestCase {
 
         restController.registerHandler(RestRequest.Method.GET, "/", new RestHandler() {
             @Override
-            public void handleRequest(RestRequest request, RestChannel channel) throws Exception {
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 channel.sendResponse(new TestResponse());
             }
         });
 
         FakeRestRequest fakeRestRequest = new FakeRestRequest();
         FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean(), additionalContinueCount + 1);
-        restController.dispatchRequest(fakeRestRequest, fakeRestChannel, new ThreadContext(Settings.EMPTY));
+        restController.dispatchRequest(fakeRestRequest, fakeRestChannel, null, new ThreadContext(Settings.EMPTY));
         fakeRestChannel.await();
 
         assertThat(testFilter.runs.get(), equalTo(1));
@@ -150,20 +145,20 @@ public class RestFilterChainTests extends ESTestCase {
     private static enum Operation implements Callback {
         CONTINUE_PROCESSING {
             @Override
-            public void execute(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws Exception {
-                filterChain.continueProcessing(request, channel);
+            public void execute(RestRequest request, RestChannel channel, NodeClient client, RestFilterChain filterChain) throws Exception {
+                filterChain.continueProcessing(request, channel, client);
             }
         },
         CHANNEL_RESPONSE {
             @Override
-            public void execute(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws Exception {
+            public void execute(RestRequest request, RestChannel channel, NodeClient client, RestFilterChain filterChain) throws Exception {
                 channel.sendResponse(new TestResponse());
             }
         }
     }
 
     private static interface Callback {
-        void execute(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws Exception;
+        void execute(RestRequest request, RestChannel channel, NodeClient client, RestFilterChain filterChain) throws Exception;
     }
 
     private final AtomicInteger counter = new AtomicInteger();
@@ -180,10 +175,10 @@ public class RestFilterChainTests extends ESTestCase {
         }
 
         @Override
-        public void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws Exception {
+        public void process(RestRequest request, RestChannel channel, NodeClient client, RestFilterChain filterChain) throws Exception {
             this.runs.incrementAndGet();
             this.executionToken = counter.incrementAndGet();
-            this.callback.execute(request, channel, filterChain);
+            this.callback.execute(request, channel, client, filterChain);
         }
 
         @Override

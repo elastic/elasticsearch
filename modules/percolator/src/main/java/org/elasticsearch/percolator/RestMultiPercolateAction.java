@@ -19,7 +19,7 @@
 package org.elasticsearch.percolator;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -39,9 +39,9 @@ public class RestMultiPercolateAction extends BaseRestHandler {
     private final TransportMultiPercolateAction action;
 
     @Inject
-    public RestMultiPercolateAction(Settings settings, RestController controller, Client client,
+    public RestMultiPercolateAction(Settings settings, RestController controller,
                                     TransportMultiPercolateAction action) {
-        super(settings, client);
+        super(settings);
         this.action = action;
         controller.registerHandler(POST, "/_mpercolate", this);
         controller.registerHandler(POST, "/{index}/_mpercolate", this);
@@ -55,7 +55,7 @@ public class RestMultiPercolateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest restRequest, final RestChannel restChannel, final Client client) throws Exception {
+    public void handleRequest(final RestRequest restRequest, final RestChannel restChannel, final NodeClient client) throws Exception {
         MultiPercolateRequest multiPercolateRequest = new MultiPercolateRequest();
         multiPercolateRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, multiPercolateRequest.indicesOptions()));
         multiPercolateRequest.indices(Strings.splitStringByCommaToArray(restRequest.param("index")));

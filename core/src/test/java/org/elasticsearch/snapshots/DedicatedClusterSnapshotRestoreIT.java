@@ -31,6 +31,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -635,6 +636,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                         .put(MockRepository.Plugin.PASSWORD_SETTING.getKey(), "verysecretpassword")
         ).get();
 
+        NodeClient nodeClient = internalCluster().getInstance(NodeClient.class);
         RestGetRepositoriesAction getRepoAction = internalCluster().getInstance(RestGetRepositoriesAction.class);
         RestRequest getRepoRequest = new FakeRestRequest();
         getRepoRequest.params().put("repository", "test-repo");
@@ -651,7 +653,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 }
                 getRepoLatch.countDown();
             }
-        });
+        }, nodeClient);
         assertTrue(getRepoLatch.await(1, TimeUnit.SECONDS));
         if (getRepoError.get() != null) {
             throw getRepoError.get();
@@ -672,7 +674,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 }
                 clusterStateLatch.countDown();
             }
-        });
+        }, nodeClient);
         assertTrue(clusterStateLatch.await(1, TimeUnit.SECONDS));
         if (clusterStateError.get() != null) {
             throw clusterStateError.get();

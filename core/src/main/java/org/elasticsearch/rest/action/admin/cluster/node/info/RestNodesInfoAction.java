@@ -20,7 +20,7 @@
 package org.elasticsearch.rest.action.admin.cluster.node.info;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -46,8 +46,8 @@ public class RestNodesInfoAction extends BaseRestHandler {
     private final static Set<String> ALLOWED_METRICS = Sets.newHashSet("http", "jvm", "os", "plugins", "process", "settings", "thread_pool", "transport", "ingest", "indices");
 
     @Inject
-    public RestNodesInfoAction(Settings settings, RestController controller, Client client, SettingsFilter settingsFilter) {
-        super(settings, client);
+    public RestNodesInfoAction(Settings settings, RestController controller, SettingsFilter settingsFilter) {
+        super(settings);
         controller.registerHandler(GET, "/_nodes", this);
         // this endpoint is used for metrics, not for nodeIds, like /_nodes/fs
         controller.registerHandler(GET, "/_nodes/{nodeId}", this);
@@ -59,7 +59,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         String[] nodeIds;
         Set<String> metrics;
 

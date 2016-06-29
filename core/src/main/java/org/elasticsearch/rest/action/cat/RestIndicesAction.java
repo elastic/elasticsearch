@@ -27,7 +27,7 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
@@ -57,8 +57,8 @@ public class RestIndicesAction extends AbstractCatAction {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
-    public RestIndicesAction(Settings settings, RestController controller, Client client, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, controller, client);
+    public RestIndicesAction(Settings settings, RestController controller, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, controller);
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         controller.registerHandler(GET, "/_cat/indices", this);
         controller.registerHandler(GET, "/_cat/indices/{index}", this);
@@ -71,7 +71,7 @@ public class RestIndicesAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().indices(indices).metaData(true);

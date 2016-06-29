@@ -20,7 +20,7 @@
 package org.elasticsearch.common.network;
 
 import org.elasticsearch.action.support.replication.ReplicationTask;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.ModuleTestCase;
@@ -87,18 +87,18 @@ public class NetworkModuleTests extends ModuleTestCase {
 
     static class FakeRestHandler extends BaseRestHandler {
         public FakeRestHandler() {
-            super(null, null);
+            super(null);
         }
         @Override
-        protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {}
+        public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {}
     }
 
     static class FakeCatRestHandler extends AbstractCatAction {
         public FakeCatRestHandler() {
-            super(null, null, null);
+            super(null, null);
         }
         @Override
-        protected void doRequest(RestRequest request, RestChannel channel, Client client) {}
+        protected void doRequest(RestRequest request, RestChannel channel, NodeClient client) {}
         @Override
         protected void documentation(StringBuilder sb) {}
         @Override

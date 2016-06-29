@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.search;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -67,9 +67,9 @@ public class RestSearchAction extends BaseRestHandler {
     private final Suggesters suggesters;
 
     @Inject
-    public RestSearchAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry queryRegistry,
+    public RestSearchAction(Settings settings, RestController controller, IndicesQueriesRegistry queryRegistry,
             AggregatorParsers aggParsers, Suggesters suggesters) {
-        super(settings, client);
+        super(settings);
         this.queryRegistry = queryRegistry;
         this.aggParsers = aggParsers;
         this.suggesters = suggesters;
@@ -82,7 +82,7 @@ public class RestSearchAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws IOException {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         BytesReference restContent = RestActions.hasBodyContent(request) ? RestActions.getRestContent(request) : null;
         parseSearchRequest(searchRequest, queryRegistry, request, parseFieldMatcher, aggParsers, suggesters, restContent);

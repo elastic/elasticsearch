@@ -23,7 +23,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
@@ -51,8 +51,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestRecoveryAction extends AbstractCatAction {
 
     @Inject
-    public RestRecoveryAction(Settings settings, RestController restController, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestRecoveryAction(Settings settings, RestController restController, RestController controller) {
+        super(settings, controller);
         restController.registerHandler(GET, "/_cat/recovery", this);
         restController.registerHandler(GET, "/_cat/recovery/{index}", this);
     }
@@ -64,7 +64,7 @@ public class RestRecoveryAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final RecoveryRequest recoveryRequest = new RecoveryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         recoveryRequest.detailed(request.paramAsBoolean("detailed", false));
         recoveryRequest.activeOnly(request.paramAsBoolean("active_only", false));

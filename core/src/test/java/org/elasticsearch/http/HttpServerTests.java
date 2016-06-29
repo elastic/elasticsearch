@@ -66,9 +66,9 @@ public class HttpServerTests extends ESTestCase {
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
         RestController restController = new RestController(settings);
         restController.registerHandler(RestRequest.Method.GET, "/",
-            (request, channel) -> channel.sendResponse(
+            (request, channel, client) -> channel.sendResponse(
                 new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
-        restController.registerHandler(RestRequest.Method.GET, "/error", (request, channel) -> {
+        restController.registerHandler(RestRequest.Method.GET, "/error", (request, channel, client) -> {
                 throw new IllegalArgumentException("test error");
             });
 
@@ -76,7 +76,7 @@ public class HttpServerTests extends ESTestCase {
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null);
         NodeService nodeService = new NodeService(Settings.EMPTY, null, null, null, null, null, null, null, null,
             clusterService, null);
-        httpServer = new HttpServer(settings, httpServerTransport, restController, nodeService, circuitBreakerService);
+        httpServer = new HttpServer(settings, httpServerTransport, restController, nodeService, null, circuitBreakerService);
         httpServer.start();
     }
 

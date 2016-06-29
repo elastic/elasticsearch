@@ -21,7 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -40,9 +40,9 @@ public class RestRethrottleAction extends BaseRestHandler {
     private final ClusterService clusterService;
 
     @Inject
-    public RestRethrottleAction(Settings settings, RestController controller, Client client, TransportRethrottleAction action,
+    public RestRethrottleAction(Settings settings, RestController controller, TransportRethrottleAction action,
             ClusterService clusterService) {
-        super(settings, client);
+        super(settings);
         this.action = action;
         this.clusterService = clusterService;
         controller.registerHandler(POST, "/_update_by_query/{taskId}/_rethrottle", this);
@@ -51,7 +51,7 @@ public class RestRethrottleAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         RethrottleRequest internalRequest = new RethrottleRequest();
         internalRequest.setTaskId(new TaskId(request.param("taskId")));
         Float requestsPerSecond = AbstractBaseReindexRestHandler.parseRequestsPerSecond(request);

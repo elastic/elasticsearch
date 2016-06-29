@@ -22,7 +22,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
- *
+ * A response handler to be used when all interaction will be done through the {@link TransportFuture}.
  */
 public interface TransportResponseHandler<T extends TransportResponse> {
 

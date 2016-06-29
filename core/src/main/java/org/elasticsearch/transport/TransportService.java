@@ -342,7 +342,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 HANDSHAKE_ACTION_NAME,
                 HandshakeRequest.INSTANCE,
                 TransportRequestOptions.builder().withTimeout(handshakeTimeout).build(),
-                new FutureTransportResponseHandler<HandshakeResponse>() {
+                new TransportResponseHandler<HandshakeResponse>() {
                     @Override
                     public HandshakeResponse newInstance() {
                         return new HandshakeResponse();

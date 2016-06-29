@@ -49,10 +49,10 @@ import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.FutureTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -186,7 +186,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
             recoveryTarget.indexShard().prepareForIndexRecovery();
             recoveryTarget.CancellableThreads().execute(() -> responseHolder.set(
                     transportService.submitRequest(request.sourceNode(), RecoverySource.Actions.START_RECOVERY, request,
-                            new FutureTransportResponseHandler<RecoveryResponse>() {
+                            new TransportResponseHandler<RecoveryResponse>() {
                                 @Override
                                 public RecoveryResponse newInstance() {
                                     return new RecoveryResponse();

@@ -43,9 +43,9 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.FutureTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
@@ -383,7 +383,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                     LivenessResponse livenessResponse = transportService.submitRequest(listedNode, TransportLivenessAction.NAME,
                             new LivenessRequest(),
                             TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE).withTimeout(pingTimeout).build(),
-                            new FutureTransportResponseHandler<LivenessResponse>() {
+                            new TransportResponseHandler<LivenessResponse>() {
                                 @Override
                                 public LivenessResponse newInstance() {
                                     return new LivenessResponse();

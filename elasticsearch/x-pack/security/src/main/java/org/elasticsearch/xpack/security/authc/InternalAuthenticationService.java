@@ -173,7 +173,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
                 if (logger.isDebugEnabled()) {
                     logger.debug("failed to extract token from request: [{}]", e, request);
                 } else {
-                    logger.warn("failed to extract token from request: [{}]", request, e.getMessage());
+                    logger.warn("failed to extract token from request: [{}]: {}", request, e.getMessage());
                 }
                 throw request.exceptionProcessingRequest(e, null);
             }
@@ -211,7 +211,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
                     }
                 }
             } catch (Exception e) {
-                logger.debug("authentication failed for principal [{}], [{}]", e, request);
+                logger.debug("authentication failed for principal [{}]", e, request);
                 throw request.exceptionProcessingRequest(e, token);
             } finally {
                 token.clearCredentials();

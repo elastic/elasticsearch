@@ -57,7 +57,7 @@ dependencies {
 
 // we keep the source directories in the original structure of split plugins,
 // in order to facilitate backports to 2.x.  TODO: remove after 5.0 release
-for (String module : ['', 'license-plugin/', 'security/', 'watcher/', 'marvel/', 'graph/']) {
+for (String module : ['', 'license-plugin/', 'security/', 'watcher/', 'monitoring/', 'graph/']) {
   sourceSets {
     main {
       java.srcDir("${module}src/main/java")

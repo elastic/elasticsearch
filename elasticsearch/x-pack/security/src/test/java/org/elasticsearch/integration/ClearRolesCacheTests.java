@@ -83,7 +83,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         logger.debug("using poller interval [{}]", pollerInterval);
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(NativeRolesStore.POLL_INTERVAL_SETTING.getKey(), pollerInterval)
+                .put(NativeRolesStore.POLL_INTERVAL_SETTING.getKey(), pollerInterval.getStringRep())
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
     }

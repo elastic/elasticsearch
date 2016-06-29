@@ -174,7 +174,7 @@ integTest {
 
     setupCommand 'setupTestUser',
                  'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
-    setupCommand 'setupMarvelUser',
+    setupCommand 'setupMonitoringUser',
                  'bin/x-pack/users', 'useradd', 'monitoring_agent', '-p', 'changeme', '-r', 'remote_monitoring_agent'
 
     // Required to detect that the monitoring agent service has started

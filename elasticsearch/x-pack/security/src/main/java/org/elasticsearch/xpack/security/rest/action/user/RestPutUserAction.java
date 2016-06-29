@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -27,14 +27,14 @@ import org.elasticsearch.xpack.security.client.SecurityClient;
 public class RestPutUserAction extends BaseRestHandler {
 
     @Inject
-    public RestPutUserAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestPutUserAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.POST, "/_xpack/security/user/{username}", this);
         controller.registerHandler(RestRequest.Method.PUT, "/_xpack/security/user/{username}", this);
     }
 
     @Override
-    protected void handleRequest(RestRequest request, final RestChannel channel, Client client) throws Exception {
+    public void handleRequest(RestRequest request, final RestChannel channel, NodeClient client) throws Exception {
         PutUserRequestBuilder requestBuilder = new SecurityClient(client).preparePutUser(request.param("username"), request.content());
         if (request.hasParam("refresh")) {
             requestBuilder.setRefreshPolicy(request.param("refresh"));

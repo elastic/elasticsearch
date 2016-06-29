@@ -54,16 +54,16 @@ public class SecurityRestFilterTests extends ESTestCase {
         RestRequest request = mock(RestRequest.class);
         Authentication authentication = mock(Authentication.class);
         when(authcService.authenticate(request)).thenReturn(authentication);
-        filter.process(request, channel, chain);
-        verify(chain).continueProcessing(request, channel);
+        filter.process(request, channel, null, chain);
+        verify(chain).continueProcessing(request, channel, null);
         verifyZeroInteractions(channel);
     }
 
     public void testProcessBasicLicense() throws Exception {
         RestRequest request = mock(RestRequest.class);
         when(licenseState.authenticationAndAuthorizationEnabled()).thenReturn(false);
-        filter.process(request, channel, chain);
-        verify(chain).continueProcessing(request, channel);
+        filter.process(request, channel, null, chain);
+        verify(chain).continueProcessing(request, channel, null);
         verifyZeroInteractions(channel, authcService);
     }
 
@@ -71,7 +71,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         RestRequest request = mock(RestRequest.class);
         when(authcService.authenticate(request)).thenThrow(authenticationError("failed authc"));
         try {
-            filter.process(request, channel, chain);
+            filter.process(request, channel, null, chain);
             fail("expected rest filter process to throw an authentication exception when authentication fails");
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.getMessage(), equalTo("failed authc"));
@@ -83,8 +83,8 @@ public class SecurityRestFilterTests extends ESTestCase {
     public void testProcessOptionsMethod() throws Exception {
         RestRequest request = mock(RestRequest.class);
         when(request.method()).thenReturn(RestRequest.Method.OPTIONS);
-        filter.process(request, channel, chain);
-        verify(chain).continueProcessing(request, channel);
+        filter.process(request, channel, null, chain);
+        verify(chain).continueProcessing(request, channel, null);
         verifyZeroInteractions(channel);
         verifyZeroInteractions(authcService);
     }

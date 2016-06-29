@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.license.plugin.rest;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -28,14 +28,14 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestPutLicenseAction extends BaseRestHandler {
 
     @Inject
-    public RestPutLicenseAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestPutLicenseAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(PUT, "/_xpack/license", this);
         controller.registerHandler(POST, "/_xpack/license", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest();
         putLicenseRequest.license(request.content().toUtf8());
         putLicenseRequest.acknowledge(request.paramAsBoolean("acknowledge", false));

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action.role;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -27,13 +27,13 @@ import org.elasticsearch.xpack.security.client.SecurityClient;
 public class RestDeleteRoleAction extends BaseRestHandler {
 
     @Inject
-    public RestDeleteRoleAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestDeleteRoleAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.DELETE, "/_xpack/security/role/{name}", this);
     }
 
     @Override
-    protected void handleRequest(RestRequest request, final RestChannel channel, Client client) throws Exception {
+    public void handleRequest(RestRequest request, final RestChannel channel, NodeClient client) throws Exception {
         DeleteRoleRequestBuilder requestBuilder = new SecurityClient(client).prepareDeleteRole(request.param("name"));
         if (request.hasParam("refresh")) {
             requestBuilder.refresh(request.paramAsBoolean("refresh", true));

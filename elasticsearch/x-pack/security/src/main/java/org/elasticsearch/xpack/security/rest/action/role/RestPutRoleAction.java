@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action.role;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -27,14 +27,14 @@ import org.elasticsearch.xpack.security.client.SecurityClient;
 public class RestPutRoleAction extends BaseRestHandler {
 
     @Inject
-    public RestPutRoleAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestPutRoleAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.POST, "/_xpack/security/role/{name}", this);
         controller.registerHandler(RestRequest.Method.PUT, "/_xpack/security/role/{name}", this);
     }
 
     @Override
-    protected void handleRequest(RestRequest request, final RestChannel channel, Client client) throws Exception {
+    public void handleRequest(RestRequest request, final RestChannel channel, NodeClient client) throws Exception {
         PutRoleRequestBuilder requestBuilder = new SecurityClient(client).preparePutRole(request.param("name"), request.content());
         requestBuilder.setRefreshPolicy(request.param("refresh"));
         requestBuilder.execute(new RestBuilderListener<PutRoleResponse>(channel) {

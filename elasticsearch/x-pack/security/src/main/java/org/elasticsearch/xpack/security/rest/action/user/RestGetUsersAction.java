@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -29,14 +29,14 @@ import org.elasticsearch.xpack.security.client.SecurityClient;
 public class RestGetUsersAction extends BaseRestHandler {
 
     @Inject
-    public RestGetUsersAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestGetUsersAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.GET, "/_xpack/security/user/", this);
         controller.registerHandler(RestRequest.Method.GET, "/_xpack/security/user/{username}", this);
     }
 
     @Override
-    protected void handleRequest(RestRequest request, final RestChannel channel, Client client) throws Exception {
+    public void handleRequest(RestRequest request, final RestChannel channel, NodeClient client) throws Exception {
         String[] usernames = request.paramAsStringArray("username", Strings.EMPTY_ARRAY);
 
         new SecurityClient(client).prepareGetUsers(usernames).execute(new RestBuilderListener<GetUsersResponse>(channel) {

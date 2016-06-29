@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action.realm;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -21,14 +21,14 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestClearRealmCacheAction extends BaseRestHandler {
 
     @Inject
-    public RestClearRealmCacheAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestClearRealmCacheAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(POST, "/_xpack/security/realm/{realms}/_cache/clear", this); // deprecated
         controller.registerHandler(POST, "/_xpack/security/realm/{realms}/_clear_cache", this);
     }
 
     @Override
-    protected void handleRequest(RestRequest request, final RestChannel channel, Client client) throws Exception {
+    public void handleRequest(RestRequest request, final RestChannel channel, NodeClient client) throws Exception {
 
         String[] realms = request.paramAsStringArrayOrEmptyIfAll("realms");
         String[] usernames = request.paramAsStringArrayOrEmptyIfAll("usernames");

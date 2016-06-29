@@ -117,7 +117,7 @@ This status page is a start, but we can do a better job of explicitly documentin
 == Unreleased
 
 [float]
-=== Known Jepsen Tests Pass (STATUS: UNRELEASED)
+=== Known Jepsen Tests Pass (STATUS: UNRELEASED, V5.0.0)
 
 We have increased our test coverage to include scenarios tested by Jepsen, as described in the Elasticsearch related blogs. We make heavy
 use of randomization to expand on the scenarios that can be tested and to introduce new error conditions.

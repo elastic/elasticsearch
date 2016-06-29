@@ -114,10 +114,17 @@ while the stats request arrives will make that part of the request fail and are 
 
 This status page is a start, but we can do a better job of explicitly documenting the processes at work in Elasticsearch, and what happens in the case of each type of failure. The plan is to have a test case that validates each behavior under simulated conditions. Every test will document the expected results, the associated test code and an explicit PASS or FAIL status for each simulated case.
 
+[float]
+=== Run Jepsen (STATUS: ONGOING)
+
+We have ported all of the known scenarios in the Jepsen blogs to our testing infrastructure. The new tests are run continuously in our
+testing farm and are passing. We also working on running Jepsen independently and verify no failures are found.
+
+
 == Unreleased
 
 [float]
-=== Known Jepsen Tests Pass (STATUS: UNRELEASED, V5.0.0)
+=== Port Jepsen tests to our testing framework (STATUS: UNRELEASED, V5.0.0)
 
 We have increased our test coverage to include scenarios tested by Jepsen, as described in the Elasticsearch related blogs. We make heavy
 use of randomization to expand on the scenarios that can be tested and to introduce new error conditions.

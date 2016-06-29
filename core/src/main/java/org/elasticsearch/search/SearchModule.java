@@ -489,9 +489,9 @@ public class SearchModule extends AbstractModule {
 
     private void registerBuiltinAggregations() {
         registerAggregation(AvgAggregationBuilder::new, InternalAvg::new, new AvgParser(), AvgAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(SumAggregationBuilder::new, new SumParser(), SumAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(MinAggregationBuilder::new, new MinParser(), MinAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(MaxAggregationBuilder::new, new MaxParser(), MaxAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(SumAggregationBuilder::new, InternalSum::new, new SumParser(), SumAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(MinAggregationBuilder::new, InternalMin::new, new MinParser(), MinAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(MaxAggregationBuilder::new, InternalMax::new, new MaxParser(), MaxAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(StatsAggregationBuilder::new, InternalStats::new, new StatsParser(),
                 StatsAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(ExtendedStatsAggregationBuilder::new, InternalExtendedStats::new, new ExtendedStatsParser(),
@@ -721,9 +721,6 @@ public class SearchModule extends AbstractModule {
 
     static {
         // calcs
-        InternalSum.registerStreams();
-        InternalMin.registerStreams();
-        InternalMax.registerStreams();
         InternalValueCount.registerStreams();
         InternalTDigestPercentiles.registerStreams();
         InternalTDigestPercentileRanks.registerStreams();

@@ -223,6 +223,12 @@ for (String box : availableBoxes) {
     continue;
   }
 
+  Task update = tasks.create("vagrant${boxTask}#update", VagrantCommandTask) {
+    boxName box
+    args 'box', 'update', box
+    dependsOn checkVagrantVersion
+  }
+
   Task up = tasks.create("vagrant${boxTask}#up", VagrantCommandTask) {
     boxName box
     /* Its important that we try to reprovision the box even if it already
@@ -238,7 +244,7 @@ for (String box : availableBoxes) {
     args 'up', box, '--provision', '--provider', 'virtualbox'
     /* It'd be possible to check if the box is already up here and output
       SKIPPED but that would require running vagrant status which is slow! */
-    dependsOn checkVagrantVersion
+    dependsOn update
   }
 
   Task smoke = tasks.create("vagrant${boxTask}#smoketest", Exec) {

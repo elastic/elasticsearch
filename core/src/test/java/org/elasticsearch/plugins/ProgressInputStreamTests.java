@@ -69,19 +69,19 @@ public class ProgressInputStreamTests extends ESTestCase {
     }
 
     public void testOddBytes() throws Exception {
-        int odd = (randomIntBetween(100, 200) / 2) + 1;
+        int odd = randomIntBetween(10, 100) * 2 + 1;
         ProgressInputStream is = newProgressInputStream(odd);
         for (int i = 0; i < odd; i++) {
             is.checkProgress(1);
         }
         is.checkProgress(-1);
 
-        assertThat(progresses, hasSize(odd+1));
+        assertThat(progresses, hasSize(Math.min(odd + 1, 100)));
         assertThat(progresses, hasItem(100));
     }
 
     public void testEvenBytes() throws Exception {
-        int even = (randomIntBetween(100, 200) / 2);
+        int even = randomIntBetween(10, 100) * 2;
         ProgressInputStream is = newProgressInputStream(even);
 
         for (int i = 0; i < even; i++) {
@@ -89,7 +89,7 @@ public class ProgressInputStreamTests extends ESTestCase {
         }
         is.checkProgress(-1);
 
-        assertThat(progresses, hasSize(even+1));
+        assertThat(progresses, hasSize(Math.min(even + 1, 100)));
         assertThat(progresses, hasItem(100));
     }
 

@@ -362,24 +362,29 @@ public class PagedBytesReference implements BytesReference {
     @Override
     public BytesRefIterator iterator() {
         final BytesRef slice = new BytesRef();
+        // this iteration is page aligned to ensure we do NOT materialize the pages from the ByteArray
         return new BytesRefIterator() {
             int position = 0;
             @Override
             public BytesRef next() throws IOException {
-                if (position == 0 && offset == 0 && length > 0) {
+                if (position == 0 && offset != 0 && length > 0) {
                     // we are a slice and we are starting somewhere in the middle of a page
+                    // to ensure page alignment the first reference will not have the lenght
+                    // of a full page but we gain the benefit of not copying any data.
                     int fragmentSize = Math.min(length, PAGE_SIZE - (offset % PAGE_SIZE));
-                    bytearray.get(offset, fragmentSize, slice);
+                    final boolean materialized = bytearray.get(offset, fragmentSize, slice);
+                    assert materialized == false : "Iteration should be page aligned but array got materialized";
                     position += fragmentSize;
                     return slice;
-                } else if (position >= length) {
-                    return null;
-                } else {
+                } else if (position < length) {
                     final int remaining = length - position;
                     final int bulkSize = Math.min(remaining, PAGE_SIZE);
-                    bytearray.get(offset + position, bulkSize, slice);
+                    final boolean materialized = bytearray.get(offset + position, bulkSize, slice);
+                    assert materialized == false : "Iteration should be page aligned but array got materialized";
                     position += bulkSize;
                     return slice;
+                } else {
+                    return null; // we are done with this iteration
                 }
             }
         };

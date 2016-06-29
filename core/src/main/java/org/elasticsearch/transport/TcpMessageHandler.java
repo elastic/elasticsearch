@@ -96,6 +96,7 @@ public class TcpMessageHandler {
                 throw new IllegalStateException("Received message from unsupported version: [" + version
                     + "] minimal compatible version is: [" +Version.CURRENT.minimumCompatibilityVersion() + "]");
             }
+            streamIn = new NamedWriteableAwareStreamInput(streamIn, namedWriteableRegistry);
             streamIn.setVersion(version);
             if (TransportStatus.isRequest(status)) {
                 threadContext.readHeaders(streamIn);
@@ -128,8 +129,7 @@ public class TcpMessageHandler {
         }
     }
 
-    protected void handleResponse(InetSocketAddress remoteAddress, StreamInput stream, final TransportResponseHandler handler) {
-        stream = new NamedWriteableAwareStreamInput(stream, namedWriteableRegistry);
+    protected void handleResponse(InetSocketAddress remoteAddress, final StreamInput stream, final TransportResponseHandler handler) {
         final TransportResponse response = handler.newInstance();
         response.remoteAddress(new InetSocketTransportAddress(remoteAddress));
         try {
@@ -139,22 +139,17 @@ public class TcpMessageHandler {
                     "Failed to deserialize response of type [" + response.getClass().getName() + "]", e));
             return;
         }
-        try {
-            if (ThreadPool.Names.SAME.equals(handler.executor())) {
-                //noinspection unchecked
-                handler.handleResponse(response);
-            } else {
-                threadPool.executor(handler.executor()).execute(() -> {
-                    try {
-                        handler.handleResponse(response);
-                    } catch (Throwable e) {
-                        handleException(handler, new ResponseHandlerFailureTransportException(e));
-                    }
-                });
+        threadPool.executor(handler.executor()).execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Throwable t) {
+                handleException(handler, new ResponseHandlerFailureTransportException(t));
             }
-        } catch (Throwable e) {
-            handleException(handler, new ResponseHandlerFailureTransportException(e));
-        }
+
+            @Override
+            protected void doRun() throws Exception {
+                handler.handleResponse(response);
+            }});
+
     }
 
     /**
@@ -175,7 +170,7 @@ public class TcpMessageHandler {
             error = new RemoteTransportException(error.getMessage(), error);
         }
         final RemoteTransportException rtx = (RemoteTransportException) error;
-        threadPool.executor(handler.executor()).execute(() -> { // handles SAME executor as well
+        threadPool.executor(handler.executor()).execute(() -> {
             try {
                 handler.handleException(rtx);
             } catch (Throwable e) {
@@ -184,10 +179,9 @@ public class TcpMessageHandler {
         });
     }
 
-    protected String handleRequest(ChannelFactory channelFactory, StreamInput buffer, long requestId,
+    protected String handleRequest(ChannelFactory channelFactory, final StreamInput stream, long requestId,
                                    int messageLengthBytes, Version version, InetSocketAddress remoteAddress) throws IOException {
-        buffer = new NamedWriteableAwareStreamInput(buffer, namedWriteableRegistry);
-        final String action = buffer.readString();
+        final String action = stream.readString();
         transportServiceAdapter.onRequestReceived(requestId, action);
         TransportChannel transportChannel = null;
         try {
@@ -203,15 +197,10 @@ public class TcpMessageHandler {
             transportChannel = channelFactory.create(action, requestId, version, messageLengthBytes);
             final TransportRequest request = reg.newRequest();
             request.remoteAddress(new InetSocketTransportAddress(remoteAddress));
-            request.readFrom(buffer);
+            request.readFrom(stream);
             // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
-            validateRequest(buffer, requestId, action);
-            if (ThreadPool.Names.SAME.equals(reg.getExecutor())) {
-                //noinspection unchecked
-                reg.processMessageReceived(request, transportChannel);
-            } else {
-                threadPool.executor(reg.getExecutor()).execute(new RequestHandler(reg, request, transportChannel));
-            }
+            validateRequest(stream, requestId, action);
+            threadPool.executor(reg.getExecutor()).execute(new RequestHandler(reg, request, transportChannel));
         } catch (Throwable e) {
             // the circuit breaker tripped
             if (transportChannel == null) {

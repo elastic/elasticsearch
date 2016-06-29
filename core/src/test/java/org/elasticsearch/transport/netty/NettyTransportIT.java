@@ -120,9 +120,9 @@ public class NettyTransportIT extends ESIntegTestCase {
                     nettyTransport.transportServiceAdapter(), nettyTransport.getNamedWriteableRegistry(), logger) {
                     @Override
                     protected String handleRequest(TcpMessageHandler.ChannelFactory channelFactory,
-                                                   StreamInput buffer, long requestId, int messageLengthBytes, Version version,
+                                                   StreamInput stream, long requestId, int messageLengthBytes, Version version,
                                                    InetSocketAddress remoteAddress) throws IOException {
-                        String action = super.handleRequest(channelFactory, buffer, requestId, messageLengthBytes, version,
+                        String action = super.handleRequest(channelFactory, stream, requestId, messageLengthBytes, version,
                             remoteAddress);
                         channelProfileName = TransportSettings.DEFAULT_PROFILE;
                         return action;
@@ -138,7 +138,6 @@ public class NettyTransportIT extends ESIntegTestCase {
                         }
                     }
                 };
-                    nettyTransport.newMessageChannelHandler();
                 pipeline.replace("dispatcher", "dispatcher",
                     new NettyMessageChannelHandler(nettyTransport, TransportSettings.DEFAULT_PROFILE, handler));
                 return pipeline;

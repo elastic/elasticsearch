@@ -20,14 +20,10 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.channels.GatheringByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
@@ -104,11 +100,6 @@ public class BytesArray implements BytesReference {
     }
 
     @Override
-    public void writeTo(GatheringByteChannel channel) throws IOException {
-        Channels.writeToChannel(bytes, offset, length(), channel);
-    }
-
-    @Override
     public byte[] toBytes() {
         if (offset == 0 && bytes.length == length) {
             return bytes;
@@ -124,11 +115,6 @@ public class BytesArray implements BytesReference {
     @Override
     public BytesArray copyBytesArray() {
         return new BytesArray(Arrays.copyOfRange(bytes, offset, offset + length));
-    }
-
-    @Override
-    public ChannelBuffer toChannelBuffer() {
-        return ChannelBuffers.wrappedBuffer(bytes, offset, length);
     }
 
     @Override

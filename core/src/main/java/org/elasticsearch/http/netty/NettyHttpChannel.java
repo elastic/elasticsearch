@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.netty.ReleaseChannelFutureListener;
 import org.elasticsearch.http.netty.cors.CorsHandler;
 import org.elasticsearch.http.netty.pipelining.OrderedDownstreamChannelEvent;
@@ -105,7 +106,7 @@ public final class NettyHttpChannel extends AbstractRestChannel {
         ChannelBuffer buffer;
         boolean addedReleaseListener = false;
         try {
-            buffer = content.toChannelBuffer();
+            buffer = NettyUtils.toChannelBuffer(content);
             resp.setContent(buffer);
 
             // If our response doesn't specify a content-type header, set one

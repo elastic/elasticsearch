@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -121,16 +120,6 @@ public abstract class RestRequest implements ToXContent.Params {
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Failed to parse long parameter [" + key + "] with value [" + sValue + "]", e);
         }
-    }
-
-    @Override
-    public boolean paramAsBoolean(String key, boolean defaultValue) {
-        return Booleans.parseBoolean(param(key), defaultValue);
-    }
-
-    @Override
-    public Boolean paramAsBoolean(String key, Boolean defaultValue) {
-        return Booleans.parseBoolean(param(key), defaultValue);
     }
 
     public TimeValue paramAsTime(String key, TimeValue defaultValue) {

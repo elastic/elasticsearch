@@ -20,6 +20,7 @@
 package org.elasticsearch.common.recycler;
 
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.recycler.Recycler.V;
 
 /**
  * A recycled object, note, implementations should support calling obtain and then recycle
@@ -40,7 +41,9 @@ public interface Recycler<T> extends Releasable {
         void recycle(T value);
 
         /** Destroy the data. This operation allows the data structure to release any internal resources before GC. */
-        void destroy(T value);
+        default void destroy(T value) {
+            // by default we simply drop the object for GC.
+        }
     }
 
     interface V<T> extends Releasable {
@@ -55,7 +58,9 @@ public interface Recycler<T> extends Releasable {
 
     void close();
 
-    V<T> obtain();
+    default V<T> obtain() {
+        return obtain(-1);
+    }
 
     V<T> obtain(int sizing);
 }

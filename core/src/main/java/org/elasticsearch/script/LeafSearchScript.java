@@ -44,8 +44,12 @@ public interface LeafSearchScript extends ScorerAware, ExecutableScript {
         setNextVar("_value", value);
     }
 
-    long runAsLong();
+    default long runAsLong() {
+        return ((Number) run()).longValue();
+    }
 
-    double runAsDouble();
+    default double runAsDouble() {
+        return ((Number) run()).doubleValue();
+    }
 
 }

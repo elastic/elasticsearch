@@ -21,44 +21,58 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainRequestBuilder;
 import org.elasticsearch.action.explain.ExplainResponse;
+import org.elasticsearch.action.fieldstats.FieldStatsAction;
 import org.elasticsearch.action.fieldstats.FieldStatsRequest;
 import org.elasticsearch.action.fieldstats.FieldStatsRequestBuilder;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
+import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollRequestBuilder;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
+import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequestBuilder;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
+import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsRequestBuilder;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
+import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -128,7 +142,9 @@ public interface Client extends ElasticsearchClient, Releasable {
      * <p>
      * The id is optional, if it is not provided, one will be generated automatically.
      */
-    IndexRequestBuilder prepareIndex();
+    default IndexRequestBuilder prepareIndex() {
+        return new IndexRequestBuilder(this, IndexAction.INSTANCE, null);
+    }
 
     /**
      * Updates a document based on a script.
@@ -149,12 +165,16 @@ public interface Client extends ElasticsearchClient, Releasable {
     /**
      * Updates a document based on a script.
      */
-    UpdateRequestBuilder prepareUpdate();
+    default UpdateRequestBuilder prepareUpdate() {
+        return new UpdateRequestBuilder(this, UpdateAction.INSTANCE, null, null, null);
+    }
 
     /**
      * Updates a document based on a script.
      */
-    UpdateRequestBuilder prepareUpdate(String index, String type, String id);
+    default UpdateRequestBuilder prepareUpdate(String index, String type, String id) {
+        return new UpdateRequestBuilder(this, UpdateAction.INSTANCE, index, type, id);
+    }
 
     /**
      * Index a document associated with a given index and type.
@@ -164,7 +184,9 @@ public interface Client extends ElasticsearchClient, Releasable {
      * @param index The index to index the document to
      * @param type  The type to index the document to
      */
-    IndexRequestBuilder prepareIndex(String index, String type);
+    default IndexRequestBuilder prepareIndex(String index, String type) {
+        return prepareIndex(index, type, null);
+    }
 
     /**
      * Index a document associated with a given index and type.
@@ -175,7 +197,9 @@ public interface Client extends ElasticsearchClient, Releasable {
      * @param type  The type to index the document to
      * @param id    The id of the document
      */
-    IndexRequestBuilder prepareIndex(String index, String type, @Nullable String id);
+    default IndexRequestBuilder prepareIndex(String index, String type, @Nullable String id) {
+        return prepareIndex().setIndex(index).setType(type).setId(id);
+    }
 
     /**
      * Deletes a document from the index based on the index, type and id.
@@ -198,7 +222,9 @@ public interface Client extends ElasticsearchClient, Releasable {
     /**
      * Deletes a document from the index based on the index, type and id.
      */
-    DeleteRequestBuilder prepareDelete();
+    default DeleteRequestBuilder prepareDelete() {
+        return new DeleteRequestBuilder(this, DeleteAction.INSTANCE, null);
+    }
 
     /**
      * Deletes a document from the index based on the index, type and id.
@@ -207,7 +233,9 @@ public interface Client extends ElasticsearchClient, Releasable {
      * @param type  The type of the document to delete
      * @param id    The id of the document to delete
      */
-    DeleteRequestBuilder prepareDelete(String index, String type, String id);
+    default DeleteRequestBuilder prepareDelete(String index, String type, String id) {
+        return prepareDelete().setIndex(index).setType(type).setId(id);
+    }
 
     /**
      * Executes a bulk of index / delete operations.
@@ -230,7 +258,9 @@ public interface Client extends ElasticsearchClient, Releasable {
     /**
      * Executes a bulk of index / delete operations.
      */
-    BulkRequestBuilder prepareBulk();
+    default BulkRequestBuilder prepareBulk() {
+        return new BulkRequestBuilder(this, BulkAction.INSTANCE);
+    }
 
     /**
      * Gets the document that was indexed from an index with a type and id.
@@ -253,7 +283,9 @@ public interface Client extends ElasticsearchClient, Releasable {
     /**
      * Gets the document that was indexed from an index with a type and id.
      */
-    GetRequestBuilder prepareGet();
+    default GetRequestBuilder prepareGet() {
+        return new GetRequestBuilder(this, GetAction.INSTANCE, null);
+    }
 
     /**
      * Gets the document that was indexed from an index with a type (optional) and id.
@@ -273,7 +305,9 @@ public interface Client extends ElasticsearchClient, Releasable {
     /**
      * Multi get documents.
      */
-    MultiGetRequestBuilder prepareMultiGet();
+    default MultiGetRequestBuilder prepareMultiGet() {
+        return new MultiGetRequestBuilder(this, MultiGetAction.INSTANCE);
+    }
 
     /**
      * Search across one or more indices and one or more types with a query.
@@ -296,7 +330,9 @@ public interface Client extends ElasticsearchClient, Releasable {
     /**
      * Search across one or more indices and one or more types with a query.
      */
-    SearchRequestBuilder prepareSearch(String... indices);
+    default SearchRequestBuilder prepareSearch(String... indices) {
+        return new SearchRequestBuilder(this, SearchAction.INSTANCE).setIndices(indices);
+    }
 
     /**
      * A search scroll request to continue searching a previous scrollable search request.
@@ -319,7 +355,9 @@ public interface Client extends ElasticsearchClient, Releasable {
     /**
      * A search scroll request to continue searching a previous scrollable search request.
      */
-    SearchScrollRequestBuilder prepareSearchScroll(String scrollId);
+    default SearchScrollRequestBuilder prepareSearchScroll(String scrollId) {
+        return new SearchScrollRequestBuilder(this, SearchScrollAction.INSTANCE, scrollId);
+    }
 
     /**
      * Performs multiple search requests.
@@ -334,7 +372,9 @@ public interface Client extends ElasticsearchClient, Releasable {
     /**
      * Performs multiple search requests.
      */
-    MultiSearchRequestBuilder prepareMultiSearch();
+    default MultiSearchRequestBuilder prepareMultiSearch() {
+        return new MultiSearchRequestBuilder(this, MultiSearchAction.INSTANCE);
+    }
 
     /**
      * An action that returns the term vectors for a specific document.
@@ -354,7 +394,9 @@ public interface Client extends ElasticsearchClient, Releasable {
     /**
      * Builder for the term vector request.
      */
-    TermVectorsRequestBuilder prepareTermVectors();
+    default TermVectorsRequestBuilder prepareTermVectors() {
+        return new TermVectorsRequestBuilder(this, TermVectorsAction.INSTANCE);
+    }
 
     /**
      * Builder for the term vector request.
@@ -363,7 +405,9 @@ public interface Client extends ElasticsearchClient, Releasable {
      * @param type  The type of the document
      * @param id    The id of the document
      */
-    TermVectorsRequestBuilder prepareTermVectors(String index, String type, String id);
+    default TermVectorsRequestBuilder prepareTermVectors(String index, String type, String id) {
+        return new TermVectorsRequestBuilder(this, TermVectorsAction.INSTANCE, index, type, id);
+    }
 
     /**
      * An action that returns the term vectors for a specific document.
@@ -386,7 +430,10 @@ public interface Client extends ElasticsearchClient, Releasable {
      * Builder for the term vector request.
      */
     @Deprecated
-    TermVectorsRequestBuilder prepareTermVector();
+    default
+    TermVectorsRequestBuilder prepareTermVector() {
+        return prepareTermVectors();
+    }
 
     /**
      * Builder for the term vector request.
@@ -396,7 +443,10 @@ public interface Client extends ElasticsearchClient, Releasable {
      * @param id    The id of the document
      */
     @Deprecated
-    TermVectorsRequestBuilder prepareTermVector(String index, String type, String id);
+    default
+    TermVectorsRequestBuilder prepareTermVector(String index, String type, String id) {
+        return prepareTermVectors(index, type, id);
+    }
 
     /**
      * Multi get term vectors.
@@ -411,7 +461,9 @@ public interface Client extends ElasticsearchClient, Releasable {
     /**
      * Multi get term vectors.
      */
-    MultiTermVectorsRequestBuilder prepareMultiTermVectors();
+    default MultiTermVectorsRequestBuilder prepareMultiTermVectors() {
+        return new MultiTermVectorsRequestBuilder(this, MultiTermVectorsAction.INSTANCE);
+    }
 
     /**
      * Computes a score explanation for the specified request.
@@ -420,7 +472,9 @@ public interface Client extends ElasticsearchClient, Releasable {
      * @param type  The type this explain is targeted for
      * @param id    The document identifier this explain is targeted for
      */
-    ExplainRequestBuilder prepareExplain(String index, String type, String id);
+    default ExplainRequestBuilder prepareExplain(String index, String type, String id) {
+        return new ExplainRequestBuilder(this, ExplainAction.INSTANCE, index, type, id);
+    }
 
     /**
      * Computes a score explanation for the specified request.
@@ -440,7 +494,9 @@ public interface Client extends ElasticsearchClient, Releasable {
     /**
      * Clears the search contexts associated with specified scroll ids.
      */
-    ClearScrollRequestBuilder prepareClearScroll();
+    default ClearScrollRequestBuilder prepareClearScroll() {
+        return new ClearScrollRequestBuilder(this, ClearScrollAction.INSTANCE);
+    }
 
     /**
      * Clears the search contexts associated with specified scroll ids.
@@ -452,7 +508,9 @@ public interface Client extends ElasticsearchClient, Releasable {
      */
     void clearScroll(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener);
 
-    FieldStatsRequestBuilder prepareFieldStats();
+    default FieldStatsRequestBuilder prepareFieldStats() {
+        return new FieldStatsRequestBuilder(this, FieldStatsAction.INSTANCE);
+    }
 
     ActionFuture<FieldStatsResponse> fieldStats(FieldStatsRequest request);
 

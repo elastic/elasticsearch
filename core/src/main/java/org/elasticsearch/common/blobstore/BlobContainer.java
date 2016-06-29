@@ -88,7 +88,11 @@ public interface BlobContainer {
      *          The bytes to write to the blob.
      * @throws  IOException if a blob by the same name already exists, or the target blob could not be written to.
      */
-    void writeBlob(String blobName, BytesReference bytes) throws IOException;
+    default void writeBlob(String blobName, BytesReference bytes) throws IOException {
+        try (InputStream stream = bytes.streamInput()) {
+            writeBlob(blobName, stream, bytes.length());
+        }
+    }
 
     /**
      * Deletes a blob with giving name, if the blob exists.  If the blob does not exist, this method throws an IOException.
@@ -112,7 +116,11 @@ public interface BlobContainer {
      *          The collection of blob names to delete from the container.
      * @throws  IOException if any of the blobs in the collection exists but could not be deleted.
      */
-    void deleteBlobs(Collection<String> blobNames) throws IOException;
+    default void deleteBlobs(Collection<String> blobNames) throws IOException {
+        for (String blob: blobNames) {
+            deleteBlob(blob);
+        }
+    }
 
     /**
      * Deletes all blobs in the container that match the specified prefix.  If any of the blobs failed to delete,
@@ -126,7 +134,12 @@ public interface BlobContainer {
      *          The prefix to match against blob names in the container.  Any blob whose name has the prefix will be deleted.
      * @throws  IOException if any of the matching blobs failed to delete.
      */
-    void deleteBlobsByPrefix(String blobNamePrefix) throws IOException;
+    default void deleteBlobsByPrefix(String blobNamePrefix) throws IOException {
+        Map<String, BlobMetaData> blobs = listBlobsByPrefix(blobNamePrefix);
+        for (BlobMetaData blob : blobs.values()) {
+            deleteBlob(blob.name());
+        }
+    }
 
     /**
      * Lists all blobs in the container.

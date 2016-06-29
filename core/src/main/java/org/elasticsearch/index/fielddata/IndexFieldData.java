@@ -38,6 +38,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -87,12 +88,16 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
     /**
      * Comparator used for sorting.
      */
-    XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested);
+    default XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
+        throw new UnsupportedOperationException("no global ordinals sorting yet");
+    }
 
     /**
      * Clears any resources associated with this field data.
      */
-    void clear();
+    default void clear() {
+        // no need to clear, because this is cached and cleared in AbstractBytesIndexFieldData
+    }
 
     // we need this extended source we we have custom comparators to reuse our field data
     // in this case, we need to reduce type that will be used when search results are reduced

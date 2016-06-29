@@ -25,7 +25,9 @@ public interface ServiceDisruptionScheme {
 
     void applyToCluster(InternalTestCluster cluster);
 
-    void removeFromCluster(InternalTestCluster cluster);
+    default void removeFromCluster(InternalTestCluster cluster) {
+        stopDisrupting();
+    }
 
     void removeAndEnsureHealthy(InternalTestCluster cluster);
 

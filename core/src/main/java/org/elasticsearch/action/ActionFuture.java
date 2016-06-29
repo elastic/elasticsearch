@@ -43,7 +43,9 @@ public interface ActionFuture<T> extends Future<T> {
      * an {@link IllegalStateException} instead. Also catches
      * {@link java.util.concurrent.ExecutionException} and throws the actual cause instead.
      */
-    T actionGet(String timeout);
+    default T actionGet(String timeout) {
+        return actionGet(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".actionGet.timeout"));
+    }
 
     /**
      * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just catching the {@link InterruptedException} and throwing
@@ -52,7 +54,9 @@ public interface ActionFuture<T> extends Future<T> {
      *
      * @param timeoutMillis Timeout in millis
      */
-    T actionGet(long timeoutMillis);
+    default T actionGet(long timeoutMillis) {
+        return actionGet(timeoutMillis, TimeUnit.MILLISECONDS);
+    }
 
     /**
      * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just catching the {@link InterruptedException} and throwing
@@ -66,5 +70,7 @@ public interface ActionFuture<T> extends Future<T> {
      * an {@link IllegalStateException} instead. Also catches
      * {@link java.util.concurrent.ExecutionException} and throws the actual cause instead.
      */
-    T actionGet(TimeValue timeout);
+    default T actionGet(TimeValue timeout) {
+        return actionGet(timeout.millis(), TimeUnit.MILLISECONDS);
+    }
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.xcontent.support;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -71,21 +70,6 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     @Override
-    public boolean isBooleanValue() throws IOException {
-        switch (currentToken()) {
-            case VALUE_BOOLEAN:
-                return true;
-            case VALUE_NUMBER:
-                NumberType numberType = numberType();
-                return numberType == NumberType.LONG || numberType == NumberType.INT;
-            case VALUE_STRING:
-                return Booleans.isBoolean(textCharacters(), textOffset(), textLength());
-            default:
-                return false;
-        }
-    }
-
-    @Override
     public boolean booleanValue() throws IOException {
         Token token = currentToken();
         if (token == Token.VALUE_NUMBER) {
@@ -97,11 +81,6 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     protected abstract boolean doBooleanValue() throws IOException;
-
-    @Override
-    public short shortValue() throws IOException {
-        return shortValue(DEFAULT_NUMBER_COERCE_POLICY);
-    }
 
     @Override
     public short shortValue(boolean coerce) throws IOException {
@@ -118,12 +97,6 @@ public abstract class AbstractXContentParser implements XContentParser {
     protected abstract short doShortValue() throws IOException;
 
     @Override
-    public int intValue() throws IOException {
-        return intValue(DEFAULT_NUMBER_COERCE_POLICY);
-    }
-
-
-    @Override
     public int intValue(boolean coerce) throws IOException {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
@@ -136,11 +109,6 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     protected abstract int doIntValue() throws IOException;
-
-    @Override
-    public long longValue() throws IOException {
-        return longValue(DEFAULT_NUMBER_COERCE_POLICY);
-    }
 
     @Override
     public long longValue(boolean coerce) throws IOException {
@@ -157,11 +125,6 @@ public abstract class AbstractXContentParser implements XContentParser {
     protected abstract long doLongValue() throws IOException;
 
     @Override
-    public float floatValue() throws IOException {
-        return floatValue(DEFAULT_NUMBER_COERCE_POLICY);
-    }
-
-    @Override
     public float floatValue(boolean coerce) throws IOException {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
@@ -173,11 +136,6 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     protected abstract float doFloatValue() throws IOException;
 
-
-    @Override
-    public double doubleValue() throws IOException {
-        return doubleValue(DEFAULT_NUMBER_COERCE_POLICY);
-    }
 
     @Override
     public double doubleValue(boolean coerce) throws IOException {
@@ -199,14 +157,6 @@ public abstract class AbstractXContentParser implements XContentParser {
         return text();
     }
 
-
-    @Override
-    public BytesRef utf8BytesOrNull() throws IOException {
-        if (currentToken() == Token.VALUE_NULL) {
-            return null;
-        }
-        return utf8Bytes();
-    }
 
     @Override
     public Map<String, Object> map() throws IOException {

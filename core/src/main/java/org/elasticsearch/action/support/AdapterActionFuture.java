@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 
@@ -45,21 +44,6 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
         } catch (ExecutionException e) {
             throw rethrowExecutionException(e);
         }
-    }
-
-    @Override
-    public T actionGet(String timeout) {
-        return actionGet(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".actionGet.timeout"));
-    }
-
-    @Override
-    public T actionGet(long timeoutMillis) {
-        return actionGet(timeoutMillis, TimeUnit.MILLISECONDS);
-    }
-
-    @Override
-    public T actionGet(TimeValue timeout) {
-        return actionGet(timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
     @Override

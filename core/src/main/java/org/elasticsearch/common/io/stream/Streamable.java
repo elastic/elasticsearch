@@ -37,10 +37,14 @@ public interface Streamable {
     /**
      * Set this object's fields from a {@linkplain StreamInput}.
      */
-    void readFrom(StreamInput in) throws IOException;
+    default void readFrom(StreamInput in) throws IOException {
+    
+    }
 
     /**
      * Write this object's fields to a {@linkplain StreamOutput}.
      */
-    void writeTo(StreamOutput out) throws IOException;
+    default void writeTo(StreamOutput out) throws IOException {
+    
+    }
 }

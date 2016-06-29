@@ -34,9 +34,13 @@ public interface ToXContent {
 
         String param(String key, String defaultValue);
 
-        boolean paramAsBoolean(String key, boolean defaultValue);
+        default boolean paramAsBoolean(String key, boolean defaultValue) {
+            return Booleans.parseBoolean(param(key), defaultValue);
+        }
 
-        Boolean paramAsBoolean(String key, Boolean defaultValue);
+        default Boolean paramAsBoolean(String key, Boolean defaultValue) {
+            return Booleans.parseBoolean(param(key), defaultValue);
+        }
     }
 
     public static final Params EMPTY_PARAMS = new Params() {

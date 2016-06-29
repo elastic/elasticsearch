@@ -25,8 +25,6 @@ import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -132,57 +130,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     }
 
     @Override
-    public BoundTransportAddress boundAddress() {
-        return null;
-    }
-
-    @Override
-    public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public boolean addressSupported(Class<? extends TransportAddress> address) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean nodeConnected(DiscoveryNode node) {
-        return false;
-    }
-
-    @Override
-    public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
-
-    }
-
-    @Override
-    public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
-
-    }
-
-    @Override
-    public void disconnectFromNode(DiscoveryNode node) {
-
-    }
-
-    @Override
-    public long serverOpen() {
-        return 0;
-    }
-
-    @Override
-    public Lifecycle.State lifecycleState() {
-        return null;
-    }
-
-    @Override
-    public void addLifecycleListener(LifecycleListener listener) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void removeLifecycleListener(LifecycleListener listener) {
         throw new UnsupportedOperationException();
     }
 

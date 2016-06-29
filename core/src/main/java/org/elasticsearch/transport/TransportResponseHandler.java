@@ -19,6 +19,8 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.threadpool.ThreadPool;
+
 /**
  *
  */
@@ -32,9 +34,13 @@ public interface TransportResponseHandler<T extends TransportResponse> {
      */
     T newInstance();
 
-    void handleResponse(T response);
+    default void handleResponse(T response) {
+    }
 
-    void handleException(TransportException exp);
+    default void handleException(TransportException exp) {
+    }
 
-    String executor();
+    default String executor() {
+        return ThreadPool.Names.SAME;
+    }
 }

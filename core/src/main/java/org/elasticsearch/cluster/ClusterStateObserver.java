@@ -260,10 +260,12 @@ public class ClusterStateObserver {
          *
          * @return true if newState should be accepted
          */
-        boolean apply(ClusterState previousState,
+        default boolean apply(ClusterState previousState,
                       ClusterState.ClusterStateStatus previousStatus,
                       ClusterState newState,
-                      ClusterState.ClusterStateStatus newStatus);
+                      ClusterState.ClusterStateStatus newStatus) {
+            return previousState != newState || previousStatus != newStatus;
+        }
 
         /**
          * called to see whether a cluster change should be accepted
@@ -290,10 +292,6 @@ public class ClusterStateObserver {
     }
 
     public static abstract class EventPredicate implements ChangePredicate {
-        @Override
-        public boolean apply(ClusterState previousState, ClusterState.ClusterStateStatus previousStatus, ClusterState newState, ClusterState.ClusterStateStatus newStatus) {
-            return previousState != newState || previousStatus != newStatus;
-        }
 
     }
 

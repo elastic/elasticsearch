@@ -101,11 +101,6 @@ public abstract class NetworkPartition implements ServiceDisruptionScheme {
     }
 
     @Override
-    public void removeFromCluster(InternalTestCluster cluster) {
-        stopDisrupting();
-    }
-
-    @Override
     public void removeAndEnsureHealthy(InternalTestCluster cluster) {
         removeFromCluster(cluster);
         ensureNodeCount(cluster);

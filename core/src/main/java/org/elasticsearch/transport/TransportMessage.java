@@ -19,12 +19,8 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.transport.TransportAddress;
-
-import java.io.IOException;
 
 public abstract class TransportMessage implements Streamable {
 
@@ -36,15 +32,5 @@ public abstract class TransportMessage implements Streamable {
 
     public TransportAddress remoteAddress() {
         return remoteAddress;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-
     }
 }

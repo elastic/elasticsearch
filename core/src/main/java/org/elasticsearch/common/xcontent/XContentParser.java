@@ -20,7 +20,15 @@
 package org.elasticsearch.common.xcontent;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.xcontent.XContentParser.NumberType;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
+
+import static org.elasticsearch.common.xcontent.XContentParser.Token.VALUE_BOOLEAN;
+import static org.elasticsearch.common.xcontent.XContentParser.Token.VALUE_NUMBER;
+import static org.elasticsearch.common.xcontent.XContentParser.Token.VALUE_STRING;
+import static org.elasticsearch.common.xcontent.support.AbstractXContentParser.DEFAULT_NUMBER_COERCE_POLICY;
 
 import java.io.IOException;
 import java.util.List;
@@ -143,7 +151,12 @@ public interface XContentParser extends Releasable {
      * Returns a BytesRef holding UTF-8 bytes or null if a null value is {@link Token#VALUE_NULL}.
      * This method should be used to read text only binary content should be read through {@link #binaryValue()}
      */
-    BytesRef utf8BytesOrNull() throws IOException;
+    default BytesRef utf8BytesOrNull() throws IOException {
+        if (currentToken() == Token.VALUE_NULL) {
+            return null;
+        }
+        return utf8Bytes();
+    }
 
     /**
      * Returns a BytesRef holding UTF-8 bytes.
@@ -187,15 +200,25 @@ public interface XContentParser extends Releasable {
 
     double doubleValue(boolean coerce) throws IOException;
 
-    short shortValue() throws IOException;
+    default short shortValue() throws IOException {
+        return shortValue(DEFAULT_NUMBER_COERCE_POLICY);
+    }
 
-    int intValue() throws IOException;
+    default int intValue() throws IOException {
+        return intValue(DEFAULT_NUMBER_COERCE_POLICY);
+    }
 
-    long longValue() throws IOException;
+    default long longValue() throws IOException {
+        return longValue(DEFAULT_NUMBER_COERCE_POLICY);
+    }
 
-    float floatValue() throws IOException;
+    default float floatValue() throws IOException {
+        return floatValue(DEFAULT_NUMBER_COERCE_POLICY);
+    }
 
-    double doubleValue() throws IOException;
+    default double doubleValue() throws IOException {
+        return doubleValue(DEFAULT_NUMBER_COERCE_POLICY);
+    }
 
     /**
      * returns true if the current value is boolean in nature.
@@ -204,7 +227,19 @@ public interface XContentParser extends Releasable {
      * - numeric integers (=0 is considered as false, !=0 is true)
      * - one of the following strings: "true","false","on","off","yes","no","1","0"
      */
-    boolean isBooleanValue() throws IOException;
+    default boolean isBooleanValue() throws IOException {
+        switch (currentToken()) {
+            case VALUE_BOOLEAN:
+                return true;
+            case VALUE_NUMBER:
+                NumberType numberType = numberType();
+                return numberType == NumberType.LONG || numberType == NumberType.INT;
+            case VALUE_STRING:
+                return Booleans.isBoolean(textCharacters(), textOffset(), textLength());
+            default:
+                return false;
+        }
+    }
 
     boolean booleanValue() throws IOException;
 

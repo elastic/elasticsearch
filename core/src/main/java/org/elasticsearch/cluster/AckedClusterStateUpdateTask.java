@@ -20,7 +20,6 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ack.AckedRequest;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
@@ -42,16 +41,6 @@ public abstract class AckedClusterStateUpdateTask<Response> extends ClusterState
         super(priority);
         this.listener = listener;
         this.request = request;
-    }
-
-    /**
-     * Called to determine which nodes the acknowledgement is expected from
-     *
-     * @param discoveryNode a node
-     * @return true if the node is expected to send ack back, false otherwise
-     */
-    public boolean mustAck(DiscoveryNode discoveryNode) {
-        return true;
     }
 
     /**

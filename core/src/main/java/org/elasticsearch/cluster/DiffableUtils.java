@@ -509,23 +509,31 @@ public final class DiffableUtils {
         /**
          * Whether this serializer supports diffable values
          */
-        boolean supportsDiffableValues();
+        default boolean supportsDiffableValues() {
+            return true;
+        }
 
         /**
          * Computes diff if this serializer supports diffable values
          */
-        Diff<V> diff(V value, V beforePart);
+        default Diff<V> diff(V value, V beforePart) {
+            throw new UnsupportedOperationException();
+        }
 
         /**
          * Writes value as diff to stream if this serializer supports diffable values
          */
-        void writeDiff(Diff<V> value, StreamOutput out) throws IOException;
+        default void writeDiff(Diff<V> value, StreamOutput out) throws IOException {
+            value.writeTo(out);
+        }
 
         /**
          * Reads value as diff from stream if this serializer supports diffable values.
          * Reading operation can be made dependent on map key.
          */
-        Diff<V> readDiff(StreamInput in, K key) throws IOException;
+        default Diff<V> readDiff(StreamInput in, K key) throws IOException {
+            throw new UnsupportedOperationException();
+        }
     }
 
     /**
@@ -552,11 +560,6 @@ public final class DiffableUtils {
         }
 
         @Override
-        public boolean supportsDiffableValues() {
-            return true;
-        }
-
-        @Override
         public Diff<V> diff(V value, V beforePart) {
             return value.diff(beforePart);
         }
@@ -566,9 +569,6 @@ public final class DiffableUtils {
             value.writeTo(out);
         }
 
-        public void writeDiff(Diff<V> value, StreamOutput out) throws IOException {
-            value.writeTo(out);
-        }
     }
 
     /**
@@ -584,17 +584,7 @@ public final class DiffableUtils {
         }
 
         @Override
-        public Diff<V> diff(V value, V beforePart) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public void writeDiff(Diff<V> value, StreamOutput out) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Diff<V> readDiff(StreamInput in, K key) throws IOException {
             throw new UnsupportedOperationException();
         }
     }

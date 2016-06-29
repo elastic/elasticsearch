@@ -25,6 +25,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.HasAggregations;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.util.List;
@@ -62,7 +64,30 @@ public interface MultiBucketsAggregation extends Aggregation {
         @Override
         Aggregations getAggregations();
 
-        Object getProperty(String containingAggName, List<String> path);
+        default Object getProperty(String containingAggName, List<String> path) {
+            if (path.isEmpty()) {
+                return this;
+            }
+            Aggregations aggregations = getAggregations();
+            String aggName = path.get(0);
+            if (aggName.equals("_count")) {
+                if (path.size() > 1) {
+                    throw new InvalidAggregationPathException("_count must be the last element in the path");
+                }
+                return getDocCount();
+            } else if (aggName.equals("_key")) {
+                if (path.size() > 1) {
+                    throw new InvalidAggregationPathException("_key must be the last element in the path");
+                }
+                return getKey();
+            }
+            InternalAggregation aggregation = aggregations.get(aggName);
+            if (aggregation == null) {
+                throw new InvalidAggregationPathException("Cannot find an aggregation named [" + aggName + "] in [" + 
+                        containingAggName + "]");
+            }
+            return aggregation.getProperty(path.subList(1, path.size()));
+        }
 
         static class SubAggregationComparator<B extends Bucket> implements java.util.Comparator<B> {
 

@@ -32,7 +32,8 @@ public interface ExecutableScript {
      * @param name parameter name
      * @param value parameter value
      */
-    void setNextVar(String name, Object value);
+    default void setNextVar(String name, Object value) {
+    }
 
     /**
      * Executes the script.

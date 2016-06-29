@@ -35,7 +35,10 @@ public interface ClusterStateTaskConfig {
      * @return the timeout, or null if one is not set
      */
     @Nullable
-    TimeValue timeout();
+    default
+    TimeValue timeout() {
+        return null;
+    }
 
     /**
      * The {@link Priority} for this cluster state update task configuration.

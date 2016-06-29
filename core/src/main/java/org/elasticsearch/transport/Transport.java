@@ -43,7 +43,9 @@ public interface Transport extends LifecycleComponent<Transport> {
     /**
      * The address the transport is bound on.
      */
-    BoundTransportAddress boundAddress();
+    default BoundTransportAddress boundAddress() {
+        return null;
+    }
 
     /**
      * Further profile bound addresses
@@ -54,7 +56,9 @@ public interface Transport extends LifecycleComponent<Transport> {
     /**
      * Returns an address from its string representation.
      */
-    TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception;
+    default TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Is the address type supported.
@@ -64,23 +68,31 @@ public interface Transport extends LifecycleComponent<Transport> {
     /**
      * Returns <tt>true</tt> if the node is connected.
      */
-    boolean nodeConnected(DiscoveryNode node);
+    default boolean nodeConnected(DiscoveryNode node) {
+        return false;
+    }
 
     /**
      * Connects to the given node, if already connected, does nothing.
      */
-    void connectToNode(DiscoveryNode node) throws ConnectTransportException;
+    default void connectToNode(DiscoveryNode node) throws ConnectTransportException {
+    
+    }
 
     /**
      * Connects to a node in a light manner. Used when just connecting for ping and then
      * disconnecting.
      */
-    void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException;
+    default void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
+    
+    }
 
     /**
      * Disconnected from the given node, if not connected, will do nothing.
      */
-    void disconnectFromNode(DiscoveryNode node);
+    default void disconnectFromNode(DiscoveryNode node) {
+    
+    }
 
     /**
      * Sends the request to the node.
@@ -91,7 +103,9 @@ public interface Transport extends LifecycleComponent<Transport> {
     /**
      * Returns count of currently open connections
      */
-    long serverOpen();
+    default long serverOpen() {
+        return 0;
+    }
 
     List<String> getLocalAddresses();
 }

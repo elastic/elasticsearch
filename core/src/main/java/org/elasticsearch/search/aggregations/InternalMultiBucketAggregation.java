@@ -72,30 +72,5 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     }
 
     public static abstract class InternalBucket implements Bucket {
-        @Override
-        public Object getProperty(String containingAggName, List<String> path) {
-            if (path.isEmpty()) {
-                return this;
-            }
-            Aggregations aggregations = getAggregations();
-            String aggName = path.get(0);
-            if (aggName.equals("_count")) {
-                if (path.size() > 1) {
-                    throw new InvalidAggregationPathException("_count must be the last element in the path");
-                }
-                return getDocCount();
-            } else if (aggName.equals("_key")) {
-                if (path.size() > 1) {
-                    throw new InvalidAggregationPathException("_key must be the last element in the path");
-                }
-                return getKey();
-            }
-            InternalAggregation aggregation = aggregations.get(aggName);
-            if (aggregation == null) {
-                throw new InvalidAggregationPathException("Cannot find an aggregation named [" + aggName + "] in [" + containingAggName
-                        + "]");
-            }
-            return aggregation.getProperty(path.subList(1, path.size()));
-        }
     }
 }

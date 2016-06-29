@@ -233,12 +233,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         return queries;
     }
 
-    @Override
-    public String getName() {
-        //default impl returns the same as writeable name, but we keep the distinction between the two just to make sure
-        return getWriteableName();
-    }
-
     protected final static void writeQueries(StreamOutput out, List<? extends QueryBuilder> queries) throws IOException {
         out.writeVInt(queries.size());
         for (QueryBuilder query : queries) {

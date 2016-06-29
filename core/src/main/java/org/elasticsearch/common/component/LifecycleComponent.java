@@ -26,11 +26,17 @@ import org.elasticsearch.common.lease.Releasable;
  */
 public interface LifecycleComponent<T> extends Releasable {
 
-    Lifecycle.State lifecycleState();
+    default Lifecycle.State lifecycleState() {
+        return null;
+    }
 
-    void addLifecycleListener(LifecycleListener listener);
+    default void addLifecycleListener(LifecycleListener listener) {
+        throw new UnsupportedOperationException();
+    }
 
-    void removeLifecycleListener(LifecycleListener listener);
+    default void removeLifecycleListener(LifecycleListener listener) {
+        throw new UnsupportedOperationException();
+    }
 
     T start();
 

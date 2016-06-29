@@ -262,19 +262,15 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryReques
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.ExplainRequest;
-import org.elasticsearch.action.explain.ExplainRequestBuilder;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.fieldstats.FieldStatsAction;
 import org.elasticsearch.action.fieldstats.FieldStatsRequest;
-import org.elasticsearch.action.fieldstats.FieldStatsRequestBuilder;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
@@ -282,11 +278,9 @@ import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetRequest;
-import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.DeletePipelineAction;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
@@ -305,32 +299,25 @@ import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
-import org.elasticsearch.action.search.ClearScrollRequestBuilder;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
-import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
-import org.elasticsearch.action.termvectors.MultiTermVectorsRequestBuilder;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
-import org.elasticsearch.action.termvectors.TermVectorsRequestBuilder;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
@@ -416,21 +403,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     }
 
     @Override
-    public IndexRequestBuilder prepareIndex() {
-        return new IndexRequestBuilder(this, IndexAction.INSTANCE, null);
-    }
-
-    @Override
-    public IndexRequestBuilder prepareIndex(String index, String type) {
-        return prepareIndex(index, type, null);
-    }
-
-    @Override
-    public IndexRequestBuilder prepareIndex(String index, String type, @Nullable String id) {
-        return prepareIndex().setIndex(index).setType(type).setId(id);
-    }
-
-    @Override
     public ActionFuture<UpdateResponse> update(final UpdateRequest request) {
         return execute(UpdateAction.INSTANCE, request);
     }
@@ -438,16 +410,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public void update(final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
         execute(UpdateAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public UpdateRequestBuilder prepareUpdate() {
-        return new UpdateRequestBuilder(this, UpdateAction.INSTANCE, null, null, null);
-    }
-
-    @Override
-    public UpdateRequestBuilder prepareUpdate(String index, String type, String id) {
-        return new UpdateRequestBuilder(this, UpdateAction.INSTANCE, index, type, id);
     }
 
     @Override
@@ -461,16 +423,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     }
 
     @Override
-    public DeleteRequestBuilder prepareDelete() {
-        return new DeleteRequestBuilder(this, DeleteAction.INSTANCE, null);
-    }
-
-    @Override
-    public DeleteRequestBuilder prepareDelete(String index, String type, String id) {
-        return prepareDelete().setIndex(index).setType(type).setId(id);
-    }
-
-    @Override
     public ActionFuture<BulkResponse> bulk(final BulkRequest request) {
         return execute(BulkAction.INSTANCE, request);
     }
@@ -481,11 +433,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     }
 
     @Override
-    public BulkRequestBuilder prepareBulk() {
-        return new BulkRequestBuilder(this, BulkAction.INSTANCE);
-    }
-
-    @Override
     public ActionFuture<GetResponse> get(final GetRequest request) {
         return execute(GetAction.INSTANCE, request);
     }
@@ -493,11 +440,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public void get(final GetRequest request, final ActionListener<GetResponse> listener) {
         execute(GetAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public GetRequestBuilder prepareGet() {
-        return new GetRequestBuilder(this, GetAction.INSTANCE, null);
     }
 
     @Override
@@ -516,11 +458,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     }
 
     @Override
-    public MultiGetRequestBuilder prepareMultiGet() {
-        return new MultiGetRequestBuilder(this, MultiGetAction.INSTANCE);
-    }
-
-    @Override
     public ActionFuture<SearchResponse> search(final SearchRequest request) {
         return execute(SearchAction.INSTANCE, request);
     }
@@ -528,11 +465,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
         execute(SearchAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public SearchRequestBuilder prepareSearch(String... indices) {
-        return new SearchRequestBuilder(this, SearchAction.INSTANCE).setIndices(indices);
     }
 
     @Override
@@ -546,11 +478,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     }
 
     @Override
-    public SearchScrollRequestBuilder prepareSearchScroll(String scrollId) {
-        return new SearchScrollRequestBuilder(this, SearchScrollAction.INSTANCE, scrollId);
-    }
-
-    @Override
     public ActionFuture<MultiSearchResponse> multiSearch(MultiSearchRequest request) {
         return execute(MultiSearchAction.INSTANCE, request);
     }
@@ -561,11 +488,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     }
 
     @Override
-    public MultiSearchRequestBuilder prepareMultiSearch() {
-        return new MultiSearchRequestBuilder(this, MultiSearchAction.INSTANCE);
-    }
-
-    @Override
     public ActionFuture<TermVectorsResponse> termVectors(final TermVectorsRequest request) {
         return execute(TermVectorsAction.INSTANCE, request);
     }
@@ -573,16 +495,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public void termVectors(final TermVectorsRequest request, final ActionListener<TermVectorsResponse> listener) {
         execute(TermVectorsAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public TermVectorsRequestBuilder prepareTermVectors() {
-        return new TermVectorsRequestBuilder(this, TermVectorsAction.INSTANCE);
-    }
-
-    @Override
-    public TermVectorsRequestBuilder prepareTermVectors(String index, String type, String id) {
-        return new TermVectorsRequestBuilder(this, TermVectorsAction.INSTANCE, index, type, id);
     }
 
     @Deprecated
@@ -597,18 +509,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         termVectors(request, listener);
     }
 
-    @Deprecated
-    @Override
-    public TermVectorsRequestBuilder prepareTermVector() {
-        return prepareTermVectors();
-    }
-
-    @Deprecated
-    @Override
-    public TermVectorsRequestBuilder prepareTermVector(String index, String type, String id) {
-        return prepareTermVectors(index, type, id);
-    }
-
     @Override
     public ActionFuture<MultiTermVectorsResponse> multiTermVectors(final MultiTermVectorsRequest request) {
         return execute(MultiTermVectorsAction.INSTANCE, request);
@@ -617,16 +517,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public void multiTermVectors(final MultiTermVectorsRequest request, final ActionListener<MultiTermVectorsResponse> listener) {
         execute(MultiTermVectorsAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public MultiTermVectorsRequestBuilder prepareMultiTermVectors() {
-        return new MultiTermVectorsRequestBuilder(this, MultiTermVectorsAction.INSTANCE);
-    }
-
-    @Override
-    public ExplainRequestBuilder prepareExplain(String index, String type, String id) {
-        return new ExplainRequestBuilder(this, ExplainAction.INSTANCE, index, type, id);
     }
 
     @Override
@@ -650,11 +540,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     }
 
     @Override
-    public ClearScrollRequestBuilder prepareClearScroll() {
-        return new ClearScrollRequestBuilder(this, ClearScrollAction.INSTANCE);
-    }
-
-    @Override
     public void fieldStats(FieldStatsRequest request, ActionListener<FieldStatsResponse> listener) {
         execute(FieldStatsAction.INSTANCE, request, listener);
     }
@@ -662,11 +547,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public ActionFuture<FieldStatsResponse> fieldStats(FieldStatsRequest request) {
         return execute(FieldStatsAction.INSTANCE, request);
-    }
-
-    @Override
-    public FieldStatsRequestBuilder prepareFieldStats() {
-        return new FieldStatsRequestBuilder(this, FieldStatsAction.INSTANCE);
     }
 
     static class Admin implements AdminClient {

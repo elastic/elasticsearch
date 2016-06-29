@@ -21,14 +21,11 @@ package org.elasticsearch.index.fielddata.ordinals;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
-import org.elasticsearch.search.MultiValueMode;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -65,16 +62,6 @@ public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponen
     @Override
     public String getFieldName() {
         return fieldName;
-    }
-
-    @Override
-    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
-        throw new UnsupportedOperationException("no global ordinals sorting yet");
-    }
-
-    @Override
-    public void clear() {
-        // no need to clear, because this is cached and cleared in AbstractBytesIndexFieldData
     }
 
     @Override

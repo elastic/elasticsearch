@@ -77,7 +77,10 @@ public interface QueryBuilder extends NamedWriteable, ToXContent {
     /**
      * Returns the name that identifies uniquely the query
      */
-    String getName();
+    default String getName() {
+        //default impl returns the same as writeable name, but we keep the distinction between the two just to make sure
+        return getWriteableName();
+    }
 
     /**
      * Rewrites this query builder into its primitive form. By default this method return the builder itself. If the builder

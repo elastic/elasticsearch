@@ -19,9 +19,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.List;
 
@@ -56,15 +54,6 @@ abstract public class ClusterStateUpdateTask implements ClusterStateTaskConfig, 
      * A callback called when execute fails.
      */
     abstract public void onFailure(String source, Throwable t);
-
-    /**
-     * If the cluster state update task wasn't processed by the provided timeout, call
-     * {@link #onFailure(String, Throwable)}. May return null to indicate no timeout is needed (default).
-     */
-    @Nullable
-    public TimeValue timeout() {
-        return null;
-    }
 
     @Override
     public Priority priority() {

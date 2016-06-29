@@ -20,8 +20,4 @@
 package org.elasticsearch.script;
 
 public abstract class AbstractExecutableScript implements ExecutableScript {
-
-    @Override
-    public void setNextVar(String name, Object value) {
-    }
 }

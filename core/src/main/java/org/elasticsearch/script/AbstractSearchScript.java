@@ -119,14 +119,4 @@ public abstract class AbstractSearchScript extends AbstractExecutableScript impl
     public void setSource(Map<String, Object> source) {
         lookup.source().setSource(source);
     }
-
-    @Override
-    public long runAsLong() {
-        return ((Number) run()).longValue();
-    }
-
-    @Override
-    public double runAsDouble() {
-        return ((Number) run()).doubleValue();
-    }
 }

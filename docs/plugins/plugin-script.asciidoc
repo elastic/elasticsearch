@@ -51,7 +51,7 @@ sudo bin/elasticsearch-plugin install analysis-icu
 -----------------------------------
 
 This command will install the version of the plugin that matches your
-Elasticsearch version.
+Elasticsearch version and also show a progress bar while downloading.
 
 [float]
 === Custom URL or file system
@@ -117,8 +117,8 @@ The `plugin` scripts supports a number of other command line parameters:
 === Silent/Verbose mode
 
 The `--verbose` parameter outputs more debug information, while the `--silent`
-parameter turns off all output.  The script may return the following exit
-codes:
+parameter turns off all output including the progress bar. The script may
+return the following exit codes:
 
 [horizontal]
 `0`:: everything was OK

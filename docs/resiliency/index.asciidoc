@@ -90,7 +90,7 @@ space.  The following issues have been identified:
 * Set a hard limit on `from`/`size` parameters {GIT}9311[#9311]. (STATUS: DONE, v2.1.0)
 * Prevent combinatorial explosion in aggregations from causing OOM {GIT}8081[#8081]. (STATUS: ONGOING)
 * Add the byte size of each hit to the request circuit breaker {GIT}9310[#9310]. (STATUS: ONGOING)
-* Limit the size of individual requests and also add a circuit breaker for the total memory used by in-flight request objects {GIT}16011[#16011]. (STATUS: ONGOING)
+* Limit the size of individual requests and also add a circuit breaker for the total memory used by in-flight request objects {GIT}16011[#16011]. (STATUS: DONE, v5.0.0)
 
 Other safeguards are tracked in the meta-issue {GIT}11511[#11511].
 

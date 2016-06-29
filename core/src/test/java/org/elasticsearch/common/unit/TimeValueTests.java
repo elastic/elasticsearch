@@ -30,9 +30,12 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.object.HasToString.hasToString;
 
 public class TimeValueTests extends ESTestCase {
 
@@ -123,6 +126,34 @@ public class TimeValueTests extends ESTestCase {
         assertThat(TimeValue.parseTimeValue(s, null, "test").getStringRep(), equalTo(s));
         final TimeValue t = new TimeValue(randomIntBetween(1, 128), randomFrom(TimeUnit.values()));
         assertThat(TimeValue.parseTimeValue(t.getStringRep(), null, "test"), equalTo(t));
+    }
+
+    private static final String FRACTIONAL_TIME_VALUES_ARE_NOT_SUPPORTED = "fractional time values are not supported";
+
+    public void testNonFractionalTimeValues() {
+        final String s = randomAsciiOfLength(10) + randomTimeUnit();
+        final ElasticsearchParseException e =
+            expectThrows(ElasticsearchParseException.class, () -> TimeValue.parseTimeValue(s, null, "test"));
+        assertThat(e, hasToString(containsString("failed to parse [" + s + "]")));
+        assertThat(e, not(hasToString(containsString(FRACTIONAL_TIME_VALUES_ARE_NOT_SUPPORTED))));
+        assertThat(e.getCause(), instanceOf(NumberFormatException.class));
+    }
+
+    public void testFractionalTimeValues() {
+        double value;
+        do {
+            value = randomDouble();
+        } while (value == 0);
+        final String s = Double.toString(randomIntBetween(0, 128) + value) + randomTimeUnit();
+        final ElasticsearchParseException e =
+            expectThrows(ElasticsearchParseException.class, () -> TimeValue.parseTimeValue(s, null, "test"));
+        assertThat(e, hasToString(containsString("failed to parse [" + s + "]")));
+        assertThat(e, hasToString(containsString(FRACTIONAL_TIME_VALUES_ARE_NOT_SUPPORTED)));
+        assertThat(e.getCause(), instanceOf(NumberFormatException.class));
+    }
+
+    private String randomTimeUnit() {
+        return randomFrom("nanos", "micros", "ms", "s", "m", "h", "d");
     }
 
     private void assertEqualityAfterSerialize(TimeValue value, int expectedSize) throws IOException {

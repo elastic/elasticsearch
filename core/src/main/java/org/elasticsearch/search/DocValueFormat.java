@@ -115,6 +115,7 @@ public interface DocValueFormat extends NamedWriteable {
             return Double.parseDouble(value);
         }
 
+        @Override
         public BytesRef parseBytesRef(String value) {
             return new BytesRef(value);
         }

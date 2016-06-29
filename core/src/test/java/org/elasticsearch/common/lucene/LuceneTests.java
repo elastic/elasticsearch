@@ -357,6 +357,7 @@ public class LuceneTests extends ESTestCase {
         dir.close();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/19151")
     public void testAsSequentialAccessBits() throws Exception {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new KeywordAnalyzer()));

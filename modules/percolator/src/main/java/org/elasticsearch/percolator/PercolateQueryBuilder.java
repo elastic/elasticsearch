@@ -22,11 +22,11 @@ package org.elasticsearch.percolator;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.MultiReader;
-import org.apache.lucene.index.SlowCompositeReaderWrapper;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
@@ -36,6 +36,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
@@ -62,7 +63,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
@@ -74,7 +74,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -454,19 +453,13 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     }
 
     static IndexSearcher createMultiDocumentSearcher(Analyzer analyzer, ParsedDocument doc) {
-        IndexReader[] memoryIndices = new IndexReader[doc.docs().size()];
-        List<ParseContext.Document> docs = doc.docs();
-        int rootDocIndex = docs.size() - 1;
-        assert rootDocIndex > 0;
-        for (int i = 0; i < docs.size(); i++) {
-            ParseContext.Document d = docs.get(i);
-            MemoryIndex memoryIndex = MemoryIndex.fromDocument(d, analyzer, true, false);
-            memoryIndices[i] = memoryIndex.createSearcher().getIndexReader();
-        }
-        try {
-            MultiReader mReader = new MultiReader(memoryIndices, true);
-            LeafReader slowReader = SlowCompositeReaderWrapper.wrap(mReader);
-            final IndexSearcher slowSearcher = new IndexSearcher(slowReader) {
+        RAMDirectory ramDirectory = new RAMDirectory();
+        try (IndexWriter indexWriter = new IndexWriter(ramDirectory, new IndexWriterConfig(analyzer))) {
+            indexWriter.addDocuments(doc.docs());
+            indexWriter.commit();
+            DirectoryReader directoryReader = DirectoryReader.open(ramDirectory);
+            assert directoryReader.leaves().size() == 1 : "Expected single leaf, but got [" + directoryReader.leaves().size() + "]";
+            final IndexSearcher slowSearcher = new IndexSearcher(directoryReader) {
 
                 @Override
                 public Weight createNormalizedWeight(Query query, boolean needsScores) throws IOException {

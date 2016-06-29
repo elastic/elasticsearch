@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.repositories.hdfs;
 
 import org.apache.hadoop.conf.Configuration;
@@ -46,7 +47,7 @@ public class HdfsBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
                     public HdfsBlobStore run() {
                         try {
                             FileContext fileContext = createContext(new URI("hdfs:///"));
-                            return new HdfsBlobStore(fileContext, "temp", 100);
+                            return new HdfsBlobStore(fileContext, "temp", 1024);
                         } catch (IOException | URISyntaxException e) {
                             throw new RuntimeException(e);
                         }

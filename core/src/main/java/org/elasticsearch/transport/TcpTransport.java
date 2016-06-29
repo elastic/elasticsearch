@@ -72,7 +72,6 @@ import java.io.StreamCorruptedException;
 import java.net.BindException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.net.UnknownHostException;
 import java.nio.channels.CancelledKeyException;
 import java.nio.charset.StandardCharsets;
@@ -177,9 +176,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent<T
     protected final ReadWriteLock globalLock = new ReentrantReadWriteLock();
     protected final boolean compress;
     protected volatile BoundTransportAddress boundAddress;
+    private final String transportName;
 
-
-    public TcpTransport(Settings settings, ThreadPool threadPool, BigArrays bigArrays, CircuitBreakerService circuitBreakerService,
+    public TcpTransport(String transportName, Settings settings, ThreadPool threadPool, BigArrays bigArrays, CircuitBreakerService circuitBreakerService,
                         NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
         super(settings);
         this.threadPool = threadPool;
@@ -190,6 +189,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent<T
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.compress = Transport.TRANSPORT_TCP_COMPRESS.get(settings);
         this.networkService = networkService;
+        this.transportName = transportName;
 
         this.connectionsPerNodeRecovery = CONNECTIONS_PER_NODE_RECOVERY.get(settings);
         this.connectionsPerNodeBulk = CONNECTIONS_PER_NODE_BULK.get(settings);
@@ -550,10 +550,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent<T
             local.add("[::1]"); // may get ports appended!
         }
         return local;
-    }
-
-    public final TransportAddress wrapAddress(SocketAddress socketAddress) {
-        return new InetSocketTransportAddress((InetSocketAddress) socketAddress);
     }
 
     protected void bindServer(final String name, final Settings settings) {
@@ -1144,7 +1140,11 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent<T
 
     protected abstract boolean isOpen(Channel channel);
 
-    public final void messageReceived(BytesReference reference, ChannelFactory channelFactory,
+    /**
+     * This method handles the message receive part for both request and responses
+     * @throws IOException
+     */
+    public final void messageReceived(BytesReference reference, Channel channel, String profileName,
                                       InetSocketAddress remoteAddress, int messageLengthBytes) throws IOException {
         final int totalMessageSize = messageLengthBytes + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
         transportServiceAdapter.received(totalMessageSize);
@@ -1182,7 +1182,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent<T
             streamIn.setVersion(version);
             if (TransportStatus.isRequest(status)) {
                 threadPool.getThreadContext().readHeaders(streamIn);
-                handleRequest(channelFactory, streamIn, requestId, messageLengthBytes, version, remoteAddress);
+                handleRequest(channel, profileName, streamIn, requestId, messageLengthBytes, version, remoteAddress);
             } else {
                 final TransportResponseHandler<?> handler = transportServiceAdapter.onResponseReceived(requestId);
                 // ignore if its null, the adapter logs it
@@ -1211,7 +1211,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent<T
         }
     }
 
-    protected void handleResponse(InetSocketAddress remoteAddress, final StreamInput stream, final TransportResponseHandler handler) {
+    private void handleResponse(InetSocketAddress remoteAddress, final StreamInput stream, final TransportResponseHandler handler) {
         final TransportResponse response = handler.newInstance();
         response.remoteAddress(new InetSocketTransportAddress(remoteAddress));
         try {
@@ -1261,7 +1261,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent<T
         });
     }
 
-    protected String handleRequest(ChannelFactory channelFactory, final StreamInput stream, long requestId,
+    protected String handleRequest(Channel channel, String profileName, final StreamInput stream, long requestId,
                                    int messageLengthBytes, Version version, InetSocketAddress remoteAddress) throws IOException {
         final String action = stream.readString();
         transportServiceAdapter.onRequestReceived(requestId, action);
@@ -1276,7 +1276,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent<T
             } else {
                 getInFlightRequestBreaker().addWithoutBreaking(messageLengthBytes);
             }
-            transportChannel = channelFactory.create(action, requestId, version, messageLengthBytes);
+            transportChannel = new TcpTransportChannel<>(this, channel, transportName, action, requestId, version, profileName,
+                messageLengthBytes);
             final TransportRequest request = reg.newRequest();
             request.remoteAddress(new InetSocketTransportAddress(remoteAddress));
             request.readFrom(stream);
@@ -1286,7 +1287,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent<T
         } catch (Throwable e) {
             // the circuit breaker tripped
             if (transportChannel == null) {
-                transportChannel = channelFactory.create(action, requestId, version, 0);
+                transportChannel = new TcpTransportChannel<>(this, channel, transportName, action, requestId, version, profileName, 0);
             }
             try {
                 transportChannel.sendResponse(e);
@@ -1306,10 +1307,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent<T
             throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action [" + action
                 + "], available [" + stream.available() + "]; resetting");
         }
-    }
-
-    public interface ChannelFactory {
-        TransportChannel create(String actionName, long requestId, Version version, long reservedBytes);
     }
 
     class RequestHandler extends AbstractRunnable {
@@ -1347,5 +1344,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent<T
             }
         }
     }
+
 
 }

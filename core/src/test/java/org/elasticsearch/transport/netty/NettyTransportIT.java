@@ -39,6 +39,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportSettings;
+import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
 
@@ -98,10 +99,10 @@ public class NettyTransportIT extends ESIntegTestCase {
             super(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
         }
 
-        protected String handleRequest(ChannelFactory channelFactory,
+        protected String handleRequest(Channel channel, String profileName,
                                        StreamInput stream, long requestId, int messageLengthBytes, Version version,
                                        InetSocketAddress remoteAddress) throws IOException {
-            String action = super.handleRequest(channelFactory, stream, requestId, messageLengthBytes, version,
+            String action = super.handleRequest(channel, profileName, stream, requestId, messageLengthBytes, version,
                 remoteAddress);
             channelProfileName = TransportSettings.DEFAULT_PROFILE;
             return action;

@@ -140,7 +140,11 @@ public class TimeValueTests extends ESTestCase {
     }
 
     public void testFractionalTimeValues() {
-        final String s = Double.toString(randomDouble() / 10) + randomTimeUnit();
+        double value;
+        do {
+            value = randomDouble();
+        } while (value == 0);
+        final String s = Double.toString(randomIntBetween(0, 128) + value) + randomTimeUnit();
         final ElasticsearchParseException e =
             expectThrows(ElasticsearchParseException.class, () -> TimeValue.parseTimeValue(s, null, "test"));
         assertThat(e, hasToString(containsString("failed to parse [" + s + "]")));

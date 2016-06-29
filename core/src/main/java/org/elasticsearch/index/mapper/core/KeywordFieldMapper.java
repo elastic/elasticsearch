@@ -192,6 +192,11 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
         return (KeywordFieldMapper) super.clone();
     }
 
+    // pkg-private for testing
+    Boolean includeInAll() {
+        return includeInAll;
+    }
+
     @Override
     public KeywordFieldMapper includeInAll(Boolean includeInAll) {
         if (includeInAll != null) {

@@ -25,6 +25,7 @@ import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -32,6 +33,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Azure Storage Service interface
@@ -41,12 +43,15 @@ public interface AzureStorageService {
 
     final class Storage {
         public static final String PREFIX = "cloud.azure.storage.";
+
+        public static final Setting<Settings> STORAGE_ACCOUNTS = Setting.groupSetting(Storage.PREFIX, Setting.Property.NodeScope);
+
         public static final Setting<TimeValue> TIMEOUT_SETTING =
             Setting.timeSetting("cloud.azure.storage.timeout", TimeValue.timeValueMinutes(-1), Property.NodeScope);
         public static final Setting<String> ACCOUNT_SETTING =
             Setting.simpleString("repositories.azure.account", Property.NodeScope, Property.Filtered);
         public static final Setting<String> CONTAINER_SETTING =
-            Setting.simpleString("repositories.azure.container", Property.NodeScope);
+            new Setting<>("repositories.azure.container", "elasticsearch-snapshots", Function.identity(), Property.NodeScope);
         public static final Setting<String> BASE_PATH_SETTING =
             Setting.simpleString("repositories.azure.base_path", Property.NodeScope);
         public static final Setting<String> LOCATION_MODE_SETTING =

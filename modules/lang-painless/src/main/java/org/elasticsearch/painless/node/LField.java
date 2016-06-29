@@ -19,16 +19,19 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents a field load/store or defers to a possible shortcuts.
@@ -39,32 +42,35 @@ public final class LField extends ALink {
 
     Field field;
 
-    public LField(final int line, final String location, final String value) {
-        super(line, location, 1);
+    public LField(Location location, String value) {
+        super(location, 1);
 
-        this.value = value;
+        this.value = Objects.requireNonNull(value);
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {}
 
     @Override
-    ALink analyze(CompilerSettings settings, Definition definition, Variables variables) {
+    ALink analyze(Locals locals) {
         if (before == null) {
-            throw new IllegalStateException(error("Illegal tree structure."));
+            throw createError(new IllegalArgumentException("Illegal field [" + value + "] access made without target."));
         }
 
-        final Sort sort = before.sort;
+        Sort sort = before.sort;
 
         if (sort == Sort.ARRAY) {
-            return new LArrayLength(line, location, value).copy(this).analyze(settings, definition, variables);
+            return new LArrayLength(location, value).copy(this).analyze(locals);
         } else if (sort == Sort.DEF) {
-            return new LDefField(line, location, value).copy(this).analyze(settings, definition, variables);
+            return new LDefField(location, value).copy(this).analyze(locals);
         }
 
-        final Struct struct = before.struct;
+        Struct struct = before.struct;
         field = statik ? struct.staticMembers.get(value) : struct.members.get(value);
 
         if (field != null) {
-            if (store && java.lang.reflect.Modifier.isFinal(field.reflect.getModifiers())) {
-                throw new IllegalArgumentException(error(
+            if (store && java.lang.reflect.Modifier.isFinal(field.modifiers)) {
+                throw createError(new IllegalArgumentException(
                     "Cannot write to read-only field [" + value + "] for type [" + struct.name + "]."));
             }
 
@@ -72,60 +78,57 @@ public final class LField extends ALink {
 
             return this;
         } else {
-            // TODO: improve this: the isXXX case seems missing???
-            final boolean shortcut =
-                struct.methods.containsKey(new Definition.MethodKey("get" + 
-                        Character.toUpperCase(value.charAt(0)) + value.substring(1), 0)) ||
-                struct.methods.containsKey(new Definition.MethodKey("set" + 
-                        Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
+            boolean shortcut =
+                struct.methods.containsKey(new Definition.MethodKey("get" +
+                    Character.toUpperCase(value.charAt(0)) + value.substring(1), 0)) ||
+                struct.methods.containsKey(new Definition.MethodKey("is" +
+                    Character.toUpperCase(value.charAt(0)) + value.substring(1), 0)) ||
+                struct.methods.containsKey(new Definition.MethodKey("set" +
+                    Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
 
             if (shortcut) {
-                return new LShortcut(line, location, value).copy(this).analyze(settings, definition, variables);
+                return new LShortcut(location, value).copy(this).analyze(locals);
             } else {
-                final EConstant index = new EConstant(line, location, value);
-                index.analyze(settings, definition, variables);
+                EConstant index = new EConstant(location, value);
+                index.analyze(locals);
 
                 if (Map.class.isAssignableFrom(before.clazz)) {
-                    return new LMapShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
+                    return new LMapShortcut(location, index).copy(this).analyze(locals);
                 }
-                
+
                 if (List.class.isAssignableFrom(before.clazz)) {
-                    return new LListShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
+                    return new LListShortcut(location, index).copy(this).analyze(locals);
                 }
             }
         }
 
-        throw new IllegalArgumentException(error("Unknown field [" + value + "] for type [" + struct.name + "]."));
+        throw createError(new IllegalArgumentException("Unknown field [" + value + "] for type [" + struct.name + "]."));
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(MethodWriter writer, Globals globals) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        if (java.lang.reflect.Modifier.isStatic(field.reflect.getModifiers())) {
-            adapter.getStatic(field.owner.type, field.reflect.getName(), field.type.type);
+    void load(MethodWriter writer, Globals globals) {
+        writer.writeDebugInfo(location);
 
-            if (!field.generic.clazz.equals(field.type.clazz)) {
-                adapter.checkCast(field.generic.type);
-            }
+        if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
+            writer.getStatic(field.owner.type, field.javaName, field.type.type);
         } else {
-            adapter.getField(field.owner.type, field.reflect.getName(), field.type.type);
-
-            if (!field.generic.clazz.equals(field.type.clazz)) {
-                adapter.checkCast(field.generic.type);
-            }
+            writer.getField(field.owner.type, field.javaName, field.type.type);
         }
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        if (java.lang.reflect.Modifier.isStatic(field.reflect.getModifiers())) {
-            adapter.putStatic(field.owner.type, field.reflect.getName(), field.type.type);
+    void store(MethodWriter writer, Globals globals) {
+        writer.writeDebugInfo(location);
+
+        if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
+            writer.putStatic(field.owner.type, field.javaName, field.type.type);
         } else {
-            adapter.putField(field.owner.type, field.reflect.getName(), field.type.type);
+            writer.putField(field.owner.type, field.javaName, field.type.type);
         }
     }
 }

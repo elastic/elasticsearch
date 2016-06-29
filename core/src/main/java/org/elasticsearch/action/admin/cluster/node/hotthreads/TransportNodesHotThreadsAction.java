@@ -47,17 +47,17 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
                                                                          NodeHotThreads> {
 
     @Inject
-    public TransportNodesHotThreadsAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+    public TransportNodesHotThreadsAction(Settings settings, ThreadPool threadPool,
                                           ClusterService clusterService, TransportService transportService,
                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, NodesHotThreadsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+        super(settings, NodesHotThreadsAction.NAME, threadPool, clusterService, transportService, actionFilters,
               indexNameExpressionResolver, NodesHotThreadsRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeHotThreads.class);
     }
 
     @Override
     protected NodesHotThreadsResponse newResponse(NodesHotThreadsRequest request,
                                                   List<NodeHotThreads> responses, List<FailedNodeException> failures) {
-        return new NodesHotThreadsResponse(clusterName, responses, failures);
+        return new NodesHotThreadsResponse(clusterService.getClusterName(), responses, failures);
     }
 
     @Override

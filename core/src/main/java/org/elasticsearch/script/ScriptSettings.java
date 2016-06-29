@@ -37,29 +37,28 @@ public class ScriptSettings {
 
     public final static String DEFAULT_LANG = "groovy";
 
-    private final static Map<ScriptService.ScriptType, Setting<ScriptMode>> SCRIPT_TYPE_SETTING_MAP;
+    private final static Map<ScriptService.ScriptType, Setting<Boolean>> SCRIPT_TYPE_SETTING_MAP;
 
     static {
-        Map<ScriptService.ScriptType, Setting<ScriptMode>> scriptTypeSettingMap = new HashMap<>();
+        Map<ScriptService.ScriptType, Setting<Boolean>> scriptTypeSettingMap = new HashMap<>();
         for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
-            scriptTypeSettingMap.put(scriptType, new Setting<>(
+            scriptTypeSettingMap.put(scriptType, Setting.boolSetting(
                 ScriptModes.sourceKey(scriptType),
-                scriptType.getDefaultScriptMode().getMode(),
-                ScriptMode::parse,
+                scriptType.getDefaultScriptEnabled(),
                 Property.NodeScope));
         }
         SCRIPT_TYPE_SETTING_MAP = Collections.unmodifiableMap(scriptTypeSettingMap);
     }
 
-    private final Map<ScriptContext, Setting<ScriptMode>> scriptContextSettingMap;
-    private final List<Setting<ScriptMode>> scriptLanguageSettings;
+    private final Map<ScriptContext, Setting<Boolean>> scriptContextSettingMap;
+    private final List<Setting<Boolean>> scriptLanguageSettings;
     private final Setting<String> defaultScriptLanguageSetting;
 
     public ScriptSettings(ScriptEngineRegistry scriptEngineRegistry, ScriptContextRegistry scriptContextRegistry) {
-        Map<ScriptContext, Setting<ScriptMode>> scriptContextSettingMap = contextSettings(scriptContextRegistry);
+        Map<ScriptContext, Setting<Boolean>> scriptContextSettingMap = contextSettings(scriptContextRegistry);
         this.scriptContextSettingMap = Collections.unmodifiableMap(scriptContextSettingMap);
 
-        List<Setting<ScriptMode>> scriptLanguageSettings = languageSettings(SCRIPT_TYPE_SETTING_MAP, scriptContextSettingMap, scriptEngineRegistry, scriptContextRegistry);
+        List<Setting<Boolean>> scriptLanguageSettings = languageSettings(SCRIPT_TYPE_SETTING_MAP, scriptContextSettingMap, scriptEngineRegistry, scriptContextRegistry);
         this.scriptLanguageSettings = Collections.unmodifiableList(scriptLanguageSettings);
 
         this.defaultScriptLanguageSetting = new Setting<>("script.default_lang", DEFAULT_LANG, setting -> {
@@ -70,24 +69,20 @@ public class ScriptSettings {
         }, Property.NodeScope);
     }
 
-    private static Map<ScriptContext, Setting<ScriptMode>> contextSettings(ScriptContextRegistry scriptContextRegistry) {
-        Map<ScriptContext, Setting<ScriptMode>> scriptContextSettingMap = new HashMap<>();
+    private static Map<ScriptContext, Setting<Boolean>> contextSettings(ScriptContextRegistry scriptContextRegistry) {
+        Map<ScriptContext, Setting<Boolean>> scriptContextSettingMap = new HashMap<>();
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
-            scriptContextSettingMap.put(scriptContext, new Setting<>(
-                ScriptModes.operationKey(scriptContext),
-                ScriptMode.OFF.getMode(),
-                ScriptMode::parse,
-                Property.NodeScope
-            ));
+            scriptContextSettingMap.put(scriptContext,
+                    Setting.boolSetting(ScriptModes.operationKey(scriptContext), false, Property.NodeScope));
         }
         return scriptContextSettingMap;
     }
 
-    private static List<Setting<ScriptMode>> languageSettings(Map<ScriptService.ScriptType, Setting<ScriptMode>> scriptTypeSettingMap,
-                                                              Map<ScriptContext, Setting<ScriptMode>> scriptContextSettingMap,
+    private static List<Setting<Boolean>> languageSettings(Map<ScriptService.ScriptType, Setting<Boolean>> scriptTypeSettingMap,
+                                                              Map<ScriptContext, Setting<Boolean>> scriptContextSettingMap,
                                                               ScriptEngineRegistry scriptEngineRegistry,
                                                               ScriptContextRegistry scriptContextRegistry) {
-        final List<Setting<ScriptMode>> scriptModeSettings = new ArrayList<>();
+        final List<Setting<Boolean>> scriptModeSettings = new ArrayList<>();
 
         for (final Class<? extends ScriptEngineService> scriptEngineService : scriptEngineRegistry.getRegisteredScriptEngineServices()) {
             if (scriptEngineService == NativeScriptEngineService.class) {
@@ -97,17 +92,17 @@ public class ScriptSettings {
             final String language = scriptEngineRegistry.getLanguage(scriptEngineService);
             for (final ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
                 // Top level, like "script.engine.groovy.inline"
-                final ScriptMode defaultNonFileScriptMode = scriptEngineRegistry.getDefaultInlineScriptModes().get(language);
-                ScriptMode defaultLangAndType = defaultNonFileScriptMode;
+                final boolean defaultNonFileScriptMode = scriptEngineRegistry.getDefaultInlineScriptEnableds().get(language);
+                boolean defaultLangAndType = defaultNonFileScriptMode;
                 // Files are treated differently because they are never default-deny
                 if (ScriptService.ScriptType.FILE == scriptType) {
-                    defaultLangAndType = ScriptService.ScriptType.FILE.getDefaultScriptMode();
+                    defaultLangAndType = ScriptService.ScriptType.FILE.getDefaultScriptEnabled();
                 }
-                final ScriptMode defaultIfNothingSet = defaultLangAndType;
+                final boolean defaultIfNothingSet = defaultLangAndType;
 
                 // Setting for something like "script.engine.groovy.inline"
-                final Setting<ScriptMode> langAndTypeSetting = new Setting<>(ScriptModes.getGlobalKey(language, scriptType),
-                        defaultLangAndType.toString(), ScriptMode::parse, Property.NodeScope);
+                final Setting<Boolean> langAndTypeSetting = Setting.boolSetting(ScriptModes.getGlobalKey(language, scriptType),
+                        defaultLangAndType, Property.NodeScope);
                 scriptModeSettings.add(langAndTypeSetting);
 
                 for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
@@ -115,32 +110,31 @@ public class ScriptSettings {
                     // A function that, given a setting, will return what the default should be. Since the fine-grained script settings
                     // read from a bunch of different places this is implemented in this way.
                     Function<Settings, String> defaultSettingFn = settings -> {
-                        final Setting<ScriptMode> globalOpSetting = scriptContextSettingMap.get(scriptContext);
-                        final Setting<ScriptMode> globalTypeSetting = scriptTypeSettingMap.get(scriptType);
-                        final Setting<ScriptMode> langAndTypeAndContextSetting = new Setting<>(langAndTypeAndContextName,
-                                defaultIfNothingSet.toString(), ScriptMode::parse, Property.NodeScope);
+                        final Setting<Boolean> globalOpSetting = scriptContextSettingMap.get(scriptContext);
+                        final Setting<Boolean> globalTypeSetting = scriptTypeSettingMap.get(scriptType);
+                        final Setting<Boolean> langAndTypeAndContextSetting = Setting.boolSetting(langAndTypeAndContextName,
+                                defaultIfNothingSet, Property.NodeScope);
 
                         // fallback logic for script mode settings
                         if (langAndTypeAndContextSetting.exists(settings)) {
                             // like: "script.engine.groovy.inline.aggs: true"
-                            return langAndTypeAndContextSetting.get(settings).getMode();
+                            return langAndTypeAndContextSetting.get(settings).toString();
                         } else if (langAndTypeSetting.exists(settings)) {
                             // like: "script.engine.groovy.inline: true"
-                            return langAndTypeSetting.get(settings).getMode();
+                            return langAndTypeSetting.get(settings).toString();
                         } else if (globalOpSetting.exists(settings)) {
                             // like: "script.aggs: true"
-                            return globalOpSetting.get(settings).getMode();
+                            return globalOpSetting.get(settings).toString();
                         } else if (globalTypeSetting.exists(settings)) {
                             // like: "script.inline: true"
-                            return globalTypeSetting.get(settings).getMode();
+                            return globalTypeSetting.get(settings).toString();
                         } else {
                             // Nothing is set!
-                            return defaultIfNothingSet.getMode();
+                            return Boolean.toString(defaultIfNothingSet);
                         }
                     };
                     // The actual setting for finest grained script settings
-                    Setting<ScriptMode> setting = new Setting<>(langAndTypeAndContextName, defaultSettingFn,
-                            ScriptMode::parse, Property.NodeScope);
+                    Setting<Boolean> setting = Setting.boolSetting(langAndTypeAndContextName, defaultSettingFn, Property.NodeScope);
                     scriptModeSettings.add(setting);
                 }
             }
@@ -148,15 +142,16 @@ public class ScriptSettings {
         return scriptModeSettings;
     }
 
-    public Iterable<Setting<ScriptMode>> getScriptTypeSettings() {
-        return Collections.unmodifiableCollection(SCRIPT_TYPE_SETTING_MAP.values());
+    public List<Setting<?>> getSettings() {
+        List<Setting<?>> settings = new ArrayList<>();
+        settings.addAll(SCRIPT_TYPE_SETTING_MAP.values());
+        settings.addAll(scriptContextSettingMap.values());
+        settings.addAll(scriptLanguageSettings);
+        settings.add(defaultScriptLanguageSetting);
+        return settings;
     }
 
-    public Iterable<Setting<ScriptMode>> getScriptContextSettings() {
-        return Collections.unmodifiableCollection(scriptContextSettingMap.values());
-    }
-
-    public Iterable<Setting<ScriptMode>> getScriptLanguageSettings() {
+    public Iterable<Setting<Boolean>> getScriptLanguageSettings() {
         return scriptLanguageSettings;
     }
 

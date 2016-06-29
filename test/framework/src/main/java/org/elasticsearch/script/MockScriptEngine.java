@@ -22,17 +22,16 @@ package org.elasticsearch.script;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptMode;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 /**
- * A dummy script engine used for testing. Scripts must be a number. Many 
+ * A dummy script engine used for testing. Scripts must be a number. Many
  * tests rely on the fact this thing returns a String as its compiled form.
  * they even try to serialize it over the network!
  */
@@ -52,27 +51,12 @@ public class MockScriptEngine implements ScriptEngineService {
             this.params = params;
         }
     }
-    
-    public static class TestPlugin extends Plugin {
 
-        public TestPlugin() {
-        }
-
+    public static class TestPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public String name() {
-            return NAME;
+        public ScriptEngineService getScriptEngineService(Settings settings) {
+            return new MockScriptEngine();
         }
-
-        @Override
-        public String description() {
-            return "Mock script engine for integration tests";
-        }
-
-        public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class,
-                            MockScriptEngine.NAME, ScriptMode.ON));
-        }
-
     }
 
     @Override
@@ -92,7 +76,7 @@ public class MockScriptEngine implements ScriptEngineService {
 
     @Override
     public ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars) {
-        assert compiledScript.compiled() instanceof MockCompiledScript 
+        assert compiledScript.compiled() instanceof MockCompiledScript
           : "do NOT pass compiled scripts from other engines to me, I will fail your test, got: " + compiledScript;
         return new AbstractExecutableScript() {
             @Override
@@ -127,10 +111,11 @@ public class MockScriptEngine implements ScriptEngineService {
     }
 
     @Override
-    public void scriptRemoved(@Nullable CompiledScript script) {
+    public void close() throws IOException {
     }
 
     @Override
-    public void close() throws IOException {
+    public boolean isInlineScriptEnabled() {
+        return true;
     }
 }

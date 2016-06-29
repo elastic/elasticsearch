@@ -67,7 +67,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
                 .build();
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
         logger.info("--> adding 2 nodes on same rack and do rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
@@ -109,8 +109,8 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
 
         logger.info("--> moving primary shard to node3");
         rerouteResult = allocation.reroute(clusterState, new AllocationCommands(
-                        new MoveAllocationCommand("test", 0, clusterState.routingTable().index("test").shard(0).primaryShard().currentNodeId(), "node3"))
-        );
+                        new MoveAllocationCommand("test", 0, clusterState.routingTable().index("test").shard(0).primaryShard().currentNodeId(), "node3")),
+            false, false);
         assertThat(rerouteResult.changed(), equalTo(true));
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
         assertThat(clusterState.getRoutingNodes().node(origPrimaryNodeId).iterator().next().state(), equalTo(RELOCATING));
@@ -125,8 +125,8 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
 
         logger.info("--> moving primary shard to node3");
         rerouteResult = allocation.reroute(clusterState, new AllocationCommands(
-                        new MoveAllocationCommand("test", 0, clusterState.routingTable().index("test").shard(0).primaryShard().currentNodeId(), "node3"))
-        );
+                        new MoveAllocationCommand("test", 0, clusterState.routingTable().index("test").shard(0).primaryShard().currentNodeId(), "node3")),
+            false, false);
         assertThat(rerouteResult.changed(), equalTo(true));
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
         assertThat(clusterState.getRoutingNodes().node(origPrimaryNodeId).iterator().next().state(), equalTo(RELOCATING));
@@ -158,7 +158,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
         logger.info("Adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
@@ -239,7 +239,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
         logger.info("Adding single node and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1"))).build();
@@ -295,7 +295,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
         logger.info("Adding {} nodes and performing rerouting", numberOfReplicas + 1);
         DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder();
@@ -351,7 +351,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
         logger.info("Adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
@@ -411,7 +411,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
         logger.info("Adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
@@ -502,7 +502,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
         // add 4 nodes
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2")).put(newNode("node3")).put(newNode("node4"))).build();
@@ -548,7 +548,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
         // add 4 nodes
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2")).put(newNode("node3")).put(newNode("node4"))).build();

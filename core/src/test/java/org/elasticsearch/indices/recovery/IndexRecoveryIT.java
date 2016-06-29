@@ -408,6 +408,28 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertOnGoingRecoveryState(nodeCRecoveryStates.get(0), 0, Type.REPLICA, nodeB, nodeC, false);
         validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
 
+        if (randomBoolean()) {
+            // shutdown node with relocation source of replica shard and check if recovery continues
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeA));
+            ensureStableCluster(2);
+
+            response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
+            recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
+
+            nodeARecoveryStates = findRecoveriesForTargetNode(nodeA, recoveryStates);
+            assertThat(nodeARecoveryStates.size(), equalTo(0));
+            nodeBRecoveryStates = findRecoveriesForTargetNode(nodeB, recoveryStates);
+            assertThat(nodeBRecoveryStates.size(), equalTo(1));
+            nodeCRecoveryStates = findRecoveriesForTargetNode(nodeC, recoveryStates);
+            assertThat(nodeCRecoveryStates.size(), equalTo(1));
+
+            assertRecoveryState(nodeBRecoveryStates.get(0), 0, Type.PRIMARY_RELOCATION, Stage.DONE, nodeA, nodeB, false);
+            validateIndexRecoveryState(nodeBRecoveryStates.get(0).getIndex());
+
+            assertOnGoingRecoveryState(nodeCRecoveryStates.get(0), 0, Type.REPLICA, nodeB, nodeC, false);
+            validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
+        }
+
         logger.info("--> speeding up recoveries");
         restoreRecoverySpeed();
         ensureGreen();

@@ -9,12 +9,12 @@ conjunction with the cluster-wide allocation filters explained in
 <<shards-allocation>>.
 
 It is possible to assign arbitrary metadata attributes to each node at
-startup.  For instance, nodes could be assigned a `rack` and a `group`
+startup.  For instance, nodes could be assigned a `rack` and a `size`
 attribute as follows:
 
 [source,sh]
 ------------------------
-bin/elasticsearch -Ees.node.attr.rack=rack1 -Ees.node.attr.size=big  <1>
+bin/elasticsearch -Enode.attr.rack=rack1 -Enode.attr.size=big  <1>
 ------------------------
 <1> These attribute settings can also be specified in the `elasticsearch.yml` config file.
 

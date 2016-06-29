@@ -19,17 +19,16 @@
 
 package org.elasticsearch.node;
 
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.node.NodeClientModule;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.MasterNodeChangePredicate;
@@ -61,23 +60,25 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.NodeEnvironmentModule;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.indices.breaker.CircuitBreakerModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
@@ -85,9 +86,12 @@ import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.node.service.NodeService;
+import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptModule;
@@ -96,12 +100,11 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.tasks.TaskPersistenceService;
+import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.tribe.TribeModule;
 import org.elasticsearch.tribe.TribeService;
-import org.elasticsearch.watcher.ResourceWatcherModule;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.BufferedWriter;
@@ -129,6 +132,7 @@ import java.util.function.Function;
  */
 public class Node implements Closeable {
 
+
     public static final Setting<Boolean> WRITE_PORTS_FIELD_SETTING =
         Setting.boolSetting("node.portsfile", false, Property.NodeScope);
     public static final Setting<Boolean> NODE_DATA_SETTING = Setting.boolSetting("node.data", true, Property.NodeScope);
@@ -142,6 +146,16 @@ public class Node implements Closeable {
         Setting.boolSetting("node.ingest", true, Property.NodeScope);
     public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", Property.NodeScope);
     public static final Setting<Settings> NODE_ATTRIBUTES = Setting.groupSetting("node.attr.", Property.NodeScope);
+    public static final Setting<String> BREAKER_TYPE_KEY = new Setting<>("indices.breaker.type", "hierarchy", (s) -> {
+        switch (s) {
+            case "hierarchy":
+            case "none":
+                return s;
+            default:
+                throw new IllegalArgumentException("indices.breaker.type must be one of [hierarchy, none] but was: " + s);
+        }
+    }, Setting.Property.NodeScope);
+
 
 
     private static final String CLIENT_TYPE = "node";
@@ -149,6 +163,7 @@ public class Node implements Closeable {
     private final Injector injector;
     private final Settings settings;
     private final Environment environment;
+    private final NodeEnvironment nodeEnvironment;
     private final PluginsService pluginsService;
     private final Client client;
 
@@ -158,17 +173,31 @@ public class Node implements Closeable {
      * @param preparedSettings Base settings to configure the node with
      */
     public Node(Settings preparedSettings) {
-        this(InternalSettingsPreparer.prepareEnvironment(preparedSettings, null), Version.CURRENT, Collections.<Class<? extends Plugin>>emptyList());
+        this(InternalSettingsPreparer.prepareEnvironment(preparedSettings, null), Collections.<Class<? extends Plugin>>emptyList());
     }
 
-    protected Node(Environment tmpEnv, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
+    protected Node(Environment tmpEnv, Collection<Class<? extends Plugin>> classpathPlugins) {
         Settings tmpSettings = Settings.builder().put(tmpEnv.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
-        tmpSettings = TribeService.processSettings(tmpSettings);
+        final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
 
+        tmpSettings = TribeService.processSettings(tmpSettings);
         ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(tmpSettings));
-        final String displayVersion = version + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
-        logger.info("version[{}], pid[{}], build[{}/{}]", displayVersion, JvmInfo.jvmInfo().pid(), Build.CURRENT.shortHash(), Build.CURRENT.date());
+        final String displayVersion = Version.CURRENT + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
+        final JvmInfo jvmInfo = JvmInfo.jvmInfo();
+        logger.info(
+            "version[{}], pid[{}], build[{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
+            displayVersion,
+            jvmInfo.pid(),
+            Build.CURRENT.shortHash(),
+            Build.CURRENT.date(),
+            Constants.OS_NAME,
+            Constants.OS_VERSION,
+            Constants.OS_ARCH,
+            Constants.JVM_VENDOR,
+            Constants.JVM_NAME,
+            Constants.JAVA_VERSION,
+            Constants.JVM_VERSION);
 
         logger.info("initializing ...");
 
@@ -186,63 +215,88 @@ public class Node implements Closeable {
         this.pluginsService = new PluginsService(tmpSettings, tmpEnv.modulesFile(), tmpEnv.pluginsFile(), classpathPlugins);
         this.settings = pluginsService.updatedSettings();
         // create the environment based on the finalized (processed) view of the settings
-        this.environment = new Environment(this.settings());
+        this.environment = new Environment(this.settings);
+        final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);
 
-        final NodeEnvironment nodeEnvironment;
-        try {
-            nodeEnvironment = new NodeEnvironment(this.settings, this.environment);
-        } catch (IOException ex) {
-            throw new IllegalStateException("Failed to created node environment", ex);
-        }
-        final NetworkService networkService = new NetworkService(settings);
-        final ThreadPool threadPool = new ThreadPool(settings);
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         boolean success = false;
         try {
-            final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
+            final ThreadPool threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder[0]));
+            resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
+            final List<Setting<?>> additionalSettings = new ArrayList<>();
+            final List<String> additionalSettingsFilter = new ArrayList<>();
+            additionalSettings.addAll(pluginsService.getPluginSettings());
+            additionalSettingsFilter.addAll(pluginsService.getPluginSettingsFilter());
+            for (final ExecutorBuilder<?> builder : threadPool.builders()) {
+                additionalSettings.addAll(builder.getRegisteredSettings());
+            }
+            final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
+            final ScriptModule scriptModule = ScriptModule.create(settings, environment, resourceWatcherService,
+                    pluginsService.filterPlugins(ScriptPlugin.class));
+            AnalysisModule analysisModule = new AnalysisModule(environment, pluginsService.filterPlugins(AnalysisPlugin.class));
+            additionalSettings.addAll(scriptModule.getSettings());
+            // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
+            // so we might be late here already
+            final SettingsModule settingsModule = new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter);
+            try {
+                nodeEnvironment = new NodeEnvironment(this.settings, this.environment);
+                resourcesToClose.add(nodeEnvironment);
+            } catch (IOException ex) {
+                throw new IllegalStateException("Failed to created node environment", ex);
+            }
+            resourcesToClose.add(resourceWatcherService);
+            final NetworkService networkService = new NetworkService(settings);
+            final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
+            resourcesToClose.add(clusterService);
+            final TribeService tribeService = new TribeService(settings, clusterService);
+            resourcesToClose.add(tribeService);
+            NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
             ModulesBuilder modules = new ModulesBuilder();
-            modules.add(new Version.Module(version));
-            modules.add(new CircuitBreakerModule(settings));
             // plugin modules must be added here, before others or we can get crazy injection errors...
             for (Module pluginModule : pluginsService.nodeModules()) {
                 modules.add(pluginModule);
             }
-            modules.add(new PluginsModule(pluginsService));
-            SettingsModule settingsModule = new SettingsModule(this.settings);
-            modules.add(settingsModule);
-            modules.add(new EnvironmentModule(environment));
+            final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
             modules.add(new NodeModule(this, monitorService));
             modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry));
-            ScriptModule scriptModule = new ScriptModule();
-            modules.add(scriptModule);
-            modules.add(new NodeEnvironmentModule(nodeEnvironment));
-            modules.add(new ClusterNameModule(this.settings));
-            modules.add(new ThreadPoolModule(threadPool));
             modules.add(new DiscoveryModule(this.settings));
-            modules.add(new ClusterModule(this.settings));
-            modules.add(new IndicesModule());
+            ClusterModule clusterModule = new ClusterModule(settings, clusterService);
+            modules.add(clusterModule);
+            modules.add(new IndicesModule(namedWriteableRegistry, pluginsService.filterPlugins(MapperPlugin.class)));
             modules.add(new SearchModule(settings, namedWriteableRegistry));
-            modules.add(new ActionModule(DiscoveryNode.isIngestNode(settings), false));
-            modules.add(new GatewayModule(settings));
-            modules.add(new NodeClientModule());
-            modules.add(new ResourceWatcherModule());
+            modules.add(new ActionModule(DiscoveryNode.isIngestNode(settings), false, settings,
+                    clusterModule.getIndexNameExpressionResolver(), settingsModule.getClusterSettings(),
+                    pluginsService.filterPlugins(ActionPlugin.class)));
+            modules.add(new GatewayModule());
             modules.add(new RepositoriesModule());
-            modules.add(new TribeModule());
-            modules.add(new AnalysisModule(environment));
-
             pluginsService.processModules(modules);
-            scriptModule.prepareSettings(settingsModule);
+            CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
+                settingsModule.getClusterSettings());
+            resourcesToClose.add(circuitBreakerService);
+            BigArrays bigArrays = createBigArrays(settings, circuitBreakerService);
+            resourcesToClose.add(bigArrays);
+            modules.add(settingsModule);
+            modules.add(b -> {
+                    b.bind(PluginsService.class).toInstance(pluginsService);
+                    b.bind(Client.class).to(NodeClient.class).asEagerSingleton();
+                    b.bind(Environment.class).toInstance(environment);
+                    b.bind(ThreadPool.class).toInstance(threadPool);
+                    b.bind(NodeEnvironment.class).toInstance(nodeEnvironment);
+                    b.bind(TribeService.class).toInstance(tribeService);
+                    b.bind(ResourceWatcherService.class).toInstance(resourceWatcherService);
+                    b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService);
+                    b.bind(BigArrays.class).toInstance(bigArrays);
+                    b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
+                    b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
+                }
+            );
             injector = modules.createInjector();
-
             client = injector.getInstance(Client.class);
-            threadPool.setClusterSettings(injector.getInstance(ClusterSettings.class));
             success = true;
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to bind service", ex);
         } finally {
             if (!success) {
-                nodeEnvironment.close();
-                ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+                IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
 
@@ -269,6 +323,14 @@ public class Node implements Closeable {
     public Environment getEnvironment() {
         return environment;
     }
+
+    /**
+     * Returns the {@link NodeEnvironment} instance of this node
+     */
+    public NodeEnvironment getNodeEnvironment() {
+        return nodeEnvironment;
+    }
+
 
     /**
      * Start the node. If the node is already started, this method is no-op.
@@ -318,6 +380,7 @@ public class Node implements Closeable {
 
         // Start the transport service now so the publish address will be added to the local disco node in ClusterService
         TransportService transportService = injector.getInstance(TransportService.class);
+        transportService.getTaskManager().setTaskResultsService(injector.getInstance(TaskPersistenceService.class));
         transportService.start();
 
         validateNodeBeforeAcceptingRequests(settings, transportService.boundAddress());
@@ -510,7 +573,7 @@ public class Node implements Closeable {
 
 
         toClose.add(injector.getInstance(NodeEnvironment.class));
-        toClose.add(injector.getInstance(PageCacheRecycler.class));
+        toClose.add(injector.getInstance(BigArrays.class));
 
         if (logger.isTraceEnabled()) {
             logger.trace("Close times for each service:\n{}", stopWatch.prettyPrint());
@@ -566,5 +629,28 @@ public class Node implements Closeable {
         } catch (IOException e) {
             throw new RuntimeException("Failed to rename ports file", e);
         }
+    }
+
+    /**
+     * Creates a new {@link CircuitBreakerService} based on the settings provided.
+     * @see #BREAKER_TYPE_KEY
+     */
+    public static CircuitBreakerService createCircuitBreakerService(Settings settings, ClusterSettings clusterSettings) {
+        String type = BREAKER_TYPE_KEY.get(settings);
+        if (type.equals("hierarchy")) {
+            return new HierarchyCircuitBreakerService(settings, clusterSettings);
+        } else if (type.equals("none")) {
+            return new NoneCircuitBreakerService();
+        } else {
+            throw new IllegalArgumentException("Unknown circuit breaker type [" + type + "]");
+        }
+    }
+
+    /**
+     * Creates a new {@link BigArrays} instance used for this node.
+     * This method can be overwritten by subclasses to change their {@link BigArrays} implementation for instance for testing
+     */
+    BigArrays createBigArrays(Settings settings, CircuitBreakerService circuitBreakerService) {
+        return new BigArrays(settings, circuitBreakerService);
     }
 }

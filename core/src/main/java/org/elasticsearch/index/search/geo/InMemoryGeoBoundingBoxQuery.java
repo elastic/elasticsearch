@@ -84,7 +84,7 @@ public class InMemoryGeoBoundingBoxQuery extends Query {
 
     @Override
     public boolean equals(Object obj) {
-        if (super.equals(obj) == false) {
+        if (sameClassAs(obj) == false) {
             return false;
         }
         InMemoryGeoBoundingBoxQuery other = (InMemoryGeoBoundingBoxQuery) obj;
@@ -95,7 +95,7 @@ public class InMemoryGeoBoundingBoxQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), fieldName(), topLeft, bottomRight);
+        return Objects.hash(classHash(), fieldName(), topLeft, bottomRight);
     }
 
     private static class Meridian180GeoBoundingBoxBits implements Bits {

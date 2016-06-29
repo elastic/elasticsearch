@@ -68,6 +68,18 @@ public class BasicExpressionTests extends ScriptTestCase {
                 "((Map)y).put(2, 3);\n" +
                 "return x.get(2);\n"));
     }
+    
+    public void testIllegalDefCast() {
+        Exception exception = expectScriptThrows(ClassCastException.class, () -> { 
+            exec("def x = 1.0; int y = x; return y;");
+        });
+        assertTrue(exception.getMessage().contains("cannot be cast"));
+
+        exception = expectScriptThrows(ClassCastException.class, () -> { 
+            exec("def x = (short)1; byte y = x; return y;");
+        });
+        assertTrue(exception.getMessage().contains("cannot be cast"));
+    }
 
     public void testCat() {
         assertEquals("aaabbb", exec("return \"aaa\" + \"bbb\";"));
@@ -96,15 +108,15 @@ public class BasicExpressionTests extends ScriptTestCase {
     }
 
     /**
-     * Test boxed objects in various places
+     * Test boxed def objects in various places
      */
     public void testBoxing() {
         // return
         assertEquals(4, exec("return params.get(\"x\");", Collections.singletonMap("x", 4)));
         // assignment
-        assertEquals(4, exec("int y = (Integer)params.get(\"x\"); return y;", Collections.singletonMap("x", 4)));
+        assertEquals(4, exec("int y = params.get(\"x\"); return y;", Collections.singletonMap("x", 4)));
         // comparison
-        assertEquals(true, exec("return 5 > (Integer)params.get(\"x\");", Collections.singletonMap("x", 4)));
+        assertEquals(true, exec("return 5 > params.get(\"x\");", Collections.singletonMap("x", 4)));
     }
 
     public void testBool() {

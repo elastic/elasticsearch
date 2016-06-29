@@ -20,3 +20,9 @@ Now that Elasticsearch supports `ipv6`, `ip` addresses are encoded in the index
 using a binary representation rather than a numeric representation. As a
 consequence, the output of `ip_range` aggregations does not give numeric values
 for `from` and `to` anymore.
+
+==== `size: 0` on Terms, Significant Terms and Geohash Grid Aggregations
+
+`size: 0` is no longer valid for the terms, significant terms and geohash grid
+aggregations. Instead a size should be explicitly specified with a number greater
+than zero.

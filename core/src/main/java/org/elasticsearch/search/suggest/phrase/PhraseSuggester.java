@@ -34,7 +34,9 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.CompiledScript;
@@ -53,6 +55,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     private final BytesRef SEPARATOR = new BytesRef(" ");
@@ -123,7 +126,8 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     final ExecutableScript executable = scriptService.executable(collateScript, vars);
                     final BytesReference querySource = (BytesReference) executable.run();
                     try (XContentParser parser = XContentFactory.xContent(querySource).createParser(querySource)) {
-                        final ParsedQuery parsedQuery = shardContext.toQuery(shardContext.newParseContext(parser).parseInnerQueryBuilder());
+                        Optional<QueryBuilder> innerQueryBuilder = shardContext.newParseContext(parser).parseInnerQueryBuilder();
+                        final ParsedQuery parsedQuery = shardContext.toQuery(innerQueryBuilder.orElse(new MatchNoneQueryBuilder()));
                         collateMatch = Lucene.exists(searcher, parsedQuery.query());
                     }
                 }

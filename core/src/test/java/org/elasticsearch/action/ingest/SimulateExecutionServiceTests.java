@@ -19,12 +19,13 @@
 
 package org.elasticsearch.action.ingest;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestProcessor;
-import org.elasticsearch.ingest.core.CompoundProcessor;
-import org.elasticsearch.ingest.core.IngestDocument;
-import org.elasticsearch.ingest.core.Pipeline;
+import org.elasticsearch.ingest.CompoundProcessor;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -33,7 +34,7 @@ import org.junit.Before;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.ingest.core.IngestDocumentTests.assertIngestDocument;
+import static org.elasticsearch.ingest.IngestDocumentTests.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -127,7 +128,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         TestProcessor processor2 = new TestProcessor("processor_1", "mock", ingestDocument -> {});
         TestProcessor processor3 = new TestProcessor("processor_2", "mock", ingestDocument -> {});
         Pipeline pipeline = new Pipeline("_id", "_description",
-                new CompoundProcessor(new CompoundProcessor(Collections.singletonList(processor1),
+                new CompoundProcessor(new CompoundProcessor(false, Collections.singletonList(processor1),
                                 Collections.singletonList(processor2)), processor3));
         SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, true);
         assertThat(processor1.getInvokedCounter(), equalTo(1));
@@ -158,6 +159,22 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         assertThat(simulateDocumentVerboseResult.getProcessorResults().get(2).getFailure(), nullValue());
     }
 
+    public void testExecuteVerboseItemExceptionWithIgnoreFailure() throws Exception {
+        TestProcessor testProcessor = new TestProcessor("processor_0", "mock", ingestDocument -> { throw new RuntimeException("processor failed"); });
+        CompoundProcessor processor = new CompoundProcessor(true, Collections.singletonList(testProcessor), Collections.emptyList());
+        Pipeline pipeline = new Pipeline("_id", "_description", new CompoundProcessor(processor));
+        SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, true);
+        assertThat(testProcessor.getInvokedCounter(), equalTo(1));
+        assertThat(actualItemResponse, instanceOf(SimulateDocumentVerboseResult.class));
+        SimulateDocumentVerboseResult simulateDocumentVerboseResult = (SimulateDocumentVerboseResult) actualItemResponse;
+        assertThat(simulateDocumentVerboseResult.getProcessorResults().size(), equalTo(1));
+        assertThat(simulateDocumentVerboseResult.getProcessorResults().get(0).getProcessorTag(), equalTo("processor_0"));
+        assertThat(simulateDocumentVerboseResult.getProcessorResults().get(0).getFailure(), nullValue());
+        assertThat(simulateDocumentVerboseResult.getProcessorResults().get(0).getIngestDocument(), not(sameInstance(ingestDocument)));
+        assertIngestDocument(simulateDocumentVerboseResult.getProcessorResults().get(0).getIngestDocument(), ingestDocument);
+        assertThat(simulateDocumentVerboseResult.getProcessorResults().get(0).getIngestDocument().getSourceAndMetadata(), not(sameInstance(ingestDocument.getSourceAndMetadata())));
+    }
+
     public void testExecuteItemWithFailure() throws Exception {
         TestProcessor processor = new TestProcessor(ingestDocument -> { throw new RuntimeException("processor failed"); });
         Pipeline pipeline = new Pipeline("_id", "_description", new CompoundProcessor(processor, processor));
@@ -167,7 +184,8 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         SimulateDocumentBaseResult simulateDocumentBaseResult = (SimulateDocumentBaseResult) actualItemResponse;
         assertThat(simulateDocumentBaseResult.getIngestDocument(), nullValue());
         assertThat(simulateDocumentBaseResult.getFailure(), instanceOf(RuntimeException.class));
-        RuntimeException runtimeException = (RuntimeException) simulateDocumentBaseResult.getFailure();
-        assertThat(runtimeException.getMessage(), equalTo("processor failed"));
+        Exception exception = simulateDocumentBaseResult.getFailure();
+        assertThat(exception, instanceOf(ElasticsearchException.class));
+        assertThat(exception.getMessage(), equalTo("java.lang.IllegalArgumentException: java.lang.RuntimeException: processor failed"));
     }
 }

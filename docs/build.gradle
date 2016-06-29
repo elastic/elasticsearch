@@ -22,6 +22,29 @@ apply plugin: 'elasticsearch.docs-test'
 integTest {
   cluster {
     setting 'script.inline', 'true'
+    setting 'script.stored', 'true'
+    Closure configFile = {
+      extraConfigFile it, "src/test/cluster/config/$it"
+    }
+    configFile 'scripts/my_script.js'
+    configFile 'scripts/my_script.py'
+    configFile 'userdict_ja.txt'
+    configFile 'KeywordTokenizer.rbbi'
+  }
+}
+
+// Build the cluser with all plugins
+project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
+  /* Skip repositories. We just aren't going to be able to test them so it
+   * doesn't make sense to waste time installing them. */
+  if (subproj.path.startsWith(':plugins:repository-')) {
+    return
+  }
+  integTest {
+    cluster {
+      // We need a non-decorated project object, so we lookup the project by path
+      plugin subproj.name, project(subproj.path)
+    }
   }
 }
 
@@ -30,8 +53,6 @@ buildRestTests.docs = fileTree(projectDir) {
   exclude 'build.gradle'
   // That is where the snippets go, not where they come from!
   exclude 'build'
-  // Remove plugins because they aren't installed during this test. Yet?
-  exclude 'plugins'
   // This file simply doesn't pass yet. We should figure out how to fix it.
   exclude 'reference/modules/snapshots.asciidoc'
 }

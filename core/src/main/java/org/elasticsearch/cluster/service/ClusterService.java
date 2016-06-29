@@ -44,7 +44,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -66,7 +65,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -95,6 +96,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
 
     public static final String UPDATE_THREAD_NAME = "clusterService#updateTask";
     private final ThreadPool threadPool;
+    private final ClusterName clusterName;
 
     private BiConsumer<ClusterChangedEvent, Discovery.AckListener> clusterStatePublisher;
 
@@ -128,14 +130,13 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
 
     private NodeConnectionsService nodeConnectionsService;
 
-    @Inject
-    public ClusterService(Settings settings, OperationRouting operationRouting,
-                          ClusterSettings clusterSettings, ThreadPool threadPool, ClusterName clusterName) {
+    public ClusterService(Settings settings,
+                          ClusterSettings clusterSettings, ThreadPool threadPool) {
         super(settings);
-        this.operationRouting = operationRouting;
+        this.operationRouting = new OperationRouting(settings, clusterSettings);
         this.threadPool = threadPool;
         this.clusterSettings = clusterSettings;
-
+        this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         // will be replaced on doStart.
         this.clusterState = ClusterState.builder(clusterName).build();
 
@@ -236,7 +237,11 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
      * The local node.
      */
     public DiscoveryNode localNode() {
-        return clusterState.getNodes().getLocalNode();
+        DiscoveryNode localNode = clusterState.getNodes().getLocalNode();
+        if (localNode == null) {
+            throw new IllegalStateException("No local node found. Is the node started?");
+        }
+        return localNode;
     }
 
     public OperationRouting operationRouting() {
@@ -371,34 +376,61 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
     public <T> void submitStateUpdateTask(final String source, final T task,
                                           final ClusterStateTaskConfig config,
                                           final ClusterStateTaskExecutor<T> executor,
-                                          final ClusterStateTaskListener listener
-    ) {
-        innerSubmitStateUpdateTask(source, task, config, executor, safe(listener, logger));
+                                          final ClusterStateTaskListener listener) {
+        submitStateUpdateTasks(source, Collections.singletonMap(task, listener), config, executor);
     }
 
-    private <T> void innerSubmitStateUpdateTask(final String source, final T task,
-                                                final ClusterStateTaskConfig config,
-                                                final ClusterStateTaskExecutor executor,
-                                                final SafeClusterStateTaskListener listener) {
+    /**
+     * Submits a batch of cluster state update tasks; submitted updates are guaranteed to be processed together,
+     * potentially with more tasks of the same executor.
+     *
+     * @param source   the source of the cluster state update task
+     * @param tasks    a map of update tasks and their corresponding listeners
+     * @param config   the cluster state update task configuration
+     * @param executor the cluster state update task executor; tasks
+     *                 that share the same executor will be executed
+     *                 batches on this executor
+     * @param <T>      the type of the cluster state update task state
+     */
+    public <T> void submitStateUpdateTasks(final String source,
+                                           final Map<T, ClusterStateTaskListener> tasks, final ClusterStateTaskConfig config,
+                                           final ClusterStateTaskExecutor<T> executor) {
         if (!lifecycle.started()) {
             return;
         }
+        if (tasks.isEmpty()) {
+            return;
+        }
         try {
-            final UpdateTask<T> updateTask = new UpdateTask<>(source, task, config, executor, listener);
+            // convert to an identity map to check for dups based on update tasks semantics of using identity instead of equal
+            final IdentityHashMap<T, ClusterStateTaskListener> tasksIdentity = new IdentityHashMap<>(tasks);
+            final List<UpdateTask<T>> updateTasks = tasksIdentity.entrySet().stream().map(
+                entry -> new UpdateTask<>(source, entry.getKey(), config, executor, safe(entry.getValue(), logger))
+            ).collect(Collectors.toList());
 
             synchronized (updateTasksPerExecutor) {
-                updateTasksPerExecutor.computeIfAbsent(executor, k -> new ArrayList<>()).add(updateTask);
+                List<UpdateTask> existingTasks = updateTasksPerExecutor.computeIfAbsent(executor, k -> new ArrayList<>());
+                for (@SuppressWarnings("unchecked") UpdateTask<T> existing : existingTasks) {
+                    if (tasksIdentity.containsKey(existing.task)) {
+                        throw new IllegalArgumentException("task [" + existing.task + "] is already queued");
+                    }
+                }
+                existingTasks.addAll(updateTasks);
             }
 
+            final UpdateTask<T> firstTask = updateTasks.get(0);
+
             if (config.timeout() != null) {
-                updateTasksExecutor.execute(updateTask, threadPool.scheduler(), config.timeout(), () -> threadPool.generic().execute(() -> {
-                    if (updateTask.processed.getAndSet(true) == false) {
-                        logger.debug("cluster state update task [{}] timed out after [{}]", source, config.timeout());
-                        listener.onFailure(source, new ProcessClusterEventTimeoutException(config.timeout(), source));
+                updateTasksExecutor.execute(firstTask, threadPool.scheduler(), config.timeout(), () -> threadPool.generic().execute(() -> {
+                    for (UpdateTask<T> task : updateTasks) {
+                        if (task.processed.getAndSet(true) == false) {
+                            logger.debug("cluster state update task [{}] timed out after [{}]", source, config.timeout());
+                            task.listener.onFailure(source, new ProcessClusterEventTimeoutException(config.timeout(), source));
+                        }
                     }
                 }));
             } else {
-                updateTasksExecutor.execute(updateTask);
+                updateTasksExecutor.execute(firstTask);
             }
         } catch (EsRejectedExecutionException e) {
             // ignore cases where we are shutting down..., there is really nothing interesting
@@ -455,10 +487,14 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
     }
 
     /** asserts that the current thread is the cluster state update thread */
-    public boolean assertClusterStateThread() {
+    public static boolean assertClusterStateThread() {
         assert Thread.currentThread().getName().contains(ClusterService.UPDATE_THREAD_NAME) :
                 "not called from the cluster state update thread";
         return true;
+    }
+
+    public ClusterName getClusterName() {
+        return clusterName;
     }
 
     static abstract class SourcePrioritizedRunnable extends PrioritizedRunnable {
@@ -681,7 +717,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
             }
 
             try {
-                executor.clusterStatePublished(newClusterState);
+                executor.clusterStatePublished(clusterChangedEvent);
             } catch (Exception e) {
                 logger.error("exception thrown while notifying executor of new cluster state publication [{}]", e, source);
             }
@@ -1009,5 +1045,9 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
 
     public ClusterSettings getClusterSettings() {
         return clusterSettings;
+    }
+
+    public Settings getSettings() {
+        return settings;
     }
 }

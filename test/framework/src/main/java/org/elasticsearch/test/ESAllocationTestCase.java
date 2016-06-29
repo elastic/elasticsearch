@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -157,7 +158,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected static AllocationDeciders yesAllocationDeciders() {
-        return new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {new TestAllocateDecision(Decision.YES)});
+        return new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {new TestAllocateDecision(Decision.YES),
+            new SameShardAllocationDecider(Settings.EMPTY)});
     }
 
     protected static AllocationDeciders noAllocationDeciders() {
@@ -165,7 +167,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected static AllocationDeciders throttleAllocationDeciders() {
-        return new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {new TestAllocateDecision(Decision.THROTTLE)});
+        return new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {new TestAllocateDecision(Decision.THROTTLE),
+            new SameShardAllocationDecider(Settings.EMPTY)});
     }
 
     public static class TestAllocateDecision extends AllocationDecider {
@@ -196,7 +199,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     /** A lock {@link AllocationService} allowing tests to override time */
     protected static class MockAllocationService extends AllocationService {
 
-        private Long nanoTimeOverride = null;
+        private volatile long nanoTimeOverride = -1L;
 
         public MockAllocationService(Settings settings, AllocationDeciders allocationDeciders, GatewayAllocator gatewayAllocator,
                                      ShardsAllocator shardsAllocator, ClusterInfoService clusterInfoService) {
@@ -209,7 +212,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
         @Override
         protected long currentNanoTime() {
-            return nanoTimeOverride == null ? super.currentNanoTime() : nanoTimeOverride;
+            return nanoTimeOverride == -1L ? super.currentNanoTime() : nanoTimeOverride;
         }
     }
 
@@ -238,16 +241,15 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         @Override
         public boolean allocateUnassigned(RoutingAllocation allocation) {
             final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = allocation.routingNodes().unassigned().iterator();
-            boolean changed = false;
             while (unassignedIterator.hasNext()) {
                 ShardRouting shard = unassignedIterator.next();
                 IndexMetaData indexMetaData = allocation.metaData().index(shard.getIndexName());
                 if (shard.primary() || shard.allocatedPostIndexCreate(indexMetaData) == false) {
                     continue;
                 }
-                changed |= replicaShardAllocator.ignoreUnassignedIfDelayed(unassignedIterator, shard);
+                replicaShardAllocator.ignoreUnassignedIfDelayed(unassignedIterator, shard);
             }
-            return changed;
+            return false;
         }
     }
 }

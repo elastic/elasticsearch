@@ -26,6 +26,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,8 +37,11 @@ import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.AbstractQueryTestCase;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -53,9 +57,11 @@ import org.elasticsearch.search.MultiValueMode;
 import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
@@ -74,10 +80,10 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<FunctionScoreQueryBuilder> {
-    @BeforeClass
-    public static void registerTestRandomScoreFunction() {
-        getSearchModule().registerScoreFunction(RandomScoreFunctionBuilderWithFixedSeed::new,
-                RandomScoreFunctionBuilderWithFixedSeed::fromXContent, RandomScoreFunctionBuilderWithFixedSeed.FUNCTION_NAME_FIELD);
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singleton(TestPlugin.class);
     }
 
     @Override
@@ -594,8 +600,30 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 "  }\n" +
                 "}";
 
-        FunctionScoreQueryBuilder parsed = (FunctionScoreQueryBuilder) parseQuery(json);
-        checkGeneratedJson(json, parsed);
+        FunctionScoreQueryBuilder parsed = (FunctionScoreQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
+        // this should be equivalent to the same with a match_all query
+        String expected =
+                "{\n" +
+                    "  \"function_score\" : {\n" +
+                    "    \"query\" : { \"match_all\" : {} },\n" +
+                    "    \"functions\" : [ {\n" +
+                    "      \"filter\" : { },\n" +
+                    "      \"weight\" : 23.0,\n" +
+                    "      \"random_score\" : { }\n" +
+                    "    }, {\n" +
+                    "      \"filter\" : { },\n" +
+                    "      \"weight\" : 5.0\n" +
+                    "    } ],\n" +
+                    "    \"score_mode\" : \"multiply\",\n" +
+                    "    \"boost_mode\" : \"multiply\",\n" +
+                    "    \"max_boost\" : 100.0,\n" +
+                    "    \"min_score\" : 1.0,\n" +
+                    "    \"boost\" : 42.0\n" +
+                    "  }\n" +
+                    "}";
+
+        FunctionScoreQueryBuilder expectedParsed = (FunctionScoreQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
+        assertEquals(expectedParsed, parsed);
 
         assertEquals(json, 2, parsed.filterFunctionBuilders().length);
         assertEquals(json, 42, parsed.boost(), 0.0001);
@@ -730,5 +758,13 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             replacement.seed(builder.getSeed());
             return replacement;
         }
+    }
+
+    public static class TestPlugin extends Plugin {
+        public void onModule(SearchModule module) {
+            module.registerScoreFunction(RandomScoreFunctionBuilderWithFixedSeed::new,
+                    RandomScoreFunctionBuilderWithFixedSeed::fromXContent, RandomScoreFunctionBuilderWithFixedSeed.FUNCTION_NAME_FIELD);
+        }
+
     }
 }

@@ -84,7 +84,7 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
     }
 
     @Override
-    public final ValuesSourceAggregatorBuilder<VS, ?> parse(String aggregationName, QueryParseContext context)
+    public final ValuesSourceAggregationBuilder<VS, ?> parse(String aggregationName, QueryParseContext context)
             throws IOException {
 
         XContentParser parser = context.parser();
@@ -147,7 +147,7 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
             }
         }
 
-        ValuesSourceAggregatorBuilder<VS, ?> factory = createFactory(aggregationName, this.valuesSourceType, this.targetValueType,
+        ValuesSourceAggregationBuilder<VS, ?> factory = createFactory(aggregationName, this.valuesSourceType, this.targetValueType,
                 otherOptions);
         if (field != null) {
             factory.field(field);
@@ -171,7 +171,7 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
     }
 
     /**
-     * Creates a {@link ValuesSourceAggregatorBuilder} from the information
+     * Creates a {@link ValuesSourceAggregationBuilder} from the information
      * gathered by the subclass. Options parsed in
      * {@link AbstractValuesSourceParser} itself will be added to the factory
      * after it has been returned by this method.
@@ -189,8 +189,8 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
      *            method
      * @return the created factory
      */
-    protected abstract ValuesSourceAggregatorBuilder<VS, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, Map<ParseField, Object> otherOptions);
+    protected abstract ValuesSourceAggregationBuilder<VS, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                                           ValueType targetValueType, Map<ParseField, Object> otherOptions);
 
     /**
      * Allows subclasses of {@link AbstractValuesSourceParser} to parse extra

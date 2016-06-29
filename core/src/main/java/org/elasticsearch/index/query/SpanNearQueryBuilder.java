@@ -31,8 +31,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Matches spans which are near one another. One can specify slop, the maximum number
@@ -64,7 +66,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
      */
     public SpanNearQueryBuilder(SpanQueryBuilder initialClause, int slop) {
         if (initialClause == null) {
-            throw new IllegalArgumentException("query must include at least one clause");
+            throw new IllegalArgumentException("[" + NAME + "] must include at least one clause");
         }
         this.clauses.add(initialClause);
         this.slop = slop;
@@ -96,9 +98,12 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         return this.slop;
     }
 
-    public SpanNearQueryBuilder clause(SpanQueryBuilder clause) {
+    /**
+     * Add a span clause to the current list of clauses
+     */
+    public SpanNearQueryBuilder addClause(SpanQueryBuilder clause) {
         if (clause == null) {
-            throw new IllegalArgumentException("query clauses cannot be null");
+            throw new IllegalArgumentException("[" + NAME + "]  clauses cannot be null");
         }
         clauses.add(clause);
         return this;
@@ -108,7 +113,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
      * @return the {@link SpanQueryBuilder} clauses that were set for this query
      */
     public List<SpanQueryBuilder> clauses() {
-        return this.clauses;
+        return Collections.unmodifiableList(this.clauses);
     }
 
     /**
@@ -142,7 +147,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         builder.endObject();
     }
 
-    public static SpanNearQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<SpanNearQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -160,11 +165,11 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (parseContext.getParseFieldMatcher().match(currentFieldName, CLAUSES_FIELD)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        QueryBuilder query = parseContext.parseInnerQueryBuilder();
-                        if (!(query instanceof SpanQueryBuilder)) {
+                        Optional<QueryBuilder> query = parseContext.parseInnerQueryBuilder();
+                        if (query.isPresent() == false || query.get() instanceof SpanQueryBuilder == false) {
                             throw new ParsingException(parser.getTokenLocation(), "spanNear [clauses] must be of type span query");
                         }
-                        clauses.add((SpanQueryBuilder) query);
+                        clauses.add((SpanQueryBuilder) query.get());
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_near] query does not support [" + currentFieldName + "]");
@@ -198,12 +203,12 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
         SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder(clauses.get(0), slop);
         for (int i = 1; i < clauses.size(); i++) {
-            queryBuilder.clause(clauses.get(i));
+            queryBuilder.addClause(clauses.get(i));
         }
         queryBuilder.inOrder(inOrder);
         queryBuilder.boost(boost);
         queryBuilder.queryName(queryName);
-        return queryBuilder;
+        return Optional.of(queryBuilder);
     }
 
     @Override

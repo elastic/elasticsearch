@@ -19,12 +19,17 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
-import org.elasticsearch.painless.Variables;
+
+import java.util.Objects;
+import java.util.Set;
+
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -37,68 +42,72 @@ final class LShortcut extends ALink {
     Method getter = null;
     Method setter = null;
 
-    LShortcut(final int line, final String location, final String value) {
-        super(line, location, 1);
+    LShortcut(Location location, String value) {
+        super(location, 1);
 
-        this.value = value;
+        this.value = Objects.requireNonNull(value);
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {}
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        final Struct struct = before.struct;
+    ALink analyze(Locals locals) {
+        Struct struct = before.struct;
 
         getter = struct.methods.get(new Definition.MethodKey("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
+
+        if (getter == null) {
+            getter = struct.methods.get(new Definition.MethodKey("is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
+        }
+
         setter = struct.methods.get(new Definition.MethodKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
 
         if (getter != null && (getter.rtn.sort == Sort.VOID || !getter.arguments.isEmpty())) {
-            throw new IllegalArgumentException(error(
+            throw createError(new IllegalArgumentException(
                 "Illegal get shortcut on field [" + value + "] for type [" + struct.name + "]."));
         }
 
         if (setter != null && (setter.rtn.sort != Sort.VOID || setter.arguments.size() != 1)) {
-            throw new IllegalArgumentException(error(
+            throw createError(new IllegalArgumentException(
                 "Illegal set shortcut on field [" + value + "] for type [" + struct.name + "]."));
         }
 
         if (getter != null && setter != null && setter.arguments.get(0) != getter.rtn) {
-            throw new IllegalArgumentException(error("Shortcut argument types must match."));
+            throw createError(new IllegalArgumentException("Shortcut argument types must match."));
         }
 
         if ((getter != null || setter != null) && (!load || getter != null) && (!store || setter != null)) {
             after = setter != null ? setter.arguments.get(0) : getter.rtn;
         } else {
-            throw new IllegalArgumentException(error("Illegal shortcut on field [" + value + "] for type [" + struct.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal shortcut on field [" + value + "] for type [" + struct.name + "]."));
         }
 
         return this;
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(MethodWriter writer, Globals globals) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        if (java.lang.reflect.Modifier.isInterface(getter.owner.clazz.getModifiers())) {
-            adapter.invokeInterface(getter.owner.type, getter.method);
-        } else {
-            adapter.invokeVirtual(getter.owner.type, getter.method);
-        }
+    void load(MethodWriter writer, Globals globals) {
+        writer.writeDebugInfo(location);
+
+        getter.write(writer);
 
         if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
-            adapter.checkCast(getter.rtn.type);
+            writer.checkCast(getter.rtn.type);
         }
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        if (java.lang.reflect.Modifier.isInterface(setter.owner.clazz.getModifiers())) {
-            adapter.invokeInterface(setter.owner.type, setter.method);
-        } else {
-            adapter.invokeVirtual(setter.owner.type, setter.method);
-        }
+    void store(MethodWriter writer, Globals globals) {
+        writer.writeDebugInfo(location);
 
-        adapter.writePop(setter.rtn.sort.size);
+        setter.write(writer);
+
+        writer.writePop(setter.rtn.sort.size);
     }
 }

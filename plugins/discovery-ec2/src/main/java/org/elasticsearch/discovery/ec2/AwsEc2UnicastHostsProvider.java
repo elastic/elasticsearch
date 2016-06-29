@@ -59,8 +59,6 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
 
     private final AmazonEC2 client;
 
-    private final Version version;
-
     private final boolean bindAnyGroup;
 
     private final Set<String> groups;
@@ -74,11 +72,10 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
     private final DiscoNodesCache discoNodes;
 
     @Inject
-    public AwsEc2UnicastHostsProvider(Settings settings, TransportService transportService, AwsEc2Service awsEc2Service, Version version) {
+    public AwsEc2UnicastHostsProvider(Settings settings, TransportService transportService, AwsEc2Service awsEc2Service) {
         super(settings);
         this.transportService = transportService;
         this.client = awsEc2Service.client();
-        this.version = version;
 
         this.hostType = DISCOVERY_EC2.HOST_TYPE_SETTING.get(settings);
         this.discoNodes = new DiscoNodesCache(DISCOVERY_EC2.NODE_CACHE_TIME_SETTING.get(settings));
@@ -175,7 +172,7 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
                         for (int i = 0; i < addresses.length; i++) {
                             logger.trace("adding {}, address {}, transport_address {}", instance.getInstanceId(), address, addresses[i]);
                             discoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceId() + "-" + i, addresses[i],
-                                    emptyMap(), emptySet(), version.minimumCompatibilityVersion()));
+                                    emptyMap(), emptySet(), Version.CURRENT.minimumCompatibilityVersion()));
                         }
                     } catch (Exception e) {
                         logger.warn("failed ot add {}, address {}", e, instance.getInstanceId(), address);

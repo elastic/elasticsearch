@@ -240,7 +240,6 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         FieldData("fielddata"),
         Docs("docs"),
         Warmer("warmer"),
-        PercolatorCache("percolator_cache"),
         Completion("completion"),
         Segments("segments"),
         Translog("translog"),

@@ -28,8 +28,8 @@ import org.elasticsearch.cloud.azure.management.AzureComputeService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
@@ -57,6 +57,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -72,19 +73,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTi
 public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
 
     public static class TestPlugin extends Plugin {
-
         @Override
-        public String name() {
-            return AzureDiscoveryClusterFormationTests.class.getName();
-        }
-
-        @Override
-        public String description() {
-            return AzureDiscoveryClusterFormationTests.class.getName();
-        }
-
-        public void onModule(SettingsModule settingsModule) {
-            settingsModule.registerSetting(AzureComputeService.Management.ENDPOINT_SETTING);
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(AzureComputeService.Management.ENDPOINT_SETTING);
         }
     }
 
@@ -277,9 +268,9 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
 
     public void testJoin() throws ExecutionException, InterruptedException {
         // only wait for the cluster to form
-        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(2)).get());
+        ensureClusterSizeConsistency();
         // add one more node and wait for it to join
         internalCluster().startDataOnlyNodeAsync().get();
-        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(3)).get());
+        ensureClusterSizeConsistency();
     }
 }

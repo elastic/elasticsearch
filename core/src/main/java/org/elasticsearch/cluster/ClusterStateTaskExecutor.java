@@ -40,8 +40,10 @@ public interface ClusterStateTaskExecutor<T> {
     /**
      * Callback invoked after new cluster state is published. Note that
      * this method is not invoked if the cluster state was not updated.
+     * @param clusterChangedEvent the change event for this cluster state change, containing
+     *                            both old and new states
      */
-    default void clusterStatePublished(ClusterState newClusterState) {
+    default void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
     }
 
     /**
@@ -92,7 +94,8 @@ public interface ClusterStateTaskExecutor<T> {
             }
 
             private Builder<T> result(T task, TaskResult executionResult) {
-                executionResults.put(task, executionResult);
+                TaskResult existing = executionResults.put(task, executionResult);
+                assert existing == null : task + " already has result " + existing;
                 return this;
             }
 

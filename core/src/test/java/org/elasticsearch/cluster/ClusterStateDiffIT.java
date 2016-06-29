@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -51,6 +51,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collections;
@@ -260,7 +261,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         for (ObjectCursor<IndexShardRoutingTable> indexShardRoutingTable :  original.shards().values()) {
             for (ShardRouting shardRouting : indexShardRoutingTable.value.shards()) {
                 final ShardRouting updatedShardRouting = randomChange(shardRouting, nodes);
-                builder.addShard(indexShardRoutingTable.value, updatedShardRouting);
+                builder.addShard(updatedShardRouting);
             }
         }
         return builder.build();
@@ -653,7 +654,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 switch (randomIntBetween(0, 1)) {
                     case 0:
                         return new SnapshotsInProgress(new SnapshotsInProgress.Entry(
-                                new SnapshotId(randomName("repo"), randomName("snap")),
+                                new Snapshot(randomName("repo"), new SnapshotId(randomName("snap"), UUIDs.randomBase64UUID())),
                                 randomBoolean(),
                                 randomBoolean(),
                                 SnapshotsInProgress.State.fromValue((byte) randomIntBetween(0, 6)),
@@ -662,7 +663,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                                 ImmutableOpenMap.of()));
                     case 1:
                         return new RestoreInProgress(new RestoreInProgress.Entry(
-                                new SnapshotId(randomName("repo"), randomName("snap")),
+                                new Snapshot(randomName("repo"), new SnapshotId(randomName("snap"), UUIDs.randomBase64UUID())),
                                 RestoreInProgress.State.fromValue((byte) randomIntBetween(0, 3)),
                                 emptyList(),
                                 ImmutableOpenMap.of()));

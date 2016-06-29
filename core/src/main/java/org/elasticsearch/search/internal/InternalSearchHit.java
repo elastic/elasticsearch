@@ -439,13 +439,14 @@ public class InternalSearchHit implements SearchHit {
             builder.field("_shard", shard.shardId());
             builder.field("_node", shard.nodeIdText());
         }
-        if (shard != null) {
-            builder.field(Fields._INDEX, shard.indexText());
-        }
-        builder.field(Fields._TYPE, type);
-        builder.field(Fields._ID, id);
         if (nestedIdentity != null) {
             nestedIdentity.toXContent(builder, params);
+        } else {
+            if (shard != null) {
+                builder.field(Fields._INDEX, shard.indexText());
+            }
+            builder.field(Fields._TYPE, type);
+            builder.field(Fields._ID, id);
         }
         if (version != -1) {
             builder.field(Fields._VERSION, version);

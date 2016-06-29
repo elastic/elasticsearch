@@ -19,27 +19,24 @@
 
 package org.elasticsearch.transport;
 
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
@@ -47,12 +44,11 @@ import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -65,14 +61,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasStatus;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -217,47 +213,23 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
         assertRequestsContainHeader(MultiTermVectorsRequest.class);
     }
 
-    public void testThatPercolatingExistingDocumentGetRequestContainsContextAndHeaders() throws Exception {
-        Client client = transportClient();
-        client.admin().indices().preparePutMapping(lookupIndex).setType("query").setSource("query", "type=percolator").get();
-        client.prepareIndex(lookupIndex, "query", "1")
-            .setSource(jsonBuilder().startObject()
-                        .startObject("query").startObject("match").field("name", "star wars").endObject().endObject()
-                    .endObject())
-            .get();
-        client.prepareIndex(lookupIndex, "type", "1")
-            .setSource(jsonBuilder().startObject().field("name", "Star Wars - The new republic").endObject())
-            .get();
-        client.admin().indices().prepareRefresh(lookupIndex).get();
-
-        GetRequest getRequest = client.prepareGet(lookupIndex, "type", "1").request();
-        PercolateResponse response = client.preparePercolate().setDocumentType("type").setGetRequest(getRequest).get();
-        assertThat(response.getCount(), is(1L));
-
-        assertGetRequestsContainHeaders();
-    }
-
     public void testThatRelevantHttpHeadersBecomeRequestHeaders() throws Exception {
-        String releventHeaderName = "relevant_" + randomHeaderKey;
-        for (RestController restController : internalCluster().getDataNodeInstances(RestController.class)) {
-            restController.registerRelevantHeaders(releventHeaderName);
+        String relevantHeaderName = "relevant_" + randomHeaderKey;
+        for (RestController restController : internalCluster().getInstances(RestController.class)) {
+            restController.registerRelevantHeaders(relevantHeaderName);
         }
 
-        CloseableHttpClient httpClient = HttpClients.createDefault();
-        HttpResponse response = new HttpRequestBuilder(httpClient)
-            .httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class))
-            .addHeader(randomHeaderKey, randomHeaderValue)
-            .addHeader(releventHeaderName, randomHeaderValue)
-            .path("/" + queryIndex + "/_search")
-            .execute();
-
-        assertThat(response, hasStatus(OK));
-        List<RequestAndHeaders> searchRequests = getRequests(SearchRequest.class);
-        assertThat(searchRequests, hasSize(greaterThan(0)));
-        for (RequestAndHeaders requestAndHeaders : searchRequests) {
-            assertThat(requestAndHeaders.headers.containsKey(releventHeaderName), is(true));
-            // was not specified, thus is not included
-            assertThat(requestAndHeaders.headers.containsKey(randomHeaderKey), is(false));
+        try (Response response = getRestClient().performRequest(
+                "GET", "/" + queryIndex + "/_search", Collections.emptyMap(), null,
+                new BasicHeader(randomHeaderKey, randomHeaderValue), new BasicHeader(relevantHeaderName, randomHeaderValue))) {
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+            List<RequestAndHeaders> searchRequests = getRequests(SearchRequest.class);
+            assertThat(searchRequests, hasSize(greaterThan(0)));
+            for (RequestAndHeaders requestAndHeaders : searchRequests) {
+                assertThat(requestAndHeaders.headers.containsKey(relevantHeaderName), is(true));
+                // was not specified, thus is not included
+                assertThat(requestAndHeaders.headers.containsKey(randomHeaderKey), is(false));
+            }
         }
     }
 
@@ -313,25 +285,16 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
         return internalCluster().transportClient().filterWithHeader(Collections.singletonMap(randomHeaderKey, randomHeaderValue));
     }
 
-    public static class ActionLoggingPlugin extends Plugin {
-
-        @Override
-        public String name() {
-            return "test-action-logging";
-        }
-
-        @Override
-        public String description() {
-            return "Test action logging";
-        }
+    public static class ActionLoggingPlugin extends Plugin implements ActionPlugin {
 
         @Override
         public Collection<Module> nodeModules() {
             return Collections.<Module>singletonList(new ActionLoggingModule());
         }
 
-        public void onModule(ActionModule module) {
-            module.registerFilter(LoggingFilter.class);
+        @Override
+        public List<Class<? extends ActionFilter>> getActionFilters() {
+            return singletonList(LoggingFilter.class);
         }
     }
 

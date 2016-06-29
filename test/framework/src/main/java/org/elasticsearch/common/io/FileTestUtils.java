@@ -19,11 +19,15 @@
 
 package org.elasticsearch.common.io;
 
+import org.elasticsearch.common.Nullable;
 import org.junit.Assert;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -48,6 +52,46 @@ public class FileTestUtils {
             String fileContent = new String(Files.readAllBytes(file), java.nio.charset.StandardCharsets.UTF_8);
             // trim the string content to prevent different handling on windows vs. unix and CR chars...
             Assert.assertThat(fileContent.trim(), equalTo(expected.trim()));
+        }
+    }
+
+    /**
+     * Unzip a zip file to a destination directory.  If the zip file does not exist, an IOException is thrown.
+     * If the destination directory does not exist, it will be created.
+     *
+     * @param zip      zip file to unzip
+     * @param destDir  directory to unzip the file to
+     * @param prefixToRemove  the (optional) prefix in the zip file path to remove when writing to the destination directory
+     * @throws IOException if zip file does not exist, or there was an error reading from the zip file or
+     *                     writing to the destination directory
+     */
+    public static void unzip(final Path zip, final Path destDir, @Nullable final String prefixToRemove) throws IOException {
+        if (Files.notExists(zip)) {
+            throw new IOException("[" + zip + "] zip file must exist");
+        }
+        Files.createDirectories(destDir);
+
+        try (final ZipInputStream zipInput = new ZipInputStream(Files.newInputStream(zip))) {
+            ZipEntry entry;
+            while ((entry = zipInput.getNextEntry()) != null) {
+                final String entryPath;
+                if (prefixToRemove != null) {
+                    if (entry.getName().startsWith(prefixToRemove)) {
+                        entryPath = entry.getName().substring(prefixToRemove.length());
+                    } else {
+                        throw new IOException("prefix not found: " + prefixToRemove);
+                    }
+                } else {
+                    entryPath = entry.getName();
+                }
+                final Path path = Paths.get(destDir.toString(), entryPath);
+                if (entry.isDirectory()) {
+                    Files.createDirectories(path);
+                } else {
+                    Files.copy(zipInput, path);
+                }
+                zipInput.closeEntry();
+            }
         }
     }
 }

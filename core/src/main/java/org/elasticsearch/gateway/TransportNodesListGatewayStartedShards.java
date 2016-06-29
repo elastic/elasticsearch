@@ -29,7 +29,6 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -69,28 +68,21 @@ public class TransportNodesListGatewayStartedShards extends
 
 
     @Inject
-    public TransportNodesListGatewayStartedShards(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+    public TransportNodesListGatewayStartedShards(Settings settings, ThreadPool threadPool,
                                                   ClusterService clusterService, TransportService transportService,
                                                   ActionFilters actionFilters,
                                                   IndexNameExpressionResolver indexNameExpressionResolver,
                                                   NodeEnvironment env) {
-        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
               indexNameExpressionResolver, Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STARTED,
               NodeGatewayStartedShards.class);
         this.nodeEnv = env;
     }
 
     @Override
-    public void list(ShardId shardId, String[] nodesIds,
+    public void list(ShardId shardId, DiscoveryNode[] nodes,
                      ActionListener<NodesGatewayStartedShards> listener) {
-        execute(new Request(shardId, nodesIds), listener);
-    }
-
-    @Override
-    protected String[] resolveNodes(Request request, ClusterState clusterState) {
-        // default implementation may filter out non existent nodes. it's important to keep exactly the ids
-        // we were given for accounting on the caller
-        return request.nodesIds();
+        execute(new Request(shardId, nodes), listener);
     }
 
     @Override
@@ -111,7 +103,7 @@ public class TransportNodesListGatewayStartedShards extends
     @Override
     protected NodesGatewayStartedShards newResponse(Request request,
                                                     List<NodeGatewayStartedShards> responses, List<FailedNodeException> failures) {
-        return new NodesGatewayStartedShards(clusterName, responses, failures);
+        return new NodesGatewayStartedShards(clusterService.getClusterName(), responses, failures);
     }
 
     @Override
@@ -177,8 +169,8 @@ public class TransportNodesListGatewayStartedShards extends
         public Request() {
         }
 
-        public Request(ShardId shardId, String[] nodesIds) {
-            super(nodesIds);
+        public Request(ShardId shardId, DiscoveryNode[] nodes) {
+            super(nodes);
             this.shardId = shardId;
         }
 

@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-@ClusterScope(scope = Scope.TEST, numDataNodes = 1)
+@ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
 public class NettyTransportIT extends ESIntegTestCase {
     // static so we can use it in anonymous classes
     private static String channelProfileName = null;
@@ -86,14 +86,6 @@ public class NettyTransportIT extends ESIntegTestCase {
     public static final class ExceptionThrowingNettyTransport extends NettyTransport {
 
         public static class TestPlugin extends Plugin {
-            @Override
-            public String name() {
-                return "exception-throwing-netty-transport";
-            }
-            @Override
-            public String description() {
-                return "an exception throwing transport for testing";
-            }
             public void onModule(NetworkModule module) {
                 module.registerTransport("exception-throwing", ExceptionThrowingNettyTransport.class);
             }
@@ -101,9 +93,9 @@ public class NettyTransportIT extends ESIntegTestCase {
 
         @Inject
         public ExceptionThrowingNettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
-                                               Version version, NamedWriteableRegistry namedWriteableRegistry,
+                                               NamedWriteableRegistry namedWriteableRegistry,
                                                CircuitBreakerService circuitBreakerService) {
-            super(settings, threadPool, networkService, bigArrays, version, namedWriteableRegistry, circuitBreakerService);
+            super(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
         }
 
         @Override

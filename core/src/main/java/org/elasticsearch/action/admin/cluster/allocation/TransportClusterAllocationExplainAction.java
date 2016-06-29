@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.RoutingNodes.RoutingNodesIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -50,6 +49,7 @@ import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -57,6 +57,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 
 /**
  * The {@code TransportClusterAllocationExplainAction} is responsible for actually executing the explanation of a shard's allocation on the
@@ -69,19 +71,22 @@ public class TransportClusterAllocationExplainAction
     private final AllocationDeciders allocationDeciders;
     private final ShardsAllocator shardAllocator;
     private final TransportIndicesShardStoresAction shardStoresAction;
+    private final GatewayAllocator gatewayAllocator;
 
     @Inject
     public TransportClusterAllocationExplainAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                                    ThreadPool threadPool, ActionFilters actionFilters,
                                                    IndexNameExpressionResolver indexNameExpressionResolver,
                                                    ClusterInfoService clusterInfoService, AllocationDeciders allocationDeciders,
-                                                   ShardsAllocator shardAllocator, TransportIndicesShardStoresAction shardStoresAction) {
+                                                   ShardsAllocator shardAllocator, TransportIndicesShardStoresAction shardStoresAction,
+                                                   GatewayAllocator gatewayAllocator) {
         super(settings, ClusterAllocationExplainAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, ClusterAllocationExplainRequest::new);
         this.clusterInfoService = clusterInfoService;
         this.allocationDeciders = allocationDeciders;
         this.shardAllocator = shardAllocator;
         this.shardStoresAction = shardStoresAction;
+        this.gatewayAllocator = gatewayAllocator;
     }
 
     @Override
@@ -130,7 +135,8 @@ public class TransportClusterAllocationExplainAction
                                                            Float nodeWeight,
                                                            IndicesShardStoresResponse.StoreStatus storeStatus,
                                                            String assignedNodeId,
-                                                           Set<String> activeAllocationIds) {
+                                                           Set<String> activeAllocationIds,
+                                                           boolean hasPendingAsyncFetch) {
         final ClusterAllocationExplanation.FinalDecision finalDecision;
         final ClusterAllocationExplanation.StoreCopy storeCopy;
         final String finalExplanation;
@@ -161,6 +167,19 @@ public class TransportClusterAllocationExplainAction
         if (node.getId().equals(assignedNodeId)) {
             finalDecision = ClusterAllocationExplanation.FinalDecision.ALREADY_ASSIGNED;
             finalExplanation = "the shard is already assigned to this node";
+        } else if (hasPendingAsyncFetch &&
+                shard.primary() == false &&
+                shard.unassigned() &&
+                shard.allocatedPostIndexCreate(indexMetaData) &&
+                nodeDecision.type() != Decision.Type.YES) {
+            finalExplanation = "the shard cannot be assigned because allocation deciders return a " + nodeDecision.type().name() +
+                    " decision and the shard's state is still being fetched";
+            finalDecision = ClusterAllocationExplanation.FinalDecision.NO;
+        } else if (hasPendingAsyncFetch &&
+                shard.unassigned() &&
+                shard.allocatedPostIndexCreate(indexMetaData)) {
+            finalExplanation = "the shard's state is still being fetched so it cannot be allocated";
+            finalDecision = ClusterAllocationExplanation.FinalDecision.NO;
         } else if (shard.primary() && shard.unassigned() && shard.allocatedPostIndexCreate(indexMetaData) &&
                 storeCopy == ClusterAllocationExplanation.StoreCopy.STALE) {
             finalExplanation = "the copy of the shard is stale, allocation ids do not match";
@@ -180,6 +199,7 @@ public class TransportClusterAllocationExplainAction
                 finalDecision = ClusterAllocationExplanation.FinalDecision.NO;
                 finalExplanation = "the shard cannot be assigned because one or more allocation decider returns a 'NO' decision";
             } else {
+                // TODO: handle throttling decision better here
                 finalDecision = ClusterAllocationExplanation.FinalDecision.YES;
                 if (storeCopy == ClusterAllocationExplanation.StoreCopy.AVAILABLE) {
                     finalExplanation = "the shard can be assigned and the node contains a valid copy of the shard data";
@@ -198,16 +218,15 @@ public class TransportClusterAllocationExplainAction
      */
     public static ClusterAllocationExplanation explainShard(ShardRouting shard, RoutingAllocation allocation, RoutingNodes routingNodes,
                                                             boolean includeYesDecisions, ShardsAllocator shardAllocator,
-                                                            List<IndicesShardStoresResponse.StoreStatus> shardStores) {
+                                                            List<IndicesShardStoresResponse.StoreStatus> shardStores,
+                                                            GatewayAllocator gatewayAllocator) {
         // don't short circuit deciders, we want a full explanation
         allocation.debugDecision(true);
         // get the existing unassigned info if available
         UnassignedInfo ui = shard.unassignedInfo();
 
-        RoutingNodesIterator iter = routingNodes.nodes();
         Map<DiscoveryNode, Decision> nodeToDecision = new HashMap<>();
-        while (iter.hasNext()) {
-            RoutingNode node = iter.next();
+        for (RoutingNode node : routingNodes) {
             DiscoveryNode discoNode = node.node();
             if (discoNode.isDataNode()) {
                 Decision d = tryShardOnNode(shard, node, allocation, includeYesDecisions);
@@ -217,9 +236,9 @@ public class TransportClusterAllocationExplainAction
         long remainingDelayMillis = 0;
         final MetaData metadata = allocation.metaData();
         final IndexMetaData indexMetaData = metadata.index(shard.index());
-        if (ui != null) {
-            final Settings indexSettings = indexMetaData.getSettings();
-            long remainingDelayNanos = ui.getRemainingDelay(System.nanoTime(), metadata.settings(), indexSettings);
+        long allocationDelayMillis = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetaData.getSettings()).getMillis();
+        if (ui != null && ui.isDelayed()) {
+            long remainingDelayNanos = ui.getRemainingDelay(System.nanoTime(), indexMetaData.getSettings());
             remainingDelayMillis = TimeValue.timeValueNanos(remainingDelayNanos).millis();
         }
 
@@ -238,11 +257,13 @@ public class TransportClusterAllocationExplainAction
             Float weight = weights.get(node);
             IndicesShardStoresResponse.StoreStatus storeStatus = nodeToStatus.get(node);
             NodeExplanation nodeExplanation = calculateNodeExplanation(shard, indexMetaData, node, decision, weight,
-                    storeStatus, shard.currentNodeId(), indexMetaData.activeAllocationIds(shard.getId()));
+                    storeStatus, shard.currentNodeId(), indexMetaData.activeAllocationIds(shard.getId()),
+                    allocation.hasPendingAsyncFetch());
             explanations.put(node, nodeExplanation);
         }
         return new ClusterAllocationExplanation(shard.shardId(), shard.primary(),
-                shard.currentNodeId(), remainingDelayMillis, ui, explanations);
+            shard.currentNodeId(), allocationDelayMillis, remainingDelayMillis, ui,
+            gatewayAllocator.hasFetchPending(shard.shardId(), shard.primary()), explanations);
     }
 
     @Override
@@ -250,7 +271,7 @@ public class TransportClusterAllocationExplainAction
                                    final ActionListener<ClusterAllocationExplainResponse> listener) {
         final RoutingNodes routingNodes = state.getRoutingNodes();
         final RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, state,
-                clusterInfoService.getClusterInfo(), System.nanoTime());
+                clusterInfoService.getClusterInfo(), System.nanoTime(), false);
 
         ShardRouting foundShard = null;
         if (request.useAnyUnassignedShard()) {
@@ -297,7 +318,7 @@ public class TransportClusterAllocationExplainAction
                         shardStoreResponse.getStoreStatuses().get(shardRouting.getIndexName());
                 List<IndicesShardStoresResponse.StoreStatus> shardStoreStatus = shardStatuses.get(shardRouting.id());
                 ClusterAllocationExplanation cae = explainShard(shardRouting, allocation, routingNodes,
-                        request.includeYesDecisions(), shardAllocator, shardStoreStatus);
+                        request.includeYesDecisions(), shardAllocator, shardStoreStatus, gatewayAllocator);
                 listener.onResponse(new ClusterAllocationExplainResponse(cae));
             }
 

@@ -38,13 +38,11 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
-import org.elasticsearch.script.ScriptMode;
-import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -70,7 +68,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThro
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -78,25 +75,11 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateIT extends ESIntegTestCase {
 
-    public static class PutFieldValuesScriptPlugin extends Plugin {
-
-        public PutFieldValuesScriptPlugin() {
-        }
-
+    public static class PutFieldValuesScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public String name() {
-            return PutFieldValuesScriptEngine.NAME;
+        public ScriptEngineService getScriptEngineService(Settings settings) {
+            return new PutFieldValuesScriptEngine();
         }
-
-        @Override
-        public String description() {
-            return "Mock script engine for " + UpdateIT.class;
-        }
-
-        public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(PutFieldValuesScriptEngine.class, PutFieldValuesScriptEngine.NAME, ScriptMode.ON));
-        }
-
     }
 
     public static class PutFieldValuesScriptEngine implements ScriptEngineService {
@@ -160,30 +143,16 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public void scriptRemoved(CompiledScript script) {
+        public boolean isInlineScriptEnabled() {
+            return true;
         }
-
     }
 
-    public static class FieldIncrementScriptPlugin extends Plugin {
-
-        public FieldIncrementScriptPlugin() {
-        }
-
+    public static class FieldIncrementScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public String name() {
-            return FieldIncrementScriptEngine.NAME;
+        public ScriptEngineService getScriptEngineService(Settings settings) {
+            return new FieldIncrementScriptEngine();
         }
-
-        @Override
-        public String description() {
-            return "Mock script engine for " + UpdateIT.class;
-        }
-
-        public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldIncrementScriptEngine.class, FieldIncrementScriptEngine.NAME, ScriptMode.ON));
-        }
-
     }
 
     public static class FieldIncrementScriptEngine implements ScriptEngineService {
@@ -240,30 +209,16 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public void scriptRemoved(CompiledScript script) {
+        public boolean isInlineScriptEnabled() {
+            return true;
         }
-
     }
 
-    public static class ScriptedUpsertScriptPlugin extends Plugin {
-
-        public ScriptedUpsertScriptPlugin() {
-        }
-
+    public static class ScriptedUpsertScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public String name() {
-            return ScriptedUpsertScriptEngine.NAME;
+        public ScriptEngineService getScriptEngineService(Settings settings) {
+            return new ScriptedUpsertScriptEngine();
         }
-
-        @Override
-        public String description() {
-            return "Mock script engine for " + UpdateIT.class + ".testScriptedUpsert";
-        }
-
-        public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ScriptedUpsertScriptEngine.class, ScriptedUpsertScriptEngine.NAME, ScriptMode.ON));
-        }
-
     }
 
     public static class ScriptedUpsertScriptEngine implements ScriptEngineService {
@@ -320,30 +275,17 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public void scriptRemoved(CompiledScript script) {
+        public boolean isInlineScriptEnabled() {
+            return true;
         }
 
     }
 
-    public static class ExtractContextInSourceScriptPlugin extends Plugin {
-
-        public ExtractContextInSourceScriptPlugin() {
-        }
-
+    public static class ExtractContextInSourceScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public String name() {
-            return ExtractContextInSourceScriptEngine.NAME;
+        public ScriptEngineService getScriptEngineService(Settings settings) {
+            return new ExtractContextInSourceScriptEngine();
         }
-
-        @Override
-        public String description() {
-            return "Mock script engine for " + UpdateIT.class;
-        }
-
-        public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExtractContextInSourceScriptEngine.class, ExtractContextInSourceScriptEngine.NAME, ScriptMode.ON));
-        }
-
     }
 
     public static class ExtractContextInSourceScriptEngine implements ScriptEngineService {
@@ -401,9 +343,9 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public void scriptRemoved(CompiledScript script) {
+        public boolean isInlineScriptEnabled() {
+            return true;
         }
-
     }
 
     @Override
@@ -413,21 +355,14 @@ public class UpdateIT extends ESIntegTestCase {
                 FieldIncrementScriptPlugin.class,
                 ScriptedUpsertScriptPlugin.class,
                 ExtractContextInSourceScriptPlugin.class,
-                InternalSettingsPlugin.class // uses index.merge.enabled
+                InternalSettingsPlugin.class
         );
     }
 
     private void createTestIndex() throws Exception {
         logger.info("--> creating index test");
 
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-                .addMapping("type1", XContentFactory.jsonBuilder()
-                        .startObject()
-                        .startObject("type1")
-                        .startObject("_timestamp").field("enabled", true).endObject()
-                        .startObject("_ttl").field("enabled", true).endObject()
-                        .endObject()
-                        .endObject()));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
     }
 
     public void testUpsert() throws Exception {
@@ -694,34 +629,6 @@ public class UpdateIT extends ESIntegTestCase {
             assertThat(getResponse.isExists(), equalTo(false));
         }
 
-        // check TTL is kept after an update without TTL
-        client().prepareIndex("test", "type1", "2").setSource("field", 1).setTTL(86400000L).setRefresh(true).execute().actionGet();
-        GetResponse getResponse = client().prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
-        long ttl = ((Number) getResponse.getField("_ttl").getValue()).longValue();
-        assertThat(ttl, greaterThan(0L));
-        client().prepareUpdate(indexOrAlias(), "type1", "2")
-                .setScript(new Script("field", ScriptService.ScriptType.INLINE, "field_inc", null)).execute().actionGet();
-        getResponse = client().prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
-        ttl = ((Number) getResponse.getField("_ttl").getValue()).longValue();
-        assertThat(ttl, greaterThan(0L));
-
-        // check TTL update
-        client().prepareUpdate(indexOrAlias(), "type1", "2")
-                .setScript(new Script("", ScriptService.ScriptType.INLINE, "put_values", Collections.singletonMap("_ctx", Collections.singletonMap("_ttl", 3600000)))).execute().actionGet();
-        getResponse = client().prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
-        ttl = ((Number) getResponse.getField("_ttl").getValue()).longValue();
-        assertThat(ttl, greaterThan(0L));
-        assertThat(ttl, lessThanOrEqualTo(3600000L));
-
-        // check timestamp update
-        client().prepareIndex("test", "type1", "3").setSource("field", 1).setRefresh(true).execute().actionGet();
-        client().prepareUpdate(indexOrAlias(), "type1", "3")
-                .setScript(new Script("", ScriptService.ScriptType.INLINE, "put_values", Collections.singletonMap("_ctx", Collections.singletonMap("_timestamp", "2009-11-15T14:12:12")))).execute()
-                .actionGet();
-        getResponse = client().prepareGet("test", "type1", "3").setFields("_timestamp").execute().actionGet();
-        long timestamp = ((Number) getResponse.getField("_timestamp").getValue()).longValue();
-        assertThat(timestamp, equalTo(1258294332000L));
-
         // check fields parameter
         client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
@@ -738,7 +645,7 @@ public class UpdateIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("field2", 2).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
-            getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("1"));
             assertThat(getResponse.getSourceAsMap().get("field2").toString(), equalTo("2"));
         }
@@ -746,7 +653,7 @@ public class UpdateIT extends ESIntegTestCase {
         // change existing field
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("field", 3).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
-            getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("3"));
             assertThat(getResponse.getSourceAsMap().get("field2").toString(), equalTo("2"));
         }
@@ -764,7 +671,7 @@ public class UpdateIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "1").setSource("map", testMap).execute().actionGet();
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("map", testMap3).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
-            getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             Map map1 = (Map) getResponse.getSourceAsMap().get("map");
             assertThat(map1.size(), equalTo(3));
             assertThat(map1.containsKey("map1"), equalTo(true));
@@ -816,16 +723,12 @@ public class UpdateIT extends ESIntegTestCase {
                         .addMapping("type1", XContentFactory.jsonBuilder()
                                 .startObject()
                                 .startObject("type1")
-                                .startObject("_timestamp").field("enabled", true).endObject()
-                                .startObject("_ttl").field("enabled", true).endObject()
                                 .endObject()
                                 .endObject())
                         .addMapping("subtype1", XContentFactory.jsonBuilder()
                                 .startObject()
                                 .startObject("subtype1")
                                 .startObject("_parent").field("type", "type1").endObject()
-                                .startObject("_timestamp").field("enabled", true).endObject()
-                                .startObject("_ttl").field("enabled", true).endObject()
                                 .endObject()
                                 .endObject())
         );
@@ -869,7 +772,6 @@ public class UpdateIT extends ESIntegTestCase {
         assertEquals(1, updateContext.get("_version"));
         assertEquals("parentId1", updateContext.get("_parent"));
         assertEquals("routing1", updateContext.get("_routing"));
-        assertThat(((Integer) updateContext.get("_ttl")).longValue(), allOf(greaterThanOrEqualTo(ttl-3000), lessThanOrEqualTo(ttl)));
 
         // Idem with the second object
         updateResponse = client().prepareUpdate("test", "type1", "parentId1")
@@ -960,13 +862,6 @@ public class UpdateIT extends ESIntegTestCase {
     public void testStressUpdateDeleteConcurrency() throws Exception {
         //We create an index with merging disabled so that deletes don't get merged away
         assertAcked(prepareCreate("test")
-                .addMapping("type1", XContentFactory.jsonBuilder()
-                        .startObject()
-                        .startObject("type1")
-                        .startObject("_timestamp").field("enabled", true).endObject()
-                        .startObject("_ttl").field("enabled", true).endObject()
-                        .endObject()
-                        .endObject())
                 .setSettings(Settings.builder().put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)));
         ensureGreen();
 

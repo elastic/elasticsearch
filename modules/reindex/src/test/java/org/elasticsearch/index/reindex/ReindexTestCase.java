@@ -43,11 +43,15 @@ public abstract class ReindexTestCase extends ESIntegTestCase {
         return UpdateByQueryAction.INSTANCE.newRequestBuilder(client());
     }
 
+    protected DeleteByQueryRequestBuilder deleteByQuery() {
+        return DeleteByQueryAction.INSTANCE.newRequestBuilder(client());
+    }
+
     protected RethrottleRequestBuilder rethrottle() {
         return RethrottleAction.INSTANCE.newRequestBuilder(client());
     }
 
-    protected static BulkIndexByScrollResponseMatcher matcher() {
+    public static BulkIndexByScrollResponseMatcher matcher() {
         return new BulkIndexByScrollResponseMatcher();
     }
 }

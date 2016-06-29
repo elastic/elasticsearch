@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -161,9 +162,6 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
             context.setTypes(previousTypes);
         }
 
-        if (innerQuery == null) {
-            return null;
-        }
         DocumentMapper parentDocMapper = context.getMapperService().documentMapper(type);
         if (parentDocMapper == null) {
             if (ignoreUnmapped) {
@@ -227,7 +225,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         builder.endObject();
     }
 
-    public static HasParentQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<HasParentQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String parentType = null;
@@ -238,7 +236,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
 
         String currentFieldName = null;
         XContentParser.Token token;
-        QueryBuilder iqb = null;
+        Optional<QueryBuilder> iqb = Optional.empty();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -276,14 +274,18 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
                 }
             }
         }
-        HasParentQueryBuilder queryBuilder =  new HasParentQueryBuilder(parentType, iqb, score)
+        if (iqb.isPresent() == false) {
+            // if inner query is empty, bubble this up to caller so they can decide how to deal with it
+            return Optional.empty();
+        }
+        HasParentQueryBuilder queryBuilder =  new HasParentQueryBuilder(parentType, iqb.get(), score)
                 .ignoreUnmapped(ignoreUnmapped)
                 .queryName(queryName)
                 .boost(boost);
         if (innerHits != null) {
             queryBuilder.innerHit(innerHits);
         }
-        return queryBuilder;
+        return Optional.of(queryBuilder);
     }
 
     @Override

@@ -196,6 +196,8 @@ public class DateMathParserTests extends ESTestCase {
 
     public void testTimestamps() {
         assertDateMathEquals("1418248078000", "2014-12-10T21:47:58.000");
+        assertDateMathEquals("32484216259000", "2999-05-20T17:24:19.000");
+        assertDateMathEquals("253382837059000", "9999-05-20T17:24:19.000");
 
         // datemath still works on timestamps
         assertDateMathEquals("1418248078000||/m", "2014-12-10T21:47:00.000");

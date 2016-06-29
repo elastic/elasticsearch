@@ -126,15 +126,6 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         this.forcedAwarenessAttributes = forcedAwarenessAttributes;
     }
 
-    /**
-     * Get the attributes defined by this instance
-     *
-     * @return attributes defined by this instance
-     */
-    public String[] awarenessAttributes() {
-        return this.awarenessAttributes;
-    }
-
     private void setAwarenessAttributes(String[] awarenessAttributes) {
         this.awarenessAttributes = awarenessAttributes;
     }
@@ -167,7 +158,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
             // build the count of shards per attribute value
             ObjectIntHashMap<String> shardPerAttribute = new ObjectIntHashMap<>();
-            for (ShardRouting assignedShard : allocation.routingNodes().assignedShards(shardRouting)) {
+            for (ShardRouting assignedShard : allocation.routingNodes().assignedShards(shardRouting.shardId())) {
                 if (assignedShard.started() || assignedShard.initializing()) {
                     // Note: this also counts relocation targets as that will be the new location of the shard.
                     // Relocation sources should not be counted as the shard is moving away

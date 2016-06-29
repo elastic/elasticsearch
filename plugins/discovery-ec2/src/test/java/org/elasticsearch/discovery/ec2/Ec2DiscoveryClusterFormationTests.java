@@ -57,30 +57,17 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTi
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.SuppressLocalMode
-@ESIntegTestCase.ClusterScope(numDataNodes = 2, numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numDataNodes = 2, numClientNodes = 0)
 @SuppressForbidden(reason = "use http server")
 // TODO this should be a IT but currently all ITs in this project run against a real cluster
 public class Ec2DiscoveryClusterFormationTests extends ESIntegTestCase {
-
-    public static class TestPlugin extends Plugin {
-
-        @Override
-        public String name() {
-            return Ec2DiscoveryClusterFormationTests.class.getName();
-        }
-
-        @Override
-        public String description() {
-            return Ec2DiscoveryClusterFormationTests.class.getName();
-        }
-    }
 
     private static HttpServer httpServer;
     private static Path logDir;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(Ec2DiscoveryPlugin.class, TestPlugin.class);
+        return pluginList(Ec2DiscoveryPlugin.class);
     }
 
     @Override

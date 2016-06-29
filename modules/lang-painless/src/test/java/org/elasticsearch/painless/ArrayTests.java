@@ -19,6 +19,9 @@
 
 package org.elasticsearch.painless;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodType;
+
 /** Tests for or operator across all types */
 public class ArrayTests extends ScriptTestCase {
 
@@ -34,45 +37,58 @@ public class ArrayTests extends ScriptTestCase {
         assertArrayLength(10, new Integer[10]);
         assertArrayLength(11, new String[11][2]);
     }
-    
+
     private void assertArrayLength(int length, Object array) throws Throwable {
-        assertEquals(length, (int) Def.arrayLengthGetter(array.getClass()).invoke(array));
+        final MethodHandle mh = Def.arrayLengthGetter(array.getClass());
+        assertSame(array.getClass(), mh.type().parameterType(0));
+        assertEquals(length, (int) mh.asType(MethodType.methodType(int.class, Object.class))
+                .invokeExact(array));
     }
 
     public void testArrayLoadStoreInt() {
         assertEquals(5, exec("def x = new int[5]; return x.length"));
         assertEquals(5, exec("def x = new int[4]; x[0] = 5; return x[0];"));
     }
-    
+
     public void testArrayLoadStoreString() {
         assertEquals(5, exec("def x = new String[5]; return x.length"));
         assertEquals("foobar", exec("def x = new String[4]; x[0] = 'foobar'; return x[0];"));
     }
-    
+
     public void testArrayLoadStoreDef() {
         assertEquals(5, exec("def x = new def[5]; return x.length"));
         assertEquals(5, exec("def x = new def[4]; x[0] = 5; return x[0];"));
     }
-    
+
     public void testArrayCompoundInt() {
         assertEquals(6, exec("int[] x = new int[5]; x[0] = 5; x[0]++; return x[0];"));
     }
-    
+
     public void testArrayCompoundDef() {
         assertEquals(6, exec("def x = new int[5]; x[0] = 5; x[0]++; return x[0];"));
     }
-    
+
     public void testJacksCrazyExpression1() {
         assertEquals(1, exec("int x; def[] y = new def[1]; x = y[0] = 1; return x;"));
     }
-    
+
     public void testJacksCrazyExpression2() {
         assertEquals(1, exec("int x; def y = new def[1]; x = y[0] = 1; return x;"));
     }
-    
+
+    public void testArrayVariable() {
+        assertEquals(1, exec("int x = 1; int[] y = new int[x]; return y.length"));
+    }
+
     public void testForLoop() {
         assertEquals(999*1000/2, exec("def a = new int[1000]; for (int x = 0; x < a.length; x++) { a[x] = x; } "+
             "int total = 0; for (int x = 0; x < a.length; x++) { total += a[x]; } return total;"));
     }
-    
+
+    /**
+     * Make sure we don't try and convert the {@code /} after the {@code ]} into a regex....
+     */
+    public void testDivideArray() {
+        assertEquals(1, exec("def[] x = new def[1]; x[0] = 2; return x[0] / 2"));
+    }
 }

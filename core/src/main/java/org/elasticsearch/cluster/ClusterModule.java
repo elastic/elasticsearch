@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
-import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -33,7 +32,7 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
-import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.DelayedAllocationService;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -49,6 +48,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.RebalanceOnlyWhenActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
@@ -62,6 +62,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.tasks.TaskPersistenceService;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -79,6 +80,7 @@ public class ClusterModule extends AbstractModule {
         new Setting<>("cluster.routing.allocation.type", BALANCED_ALLOCATOR, Function.identity(), Property.NodeScope);
     public static final List<Class<? extends AllocationDecider>> DEFAULT_ALLOCATION_DECIDERS =
         Collections.unmodifiableList(Arrays.asList(
+            MaxRetryAllocationDecider.class,
             SameShardAllocationDecider.class,
             FilterAllocationDecider.class,
             ReplicaAfterPrimaryActiveAllocationDecider.class,
@@ -97,17 +99,21 @@ public class ClusterModule extends AbstractModule {
     private final ExtensionPoint.SelectedType<ShardsAllocator> shardsAllocators = new ExtensionPoint.SelectedType<>("shards_allocator", ShardsAllocator.class);
     private final ExtensionPoint.ClassSet<AllocationDecider> allocationDeciders = new ExtensionPoint.ClassSet<>("allocation_decider", AllocationDecider.class, AllocationDeciders.class);
     private final ExtensionPoint.ClassSet<IndexTemplateFilter> indexTemplateFilters = new ExtensionPoint.ClassSet<>("index_template_filter", IndexTemplateFilter.class);
+    private final ClusterService clusterService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     // pkg private so tests can mock
     Class<? extends ClusterInfoService> clusterInfoServiceImpl = InternalClusterInfoService.class;
 
-    public ClusterModule(Settings settings) {
+    public ClusterModule(Settings settings, ClusterService clusterService) {
         this.settings = settings;
         for (Class<? extends AllocationDecider> decider : ClusterModule.DEFAULT_ALLOCATION_DECIDERS) {
             registerAllocationDecider(decider);
         }
         registerShardsAllocator(ClusterModule.BALANCED_ALLOCATOR, BalancedShardsAllocator.class);
         registerShardsAllocator(ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR, BalancedShardsAllocator.class);
+        this.clusterService = clusterService;
+        indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
     }
 
     public void registerAllocationDecider(Class<? extends AllocationDecider> allocationDecider) {
@@ -120,6 +126,10 @@ public class ClusterModule extends AbstractModule {
 
     public void registerIndexTemplateFilter(Class<? extends IndexTemplateFilter> indexTemplateFilter) {
         indexTemplateFilters.registerExtension(indexTemplateFilter);
+    }
+
+    public IndexNameExpressionResolver getIndexNameExpressionResolver() {
+        return indexNameExpressionResolver;
     }
 
     @Override
@@ -137,9 +147,8 @@ public class ClusterModule extends AbstractModule {
         bind(GatewayAllocator.class).asEagerSingleton();
         bind(AllocationService.class).asEagerSingleton();
         bind(DiscoveryNodeService.class).asEagerSingleton();
-        bind(ClusterService.class).asEagerSingleton();
+        bind(ClusterService.class).toInstance(clusterService);
         bind(NodeConnectionsService.class).asEagerSingleton();
-        bind(OperationRouting.class).asEagerSingleton();
         bind(MetaDataCreateIndexService.class).asEagerSingleton();
         bind(MetaDataDeleteIndexService.class).asEagerSingleton();
         bind(MetaDataIndexStateService.class).asEagerSingleton();
@@ -147,11 +156,12 @@ public class ClusterModule extends AbstractModule {
         bind(MetaDataIndexAliasesService.class).asEagerSingleton();
         bind(MetaDataUpdateSettingsService.class).asEagerSingleton();
         bind(MetaDataIndexTemplateService.class).asEagerSingleton();
-        bind(IndexNameExpressionResolver.class).asEagerSingleton();
+        bind(IndexNameExpressionResolver.class).toInstance(indexNameExpressionResolver);
         bind(RoutingService.class).asEagerSingleton();
+        bind(DelayedAllocationService.class).asEagerSingleton();
         bind(ShardStateAction.class).asEagerSingleton();
-        bind(NodeIndexDeletedAction.class).asEagerSingleton();
         bind(NodeMappingRefreshAction.class).asEagerSingleton();
         bind(MappingUpdatedAction.class).asEagerSingleton();
+        bind(TaskPersistenceService.class).asEagerSingleton();
     }
 }

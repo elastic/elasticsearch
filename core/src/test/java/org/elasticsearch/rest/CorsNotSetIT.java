@@ -19,20 +19,22 @@
 
 package org.elasticsearch.rest;
 
+import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 
-import static org.hamcrest.Matchers.hasKey;
+import java.util.Collections;
+
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
  */
-@ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1)
+@ClusterScope(scope = ESIntegTestCase.Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
 public class CorsNotSetIT extends ESIntegTestCase {
 
     @Override
@@ -44,18 +46,19 @@ public class CorsNotSetIT extends ESIntegTestCase {
 
     public void testCorsSettingDefaultBehaviourDoesNotReturnAnything() throws Exception {
         String corsValue = "http://localhost:9200";
-        HttpResponse response = httpClient().method("GET").path("/").addHeader("User-Agent", "Mozilla Bar").addHeader("Origin", corsValue).execute();
-
-        assertThat(response.getStatusCode(), is(200));
-        assertThat(response.getHeaders(), not(hasKey("Access-Control-Allow-Origin")));
-        assertThat(response.getHeaders(), not(hasKey("Access-Control-Allow-Credentials")));
+        try (Response response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null,
+                new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue))) {
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
+            assertThat(response.getHeader("Access-Control-Allow-Origin"), nullValue());
+            assertThat(response.getHeader("Access-Control-Allow-Credentials"), nullValue());
+        }
     }
 
     public void testThatOmittingCorsHeaderDoesNotReturnAnything() throws Exception {
-        HttpResponse response = httpClient().method("GET").path("/").execute();
-
-        assertThat(response.getStatusCode(), is(200));
-        assertThat(response.getHeaders(), not(hasKey("Access-Control-Allow-Origin")));
-        assertThat(response.getHeaders(), not(hasKey("Access-Control-Allow-Credentials")));
+        try (Response response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null)) {
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
+            assertThat(response.getHeader("Access-Control-Allow-Origin"), nullValue());
+            assertThat(response.getHeader("Access-Control-Allow-Credentials"), nullValue());
+        }
     }
 }

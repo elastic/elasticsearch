@@ -19,11 +19,9 @@
 package org.elasticsearch.test;
 
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
@@ -43,7 +41,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
@@ -54,6 +51,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -148,10 +146,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return false;
     }
 
-    /** The version of elasticsearch the node should act like. */
-    protected Version getVersion() {
-        return Version.CURRENT;
-    }
 
     /** The plugin classes that should be added to the node. */
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -171,24 +165,24 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     private Node newNode() {
+        final Path tempDir = createTempDir();
         Settings settings = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
+            .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve("repo"))
             // TODO: use a consistent data path for custom paths
             // This needs to tie into the ESIntegTestCase#indexSettings() method
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
             .put("node.name", nodeName())
-
             .put("script.inline", "true")
             .put("script.stored", "true")
             .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put("http.enabled", false)
             .put(Node.NODE_LOCAL_SETTING.getKey(), true)
             .put(Node.NODE_DATA_SETTING.getKey(), true)
-            .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true) // make sure we get what we set :)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
-        Node build = new MockNode(settings, getVersion(), getPlugins());
+        Node build = new MockNode(settings, getPlugins());
         build.start();
         assertThat(DiscoveryNode.isLocalNode(build.settings()), is(true));
         return build;
@@ -283,9 +277,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     protected SearchContext createSearchContext(IndexService indexService) {
         BigArrays bigArrays = indexService.getBigArrays();
         ThreadPool threadPool = indexService.getThreadPool();
-        PageCacheRecycler pageCacheRecycler = node().injector().getInstance(PageCacheRecycler.class);
         ScriptService scriptService = node().injector().getInstance(ScriptService.class);
-        return new TestSearchContext(threadPool, pageCacheRecycler, bigArrays, scriptService, indexService);
+        return new TestSearchContext(threadPool, bigArrays, scriptService, indexService);
     }
 
     /**

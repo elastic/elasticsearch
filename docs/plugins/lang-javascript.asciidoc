@@ -51,10 +51,8 @@ See <<lang-javascript-file>> for a safer option.
 If you have enabled {ref}/modules-scripting-security.html#enable-dynamic-scripting[inline scripts],
 you can use JavaScript as follows:
 
-[source,json]
+[source,js]
 ----
-DELETE test
-
 PUT test/doc/1
 {
   "num": 1.0
@@ -94,10 +92,8 @@ See <<lang-javascript-file>> for a safer option.
 If you have enabled {ref}/modules-scripting-security.html#enable-dynamic-scripting[stored scripts],
 you can use JavaScript as follows:
 
-[source,json]
+[source,js]
 ----
-DELETE test
-
 PUT test/doc/1
 {
   "num": 1.0
@@ -129,7 +125,6 @@ GET test/_search
     }
   }
 }
-
 ----
 // CONSOLE
 
@@ -145,7 +140,7 @@ You can save your scripts to a file in the `config/scripts/` directory on
 every node. The `.javascript` file suffix identifies the script as containing
 JavaScript:
 
-First, save this file as `config/scripts/my_script.javascript` on every node
+First, save this file as `config/scripts/my_script.js` on every node
 in the cluster:
 
 [source,js]
@@ -155,10 +150,8 @@ doc["num"].value * factor
 
 then use the script as follows:
 
-[source,json]
+[source,js]
 ----
-DELETE test
-
 PUT test/doc/1
 {
   "num": 1.0
@@ -185,9 +178,7 @@ GET test/_search
     }
   }
 }
-
 ----
 // CONSOLE
 
 <1> The function score query retrieves the script with filename `my_script.javascript`.
-

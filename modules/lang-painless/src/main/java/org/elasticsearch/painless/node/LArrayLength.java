@@ -19,10 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
+
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents an array length field load.
@@ -31,41 +35,45 @@ public final class LArrayLength extends ALink {
 
     final String value;
 
-    LArrayLength(final int line, final String location, final String value) {
-        super(line, location, -1);
+    LArrayLength(Location location, String value) {
+        super(location, -1);
 
-        this.value = value;
+        this.value = Objects.requireNonNull(value);
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {}
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(Locals locals) {
         if ("length".equals(value)) {
             if (!load) {
-                throw new IllegalArgumentException(error("Must read array field [length]."));
+                throw createError(new IllegalArgumentException("Must read array field [length]."));
             } else if (store) {
-                throw new IllegalArgumentException(error("Cannot write to read-only array field [length]."));
+                throw createError(new IllegalArgumentException("Cannot write to read-only array field [length]."));
             }
 
-            after = definition.intType;
+            after = Definition.INT_TYPE;
         } else {
-            throw new IllegalArgumentException(error("Illegal field access [" + value + "]."));
+            throw createError(new IllegalArgumentException("Illegal field access [" + value + "]."));
         }
 
         return this;
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(MethodWriter writer, Globals globals) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        adapter.arrayLength();
+    void load(MethodWriter writer, Globals globals) {
+        writer.writeDebugInfo(location);
+        writer.arrayLength();
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        throw new IllegalStateException(error("Illegal tree structure."));
+    void store(MethodWriter writer, Globals globals) {
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

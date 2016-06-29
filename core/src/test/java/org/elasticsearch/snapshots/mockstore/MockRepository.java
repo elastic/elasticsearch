@@ -21,7 +21,7 @@ package org.elasticsearch.snapshots.mockstore;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -48,6 +48,7 @@ import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -62,23 +63,13 @@ public class MockRepository extends FsRepository {
         public static final Setting<String> PASSWORD_SETTING =
             Setting.simpleString("secret.mock.password", Property.NodeScope, Property.Filtered);
 
-        @Override
-        public String name() {
-            return "mock-repository";
-        }
-
-        @Override
-        public String description() {
-            return "Mock Repository";
-        }
-
         public void onModule(RepositoriesModule repositoriesModule) {
             repositoriesModule.registerRepository("mock", MockRepository.class, BlobStoreIndexShardRepository.class);
         }
 
-        public void onModule(SettingsModule module) {
-            module.registerSetting(USERNAME_SETTING);
-            module.registerSetting(PASSWORD_SETTING);
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(USERNAME_SETTING, PASSWORD_SETTING);
         }
     }
 
@@ -174,6 +165,10 @@ public class MockRepository extends FsRepository {
         blockOnControlFiles = blocked;
     }
 
+    public boolean blockOnDataFiles() {
+        return blockOnDataFiles;
+    }
+
     public synchronized void unblockExecution() {
         blocked = false;
         // Clean blocking flags, so we wouldn't try to block again
@@ -231,7 +226,7 @@ public class MockRepository extends FsRepository {
 
             private boolean shouldFail(String blobName, double probability) {
                 if (probability > 0.0) {
-                    String path = path().add(blobName).buildAsString("/") + "/" + randomPrefix;
+                    String path = path().add(blobName).buildAsString() + randomPrefix;
                     path += "/" + incrementAndGet(path);
                     logger.info("checking [{}] [{}]", path, Math.abs(hashCode(path)) < Integer.MAX_VALUE * probability);
                     return Math.abs(hashCode(path)) < Integer.MAX_VALUE * probability;

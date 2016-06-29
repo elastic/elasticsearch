@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.action.shard;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
@@ -30,7 +31,7 @@ import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -301,21 +302,19 @@ public class ShardStateAction extends AbstractComponent {
                 }
             }
 
-            RoutingNodes.RoutingNodeIterator routingNodeIterator =
-                currentState.getRoutingNodes().routingNodeIter(task.getShardRouting().currentNodeId());
-            if (routingNodeIterator != null) {
-                for (ShardRouting maybe : routingNodeIterator) {
-                    if (task.getShardRouting().isSameAllocation(maybe)) {
-                        return ValidationResult.VALID;
-                    }
+            RoutingNode routingNode = currentState.getRoutingNodes().node(task.getShardRouting().currentNodeId());
+            if (routingNode != null) {
+                ShardRouting maybe = routingNode.getByShardId(task.getShardRouting().shardId());
+                if (maybe != null && maybe.isSameAllocation(task.getShardRouting())) {
+                    return ValidationResult.VALID;
                 }
             }
             return ValidationResult.SHARD_MISSING;
         }
 
         @Override
-        public void clusterStatePublished(ClusterState newClusterState) {
-            int numberOfUnassignedShards = newClusterState.getRoutingNodes().unassigned().size();
+        public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+            int numberOfUnassignedShards = clusterChangedEvent.state().getRoutingNodes().unassigned().size();
             if (numberOfUnassignedShards > 0) {
                 String reason = String.format(Locale.ROOT, "[%d] unassigned shards after failing shards", numberOfUnassignedShards);
                 if (logger.isTraceEnabled()) {

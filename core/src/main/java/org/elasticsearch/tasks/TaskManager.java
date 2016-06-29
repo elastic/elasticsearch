@@ -19,15 +19,23 @@
 
 package org.elasticsearch.tasks;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.transport.TransportRequest;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -38,10 +46,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+
 /**
  * Task Manager service for keeping track of currently running tasks on the nodes
  */
 public class TaskManager extends AbstractComponent implements ClusterStateListener {
+    private static final TimeValue WAIT_FOR_COMPLETION_POLL = timeValueMillis(100);
 
     private final ConcurrentMapLong<Task> tasks = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
@@ -52,11 +63,18 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
 
     private final Map<TaskId, String> banedParents = new ConcurrentHashMap<>();
 
+    private TaskPersistenceService taskResultsService;
+
+    private DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
+
     public TaskManager(Settings settings) {
         super(settings);
     }
 
-    private DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
+    public void setTaskResultsService(TaskPersistenceService taskResultsService) {
+        assert this.taskResultsService == null;
+        this.taskResultsService = taskResultsService;
+    }
 
     /**
      * Registers a task without parent task
@@ -74,28 +92,32 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
         }
 
         if (task instanceof CancellableTask) {
-            CancellableTask cancellableTask = (CancellableTask) task;
-            CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
-            CancellableTaskHolder oldHolder = cancellableTasks.put(task.getId(), holder);
-            assert oldHolder == null;
-            // Check if this task was banned before we start it
-            if (task.getParentTaskId().isSet() && banedParents.isEmpty() == false) {
-                String reason = banedParents.get(task.getParentTaskId());
-                if (reason != null) {
-                    try {
-                        holder.cancel(reason);
-                        throw new IllegalStateException("Task cancelled before it started: " + reason);
-                    } finally {
-                        // let's clean up the registration
-                        unregister(task);
-                    }
-                }
-            }
+            registerCancellableTask(task);
         } else {
             Task previousTask = tasks.put(task.getId(), task);
             assert previousTask == null;
         }
         return task;
+    }
+
+    private void registerCancellableTask(Task task) {
+        CancellableTask cancellableTask = (CancellableTask) task;
+        CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
+        CancellableTaskHolder oldHolder = cancellableTasks.put(task.getId(), holder);
+        assert oldHolder == null;
+        // Check if this task was banned before we start it
+        if (task.getParentTaskId().isSet() && banedParents.isEmpty() == false) {
+            String reason = banedParents.get(task.getParentTaskId());
+            if (reason != null) {
+                try {
+                    holder.cancel(reason);
+                    throw new IllegalStateException("Task cancelled before it started: " + reason);
+                } finally {
+                    // let's clean up the registration
+                    unregister(task);
+                }
+            }
+        }
     }
 
     /**
@@ -128,6 +150,72 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
         } else {
             return tasks.remove(task.getId());
         }
+    }
+
+    /**
+     * Stores the task failure
+     */
+    public <Response extends ActionResponse> void persistResult(Task task, Throwable error, ActionListener<Response> listener) {
+        DiscoveryNode localNode = lastDiscoveryNodes.getLocalNode();
+        if (localNode == null) {
+            // too early to persist anything, shouldn't really be here - just pass the error along
+            listener.onFailure(error);
+            return;
+        }
+        final PersistedTaskInfo taskResult;
+        try {
+            taskResult = task.result(localNode, error);
+        } catch (IOException ex) {
+            logger.warn("couldn't persist error {}", ex, ExceptionsHelper.detailedMessage(error));
+            listener.onFailure(ex);
+            return;
+        }
+        taskResultsService.persist(taskResult, new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void aVoid) {
+                listener.onFailure(error);
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                logger.warn("couldn't persist error {}", e, ExceptionsHelper.detailedMessage(error));
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    /**
+     * Stores the task result
+     */
+    public <Response extends ActionResponse> void persistResult(Task task, Response response, ActionListener<Response> listener) {
+        DiscoveryNode localNode = lastDiscoveryNodes.getLocalNode();
+        if (localNode == null) {
+            // too early to persist anything, shouldn't really be here - just pass the response along
+            logger.warn("couldn't persist response {}, the node didn't join the cluster yet", response);
+            listener.onResponse(response);
+            return;
+        }
+        final PersistedTaskInfo taskResult;
+        try {
+            taskResult = task.result(localNode, response);
+        } catch (IOException ex) {
+            logger.warn("couldn't persist response {}", ex, response);
+            listener.onFailure(ex);
+            return;
+        }
+
+        taskResultsService.persist(taskResult, new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void aVoid) {
+                listener.onResponse(response);
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                logger.warn("couldn't persist response {}", e, response);
+                listener.onFailure(e);
+            }
+        });
     }
 
     /**
@@ -223,6 +311,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        lastDiscoveryNodes = event.state().getNodes();
         if (event.nodesRemoved()) {
             synchronized (banedParents) {
                 lastDiscoveryNodes = event.state().getNodes();
@@ -260,6 +349,23 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
         if (holder != null) {
             holder.registerChildTaskNode(node);
         }
+    }
+
+    /**
+     * Blocks the calling thread, waiting for the task to vanish from the TaskManager.
+     */
+    public void waitForTaskCompletion(Task task, long untilInNanos) {
+        while (System.nanoTime() - untilInNanos < 0) {
+            if (getTask(task.getId()) == null) {
+                return;
+            }
+            try {
+                Thread.sleep(WAIT_FOR_COMPLETION_POLL.millis());
+            } catch (InterruptedException e) {
+                throw new ElasticsearchException("Interrupted waiting for completion of [{}]", e, task);
+            }
+        }
+        throw new ElasticsearchTimeoutException("Timed out waiting for completion of [{}]", task);
     }
 
     private static class CancellableTaskHolder {

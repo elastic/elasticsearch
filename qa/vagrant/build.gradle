@@ -40,8 +40,9 @@ List<String> availableBoxes = [
     'ubuntu-1504'
 ]
 
+String vagrantBoxes = getProperties().get('vagrant.boxes', 'sample')
 List<String> boxes = []
-for (String box : getProperties().get('vagrant.boxes', 'sample').split(',')) {
+for (String box : vagrantBoxes.split(',')) {
   if (box == 'sample') {
     boxes.add('centos-7')
     boxes.add('ubuntu-1404')
@@ -56,9 +57,28 @@ for (String box : getProperties().get('vagrant.boxes', 'sample').split(',')) {
   }
 }
 
-/* The version of elasticsearch that we upgrade *from* as part of testing
- * upgrades. */
-String upgradeFromVersion = '2.0.0'
+long seed
+String formattedSeed
+String[] upgradeFromVersions
+String upgradeFromVersion
+
+String maybeTestsSeed = System.getProperty("tests.seed", null);
+if (maybeTestsSeed != null) {
+  seed = new BigInteger(maybeTestsSeed, 16).longValue()
+  formattedSeed = maybeTestsSeed
+} else {
+  seed = new Random().nextLong()
+  formattedSeed = String.format("%016X", seed)
+}
+
+String maybeUpdradeFromVersions = System.getProperty("tests.packaging.upgrade.from.versions", null)
+if (maybeUpdradeFromVersions != null) {
+  upgradeFromVersions = maybeUpdradeFromVersions.split(",")
+} else {
+  upgradeFromVersions = new File(project.projectDir, 'versions')
+}
+
+upgradeFromVersion = upgradeFromVersions[new Random(seed).nextInt(upgradeFromVersions.length)]
 
 configurations {
   test
@@ -95,8 +115,37 @@ task stop {
   description 'Stop any tasks from tests that still may be running'
 }
 
+Set<String> getVersions() {
+  Node xml
+  new URL('http://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
+    xml = new XmlParser().parse(s)
+  }
+  return new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /2\.\d\.\d/ })
+}
+
+task updatePackagingTestUpgradeFromVersions {
+  doLast {
+    Set<String> versions = getVersions()
+    new File(project.projectDir, 'versions').text = versions.join('\n') + '\n'
+  }
+}
+
+task verifyPackagingTestUpgradeFromVersions {
+  doLast {
+    String maybeUpdateFromVersions = System.getProperty("tests.packaging.upgrade.from.versions", null)
+    if (maybeUpdateFromVersions == null) {
+      Set<String> versions = getVersions()
+      Set<String> actualVersions = new HashSet<>(Arrays.asList(upgradeFromVersions))
+      if (!versions.equals(actualVersions)) {
+        throw new GradleException("out-of-date versions [" + actualVersions + "], expected [" + versions + "]; run gradle updatePackagingTestUpgradeFromVersions")
+      }
+    }
+  }
+}
+
 File testRoot = new File("$buildDir/testroot")
 task createTestRoot {
+  dependsOn verifyPackagingTestUpgradeFromVersions
   outputs.dir testRoot
   doLast {
     testRoot.mkdirs()
@@ -121,6 +170,16 @@ task prepareTestRoot(type: Copy) {
   from configurations.test
 
   dependsOn createVersionFile, createUpgradeFromFile
+  doFirst {
+    gradle.addBuildListener new BuildAdapter() {
+      @Override
+      void buildFinished(BuildResult result) {
+        if (result.failure) {
+          println "Reproduce with: gradle packagingTest -Pvagrant.boxes=${vagrantBoxes} -Dtests.seed=${formattedSeed} -Dtests.packaging.upgrade.from.versions=${upgradeFromVersions.join(",")}"
+        }
+      }
+    }
+  }
 }
 
 task checkVagrantVersion(type: Exec) {
@@ -188,7 +247,7 @@ for (String box : availableBoxes) {
     commandLine 'vagrant', 'ssh', box, '--command',
       "set -o pipefail && ${smokeTestCommand} | sed -ue 's/^/    ${box}: /'"
   }
-  vagrantSmokeTest.dependsOn(smoke) 
+  vagrantSmokeTest.dependsOn(smoke)
 
   Task packaging = tasks.create("packagingTest${boxTask}", BatsOverVagrantTask) {
     dependsOn up
@@ -199,4 +258,3 @@ for (String box : availableBoxes) {
   }
   packagingTest.dependsOn(packaging)
 }
-

@@ -42,9 +42,9 @@ public class DateHistogramParser extends HistogramParser {
     }
 
     @Override
-    protected DateHistogramAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        DateHistogramAggregatorBuilder factory = new DateHistogramAggregatorBuilder(aggregationName);
+    protected DateHistogramAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        DateHistogramAggregationBuilder factory = new DateHistogramAggregationBuilder(aggregationName);
         Object interval = otherOptions.get(Rounding.Interval.INTERVAL_FIELD);
         if (interval == null) {
             throw new ParsingException(null, "Missing required field [interval] for histogram aggregation [" + aggregationName + "]");
@@ -89,6 +89,6 @@ public class DateHistogramParser extends HistogramParser {
 
     @Override
     protected long parseStringOffset(String offset) throws IOException {
-        return DateHistogramAggregatorBuilder.parseStringOffset(offset);
+        return DateHistogramAggregationBuilder.parseStringOffset(offset);
     }
 }

@@ -40,7 +40,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.regex.Regex;
@@ -175,7 +174,6 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
 
     private final List<Node> nodes = new CopyOnWriteArrayList<>();
 
-    @Inject
     public TribeService(Settings settings, ClusterService clusterService) {
         super(settings);
         this.clusterService = clusterService;
@@ -219,9 +217,6 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         sb.put(Environment.PATH_HOME_SETTING.getKey(), Environment.PATH_HOME_SETTING.get(globalSettings)); // pass through ES home dir
         if (Environment.PATH_CONF_SETTING.exists(globalSettings)) {
             sb.put(Environment.PATH_CONF_SETTING.getKey(), Environment.PATH_CONF_SETTING.get(globalSettings));
-        }
-        if (Environment.PATH_PLUGINS_SETTING.exists(globalSettings)) {
-            sb.put(Environment.PATH_PLUGINS_SETTING.getKey(), Environment.PATH_PLUGINS_SETTING.get(globalSettings));
         }
         if (Environment.PATH_LOGS_SETTING.exists(globalSettings)) {
             sb.put(Environment.PATH_LOGS_SETTING.getKey(), Environment.PATH_LOGS_SETTING.get(globalSettings));

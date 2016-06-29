@@ -26,21 +26,19 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -58,8 +56,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.script.ScriptEngineRegistry;
-import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
@@ -68,15 +64,17 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.lang.reflect.Proxy;
 import java.util.Collections;
+import java.util.List;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -95,7 +93,9 @@ public class TemplateQueryParserTests extends ESTestCase {
                 .put(Environment.PATH_CONF_SETTING.getKey(), this.getDataPath("config"))
                 .put("node.name", getClass().getName())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
                 .build();
+        Environment environment = new Environment(settings);
         final Client proxy = (Client) Proxy.newProxyInstance(
                 Client.class.getClassLoader(),
                 new Class<?>[]{Client.class}, (proxy1, method, args) -> {
@@ -103,57 +103,46 @@ public class TemplateQueryParserTests extends ESTestCase {
                 });
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
         Index index = idxSettings.getIndex();
-        SettingsModule settingsModule = new SettingsModule(settings);
-        ScriptModule scriptModule = new ScriptModule();
-        scriptModule.prepareSettings(settingsModule);
         // TODO: make this use a mock engine instead of mustache and it will no longer be messy!
-        scriptModule.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class, MustacheScriptEngineService.NAME, ScriptMode.ON));
-        settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
+        ScriptModule scriptModule = new ScriptModule(settings, environment, null, singletonList(new MustacheScriptEngineService(settings)),
+                emptyList());
+        List<Setting<?>> scriptSettings = scriptModule.getSettings();
+        scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
+        SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, Collections.emptyList());
         injector = new ModulesBuilder().add(
-                new EnvironmentModule(new Environment(settings)),
+                (b) -> {
+                    b.bind(ThreadPool.class).toInstance(new ThreadPool(settings));
+                    b.bind(Client.class).toInstance(proxy); // not needed here
+                    Multibinder.newSetBinder(b, ScoreFunctionParser.class);
+                    b.bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
+                    b.bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
+                },
                 settingsModule,
-                new ThreadPoolModule(new ThreadPool(settings)),
                 new SearchModule(settings, new NamedWriteableRegistry()) {
                     @Override
                     protected void configureSearch() {
                         // skip so we don't need transport
                     }
                 },
-                scriptModule,
-                new IndexSettingsModule(index, settings),
-                new AbstractModule() {
-                    @Override
-                    protected void configure() {
-                        bind(Client.class).toInstance(proxy); // not needed here
-                        Multibinder.newSetBinder(binder(), ScoreFunctionParser.class);
-                        bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
-                        bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
-                    }
-                }
+                new IndexSettingsModule(index, settings)
         ).createInjector();
 
-        AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
-        ScriptService scriptService = injector.getInstance(ScriptService.class);
+        AnalysisService analysisService = createAnalysisService(idxSettings, settings);
         SimilarityService similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
-        MapperRegistry mapperRegistry = new IndicesModule().getMapperRegistry();
+        MapperRegistry mapperRegistry = new IndicesModule(new NamedWriteableRegistry(), Collections.emptyList()).getMapperRegistry();
         MapperService mapperService = new MapperService(idxSettings, analysisService, similarityService, mapperRegistry, () ->
             contextFactory.get());
         IndicesFieldDataCache cache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {});
-        IndexFieldDataService indexFieldDataService =new IndexFieldDataService(idxSettings, cache, injector.getInstance(CircuitBreakerService.class), mapperService);
+        IndexFieldDataService indexFieldDataService = new IndexFieldDataService(idxSettings, cache, injector.getInstance(CircuitBreakerService.class), mapperService);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
             @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
-
-            }
-
+            public void onCache(ShardId shardId, Accountable accountable) {}
             @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
-
-            }
+            public void onRemoval(ShardId shardId, Accountable accountable) {}
         });
         IndicesQueriesRegistry indicesQueriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
         contextFactory =  () -> new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService,
-                similarityService, scriptService, indicesQueriesRegistry, proxy, null, null, null);
+                similarityService, scriptModule.getScriptService(), indicesQueriesRegistry, proxy, null, null);
     }
 
     @Override
@@ -170,7 +159,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         QueryShardContext context = contextFactory.get();
         templateSourceParser.nextToken();
 
-        Query query = QueryBuilder.rewriteQuery(TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)),
+        Query query = QueryBuilder.rewriteQuery(TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)).get(),
                 context).toQuery(context);
         assertTrue("Parsing template query failed.", query instanceof MatchAllDocsQuery);
     }
@@ -181,7 +170,9 @@ public class TemplateQueryParserTests extends ESTestCase {
         XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
         QueryShardContext context = contextFactory.get();
 
-        Query query = QueryBuilder.rewriteQuery(TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)), context).toQuery(context);
+        Query query = QueryBuilder
+                .rewriteQuery(TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)).get(), context)
+                .toQuery(context);
         assertTrue("Parsing template query failed.", query instanceof MatchAllDocsQuery);
     }
 
@@ -198,7 +189,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         QueryShardContext context = contextFactory.get();
 
         try {
-            TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)).rewrite(context);
+            TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)).get().rewrite(context);
             fail("Expected ParsingException");
         } catch (ParsingException e) {
             assertThat(e.getMessage(), containsString("query malformed, no field after start_object"));
@@ -213,7 +204,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         templateSourceParser.nextToken();
 
 
-        Query query = QueryBuilder.rewriteQuery(TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)),
+        Query query = QueryBuilder.rewriteQuery(TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)).get(),
                 context).toQuery(context);
         assertTrue("Parsing template query failed.", query instanceof MatchAllDocsQuery);
     }
@@ -225,7 +216,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         QueryShardContext context = contextFactory.get();
         templateSourceParser.nextToken();
         try {
-            TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)).toQuery(context);
+            TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)).get().toQuery(context);
             fail();
         } catch (UnsupportedOperationException ex) {
             assertEquals("this query must be rewritten first", ex.getMessage());

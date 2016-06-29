@@ -316,6 +316,7 @@ public final class ShardRouting implements Writeable, ToXContent {
 
     public ShardRouting updateUnassignedInfo(UnassignedInfo unassignedInfo) {
         assert this.unassignedInfo != null : "can only update unassign info if they are already set";
+        assert this.unassignedInfo.isDelayed() || (unassignedInfo.isDelayed() == false) : "cannot transition from non-delayed to delayed";
         return new ShardRouting(shardId, currentNodeId, relocatingNodeId, restoreSource, primary, state,
             unassignedInfo, allocationId, expectedShardSize);
     }
@@ -368,6 +369,20 @@ public final class ShardRouting implements Writeable, ToXContent {
         assert relocatingNodeId != null : this;
         return new ShardRouting(shardId, currentNodeId, null, restoreSource, primary, ShardRoutingState.STARTED,
             null, AllocationId.cancelRelocation(allocationId), UNAVAILABLE_EXPECTED_SHARD_SIZE);
+    }
+
+    /**
+     * Removes relocation source of a non-primary shard. The shard state must be <code>INITIALIZING</code>.
+     * This allows the non-primary shard to continue recovery from the primary even though its non-primary
+     * relocation source has failed.
+     */
+    public ShardRouting removeRelocationSource() {
+        assert primary == false : this;
+        assert state == ShardRoutingState.INITIALIZING : this;
+        assert assignedToNode() : this;
+        assert relocatingNodeId != null : this;
+        return new ShardRouting(shardId, currentNodeId, null, restoreSource, primary, state, unassignedInfo,
+            AllocationId.finishRelocation(allocationId), expectedShardSize);
     }
 
     /**

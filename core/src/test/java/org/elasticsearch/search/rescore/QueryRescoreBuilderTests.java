@@ -54,6 +54,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -158,7 +159,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAsciiOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
         QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, null, null, indicesQueriesRegistry,
-                null, null, null, null) {
+                null, null, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
@@ -178,6 +179,11 @@ public class QueryRescoreBuilderTests extends ESTestCase {
             assertEquals(rescoreBuilder.getRescoreQueryWeight(), rescoreContext.rescoreQueryWeight(), Float.MIN_VALUE);
             assertEquals(rescoreBuilder.getScoreMode(), rescoreContext.scoreMode());
         }
+    }
+
+    public void testRescoreQueryNull() throws IOException {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new QueryRescorerBuilder((QueryBuilder) null));
+        assertEquals("rescore_query cannot be null", e.getMessage());
     }
 
     /**

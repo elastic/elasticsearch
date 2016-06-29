@@ -210,7 +210,6 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope);
 
     protected final NetworkService networkService;
-    protected final Version version;
 
     protected final boolean blockingClient;
     protected final TimeValue connectTimeout;
@@ -254,13 +253,12 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     final ScheduledPing scheduledPing;
 
     @Inject
-    public NettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version,
+    public NettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                           NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
         super(settings);
         this.threadPool = threadPool;
         this.networkService = networkService;
         this.bigArrays = bigArrays;
-        this.version = version;
 
         this.workerCount = WORKER_COUNT.get(settings);
         this.blockingClient = TCP_BLOCKING_CLIENT.get(settings);
@@ -287,9 +285,6 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         this.scheduledPing = new ScheduledPing();
         this.pingSchedule = PING_SCHEDULE.get(settings);
-        if (pingSchedule.millis() > 0) {
-            threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, scheduledPing);
-        }
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.circuitBreakerService = circuitBreakerService;
     }
@@ -365,6 +360,9 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     createServerBootstrap(name, mergedSettings);
                     bindServerBootstrap(name, mergedSettings);
                 }
+            }
+            if (pingSchedule.millis() > 0) {
+                threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, scheduledPing);
             }
             success = true;
         } finally {
@@ -888,13 +886,13 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             // the header part is compressed, and the "body" can't be extracted as compressed
             if (options.compress() && (!(request instanceof BytesTransportRequest))) {
                 status = TransportStatus.setCompress(status);
-                stream = CompressorFactory.defaultCompressor().streamOutput(stream);
+                stream = CompressorFactory.COMPRESSOR.streamOutput(stream);
             }
 
             // we pick the smallest of the 2, to support both backward and forward compatibility
             // note, this is the only place we need to do this, since from here on, we use the serialized version
             // as the version to use also when the node receiving this request will send the response with
-            Version version = Version.smallest(this.version, node.getVersion());
+            Version version = Version.smallest(getCurrentVersion(), node.getVersion());
 
             stream.setVersion(version);
             threadPool.getThreadContext().writeTo(stream);
@@ -925,7 +923,10 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             ReleaseChannelFutureListener listener = new ReleaseChannelFutureListener(bytes);
             future.addListener(listener);
             addedReleaseListener = true;
-            transportServiceAdapter.onRequestSent(node, requestId, action, request, options);
+            final TransportRequestOptions finalOptions = options;
+            ChannelFutureListener channelFutureListener =
+                f -> transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions);
+            future.addListener(channelFutureListener);
         } finally {
             if (!addedReleaseListener) {
                 Releasables.close(bStream.bytes());
@@ -1397,5 +1398,10 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 logger.warn("failed to send ping transport message", t);
             }
         }
+    }
+
+    protected Version getCurrentVersion() {
+        // this is just for tests to mock stuff like the nodes version - tests can override this internally
+        return Version.CURRENT;
     }
 }

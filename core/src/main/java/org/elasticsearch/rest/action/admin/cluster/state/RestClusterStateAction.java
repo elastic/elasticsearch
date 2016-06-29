@@ -96,6 +96,11 @@ public class RestClusterStateAction extends BaseRestHandler {
         });
     }
 
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
+
     static final class Fields {
         static final String CLUSTER_NAME = "cluster_name";
     }

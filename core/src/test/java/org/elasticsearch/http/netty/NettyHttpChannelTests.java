@@ -19,7 +19,6 @@
 
 package org.elasticsearch.http.netty;
 
-import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.NetworkService;
@@ -31,6 +30,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
@@ -71,9 +71,8 @@ public class NettyHttpChannelTests extends ESTestCase {
     @Before
     public void setup() throws Exception {
         networkService = new NetworkService(Settings.EMPTY);
-        threadPool = new ThreadPool("test");
-        MockPageCacheRecycler mockPageCacheRecycler = new MockPageCacheRecycler(Settings.EMPTY, threadPool);
-        bigArrays = new MockBigArrays(mockPageCacheRecycler, new NoneCircuitBreakerService());
+        threadPool = new TestThreadPool("test");
+        bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
     }
 
     @After

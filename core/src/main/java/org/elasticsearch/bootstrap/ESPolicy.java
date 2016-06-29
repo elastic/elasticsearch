@@ -35,12 +35,12 @@ import java.util.Map;
 
 /** custom policy for union of static and dynamic permissions */
 final class ESPolicy extends Policy {
-    
+
     /** template policy file, the one used in tests */
     static final String POLICY_RESOURCE = "security.policy";
     /** limited policy for scripts */
     static final String UNTRUSTED_RESOURCE = "untrusted.policy";
-    
+
     final Policy template;
     final Policy untrusted;
     final Policy system;
@@ -60,7 +60,7 @@ final class ESPolicy extends Policy {
     }
 
     @Override @SuppressForbidden(reason = "fast equals check is desired")
-    public boolean implies(ProtectionDomain domain, Permission permission) {        
+    public boolean implies(ProtectionDomain domain, Permission permission) {
         CodeSource codeSource = domain.getCodeSource();
         // codesource can be null when reducing privileges via doPrivileged()
         if (codeSource == null) {

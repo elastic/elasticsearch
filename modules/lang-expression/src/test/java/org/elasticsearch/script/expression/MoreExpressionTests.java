@@ -44,7 +44,7 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -59,6 +59,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
@@ -97,7 +98,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     public void testBasic() throws Exception {
         createIndex("test");
         ensureGreen("test");
-        client().prepareIndex("test", "doc", "1").setSource("foo", 4).setRefresh(true).get();
+        client().prepareIndex("test", "doc", "1").setSource("foo", 4).setRefreshPolicy(IMMEDIATE).get();
         SearchResponse rsp = buildRequest("doc['foo'] + 1").get();
         assertEquals(1, rsp.getHits().getTotalHits());
         assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue(), 0.0D);
@@ -106,7 +107,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     public void testFunction() throws Exception {
         createIndex("test");
         ensureGreen("test");
-        client().prepareIndex("test", "doc", "1").setSource("foo", 4).setRefresh(true).get();
+        client().prepareIndex("test", "doc", "1").setSource("foo", 4).setRefreshPolicy(IMMEDIATE).get();
         SearchResponse rsp = buildRequest("doc['foo'] + abs(1)").get();
         assertSearchResponse(rsp);
         assertEquals(1, rsp.getHits().getTotalHits());
@@ -116,7 +117,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     public void testBasicUsingDotValue() throws Exception {
         createIndex("test");
         ensureGreen("test");
-        client().prepareIndex("test", "doc", "1").setSource("foo", 4).setRefresh(true).get();
+        client().prepareIndex("test", "doc", "1").setSource("foo", 4).setRefreshPolicy(IMMEDIATE).get();
         SearchResponse rsp = buildRequest("doc['foo'].value + 1").get();
         assertEquals(1, rsp.getHits().getTotalHits());
         assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue(), 0.0D);
@@ -164,6 +165,34 @@ public class MoreExpressionTests extends ESIntegTestCase {
         assertEquals(9.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(10.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         rsp = buildRequest("doc['date1'].getYear()").get();
+        assertEquals(2, rsp.getHits().getTotalHits());
+        hits = rsp.getHits();
+        assertEquals(1985.0, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(1983.0, hits.getAt(1).field("foo").getValue(), 0.0D);
+    }
+    
+    public void testDateObjectMethods() throws Exception {
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "date0", "type=date", "date1", "type=date"));
+        ensureGreen("test");
+        indexRandom(true,
+                client().prepareIndex("test", "doc", "1").setSource("date0", "2015-04-28T04:02:07Z", "date1", "1985-09-01T23:11:01Z"),
+                client().prepareIndex("test", "doc", "2").setSource("date0", "2013-12-25T11:56:45Z", "date1", "1983-10-13T23:15:00Z"));
+        SearchResponse rsp = buildRequest("doc['date0'].date.secondOfMinute - doc['date0'].date.minuteOfHour").get();
+        assertEquals(2, rsp.getHits().getTotalHits());
+        SearchHits hits = rsp.getHits();
+        assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(-11.0, hits.getAt(1).field("foo").getValue(), 0.0D);
+        rsp = buildRequest("doc['date0'].date.getHourOfDay() + doc['date1'].date.dayOfMonth").get();
+        assertEquals(2, rsp.getHits().getTotalHits());
+        hits = rsp.getHits();
+        assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(24.0, hits.getAt(1).field("foo").getValue(), 0.0D);
+        rsp = buildRequest("doc['date1'].date.monthOfYear + 1").get();
+        assertEquals(2, rsp.getHits().getTotalHits());
+        hits = rsp.getHits();
+        assertEquals(10.0, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(11.0, hits.getAt(1).field("foo").getValue(), 0.0D);
+        rsp = buildRequest("doc['date1'].date.year").get();
         assertEquals(2, rsp.getHits().getTotalHits());
         hits = rsp.getHits();
         assertEquals(1985.0, hits.getAt(0).field("foo").getValue(), 0.0D);
@@ -286,7 +315,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     public void testMissingField() throws Exception {
         createIndex("test");
         ensureGreen("test");
-        client().prepareIndex("test", "doc", "1").setSource("x", 4).setRefresh(true).get();
+        client().prepareIndex("test", "doc", "1").setSource("x", 4).setRefreshPolicy(IMMEDIATE).get();
         try {
             buildRequest("doc['bogus']").get();
             fail("Expected missing field to cause failure");
@@ -316,7 +345,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testCompileFailure() {
-        client().prepareIndex("test", "doc", "1").setSource("x", 1).setRefresh(true).get();
+        client().prepareIndex("test", "doc", "1").setSource("x", 1).setRefreshPolicy(IMMEDIATE).get();
         try {
             buildRequest("garbage%@#%@").get();
             fail("Expected expression compilation failure");
@@ -324,12 +353,12 @@ public class MoreExpressionTests extends ESIntegTestCase {
             assertThat(e.toString() + "should have contained ScriptException",
                     e.toString().contains("ScriptException"), equalTo(true));
             assertThat(e.toString() + "should have contained compilation failure",
-                    e.toString().contains("Failed to parse expression"), equalTo(true));
+                    e.toString().contains("compile error"), equalTo(true));
         }
     }
 
     public void testNonNumericParam() {
-        client().prepareIndex("test", "doc", "1").setSource("x", 1).setRefresh(true).get();
+        client().prepareIndex("test", "doc", "1").setSource("x", 1).setRefreshPolicy(IMMEDIATE).get();
         try {
             buildRequest("a", "a", "astring").get();
             fail("Expected string parameter to cause failure");
@@ -342,7 +371,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testNonNumericField() {
-        client().prepareIndex("test", "doc", "1").setSource("text", "this is not a number").setRefresh(true).get();
+        client().prepareIndex("test", "doc", "1").setSource("text", "this is not a number").setRefreshPolicy(IMMEDIATE).get();
         try {
             buildRequest("doc['text.keyword']").get();
             fail("Expected text field to cause execution failure");
@@ -355,7 +384,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testInvalidGlobalVariable() {
-        client().prepareIndex("test", "doc", "1").setSource("foo", 5).setRefresh(true).get();
+        client().prepareIndex("test", "doc", "1").setSource("foo", 5).setRefreshPolicy(IMMEDIATE).get();
         try {
             buildRequest("bogus").get();
             fail("Expected bogus variable to cause execution failure");
@@ -368,7 +397,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testDocWithoutField() {
-        client().prepareIndex("test", "doc", "1").setSource("foo", 5).setRefresh(true).get();
+        client().prepareIndex("test", "doc", "1").setSource("foo", 5).setRefreshPolicy(IMMEDIATE).get();
         try {
             buildRequest("doc").get();
             fail("Expected doc variable without field to cause execution failure");
@@ -381,7 +410,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testInvalidFieldMember() {
-        client().prepareIndex("test", "doc", "1").setSource("foo", 5).setRefresh(true).get();
+        client().prepareIndex("test", "doc", "1").setSource("foo", 5).setRefreshPolicy(IMMEDIATE).get();
         try {
             buildRequest("doc['foo'].bogus").get();
             fail("Expected bogus field member to cause execution failure");
@@ -494,7 +523,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
             ees = new ExpressionExecutableScript(compiledScript, vars);
             ees.run();
             fail("An incorrect number of variables were allowed to be used in an expression.");
-        } catch (ScriptException se) {
+        } catch (GeneralScriptException se) {
             message = se.getMessage();
             assertThat(message + " should have contained number of variables", message.contains("number of variables"), equalTo(true));
         }
@@ -507,7 +536,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
             ees = new ExpressionExecutableScript(compiledScript, vars);
             ees.run();
             fail("A variable was allowed to be set that does not exist in the expression.");
-        } catch (ScriptException se) {
+        } catch (GeneralScriptException se) {
             message = se.getMessage();
             assertThat(message + " should have contained does not exist in", message.contains("does not exist in"), equalTo(true));
         }
@@ -520,7 +549,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
             ees = new ExpressionExecutableScript(compiledScript, vars);
             ees.run();
             fail("A non-number was allowed to be use in the expression.");
-        } catch (ScriptException se) {
+        } catch (GeneralScriptException se) {
             message = se.getMessage();
             assertThat(message + " should have contained process numbers", message.contains("process numbers"), equalTo(true));
         }

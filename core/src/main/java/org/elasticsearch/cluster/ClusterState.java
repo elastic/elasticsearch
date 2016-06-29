@@ -90,7 +90,7 @@ import java.util.Set;
  */
 public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
-    public static final ClusterState PROTO = builder(ClusterName.DEFAULT).build();
+    public static final ClusterState PROTO = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
 
     public static enum ClusterStateStatus {
         UNKNOWN((byte) 0),
@@ -734,7 +734,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
     }
 
     public ClusterState readFrom(StreamInput in, DiscoveryNode localNode) throws IOException {
-        ClusterName clusterName = ClusterName.readClusterName(in);
+        ClusterName clusterName = new ClusterName(in);
         Builder builder = new Builder(clusterName);
         builder.version = in.readLong();
         builder.uuid = in.readString();
@@ -805,7 +805,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         }
 
         public ClusterStateDiff(StreamInput in, ClusterState proto) throws IOException {
-            clusterName = ClusterName.readClusterName(in);
+            clusterName = new ClusterName(in);
             fromUuid = in.readString();
             toUuid = in.readString();
             toVersion = in.readLong();

@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
@@ -55,20 +56,20 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.mockito.Mockito.mock;
 
 public class TransportNodesActionTests extends ESTestCase {
 
     private static ThreadPool THREAD_POOL;
-    private static ClusterName CLUSTER_NAME = new ClusterName("test-cluster");
 
     private ClusterService clusterService;
     private CapturingTransport transport;
-    private TestTransportNodesAction action;
+    private TransportService transportService;
 
     public void testRequestIsSentToEachNode() throws Exception {
+        TransportNodesAction action = getTestTransportNodesAction();
         TestNodesRequest request = new TestNodesRequest();
         PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
         action.new AsyncAction(null, request, listener).start();
@@ -79,6 +80,7 @@ public class TransportNodesActionTests extends ESTestCase {
     }
 
     public void testNodesSelectors() {
+        TransportNodesAction action = getTestTransportNodesAction();
         int numSelectors = randomIntBetween(1, 5);
         Set<String> nodeSelectors = new HashSet<>();
         for (int i = 0; i < numSelectors; i++) {
@@ -94,14 +96,16 @@ public class TransportNodesActionTests extends ESTestCase {
         TestNodesRequest request = new TestNodesRequest(finalNodesIds);
         action.new AsyncAction(null, request, new PlainActionFuture<>()).start();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
-        assertEquals(clusterService.state().nodes().resolveNodesIds(finalNodesIds).length, capturedRequests.size());
+        assertEquals(clusterService.state().nodes().resolveNodes(finalNodesIds).length, capturedRequests.size());
     }
 
     public void testNewResponseNullArray() {
+        TransportNodesAction action = getTestTransportNodesAction();
         expectThrows(NullPointerException.class, () -> action.newResponse(new TestNodesRequest(), null));
     }
 
     public void testNewResponse() {
+        TestTransportNodesAction action = getTestTransportNodesAction();
         TestNodesRequest request = new TestNodesRequest();
         List<TestNodeResponse> expectedNodeResponses = mockList(TestNodeResponse.class, randomIntBetween(0, 2));
         expectedNodeResponses.add(new TestNodeResponse());
@@ -125,6 +129,19 @@ public class TransportNodesActionTests extends ESTestCase {
         assertTrue(failures.containsAll(response.failures()));
     }
 
+    public void testCustomResolving() throws Exception {
+        TransportNodesAction action = getDataNodesOnlyTransportNodesAction(transportService);
+        TestNodesRequest request = new TestNodesRequest(randomBoolean() ? null : generateRandomStringArray(10, 5, false, true));
+        PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
+        action.new AsyncAction(null, request, listener).start();
+        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
+        // check requests were only sent to data nodes
+        for (String nodeTarget : capturedRequests.keySet()) {
+            assertTrue(clusterService.state().nodes().get(nodeTarget).isDataNode());
+        }
+        assertEquals(clusterService.state().nodes().getDataNodes().size(), capturedRequests.size());
+    }
+
     private <T> List<T> mockList(Class<T> clazz, int size) {
         List<T> failures = new ArrayList<>(size);
         for (int i = 0; i < size; ++i) {
@@ -145,7 +162,7 @@ public class TransportNodesActionTests extends ESTestCase {
 
     @BeforeClass
     public static void startThreadPool() {
-        THREAD_POOL = new ThreadPool(TransportBroadcastByNodeActionTests.class.getSimpleName());
+        THREAD_POOL = new TestThreadPool(TransportBroadcastByNodeActionTests.class.getSimpleName());
     }
 
     @AfterClass
@@ -160,7 +177,7 @@ public class TransportNodesActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
-        final TransportService transportService = new TransportService(transport, THREAD_POOL, clusterService.state().getClusterName());
+        transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL);
         transportService.start();
         transportService.acceptIncomingRequests();
         int numNodes = randomIntBetween(3, 10);
@@ -178,11 +195,21 @@ public class TransportNodesActionTests extends ESTestCase {
         }
         discoBuilder.localNodeId(randomFrom(discoveryNodes).getId());
         discoBuilder.masterNodeId(randomFrom(discoveryNodes).getId());
-        ClusterState.Builder stateBuilder = ClusterState.builder(CLUSTER_NAME);
+        ClusterState.Builder stateBuilder = ClusterState.builder(clusterService.getClusterName());
         stateBuilder.nodes(discoBuilder);
         ClusterState clusterState = stateBuilder.build();
         setState(clusterService, clusterState);
-        action = new TestTransportNodesAction(
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+        clusterService.close();
+        transport.close();
+    }
+
+    public TestTransportNodesAction getTestTransportNodesAction() {
+        return new TestTransportNodesAction(
                 Settings.EMPTY,
                 THREAD_POOL,
                 clusterService,
@@ -194,11 +221,17 @@ public class TransportNodesActionTests extends ESTestCase {
         );
     }
 
-    @After
-    public void tearDown() throws Exception {
-        super.tearDown();
-        clusterService.close();
-        transport.close();
+    public DataNodesOnlyTransportNodesAction getDataNodesOnlyTransportNodesAction(TransportService transportService) {
+        return new DataNodesOnlyTransportNodesAction(
+            Settings.EMPTY,
+            THREAD_POOL,
+            clusterService,
+            transportService,
+            new ActionFilters(Collections.emptySet()),
+            TestNodesRequest::new,
+            TestNodeRequest::new,
+            ThreadPool.Names.SAME
+        );
     }
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNode.Role> roles) {
@@ -212,14 +245,14 @@ public class TransportNodesActionTests extends ESTestCase {
         TestTransportNodesAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService
                 transportService, ActionFilters actionFilters, Supplier<TestNodesRequest> request,
                                  Supplier<TestNodeRequest> nodeRequest, String nodeExecutor) {
-            super(settings, "indices:admin/test", CLUSTER_NAME, threadPool, clusterService, transportService, actionFilters,
+            super(settings, "indices:admin/test", threadPool, clusterService, transportService, actionFilters,
                     null, request, nodeRequest, nodeExecutor, TestNodeResponse.class);
         }
 
         @Override
         protected TestNodesResponse newResponse(TestNodesRequest request,
                                                 List<TestNodeResponse> responses, List<FailedNodeException> failures) {
-            return new TestNodesResponse(request, responses, failures);
+            return new TestNodesResponse(clusterService.getClusterName(), request, responses, failures);
         }
 
         @Override
@@ -243,6 +276,21 @@ public class TransportNodesActionTests extends ESTestCase {
         }
     }
 
+    private static class DataNodesOnlyTransportNodesAction
+        extends TestTransportNodesAction {
+
+        DataNodesOnlyTransportNodesAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService
+            transportService, ActionFilters actionFilters, Supplier<TestNodesRequest> request,
+                                          Supplier<TestNodeRequest> nodeRequest, String nodeExecutor) {
+            super(settings, threadPool, clusterService, transportService, actionFilters, request, nodeRequest, nodeExecutor);
+        }
+
+        @Override
+        protected void resolveRequest(TestNodesRequest request, ClusterState clusterState) {
+            request.setConcreteNodes(clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode.class));
+        }
+    }
+
     private static class TestNodesRequest extends BaseNodesRequest<TestNodesRequest> {
         TestNodesRequest(String... nodesIds) {
             super(nodesIds);
@@ -253,8 +301,9 @@ public class TransportNodesActionTests extends ESTestCase {
 
         private final TestNodesRequest request;
 
-        TestNodesResponse(TestNodesRequest request, List<TestNodeResponse> nodeResponses, List<FailedNodeException> failures) {
-            super(CLUSTER_NAME, nodeResponses, failures);
+        TestNodesResponse(ClusterName clusterName, TestNodesRequest request, List<TestNodeResponse> nodeResponses,
+                          List<FailedNodeException> failures) {
+            super(clusterName, nodeResponses, failures);
             this.request = request;
         }
 

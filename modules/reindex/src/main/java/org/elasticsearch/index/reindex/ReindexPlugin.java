@@ -19,32 +19,30 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 
-public class ReindexPlugin extends Plugin {
+import java.util.Arrays;
+import java.util.List;
+
+public class ReindexPlugin extends Plugin implements ActionPlugin {
     public static final String NAME = "reindex";
 
     @Override
-    public String name() {
-        return NAME;
-    }
-
-    @Override
-    public String description() {
-        return "The Reindex module adds APIs to reindex from one index to another or update documents in place.";
-    }
-
-    public void onModule(ActionModule actionModule) {
-        actionModule.registerAction(ReindexAction.INSTANCE, TransportReindexAction.class);
-        actionModule.registerAction(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class);
-        actionModule.registerAction(RethrottleAction.INSTANCE, TransportRethrottleAction.class);
+    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+        return Arrays.asList(new ActionHandler<>(ReindexAction.INSTANCE, TransportReindexAction.class),
+                new ActionHandler<>(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
+                new ActionHandler<>(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
+                new ActionHandler<>(RethrottleAction.INSTANCE, TransportRethrottleAction.class));
     }
 
     public void onModule(NetworkModule networkModule) {
         networkModule.registerRestHandler(RestReindexAction.class);
         networkModule.registerRestHandler(RestUpdateByQueryAction.class);
+        networkModule.registerRestHandler(RestDeleteByQueryAction.class);
         networkModule.registerRestHandler(RestRethrottleAction.class);
         networkModule.registerTaskStatus(BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new);
     }

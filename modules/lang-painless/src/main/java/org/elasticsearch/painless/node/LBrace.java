@@ -19,14 +19,17 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents an array load/store or defers to possible shortcuts.
@@ -35,52 +38,58 @@ public final class LBrace extends ALink {
 
     AExpression index;
 
-    public LBrace(final int line, final String location, final AExpression index) {
-        super(line, location, 2);
+    public LBrace(Location location, AExpression index) {
+        super(location, 2);
 
-        this.index = index;
+        this.index = Objects.requireNonNull(index);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        index.extractVariables(variables);
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(Locals locals) {
         if (before == null) {
-            throw new IllegalStateException(error("Illegal tree structure."));
+            throw createError(new IllegalArgumentException("Illegal array access made without target."));
         }
 
-        final Sort sort = before.sort;
+        Sort sort = before.sort;
 
         if (sort == Sort.ARRAY) {
-            index.expected = definition.intType;
-            index.analyze(settings, definition, variables);
-            index = index.cast(settings, definition, variables);
+            index.expected = Definition.INT_TYPE;
+            index.analyze(locals);
+            index = index.cast(locals);
 
-            after = definition.getType(before.struct, before.dimensions - 1);
+            after = Definition.getType(before.struct, before.dimensions - 1);
 
             return this;
         } else if (sort == Sort.DEF) {
-            return new LDefArray(line, location, index).copy(this).analyze(settings, definition, variables);
+            return new LDefArray(location, index).copy(this).analyze(locals);
         } else if (Map.class.isAssignableFrom(before.clazz)) {
-            return new LMapShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
+            return new LMapShortcut(location, index).copy(this).analyze(locals);
         } else if (List.class.isAssignableFrom(before.clazz)) {
-            return new LListShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
+            return new LListShortcut(location, index).copy(this).analyze(locals);
         }
 
-        throw new IllegalArgumentException(error("Illegal array access on type [" + before.name + "]."));
+        throw createError(new IllegalArgumentException("Illegal array access on type [" + before.name + "]."));
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        index.write(settings, definition, adapter);
+    void write(MethodWriter writer, Globals globals) {
+        index.write(writer, globals);
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        adapter.arrayLoad(after.type);
+    void load(MethodWriter writer, Globals globals) {
+        writer.writeDebugInfo(location);
+        writer.arrayLoad(after.type);
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        adapter.arrayStore(after.type);
+    void store(MethodWriter writer, Globals globals) {
+        writer.writeDebugInfo(location);
+        writer.arrayStore(after.type);
     }
-
 }

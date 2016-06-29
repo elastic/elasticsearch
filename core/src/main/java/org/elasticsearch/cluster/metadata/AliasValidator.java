@@ -32,6 +32,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.InvalidAliasNameException;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * Validator for an alias, to be used before adding an alias to the index metadata
@@ -141,7 +142,10 @@ public class AliasValidator extends AbstractComponent {
 
     private static void validateAliasFilter(XContentParser parser, QueryShardContext queryShardContext) throws IOException {
         QueryParseContext queryParseContext = queryShardContext.newParseContext(parser);
-        QueryBuilder queryBuilder = QueryBuilder.rewriteQuery(queryParseContext.parseInnerQueryBuilder(), queryShardContext);
-        queryBuilder.toFilter(queryShardContext);
+        Optional<QueryBuilder> parseInnerQueryBuilder = queryParseContext.parseInnerQueryBuilder();
+        if (parseInnerQueryBuilder.isPresent()) {
+            QueryBuilder queryBuilder = QueryBuilder.rewriteQuery(parseInnerQueryBuilder.get(), queryShardContext);
+            queryBuilder.toFilter(queryShardContext);
+        }
     }
 }

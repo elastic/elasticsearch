@@ -108,6 +108,15 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
 
         shardsIts = clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap, request.preference());
         final int shardCount = shardsIts.size();
+        failIfOverShardCountLimit(clusterService, shardCount);
+        expectedSuccessfulOps = shardCount;
+        // we need to add 1 for non active partition, since we count it in the total!
+        expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
+
+        firstResults = new AtomicArray<>(shardsIts.size());
+    }
+
+    private void failIfOverShardCountLimit(ClusterService clusterService, int shardCount) {
         final long shardCountLimit = clusterService.getClusterSettings().get(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING);
         if (shardCount > shardCountLimit) {
             throw new IllegalArgumentException("Trying to query " + shardCount + " shards, which is over the limit of "
@@ -116,11 +125,6 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                     + "have a smaller number of larger shards. Update [" + TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey()
                     + "] to a greater value if you really want to query that many shards at the same time.");
         }
-        expectedSuccessfulOps = shardCount;
-        // we need to add 1 for non active partition, since we count it in the total!
-        expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
-
-        firstResults = new AtomicArray<>(shardsIts.size());
     }
 
     public void start() {
@@ -186,7 +190,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                 innerMoveToSecondPhase();
             } catch (Throwable e) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug(shardIt.shardId() + ": Failed to execute [" + request + "] while moving to second phase", e);
+                    logger.debug("{}: Failed to execute [{}] while moving to second phase", e, shardIt.shardId(), request);
                 }
                 raiseEarlyFailure(new ReduceSearchPhaseException(firstPhaseName(), "", e, buildShardFailures()));
             }
@@ -206,11 +210,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         if (totalOps.incrementAndGet() == expectedTotalOps) {
             if (logger.isDebugEnabled()) {
                 if (t != null && !TransportActions.isShardNotAvailableException(t)) {
-                    if (shard != null) {
-                        logger.debug(shard.shortSummary() + ": Failed to execute [" + request + "]", t);
-                    } else {
-                        logger.debug(shardIt.shardId() + ": Failed to execute [" + request + "]", t);
-                    }
+                    logger.debug("{}: Failed to execute [{}]", t, shard != null ? shard.shortSummary() : shardIt.shardId(), request);
                 } else if (logger.isTraceEnabled()) {
                     logger.trace("{}: Failed to execute [{}]", t, shard, request);
                 }
@@ -235,7 +235,8 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
             final boolean lastShard = nextShard == null;
             // trace log this exception
             if (logger.isTraceEnabled()) {
-                logger.trace(executionFailureMsg(shard, shardIt, request, lastShard), t);
+                logger.trace("{}: Failed to execute [{}] lastShard [{}]", t, shard != null ? shard.shortSummary() : shardIt.shardId(),
+                    request, lastShard);
             }
             if (!lastShard) {
                 try {
@@ -247,19 +248,11 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                 // no more shards active, add a failure
                 if (logger.isDebugEnabled() && !logger.isTraceEnabled()) { // do not double log this exception
                     if (t != null && !TransportActions.isShardNotAvailableException(t)) {
-                        logger.debug(executionFailureMsg(shard, shardIt, request, lastShard), t);
+                        logger.debug("{}: Failed to execute [{}] lastShard [{}]", t,
+                            shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard);
                     }
                 }
             }
-        }
-    }
-
-    private String executionFailureMsg(@Nullable ShardRouting shard, final ShardIterator shardIt, SearchRequest request,
-                                       boolean lastShard) {
-        if (shard != null) {
-            return shard.shortSummary() + ": Failed to execute [" + request + "] lastShard [" + lastShard + "]";
-        } else {
-            return shardIt.shardId() + ": Failed to execute [" + request + "] lastShard [" + lastShard + "]";
         }
     }
 

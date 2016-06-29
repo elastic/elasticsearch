@@ -45,6 +45,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportService;
@@ -59,8 +60,8 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -76,7 +77,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        threadPool = new ThreadPool("TransportMasterNodeActionTests");
+        threadPool = new TestThreadPool("TransportMasterNodeActionTests");
     }
 
     @Override
@@ -85,7 +86,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
-        transportService = new TransportService(transport, threadPool, clusterService.state().getClusterName());
+        transportService = new TransportService(clusterService.getSettings(), transport, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
         localNode = new DiscoveryNode("local_node", DummyTransportAddress.INSTANCE, Collections.emptyMap(),

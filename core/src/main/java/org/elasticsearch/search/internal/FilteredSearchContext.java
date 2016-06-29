@@ -24,8 +24,8 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -33,7 +33,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.percolator.PercolatorQueryCache;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -251,11 +250,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public PageCacheRecycler pageCacheRecycler() {
-        return in.pageCacheRecycler();
-    }
-
-    @Override
     public BigArrays bigArrays() {
         return in.bigArrays();
     }
@@ -271,18 +265,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public PercolatorQueryCache percolatorQueryCache() {
-        return in.percolatorQueryCache();
+    public TimeValue timeout() {
+        return in.timeout();
     }
 
     @Override
-    public long timeoutInMillis() {
-        return in.timeoutInMillis();
-    }
-
-    @Override
-    public void timeoutInMillis(long timeoutInMillis) {
-        in.timeoutInMillis(timeoutInMillis);
+    public void timeout(TimeValue timeout) {
+        in.timeout(timeout);
     }
 
     @Override

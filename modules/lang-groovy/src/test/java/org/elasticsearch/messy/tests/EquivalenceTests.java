@@ -36,7 +36,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
-import org.elasticsearch.search.aggregations.bucket.range.RangeAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
@@ -122,7 +122,7 @@ public class EquivalenceTests extends ESIntegTestCase {
             }
         }
 
-        RangeAggregatorBuilder query = range("range").field("values");
+        RangeAggregationBuilder query = range("range").field("values");
         for (int i = 0; i < ranges.length; ++i) {
             String key = Integer.toString(i);
             if (ranges[i][0] == Double.NEGATIVE_INFINITY) {
@@ -184,25 +184,27 @@ public class EquivalenceTests extends ESIntegTestCase {
         final IntHashSet valuesSet = new IntHashSet();
         cluster().wipeIndices("idx");
         prepareCreate("idx")
-                .addMapping("type", jsonBuilder().startObject()
-                        .startObject("type")
-                        .startObject("properties")
-                        .startObject("string_values")
-                        .field("type", "keyword")
-                        .startObject("fields")
-                            .startObject("doc_values")
-                                .field("type", "keyword")
-                                .field("index", false)
+                .addMapping("type", jsonBuilder()
+                        .startObject()
+                            .startObject("type")
+                                .startObject("properties")
+                                    .startObject("string_values")
+                                        .field("type", "keyword")
+                                        .startObject("fields")
+                                            .startObject("doc_values")
+                                                .field("type", "keyword")
+                                                .field("index", false)
+                                            .endObject()
+                                        .endObject()
+                                    .endObject()
+                                    .startObject("long_values")
+                                        .field("type", "long")
+                                    .endObject()
+                                    .startObject("double_values")
+                                        .field("type", "double")
+                                    .endObject()
+                                .endObject()
                             .endObject()
-                        .endObject()
-                        .endObject()
-                        .startObject("long_values")
-                        .field("type", "long")
-                        .endObject()
-                        .startObject("double_values")
-                        .field("type", "double")
-                        .endObject()
-                        .endObject()
                         .endObject()).execute().actionGet();
 
         List<IndexRequestBuilder> indexingRequests = new ArrayList<>();

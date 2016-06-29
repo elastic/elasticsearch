@@ -44,12 +44,12 @@ public final class MinDocQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), minDoc);
+        return Objects.hash(classHash(), minDoc);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (super.equals(obj) == false) {
+        if (sameClassAs(obj) == false) {
             return false;
         }
         MinDocQuery that = (MinDocQuery) obj;

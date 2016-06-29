@@ -34,14 +34,17 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  */
@@ -59,10 +62,10 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
     public boolean processExistingRecoveries(RoutingAllocation allocation) {
         boolean changed = false;
         MetaData metaData = allocation.metaData();
-        for (RoutingNodes.RoutingNodesIterator nodes = allocation.routingNodes().nodes(); nodes.hasNext(); ) {
-            nodes.next();
-            for (RoutingNodes.RoutingNodeIterator it = nodes.nodeShards(); it.hasNext(); ) {
-                ShardRouting shard = it.next();
+        RoutingNodes routingNodes = allocation.routingNodes();
+        List<Tuple<ShardRouting, UnassignedInfo>> recoveriesToCancel = new ArrayList<>();
+        for (RoutingNode routingNode : routingNodes) {
+            for (ShardRouting shard : routingNode) {
                 if (shard.primary() == true) {
                     continue;
                 }
@@ -85,10 +88,10 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                     continue; // still fetching
                 }
 
-                ShardRouting primaryShard = allocation.routingNodes().activePrimary(shard);
+                ShardRouting primaryShard = allocation.routingNodes().activePrimary(shard.shardId());
                 assert primaryShard != null : "the replica shard can be allocated on at least one node, so there must be an active primary";
                 TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore = findStore(primaryShard, allocation, shardStores);
-                if (primaryStore == null || primaryStore.allocated() == false) {
+                if (primaryStore == null) {
                     // if we can't find the primary data, it is probably because the primary shard is corrupted (and listing failed)
                     // just let the recovery find it out, no need to do anything about it for the initializing shard
                     logger.trace("{}: no primary shard store found or allocated, letting actual allocation figure it out", shard);
@@ -99,20 +102,32 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                 if (matchingNodes.getNodeWithHighestMatch() != null) {
                     DiscoveryNode currentNode = allocation.nodes().get(shard.currentNodeId());
                     DiscoveryNode nodeWithHighestMatch = matchingNodes.getNodeWithHighestMatch();
+                    // current node will not be in matchingNodes as it is filtered away by SameShardAllocationDecider
+                    final String currentSyncId;
+                    if (shardStores.getData().containsKey(currentNode)) {
+                        currentSyncId = shardStores.getData().get(currentNode).storeFilesMetaData().syncId();
+                    } else {
+                        currentSyncId = null;
+                    }
                     if (currentNode.equals(nodeWithHighestMatch) == false
-                            && matchingNodes.isNodeMatchBySyncID(currentNode) == false
+                            && Objects.equals(currentSyncId, primaryStore.syncId()) == false
                             && matchingNodes.isNodeMatchBySyncID(nodeWithHighestMatch) == true) {
                         // we found a better match that has a full sync id match, the existing allocation is not fully synced
                         // so we found a better one, cancel this one
                         logger.debug("cancelling allocation of replica on [{}], sync id match found on node [{}]",
                                 currentNode, nodeWithHighestMatch);
-                        it.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.REALLOCATED_REPLICA,
-                                "existing allocation of replica to [" + currentNode + "] cancelled, sync id match found on node [" + nodeWithHighestMatch + "]",
-                                null, allocation.getCurrentNanoTime(), System.currentTimeMillis()));
+                        UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REALLOCATED_REPLICA,
+                            "existing allocation of replica to [" + currentNode + "] cancelled, sync id match found on node ["+ nodeWithHighestMatch + "]",
+                            null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false);
+                        // don't cancel shard in the loop as it will cause a ConcurrentModificationException
+                        recoveriesToCancel.add(new Tuple<>(shard, unassignedInfo));
                         changed = true;
                     }
                 }
             }
+        }
+        for (Tuple<ShardRouting, UnassignedInfo> cancellation : recoveriesToCancel) {
+            routingNodes.moveToUnassigned(cancellation.v1(), cancellation.v2());
         }
         return changed;
     }
@@ -149,10 +164,10 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                 continue; // still fetching
             }
 
-            ShardRouting primaryShard = routingNodes.activePrimary(shard);
+            ShardRouting primaryShard = routingNodes.activePrimary(shard.shardId());
             assert primaryShard != null : "the replica shard can be allocated on at least one node, so there must be an active primary";
             TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore = findStore(primaryShard, allocation, shardStores);
-            if (primaryStore == null || primaryStore.allocated() == false) {
+            if (primaryStore == null) {
                 // if we can't find the primary data, it is probably because the primary shard is corrupted (and listing failed)
                 // we want to let the replica be allocated in order to expose the actual problem with the primary that the replica
                 // will try and recover from
@@ -179,7 +194,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                 }
             } else if (matchingNodes.hasAnyData() == false) {
                 // if we didn't manage to find *any* data (regardless of matching sizes), check if the allocation of the replica shard needs to be delayed
-                changed |= ignoreUnassignedIfDelayed(unassignedIterator, shard);
+                ignoreUnassignedIfDelayed(unassignedIterator, shard);
             }
         }
         return changed;
@@ -195,21 +210,16 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
      *
      * @param unassignedIterator iterator over unassigned shards
      * @param shard the shard which might be delayed
-     * @return true iff allocation is delayed for this shard
      */
-    public boolean ignoreUnassignedIfDelayed(RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator, ShardRouting shard) {
-        // calculate delay and store it in UnassignedInfo to be used by RoutingService
-        long delay = shard.unassignedInfo().getLastComputedLeftDelayNanos();
-        if (delay > 0) {
-            logger.debug("[{}][{}]: delaying allocation of [{}] for [{}]", shard.index(), shard.id(), shard, TimeValue.timeValueNanos(delay));
+    public void ignoreUnassignedIfDelayed(RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator, ShardRouting shard) {
+        if (shard.unassignedInfo().isDelayed()) {
+            logger.debug("{}: allocation of [{}] is delayed", shard.shardId(), shard);
             /**
              * mark it as changed, since we want to kick a publishing to schedule future allocation,
              * see {@link org.elasticsearch.cluster.routing.RoutingService#clusterChanged(ClusterChangedEvent)}).
              */
             unassignedIterator.removeAndIgnore();
-            return true;
         }
-        return false;
     }
 
     /**
@@ -254,8 +264,8 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
         for (Map.Entry<DiscoveryNode, TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> nodeStoreEntry : data.getData().entrySet()) {
             DiscoveryNode discoNode = nodeStoreEntry.getKey();
             TransportNodesListShardStoreMetaData.StoreFilesMetaData storeFilesMetaData = nodeStoreEntry.getValue().storeFilesMetaData();
-            if (storeFilesMetaData == null) {
-                // already allocated on that node...
+            // we don't have any files at all, it is an empty index
+            if (storeFilesMetaData.isEmpty()) {
                 continue;
             }
 
@@ -269,16 +279,6 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
             // then we will try and assign it next time
             Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
             if (decision.type() == Decision.Type.NO) {
-                continue;
-            }
-
-            // if it is already allocated, we can't assign to it... (and it might be primary as well)
-            if (storeFilesMetaData.allocated()) {
-                continue;
-            }
-
-            // we don't have any files at all, it is an empty index
-            if (storeFilesMetaData.iterator().hasNext() == false) {
                 continue;
             }
 

@@ -24,16 +24,6 @@ import org.elasticsearch.plugins.Plugin;
 
 public class TestResponseHeaderPlugin extends Plugin {
 
-    @Override
-    public String name() {
-        return "test-plugin-custom-header";
-    }
-
-    @Override
-    public String description() {
-        return "test-plugin-custom-header-desc";
-    }
-
     public void onModule(NetworkModule module) {
         module.registerRestHandler(TestResponseHeaderRestAction.class);
     }

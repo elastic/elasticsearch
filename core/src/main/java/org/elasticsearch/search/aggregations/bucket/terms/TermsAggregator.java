@@ -83,13 +83,6 @@ public abstract class TermsAggregator extends BucketsAggregator {
 
         public void ensureValidity() {
 
-            if (shardSize == 0) {
-                setShardSize(Integer.MAX_VALUE);
-            }
-
-            if (requiredSize == 0) {
-                setRequiredSize(Integer.MAX_VALUE);
-            }
             // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return <size>
             if (shardSize < requiredSize) {
                 setShardSize(requiredSize);
@@ -100,8 +93,12 @@ public abstract class TermsAggregator extends BucketsAggregator {
                 setShardMinDocCount(minDocCount);
             }
 
-            if (requiredSize < 0 || minDocCount < 0) {
-                throw new ElasticsearchException("parameters [requiredSize] and [minDocCount] must be >=0 in terms aggregation.");
+            if (requiredSize <= 0 || shardSize <= 0) {
+                throw new ElasticsearchException("parameters [required_size] and [shard_size] must be >0 in terms aggregation.");
+            }
+
+            if (minDocCount < 0 || shardMinDocCount < 0) {
+                throw new ElasticsearchException("parameter [min_doc_count] and [shardMinDocCount] must be >=0 in terms aggregation.");
             }
         }
 
@@ -139,10 +136,10 @@ public abstract class TermsAggregator extends BucketsAggregator {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(TermsAggregatorBuilder.REQUIRED_SIZE_FIELD_NAME.getPreferredName(), requiredSize);
-            builder.field(TermsAggregatorBuilder.SHARD_SIZE_FIELD_NAME.getPreferredName(), shardSize);
-            builder.field(TermsAggregatorBuilder.MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), minDocCount);
-            builder.field(TermsAggregatorBuilder.SHARD_MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), shardMinDocCount);
+            builder.field(TermsAggregationBuilder.REQUIRED_SIZE_FIELD_NAME.getPreferredName(), requiredSize);
+            builder.field(TermsAggregationBuilder.SHARD_SIZE_FIELD_NAME.getPreferredName(), shardSize);
+            builder.field(TermsAggregationBuilder.MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), minDocCount);
+            builder.field(TermsAggregationBuilder.SHARD_MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), shardMinDocCount);
             return builder;
         }
 

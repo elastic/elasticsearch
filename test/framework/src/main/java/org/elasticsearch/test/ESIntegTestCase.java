@@ -19,12 +19,11 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import org.apache.http.HttpHost;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
@@ -58,6 +57,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -81,7 +81,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -109,8 +108,9 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -119,12 +119,10 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -316,6 +314,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * By default if no {@link ClusterScope} is configured this will hold a reference to the suite cluster.
      */
     private static TestCluster currentCluster;
+    private static RestClient restClient = null;
 
     private static final double TRANSPORT_CLIENT_RATIO = transportClientRatio();
 
@@ -385,13 +384,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             XContentBuilder mappings = null;
             if (frequently() && randomDynamicTemplates()) {
-                mappings = XContentFactory.jsonBuilder().startObject().startObject("_default_");
-                if (randomBoolean()) {
-                    mappings.startObject(TimestampFieldMapper.NAME)
-                            .field("enabled", randomBoolean());
-                    mappings.endObject();
-                }
-                mappings.endObject().endObject();
+                mappings = XContentFactory.jsonBuilder().startObject().startObject("_default_").endObject().endObject();
             }
 
             for (String setting : randomSettingsBuilder.internalMap().keySet()) {
@@ -511,6 +504,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (!clusters.isEmpty()) {
             IOUtils.close(clusters.values());
             clusters.clear();
+        }
+        if (restClient != null) {
+            restClient.close();
+            restClient = null;
         }
     }
 
@@ -1028,7 +1025,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         logger.info("memory: {}", XContentHelper.toString(client().admin().cluster().prepareNodesStats().clear().setJvm(true).get()));
     }
 
-    void ensureClusterSizeConsistency() {
+    protected void ensureClusterSizeConsistency() {
         if (cluster() != null) { // if static init fails the cluster can be null
             logger.trace("Check consistency for [{}] nodes", cluster().size());
             assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(cluster().size())).get());
@@ -1480,16 +1477,23 @@ public abstract class ESIntegTestCase extends ESTestCase {
         int numDataNodes() default -1;
 
         /**
-         * Returns the minimum number of nodes in the cluster. Default is <tt>-1</tt>.
+         * Returns the minimum number of data nodes in the cluster. Default is <tt>-1</tt>.
          * Ignored when {@link ClusterScope#numDataNodes()} is set.
          */
         int minNumDataNodes() default -1;
 
         /**
-         * Returns the maximum number of nodes in the cluster.  Default is <tt>-1</tt>.
+         * Returns the maximum number of data nodes in the cluster.  Default is <tt>-1</tt>.
          * Ignored when {@link ClusterScope#numDataNodes()} is set.
          */
         int maxNumDataNodes() default -1;
+
+        /**
+         * Indicates whether the cluster can have dedicated master nodes. If <tt>false</tt> means data nodes will serve as master nodes
+         * and there will be no dedicated master (and data) nodes. Default is <tt>true</tt> which means
+         * dedicated master nodes will be randomly used.
+         */
+        boolean supportsDedicatedMasters() default true;
 
         /**
          * Returns the number of client nodes in the cluster. Default is {@link InternalTestCluster#DEFAULT_NUM_CLIENT_NODES}, a
@@ -1573,7 +1577,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return getAnnotation(clazz.getSuperclass(), annotationClass);
     }
 
-
     private Scope getCurrentClusterScope() {
         return getCurrentClusterScope(this.getClass());
     }
@@ -1582,6 +1585,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         ClusterScope annotation = getAnnotation(clazz, ClusterScope.class);
         // if we are not annotated assume suite!
         return annotation == null ? Scope.SUITE : annotation.scope();
+    }
+
+    private boolean getSupportsDedicatedMasters() {
+        ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
+        return annotation == null ? true : annotation.supportsDedicatedMasters();
     }
 
     private int getNumDataNodes() {
@@ -1624,7 +1632,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b")
                 .put("script.stored", "true")
                 .put("script.inline", "true")
-                        // wait short time for other active shards before actually deleting, default 30s not needed in tests
+                // by default we never cache below 10k docs in a segment,
+                // bypass this limit so that caching gets some testing in
+                // integration tests that usually create few documents
+                .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), nodeOrdinal % 2 == 0)
+                // wait short time for other active shards before actually deleting, default 30s not needed in tests
                 .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT.getKey(), new TimeValue(1, TimeUnit.SECONDS));
         return builder.build();
     }
@@ -1719,6 +1731,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         };
 
+        boolean supportsDedicatedMasters = getSupportsDedicatedMasters();
         int numDataNodes = getNumDataNodes();
         int minNumDataNodes;
         int maxNumDataNodes;
@@ -1741,7 +1754,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
         Collection<Class<? extends Plugin>> mockPlugins = getMockPlugins();
 
-        return new InternalTestCluster(nodeMode, seed, createTempDir(), minNumDataNodes, maxNumDataNodes,
+        return new InternalTestCluster(nodeMode, seed, createTempDir(), supportsDedicatedMasters, minNumDataNodes, maxNumDataNodes,
                 InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", nodeConfigurationSource, getNumClientNodes(),
                 InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix, mockPlugins, getClientWrapper());
     }
@@ -1784,15 +1797,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     public static final class TestSeedPlugin extends Plugin {
         @Override
-        public String name() {
-            return "test-seed-plugin";
-        }
-        @Override
-        public String description() {
-            return "a test plugin that registers index.tests.seed as an index setting";
-        }
-        public void onModule(SettingsModule module) {
-            module.registerSetting(INDEX_TEST_SEED_SETTING);
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(INDEX_TEST_SEED_SETTING);
         }
 
     }
@@ -1824,23 +1830,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         assert perTestRatio >= 0.0 && perTestRatio <= 1.0;
         return perTestRatio;
-    }
-
-    /**
-     * Returns a random JODA Time Zone based on Java Time Zones
-     */
-    public static DateTimeZone randomDateTimeZone() {
-        DateTimeZone timeZone;
-
-        // It sounds like some Java Time Zones are unknown by JODA. For example: Asia/Riyadh88
-        // We need to fallback in that case to a known time zone
-        try {
-            timeZone = DateTimeZone.forTimeZone(RandomizedTest.randomTimeZone());
-        } catch (IllegalArgumentException e) {
-            timeZone = DateTimeZone.forOffsetHours(randomIntBetween(-12, 12));
-        }
-
-        return timeZone;
     }
 
     /**
@@ -1968,7 +1957,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assert INSTANCE == null;
         if (isSuiteScopedTest(targetClass)) {
             // note we need to do this this way to make sure this is reproducible
-            INSTANCE = (ESIntegTestCase) targetClass.newInstance();
+            INSTANCE = (ESIntegTestCase) targetClass.getConstructor().newInstance();
             boolean success = false;
             try {
                 INSTANCE.printTestMessage("setup");
@@ -1989,8 +1978,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Compute a routing key that will route documents to the <code>shard</code>-th shard
      * of the provided index.
      */
-    protected String routingKeyForShard(String index, String type, int shard) {
-        return internalCluster().routingKeyForShard(resolveIndex(index), type, shard, random());
+    protected String routingKeyForShard(String index, int shard) {
+        return internalCluster().routingKeyForShard(resolveIndex(index), shard, random());
     }
 
     /**
@@ -2040,20 +2029,42 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return builder.build();
     }
 
-    protected HttpRequestBuilder httpClient() {
-        return httpClient(HttpClients.createDefault());
+    /**
+     * Returns an instance of {@link RestClient} pointing to the current test cluster.
+     * Creates a new client if the method is invoked for the first time in the context of the current test scope.
+     * The returned client gets automatically closed when needed, it shouldn't be closed as part of tests otherwise
+     * it cannot be reused by other tests anymore.
+     */
+    protected synchronized static RestClient getRestClient() {
+        if (restClient == null) {
+            restClient = createRestClient(null);
+        }
+        return restClient;
     }
 
-    protected HttpRequestBuilder httpClient(CloseableHttpClient httpClient) {
+    protected static RestClient createRestClient(CloseableHttpClient httpClient) {
+        return createRestClient(httpClient, "http");
+    }
+
+    protected static RestClient createRestClient(CloseableHttpClient httpClient, String protocol) {
         final NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
         final List<NodeInfo> nodes = nodeInfos.getNodes();
         assertFalse(nodeInfos.hasFailures());
-        TransportAddress publishAddress = randomFrom(nodes).getHttp().address().publishAddress();
-        assertEquals(1, publishAddress.uniqueAddressTypeId());
-        InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();
-        return new HttpRequestBuilder(httpClient).host(NetworkAddress.format(address.getAddress())).port(address.getPort());
+        List<HttpHost> hosts = new ArrayList<>();
+        for (NodeInfo node : nodes) {
+            if (node.getHttp() != null) {
+                TransportAddress publishAddress = node.getHttp().address().publishAddress();
+                assertEquals(1, publishAddress.uniqueAddressTypeId());
+                InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();
+                hosts.add(new HttpHost(NetworkAddress.format(address.getAddress()), address.getPort(), protocol));
+            }
+        }
+        RestClient.Builder builder = RestClient.builder(hosts.toArray(new HttpHost[hosts.size()]));
+        if (httpClient != null) {
+            builder.setHttpClient(httpClient);
+        }
+        return builder.build();
     }
-
 
     /**
      * This method is executed iff the test is annotated with {@link SuiteScopeTestCase}

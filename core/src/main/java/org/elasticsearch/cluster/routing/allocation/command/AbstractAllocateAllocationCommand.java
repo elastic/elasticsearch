@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -227,5 +228,23 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
     }
 
     protected void extraXContent(XContentBuilder builder) throws IOException {
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        AbstractAllocateAllocationCommand other = (AbstractAllocateAllocationCommand) obj;
+        // Override equals and hashCode for testing
+        return Objects.equals(index, other.index) &&
+                Objects.equals(shardId, other.shardId) &&
+                Objects.equals(node, other.node);
+    }
+
+    @Override
+    public int hashCode() {
+        // Override equals and hashCode for testing
+        return Objects.hash(index, shardId, node);
     }
 }

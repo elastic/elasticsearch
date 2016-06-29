@@ -21,7 +21,6 @@ package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,7 +37,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.indices.IndicesService;
 
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.function.Supplier;
 
@@ -141,7 +139,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                     try {
                         if (electedIndexMetaData.getState() == IndexMetaData.State.OPEN) {
                             // verify that we can actually create this index - if not we recover it as closed with lots of warn logs
-                            indicesService.verifyIndexMetadata(nodeServicesProvider, electedIndexMetaData);
+                            indicesService.verifyIndexMetadata(nodeServicesProvider, electedIndexMetaData, electedIndexMetaData);
                         }
                     } catch (Exception e) {
                         logger.warn("recovering index {} failed - recovering as closed", e, electedIndexMetaData.getIndex());
@@ -155,18 +153,9 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         metaDataBuilder.persistentSettings(clusterSettings.archiveUnknownOrBrokenSettings(metaDataBuilder.persistentSettings()));
         metaDataBuilder.transientSettings(clusterSettings.archiveUnknownOrBrokenSettings(metaDataBuilder.transientSettings()));
-        ClusterState.Builder builder = ClusterState.builder(clusterService.state().getClusterName());
+        ClusterState.Builder builder = ClusterState.builder(clusterService.getClusterName());
         builder.metaData(metaDataBuilder);
         listener.onSuccess(builder.build());
-    }
-    public void reset() throws Exception {
-        try {
-            Path[] dataPaths = nodeEnv.nodeDataPaths();
-            logger.trace("removing node data paths: [{}]", (Object)dataPaths);
-            IOUtils.rm(dataPaths);
-        } catch (Exception ex) {
-            logger.debug("failed to delete shard locations", ex);
-        }
     }
 
     @Override

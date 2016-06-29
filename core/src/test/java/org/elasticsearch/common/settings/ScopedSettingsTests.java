@@ -98,7 +98,7 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(0, aC.get());
         assertEquals(0, bC.get());
         try {
-            service.dryRun(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", -15).build());
+            service.validateUpdate(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", -15).build());
             fail("invalid value");
         } catch (IllegalArgumentException ex) {
             assertEquals("illegal value can't update [foo.bar.baz] from [1] to [-15]", ex.getMessage());
@@ -108,7 +108,7 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(0, consumer2.get());
         assertEquals(0, aC.get());
         assertEquals(0, bC.get());
-        service.dryRun(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", 15).build());
+        service.validateUpdate(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", 15).build());
         assertEquals(0, consumer.get());
         assertEquals(0, consumer2.get());
         assertEquals(0, aC.get());
@@ -202,20 +202,22 @@ public class ScopedSettingsTests extends ESTestCase {
         IndexScopedSettings settings = new IndexScopedSettings(
             Settings.EMPTY,
             IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        String unknownMsgSuffix = " please check that any required plugins are installed, or check the breaking changes documentation for" +
+            " removed settings";
         settings.validate(Settings.builder().put("index.store.type", "boom"));
         settings.validate(Settings.builder().put("index.store.type", "boom").build());
         try {
             settings.validate(Settings.builder().put("index.store.type", "boom", "i.am.not.a.setting", true));
             fail();
         } catch (IllegalArgumentException e) {
-            assertEquals("unknown setting [i.am.not.a.setting]", e.getMessage());
+            assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
         }
 
         try {
             settings.validate(Settings.builder().put("index.store.type", "boom", "i.am.not.a.setting", true).build());
             fail();
         } catch (IllegalArgumentException e) {
-            assertEquals("unknown setting [i.am.not.a.setting]", e.getMessage());
+            assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
         }
 
         try {
@@ -302,11 +304,8 @@ public class ScopedSettingsTests extends ESTestCase {
     public void testLoggingUpdates() {
         final String level = ESLoggerFactory.getRootLogger().getLevel();
         final String testLevel = ESLoggerFactory.getLogger("test").getLevel();
-        String property = System.getProperty("es.logger.level");
-        Settings.Builder builder = Settings.builder();
-        if (property != null) {
-            builder.put("logger.level", property);
-        }
+        String property = randomFrom(ESLoggerFactory.LogLevel.values()).toString();
+        Settings.Builder builder = Settings.builder().put("logger.level", property);
         try {
             ClusterSettings settings = new ClusterSettings(builder.build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             try {
@@ -319,7 +318,7 @@ public class ScopedSettingsTests extends ESTestCase {
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
             assertEquals("TRACE", ESLoggerFactory.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().build());
-            assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(property, ESLoggerFactory.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger.test", "TRACE").build());
             assertEquals("TRACE", ESLoggerFactory.getLogger("test").getLevel());
             settings.applySettings(Settings.builder().build());

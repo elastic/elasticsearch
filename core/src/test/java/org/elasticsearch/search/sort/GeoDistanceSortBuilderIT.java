@@ -185,7 +185,6 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         builder.endObject();
     }
 
-    @SuppressWarnings("deprecation")
     public void testManyToManyGeoPointsWithDifferentFormats() throws ExecutionException, InterruptedException, IOException {
         /**   q     d1       d2
          * |4  o|   x    |   x

@@ -19,15 +19,18 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
+import org.objectweb.asm.Type;
 
+import java.util.ArrayList;
 import java.util.List;
-
-import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents a method call made on a def type. (Internal only.)
@@ -36,59 +39,89 @@ final class LDefCall extends ALink implements IDefLink {
 
     final String name;
     final List<AExpression> arguments;
+    StringBuilder recipe;
+    List<String> pointers = new ArrayList<>();
 
-    LDefCall(final int line, final String location, final String name, final List<AExpression> arguments) {
-        super(line, location, -1);
+    LDefCall(Location location, String name, List<AExpression> arguments) {
+        super(location, -1);
 
-        this.name = name;
-        this.arguments = arguments;
+        this.name = Objects.requireNonNull(name);
+        this.arguments = Objects.requireNonNull(arguments);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        for (AExpression argument : arguments) {
+            argument.extractVariables(variables);
+        }
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(Locals locals) {
+        recipe = new StringBuilder();
+        int totalCaptures = 0;
         for (int argument = 0; argument < arguments.size(); ++argument) {
-            final AExpression expression = arguments.get(argument);
+            AExpression expression = arguments.get(argument);
 
-            expression.analyze(settings, definition, variables);
+            expression.internal = true;
+            expression.analyze(locals);
+
+            if (expression instanceof ILambda) {
+                ILambda lambda = (ILambda) expression;
+                pointers.add(lambda.getPointer());
+                // encode this parameter as a deferred reference
+                char ch = (char) (argument + totalCaptures);
+                recipe.append(ch);
+                totalCaptures += lambda.getCaptureCount();
+            }
+
             expression.expected = expression.actual;
-            arguments.set(argument, expression.cast(settings, definition, variables));
+            arguments.set(argument, expression.cast(locals));
         }
 
         statement = true;
-        after = definition.defType;
+        after = Definition.DEF_TYPE;
 
         return this;
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+    void write(MethodWriter writer, Globals globals) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        final StringBuilder signature = new StringBuilder();
+    void load(MethodWriter writer, Globals globals) {
+        writer.writeDebugInfo(location);
 
-        signature.append('(');
+        List<Type> parameterTypes = new ArrayList<>();
+
         // first parameter is the receiver, we never know its type: always Object
-        signature.append(definition.defType.type.getDescriptor());
+        parameterTypes.add(Definition.DEF_TYPE.type);
 
-        // TODO: remove our explicit conversions and feed more type information for return value,
-        // it can avoid some unnecessary boxing etc.
-        for (final AExpression argument : arguments) {
-            signature.append(argument.actual.type.getDescriptor());
-            argument.write(settings, definition, adapter);
+        // append each argument
+        for (AExpression argument : arguments) {
+            parameterTypes.add(argument.actual.type);
+            if (argument instanceof ILambda) {
+                ILambda lambda = (ILambda) argument;
+                for (Type capture : lambda.getCaptures()) {
+                    parameterTypes.add(capture);
+                }
+            }
+            argument.write(writer, globals);
         }
 
-        signature.append(')');
-        // return value
-        signature.append(after.type.getDescriptor());
+        // create method type from return value and arguments
+        Type methodType = Type.getMethodType(after.type, parameterTypes.toArray(new Type[0]));
 
-        adapter.invokeDynamic(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.METHOD_CALL);
+        List<Object> args = new ArrayList<>();
+        args.add(recipe.toString());
+        args.addAll(pointers);
+        writer.invokeDefCall(name, methodType, DefBootstrap.METHOD_CALL, args.toArray());
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        throw new IllegalStateException(error("Illegal tree structure."));
+    void store(MethodWriter writer, Globals globals) {
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
@@ -50,7 +51,7 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.Version.CURRENT;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 
 /**
@@ -74,7 +75,7 @@ public class IndicesStoreTests extends ESTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        threadPool = new ThreadPool("ShardReplicationTests");
+        threadPool = new TestThreadPool("ShardReplicationTests");
     }
 
     @AfterClass
@@ -87,7 +88,7 @@ public class IndicesStoreTests extends ESTestCase {
     public void before() {
         localNode = new DiscoveryNode("abc", new LocalTransportAddress("abc"), emptyMap(), emptySet(), Version.CURRENT);
         clusterService = createClusterService(threadPool);
-        indicesStore = new IndicesStore(Settings.EMPTY, null, clusterService, new TransportService(null, null, clusterService.state().getClusterName()), null);
+        indicesStore = new IndicesStore(Settings.EMPTY, null, clusterService, new TransportService(clusterService.getSettings(), null, null), null);
     }
 
     @After

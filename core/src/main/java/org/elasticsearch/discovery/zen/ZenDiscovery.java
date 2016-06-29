@@ -150,12 +150,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private volatile NodeJoinController nodeJoinController;
 
     @Inject
-    public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+    public ZenDiscovery(Settings settings, ThreadPool threadPool,
                         TransportService transportService, final ClusterService clusterService, ClusterSettings clusterSettings,
                         ZenPingService pingService, ElectMasterService electMasterService) {
         super(settings);
-        this.clusterName = clusterName;
         this.clusterService = clusterService;
+        this.clusterName = clusterService.getClusterName();
         this.transportService = transportService;
         this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
         this.pingService = pingService;
@@ -182,10 +182,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             }
         });
 
-        this.masterFD = new MasterFaultDetection(settings, threadPool, transportService, clusterName, clusterService);
+        this.masterFD = new MasterFaultDetection(settings, threadPool, transportService, clusterService);
         this.masterFD.addListener(new MasterNodeFailureListener());
 
-        this.nodesFD = new NodesFaultDetection(settings, threadPool, transportService, clusterName);
+        this.nodesFD = new NodesFaultDetection(settings, threadPool, transportService, clusterService.getClusterName());
         this.nodesFD.addListener(new NodeFaultDetectionListener());
 
         this.publishClusterState =
@@ -195,7 +195,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         clusterService::state,
                         new NewPendingClusterStateListener(),
                         discoverySettings,
-                        clusterName);
+                        clusterService.getClusterName());
         this.pingService.setPingContextProvider(this);
         this.membership = new MembershipAction(settings, clusterService, transportService, this, new MembershipListener());
 
@@ -215,7 +215,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         nodesFD.setLocalNode(clusterService.localNode());
         joinThreadControl.start();
         pingService.start();
-        this.nodeJoinController = new NodeJoinController(clusterService, routingService, discoverySettings, settings);
+        this.nodeJoinController = new NodeJoinController(clusterService, routingService, electMaster, discoverySettings, settings);
     }
 
     @Override
@@ -372,7 +372,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private void innerJoinCluster() {
         DiscoveryNode masterNode = null;
         final Thread currentThread = Thread.currentThread();
-        nodeJoinController.startAccumulatingJoins();
+        nodeJoinController.startElectionContext();
         while (masterNode == null && joinThreadControl.joinThreadActive(currentThread)) {
             masterNode = findMaster();
         }
@@ -406,7 +406,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             );
         } else {
             // process any incoming joins (they will fail because we are not the master)
-            nodeJoinController.stopAccumulatingJoins("not master");
+            nodeJoinController.stopElectionContext("not master");
 
             // send join request
             final boolean success = joinElectedMaster(masterNode);
@@ -617,6 +617,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                electMaster.logMinimumMasterNodesWarningIfNecessary(oldState, newState);
             }
         });
     }
@@ -1144,14 +1145,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         /** cleans any running joining thread and calls {@link #rejoin} */
         public ClusterState stopRunningThreadAndRejoin(ClusterState clusterState, String reason) {
-            assertClusterStateThread();
+            ClusterService.assertClusterStateThread();
             currentJoinThread.set(null);
             return rejoin(clusterState, reason);
         }
 
         /** starts a new joining thread if there is no currently active one and join thread controlling is started */
         public void startNewThreadIfNotRunning() {
-            assertClusterStateThread();
+            ClusterService.assertClusterStateThread();
             if (joinThreadActive()) {
                 return;
             }
@@ -1184,7 +1185,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
          * If the given thread is not the currently running join thread, the command is ignored.
          */
         public void markThreadAsDoneAndStartNew(Thread joinThread) {
-            assertClusterStateThread();
+            ClusterService.assertClusterStateThread();
             if (!markThreadAsDone(joinThread)) {
                 return;
             }
@@ -1193,7 +1194,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         /** marks the given joinThread as completed. Returns false if the supplied thread is not the currently active join thread */
         public boolean markThreadAsDone(Thread joinThread) {
-            assertClusterStateThread();
+            ClusterService.assertClusterStateThread();
             return currentJoinThread.compareAndSet(joinThread, null);
         }
 
@@ -1207,10 +1208,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         public void start() {
             running.set(true);
-        }
-
-        private void assertClusterStateThread() {
-            assert clusterService instanceof ClusterService == false || ((ClusterService) clusterService).assertClusterStateThread();
         }
 
     }

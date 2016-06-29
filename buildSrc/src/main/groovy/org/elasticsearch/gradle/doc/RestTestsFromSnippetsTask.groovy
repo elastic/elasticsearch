@@ -87,6 +87,10 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
          * calls buildTest to actually build the test.
          */
         void handleSnippet(Snippet snippet) {
+            if (snippet.language == 'json') {
+                throw new InvalidUserDataException(
+                        "$snippet: Use `js` instead of `json`.")
+            }
             if (snippet.testSetup) {
                 setup(snippet)
                 return
@@ -123,7 +127,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 current.println(setup)
             }
 
-            body(test)
+            body(test, false)
         }
 
         private void response(Snippet response) {
@@ -132,7 +136,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
         }
 
         void emitDo(String method, String pathAndQuery,
-                String body, String catchPart) {
+                String body, String catchPart, boolean inSetup) {
             def (String path, String query) = pathAndQuery.tokenize('?')
             current.println("  - do:")
             if (catchPart != null) {
@@ -156,6 +160,19 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 current.println("        body: |")
                 body.eachLine { current.println("          $it") }
             }
+            /* Catch any shard failures. These only cause a non-200 response if
+             * no shard succeeds. But we need to fail the tests on all of these
+             * because they mean invalid syntax or broken queries or something
+             * else that we don't want to teach people to do. The REST test
+             * framework doesn't allow us to has assertions in the setup
+             * section so we have to skip it there. We also have to skip _cat
+             * actions because they don't return json so we can't is_false
+             * them. That is ok because they don't have this
+             * partial-success-is-success thing.
+             */
+            if (false == inSetup && false == path.startsWith('_cat')) {
+                current.println("  - is_false: _shards.failures")
+            }
         }
 
         private void setup(Snippet setup) {
@@ -165,10 +182,17 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             setupCurrent(setup)
             current.println('---')
             current.println("setup:")
-            body(setup)
+            body(setup, true)
+            // always wait for yellow before anything is executed
+            current.println(
+                    "  - do:\n" +
+                    "      raw:\n" +
+                    "        method: GET\n" +
+                    "        path: \"_cluster/health\"\n" +
+                    "        wait_for_status: \"yellow\"")
         }
 
-        private void body(Snippet snippet) {
+        private void body(Snippet snippet, boolean inSetup) {
             parse("$snippet", snippet.contents, SYNTAX) { matcher, last ->
                 if (matcher.group("comment") != null) {
                     // Comment
@@ -182,7 +206,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                     // Leading '/'s break the generated paths
                     pathAndQuery = pathAndQuery.substring(1)
                 }
-                emitDo(method, pathAndQuery, body, catchPart)
+                emitDo(method, pathAndQuery, body, catchPart, inSetup)
             }
         }
 

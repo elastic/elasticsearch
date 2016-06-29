@@ -45,7 +45,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
@@ -87,11 +86,7 @@ final class Bootstrap {
 
         // check if the user is running as root, and bail
         if (Natives.definitelyRunningAsRoot()) {
-            if (Boolean.parseBoolean(System.getProperty("es.insecure.allow.root"))) {
-                logger.warn("running as ROOT user. this is a bad idea!");
-            } else {
-                throw new RuntimeException("don't run elasticsearch as root.");
-            }
+            throw new RuntimeException("can not run elasticsearch as root");
         }
 
         // enable secure computing mode
@@ -151,7 +146,7 @@ final class Bootstrap {
     private void setup(boolean addShutdownHook, Settings settings, Environment environment) throws Exception {
         initializeNatives(
                 environment.tmpFile(),
-                BootstrapSettings.MLOCKALL_SETTING.get(settings),
+                BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),
                 BootstrapSettings.SECCOMP_SETTING.get(settings),
                 BootstrapSettings.CTRLHANDLER_SETTING.get(settings));
 
@@ -177,15 +172,7 @@ final class Bootstrap {
         // install SM after natives, shutdown hooks, etc.
         Security.configure(environment, BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(settings));
 
-        // We do not need to reload system properties here as we have already applied them in building the settings and
-        // reloading could cause multiple prompts to the user for values if a system property was specified with a prompt
-        // placeholder
-        Settings nodeSettings = Settings.builder()
-                .put(settings)
-                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
-                .build();
-
-        node = new Node(nodeSettings) {
+        node = new Node(settings) {
             @Override
             protected void validateNodeBeforeAcceptingRequests(Settings settings, BoundTransportAddress boundTransportAddress) {
                 BootstrapCheck.check(settings, boundTransportAddress);
@@ -193,13 +180,13 @@ final class Bootstrap {
         };
     }
 
-    private static Environment initialSettings(boolean foreground, String pidFile) {
+    private static Environment initialSettings(boolean foreground, String pidFile, Map<String, String> esSettings) {
         Terminal terminal = foreground ? Terminal.DEFAULT : null;
         Settings.Builder builder = Settings.builder();
         if (Strings.hasLength(pidFile)) {
             builder.put(Environment.PIDFILE_SETTING.getKey(), pidFile);
         }
-        return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal);
+        return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal, esSettings);
     }
 
     private void start() {
@@ -233,11 +220,13 @@ final class Bootstrap {
         // Set the system property before anything has a chance to trigger its use
         initLoggerPrefix();
 
-        elasticsearchSettings(esSettings);
+        // force the class initializer for BootstrapInfo to run before
+        // the security manager is installed
+        BootstrapInfo.init();
 
         INSTANCE = new Bootstrap();
 
-        Environment environment = initialSettings(foreground, pidFile);
+        Environment environment = initialSettings(foreground, pidFile, esSettings);
         Settings settings = environment.settings();
         LogConfigurator.configure(settings, true);
         checkForCustomConfFile();
@@ -292,13 +281,6 @@ final class Bootstrap {
             }
 
             throw e;
-        }
-    }
-
-    @SuppressForbidden(reason = "Sets system properties passed as CLI parameters")
-    private static void elasticsearchSettings(Map<String, String> esSettings) {
-        for (Map.Entry<String, String> esSetting : esSettings.entrySet()) {
-            System.setProperty(esSetting.getKey(), esSetting.getValue());
         }
     }
 

@@ -20,13 +20,20 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
+
+import java.util.Objects;
+import java.util.Set;
+
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.WriterConstants;
+import org.elasticsearch.painless.Locals;
 
 /**
  * Represents a binary math expression.
@@ -36,179 +43,213 @@ public final class EBinary extends AExpression {
     final Operation operation;
     AExpression left;
     AExpression right;
+    Type promote;       // promoted type
+    Type shiftDistance; // for shifts, the RHS is promoted independently
 
     boolean cat = false;
+    boolean originallyExplicit = false; // record whether there was originally an explicit cast
 
-    public EBinary(final int line, final String location, final Operation operation, final AExpression left, final AExpression right) {
-        super(line, location);
+    public EBinary(Location location, Operation operation, AExpression left, AExpression right) {
+        super(location);
 
-        this.operation = operation;
-        this.left = left;
-        this.right = right;
+        this.operation = Objects.requireNonNull(operation);
+        this.left = Objects.requireNonNull(left);
+        this.right = Objects.requireNonNull(right);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        left.extractVariables(variables);
+        right.extractVariables(variables);
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(Locals locals) {
+        originallyExplicit = explicit;
         if (operation == Operation.MUL) {
-            analyzeMul(settings, definition, variables);
+            analyzeMul(locals);
         } else if (operation == Operation.DIV) {
-            analyzeDiv(settings, definition, variables);
+            analyzeDiv(locals);
         } else if (operation == Operation.REM) {
-            analyzeRem(settings, definition, variables);
+            analyzeRem(locals);
         } else if (operation == Operation.ADD) {
-            analyzeAdd(settings, definition, variables);
+            analyzeAdd(locals);
         } else if (operation == Operation.SUB) {
-            analyzeSub(settings, definition, variables);
+            analyzeSub(locals);
+        } else if (operation == Operation.FIND) {
+            analyzeRegexOp(locals);
+        } else if (operation == Operation.MATCH) {
+            analyzeRegexOp(locals);
         } else if (operation == Operation.LSH) {
-            analyzeLSH(settings, definition, variables);
+            analyzeLSH(locals);
         } else if (operation == Operation.RSH) {
-            analyzeRSH(settings, definition, variables);
+            analyzeRSH(locals);
         } else if (operation == Operation.USH) {
-            analyzeUSH(settings, definition, variables);
+            analyzeUSH(locals);
         } else if (operation == Operation.BWAND) {
-            analyzeBWAnd(settings, definition, variables);
+            analyzeBWAnd(locals);
         } else if (operation == Operation.XOR) {
-            analyzeXor(settings, definition, variables);
+            analyzeXor(locals);
         } else if (operation == Operation.BWOR) {
-            analyzeBWOr(settings, definition, variables);
+            analyzeBWOr(locals);
         } else {
-            throw new IllegalStateException(error("Illegal tree structure."));
+            throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
-    private void analyzeMul(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeMul(Locals variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true, true);
+        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
-            throw new ClassCastException(error("Cannot apply multiply [*] to types " +
+            throw createError(new ClassCastException("Cannot apply multiply [*] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
-        }
-
-        left.expected = promote;
-        right.expected = promote;
-
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
-
-        if (left.constant != null && right.constant != null) {
-            final boolean overflow = settings.getNumericOverflow();
-            final Sort sort = promote.sort;
-
-            if (sort == Sort.INT) {
-                constant = overflow ? (int)left.constant * (int)right.constant :
-                    Math.multiplyExact((int)left.constant, (int)right.constant);
-            } else if (sort == Sort.LONG) {
-                constant = overflow ? (long)left.constant * (long)right.constant :
-                    Math.multiplyExact((long)left.constant, (long)right.constant);
-            } else if (sort == Sort.FLOAT) {
-                constant = overflow ? (float)left.constant * (float)right.constant :
-                    org.elasticsearch.painless.Utility.multiplyWithoutOverflow((float)left.constant, (float)right.constant);
-            } else if (sort == Sort.DOUBLE) {
-                constant = overflow ? (double)left.constant * (double)right.constant :
-                    org.elasticsearch.painless.Utility.multiplyWithoutOverflow((double)left.constant, (double)right.constant);
-            } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
-            }
         }
 
         actual = promote;
-    }
 
-    private void analyzeDiv(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
-
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true, true);
-
-        if (promote == null) {
-            throw new ClassCastException(error("Cannot apply divide [/] to types " +
-                "[" + left.actual.name + "] and [" + right.actual.name + "]."));
+        if (promote.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+            if (expected != null) {
+                actual = expected;
+            }
+        } else {
+            left.expected = promote;
+            right.expected = promote;
         }
 
-        left.expected = promote;
-        right.expected = promote;
-
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final boolean overflow = settings.getNumericOverflow();
-            final Sort sort = promote.sort;
+            Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
-                constant = overflow ? (int)left.constant / (int)right.constant :
-                    org.elasticsearch.painless.Utility.divideWithoutOverflow((int)left.constant, (int)right.constant);
+                constant = (int)left.constant * (int)right.constant;
             } else if (sort == Sort.LONG) {
-                constant = overflow ? (long)left.constant / (long)right.constant :
-                    org.elasticsearch.painless.Utility.divideWithoutOverflow((long)left.constant, (long)right.constant);
+                constant = (long)left.constant * (long)right.constant;
             } else if (sort == Sort.FLOAT) {
-                constant = overflow ? (float)left.constant / (float)right.constant :
-                    org.elasticsearch.painless.Utility.divideWithoutOverflow((float)left.constant, (float)right.constant);
+                constant = (float)left.constant * (float)right.constant;
             } else if (sort == Sort.DOUBLE) {
-                constant = overflow ? (double)left.constant / (double)right.constant :
-                    org.elasticsearch.painless.Utility.divideWithoutOverflow((double)left.constant, (double)right.constant);
+                constant = (double)left.constant * (double)right.constant;
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
+        }
+    }
+
+    private void analyzeDiv(Locals variables) {
+        left.analyze(variables);
+        right.analyze(variables);
+
+        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
+
+        if (promote == null) {
+            throw createError(new ClassCastException("Cannot apply divide [/] to types " +
+                "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
         actual = promote;
-    }
-
-    private void analyzeRem(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
-
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true, true);
-
-        if (promote == null) {
-            throw new ClassCastException(error("Cannot apply remainder [%] to types " +
-                "[" + left.actual.name + "] and [" + right.actual.name + "]."));
+        if (promote.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+            if (expected != null) {
+                actual = expected;
+            }
+        } else {
+            left.expected = promote;
+            right.expected = promote;
         }
 
-        left.expected = promote;
-        right.expected = promote;
-
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final boolean overflow = settings.getNumericOverflow();
-            final Sort sort = promote.sort;
+            Sort sort = promote.sort;
 
-            if (sort == Sort.INT) {
-                constant = (int)left.constant % (int)right.constant;
-            } else if (sort == Sort.LONG) {
-                constant = (long)left.constant % (long)right.constant;
-            } else if (sort == Sort.FLOAT) {
-                constant = overflow ? (float)left.constant % (float)right.constant :
-                    org.elasticsearch.painless.Utility.remainderWithoutOverflow((float)left.constant, (float)right.constant);
-            } else if (sort == Sort.DOUBLE) {
-                constant = overflow ? (double)left.constant % (double)right.constant :
-                    org.elasticsearch.painless.Utility.remainderWithoutOverflow((double)left.constant, (double)right.constant);
-            } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+            try {
+                if (sort == Sort.INT) {
+                    constant = (int)left.constant / (int)right.constant;
+                } else if (sort == Sort.LONG) {
+                    constant = (long)left.constant / (long)right.constant;
+                } else if (sort == Sort.FLOAT) {
+                    constant = (float)left.constant / (float)right.constant;
+                } else if (sort == Sort.DOUBLE) {
+                    constant = (double)left.constant / (double)right.constant;
+                } else {
+                    throw createError(new IllegalStateException("Illegal tree structure."));
+                }
+            } catch (ArithmeticException e) {
+                throw createError(e);
             }
+        }
+    }
+
+    private void analyzeRem(Locals variables) {
+        left.analyze(variables);
+        right.analyze(variables);
+
+        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
+
+        if (promote == null) {
+            throw createError(new ClassCastException("Cannot apply remainder [%] to types " +
+                "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
         actual = promote;
+
+        if (promote.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+            if (expected != null) {
+                actual = expected;
+            }
+        } else {
+            left.expected = promote;
+            right.expected = promote;
+        }
+
+        left = left.cast(variables);
+        right = right.cast(variables);
+
+        if (left.constant != null && right.constant != null) {
+            Sort sort = promote.sort;
+
+            try {
+                if (sort == Sort.INT) {
+                    constant = (int)left.constant % (int)right.constant;
+                } else if (sort == Sort.LONG) {
+                    constant = (long)left.constant % (long)right.constant;
+                } else if (sort == Sort.FLOAT) {
+                    constant = (float)left.constant % (float)right.constant;
+                } else if (sort == Sort.DOUBLE) {
+                    constant = (double)left.constant % (double)right.constant;
+                } else {
+                    throw createError(new IllegalStateException("Illegal tree structure."));
+                }
+            } catch (ArithmeticException e) {
+                throw createError(e);
+            }
+        }
     }
 
-    private void analyzeAdd(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeAdd(Locals variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteAdd(definition, left.actual, right.actual);
+        promote = AnalyzerCaster.promoteAdd(left.actual, right.actual);
 
         if (promote == null) {
-            throw new ClassCastException(error("Cannot apply add [+] to types " +
+            throw createError(new ClassCastException("Cannot apply add [+] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        final Sort sort = promote.sort;
+        Sort sort = promote.sort;
+
+        actual = promote;
 
         if (sort == Sort.STRING) {
             left.expected = left.actual;
@@ -222,230 +263,307 @@ public final class EBinary extends AExpression {
             if (right instanceof EBinary && ((EBinary)right).operation == Operation.ADD && right.actual.sort == Sort.STRING) {
                 ((EBinary)right).cat = true;
             }
+        } else if (sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+            if (expected != null) {
+                actual = expected;
+            }
         } else {
             left.expected = promote;
             right.expected = promote;
         }
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final boolean overflow = settings.getNumericOverflow();
-
             if (sort == Sort.INT) {
-                constant = overflow ? (int)left.constant + (int)right.constant :
-                    Math.addExact((int)left.constant, (int)right.constant);
+                constant = (int)left.constant + (int)right.constant;
             } else if (sort == Sort.LONG) {
-                constant = overflow ? (long)left.constant + (long)right.constant :
-                    Math.addExact((long)left.constant, (long)right.constant);
+                constant = (long)left.constant + (long)right.constant;
             } else if (sort == Sort.FLOAT) {
-                constant = overflow ? (float)left.constant + (float)right.constant :
-                    org.elasticsearch.painless.Utility.addWithoutOverflow((float)left.constant, (float)right.constant);
+                constant = (float)left.constant + (float)right.constant;
             } else if (sort == Sort.DOUBLE) {
-                constant = overflow ? (double)left.constant + (double)right.constant :
-                    org.elasticsearch.painless.Utility.addWithoutOverflow((double)left.constant, (double)right.constant);
+                constant = (double)left.constant + (double)right.constant;
             } else if (sort == Sort.STRING) {
                 constant = "" + left.constant + right.constant;
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
 
-        actual = promote;
     }
 
-    private void analyzeSub(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeSub(Locals variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, true, true);
+        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
-            throw new ClassCastException(error("Cannot apply subtract [-] to types " +
+            throw createError(new ClassCastException("Cannot apply subtract [-] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = promote;
+        actual = promote;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        if (promote.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+            if (expected != null) {
+                actual = expected;
+            }
+        } else {
+            left.expected = promote;
+            right.expected = promote;
+        }
+
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final boolean overflow = settings.getNumericOverflow();
-            final Sort sort = promote.sort;
+            Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
-                constant = overflow ? (int)left.constant - (int)right.constant :
-                    Math.subtractExact((int)left.constant, (int)right.constant);
+                constant = (int)left.constant - (int)right.constant;
             } else if (sort == Sort.LONG) {
-                constant = overflow ? (long)left.constant - (long)right.constant :
-                    Math.subtractExact((long)left.constant, (long)right.constant);
+                constant = (long)left.constant - (long)right.constant;
             } else if (sort == Sort.FLOAT) {
-                constant = overflow ? (float)left.constant - (float)right.constant :
-                    org.elasticsearch.painless.Utility.subtractWithoutOverflow((float)left.constant, (float)right.constant);
+                constant = (float)left.constant - (float)right.constant;
             } else if (sort == Sort.DOUBLE) {
-                constant = overflow ? (double)left.constant - (double)right.constant :
-                    org.elasticsearch.painless.Utility.subtractWithoutOverflow((double)left.constant, (double)right.constant);
+                constant = (double)left.constant - (double)right.constant;
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
-
-        actual = promote;
     }
 
-    private void analyzeLSH(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeRegexOp(Locals variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, false, true);
+        left.expected = Definition.STRING_TYPE;
+        right.expected = Definition.PATTERN_TYPE;
 
-        if (promote == null) {
-            throw new ClassCastException(error("Cannot apply left shift [<<] to types " +
+        left = left.cast(variables);
+        right = right.cast(variables);
+
+        // It'd be nice to be able to do constant folding here but we can't because constants aren't flowing through EChain
+        promote = Definition.BOOLEAN_TYPE;
+        actual = Definition.BOOLEAN_TYPE;
+    }
+
+    private void analyzeLSH(Locals variables) {
+        left.analyze(variables);
+        right.analyze(variables);
+
+        Type lhspromote = AnalyzerCaster.promoteNumeric(left.actual, false);
+        Type rhspromote = AnalyzerCaster.promoteNumeric(right.actual, false);
+
+        if (lhspromote == null || rhspromote == null) {
+            throw createError(new ClassCastException("Cannot apply left shift [<<] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = definition.intType;
-        right.explicit = true;
+        actual = promote = lhspromote;
+        shiftDistance = rhspromote;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        if (lhspromote.sort == Sort.DEF || rhspromote.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+            if (expected != null) {
+                actual = expected;
+            }
+        } else {
+            left.expected = lhspromote;
+            if (rhspromote.sort == Sort.LONG) {
+                right.expected = Definition.INT_TYPE;
+                right.explicit = true;
+            } else {
+                right.expected = rhspromote;
+            }
+        }
+
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final Sort sort = promote.sort;
+            Sort sort = lhspromote.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant << (int)right.constant;
             } else if (sort == Sort.LONG) {
                 constant = (long)left.constant << (int)right.constant;
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
-
-        actual = promote;
     }
 
-    private void analyzeRSH(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeRSH(Locals variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, false, true);
+        Type lhspromote = AnalyzerCaster.promoteNumeric(left.actual, false);
+        Type rhspromote = AnalyzerCaster.promoteNumeric(right.actual, false);
 
-        if (promote == null) {
-            throw new ClassCastException(error("Cannot apply right shift [>>] to types " +
+        if (lhspromote == null || rhspromote == null) {
+            throw createError(new ClassCastException("Cannot apply right shift [>>] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = definition.intType;
-        right.explicit = true;
+        actual = promote = lhspromote;
+        shiftDistance = rhspromote;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        if (lhspromote.sort == Sort.DEF || rhspromote.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+            if (expected != null) {
+                actual = expected;
+            }
+        } else {
+            left.expected = lhspromote;
+            if (rhspromote.sort == Sort.LONG) { 
+                right.expected = Definition.INT_TYPE;
+                right.explicit = true;
+            } else {
+                right.expected = rhspromote;
+            }
+        }
+
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final Sort sort = promote.sort;
+            Sort sort = lhspromote.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant >> (int)right.constant;
             } else if (sort == Sort.LONG) {
                 constant = (long)left.constant >> (int)right.constant;
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
-
-        actual = promote;
     }
 
-    private void analyzeUSH(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeUSH(Locals variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, false, true);
+        Type lhspromote = AnalyzerCaster.promoteNumeric(left.actual, false);
+        Type rhspromote = AnalyzerCaster.promoteNumeric(right.actual, false);
 
-        if (promote == null) {
-            throw new ClassCastException(error("Cannot apply unsigned shift [>>>] to types " +
+        actual = promote = lhspromote;
+        shiftDistance = rhspromote;
+
+        if (lhspromote == null || rhspromote == null) {
+            throw createError(new ClassCastException("Cannot apply unsigned shift [>>>] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = definition.intType;
-        right.explicit = true;
+        if (lhspromote.sort == Sort.DEF || rhspromote.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+            if (expected != null) {
+                actual = expected;
+            }
+        } else {
+            left.expected = lhspromote;
+            if (rhspromote.sort == Sort.LONG) { 
+                right.expected = Definition.INT_TYPE;
+                right.explicit = true;
+            } else {
+                right.expected = rhspromote;
+            }
+        }
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final Sort sort = promote.sort;
+            Sort sort = lhspromote.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant >>> (int)right.constant;
             } else if (sort == Sort.LONG) {
                 constant = (long)left.constant >>> (int)right.constant;
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
-
-        actual = promote;
     }
 
-    private void analyzeBWAnd(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeBWAnd(Locals variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, false, true);
+        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, false);
 
         if (promote == null) {
-            throw new ClassCastException(error("Cannot apply and [&] to types " +
+            throw createError(new ClassCastException("Cannot apply and [&] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = promote;
+        actual = promote;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        if (promote.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+            if (expected != null) {
+                actual = expected;
+            }
+        } else {
+            left.expected = promote;
+            right.expected = promote;
+        }
+
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final Sort sort = promote.sort;
+            Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant & (int)right.constant;
             } else if (sort == Sort.LONG) {
                 constant = (long)left.constant & (long)right.constant;
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
-
-        actual = promote;
     }
 
-    private void analyzeXor(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeXor(Locals variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteXor(definition, left.actual, right.actual);
+        promote = AnalyzerCaster.promoteXor(left.actual, right.actual);
 
         if (promote == null) {
-            throw new ClassCastException(error("Cannot apply xor [^] to types " +
+            throw createError(new ClassCastException("Cannot apply xor [^] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = promote;
+        actual = promote;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        if (promote.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+            if (expected != null) {
+                actual = expected;
+            }
+        } else {
+            left.expected = promote;
+            right.expected = promote;
+        }
+
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final Sort sort = promote.sort;
+            Sort sort = promote.sort;
 
             if (sort == Sort.BOOL) {
                 constant = (boolean)left.constant ^ (boolean)right.constant;
@@ -454,74 +572,104 @@ public final class EBinary extends AExpression {
             } else if (sort == Sort.LONG) {
                 constant = (long)left.constant ^ (long)right.constant;
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
-
-        actual = promote;
     }
 
-    private void analyzeBWOr(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.analyze(settings, definition, variables);
-        right.analyze(settings, definition, variables);
+    private void analyzeBWOr(Locals variables) {
+        left.analyze(variables);
+        right.analyze(variables);
 
-        final Type promote = AnalyzerCaster.promoteNumeric(definition, left.actual, right.actual, false, true);
+        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, false);
 
         if (promote == null) {
-            throw new ClassCastException(error("Cannot apply or [|] to types " +
+            throw createError(new ClassCastException("Cannot apply or [|] to types " +
                 "[" + left.actual.name + "] and [" + right.actual.name + "]."));
         }
 
-        left.expected = promote;
-        right.expected = promote;
+        actual = promote;
 
-        left = left.cast(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+        if (promote.sort == Sort.DEF) {
+            left.expected = left.actual;
+            right.expected = right.actual;
+            if (expected != null) {
+                actual = expected;
+            }
+        } else {
+            left.expected = promote;
+            right.expected = promote;
+        }
+
+        left = left.cast(variables);
+        right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            final Sort sort = promote.sort;
+            Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
                 constant = (int)left.constant | (int)right.constant;
             } else if (sort == Sort.LONG) {
                 constant = (long)left.constant | (long)right.constant;
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
-
-        actual = promote;
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        if (actual.sort == Sort.STRING && operation == Operation.ADD) {
+    void write(MethodWriter writer, Globals globals) {
+        writer.writeDebugInfo(location);
+
+        if (promote.sort == Sort.STRING && operation == Operation.ADD) {
             if (!cat) {
-                adapter.writeNewStrings();
+                writer.writeNewStrings();
             }
 
-            left.write(settings, definition, adapter);
+            left.write(writer, globals);
 
             if (!(left instanceof EBinary) || ((EBinary)left).operation != Operation.ADD || left.actual.sort != Sort.STRING) {
-                adapter.writeAppendStrings(left.actual);
+                writer.writeAppendStrings(left.actual);
             }
 
-            right.write(settings, definition, adapter);
+            right.write(writer, globals);
 
             if (!(right instanceof EBinary) || ((EBinary)right).operation != Operation.ADD || right.actual.sort != Sort.STRING) {
-                adapter.writeAppendStrings(right.actual);
+                writer.writeAppendStrings(right.actual);
             }
 
             if (!cat) {
-                adapter.writeToStrings();
+                writer.writeToStrings();
             }
+        } else if (operation == Operation.FIND) {
+            writeBuildMatcher(writer, globals);
+            writer.invokeVirtual(Definition.MATCHER_TYPE.type, WriterConstants.MATCHER_FIND);
+        } else if (operation == Operation.MATCH) {
+            writeBuildMatcher(writer, globals);
+            writer.invokeVirtual(Definition.MATCHER_TYPE.type, WriterConstants.MATCHER_MATCHES);
         } else {
-            left.write(settings, definition, adapter);
-            right.write(settings, definition, adapter);
+            left.write(writer, globals);
+            right.write(writer, globals);
 
-            adapter.writeBinaryInstruction(settings, definition, location, actual, operation);
+            if (promote.sort == Sort.DEF || (shiftDistance != null && shiftDistance.sort == Sort.DEF)) {
+                // def calls adopt the wanted return value. if there was a narrowing cast,
+                // we need to flag that so that its done at runtime.
+                int flags = 0;
+                if (originallyExplicit) {
+                    flags |= DefBootstrap.OPERATOR_EXPLICIT_CAST;
+                }
+                writer.writeDynamicBinaryInstruction(location, actual, left.actual, right.actual, operation, flags);
+            } else {
+                writer.writeBinaryInstruction(location, actual, operation);
+            }
         }
 
-        adapter.writeBranch(tru, fals);
+        writer.writeBranch(tru, fals);
+    }
+
+    private void writeBuildMatcher(MethodWriter writer, Globals globals) {
+        right.write(writer, globals);
+        left.write(writer, globals);
+        writer.invokeVirtual(Definition.PATTERN_TYPE.type, WriterConstants.PATTERN_MATCHER);
     }
 }

@@ -23,7 +23,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.apache.lucene.spatial.geopoint.search.XGeoPointDistanceRangeQuery;
-import org.apache.lucene.spatial.util.GeoDistanceUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -46,8 +45,7 @@ import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
-
-import static org.apache.lucene.spatial.util.GeoEncodingUtils.TOLERANCE;
+import java.util.Optional;
 
 public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistanceRangeQueryBuilder> {
 
@@ -340,7 +338,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
                 fromValue = geoDistance.normalize(fromValue, DistanceUnit.DEFAULT);
             }
         } else {
-            fromValue = new Double(0);
+            fromValue = 0.0;
         }
 
         if (to != null) {
@@ -353,7 +351,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
                 toValue = geoDistance.normalize(toValue, DistanceUnit.DEFAULT);
             }
         } else {
-            toValue = GeoDistanceUtils.maxRadialDistanceMeters(point.lat(), point.lon());
+            toValue = GeoUtils.maxRadialDistanceMeters(point.lat(), point.lon());
         }
 
         final Version indexVersionCreated = context.indexVersionCreated();
@@ -370,8 +368,8 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
             GeoPointField.TermEncoding.NUMERIC : GeoPointField.TermEncoding.PREFIX;
 
         return new XGeoPointDistanceRangeQuery(fieldType.name(), encoding, point.lat(), point.lon(),
-            (includeLower) ? fromValue : fromValue + TOLERANCE,
-            (includeUpper) ? toValue : toValue - TOLERANCE);
+            (includeLower) ? fromValue : fromValue + GeoUtils.TOLERANCE,
+            (includeUpper) ? toValue : toValue - GeoUtils.TOLERANCE);
     }
 
     @Override
@@ -391,7 +389,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         builder.endObject();
     }
 
-    public static GeoDistanceRangeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<GeoDistanceRangeQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token;
@@ -603,7 +601,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
             queryBuilder.setValidationMethod(GeoValidationMethod.infer(coerce, ignoreMalformed));
         }
         queryBuilder.ignoreUnmapped(ignoreUnmapped);
-        return queryBuilder;
+        return Optional.of(queryBuilder);
     }
 
     @Override

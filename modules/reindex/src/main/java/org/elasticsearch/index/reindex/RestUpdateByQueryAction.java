@@ -22,31 +22,24 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
 
+import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
-import static org.elasticsearch.index.reindex.RestReindexAction.parseCommon;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestUpdateByQueryAction extends AbstractBaseReindexRestHandler<UpdateByQueryRequest, TransportUpdateByQueryAction> {
+public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<UpdateByQueryRequest, TransportUpdateByQueryAction> {
 
     @Inject
     public RestUpdateByQueryAction(Settings settings, RestController controller, Client client,
@@ -59,60 +52,26 @@ public class RestUpdateByQueryAction extends AbstractBaseReindexRestHandler<Upda
 
     @Override
     protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {
+        handleRequest(request, channel, false, true);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    protected UpdateByQueryRequest buildRequest(RestRequest request) throws IOException {
         /*
          * Passing the search request through UpdateByQueryRequest first allows
          * it to set its own defaults which differ from SearchRequest's
          * defaults. Then the parse can override them.
          */
-        UpdateByQueryRequest internalRequest = new UpdateByQueryRequest(new SearchRequest());
-        int scrollSize = internalRequest.getSearchRequest().source().size();
-        internalRequest.getSearchRequest().source().size(SIZE_ALL_MATCHES);
-        /*
-         * We can't send parseSearchRequest REST content that it doesn't support
-         * so we will have to remove the content that is valid in addition to
-         * what it supports from the content first. This is a temporary hack and
-         * should get better when SearchRequest has full ObjectParser support
-         * then we can delegate and stuff.
-         */
-        BytesReference bodyContent = null;
-        if (RestActions.hasBodyContent(request)) {
-            bodyContent = RestActions.getRestContent(request);
-            Tuple<XContentType, Map<String, Object>> body = XContentHelper.convertToMap(bodyContent, false);
-            boolean modified = false;
-            String conflicts = (String) body.v2().remove("conflicts");
-            if (conflicts != null) {
-                internalRequest.setConflicts(conflicts);
-                modified = true;
-            }
-            @SuppressWarnings("unchecked")
-            Map<String, Object> script = (Map<String, Object>) body.v2().remove("script");
-            if (script != null) {
-                internalRequest.setScript(Script.parse(script, false, parseFieldMatcher));
-                modified = true;
-            }
-            if (modified) {
-                XContentBuilder builder = XContentFactory.contentBuilder(body.v1());
-                builder.map(body.v2());
-                bodyContent = builder.bytes();
-            }
-        }
-        RestSearchAction.parseSearchRequest(internalRequest.getSearchRequest(), indicesQueriesRegistry, request,
-                parseFieldMatcher, aggParsers, suggesters, bodyContent);
+        UpdateByQueryRequest internal = new UpdateByQueryRequest(new SearchRequest());
 
-        String conflicts = request.param("conflicts");
-        if (conflicts != null) {
-            internalRequest.setConflicts(conflicts);
-        }
-        parseCommon(internalRequest, request);
+        Map<String, Consumer<Object>> consumers = new HashMap<>();
+        consumers.put("conflicts", o -> internal.setConflicts((String) o));
+        consumers.put("script", o -> internal.setScript(Script.parse((Map<String, Object>)o, false, parseFieldMatcher)));
 
-        internalRequest.setSize(internalRequest.getSearchRequest().source().size());
-        internalRequest.setPipeline(request.param("pipeline"));
-        internalRequest.getSearchRequest().source().size(request.paramAsInt("scroll_size", scrollSize));
-        // Let the requester set search timeout. It is probably only going to be useful for testing but who knows.
-        if (request.hasParam("search_timeout")) {
-            internalRequest.getSearchRequest().source().timeout(request.paramAsTime("search_timeout", null));
-        }
+        parseInternalRequest(internal, request, consumers);
 
-        execute(request, internalRequest, channel, false, true, false);
+        internal.setPipeline(request.param("pipeline"));
+        return internal;
     }
 }

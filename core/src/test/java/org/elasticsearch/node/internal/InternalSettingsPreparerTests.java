@@ -19,11 +19,6 @@
 
 package org.elasticsearch.node.internal;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +27,11 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -68,11 +68,11 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         assertTrue(configDir, configDir.startsWith(home));
     }
 
-    public void testClusterNameDefault() {
+    public void testDefaultClusterName() {
         Settings settings = InternalSettingsPreparer.prepareSettings(Settings.EMPTY);
-        assertEquals(ClusterName.DEFAULT.value(), settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey()));
-        settings = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null).settings();
-        assertEquals(ClusterName.DEFAULT.value(), settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey()));
+        assertEquals("elasticsearch", settings.get("cluster.name"));
+        settings = InternalSettingsPreparer.prepareSettings(Settings.builder().put("cluster.name", "foobar").build());
+        assertEquals("foobar", settings.get("cluster.name"));
     }
 
     public void testReplacePromptPlaceholders() {
@@ -134,7 +134,6 @@ public class InternalSettingsPreparerTests extends ESTestCase {
             Files.createDirectory(config);
             Files.copy(garbage, config.resolve("elasticsearch.yml"));
             InternalSettingsPreparer.prepareEnvironment(Settings.builder()
-                .put("config.ignore_system_properties", true)
                 .put(baseEnvSettings)
                 .build(), null);
         } catch (SettingsException e) {
@@ -153,7 +152,6 @@ public class InternalSettingsPreparerTests extends ESTestCase {
 
         try {
             InternalSettingsPreparer.prepareEnvironment(Settings.builder()
-                .put("config.ignore_system_properties", true)
                 .put(baseEnvSettings)
                 .build(), null);
         } catch (SettingsException e) {

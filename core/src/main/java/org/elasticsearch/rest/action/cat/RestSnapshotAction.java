@@ -79,7 +79,7 @@ public class RestSnapshotAction extends AbstractCatAction {
     protected Table getTableWithHeader(RestRequest request) {
         return new Table()
                 .startHeaders()
-                .addCell("id", "alias:id,snapshotId;desc:unique snapshot id")
+                .addCell("id", "alias:id,snapshot;desc:unique snapshot")
                 .addCell("status", "alias:s,status;text-align:right;desc:snapshot name")
                 .addCell("start_epoch", "alias:ste,startEpoch;desc:start time in seconds since 1970-01-01 00:00:00")
                 .addCell("start_time", "alias:sti,startTime;desc:start time in HH:MM:SS")
@@ -101,7 +101,7 @@ public class RestSnapshotAction extends AbstractCatAction {
         for (SnapshotInfo snapshotStatus : getSnapshotsResponse.getSnapshots()) {
             table.startRow();
 
-            table.addCell(snapshotStatus.name());
+            table.addCell(snapshotStatus.snapshotId().getName());
             table.addCell(snapshotStatus.state());
             table.addCell(TimeUnit.SECONDS.convert(snapshotStatus.startTime(), TimeUnit.MILLISECONDS));
             table.addCell(dateFormat.print(snapshotStatus.startTime()));

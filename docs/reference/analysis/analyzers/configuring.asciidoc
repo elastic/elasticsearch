@@ -64,3 +64,38 @@ POST my_index/_analyze
     English stop words will be removed.  The resulting terms are:
     `[ old, brown, cow ]`
 
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "old",
+      "start_offset": 4,
+      "end_offset": 7,
+      "type": "<ALPHANUM>",
+      "position": 1
+    },
+    {
+      "token": "brown",
+      "start_offset": 8,
+      "end_offset": 13,
+      "type": "<ALPHANUM>",
+      "position": 2
+    },
+    {
+      "token": "cow",
+      "start_offset": 14,
+      "end_offset": 17,
+      "type": "<ALPHANUM>",
+      "position": 3
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+

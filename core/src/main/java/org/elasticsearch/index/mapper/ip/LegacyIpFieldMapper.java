@@ -35,20 +35,21 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.network.Cidrs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.LegacyLongFieldMapper;
 import org.elasticsearch.index.mapper.core.LegacyLongFieldMapper.CustomLongNumericField;
 import org.elasticsearch.index.mapper.core.LegacyNumberFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
 
@@ -249,7 +250,14 @@ public class LegacyIpFieldMapper extends LegacyNumberFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder() {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder().numericType(NumericType.LONG);
+            return new IndexFieldData.Builder() {
+                @Override
+                public IndexFieldData<?> build(IndexSettings indexSettings,
+                        MappedFieldType fieldType, IndexFieldDataCache cache,
+                        CircuitBreakerService breakerService, MapperService mapperService) {
+                    return new LegacyIpIndexFieldData(indexSettings.getIndex(), name());
+                }
+            };
         }
 
         @Override

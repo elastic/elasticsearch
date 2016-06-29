@@ -96,11 +96,12 @@ public class RecoveryState implements ToXContent, Streamable {
         }
     }
 
-    public static enum Type {
+    public enum Type {
         STORE((byte) 0),
         SNAPSHOT((byte) 1),
         REPLICA((byte) 2),
-        PRIMARY_RELOCATION((byte) 3);
+        PRIMARY_RELOCATION((byte) 3),
+        LOCAL_SHARDS((byte) 4);
 
         private static final Type[] TYPES = new Type[Type.values().length];
 
@@ -977,6 +978,10 @@ public class RecoveryState implements ToXContent, Streamable {
             } catch (IOException e) {
                 return "{ \"error\" : \"" + e.getMessage() + "\"}";
             }
+        }
+
+        public File getFileDetails(String dest) {
+            return fileDetails.get(dest);
         }
     }
 }

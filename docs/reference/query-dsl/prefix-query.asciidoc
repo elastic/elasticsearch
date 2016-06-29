@@ -8,28 +8,37 @@ that starts with `ki`:
 
 [source,js]
 --------------------------------------------------
-{
+GET /_search
+{ "query": {
     "prefix" : { "user" : "ki" }
+  }
 }
 --------------------------------------------------
+// CONSOLE
 
 A boost can also be associated with the query:
 
 [source,js]
 --------------------------------------------------
-{
+GET /_search
+{ "query": {
     "prefix" : { "user" :  { "value" : "ki", "boost" : 2.0 } }
+  }
 }
 --------------------------------------------------
+// CONSOLE
 
 Or :
 
 [source,js]
 --------------------------------------------------
-{
+GET /_search
+{ "query": {
     "prefix" : { "user" :  { "prefix" : "ki", "boost" : 2.0 } }
+  }
 }
 --------------------------------------------------
+// CONSOLE
 
 This multi term query allows you to control how it gets rewritten using the
 <<query-dsl-multi-term-rewrite,rewrite>>

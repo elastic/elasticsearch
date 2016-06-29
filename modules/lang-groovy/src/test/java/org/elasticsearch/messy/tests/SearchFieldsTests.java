@@ -22,7 +22,6 @@ package org.elasticsearch.messy.tests;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -47,6 +46,7 @@ import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -56,6 +56,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static java.util.Collections.singleton;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -67,6 +68,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -84,8 +86,6 @@ public class SearchFieldsTests extends ESIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                // _timestamp is randomly enabled via templates but we don't want it here to test stored fields behaviour
-                .startObject("_timestamp").field("enabled", false).endObject()
                 .startObject("properties")
                 .startObject("field1").field("type", "text").field("store", true).endObject()
                 .startObject("field2").field("type", "text").field("store", false).endObject()
@@ -367,6 +367,24 @@ public class SearchFieldsTests extends ESIntegTestCase {
         assertThat(((Map<?, ?>) sObj2Arr3.get(0)).get("arr3_field1").toString(), equalTo("arr3_value1"));
     }
 
+    public void testScriptFieldsForNullReturn() throws Exception {
+        client().prepareIndex("test", "type1", "1")
+            .setSource("foo", "bar")
+            .setRefreshPolicy("true").get();
+
+        SearchResponse response = client().prepareSearch().setQuery(matchAllQuery())
+            .addScriptField("test_script_1", new Script("return null"))
+            .get();
+
+        assertNoFailures(response);
+
+        SearchHitField fieldObj = response.getHits().getAt(0).field("test_script_1");
+        assertThat(fieldObj, notNullValue());
+        List<?> fieldValues = fieldObj.values();
+        assertThat(fieldValues, hasSize(1));
+        assertThat(fieldValues.get(0), nullValue());
+    }
+
     public void testPartialFields() throws Exception {
         createIndex("test");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
@@ -413,7 +431,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
                 .field("double_field", 6.0d)
                 .field("date_field", Joda.forPattern("dateOptionalTime").printer().print(new DateTime(2012, 3, 22, 0, 0, DateTimeZone.UTC)))
                 .field("boolean_field", true)
-                .field("binary_field", Base64.encodeBytes("testing text".getBytes("UTF8")))
+                .field("binary_field", Base64.getEncoder().encodeToString("testing text".getBytes("UTF-8")))
                 .endObject()).execute().actionGet();
 
         client().admin().indices().prepareRefresh().execute().actionGet();
@@ -455,7 +473,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
         client().prepareIndex("my-index", "my-type1", "1")
                 .setRouting("1")
                 .setSource(jsonBuilder().startObject().field("field1", "value").endObject())
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         SearchResponse searchResponse = client().prepareSearch("my-index")
@@ -472,7 +490,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
     public void testSearchFieldsNonLeafField() throws Exception {
         client().prepareIndex("my-index", "my-type1", "1")
                 .setSource(jsonBuilder().startObject().startObject("field1").field("field2", "value1").endObject().endObject())
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         assertFailures(client().prepareSearch("my-index").setTypes("my-type1").addField("field1"),
@@ -483,15 +501,32 @@ public class SearchFieldsTests extends ESIntegTestCase {
     public void testGetFieldsComplexField() throws Exception {
         client().admin().indices().prepareCreate("my-index")
                 .setSettings(Settings.builder().put("index.refresh_interval", -1))
-                .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
-                        .startObject("field1").field("type", "object").startObject("properties")
-                        .startObject("field2").field("type", "object").startObject("properties")
-                        .startObject("field3").field("type", "object").startObject("properties")
-                        .startObject("field4").field("type", "text").field("store", true)
-                        .endObject().endObject()
-                        .endObject().endObject()
-                        .endObject().endObject()
-                        .endObject().endObject().endObject())
+                .addMapping("my-type2", jsonBuilder()
+                        .startObject()
+                            .startObject("my-type2")
+                                .startObject("properties")
+                                    .startObject("field1")
+                                        .field("type", "object")
+                                        .startObject("properties")
+                                            .startObject("field2")
+                                                .field("type", "object")
+                                                .startObject("properties")
+                                                    .startObject("field3")
+                                                        .field("type", "object")
+                                                        .startObject("properties")
+                                                            .startObject("field4")
+                                                                .field("type", "text")
+                                                                .field("store", true)
+                                                            .endObject()
+                                                        .endObject()
+                                                    .endObject()
+                                                .endObject()
+                                            .endObject()
+                                        .endObject()
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject())
                 .get();
 
         BytesReference source = jsonBuilder().startObject()
@@ -518,7 +553,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
                 .endObject().bytes();
 
         client().prepareIndex("my-index", "my-type1", "1").setSource(source).get();
-        client().prepareIndex("my-index", "my-type2", "1").setRefresh(true).setSource(source).get();
+        client().prepareIndex("my-index", "my-type2", "1").setRefreshPolicy(IMMEDIATE).setSource(source).get();
 
 
         String field = "field1.field2.field3.field4";
@@ -659,7 +694,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
     public void testLoadMetadata() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("parent")
-                .addMapping("my-type1", "_timestamp", "enabled=true", "_ttl", "enabled=true", "_parent", "type=parent"));
+                .addMapping("my-type1", "_parent", "type=parent"));
 
         indexRandom(true,
                 client().prepareIndex("test", "my-type1", "1")
@@ -678,12 +713,6 @@ public class SearchFieldsTests extends ESIntegTestCase {
         assertThat(fields.get("field1"), nullValue());
         assertThat(fields.get("_routing").isMetadataField(), equalTo(true));
         assertThat(fields.get("_routing").getValue().toString(), equalTo("1"));
-        assertThat(fields.get("_timestamp").isMetadataField(), equalTo(true));
-        assertThat(fields.get("_timestamp").getValue().toString(), equalTo("205097"));
-        assertThat(fields.get("_ttl").isMetadataField(), equalTo(true));
-        // TODO: _ttl should return the original value, but it does not work today because
-        // it would use now() instead of the value of _timestamp to rebase
-        // assertThat(fields.get("_ttl").getValue().toString(), equalTo("10000000205097"));
         assertThat(fields.get("_parent").isMetadataField(), equalTo(true));
         assertThat(fields.get("_parent").getValue().toString(), equalTo("parent_1"));
     }

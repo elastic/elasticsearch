@@ -19,14 +19,17 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Type;
-import org.elasticsearch.painless.MethodWriter;
 
-import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
+import java.util.Objects;
+import java.util.Set;
+
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents an array load/store or shortcut on a def type.  (Internal only.)
@@ -35,38 +38,46 @@ final class LDefArray extends ALink implements IDefLink {
 
     AExpression index;
 
-    LDefArray(final int line, final String location, final AExpression index) {
-        super(line, location, 2);
+    LDefArray(Location location, AExpression index) {
+        super(location, 2);
 
-        this.index = index;
+        this.index = Objects.requireNonNull(index);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        index.extractVariables(variables);
     }
 
     @Override
-    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        index.analyze(settings, definition, variables);
+    ALink analyze(Locals locals) {
+        index.analyze(locals);
         index.expected = index.actual;
-        index = index.cast(settings, definition, variables);
+        index = index.cast(locals);
 
-        after = definition.defType;
+        after = Definition.DEF_TYPE;
 
         return this;
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        index.write(settings, definition, adapter);
+    void write(MethodWriter writer, Globals globals) {
+        index.write(writer, globals);
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        final String desc = Type.getMethodDescriptor(after.type, definition.defType.type, index.actual.type);
-        adapter.invokeDynamic("arrayLoad", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ARRAY_LOAD);
+    void load(MethodWriter writer, Globals globals) {
+        writer.writeDebugInfo(location);
+
+        Type methodType = Type.getMethodType(after.type, Definition.DEF_TYPE.type, index.actual.type);
+        writer.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD);
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        final String desc = Type.getMethodDescriptor(definition.voidType.type, definition.defType.type,
-            index.actual.type, after.type);
-        adapter.invokeDynamic("arrayStore", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ARRAY_STORE);
+    void store(MethodWriter writer, Globals globals) {
+        writer.writeDebugInfo(location);
+
+        Type methodType = Type.getMethodType(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, index.actual.type, after.type);
+        writer.invokeDefCall("arrayStore", methodType, DefBootstrap.ARRAY_STORE);
     }
 }

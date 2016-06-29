@@ -115,8 +115,11 @@ Controlling diversity using a script:
 {
     "aggs" : {
         "sample" : {
-            "diverisfied_sampler" : {
-                "script" : "doc['author'].value + '/' + doc['genre'].value"
+            "diversified_sampler" : {
+                "script" : { 
+                    "lang" : "painless",
+                    "inline" : "doc['author'].value + '/' + doc['genre'].value"
+                }
             }
         }
     }

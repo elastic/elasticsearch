@@ -59,7 +59,7 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
         SourceLookup sourceLookup = searchContext.lookup().source();
         sourceLookup.setSegmentAndDocument((LeafReaderContext) reader.getContext(), docId);
 
-        List<Object> values = sourceLookup.extractRawValues(hitContext.getSourcePath(mapper.fieldType().name()));
+        List<Object> values = sourceLookup.extractRawValues(mapper.fieldType().name());
         Field[] fields = new Field[values.size()];
         for (int i = 0; i < values.size(); i++) {
             fields[i] = new Field(mapper.fieldType().name(), values.get(i).toString(), TextField.TYPE_NOT_STORED);

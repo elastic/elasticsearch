@@ -28,6 +28,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -35,7 +36,7 @@ import java.util.Map;
 public abstract class PipelineAggregator implements Streamable {
 
     /**
-     * Parse the {@link PipelineAggregatorBuilder} from a {@link QueryParseContext}.
+     * Parse the {@link PipelineAggregationBuilder} from a {@link QueryParseContext}.
      */
     @FunctionalInterface
     public static interface Parser {
@@ -55,7 +56,7 @@ public abstract class PipelineAggregator implements Streamable {
          * @throws java.io.IOException
          *             When parsing fails
          */
-        PipelineAggregatorBuilder<?> parse(String pipelineAggregatorName, QueryParseContext context)
+        PipelineAggregationBuilder parse(String pipelineAggregatorName, QueryParseContext context)
                 throws IOException;
     }
 

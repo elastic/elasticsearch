@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
@@ -404,6 +405,16 @@ public class Requests {
      */
     public static ListTasksRequest listTasksRequest() {
         return new ListTasksRequest();
+    }
+
+    /**
+     * Creates a get task request.
+     *
+     * @return The nodes tasks request
+     * @see org.elasticsearch.client.ClusterAdminClient#getTask(GetTaskRequest)
+     */
+    public static GetTaskRequest getTaskRequest() {
+        return new GetTaskRequest();
     }
 
     /**

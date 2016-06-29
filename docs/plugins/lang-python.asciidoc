@@ -50,10 +50,8 @@ See <<lang-python-file>> for a safer option.
 If you have enabled {ref}/modules-scripting-security.html#enable-dynamic-scripting[inline scripts],
 you can use Python as follows:
 
-[source,json]
+[source,js]
 ----
-DELETE test
-
 PUT test/doc/1
 {
   "num": 1.0
@@ -93,10 +91,8 @@ See <<lang-python-file>> for a safer option.
 If you have enabled {ref}/modules-scripting-security.html#enable-dynamic-scripting[stored scripts],
 you can use Python as follows:
 
-[source,json]
+[source,js]
 ----
-DELETE test
-
 PUT test/doc/1
 {
   "num": 1.0
@@ -154,10 +150,8 @@ doc["num"].value * factor
 
 then use the script as follows:
 
-[source,json]
+[source,js]
 ----
-DELETE test
-
 PUT test/doc/1
 {
   "num": 1.0
@@ -184,9 +178,7 @@ GET test/_search
     }
   }
 }
-
 ----
 // CONSOLE
 
 <1> The function score query retrieves the script with filename `my_script.py`.
-

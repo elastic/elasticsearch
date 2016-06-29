@@ -22,12 +22,13 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.geopoint.search.GeoPointDistanceQuery;
-import org.apache.lucene.spatial.util.GeoEncodingUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.locationtech.spatial4j.shape.Point;
 
@@ -212,7 +213,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         if (queryBuilder.geoDistance() != null) {
             distance = queryBuilder.geoDistance().normalize(distance, DistanceUnit.DEFAULT);
             distance = org.elasticsearch.common.geo.GeoUtils.maxRadialDistance(queryBuilder.point(), distance);
-            assertThat(geoQuery.getRadiusMeters(), closeTo(distance, GeoEncodingUtils.TOLERANCE));
+            assertThat(geoQuery.getRadiusMeters(), closeTo(distance, GeoUtils.TOLERANCE));
         }
     }
 

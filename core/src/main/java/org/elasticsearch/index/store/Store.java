@@ -41,7 +41,6 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
@@ -444,11 +443,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * The returned IndexOutput might validate the files checksum if the file has been written with a newer lucene version
-     * and the metadata holds the necessary information to detect that it was been written by Lucene 4.8 or newer. If it has only
-     * a legacy checksum, returned IndexOutput will not verify the checksum.
+     * The returned IndexOutput validates the files checksum.
      * <p>
-     * Note: Checksums are calculated nevertheless since lucene does it by default sicne version 4.8.0. This method only adds the
+     * Note: Checksums are calculated by default since version 4.8.0. This method only adds the
      * verification against the checksum in the given metadata and does not add any significant overhead.
      */
     public IndexOutput createVerifyingOutput(String fileName, final StoreFileMetaData metadata, final IOContext context) throws IOException {
@@ -652,17 +649,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // different in the diff. That's why we have to double check here again if the rest of it matches.
 
                     // all is fine this file is just part of a commit or a segment that is different
-                    final boolean same = local.isSame(remote);
-
-                    // this check ensures that the two files are consistent ie. if we don't have checksums only the rest needs to match we are just
-                    // verifying that we are consistent on both ends source and target
-                    final boolean hashAndLengthEqual = (
-                            local.checksum() == null
-                                    && remote.checksum() == null
-                                    && local.hash().equals(remote.hash())
-                                    && local.length() == remote.length());
-                    final boolean consistent = hashAndLengthEqual || same;
-                    if (consistent == false) {
+                    if (local.isSame(remote) == false) {
                         logger.debug("Files are different on the recovery target: {} ", recoveryDiff);
                         throw new IllegalStateException("local version: " + local + " is different from remote version after recovery: " + remote, null);
                     }
@@ -682,7 +669,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return refCounter.refCount();
     }
 
-    private static final class StoreDirectory extends FilterDirectory {
+    static final class StoreDirectory extends FilterDirectory {
 
         private final ESLogger deletesLogger;
 
@@ -715,7 +702,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         public String toString() {
             return "store(" + in.toString() + ")";
         }
-
     }
 
     /**
@@ -821,7 +807,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
                 numDocs = Lucene.getNumDocs(segmentCommitInfos);
                 commitUserDataBuilder.putAll(segmentCommitInfos.getUserData());
-                @SuppressWarnings("deprecation")
                 Version maxVersion = segmentCommitInfos.getMinSegmentLuceneVersion(); // we don't know which version was used to write so we take the max version.
                 for (SegmentCommitInfo info : segmentCommitInfos) {
                     final Version version = info.info.getVersion();
@@ -899,18 +884,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 builder.put(file, new StoreFileMetaData(file, length, checksum, version, fileHash.get()));
             }
         }
-
-        /**
-         * Computes a strong hash value for small files. Note that this method should only be used for files &lt; 1MB
-         */
-        public static BytesRef hashFile(Directory directory, String file) throws IOException {
-            final BytesRefBuilder fileHash = new BytesRefBuilder();
-            try (final IndexInput in = directory.openInput(file, IOContext.READONCE)) {
-                hashFile(fileHash, new InputStreamIndexInput(in, in.length()), in.length());
-            }
-            return fileHash.get();
-        }
-
 
         /**
          * Computes a strong hash value for small files. Note that this method should only be used for files &lt; 1MB

@@ -1,5 +1,5 @@
 ---
-"Basic multi-search":
+"Basic multi-search with template query":
   - do:
       index:
           index:  test_1
@@ -23,26 +23,6 @@
 
   - do:
       indices.refresh: {}
-
-  - do:
-      msearch:
-        body:
-          - index: test_1
-          - query:
-              match_all: {}
-          - index: test_2
-          - query:
-              match_all: {}
-          - search_type: query_then_fetch
-            index: test_1
-          - query:
-              match: {foo: bar}
-
-  - match:  { responses.0.hits.total:     3  }
-  - match:  { responses.1.error.root_cause.0.type: index_not_found_exception }
-  - match:  { responses.1.error.root_cause.0.reason: "/no.such.index/" }
-  - match:  { responses.1.error.root_cause.0.index: test_2 }
-  - match:  { responses.2.hits.total:     1  }
 
   - do:
       msearch:

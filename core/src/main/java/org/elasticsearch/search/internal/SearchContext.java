@@ -22,14 +22,13 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -38,7 +37,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.percolator.PercolatorQueryCache;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -223,19 +221,15 @@ public abstract class SearchContext implements Releasable {
 
     public abstract ScriptService scriptService();
 
-    public abstract PageCacheRecycler pageCacheRecycler();
-
     public abstract BigArrays bigArrays();
 
     public abstract BitsetFilterCache bitsetFilterCache();
 
     public abstract IndexFieldDataService fieldData();
 
-    public abstract PercolatorQueryCache percolatorQueryCache();
+    public abstract TimeValue timeout();
 
-    public abstract long timeoutInMillis();
-
-    public abstract void timeoutInMillis(long timeoutInMillis);
+    public abstract void timeout(TimeValue timeout);
 
     public abstract int terminateAfter();
 

@@ -165,7 +165,7 @@ https://github.com/elastic/elasticsearch/blob/{branch}/core/src/main/java/org/el
 In a script, attempting to load a class that does not appear in the whitelist
 _may_ result in a `ClassNotFoundException`, for instance this script:
 
-[source,json]
+[source,js]
 ------------------------------
 GET _search
 {
@@ -179,7 +179,7 @@ GET _search
 
 will return the following exception:
 
-[source,json]
+[source,js]
 ------------------------------
 {
   "reason": {
@@ -207,7 +207,7 @@ use(groovy.time.TimeCategory); new Date(123456789).format('HH')
 
 Returns the following exception:
 
-[source,json]
+[source,js]
 ------------------------------
 {
   "reason": {

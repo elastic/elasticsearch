@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.FromXContentBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -51,6 +52,8 @@ public abstract class BlobStoreFormat<T extends ToXContent> {
         // when metadata is serialized certain elements of the metadata shouldn't be included into snapshot
         // exclusion of these elements is done by setting MetaData.CONTEXT_MODE_PARAM to MetaData.CONTEXT_MODE_SNAPSHOT
         snapshotOnlyParams.put(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_SNAPSHOT);
+        // serialize SnapshotInfo using the SNAPSHOT mode
+        snapshotOnlyParams.put(SnapshotInfo.CONTEXT_MODE_PARAM, SnapshotInfo.CONTEXT_MODE_SNAPSHOT);
         SNAPSHOT_ONLY_FORMAT_PARAMS = new ToXContent.MapParams(snapshotOnlyParams);
     }
 
@@ -112,4 +115,5 @@ public abstract class BlobStoreFormat<T extends ToXContent> {
 
         }
     }
+
 }

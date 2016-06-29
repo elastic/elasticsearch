@@ -129,7 +129,7 @@ The Azure repository supports following settings:
 
 Some examples, using scripts:
 
-[source,json]
+[source,js]
 ----
 # The simpliest one
 PUT _snapshot/my_backup1
@@ -168,6 +168,7 @@ PUT _snapshot/my_backup4
 }
 ----
 // CONSOLE
+// TEST[skip:we don't have azure setup while testing this]
 
 Example using Java:
 
@@ -207,4 +208,3 @@ be a valid DNS name, conforming to the following naming rules:
 permitted in container names.
 * All letters in a container name must be lowercase.
 * Container names must be from 3 through 63 characters long.
-

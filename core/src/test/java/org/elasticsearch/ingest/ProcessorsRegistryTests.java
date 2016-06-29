@@ -19,28 +19,31 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.sameInstance;
+import static org.mockito.Mockito.mock;
 
 public class ProcessorsRegistryTests extends ESTestCase {
 
     public void testBuildProcessorRegistry() {
         ProcessorsRegistry.Builder builder = new ProcessorsRegistry.Builder();
         TestProcessor.Factory factory1 = new TestProcessor.Factory();
-        builder.registerProcessor("1", (templateService, registry) -> factory1);
+        builder.registerProcessor("1", (registry) -> factory1);
         TestProcessor.Factory factory2 = new TestProcessor.Factory();
-        builder.registerProcessor("2", (templateService, registry) -> factory2);
+        builder.registerProcessor("2", (registry) -> factory2);
         TestProcessor.Factory factory3 = new TestProcessor.Factory();
         try {
-            builder.registerProcessor("1", (templateService, registry) -> factory3);
+            builder.registerProcessor("1", (registry) -> factory3);
             fail("addProcessor should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Processor factory already registered for name [1]"));
         }
 
-        ProcessorsRegistry registry = builder.build(TestTemplateService.instance());
+        ProcessorsRegistry registry = builder.build(mock(ScriptService.class), mock(ClusterService.class));
         assertThat(registry.getProcessorFactories().size(), equalTo(2));
         assertThat(registry.getProcessorFactory("1"), sameInstance(factory1));
         assertThat(registry.getProcessorFactory("2"), sameInstance(factory2));

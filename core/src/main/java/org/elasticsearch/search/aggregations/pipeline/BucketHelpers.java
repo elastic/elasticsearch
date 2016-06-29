@@ -156,7 +156,7 @@ public class BucketHelpers {
         try {
             Object propertyValue = bucket.getProperty(agg.getName(), aggPathAsList);
             if (propertyValue == null) {
-                throw new AggregationExecutionException(PipelineAggregatorBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
                         + " must reference either a number value or a single value numeric metric aggregation");
             } else {
                 double value;
@@ -165,7 +165,7 @@ public class BucketHelpers {
                 } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
                     value = ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
                 } else {
-                    throw new AggregationExecutionException(PipelineAggregatorBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                    throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
                             + " must reference either a number value or a single value numeric metric aggregation, got: "
                             + propertyValue.getClass().getCanonicalName());
                 }

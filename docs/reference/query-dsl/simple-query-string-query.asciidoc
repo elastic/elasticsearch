@@ -8,15 +8,19 @@ an example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
+  "query": {
     "simple_query_string" : {
         "query": "\"fried eggs\" +(eggplant | potato) -frittata",
         "analyzer": "snowball",
         "fields": ["body^5","_all"],
         "default_operator": "and"
     }
+  }
 }
 --------------------------------------------------
+// CONSOLE
 
 The `simple_query_string` top level parameters include:
 
@@ -94,13 +98,17 @@ introduced fields included). For example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "simple_query_string" : {
-        "fields" : ["content", "name.*^5"],
-        "query" : "foo bar baz"
+    "query": {
+        "simple_query_string" : {
+            "fields" : ["content", "name.*^5"],
+            "query" : "foo bar baz"
+        }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ==== Flags
@@ -110,13 +118,17 @@ should be enabled. It is specified as a `|`-delimited string with the
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "simple_query_string" : {
-        "query" : "foo | bar + baz*",
-        "flags" : "OR|AND|PREFIX"
+    "query": {
+        "simple_query_string" : {
+            "query" : "foo | bar + baz*",
+            "flags" : "OR|AND|PREFIX"
+        }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 The available flags are: `ALL`, `NONE`, `AND`, `OR`, `NOT`, `PREFIX`, `PHRASE`,
 `PRECEDENCE`, `ESCAPE`, `WHITESPACE`, `FUZZY`, `NEAR`, and `SLOP`.

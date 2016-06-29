@@ -21,7 +21,6 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -30,13 +29,12 @@ import org.elasticsearch.index.query.QueryBuilder;
 
 public abstract class AbstractBulkByScrollRequestBuilder<
                 Request extends AbstractBulkByScrollRequest<Request>,
-                Response extends ActionResponse,
-                Self extends AbstractBulkByScrollRequestBuilder<Request, Response, Self>>
-        extends ActionRequestBuilder<Request, Response, Self> {
+                Self extends AbstractBulkByScrollRequestBuilder<Request, Self>>
+        extends ActionRequestBuilder<Request, BulkIndexByScrollResponse, Self> {
     private final SearchRequestBuilder source;
 
     protected AbstractBulkByScrollRequestBuilder(ElasticsearchClient client,
-            Action<Request, Response, Self> action, SearchRequestBuilder source, Request request) {
+            Action<Request, BulkIndexByScrollResponse, Self> action, SearchRequestBuilder source, Request request) {
         super(client, action, request);
         this.source = source;
     }
@@ -131,6 +129,14 @@ public abstract class AbstractBulkByScrollRequestBuilder<
      */
     public Self setRequestsPerSecond(float requestsPerSecond) {
         request.setRequestsPerSecond(requestsPerSecond);
+        return self();
+    }
+
+    /**
+     * Should this task persist its result after it has finished?
+     */
+    public Self setShouldPersistResult(boolean shouldPersistResult) {
+        request.setShouldPersistResult(shouldPersistResult);
         return self();
     }
 }

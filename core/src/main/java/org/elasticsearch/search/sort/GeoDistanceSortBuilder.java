@@ -60,6 +60,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A geo distance based sorting on a geo point like field.
@@ -257,7 +258,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     /**
-     * Sets validation method for this sort builder. 
+     * Sets validation method for this sort builder.
      */
     public GeoDistanceSortBuilder validation(GeoValidationMethod method) {
         this.validation = method;
@@ -265,7 +266,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     /**
-     * Returns the validation method to use for this sort builder. 
+     * Returns the validation method to use for this sort builder.
      */
     public GeoValidationMethod validation() {
         return validation;
@@ -407,7 +408,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         GeoDistance geoDistance = GeoDistance.DEFAULT;
         SortOrder order = SortOrder.ASC;
         SortMode sortMode = null;
-        QueryBuilder nestedFilter = null;
+        Optional<QueryBuilder> nestedFilter = Optional.empty();
         String nestedPath = null;
 
         boolean coerce = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
@@ -492,7 +493,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         if (sortMode != null) {
             result.sortMode(sortMode);
         }
-        result.setNestedFilter(nestedFilter);
+        nestedFilter.ifPresent(result::setNestedFilter);
         result.setNestedPath(nestedPath);
         if (validation == null) {
             // looks like either validation was left unset or we are parsing old validation json
@@ -517,7 +518,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             for (GeoPoint point : localPoints) {
                 if (GeoUtils.isValidLatitude(point.lat()) == false) {
                     throw new ElasticsearchParseException(
-                            "illegal latitude value [{}] for [GeoDistanceSort] for field [{}].", 
+                            "illegal latitude value [{}] for [GeoDistanceSort] for field [{}].",
                             point.lat(),
                             fieldName);
                 }

@@ -56,7 +56,7 @@ default, the node coordinating the search process will request each shard to pro
 and once all shards respond, it will reduce the results to the final list that will then be returned to the client.
 This means that if the number of unique terms is greater than `size`, the returned list is slightly off and not accurate
 (it could be that the term counts are slightly off and it could even be that a term that should have been in the top
-size buckets was not returned). If set to `0`, the `size` will be set to `Integer.MAX_VALUE`.
+size buckets was not returned).
 
 [[search-aggregations-bucket-terms-aggregation-approximate-counts]]
 ==== Document counts are approximate
@@ -149,14 +149,12 @@ The `shard_size` parameter can be  used to minimize the extra work that comes wi
 it will determine how many terms the coordinating node will request from each shard. Once all the shards responded, the
 coordinating node will then reduce them to a final result which will be based on the `size` parameter - this way,
 one can increase the accuracy of the returned terms and avoid the overhead of streaming a big list of buckets back to
-the client. If set to `0`, the `shard_size` will be set to `Integer.MAX_VALUE`.
+the client.
 
 
 NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, elasticsearch will
         override it and reset it to be equal to `size`.
 
-It is possible to not limit the number of terms that are returned by setting `size` to `0`. Don't use this
-on high-cardinality fields as this will kill both your CPU since terms need to be return sorted, and your network.
 
 The default `shard_size` is a multiple of the `size` parameter which is dependant on the number of shards.
 
@@ -443,7 +441,7 @@ Generating the terms using a script:
     "aggs" : {
         "genders" : {
             "terms" : {
-                "script" : { 
+                "script" : {
                     "inline": "doc['gender'].value"
                     "lang": "painless"
                 }
@@ -485,9 +483,9 @@ TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
         "genders" : {
             "terms" : {
                 "field" : "gender",
-                "script" : { 
+                "script" : {
                     "inline" : "'Gender: ' +_value"
-                    "lang" : "painless" 
+                    "lang" : "painless"
                 }
             }
         }
@@ -579,7 +577,8 @@ Deferring calculation of child aggregations
 
 For fields with many unique terms and a small number of required results it can be more efficient to delay the calculation
 of child aggregations until the top parent-level aggs have been pruned. Ordinarily, all branches of the aggregation tree
-are expanded in one depth-first pass and only then any pruning occurs. In some rare scenarios this can be very wasteful and can hit memory constraints.
+are expanded in one depth-first pass and only then any pruning occurs.
+In some scenarios this can be very wasteful and can hit memory constraints.
 An example problem scenario is querying a movie database for the 10 most popular actors and their 5 most common co-stars:
 
 [source,js]
@@ -604,10 +603,13 @@ An example problem scenario is querying a movie database for the 10 most popular
 }
 --------------------------------------------------
 
-Even though the number of movies may be comparatively small and we want only 50 result buckets there is a combinatorial explosion of buckets
-during calculation - a single movie will produce n² buckets where n is the number of actors. The sane option would be to first determine
+Even though the number of actors may be comparatively small and we want only 50 result buckets there is a combinatorial explosion of buckets
+during calculation - a single actor can produce n² buckets where n is the number of actors. The sane option would be to first determine
 the 10 most popular actors and only then examine the top co-stars for these 10 actors. This alternative strategy is what we call the `breadth_first` collection
-mode as opposed to the default `depth_first` mode:
+mode as opposed to the `depth_first` mode.
+
+NOTE: The `breadth_first` is the default mode for fields with a cardinality bigger than the requested size or when the cardinality is unknown (numeric fields or scripts for instance).
+It is possible to override the default heuristic and to provide a collect mode directly in the request:
 
 [source,js]
 --------------------------------------------------
@@ -617,7 +619,7 @@ mode as opposed to the default `depth_first` mode:
              "terms" : {
                  "field" : "actors",
                  "size" : 10,
-                 "collect_mode" : "breadth_first"
+                 "collect_mode" : "breadth_first" <1>
              },
             "aggs" : {
                 "costars" : {
@@ -632,12 +634,10 @@ mode as opposed to the default `depth_first` mode:
 }
 --------------------------------------------------
 
+<1> the possible values are `breadth_first` and `depth_first`
 
 When using `breadth_first` mode the set of documents that fall into the uppermost buckets are
 cached for subsequent replay so there is a memory overhead in doing this which is linear with the number of matching documents.
-In most requests the volume of buckets generated is smaller than the number of documents that fall into them so the default `depth_first`
-collection mode is normally the best bet but occasionally the `breadth_first` strategy can be significantly more efficient. Currently
-elasticsearch will always use the `depth_first` collect_mode unless explicitly instructed to use `breadth_first` as in the above example.
 Note that the `order` parameter can still be used to refer to data from a child aggregation when using the `breadth_first` setting - the parent
 aggregation understands that this child aggregation will need to be called first before any of the other child aggregations.
 
@@ -710,4 +710,4 @@ had a value.
 }
 --------------------------------------------------
 
-<1> Documents without a value in the `tags` field will fall into the same bucket as documents that have the value `N/A`. 
+<1> Documents without a value in the `tags` field will fall into the same bucket as documents that have the value `N/A`.

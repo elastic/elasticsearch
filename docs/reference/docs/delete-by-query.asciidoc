@@ -1,0 +1,335 @@
+[[docs-delete-by-query]]
+== Delete By Query API
+
+experimental[The delete-by-query API is new and should still be considered experimental.  The API may change in ways that are not backwards compatible]
+
+The simplest usage of `_delete_by_query` just performs a deletion on every
+document that match a query. Here is the API:
+
+[source,js]
+--------------------------------------------------
+POST twitter/_delete_by_query
+{
+  "query": { <1>
+    "match": {
+      "message": "some message"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:big_twitter]
+
+<1> The query must be passed as a value to the `query` key, in the same
+way as the <<search-search,Search API>>. You can also use the `q`
+parameter in the same way as the search api.
+
+That will return something like this:
+
+[source,js]
+--------------------------------------------------
+{
+  "took" : 147,
+  "timed_out": false,
+  "deleted": 119,
+  "batches": 1,
+  "version_conflicts": 0,
+  "noops": 0,
+  "retries": {
+    "bulk": 0,
+    "search": 0
+  },
+  "throttled_millis": 0,
+  "requests_per_second": "unlimited",
+  "throttled_until_millis": 0,
+  "total": 119,
+  "failures" : [ ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took" : 147/"took" : "$body.took"/]
+
+`_delete_by_query` gets a snapshot of the index when it starts and deletes what
+it finds using `internal` versioning. That means that you'll get a version
+conflict if the document changes between the time when the snapshot was taken
+and when the delete request is processed. When the versions match the document
+is deleted.
+
+During the `_delete_by_query` execution, multiple search requests are sequentially
+executed in order to find all the matching documents to delete. Every time a batch
+of documents is found, a corresponding bulk request is executed to delete all
+these documents. In case a search or bulk request got rejected, `_delete_by_query`
+ relies on a default policy to retry rejected requests (up to 10 times, with
+ exponential back off). Reaching the maximum retries limit causes the `_delete_by_query`
+ to abort and all failures are returned in the `failures` of the response.
+ The deletions that have been performed still stick. In other words, the process
+ is not rolled back, only aborted. While the first failure causes the abort all
+ failures that are returned by the failing bulk request are returned in the `failures`
+ element so it's possible for there to be quite a few.
+
+If you'd like to count version conflicts rather than cause them to abort then
+set `conflicts=proceed` on the url or `"conflicts": "proceed"` in the request body.
+
+Back to the API format, you can limit `_delete_by_query` to a single type. This
+will only delete `tweet` documents from the `twitter` index:
+
+[source,js]
+--------------------------------------------------
+POST twitter/tweet/_delete_by_query?conflicts=proceed
+{
+  "query": {
+    "match_all": {}
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+It's also possible to delete documents of multiple indexes and multiple
+types at once, just like the search API:
+
+[source,js]
+--------------------------------------------------
+POST twitter,blog/tweet,post/_delete_by_query
+{
+  "query": {
+    "match_all": {}
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT twitter\nPUT blog\nGET _cluster\/health?wait_for_status=yellow\n/]
+
+If you provide `routing` then the routing is copied to the scroll query,
+limiting the process to the shards that match that routing value:
+
+[source,js]
+--------------------------------------------------
+POST twitter/_delete_by_query?routing=1
+{
+  "query": {
+    "range" : {
+        "age" : {
+           "gte" : 10
+        }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+By default `_delete_by_query` uses scroll batches of 1000. You can change the
+batch size with the `scroll_size` URL parameter:
+
+[source,js]
+--------------------------------------------------
+POST twitter/_delete_by_query?scroll_size=5000
+{
+  "query": {
+    "term": {
+      "user": "kimchy"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+
+[float]
+=== URL Parameters
+
+In addition to the standard parameters like `pretty`, the Delete By Query API
+also supports `refresh`, `wait_for_completion`, `consistency`, and `timeout`.
+
+Sending the `refresh` will refresh all shards involved in the delete by query
+once the request completes. This is different than the Delete API's `refresh`
+parameter which causes just the shard that received the delete request
+to be refreshed.
+
+If the request contains `wait_for_completion=false` then Elasticsearch will
+perform some preflight checks, launch the request, and then return a `task`
+which can be used with <<docs-delete-by-query-task-api,Tasks APIs>>
+to cancel or get the status of the task. Elasticsearch will also create a
+record of this task as a document at `.tasks/task/${taskId}`. This is yours
+to keep or remove as you see fit. When you are done with it, delete it so
+Elasticsearch can reclaim the space it uses.
+
+`consistency` controls how many copies of a shard must respond to each write
+request. `timeout` controls how long each write request waits for unavailable
+shards to become available. Both work exactly how they work in the
+<<docs-bulk,Bulk API>>.
+
+`requests_per_second` can be set to any decimal number (`1.4`, `6`, `1000`, etc)
+and throttles the number of requests per second that the delete by query issues.
+The throttling is done waiting between bulk batches so that it can manipulate
+the scroll timeout. The wait time is the difference between the time it took the
+batch to complete and the time `requests_per_second * requests_in_the_batch`.
+Since the batch isn't broken into multiple bulk requests large batch sizes will
+cause Elasticsearch to create many requests and then wait for a while before
+starting the next set. This is "bursty" instead of "smooth". The default is
+`unlimited` which is also the only non-number value that it accepts.
+
+[float]
+=== Response body
+
+The JSON response looks like this:
+
+[source,js]
+--------------------------------------------------
+{
+  "took" : 639,
+  "deleted": 0,
+  "batches": 1,
+  "version_conflicts": 2,
+  "retries": 0,
+  "throttled_millis": 0,
+  "failures" : [ ]
+}
+--------------------------------------------------
+
+`took`::
+
+The number of milliseconds from start to end of the whole operation.
+
+`deleted`::
+
+The number of documents that were successfully deleted.
+
+`batches`::
+
+The number of scroll responses pulled back by the the delete by query.
+
+`version_conflicts`::
+
+The number of version conflicts that the delete by query hit.
+
+`retries`::
+
+The number of retries that the delete by query did in response to a full queue.
+
+`throttled_millis`::
+
+Number of milliseconds the request slept to conform to `requests_per_second`.
+
+`failures`::
+
+Array of all indexing failures. If this is non-empty then the request aborted
+because of those failures. See `conflicts` for how to prevent version conflicts
+from aborting the operation.
+
+
+[float]
+[[docs-delete-by-query-task-api]]
+=== Works with the Task API
+
+You can fetch the status of any running delete-by-query requests with the
+<<tasks,Task API>>:
+
+[source,js]
+--------------------------------------------------
+GET _tasks?detailed=true&action=*/delete/byquery
+--------------------------------------------------
+// CONSOLE
+
+The responses looks like:
+
+[source,js]
+--------------------------------------------------
+{
+  "nodes" : {
+    "r1A2WoRbTwKZ516z6NEs5A" : {
+      "name" : "Tyrannus",
+      "transport_address" : "127.0.0.1:9300",
+      "host" : "127.0.0.1",
+      "ip" : "127.0.0.1:9300",
+      "attributes" : {
+        "testattr" : "test",
+        "portsfile" : "true"
+      },
+      "tasks" : {
+        "r1A2WoRbTwKZ516z6NEs5A:36619" : {
+          "node" : "r1A2WoRbTwKZ516z6NEs5A",
+          "id" : 36619,
+          "type" : "transport",
+          "action" : "indices:data/write/delete/byquery",
+          "status" : {    <1>
+            "total" : 6154,
+            "updated" : 0,
+            "created" : 0,
+            "deleted" : 3500,
+            "batches" : 36,
+            "version_conflicts" : 0,
+            "noops" : 0,
+            "retries": 0,
+            "throttled_millis": 0
+          },
+          "description" : ""
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+<1> this object contains the actual status. It is just like the response json
+with the important addition of the `total` field. `total` is the total number
+of operations that the reindex expects to perform. You can estimate the
+progress by adding the `updated`, `created`, and `deleted` fields. The request
+will finish when their sum is equal to the `total` field.
+
+With the task id you can look up the task directly:
+
+[source,js]
+--------------------------------------------------
+GET /_tasks/taskId:1
+--------------------------------------------------
+// CONSOLE
+// TEST[catch:missing]
+
+The advantage of this API is that it integrates with `wait_for_completion=false`
+to transparently return the status of completed tasks. If the task is completed
+and `wait_for_completion=false` was set on it them it'll come back with a
+`results` or an `error` field. The cost of this feature is the document that
+`wait_for_completion=false` creates at `.tasks/task/${taskId}`. It is up to
+you to delete that document.
+
+
+[float]
+[[docs-delete-by-query-cancel-task-api]]
+=== Works with the Cancel Task API
+
+Any Delete By Query can be canceled using the <<tasks,Task Cancel API>>:
+
+[source,js]
+--------------------------------------------------
+POST _tasks/taskid:1/_cancel
+--------------------------------------------------
+// CONSOLE
+
+The `task_id` can be found using the tasks API above.
+
+Cancelation should happen quickly but might take a few seconds. The task status
+API above will continue to list the task until it is wakes to cancel itself.
+
+
+[float]
+[[docs-delete-by-query-rethrottle]]
+=== Rethrottling
+
+The value of `requests_per_second` can be changed on a running delete by query
+using the `_rethrottle` API:
+
+[source,js]
+--------------------------------------------------
+POST _delete_by_query/taskid:1/_rethrottle?requests_per_second=unlimited
+--------------------------------------------------
+// CONSOLE
+
+The `task_id` can be found using the tasks API above.
+
+Just like when setting it on the `_delete_by_query` API `requests_per_second`
+can be either `unlimited` to disable throttling or any decimal number like `1.7`
+or `12` to throttle to that level. Rethrottling that speeds up the query takes
+effect immediately but rethrotting that slows down the query will take effect
+on after completing the current batch. This prevents scroll timeouts.

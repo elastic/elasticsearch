@@ -24,7 +24,6 @@ import org.apache.lucene.search.Scorer;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.CompiledScript;
@@ -47,9 +46,6 @@ import java.security.AccessController;
 import java.security.Permissions;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -63,7 +59,6 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
 
     private final PythonInterpreter interp;
 
-    @Inject
     public PythonScriptEngineService(Settings settings) {
         super(settings);
 
@@ -145,11 +140,6 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     @Override
     public void close() {
         interp.cleanup();
-    }
-
-    @Override
-    public void scriptRemoved(@Nullable CompiledScript compiledScript) {
-        // Nothing to do
     }
 
     public class PythonExecutableScript implements ExecutableScript {

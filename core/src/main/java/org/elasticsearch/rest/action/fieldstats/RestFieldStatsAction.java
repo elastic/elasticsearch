@@ -99,7 +99,9 @@ public class RestFieldStatsAction extends BaseRestHandler {
                     for (Map.Entry<String, String> entry : response.getConflicts().entrySet()) {
                         builder.field(entry.getKey(), entry.getValue());
                     }
+                    builder.endObject();
                 }
+                builder.endObject();
                 return new BytesRestResponse(RestStatus.OK, builder);
             }
         });

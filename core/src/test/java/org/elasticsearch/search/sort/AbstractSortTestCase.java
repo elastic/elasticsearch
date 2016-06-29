@@ -95,10 +95,9 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
                 .build();
         Environment environment = new Environment(baseSettings);
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry
-                .ScriptEngineRegistration(TestEngineService.class, TestEngineService.NAME)));
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new TestEngineService()));
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        scriptService = new ScriptService(baseSettings, environment, Collections.singleton(new TestEngineService()),
+        scriptService = new ScriptService(baseSettings, environment,
                 new ResourceWatcherService(baseSettings, null), scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
             @Override
             public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params, ClusterState state) {
@@ -232,7 +231,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             }
         });
         return new QueryShardContext(idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
-                indicesQueriesRegistry, null, null, null, null) {
+                indicesQueriesRegistry, null, null, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 return provideMappedFieldType(name);

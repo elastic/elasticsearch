@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.indices.TermsLookup;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -45,7 +46,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -239,25 +239,25 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     public void testNumeric() throws IOException {
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new int[]{1, 3, 4});
-            TermsQueryBuilder copy = assertSerialization(builder);
+            TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1, 3, 4), values);
         }
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new double[]{1, 3, 4});
-            TermsQueryBuilder copy = assertSerialization(builder);
+            TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1d, 3d, 4d), values);
         }
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new float[]{1, 3, 4});
-            TermsQueryBuilder copy = assertSerialization(builder);
+            TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1f, 3f, 4f), values);
         }
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new long[]{1, 3, 4});
-            TermsQueryBuilder copy = assertSerialization(builder);
+            TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1L, 3L, 4L), values);
         }

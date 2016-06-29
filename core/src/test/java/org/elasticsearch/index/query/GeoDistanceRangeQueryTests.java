@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.geopoint.search.XGeoPointDistanceRangeQuery;
-import org.apache.lucene.spatial.util.GeoDistanceUtils;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
@@ -60,7 +60,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
             }
         }
         GeoPoint point = builder.point();
-        final double maxRadius = GeoDistanceUtils.maxRadialDistanceMeters(point.lat(), point.lon());
+        final double maxRadius = GeoUtils.maxRadialDistanceMeters(point.lat(), point.lon());
         final int fromValueMeters = randomInt((int)(maxRadius*0.5));
         final int toValueMeters = randomIntBetween(fromValueMeters + 1, (int)maxRadius);
         DistanceUnit fromToUnits = randomFrom(DistanceUnit.values());

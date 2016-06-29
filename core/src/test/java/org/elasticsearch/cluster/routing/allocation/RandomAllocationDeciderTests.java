@@ -78,7 +78,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
         }
 
         RoutingTable routingTable = routingTableBuilder.build();
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
         int numIters = scaledRandomIntBetween(5, 15);
         int nodeIdCounter = 0;
         int atMostNodes = scaledRandomIntBetween(Math.max(1, maxNumReplicas), 15);
@@ -161,7 +161,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
         }
     }
 
-    private static final class RandomAllocationDecider extends AllocationDecider {
+    public static final class RandomAllocationDecider extends AllocationDecider {
 
         private final Random random;
 

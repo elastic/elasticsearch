@@ -46,7 +46,6 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final Collator collator;
 
-    @SuppressWarnings("deprecation") // Intentionally sets deprecated options for backwards compatibility
     public IcuCollationTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
 
@@ -167,7 +166,6 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     @Override
-    @SuppressWarnings("deprecation") // Constructs a deprecated filter for backwards compatibility
     public TokenStream create(TokenStream tokenStream) {
         return new ICUCollationKeyFilter(tokenStream, collator);
     }

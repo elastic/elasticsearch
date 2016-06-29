@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -42,14 +41,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class MockSearchService extends SearchService {
     public static class TestPlugin extends Plugin {
-        @Override
-        public String name() {
-            return "mock-search-service";
-        }
-        @Override
-        public String description() {
-            return "a mock search service for testing";
-        }
         public void onModule(SearchModule module) {
             module.searchServiceImpl = MockSearchService.class;
         }
@@ -84,11 +75,9 @@ public class MockSearchService extends SearchService {
 
     @Inject
     public MockSearchService(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService,
-            IndicesService indicesService, ThreadPool threadPool, ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
-            BigArrays bigArrays, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase,
-            AggregatorParsers aggParsers, Suggesters suggesters) {
-        super(settings, clusterSettings, clusterService, indicesService, threadPool, scriptService, pageCacheRecycler, bigArrays, dfsPhase,
-                queryPhase, fetchPhase, aggParsers, suggesters);
+            IndicesService indicesService, ThreadPool threadPool, ScriptService scriptService,
+            BigArrays bigArrays, FetchPhase fetchPhase) {
+        super(settings, clusterSettings, clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase);
     }
 
     @Override

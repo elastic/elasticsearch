@@ -36,6 +36,7 @@ import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -49,9 +50,7 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBuilder> {
 
     @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        MapperService mapperService = createShardContext().getMapperService();
+    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         mapperService.merge("nested_doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("nested_doc",
                 STRING_FIELD_NAME, "type=text",
                 INT_FIELD_NAME, "type=integer",
@@ -84,13 +83,9 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     @Override
     protected void doAssertLuceneQuery(NestedQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         QueryBuilder innerQueryBuilder = queryBuilder.query();
-        if (innerQueryBuilder instanceof EmptyQueryBuilder) {
-            assertNull(query);
-        } else {
-            assertThat(query, instanceOf(ToParentBlockJoinQuery.class));
-            ToParentBlockJoinQuery parentBlockJoinQuery = (ToParentBlockJoinQuery) query;
-            //TODO how to assert this?
-        }
+        assertThat(query, instanceOf(ToParentBlockJoinQuery.class));
+        ToParentBlockJoinQuery parentBlockJoinQuery = (ToParentBlockJoinQuery) query;
+        // TODO how to assert this?
         if (queryBuilder.innerHit() != null) {
             SearchContext searchContext = SearchContext.current();
             assertNotNull(searchContext);

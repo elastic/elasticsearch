@@ -71,4 +71,12 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
         request().indicesOptions(indicesOptions);
         return this;
     }
+
+    /**
+     * Sets how many search requests specified in this multi search requests are allowed to be ran concurrently.
+     */
+    public MultiSearchRequestBuilder setMaxConcurrentSearchRequests(int maxConcurrentSearchRequests) {
+        request().maxConcurrentSearchRequests(maxConcurrentSearchRequests);
+        return this;
+    }
 }

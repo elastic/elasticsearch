@@ -19,10 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Variables;
+
+import java.util.Objects;
+import java.util.Set;
+
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -36,24 +40,29 @@ final class ECast extends AExpression {
 
     Cast cast = null;
 
-    ECast(final int line, final String location, final AExpression child, final Cast cast) {
-        super(line, location);
+    ECast(Location location, AExpression child, Cast cast) {
+        super(location);
 
         this.type = null;
-        this.child = child;
-
-        this.cast = cast;
+        this.child = Objects.requireNonNull(child);
+        this.cast = Objects.requireNonNull(cast);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        child.extractVariables(variables);
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        throw new IllegalStateException(error("Illegal tree structure."));
+    void analyze(Locals locals) {
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        child.write(settings, definition, adapter);
-        adapter.writeCast(cast);
-        adapter.writeBranch(tru, fals);
+    void write(MethodWriter writer, Globals globals) {
+        child.write(writer, globals);
+        writer.writeDebugInfo(location);
+        writer.writeCast(cast);
+        writer.writeBranch(tru, fals);
     }
 }

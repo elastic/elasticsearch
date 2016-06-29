@@ -114,7 +114,7 @@ start() {
     cd $ES_HOME
     echo -n $"Starting $prog: "
     # if not running, start it up here, usually something like "daemon $exec"
-    daemon --user $ES_USER --pidfile $pidfile $exec -p $pidfile -d -Ees.default.path.home=$ES_HOME -Ees.default.path.logs=$LOG_DIR -Ees.default.path.data=$DATA_DIR -Ees.default.path.conf=$CONF_DIR
+    daemon --user $ES_USER --pidfile $pidfile $exec -p $pidfile -d -Edefault.path.logs=$LOG_DIR -Edefault.path.data=$DATA_DIR -Edefault.path.conf=$CONF_DIR
     retval=$?
     echo
     [ $retval -eq 0 ] && touch $lockfile

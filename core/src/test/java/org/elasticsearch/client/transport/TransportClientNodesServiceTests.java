@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
@@ -62,8 +63,9 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         private final int nodesCount;
 
         TestIteration() {
-            ClusterName clusterName = new ClusterName("test");
-            threadPool = new ThreadPool("transport-client-nodes-service-tests");
+            Settings settings = Settings.builder().put("cluster.name", "test").build();
+            ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
+            threadPool = new TestThreadPool("transport-client-nodes-service-tests");
             transport = new FailAndRetryMockTransport<TestResponse>(random(), clusterName) {
                 @Override
                 public List<String> getLocalAddresses() {
@@ -75,7 +77,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     return  new TestResponse();
                 }
             };
-            transportService = new TransportService(Settings.EMPTY, transport, threadPool, clusterName) {
+            transportService = new TransportService(settings, transport, threadPool) {
                 @Override
                 public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action,
                                                                       TransportRequest request, final TransportResponseHandler<T> handler) {
@@ -100,7 +102,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             transportService.start();
             transportService.acceptIncomingRequests();
             transportClientNodesService =
-                    new TransportClientNodesService(Settings.EMPTY, clusterName, transportService, threadPool, Version.CURRENT);
+                    new TransportClientNodesService(settings, transportService, threadPool);
             this.nodesCount = randomIntBetween(1, 10);
             for (int i = 0; i < nodesCount; i++) {
                 transportClientNodesService.addTransportAddresses(new LocalTransportAddress("node" + i));

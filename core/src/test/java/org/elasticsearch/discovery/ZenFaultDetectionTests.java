@@ -39,6 +39,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -58,8 +59,8 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -85,7 +86,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
             .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), new ByteSizeValue(0))
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        threadPool = new ThreadPool(getClass().getName());
+        threadPool = new TestThreadPool(getClass().getName());
         clusterServiceA = createClusterService(threadPool);
         clusterServiceB = createClusterService(threadPool);
         circuitBreakerService = new HierarchyCircuitBreakerService(settings, clusterSettings);
@@ -140,9 +141,13 @@ public class ZenFaultDetectionTests extends ESTestCase {
                              // trace zenfd actions but keep the default otherwise
                             .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), singleton(TransportLivenessAction.NAME))
                             .build(),
-                        new LocalTransport(settings, threadPool, version, namedWriteableRegistry, circuitBreakerService),
-                        threadPool,
-                        ClusterName.DEFAULT);
+                        new LocalTransport(settings, threadPool, namedWriteableRegistry, circuitBreakerService) {
+                            @Override
+                            protected Version getVersion() {
+                                return version;
+                            }
+                        },
+                        threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
         return transportService;
@@ -220,13 +225,15 @@ public class ZenFaultDetectionTests extends ESTestCase {
     public void testMasterFaultDetectionConnectOnDisconnect() throws InterruptedException {
         Settings.Builder settings = Settings.builder();
         boolean shouldRetry = randomBoolean();
+        ClusterName clusterName = new ClusterName(randomAsciiOfLengthBetween(3, 20));
+
         // make sure we don't ping
         settings.put(FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING.getKey(), shouldRetry)
-                .put(FaultDetection.PING_INTERVAL_SETTING.getKey(), "5m");
-        ClusterName clusterName = new ClusterName(randomAsciiOfLengthBetween(3, 20));
+                .put(FaultDetection.PING_INTERVAL_SETTING.getKey(), "5m").put("cluster.name", clusterName.value());
+
         final ClusterState state = ClusterState.builder(clusterName).nodes(buildNodesForA(false)).build();
         setState(clusterServiceA, state);
-        MasterFaultDetection masterFD = new MasterFaultDetection(settings.build(), threadPool, serviceA, clusterName,
+        MasterFaultDetection masterFD = new MasterFaultDetection(settings.build(), threadPool, serviceA,
             clusterServiceA);
         masterFD.start(nodeB, "test");
 
@@ -257,10 +264,11 @@ public class ZenFaultDetectionTests extends ESTestCase {
     public void testMasterFaultDetectionNotSizeLimited() throws InterruptedException {
         Settings.Builder settings = Settings.builder();
         boolean shouldRetry = randomBoolean();
+        ClusterName clusterName = new ClusterName(randomAsciiOfLengthBetween(3, 20));
         settings
             .put(FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING.getKey(), shouldRetry)
-            .put(FaultDetection.PING_INTERVAL_SETTING.getKey(), "1s");
-        ClusterName clusterName = new ClusterName(randomAsciiOfLengthBetween(3, 20));
+            .put(FaultDetection.PING_INTERVAL_SETTING.getKey(), "1s")
+        .put("cluster.name", clusterName.value());
         final ClusterState stateNodeA = ClusterState.builder(clusterName).nodes(buildNodesForA(false)).build();
         setState(clusterServiceA, stateNodeA);
 
@@ -272,14 +280,14 @@ public class ZenFaultDetectionTests extends ESTestCase {
         serviceA.addTracer(pingProbeA);
         serviceB.addTracer(pingProbeB);
 
-        MasterFaultDetection masterFDNodeA = new MasterFaultDetection(settings.build(), threadPool, serviceA, clusterName,
+        MasterFaultDetection masterFDNodeA = new MasterFaultDetection(settings.build(), threadPool, serviceA,
             clusterServiceA);
         masterFDNodeA.start(nodeB, "test");
 
         final ClusterState stateNodeB = ClusterState.builder(clusterName).nodes(buildNodesForB(true)).build();
         setState(clusterServiceB, stateNodeB);
 
-        MasterFaultDetection masterFDNodeB = new MasterFaultDetection(settings.build(), threadPool, serviceB, clusterName,
+        MasterFaultDetection masterFDNodeB = new MasterFaultDetection(settings.build(), threadPool, serviceB,
             clusterServiceB);
         masterFDNodeB.start(nodeB, "test");
 

@@ -19,18 +19,14 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.ingest.core.IngestDocument;
-import org.elasticsearch.ingest.core.Pipeline;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -90,7 +86,8 @@ public class PipelineExecutionService implements ClusterStateListener {
                         if (Strings.hasText(indexRequest.getPipeline())) {
                             try {
                                 innerExecute(indexRequest, getPipeline(indexRequest.getPipeline()));
-                                //this shouldn't be needed here but we do it for consistency with index api which requires it to prevent double execution
+                                //this shouldn't be needed here but we do it for consistency with index api
+                                // which requires it to prevent double execution
                                 indexRequest.setPipeline(null);
                             } catch (Throwable e) {
                                 itemFailureHandler.accept(indexRequest, e);

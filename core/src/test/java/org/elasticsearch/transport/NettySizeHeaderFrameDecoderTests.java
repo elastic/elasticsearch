@@ -20,7 +20,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -65,13 +64,12 @@ public class NettySizeHeaderFrameDecoderTests extends ESTestCase {
     @Before
     public void startThreadPool() {
         threadPool = new ThreadPool(settings);
-        threadPool.setClusterSettings(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         NetworkService networkService = new NetworkService(settings);
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(settings, threadPool), new NoneCircuitBreakerService());
-        nettyTransport = new NettyTransport(settings, threadPool, networkService, bigArrays, Version.CURRENT, new NamedWriteableRegistry(),
+        BigArrays bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
+        nettyTransport = new NettyTransport(settings, threadPool, networkService, bigArrays, new NamedWriteableRegistry(),
             new NoneCircuitBreakerService());
         nettyTransport.start();
-        TransportService transportService = new TransportService(nettyTransport, threadPool, ClusterName.DEFAULT);
+        TransportService transportService = new TransportService(settings, nettyTransport, threadPool);
         nettyTransport.transportServiceAdapter(transportService.createAdapter());
 
         TransportAddress[] boundAddresses = nettyTransport.boundAddress().boundAddresses();

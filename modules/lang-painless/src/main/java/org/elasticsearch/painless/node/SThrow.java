@@ -19,10 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
+
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents a throw statement.
@@ -31,17 +35,22 @@ public final class SThrow extends AStatement {
 
     AExpression expression;
 
-    public SThrow(final int line, final String location, final AExpression expression) {
-        super(line, location);
+    public SThrow(Location location, AExpression expression) {
+        super(location);
 
-        this.expression = expression;
+        this.expression = Objects.requireNonNull(expression);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        expression.extractVariables(variables);
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        expression.expected = definition.exceptionType;
-        expression.analyze(settings, definition, variables);
-        expression = expression.cast(settings, definition, variables);
+    void analyze(Locals locals) {
+        expression.expected = Definition.EXCEPTION_TYPE;
+        expression.analyze(locals);
+        expression = expression.cast(locals);
 
         methodEscape = true;
         loopEscape = true;
@@ -50,9 +59,9 @@ public final class SThrow extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        writeDebugInfo(adapter);
-        expression.write(settings, definition, adapter);
-        adapter.throwException();
+    void write(MethodWriter writer, Globals globals) {
+        writer.writeStatementOffset(location);
+        expression.write(writer, globals);
+        writer.throwException();
     }
 }

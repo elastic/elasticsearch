@@ -25,7 +25,6 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.CompiledScript;
@@ -57,8 +56,6 @@ import java.security.AccessController;
 import java.security.CodeSource;
 import java.security.PrivilegedAction;
 import java.security.cert.Certificate;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -138,7 +135,6 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
     /** ensures this engine is initialized */
     public static void init() {}
 
-    @Inject
     public JavaScriptScriptEngineService(Settings settings) {
         super(settings);
 
@@ -152,11 +148,6 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
 
     @Override
     public void close() {
-
-    }
-
-    @Override
-    public void scriptRemoved(@Nullable CompiledScript compiledScript) {
         // Nothing to do here
     }
 

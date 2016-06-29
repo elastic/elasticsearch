@@ -57,7 +57,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
     }
 
     @Override
-    public synchronized AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries) {
+    public synchronized AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries,
+                                        boolean useThrottleRetries) {
         if (Strings.isNullOrEmpty(endpoint)) {
             // We need to set the endpoint based on the region
             if (region != null) {
@@ -69,10 +70,11 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
             }
         }
 
-        return getClient(endpoint, protocol, account, key, maxRetries);
+        return getClient(endpoint, protocol, account, key, maxRetries, useThrottleRetries);
     }
 
-    private synchronized AmazonS3 getClient(String endpoint, Protocol protocol, String account, String key, Integer maxRetries) {
+    private synchronized AmazonS3 getClient(String endpoint, Protocol protocol, String account, String key, Integer maxRetries,
+                                            boolean useThrottleRetries) {
         Tuple<String, String> clientDescriptor = new Tuple<>(endpoint, account);
         AmazonS3Client client = clients.get(clientDescriptor);
         if (client != null) {
@@ -102,6 +104,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
             // If not explicitly set, default to 3 with exponential backoff policy
             clientConfiguration.setMaxErrorRetry(maxRetries);
         }
+        clientConfiguration.setUseThrottleRetries(useThrottleRetries);
 
         // #155: we might have 3rd party users using older S3 API version
         String awsSigner = CLOUD_S3.SIGNER_SETTING.get(settings);
@@ -152,6 +155,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
             return "s3-us-west-1.amazonaws.com";
         } else if ("us-west-2".equals(region)) {
             return "s3-us-west-2.amazonaws.com";
+        } else if (region.equals("ap-south-1")) {
+            return "s3-ap-south-1.amazonaws.com";
         } else if ("ap-southeast".equals(region) || "ap-southeast-1".equals(region)) {
             return "s3-ap-southeast-1.amazonaws.com";
         } else if ("ap-southeast-2".equals(region)) {

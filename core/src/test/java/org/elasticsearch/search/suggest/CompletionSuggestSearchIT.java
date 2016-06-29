@@ -31,17 +31,14 @@ import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.ReduceSearchPhaseException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -67,11 +64,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -394,39 +391,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         }
     }
 
-    public void testSuggestFieldWithPercolateApi() throws Exception {
-        createIndexAndMapping(completionMappingBuilder);
-        String[][] inputs = {{"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"},
-                {"Generator", "Foo Fighters Generator"}, {"Learn to Fly", "Foo Fighters Learn to Fly"},
-                {"The Prodigy"}, {"The Prodigy"}, {"The Prodigy"}, {"Firestarter", "The Prodigy Firestarter"},
-                {"Turbonegro"}, {"Turbonegro"}, {"Get it on", "Turbonegro Get it on"}}; // work with frequencies
-        for (int i = 0; i < inputs.length; i++) {
-            XContentBuilder source = jsonBuilder()
-                    .startObject().startObject(FIELD)
-                    .startArray("input");
-            for (String input : inputs[i]) {
-                source.value(input);
-            }
-            source.endArray()
-                    .endObject()
-                    .endObject();
-            client().prepareIndex(INDEX, TYPE, "" + i)
-                    .setSource(source).execute().actionGet();
-        }
-        client().admin().indices().preparePutMapping(INDEX).setType("query").setSource("query", "type=percolator").get();
-
-        client().prepareIndex(INDEX, "query", "4")
-                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
-                .execute().actionGet();
-
-        refresh();
-
-        PercolateResponse response = client().preparePercolate().setIndices(INDEX).setDocumentType(TYPE)
-                .setGetRequest(Requests.getRequest(INDEX).type(TYPE).id("1"))
-                .execute().actionGet();
-        assertThat(response.getCount(), equalTo(1L));
-    }
-
     public void testThatWeightsAreWorking() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
@@ -659,7 +623,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject()
                 .endObject();
         assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
-        client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
+        client().prepareIndex(INDEX, TYPE, "1").setRefreshPolicy(IMMEDIATE)
+                .setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
         ensureGreen(INDEX);
 
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
@@ -680,7 +645,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         ).execute().actionGet();
         assertSuggestions(searchResponse, "suggs");
 
-        client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
+        client().prepareIndex(INDEX, TYPE, "1").setRefreshPolicy(IMMEDIATE)
+                .setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
         ensureGreen(INDEX);
 
         SearchResponse afterReindexingResponse = client().prepareSearch(INDEX).suggest(
@@ -1126,7 +1092,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .startObject().startObject(FIELD)
                 .startArray("input").value(longString).endArray()
                 .endObject().endObject()
-        ).setRefresh(true).get();
+        ).setRefreshPolicy(IMMEDIATE).get();
 
     }
 
@@ -1148,7 +1114,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                     .startArray("input").value(string).endArray()
                     .field("output", "foobar")
                     .endObject().endObject()
-            ).setRefresh(true).get();
+            ).get();
             fail("Expected MapperParsingException");
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), containsString("failed to parse"));
@@ -1170,7 +1136,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                         .startObject()
                         .field(FIELD, string)
                         .endObject()
-        ).setRefresh(true).get();
+        ).setRefreshPolicy(IMMEDIATE).get();
 
         try {
             client().prepareSearch(INDEX).addAggregation(AggregationBuilders.terms("suggest_agg").field(FIELD)
@@ -1200,11 +1166,10 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         ensureGreen();
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(FIELD, "strings make me happy", FIELD + "_1", "nulls make me sad")
-                .setRefresh(true).get();
+                .setRefreshPolicy(IMMEDIATE).get();
 
         try {
-            client().prepareIndex(INDEX, TYPE, "2").setSource(FIELD, null, FIELD + "_1", "nulls make me sad")
-                    .setRefresh(true).get();
+            client().prepareIndex(INDEX, TYPE, "2").setSource(FIELD, null, FIELD + "_1", "nulls make me sad").get();
             fail("Expected MapperParsingException for null value");
         } catch (MapperParsingException e) {
             // make sure that the exception has the name of the field causing the error

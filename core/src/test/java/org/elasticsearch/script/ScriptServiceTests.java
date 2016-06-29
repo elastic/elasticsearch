@@ -41,14 +41,11 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -61,7 +58,6 @@ public class ScriptServiceTests extends ESTestCase {
     private ResourceWatcherService resourceWatcherService;
     private ScriptEngineService scriptEngineService;
     private ScriptEngineService dangerousScriptEngineService;
-    private Set<ScriptEngineService> services;
     private Map<String, ScriptEngineService> scriptEnginesByLangMap;
     private ScriptEngineRegistry scriptEngineRegistry;
     private ScriptContextRegistry scriptContextRegistry;
@@ -71,12 +67,12 @@ public class ScriptServiceTests extends ESTestCase {
     private Path scriptsFilePath;
     private Settings baseSettings;
 
-    private static final Map<ScriptType, ScriptMode> DEFAULT_SCRIPT_MODES = new HashMap<>();
+    private static final Map<ScriptType, Boolean> DEFAULT_SCRIPT_ENABLED = new HashMap<>();
 
     static {
-        DEFAULT_SCRIPT_MODES.put(ScriptType.FILE, ScriptMode.ON);
-        DEFAULT_SCRIPT_MODES.put(ScriptType.STORED, ScriptMode.OFF);
-        DEFAULT_SCRIPT_MODES.put(ScriptType.INLINE, ScriptMode.OFF);
+        DEFAULT_SCRIPT_ENABLED.put(ScriptType.FILE, true);
+        DEFAULT_SCRIPT_ENABLED.put(ScriptType.STORED, false);
+        DEFAULT_SCRIPT_ENABLED.put(ScriptType.INLINE, false);
     }
 
     @Before
@@ -89,9 +85,6 @@ public class ScriptServiceTests extends ESTestCase {
         resourceWatcherService = new ResourceWatcherService(baseSettings, null);
         scriptEngineService = new TestEngineService();
         dangerousScriptEngineService = new TestDangerousEngineService();
-        services = new HashSet<>(2);
-        services.add(scriptEngineService);
-        services.add(dangerousScriptEngineService);
         scriptEnginesByLangMap = ScriptModesTests.buildScriptEnginesByLangMap(Collections.singleton(scriptEngineService));
         //randomly register custom script contexts
         int randomInt = randomIntBetween(0, 3);
@@ -109,10 +102,7 @@ public class ScriptServiceTests extends ESTestCase {
             String context = plugin + "_" + operation;
             contexts.put(context, new ScriptContext.Plugin(plugin, operation));
         }
-        List<ScriptEngineRegistry.ScriptEngineRegistration> registries = new ArrayList<>(2);
-        registries.add(new ScriptEngineRegistry.ScriptEngineRegistration(TestEngineService.class, TestEngineService.NAME, ScriptMode.ON));
-        registries.add(new ScriptEngineRegistry.ScriptEngineRegistration(TestDangerousEngineService.class, TestDangerousEngineService.NAME));
-        scriptEngineRegistry = new ScriptEngineRegistry(registries);
+        scriptEngineRegistry = new ScriptEngineRegistry(Arrays.asList(scriptEngineService, dangerousScriptEngineService));
         scriptContextRegistry = new ScriptContextRegistry(contexts.values());
         scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         scriptContexts = scriptContextRegistry.scriptContexts().toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
@@ -124,7 +114,7 @@ public class ScriptServiceTests extends ESTestCase {
     private void buildScriptService(Settings additionalSettings) throws IOException {
         Settings finalSettings = Settings.builder().put(baseSettings).put(additionalSettings).build();
         Environment environment = new Environment(finalSettings);
-        scriptService = new ScriptService(finalSettings, environment, services, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
+        scriptService = new ScriptService(finalSettings, environment, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
             @Override
             String getScriptFromClusterState(ClusterState state, String scriptLang, String id) {
                 //mock the script that gets retrieved from an index
@@ -215,25 +205,25 @@ public class ScriptServiceTests extends ESTestCase {
     public void testFineGrainedSettings() throws IOException {
         //collect the fine-grained settings to set for this run
         int numScriptSettings = randomIntBetween(0, ScriptType.values().length);
-        Map<ScriptType, ScriptMode> scriptSourceSettings = new HashMap<>();
+        Map<ScriptType, Boolean> scriptSourceSettings = new HashMap<>();
         for (int i = 0; i < numScriptSettings; i++) {
             ScriptType scriptType;
             do {
                 scriptType = randomFrom(ScriptType.values());
             } while (scriptSourceSettings.containsKey(scriptType));
-            scriptSourceSettings.put(scriptType, randomFrom(ScriptMode.values()));
+            scriptSourceSettings.put(scriptType, randomBoolean());
         }
         int numScriptContextSettings = randomIntBetween(0, this.scriptContextRegistry.scriptContexts().size());
-        Map<ScriptContext, ScriptMode> scriptContextSettings = new HashMap<>();
+        Map<ScriptContext, Boolean> scriptContextSettings = new HashMap<>();
         for (int i = 0; i < numScriptContextSettings; i++) {
             ScriptContext scriptContext;
             do {
                 scriptContext = randomFrom(this.scriptContexts);
             } while (scriptContextSettings.containsKey(scriptContext));
-            scriptContextSettings.put(scriptContext, randomFrom(ScriptMode.values()));
+            scriptContextSettings.put(scriptContext, randomBoolean());
         }
         int numEngineSettings = randomIntBetween(0, ScriptType.values().length * scriptContexts.length);
-        Map<String, ScriptMode> engineSettings = new HashMap<>();
+        Map<String, Boolean> engineSettings = new HashMap<>();
         for (int i = 0; i < numEngineSettings; i++) {
             String settingKey;
             do {
@@ -241,43 +231,34 @@ public class ScriptServiceTests extends ESTestCase {
                 ScriptContext scriptContext = randomFrom(this.scriptContexts);
                 settingKey = scriptEngineService.getType() + "." + scriptType + "." + scriptContext.getKey();
             } while (engineSettings.containsKey(settingKey));
-            engineSettings.put(settingKey, randomFrom(ScriptMode.values()));
+            engineSettings.put(settingKey, randomBoolean());
         }
         //set the selected fine-grained settings
         Settings.Builder builder = Settings.builder();
-        for (Map.Entry<ScriptType, ScriptMode> entry : scriptSourceSettings.entrySet()) {
-            switch (entry.getValue()) {
-                case ON:
-                    builder.put("script" + "." + entry.getKey().getScriptType(), "true");
-                    break;
-                case OFF:
-                    builder.put("script" + "." + entry.getKey().getScriptType(), "false");
-                    break;
+        for (Map.Entry<ScriptType, Boolean> entry : scriptSourceSettings.entrySet()) {
+            if (entry.getValue()) {
+                builder.put("script" + "." + entry.getKey().getScriptType(), "true");
+            } else {
+                builder.put("script" + "." + entry.getKey().getScriptType(), "false");
             }
         }
-        for (Map.Entry<ScriptContext, ScriptMode> entry : scriptContextSettings.entrySet()) {
-            switch (entry.getValue()) {
-                case ON:
-                    builder.put("script" + "." + entry.getKey().getKey(), "true");
-                    break;
-                case OFF:
-                    builder.put("script" + "." + entry.getKey().getKey(), "false");
-                    break;
+        for (Map.Entry<ScriptContext, Boolean> entry : scriptContextSettings.entrySet()) {
+            if (entry.getValue()) {
+                builder.put("script" + "." + entry.getKey().getKey(), "true");
+            } else {
+                builder.put("script" + "." + entry.getKey().getKey(), "false");
             }
         }
-        for (Map.Entry<String, ScriptMode> entry : engineSettings.entrySet()) {
+        for (Map.Entry<String, Boolean> entry : engineSettings.entrySet()) {
             int delimiter = entry.getKey().indexOf('.');
             String part1 = entry.getKey().substring(0, delimiter);
             String part2 = entry.getKey().substring(delimiter + 1);
 
             String lang = randomFrom(scriptEnginesByLangMap.get(part1).getType());
-            switch (entry.getValue()) {
-                case ON:
-                    builder.put("script.engine" + "." + lang + "." + part2, "true");
-                    break;
-                case OFF:
-                    builder.put("script.engine" + "." + lang + "." + part2, "false");
-                    break;
+            if (entry.getValue()) {
+                builder.put("script.engine" + "." + lang + "." + part2, "true");
+            } else {
+                builder.put("script.engine" + "." + lang + "." + part2, "false");
             }
         }
 
@@ -290,25 +271,22 @@ public class ScriptServiceTests extends ESTestCase {
             String script = scriptType == ScriptType.FILE ? "file_script" : "script";
             for (ScriptContext scriptContext : this.scriptContexts) {
                 //fallback mechanism: 1) engine specific settings 2) op based settings 3) source based settings
-                ScriptMode scriptMode = engineSettings.get(dangerousScriptEngineService.getType() + "." + scriptType + "." + scriptContext.getKey());
-                if (scriptMode == null) {
-                    scriptMode = scriptContextSettings.get(scriptContext);
+                Boolean scriptEnabled = engineSettings.get(dangerousScriptEngineService.getType() + "." + scriptType + "." + scriptContext.getKey());
+                if (scriptEnabled == null) {
+                    scriptEnabled = scriptContextSettings.get(scriptContext);
                 }
-                if (scriptMode == null) {
-                    scriptMode = scriptSourceSettings.get(scriptType);
+                if (scriptEnabled == null) {
+                    scriptEnabled = scriptSourceSettings.get(scriptType);
                 }
-                if (scriptMode == null) {
-                    scriptMode = DEFAULT_SCRIPT_MODES.get(scriptType);
+                if (scriptEnabled == null) {
+                    scriptEnabled = DEFAULT_SCRIPT_ENABLED.get(scriptType);
                 }
 
                 String lang = dangerousScriptEngineService.getType();
-                switch (scriptMode) {
-                    case ON:
-                        assertCompileAccepted(lang, script, scriptType, scriptContext);
-                        break;
-                    case OFF:
-                        assertCompileRejected(lang, script, scriptType, scriptContext);
-                        break;
+                if (scriptEnabled) {
+                    assertCompileAccepted(lang, script, scriptType, scriptContext);
+                } else {
+                    assertCompileRejected(lang, script, scriptType, scriptContext);
                 }
             }
         }
@@ -493,7 +471,7 @@ public class ScriptServiceTests extends ESTestCase {
         try {
             scriptService.compile(new Script(script, scriptType, lang, null), scriptContext, Collections.emptyMap(), emptyClusterState());
             fail("compile should have been rejected for lang [" + lang + "], script_type [" + scriptType + "], scripted_op [" + scriptContext + "]");
-        } catch(ScriptException e) {
+        } catch(IllegalStateException e) {
             //all good
         }
     }
@@ -541,8 +519,8 @@ public class ScriptServiceTests extends ESTestCase {
         }
 
         @Override
-        public void scriptRemoved(CompiledScript script) {
-            // Nothing to do here
+        public boolean isInlineScriptEnabled() {
+            return true;
         }
     }
 
@@ -579,12 +557,6 @@ public class ScriptServiceTests extends ESTestCase {
 
         @Override
         public void close() {
-
-        }
-
-        @Override
-        public void scriptRemoved(CompiledScript script) {
-            // Nothing to do here
         }
     }
 

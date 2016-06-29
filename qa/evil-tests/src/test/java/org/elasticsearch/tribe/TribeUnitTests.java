@@ -28,7 +28,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -84,29 +83,10 @@ public class TribeUnitTests extends ESTestCase {
         tribe2 = null;
     }
 
-    public void testThatTribeClientsIgnoreGlobalSysProps() throws Exception {
-        System.setProperty("es.cluster.name", "tribe_node_cluster");
-        System.setProperty("es.tribe.t1.cluster.name", "tribe1");
-        System.setProperty("es.tribe.t2.cluster.name", "tribe2");
-        System.setProperty("es.tribe.t1.node_id.seed", Long.toString(random().nextLong()));
-        System.setProperty("es.tribe.t2.node_id.seed", Long.toString(random().nextLong()));
-
-        try {
-            assertTribeNodeSuccessfullyCreated(Settings.EMPTY);
-        } finally {
-            System.clearProperty("es.cluster.name");
-            System.clearProperty("es.tribe.t1.cluster.name");
-            System.clearProperty("es.tribe.t2.cluster.name");
-            System.clearProperty("es.tribe.t1.node_id.seed");
-            System.clearProperty("es.tribe.t2.node_id.seed");
-        }
-    }
-
     public void testThatTribeClientsIgnoreGlobalConfig() throws Exception {
         Path pathConf = getDataPath("elasticsearch.yml").getParent();
         Settings settings = Settings
             .builder()
-            .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
             .put(Environment.PATH_CONF_SETTING.getKey(), pathConf)
             .build();
         assertTribeNodeSuccessfullyCreated(settings);
@@ -130,8 +110,8 @@ public class TribeUnitTests extends ESTestCase {
                         assertThat(state.getClusterName().value(), equalTo("tribe_node_cluster"));
                         assertThat(state.getNodes().getSize(), equalTo(5));
                         for (DiscoveryNode discoveryNode : state.getNodes()) {
-                            assertThat(discoveryNode.getName(), either(equalTo("tribe1_node")).or(equalTo("tribe2_node")).or(equalTo("tribe_node"))
-                                    .or(equalTo("tribe_node/t1")).or(equalTo("tribe_node/t2")));
+                            assertThat(discoveryNode.getName(), either(equalTo("tribe1_node")).or(equalTo("tribe2_node"))
+                                    .or(equalTo("tribe_node")).or(equalTo("tribe_node/t1")).or(equalTo("tribe_node/t2")));
                         }
                     }
                 });

@@ -21,7 +21,6 @@ package org.elasticsearch.search.fetch.script;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -32,27 +31,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 
-/**
- *
- */
-public class ScriptFieldsFetchSubPhase implements FetchSubPhase {
-
-    @Override
-    public boolean hitsExecutionNeeded(SearchContext context) {
-        return false;
-    }
-
-    @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
-    }
-
-    @Override
-    public boolean hitExecutionNeeded(SearchContext context) {
-        return context.hasScriptFields();
-    }
+public final class ScriptFieldsFetchSubPhase implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {
+        if (context.hasScriptFields() == false) {
+            return;
+        }
         for (ScriptFieldsContext.ScriptField scriptField : context.scriptFields().fields()) {
             LeafSearchScript leafScript;
             try {
@@ -62,10 +47,9 @@ public class ScriptFieldsFetchSubPhase implements FetchSubPhase {
             }
             leafScript.setDocument(hitContext.docId());
 
-            Object value;
+            final Object value;
             try {
-                value = leafScript.run();
-                value = leafScript.unwrap(value);
+                value = leafScript.unwrap(leafScript.run());
             } catch (RuntimeException e) {
                 if (scriptField.ignoreException()) {
                     continue;
@@ -74,17 +58,15 @@ public class ScriptFieldsFetchSubPhase implements FetchSubPhase {
             }
 
             if (hitContext.hit().fieldsOrNull() == null) {
-                hitContext.hit().fields(new HashMap<String, SearchHitField>(2));
+                hitContext.hit().fields(new HashMap<>(2));
             }
 
             SearchHitField hitField = hitContext.hit().fields().get(scriptField.name());
             if (hitField == null) {
                 final List<Object> values;
-                if (value == null) {
-                    values = Collections.emptyList();
-                } else if (value instanceof Collection) {
+                if (value instanceof Collection) {
                     // TODO: use diamond operator once JI-9019884 is fixed
-                    values = new ArrayList<Object>((Collection<?>) value);
+                    values = new ArrayList<>((Collection<?>) value);
                 } else {
                     values = Collections.singletonList(value);
                 }

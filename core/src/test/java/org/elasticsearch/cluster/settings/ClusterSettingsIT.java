@@ -263,7 +263,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                     .get();
             fail("bogus value");
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Failed to parse setting [discovery.zen.publish_timeout] with value [whatever] as a time value: unit is missing or unrecognized");
+            assertEquals(ex.getMessage(), "failed to parse setting [discovery.zen.publish_timeout] with value [whatever] as a time value: unit is missing or unrecognized");
         }
 
         assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));

@@ -30,7 +30,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.transport.TransportRequest;
@@ -112,10 +111,6 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     @Override
     public long nowInMillis() {
         return shardSearchLocalRequest.nowInMillis();
-    }
-    @Override
-    public Template template() {
-        return shardSearchLocalRequest.template();
     }
 
     @Override

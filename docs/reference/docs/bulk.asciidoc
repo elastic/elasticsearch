@@ -128,26 +128,6 @@ field. It automatically follows the behavior of the index / delete
 operation based on the `_parent` / `_routing` mapping.
 
 [float]
-[[bulk-timestamp]]
-=== Timestamp
-
-deprecated[2.0.0,The `_timestamp` field is deprecated.  Instead, use a normal <<date,`date`>> field and set its value explicitly]
-
-Each bulk item can include the timestamp value using the
-`_timestamp`/`timestamp` field. It automatically follows the behavior of
-the index operation based on the `_timestamp` mapping.
-
-[float]
-[[bulk-ttl]]
-=== TTL
-
-deprecated[2.0.0,The current `_ttl` implementation is deprecated and will be replaced with a different implementation in a future version]
-
-Each bulk item can include the ttl value using the `_ttl`/`ttl` field.
-It automatically follows the behavior of the index operation based on
-the `_ttl` mapping.
-
-[float]
 [[bulk-consistency]]
 === Write Consistency
 
@@ -167,12 +147,8 @@ are the same).
 [[bulk-refresh]]
 === Refresh
 
-The `refresh` parameter can be set to `true` in order to refresh the relevant
-primary and replica shards immediately after the bulk operation has occurred
-and make it searchable, instead of waiting for the normal refresh interval to
-expire. Setting it to `true` can trigger additional load, and may slow down
-indexing. Due to its costly nature, the `refresh` parameter is set on the bulk request level
-and is not supported on each individual bulk item.
+Control when the changes made by this request are visible to search. See
+<<docs-refresh>>.
 
 [float]
 [[bulk-update]]
@@ -192,7 +168,7 @@ the options. Curl example with update actions:
 { "update" : {"_id" : "1", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
 { "doc" : {"field" : "value"} }
 { "update" : { "_id" : "0", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
-{ "script" : { "inline": "ctx._source.counter += param1", "lang" : "javascript", "params" : {"param1" : 1}}, "upsert" : {"counter" : 1}}
+{ "script" : { "inline": "ctx._source.counter += params.param1", "lang" : "painless", "params" : {"param1" : 1}}, "upsert" : {"counter" : 1}}
 { "update" : {"_id" : "2", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
 { "doc" : {"field" : "value"}, "doc_as_upsert" : true }
 { "update" : {"_id" : "3", "_type" : "type1", "_index" : "index1", "fields" : ["_source"]} }

@@ -32,7 +32,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
-import org.elasticsearch.transport.TCPTransport;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -56,7 +56,7 @@ public class NettyScheduledPingTests extends ESTestCase {
         ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
         Settings settings = Settings.builder()
-            .put(TCPTransport.PING_SCHEDULE.getKey(), "5ms")
+            .put(TcpTransport.PING_SCHEDULE.getKey(), "5ms")
             .put(TransportSettings.PORT.getKey(), 0)
             .put("cluster.name", "test")
             .build();

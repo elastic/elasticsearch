@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -676,8 +677,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.indices.IndexAlreadyExistsException::new, 123),
         SCRIPT_PARSE_EXCEPTION(org.elasticsearch.script.Script.ScriptParseException.class,
                 org.elasticsearch.script.Script.ScriptParseException::new, 124),
-        HTTP_ON_TRANSPORT_EXCEPTION(org.elasticsearch.transport.TCPTransport.HttpOnTransportException.class,
-                org.elasticsearch.transport.TCPTransport.HttpOnTransportException::new, 125),
+        HTTP_ON_TRANSPORT_EXCEPTION(TcpTransport.HttpOnTransportException.class,
+                TcpTransport.HttpOnTransportException::new, 125),
         MAPPER_PARSING_EXCEPTION(org.elasticsearch.index.mapper.MapperParsingException.class,
                 org.elasticsearch.index.mapper.MapperParsingException::new, 126),
         SEARCH_CONTEXT_EXCEPTION(org.elasticsearch.search.SearchContextException.class,

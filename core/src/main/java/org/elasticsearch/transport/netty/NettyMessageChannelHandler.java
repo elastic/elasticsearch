@@ -21,9 +21,9 @@ package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.netty.NettyUtils;
-import org.elasticsearch.transport.TCPMessageHandler;
-import org.elasticsearch.transport.TCPHeader;
-import org.elasticsearch.transport.TCPTransportChannel;
+import org.elasticsearch.transport.TcpMessageHandler;
+import org.elasticsearch.transport.TcpHeader;
+import org.elasticsearch.transport.TcpTransportChannel;
 import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.Transports;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -44,9 +44,9 @@ public class NettyMessageChannelHandler extends SimpleChannelUpstreamHandler {
     protected final TransportServiceAdapter transportServiceAdapter;
     protected final NettyTransport transport;
     protected final String profileName;
-    private final TCPMessageHandler messageChannelHandler;
+    private final TcpMessageHandler messageChannelHandler;
 
-    public NettyMessageChannelHandler(NettyTransport transport, String profileName, TCPMessageHandler handler) {
+    public NettyMessageChannelHandler(NettyTransport transport, String profileName, TcpMessageHandler handler) {
         messageChannelHandler = handler;
         this.transportServiceAdapter = transport.transportServiceAdapter();
         this.transport = transport;
@@ -68,10 +68,10 @@ public class NettyMessageChannelHandler extends SimpleChannelUpstreamHandler {
             return;
         }
         final ChannelBuffer buffer = (ChannelBuffer) m;
-        final int remainingMessageSize = buffer.getInt(buffer.readerIndex() - TCPHeader.MESSAGE_LENGTH_SIZE);
+        final int remainingMessageSize = buffer.getInt(buffer.readerIndex() - TcpHeader.MESSAGE_LENGTH_SIZE);
         final int expectedReaderIndex = buffer.readerIndex() + remainingMessageSize;
-        TCPMessageHandler.ChannelFactory channelFactory = (action, requestId, version, reservedBytes) ->
-            new TCPTransportChannel<>(transport, ctx.getChannel(), "netty", action, requestId, version, profileName, reservedBytes);
+        TcpMessageHandler.ChannelFactory channelFactory = (action, requestId, version, reservedBytes) ->
+            new TcpTransportChannel<>(transport, ctx.getChannel(), "netty", action, requestId, version, profileName, reservedBytes);
         InetSocketAddress remoteAddress = (InetSocketAddress) ctx.getChannel().getRemoteAddress();
         try {
             // netty always copies a buffer, either in NioWorker in its read handler, where it copies to a fresh

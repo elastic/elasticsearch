@@ -58,9 +58,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.support.TransportStatus;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.ChannelFuture;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -102,7 +99,7 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 
 /**
  */
-public abstract class TCPTransport<Channel> extends AbstractLifecycleComponent<Transport> implements Transport {
+public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent<Transport> implements Transport {
 
     public static final String HTTP_SERVER_WORKER_THREAD_NAME_PREFIX = "http_server_worker";
     public static final String HTTP_SERVER_BOSS_THREAD_NAME_PREFIX = "http_server_boss";
@@ -175,7 +172,7 @@ public abstract class TCPTransport<Channel> extends AbstractLifecycleComponent<T
     protected volatile BoundTransportAddress boundAddress;
 
 
-    public TCPTransport(Settings settings, ThreadPool threadPool, BigArrays bigArrays, CircuitBreakerService circuitBreakerService,
+    public TcpTransport(Settings settings, ThreadPool threadPool, BigArrays bigArrays, CircuitBreakerService circuitBreakerService,
                         NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
         super(settings);
         this.threadPool = threadPool;
@@ -538,8 +535,8 @@ public abstract class TCPTransport<Channel> extends AbstractLifecycleComponent<T
     }
 
 
-    public TCPMessageHandler newMessageChannelHandler() {
-        return new TCPMessageHandler(threadPool, this, transportServiceAdapter, namedWriteableRegistry, logger);
+    public TcpMessageHandler newMessageChannelHandler() {
+        return new TcpMessageHandler(threadPool, this, transportServiceAdapter, namedWriteableRegistry, logger);
     }
 
     @Override
@@ -824,7 +821,7 @@ public abstract class TCPTransport<Channel> extends AbstractLifecycleComponent<T
                 channel);
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
             disconnectFromNodeChannel(channel, e);
-        } else if (e instanceof TCPTransport.HttpOnTransportException) {
+        } else if (e instanceof TcpTransport.HttpOnTransportException) {
             // in case we are able to return data, serialize the exception content and sent it back to the client
             if (isOpen(channel)) {
                 sendMessage(channel, new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8)), () -> {}, true);
@@ -892,7 +889,7 @@ public abstract class TCPTransport<Channel> extends AbstractLifecycleComponent<T
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
         boolean addedReleaseListener = false;
         try {
-            bStream.skip(TCPHeader.HEADER_SIZE);
+            bStream.skip(TcpHeader.HEADER_SIZE);
             StreamOutput stream = bStream;
             // only compress if asked, and, the request is not bytes, since then only
             // the header part is compressed, and the "body" can't be extracted as compressed
@@ -912,7 +909,7 @@ public abstract class TCPTransport<Channel> extends AbstractLifecycleComponent<T
 
             Message<Channel> writeable = prepareSend(node.getVersion(), request, stream, bStream);
             try (StreamOutput headerOutput = writeable.getHeaderOutput()) {
-                TCPHeader.writeHeader(headerOutput, requestId, status, version,
+                TcpHeader.writeHeader(headerOutput, requestId, status, version,
                     writeable.size());
             }
             final TransportRequestOptions finalOptions = options;
@@ -945,7 +942,7 @@ public abstract class TCPTransport<Channel> extends AbstractLifecycleComponent<T
                                   final String action) throws IOException {
         BytesStreamOutput stream = new BytesStreamOutput();
         stream.setVersion(nodeVersion);
-        stream.skip(TCPHeader.HEADER_SIZE);
+        stream.skip(TcpHeader.HEADER_SIZE);
         RemoteTransportException tx = new RemoteTransportException(
             nodeName(), new InetSocketTransportAddress(getLocalAddress(channel)), action, error);
         stream.writeThrowable(tx);
@@ -956,7 +953,7 @@ public abstract class TCPTransport<Channel> extends AbstractLifecycleComponent<T
         final BytesReference bytes = stream.bytes();
         Message<Channel> writeable = prepareSend(nodeVersion, bytes);
         try (StreamOutput headerOutput = writeable.getHeaderOutput()) {
-            TCPHeader.writeHeader(headerOutput, requestId, status, nodeVersion,
+            TcpHeader.writeHeader(headerOutput, requestId, status, nodeVersion,
                 writeable.size());
         }
         Runnable onRequestSent = () -> {
@@ -981,7 +978,7 @@ public abstract class TCPTransport<Channel> extends AbstractLifecycleComponent<T
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
         boolean addedReleaseListener = false;
         try {
-            bStream.skip(TCPHeader.HEADER_SIZE);
+            bStream.skip(TcpHeader.HEADER_SIZE);
             StreamOutput stream = bStream;
             if (options.compress()) {
                 status = TransportStatus.setCompress(status);
@@ -990,7 +987,7 @@ public abstract class TCPTransport<Channel> extends AbstractLifecycleComponent<T
             stream.setVersion(nodeVersion);
             Message<Channel> writeable = prepareSend(nodeVersion, response, stream, bStream);
             try (StreamOutput headerOutput = writeable.getHeaderOutput()) {
-                TCPHeader.writeHeader(headerOutput, requestId, status, nodeVersion,
+                TcpHeader.writeHeader(headerOutput, requestId, status, nodeVersion,
                     writeable.size());
             }
             final TransportResponseOptions finalOptions = options;
@@ -1060,7 +1057,7 @@ public abstract class TCPTransport<Channel> extends AbstractLifecycleComponent<T
      * memory.
      */
     public static boolean validateMessageHeader(BytesReference buffer) throws IOException {
-        final int sizeHeaderLength = TCPHeader.MARKER_BYTES_SIZE + TCPHeader.MESSAGE_LENGTH_SIZE;
+        final int sizeHeaderLength = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
         if (buffer.length() < sizeHeaderLength) {
             throw new IllegalStateException("message size must be >= to the header size");
         }
@@ -1089,7 +1086,7 @@ public abstract class TCPTransport<Channel> extends AbstractLifecycleComponent<T
 
         final int dataLen;
         try (StreamInput input = buffer.streamInput()) {
-            input.skip(TCPHeader.MARKER_BYTES_SIZE);
+            input.skip(TcpHeader.MARKER_BYTES_SIZE);
             dataLen = input.readInt();
             if (dataLen == PING_DATA_SIZE) {
                 // discard the messages we read and continue, this is achieved by skipping the bytes

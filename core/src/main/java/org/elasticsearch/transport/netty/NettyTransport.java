@@ -22,16 +22,13 @@ package org.elasticsearch.transport.netty;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.ReleasableBytesStream;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
 import org.elasticsearch.common.network.NetworkService;
@@ -49,7 +46,7 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.TCPTransport;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportServiceAdapter;
@@ -78,7 +75,6 @@ import org.jboss.netty.util.HashedWheelTimer;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -98,7 +94,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  * longer. Med is for the typical search / single doc index. And High for things like cluster state. Ping is reserved for
  * sending out ping requests to other nodes.
  */
-public class NettyTransport extends TCPTransport<Channel> {
+public class NettyTransport extends TcpTransport<Channel> {
 
     static {
         NettyUtils.setup();

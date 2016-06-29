@@ -30,7 +30,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -39,13 +38,12 @@ import org.elasticsearch.transport.support.TransportStatus;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.function.IntSupplier;
 
 /**
  * A handler (must be the last one!) that does size based frame decoding and forwards the actual message
  * to the relevant action.
  */
-public class TCPMessageHandler {
+public class TcpMessageHandler {
 
     protected final ESLogger logger;
     protected final ThreadPool threadPool;
@@ -54,7 +52,7 @@ public class TCPMessageHandler {
     protected final ThreadContext threadContext;
     protected final NamedWriteableRegistry namedWriteableRegistry;
 
-    public TCPMessageHandler(ThreadPool threadPool, Transport transport, TransportServiceAdapter adapter,
+    public TcpMessageHandler(ThreadPool threadPool, Transport transport, TransportServiceAdapter adapter,
                              NamedWriteableRegistry namedWriteableRegistry, ESLogger logger) {
         this.threadPool = threadPool;
         this.threadContext = threadPool.getThreadContext();
@@ -66,10 +64,10 @@ public class TCPMessageHandler {
 
     public final void messageReceived(BytesReference reference, ChannelFactory channelFactory,
                                       InetSocketAddress remoteAddress, int messageLengthBytes) throws IOException {
-        transportServiceAdapter.received(messageLengthBytes + TCPHeader.MARKER_BYTES_SIZE + TCPHeader.MESSAGE_LENGTH_SIZE);
-        final int totalMessageSize = messageLengthBytes + TCPHeader.MARKER_BYTES_SIZE + TCPHeader.MESSAGE_LENGTH_SIZE;
+        transportServiceAdapter.received(messageLengthBytes + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE);
+        final int totalMessageSize = messageLengthBytes + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
         // we have additional bytes to read, outside of the header
-        boolean hasMessageBytesToRead = (totalMessageSize - TCPHeader.HEADER_SIZE) > 0;
+        boolean hasMessageBytesToRead = (totalMessageSize - TcpHeader.HEADER_SIZE) > 0;
         StreamInput streamIn = reference.streamInput();
         boolean success = false;
         try (ThreadContext.StoredContext tCtx = threadContext.stashContext()) {
@@ -79,7 +77,7 @@ public class TCPMessageHandler {
             if (TransportStatus.isCompress(status) && hasMessageBytesToRead && streamIn.available() > 0) {
                 Compressor compressor;
                 try {
-                    final int bytesConsumed = TCPHeader.REQUEST_ID_SIZE + TCPHeader.STATUS_SIZE + TCPHeader.VERSION_ID_SIZE;
+                    final int bytesConsumed = TcpHeader.REQUEST_ID_SIZE + TcpHeader.STATUS_SIZE + TcpHeader.VERSION_ID_SIZE;
                     compressor = CompressorFactory.compressor(reference.slice(bytesConsumed, reference.length() - bytesConsumed));
                 } catch (NotCompressedException ex) {
                     int maxToRead = Math.min(reference.length(), 10);

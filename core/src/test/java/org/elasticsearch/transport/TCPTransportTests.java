@@ -27,7 +27,7 @@ public class TCPTransportTests extends ESTestCase {
 
     /** Test ipv4 host with a default port works */
     public void testParseV4DefaultPort() throws Exception {
-        TransportAddress[] addresses = TCPTransport.parse("127.0.0.1", "1234", Integer.MAX_VALUE);
+        TransportAddress[] addresses = TcpTransport.parse("127.0.0.1", "1234", Integer.MAX_VALUE);
         assertEquals(1, addresses.length);
 
         assertEquals("127.0.0.1", addresses[0].getAddress());
@@ -36,7 +36,7 @@ public class TCPTransportTests extends ESTestCase {
 
     /** Test ipv4 host with a default port range works */
     public void testParseV4DefaultRange() throws Exception {
-        TransportAddress[] addresses = TCPTransport.parse("127.0.0.1", "1234-1235", Integer.MAX_VALUE);
+        TransportAddress[] addresses = TcpTransport.parse("127.0.0.1", "1234-1235", Integer.MAX_VALUE);
         assertEquals(2, addresses.length);
 
         assertEquals("127.0.0.1", addresses[0].getAddress());
@@ -48,7 +48,7 @@ public class TCPTransportTests extends ESTestCase {
 
     /** Test ipv4 host with port works */
     public void testParseV4WithPort() throws Exception {
-        TransportAddress[] addresses = TCPTransport.parse("127.0.0.1:2345", "1234", Integer.MAX_VALUE);
+        TransportAddress[] addresses = TcpTransport.parse("127.0.0.1:2345", "1234", Integer.MAX_VALUE);
         assertEquals(1, addresses.length);
 
         assertEquals("127.0.0.1", addresses[0].getAddress());
@@ -57,7 +57,7 @@ public class TCPTransportTests extends ESTestCase {
 
     /** Test ipv4 host with port range works */
     public void testParseV4WithPortRange() throws Exception {
-        TransportAddress[] addresses = TCPTransport.parse("127.0.0.1:2345-2346", "1234", Integer.MAX_VALUE);
+        TransportAddress[] addresses = TcpTransport.parse("127.0.0.1:2345-2346", "1234", Integer.MAX_VALUE);
         assertEquals(2, addresses.length);
 
         assertEquals("127.0.0.1", addresses[0].getAddress());
@@ -70,7 +70,7 @@ public class TCPTransportTests extends ESTestCase {
     /** Test unbracketed ipv6 hosts in configuration fail. Leave no ambiguity */
     public void testParseV6UnBracketed() throws Exception {
         try {
-            TCPTransport.parse("::1", "1234", Integer.MAX_VALUE);
+            TcpTransport.parse("::1", "1234", Integer.MAX_VALUE);
             fail("should have gotten exception");
         } catch (IllegalArgumentException expected) {
             assertTrue(expected.getMessage().contains("must be bracketed"));
@@ -79,7 +79,7 @@ public class TCPTransportTests extends ESTestCase {
 
     /** Test ipv6 host with a default port works */
     public void testParseV6DefaultPort() throws Exception {
-        TransportAddress[] addresses = TCPTransport.parse("[::1]", "1234", Integer.MAX_VALUE);
+        TransportAddress[] addresses = TcpTransport.parse("[::1]", "1234", Integer.MAX_VALUE);
         assertEquals(1, addresses.length);
 
         assertEquals("::1", addresses[0].getAddress());
@@ -88,7 +88,7 @@ public class TCPTransportTests extends ESTestCase {
 
     /** Test ipv6 host with a default port range works */
     public void testParseV6DefaultRange() throws Exception {
-        TransportAddress[] addresses = TCPTransport.parse("[::1]", "1234-1235", Integer.MAX_VALUE);
+        TransportAddress[] addresses = TcpTransport.parse("[::1]", "1234-1235", Integer.MAX_VALUE);
         assertEquals(2, addresses.length);
 
         assertEquals("::1", addresses[0].getAddress());
@@ -100,7 +100,7 @@ public class TCPTransportTests extends ESTestCase {
 
     /** Test ipv6 host with port works */
     public void testParseV6WithPort() throws Exception {
-        TransportAddress[] addresses = TCPTransport.parse("[::1]:2345", "1234", Integer.MAX_VALUE);
+        TransportAddress[] addresses = TcpTransport.parse("[::1]:2345", "1234", Integer.MAX_VALUE);
         assertEquals(1, addresses.length);
 
         assertEquals("::1", addresses[0].getAddress());
@@ -109,7 +109,7 @@ public class TCPTransportTests extends ESTestCase {
 
     /** Test ipv6 host with port range works */
     public void testParseV6WithPortRange() throws Exception {
-        TransportAddress[] addresses = TCPTransport.parse("[::1]:2345-2346", "1234", Integer.MAX_VALUE);
+        TransportAddress[] addresses = TcpTransport.parse("[::1]:2345-2346", "1234", Integer.MAX_VALUE);
         assertEquals(2, addresses.length);
 
         assertEquals("::1", addresses[0].getAddress());
@@ -121,7 +121,7 @@ public class TCPTransportTests extends ESTestCase {
 
     /** Test per-address limit */
     public void testAddressLimit() throws Exception {
-        TransportAddress[] addresses = TCPTransport.parse("[::1]:100-200", "1000", 3);
+        TransportAddress[] addresses = TcpTransport.parse("[::1]:100-200", "1000", 3);
         assertEquals(3, addresses.length);
         assertEquals(100, addresses[0].getPort());
         assertEquals(101, addresses[1].getPort());

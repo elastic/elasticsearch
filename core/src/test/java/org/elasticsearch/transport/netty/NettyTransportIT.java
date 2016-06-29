@@ -38,7 +38,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TCPMessageHandler;
+import org.elasticsearch.transport.TcpMessageHandler;
 import org.elasticsearch.transport.TransportSettings;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
@@ -116,10 +116,10 @@ public class NettyTransportIT extends ESIntegTestCase {
             @Override
             public ChannelPipeline getPipeline() throws Exception {
                 ChannelPipeline pipeline = super.getPipeline();
-                TCPMessageHandler handler = new TCPMessageHandler(nettyTransport.getThreadPool(), nettyTransport,
+                TcpMessageHandler handler = new TcpMessageHandler(nettyTransport.getThreadPool(), nettyTransport,
                     nettyTransport.transportServiceAdapter(), nettyTransport.getNamedWriteableRegistry(), logger) {
                     @Override
-                    protected String handleRequest(TCPMessageHandler.ChannelFactory channelFactory,
+                    protected String handleRequest(TcpMessageHandler.ChannelFactory channelFactory,
                                                    StreamInput buffer, long requestId, int messageLengthBytes, Version version,
                                                    InetSocketAddress remoteAddress) throws IOException {
                         String action = super.handleRequest(channelFactory, buffer, requestId, messageLengthBytes, version,

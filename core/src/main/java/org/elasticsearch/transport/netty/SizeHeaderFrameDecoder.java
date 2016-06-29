@@ -20,8 +20,8 @@
 package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.common.netty.NettyUtils;
-import org.elasticsearch.transport.TCPHeader;
-import org.elasticsearch.transport.TCPTransport;
+import org.elasticsearch.transport.TcpHeader;
+import org.elasticsearch.transport.TcpTransport;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelHandlerContext;
@@ -35,8 +35,8 @@ public class SizeHeaderFrameDecoder extends FrameDecoder {
     @Override
     protected Object decode(ChannelHandlerContext ctx, Channel channel, ChannelBuffer buffer) throws Exception {
         try {
-            boolean continueProcessing = TCPTransport.validateMessageHeader(NettyUtils.toBytesReference(buffer));
-            buffer.skipBytes(TCPHeader.MARKER_BYTES_SIZE + TCPHeader.MESSAGE_LENGTH_SIZE);
+            boolean continueProcessing = TcpTransport.validateMessageHeader(NettyUtils.toBytesReference(buffer));
+            buffer.skipBytes(TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE);
             return continueProcessing ? buffer : null;
         } catch (IllegalArgumentException ex) {
             throw new TooLongFrameException(ex.getMessage(), ex);

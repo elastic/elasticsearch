@@ -24,7 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public class TCPHeader {
+public class TcpHeader {
     public static final int MARKER_BYTES_SIZE = 2 * 1;
 
     public static final int MESSAGE_LENGTH_SIZE = 4;
@@ -41,7 +41,7 @@ public class TCPHeader {
         output.writeByte((byte)'E');
         output.writeByte((byte)'S');
         // write the size, the size indicates the remaining message size, not including the size int
-        output.writeInt(messageSize - TCPHeader.MARKER_BYTES_SIZE - TCPHeader.MESSAGE_LENGTH_SIZE);
+        output.writeInt(messageSize - TcpHeader.MARKER_BYTES_SIZE - TcpHeader.MESSAGE_LENGTH_SIZE);
         output.writeLong(requestId);
         output.writeByte(status);
         output.writeInt(version.id);

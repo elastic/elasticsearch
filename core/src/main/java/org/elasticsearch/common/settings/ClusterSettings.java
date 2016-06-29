@@ -89,7 +89,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TCPTransport;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
@@ -280,14 +280,14 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     TransportSettings.PUBLISH_PORT,
                     TransportSettings.PORT,
                     NettyTransport.WORKER_COUNT,
-                    TCPTransport.CONNECTIONS_PER_NODE_RECOVERY,
-                    TCPTransport.CONNECTIONS_PER_NODE_BULK,
-                    TCPTransport.CONNECTIONS_PER_NODE_REG,
-                    TCPTransport.CONNECTIONS_PER_NODE_STATE,
-                    TCPTransport.CONNECTIONS_PER_NODE_PING,
-                    TCPTransport.PING_SCHEDULE,
-                    TCPTransport.TCP_BLOCKING_CLIENT,
-                    TCPTransport.TCP_CONNECT_TIMEOUT,
+                    TcpTransport.CONNECTIONS_PER_NODE_RECOVERY,
+                    TcpTransport.CONNECTIONS_PER_NODE_BULK,
+                    TcpTransport.CONNECTIONS_PER_NODE_REG,
+                    TcpTransport.CONNECTIONS_PER_NODE_STATE,
+                    TcpTransport.CONNECTIONS_PER_NODE_PING,
+                    TcpTransport.PING_SCHEDULE,
+                    TcpTransport.TCP_BLOCKING_CLIENT,
+                    TcpTransport.TCP_CONNECT_TIMEOUT,
                     NettyTransport.NETTY_MAX_CUMULATION_BUFFER_CAPACITY,
                     NettyTransport.NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
                     NettyTransport.NETTY_RECEIVE_PREDICTOR_SIZE,
@@ -295,12 +295,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     NettyTransport.NETTY_RECEIVE_PREDICTOR_MAX,
                     NetworkService.NETWORK_SERVER,
                     NettyTransport.NETTY_BOSS_COUNT,
-                    TCPTransport.TCP_NO_DELAY,
-                    TCPTransport.TCP_KEEP_ALIVE,
-                    TCPTransport.TCP_REUSE_ADDRESS,
-                    TCPTransport.TCP_SEND_BUFFER_SIZE,
-                    TCPTransport.TCP_RECEIVE_BUFFER_SIZE,
-                    TCPTransport.TCP_BLOCKING_SERVER,
+                    TcpTransport.TCP_NO_DELAY,
+                    TcpTransport.TCP_KEEP_ALIVE,
+                    TcpTransport.TCP_REUSE_ADDRESS,
+                    TcpTransport.TCP_SEND_BUFFER_SIZE,
+                    TcpTransport.TCP_RECEIVE_BUFFER_SIZE,
+                    TcpTransport.TCP_BLOCKING_SERVER,
                     NetworkService.GLOBAL_NETWORK_HOST_SETTING,
                     NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING,
                     NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING,

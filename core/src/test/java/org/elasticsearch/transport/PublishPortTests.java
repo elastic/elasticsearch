@@ -30,7 +30,7 @@ import java.util.List;
 
 import static java.net.InetAddress.getByName;
 import static java.util.Arrays.asList;
-import static org.elasticsearch.transport.TCPTransport.resolvePublishPort;
+import static org.elasticsearch.transport.TcpTransport.resolvePublishPort;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 

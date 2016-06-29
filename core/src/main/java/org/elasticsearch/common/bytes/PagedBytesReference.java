@@ -360,30 +360,31 @@ public class PagedBytesReference implements BytesReference {
     }
 
     @Override
-    public BytesRefIterator iterator() {
+    public final BytesRefIterator iterator() {
+        // this BytesRef is reused across the iteration on purpose - BytesRefIterator interface was designed for this
         final BytesRef slice = new BytesRef();
+        final int offset = this.offset;
+        final int length = this.length;
         // this iteration is page aligned to ensure we do NOT materialize the pages from the ByteArray
+        // we calculate the initial fragment size here to ensure that if this reference is a slice we are still page aligned
+        // across the entire iteration. The first page is smaller if our offset != 0 then we start in the middle of the page
+        // otherwise we iterate full pages until we reach the last chunk which also might end within a page.
+        final int initialFragmentSize = offset != 0 ? PAGE_SIZE - (offset % PAGE_SIZE) : PAGE_SIZE;
         return new BytesRefIterator() {
             int position = 0;
+            int nextFragmentSize = Math.min(length, initialFragmentSize);
+
             @Override
             public BytesRef next() throws IOException {
-                if (position == 0 && offset != 0 && length > 0) {
-                    // we are a slice and we are starting somewhere in the middle of a page
-                    // to ensure page alignment the first reference will not have the lenght
-                    // of a full page but we gain the benefit of not copying any data.
-                    int fragmentSize = Math.min(length, PAGE_SIZE - (offset % PAGE_SIZE));
-                    final boolean materialized = bytearray.get(offset, fragmentSize, slice);
-                    assert materialized == false : "Iteration should be page aligned but array got materialized";
-                    position += fragmentSize;
-                    return slice;
-                } else if (position < length) {
+                if (nextFragmentSize != 0) {
+                    final boolean materialized = bytearray.get(offset + position, nextFragmentSize, slice);
+                    assert materialized == false : "iteration should be page aligned but array got materialized";
+                    position += nextFragmentSize;
                     final int remaining = length - position;
-                    final int bulkSize = Math.min(remaining, PAGE_SIZE);
-                    final boolean materialized = bytearray.get(offset + position, bulkSize, slice);
-                    assert materialized == false : "Iteration should be page aligned but array got materialized";
-                    position += bulkSize;
+                    nextFragmentSize = Math.min(remaining, PAGE_SIZE);
                     return slice;
                 } else {
+                    assert nextFragmentSize == 0 : "fragmentSize expected [0] but was: [" + nextFragmentSize + "]";
                     return null; // we are done with this iteration
                 }
             }

@@ -14,7 +14,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.marvel.test.MarvelIntegTestCase;
+import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.junit.After;
@@ -53,8 +53,8 @@ public class WatcherSettingsFilterTests extends AbstractWatcherIntegrationTestCa
         if (securityEnabled()) {
             headers = new Header[] {
                     new BasicHeader(BASIC_AUTH_HEADER,
-                            basicAuthHeaderValue(MarvelIntegTestCase.SecuritySettings.TEST_USERNAME,
-                                    new SecuredString(MarvelIntegTestCase.SecuritySettings.TEST_PASSWORD.toCharArray())))};
+                            basicAuthHeaderValue(MonitoringIntegTestCase.SecuritySettings.TEST_USERNAME,
+                                    new SecuredString(MonitoringIntegTestCase.SecuritySettings.TEST_PASSWORD.toCharArray())))};
         } else {
             headers = new Header[0];
         }

@@ -41,9 +41,8 @@ public class EmailTests extends ESTestCase {
         String textBody = randomFrom("Random Body", "", null);
         String htmlBody = randomFrom("<hr /><b>BODY</b><hr />", "", null);
         Map<String, Attachment> attachments = null;
-        Map<String, Inline> inlines = null;
 
-        Email email = new Email(id, from, replyTo, priority, sentDate, to, cc, bcc, subject, textBody, htmlBody, attachments, inlines);
+        Email email = new Email(id, from, replyTo, priority, sentDate, to, cc, bcc, subject, textBody, htmlBody, attachments);
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         email.toXContent(builder, ToXContent.EMPTY_PARAMS);

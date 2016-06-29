@@ -6,7 +6,8 @@
 package org.elasticsearch.integration;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsIndices;
@@ -32,12 +33,12 @@ import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -45,6 +46,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -274,7 +276,8 @@ public class LicensingTests extends SecurityIntegTestCase {
         }
 
         @Override
-        public void onModule(ActionModule module) {
+        public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+            return emptyList();
         }
 
         @Override

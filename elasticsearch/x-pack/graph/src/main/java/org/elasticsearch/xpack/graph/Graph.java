@@ -5,14 +5,16 @@
  */
 package org.elasticsearch.xpack.graph;
 
-import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.graph.action.GraphExploreAction;
 import org.elasticsearch.xpack.graph.action.TransportGraphExploreAction;
@@ -22,7 +24,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-public class Graph extends Plugin {
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+
+public class Graph extends Plugin implements ActionPlugin {
 
     public static final String NAME = "graph";
     private final boolean transportClientMode;
@@ -50,10 +55,12 @@ public class Graph extends Plugin {
         return Collections.singletonList(GraphLicensee.class);
     }
 
-    public void onModule(ActionModule actionModule) {
+    @Override
+    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
         if (enabled) {
-            actionModule.registerAction(GraphExploreAction.INSTANCE, TransportGraphExploreAction.class);
+            return singletonList(new ActionHandler<>(GraphExploreAction.INSTANCE, TransportGraphExploreAction.class));
         }
+        return emptyList();
     }
 
     public void onModule(NetworkModule module) {

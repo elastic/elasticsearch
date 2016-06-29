@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.notification.email.attachment;
 
-import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -13,13 +12,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.Scheme;
-import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.notification.email.Attachment;
+import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -93,7 +93,8 @@ public class EmailAttachmentParsersTests extends ESTestCase {
         attachments.add(new DataAttachment("my-name.json", org.elasticsearch.xpack.notification.email.DataAttachment.JSON));
 
         HttpRequestTemplate requestTemplate = HttpRequestTemplate.builder("localhost", 80).scheme(Scheme.HTTP).path("/").build();
-        HttpRequestAttachment httpRequestAttachment = new HttpRequestAttachment("other-id", requestTemplate, null);
+        boolean inline = randomBoolean();
+        HttpRequestAttachment httpRequestAttachment = new HttpRequestAttachment("other-id", requestTemplate, inline, null);
 
         attachments.add(httpRequestAttachment);
         EmailAttachments emailAttachments = new EmailAttachments(attachments);
@@ -105,6 +106,9 @@ public class EmailAttachmentParsersTests extends ESTestCase {
         assertThat(builder.string(), containsString("other-id"));
         assertThat(builder.string(), containsString("localhost"));
         assertThat(builder.string(), containsString("/"));
+        if (inline) {
+            assertThat(builder.string(), containsString("inline"));
+        }
     }
 
     public void testThatTwoAttachmentsWithTheSameIdThrowError() throws Exception {
@@ -161,7 +165,8 @@ public class EmailAttachmentParsersTests extends ESTestCase {
 
         @Override
         public Attachment toAttachment(WatchExecutionContext ctx, Payload payload, TestEmailAttachment attachment) {
-            return new Attachment.Bytes(attachment.id(), attachment.getValue().getBytes(Charsets.UTF_8), "personalContentType");
+            return new Attachment.Bytes(attachment.id(), attachment.getValue().getBytes(StandardCharsets.UTF_8),
+                                        "personalContentType", false);
         }
     }
 
@@ -191,6 +196,11 @@ public class EmailAttachmentParsersTests extends ESTestCase {
         @Override
         public String id() {
             return id;
+        }
+
+        @Override
+        public boolean inline() {
+            return false;
         }
 
         @Override

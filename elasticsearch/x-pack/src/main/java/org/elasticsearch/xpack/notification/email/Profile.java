@@ -92,15 +92,13 @@ public enum Profile implements ToXContent {
                 alternative.addBodyPart(html);
             }
 
-            if (!email.inlines.isEmpty()) {
-                for (Inline inline : email.inlines.values()) {
-                    related.addBodyPart(inline.bodyPart());
-                }
-            }
-
             if (!email.attachments.isEmpty()) {
                 for (Attachment attachment : email.attachments.values()) {
-                    mixed.addBodyPart(attachment.bodyPart());
+                    if (attachment.isInline()) {
+                        related.addBodyPart(attachment.bodyPart());
+                    } else {
+                        mixed.addBodyPart(attachment.bodyPart());
+                    }
                 }
             }
 

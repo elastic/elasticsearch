@@ -33,6 +33,9 @@ public class RestAckWatchAction extends WatcherRestHandler {
         super(settings, client);
         controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/{id}/_ack", this);
         controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/{id}/_ack", this);
+        controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/{id}/_ack/{actions}", this);
+        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/{id}/_ack/{actions}", this);
+        // these are going to be removed in 6.0
         controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/{id}/{actions}/_ack", this);
         controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/{id}/{actions}/_ack", this);
     }

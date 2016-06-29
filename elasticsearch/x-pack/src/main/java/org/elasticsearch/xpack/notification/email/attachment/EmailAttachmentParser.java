@@ -30,6 +30,14 @@ public interface EmailAttachmentParser<T extends EmailAttachmentParser.EmailAtta
          * @return The id of this attachment
          */
         String id();
+
+        /**
+         * Allows the attachment to decide of it should be of disposition type attachment or inline, which is important
+         * for being able to display inside of desktop email clients
+         *
+         * @return a boolean flagging this attachment as being inline
+         */
+        boolean inline();
     }
 
     /**

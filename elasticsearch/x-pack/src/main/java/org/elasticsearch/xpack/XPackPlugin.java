@@ -6,7 +6,9 @@
 package org.elasticsearch.xpack;
 
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -19,13 +21,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.plugin.Licensing;
-import org.elasticsearch.marvel.Monitoring;
-import org.elasticsearch.marvel.MonitoringSettings;
+import org.elasticsearch.xpack.monitoring.Monitoring;
+import org.elasticsearch.xpack.monitoring.MonitoringSettings;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.authc.AuthenticationModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.xpack.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.action.TransportXPackUsageAction;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.action.XPackUsageAction;
 import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.common.http.HttpClientModule;
 import org.elasticsearch.xpack.common.secret.SecretModule;
+import org.elasticsearch.xpack.common.text.TextTemplateModule;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.extensions.XPackExtensionsService;
 import org.elasticsearch.xpack.graph.Graph;
@@ -41,10 +43,11 @@ import org.elasticsearch.xpack.notification.Notification;
 import org.elasticsearch.xpack.notification.email.Account;
 import org.elasticsearch.xpack.notification.email.support.BodyPartSource;
 import org.elasticsearch.xpack.rest.action.RestXPackInfoAction;
-import org.elasticsearch.xpack.common.text.TextTemplateModule;
 import org.elasticsearch.xpack.rest.action.RestXPackUsageAction;
-import org.elasticsearch.xpack.watcher.Watcher;
+import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.authc.AuthenticationModule;
 import org.elasticsearch.xpack.support.clock.ClockModule;
+import org.elasticsearch.xpack.watcher.Watcher;
 
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -54,7 +57,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-public class XPackPlugin extends Plugin implements ScriptPlugin {
+public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
 
     public static final String NAME = "x-pack";
 
@@ -220,16 +223,28 @@ public class XPackPlugin extends Plugin implements ScriptPlugin {
         graph.onModule(module);
     }
 
-    public void onModule(ActionModule module) {
-        if (!transportClientMode) {
-            module.registerAction(XPackInfoAction.INSTANCE, TransportXPackInfoAction.class);
-            module.registerAction(XPackUsageAction.INSTANCE, TransportXPackUsageAction.class);
-        }
-        licensing.onModule(module);
-        monitoring.onModule(module);
-        security.onModule(module);
-        watcher.onModule(module);
-        graph.onModule(module);
+    @Override
+    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+        List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> actions = new ArrayList<>();
+        actions.add(new ActionHandler<>(XPackInfoAction.INSTANCE, TransportXPackInfoAction.class));
+        actions.add(new ActionHandler<>(XPackUsageAction.INSTANCE, TransportXPackUsageAction.class));
+        actions.addAll(licensing.getActions());
+        actions.addAll(monitoring.getActions());
+        actions.addAll(security.getActions());
+        actions.addAll(watcher.getActions());
+        actions.addAll(graph.getActions());
+        return actions;
+    }
+
+    @Override
+    public List<Class<? extends ActionFilter>> getActionFilters() {
+        List<Class<? extends ActionFilter>> filters = new ArrayList<>();
+        filters.addAll(licensing.getActionFilters());
+        filters.addAll(monitoring.getActionFilters());
+        filters.addAll(security.getActionFilters());
+        filters.addAll(watcher.getActionFilters());
+        filters.addAll(graph.getActionFilters());
+        return filters;
     }
 
     public void onModule(AuthenticationModule module) {

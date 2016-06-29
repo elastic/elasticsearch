@@ -1,6 +1,6 @@
 {
   "xpack.security.delete_user": {
-    "documentation": "Remove a user from the native realm",
+    "documentation": "https://www.elastic.co/guide/en/x-pack/master/security-api-users.html#security-api-delete-user",
     "methods": [ "DELETE" ],
     "url": {
       "path": "/_xpack/security/user/{username}",

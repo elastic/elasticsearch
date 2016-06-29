@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher;
 
-import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Booleans;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -73,7 +75,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-public class Watcher {
+import static java.util.Collections.emptyList;
+
+public class Watcher implements ActionPlugin {
 
     public static final String NAME = "watcher";
 
@@ -188,17 +192,19 @@ public class Watcher {
         }
     }
 
-    public void onModule(ActionModule module) {
-        if (enabled) {
-            module.registerAction(PutWatchAction.INSTANCE, TransportPutWatchAction.class);
-            module.registerAction(DeleteWatchAction.INSTANCE, TransportDeleteWatchAction.class);
-            module.registerAction(GetWatchAction.INSTANCE, TransportGetWatchAction.class);
-            module.registerAction(WatcherStatsAction.INSTANCE, TransportWatcherStatsAction.class);
-            module.registerAction(AckWatchAction.INSTANCE, TransportAckWatchAction.class);
-            module.registerAction(ActivateWatchAction.INSTANCE, TransportActivateWatchAction.class);
-            module.registerAction(WatcherServiceAction.INSTANCE, TransportWatcherServiceAction.class);
-            module.registerAction(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class);
+    @Override
+    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+        if (false == enabled) {
+            return emptyList();
         }
+        return Arrays.asList(new ActionHandler<>(PutWatchAction.INSTANCE, TransportPutWatchAction.class),
+                new ActionHandler<>(DeleteWatchAction.INSTANCE, TransportDeleteWatchAction.class),
+                new ActionHandler<>(GetWatchAction.INSTANCE, TransportGetWatchAction.class),
+                new ActionHandler<>(WatcherStatsAction.INSTANCE, TransportWatcherStatsAction.class),
+                new ActionHandler<>(AckWatchAction.INSTANCE, TransportAckWatchAction.class),
+                new ActionHandler<>(ActivateWatchAction.INSTANCE, TransportActivateWatchAction.class),
+                new ActionHandler<>(WatcherServiceAction.INSTANCE, TransportWatcherServiceAction.class),
+                new ActionHandler<>(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class));
     }
 
     public static boolean enabled(Settings settings) {

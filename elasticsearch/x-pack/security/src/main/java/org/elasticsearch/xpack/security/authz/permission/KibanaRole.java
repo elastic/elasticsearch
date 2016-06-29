@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authz.permission;
 
-import org.elasticsearch.marvel.action.MonitoringBulkAction;
+import org.elasticsearch.xpack.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.Privilege.Name;

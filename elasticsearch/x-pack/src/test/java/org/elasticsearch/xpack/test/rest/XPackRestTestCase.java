@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -40,7 +39,7 @@ import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordTok
 
 public abstract class XPackRestTestCase extends ESRestTestCase {
 
-    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("test_user", new SecuredString("changeme".toCharArray()));
+    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("elastic", new SecuredString("changeme".toCharArray()));
 
     public XPackRestTestCase(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);
@@ -49,24 +48,6 @@ public abstract class XPackRestTestCase extends ESRestTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
         return ESRestTestCase.createParameters(0, 1);
-    }
-
-    @Before
-    public void startWatcher() throws Exception {
-        try {
-            getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
-        } catch(ResponseException e) {
-            //TODO ignore for now, needs to be fixed though
-        }
-    }
-
-    @After
-    public void stopWatcher() throws Exception {
-        try {
-            getAdminExecutionContext().callApi("xpack.watcher.stop", emptyMap(), emptyList(), emptyMap());
-        } catch(ResponseException e) {
-            //TODO ignore for now, needs to be fixed though
-        }
     }
 
     @Before

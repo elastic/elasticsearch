@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -17,6 +16,8 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
+
+import java.util.Arrays;
 
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
@@ -32,9 +33,9 @@ public class RestExecuteWatchActionTests extends ESTestCase {
 
     public void testThatFlagsCanBeSpecifiedViaParameters() throws Exception {
         String randomId = randomAsciiOfLength(10);
-        for (String recordExecution : Lists.newArrayList("true", "false", null)) {
-            for (String ignoreCondition : Lists.newArrayList("true", "false", null)) {
-                for (String debugCondition : Lists.newArrayList("true", "false", null)) {
+        for (String recordExecution : Arrays.asList("true", "false", null)) {
+            for (String ignoreCondition : Arrays.asList("true", "false", null)) {
+                for (String debugCondition : Arrays.asList("true", "false", null)) {
                     ExecuteWatchRequestBuilder builder = new ExecuteWatchRequestBuilder(client);
                     when(watcherClient.prepareExecuteWatch()).thenReturn(builder);
 

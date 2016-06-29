@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -20,6 +22,8 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.action.SecurityActionModule;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheAction;
@@ -82,7 +86,6 @@ import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty.SecurityNettyHttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -95,10 +98,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+
 /**
  *
  */
-public class Security {
+public class Security implements ActionPlugin {
 
     private static final ESLogger logger = Loggers.getLogger(XPackPlugin.class);
 
@@ -273,26 +279,33 @@ public class Security {
         }
     }
 
-    public void onModule(ActionModule module) {
+    @Override
+    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
         if (enabled == false) {
-            return;
+            return emptyList();
+        }
+        return Arrays.asList(new ActionHandler<>(ClearRealmCacheAction.INSTANCE, TransportClearRealmCacheAction.class),
+                new ActionHandler<>(ClearRolesCacheAction.INSTANCE, TransportClearRolesCacheAction.class),
+                new ActionHandler<>(GetUsersAction.INSTANCE, TransportGetUsersAction.class),
+                new ActionHandler<>(PutUserAction.INSTANCE, TransportPutUserAction.class),
+                new ActionHandler<>(DeleteUserAction.INSTANCE, TransportDeleteUserAction.class),
+                new ActionHandler<>(GetRolesAction.INSTANCE, TransportGetRolesAction.class),
+                new ActionHandler<>(PutRoleAction.INSTANCE, TransportPutRoleAction.class),
+                new ActionHandler<>(DeleteRoleAction.INSTANCE, TransportDeleteRoleAction.class),
+                new ActionHandler<>(ChangePasswordAction.INSTANCE, TransportChangePasswordAction.class),
+                new ActionHandler<>(AuthenticateAction.INSTANCE, TransportAuthenticateAction.class));
+    }
+
+    @Override
+    public List<Class<? extends ActionFilter>> getActionFilters() {
+        if (enabled == false) {
+            return emptyList();
         }
         // registering the security filter only for nodes
         if (transportClientMode == false) {
-            module.registerFilter(SecurityActionFilter.class);
+            return singletonList(SecurityActionFilter.class);
         }
-
-        // registering all security actions
-        module.registerAction(ClearRealmCacheAction.INSTANCE, TransportClearRealmCacheAction.class);
-        module.registerAction(ClearRolesCacheAction.INSTANCE, TransportClearRolesCacheAction.class);
-        module.registerAction(GetUsersAction.INSTANCE, TransportGetUsersAction.class);
-        module.registerAction(PutUserAction.INSTANCE, TransportPutUserAction.class);
-        module.registerAction(DeleteUserAction.INSTANCE, TransportDeleteUserAction.class);
-        module.registerAction(GetRolesAction.INSTANCE, TransportGetRolesAction.class);
-        module.registerAction(PutRoleAction.INSTANCE, TransportPutRoleAction.class);
-        module.registerAction(DeleteRoleAction.INSTANCE, TransportDeleteRoleAction.class);
-        module.registerAction(ChangePasswordAction.INSTANCE, TransportChangePasswordAction.class);
-        module.registerAction(AuthenticateAction.INSTANCE, TransportAuthenticateAction.class);
+        return emptyList();
     }
 
     public void onModule(NetworkModule module) {

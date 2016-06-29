@@ -1,6 +1,6 @@
 {
   "xpack.security.authenticate": {
-    "documentation": "Retrieve details about the currently authenticated user",
+    "documentation": "https://www.elastic.co/guide/en/x-pack/master/security-api-authenticate.html",
     "methods": [ "GET" ],
     "url": {
       "path": "/_xpack/security/_authenticate",

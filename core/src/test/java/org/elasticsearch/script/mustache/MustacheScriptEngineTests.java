@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.script.mustache;
 
+import com.github.mustachejava.MustacheFactory;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
@@ -40,12 +41,12 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class MustacheScriptEngineTests extends ESTestCase {
     private MustacheScriptEngineService qe;
-    private JsonEscapingMustacheFactory escaper;
+    private MustacheFactory factory;
 
     @Before
     public void setup() {
         qe = new MustacheScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
-        escaper = new JsonEscapingMustacheFactory();
+        factory = new CustomMustacheFactory(true);
     }
 
     @Test
@@ -78,12 +79,12 @@ public class MustacheScriptEngineTests extends ESTestCase {
     public void testEscapeJson() throws IOException {
         {
             StringWriter writer = new StringWriter();
-            escaper.encode("hello \n world", writer);
+            factory.encode("hello \n world", writer);
             assertThat(writer.toString(), equalTo("hello \\n world"));
         }
         {
             StringWriter writer = new StringWriter();
-            escaper.encode("\n", writer);
+            factory.encode("\n", writer);
             assertThat(writer.toString(), equalTo("\\n"));
         }
 
@@ -138,7 +139,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
                 expect.append(escapedChars[charIndex]);
             }
             StringWriter target = new StringWriter();
-            escaper.encode(writer.toString(), target);
+            factory.encode(writer.toString(), target);
             assertThat(expect.toString(), equalTo(target.toString()));
         }
     }

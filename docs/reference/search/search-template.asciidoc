@@ -90,6 +90,88 @@ which is rendered as:
 ------------------------------------------
 
 [float]
+===== Concatenating array of values
+
+The `{{#join}}array{{/join}}` function can be used to concatenate the
+values of an array as a comma delimited string:
+
+[source,js]
+------------------------------------------
+GET /_search/template
+{
+  "inline": {
+    "query": {
+      "match": {
+        "emails": "{{#join}}emails{{/join}}"
+      }
+    }
+  },
+  "params": {
+    "emails": [ "username@email.com", "lastname@email.com" ]
+  }
+}
+------------------------------------------
+
+which is rendered as:
+
+[source,js]
+------------------------------------------
+{
+    "query" : {
+        "match" : {
+            "emails" : "username@email.com,lastname@email.com"
+        }
+    }
+}
+------------------------------------------
+
+The function also accepts a custom delimiter:
+
+[source,js]
+------------------------------------------
+GET /_search/template
+{
+  "inline": {
+    "query": {
+      "range": {
+        "born": {
+            "gte"   : "{{date.min}}",
+            "lte"   : "{{date.max}}",
+            "format": "{{#join delimiter='||'}}date.formats{{/join delimiter='||'}}"
+	    }
+      }
+    }
+  },
+  "params": {
+    "date": {
+        "min": "2016",
+        "max": "31/12/2017",
+        "formats": ["dd/MM/yyyy", "yyyy"]
+    }
+  }
+}
+------------------------------------------
+
+which is rendered as:
+
+[source,js]
+------------------------------------------
+{
+    "query" : {
+      "range" : {
+        "born" : {
+          "gte" : "2016",
+          "lte" : "31/12/2017",
+          "format" : "dd/MM/yyyy||yyyy"
+        }
+      }
+    }
+}
+
+------------------------------------------
+
+
+[float]
 ===== Default values
 
 A default value is written as `{{var}}{{^var}}default{{/var}}` for instance:
@@ -139,6 +221,46 @@ for `end`:
     }
 }
 ------------------------------------------
+
+[float]
+===== Converting parameters to JSON
+
+The `{{toJson}}parameter{{/toJson}}` function can be used to convert parameters
+like maps and array to their JSON representation:
+
+[source,js]
+------------------------------------------
+{
+    "inline": "{\"query\":{\"bool\":{\"must\": {{#toJson}}clauses{{/toJson}} }}}",
+    "params": {
+        "clauses": [
+            { "term": "foo" },
+            { "term": "bar" }
+        ]
+   }
+}
+------------------------------------------
+
+which is rendered as:
+
+[source,js]
+------------------------------------------
+{
+    "query" : {
+      "bool" : {
+        "must" : [
+          {
+            "term" : "foo"
+          },
+          {
+            "term" : "bar"
+          }
+        ]
+      }
+    }
+}
+------------------------------------------
+
 
 [float]
 ===== Conditional clauses

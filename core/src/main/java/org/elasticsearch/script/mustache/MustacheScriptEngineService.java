@@ -18,11 +18,8 @@
  */
 package org.elasticsearch.script.mustache;
 
-import java.io.Reader;
-import java.lang.ref.SoftReference;
-import java.util.Collections;
-import java.util.Map;
-
+import com.github.mustachejava.Mustache;
+import com.github.mustachejava.MustacheFactory;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -37,8 +34,10 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import com.github.mustachejava.Mustache;
-import com.github.mustachejava.DefaultMustacheFactory;
+import java.io.Reader;
+import java.lang.ref.SoftReference;
+import java.util.Collections;
+import java.util.Map;
 
 /**
  * Main entry point handling template registration, compilation and
@@ -88,25 +87,14 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
      * */
     @Override
     public Object compile(String template, Map<String, String> params) {
-        String contentType = params.get(CONTENT_TYPE_PARAM);
-        if (contentType == null) {
-            contentType = JSON_CONTENT_TYPE;
-        }
-
-        final DefaultMustacheFactory mustacheFactory;
-        switch (contentType){
-            case PLAIN_TEXT_CONTENT_TYPE:
-                mustacheFactory = new NoneEscapingMustacheFactory();
-                break;
-            case JSON_CONTENT_TYPE:
-            default:
-                // assume that the default is json encoding:
-                mustacheFactory = new JsonEscapingMustacheFactory();
-                break;
-        }
-        mustacheFactory.setObjectHandler(new CustomReflectionObjectHandler());
+        final MustacheFactory factory = new CustomMustacheFactory(isJsonEscapingEnabled(params));
         Reader reader = new FastStringReader(template);
-        return mustacheFactory.compile(reader, "query-template");
+        return factory.compile(reader, "query-template");
+    }
+
+    private boolean isJsonEscapingEnabled(Map<String, String> params) {
+        String contentType = params.get(CONTENT_TYPE_PARAM);
+        return contentType == null || JSON_CONTENT_TYPE.equals(contentType);
     }
 
     @Override

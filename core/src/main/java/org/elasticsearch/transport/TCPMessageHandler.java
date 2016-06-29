@@ -64,21 +64,23 @@ public class TCPMessageHandler {
         this.logger = logger;
     }
 
-    public final void messageReceived(BytesReference reference, Marker marker, ChannelFactory channelFactory,
+    public final void messageReceived(BytesReference reference, ChannelFactory channelFactory,
                                       InetSocketAddress remoteAddress, int messageLengthBytes) throws IOException {
-        transportServiceAdapter.received(marker.messageSizeWithAllHeaders());
+        transportServiceAdapter.received(messageLengthBytes + TCPHeader.MARKER_BYTES_SIZE + TCPHeader.MESSAGE_LENGTH_SIZE);
+        final int totalMessageSize = messageLengthBytes + TCPHeader.MARKER_BYTES_SIZE + TCPHeader.MESSAGE_LENGTH_SIZE;
         // we have additional bytes to read, outside of the header
-        boolean hasMessageBytesToRead = marker.messageSize() != 0;
+        boolean hasMessageBytesToRead = (totalMessageSize - TCPHeader.HEADER_SIZE) > 0;
         StreamInput streamIn = reference.streamInput();
         boolean success = false;
         try (ThreadContext.StoredContext tCtx = threadContext.stashContext()) {
             long requestId = streamIn.readLong();
             byte status = streamIn.readByte();
             Version version = Version.fromId(streamIn.readInt());
-            if (TransportStatus.isCompress(status) && hasMessageBytesToRead) {
+            if (TransportStatus.isCompress(status) && hasMessageBytesToRead && streamIn.available() > 0) {
                 Compressor compressor;
                 try {
-                    compressor = CompressorFactory.compressor(reference);
+                    final int bytesConsumed = TCPHeader.REQUEST_ID_SIZE + TCPHeader.STATUS_SIZE + TCPHeader.VERSION_ID_SIZE;
+                    compressor = CompressorFactory.compressor(reference.slice(bytesConsumed, reference.length() - bytesConsumed));
                 } catch (NotCompressedException ex) {
                     int maxToRead = Math.min(reference.length(), 10);
                     StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [").append(maxToRead)
@@ -99,7 +101,7 @@ public class TCPMessageHandler {
             streamIn.setVersion(version);
             if (TransportStatus.isRequest(status)) {
                 threadContext.readHeaders(streamIn);
-                handleRequest(channelFactory, marker, streamIn, requestId, messageLengthBytes, version, remoteAddress);
+                handleRequest(channelFactory, streamIn, requestId, messageLengthBytes, version, remoteAddress);
             } else {
                 TransportResponseHandler<?> handler = transportServiceAdapter.onResponseReceived(requestId);
                 // ignore if its null, the adapter logs it
@@ -109,7 +111,13 @@ public class TCPMessageHandler {
                     } else {
                         handleResponse(remoteAddress, streamIn, handler);
                     }
-                    marker.validateResponse(streamIn, requestId, handler, TransportStatus.isError(status));
+                    // Check the entire message has been read
+                    final int nextByte = streamIn.read();
+                    // calling read() is useful to make sure the message is fully read, even if there is an EOS marker
+                    if (nextByte != -1) {
+                        throw new IllegalStateException("Message not fully read (response) for requestId [" + requestId + "], handler ["
+                            + handler + "], error [" + TransportStatus.isError(status) + "]; resetting");
+                    }
                 }
             }
             success = true;
@@ -181,7 +189,7 @@ public class TCPMessageHandler {
         }
     }
 
-    protected String handleRequest(ChannelFactory channelFactory, Marker marker, StreamInput buffer, long requestId,
+    protected String handleRequest(ChannelFactory channelFactory, StreamInput buffer, long requestId,
                                    int messageLengthBytes, Version version, InetSocketAddress remoteAddress) throws IOException {
         buffer = new NamedWriteableAwareStreamInput(buffer, namedWriteableRegistry);
         final String action = buffer.readString();
@@ -202,7 +210,7 @@ public class TCPMessageHandler {
             request.remoteAddress(new InetSocketTransportAddress(remoteAddress));
             request.readFrom(buffer);
             // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
-            validateRequest(marker, buffer, requestId, action);
+            validateRequest(buffer, requestId, action);
             if (ThreadPool.Names.SAME.equals(reg.getExecutor())) {
                 //noinspection unchecked
                 reg.processMessageReceived(request, transportChannel);
@@ -225,8 +233,13 @@ public class TCPMessageHandler {
     }
 
     // This template method is needed to inject custom error checking logic in tests.
-    protected void validateRequest(Marker marker, StreamInput buffer, long requestId, String action) throws IOException {
-        marker.validateRequest(buffer, requestId, action);
+    protected void validateRequest(StreamInput stream, long requestId, String action) throws IOException {
+        final int nextByte = stream.read();
+        // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
+        if (nextByte != -1) {
+            throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action [" + action
+                + "], available [" + stream.available() + "]; resetting");
+        }
     }
 
     public interface ChannelFactory {
@@ -286,108 +299,6 @@ public class TCPMessageHandler {
                     logger.warn("Failed to send error message back to client for action [{}]", e1, reg.getAction());
                     logger.warn("Actual Exception", e);
                 }
-            }
-        }
-    }
-
-    /**
-     * Internal helper class to store characteristic offsets of a buffer during processing
-     */
-    public static final class Marker {
-        private final IntSupplier markerOffset;
-        private final int remainingMessageSize;
-        private final int expectedReaderIndex;
-
-        public Marker(IntSupplier markerOffset, int remainingMessageSize) {
-            this.markerOffset = markerOffset;
-            // when this constructor is called, we have read already two parts of the message header: the marker bytes and the message
-            // message length (see SizeHeaderFrameDecoder). Hence we have to rewind the index for MESSAGE_LENGTH_SIZE bytes to read the
-            // remaining message length again.
-            this.remainingMessageSize = remainingMessageSize;
-            this.expectedReaderIndex = this.markerOffset.getAsInt() + remainingMessageSize;
-        }
-
-        /**
-         * @return the number of bytes that have yet to be read from the buffer
-         */
-        public int messageSizeWithRemainingHeaders() {
-            return remainingMessageSize;
-        }
-
-        /**
-         * @return the number in bytes for the message including all headers (even the ones that have been read from the buffer already)
-         */
-        public int messageSizeWithAllHeaders() {
-            return remainingMessageSize + TCPHeader.MARKER_BYTES_SIZE + TCPHeader.MESSAGE_LENGTH_SIZE;
-        }
-
-        /**
-         * @return the number of bytes for the message itself (excluding all headers).
-         */
-        public int messageSize() {
-            return messageSizeWithAllHeaders() - TCPHeader.HEADER_SIZE;
-        }
-
-        /**
-         * @return the expected index of the buffer's reader after the message has been consumed entirely.
-         */
-        public int expectedReaderIndex() {
-            return expectedReaderIndex;
-        }
-
-        /**
-         * Validates that a request has been fully read (not too few bytes but also not too many bytes).
-         *
-         * @param stream    A stream that is associated with the buffer that is tracked by this marker.
-         * @param requestId The current request id.
-         * @param action    The currently executed action.
-         * @throws IOException           Iff the stream could not be read.
-         * @throws IllegalStateException Iff the request has not been fully read.
-         */
-        public void validateRequest(StreamInput stream, long requestId, String action) throws IOException {
-            final int nextByte = stream.read();
-            // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
-            if (nextByte != -1) {
-                throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action [" + action
-                    + "], readerIndex [" + markerOffset.getAsInt() + "] vs expected [" + expectedReaderIndex + "]; resetting");
-            }
-            if (markerOffset.getAsInt() < expectedReaderIndex) {
-                throw new IllegalStateException("Message is fully read (request), yet there are "
-                    + (expectedReaderIndex - markerOffset.getAsInt()) + " remaining bytes; resetting");
-            }
-            if (markerOffset.getAsInt() > expectedReaderIndex) {
-                throw new IllegalStateException(
-                    "Message read past expected size (request) for requestId [" + requestId + "], action [" + action
-                        + "], readerIndex [" + markerOffset.getAsInt() + "] vs expected [" + expectedReaderIndex + "]; resetting");
-            }
-        }
-
-        /**
-         * Validates that a response has been fully read (not too few bytes but also not too many bytes).
-         *
-         * @param stream    A stream that is associated with the buffer that is tracked by this marker.
-         * @param requestId The corresponding request id for this response.
-         * @param handler   The current response handler.
-         * @param error     Whether validate an error response.
-         * @throws IOException           Iff the stream could not be read.
-         * @throws IllegalStateException Iff the request has not been fully read.
-         */
-        public void validateResponse(StreamInput stream, long requestId,
-                                     TransportResponseHandler<?> handler, boolean error) throws IOException {
-            // Check the entire message has been read
-            final int nextByte = stream.read();
-            // calling read() is useful to make sure the message is fully read, even if there is an EOS marker
-            if (nextByte != -1) {
-                throw new IllegalStateException("Message not fully read (response) for requestId [" + requestId + "], handler ["
-                    + handler + "], error [" + error + "]; resetting");
-            }
-            if (markerOffset.getAsInt() < expectedReaderIndex) {
-                throw new IllegalStateException("Message is fully read (response), yet there are "
-                    + (expectedReaderIndex - markerOffset.getAsInt()) + " remaining bytes; resetting");
-            }
-            if (markerOffset.getAsInt() > expectedReaderIndex) {
-                throw new IllegalStateException("Message read past expected size (response) for requestId [" + requestId
-                    + "], handler [" + handler + "], error [" + error + "]; resetting");
             }
         }
     }

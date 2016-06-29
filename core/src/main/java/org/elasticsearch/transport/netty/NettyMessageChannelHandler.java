@@ -69,20 +69,18 @@ public class NettyMessageChannelHandler extends SimpleChannelUpstreamHandler {
         }
         final ChannelBuffer buffer = (ChannelBuffer) m;
         final int remainingMessageSize = buffer.getInt(buffer.readerIndex() - TCPHeader.MESSAGE_LENGTH_SIZE);
-
-        TCPMessageHandler.Marker marker = new TCPMessageHandler.Marker(buffer::readerIndex, remainingMessageSize);
+        final int expectedReaderIndex = buffer.readerIndex() + remainingMessageSize;
         TCPMessageHandler.ChannelFactory channelFactory = (action, requestId, version, reservedBytes) ->
             new TCPTransportChannel<>(transport, ctx.getChannel(), "netty", action, requestId, version, profileName, reservedBytes);
         InetSocketAddress remoteAddress = (InetSocketAddress) ctx.getChannel().getRemoteAddress();
         try {
-            int size = marker.messageSizeWithRemainingHeaders();
             // netty always copies a buffer, either in NioWorker in its read handler, where it copies to a fresh
             // buffer, or in the cumulation buffer, which is cleaned each time so it could be bigger than the actual size
-            BytesReference reference = NettyUtils.toBytesReference(buffer, size);
-            messageChannelHandler.messageReceived(reference, marker, channelFactory, remoteAddress, size);
+            BytesReference reference = NettyUtils.toBytesReference(buffer, remainingMessageSize);
+            messageChannelHandler.messageReceived(reference, channelFactory, remoteAddress, remainingMessageSize);
         } finally {
             // Set the expected position of the buffer, no matter what happened
-            buffer.readerIndex(marker.expectedReaderIndex());
+            buffer.readerIndex(expectedReaderIndex);
         }
     }
 

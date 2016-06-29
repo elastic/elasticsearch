@@ -119,19 +119,19 @@ public class NettyTransportIT extends ESIntegTestCase {
                 TCPMessageHandler handler = new TCPMessageHandler(nettyTransport.getThreadPool(), nettyTransport,
                     nettyTransport.transportServiceAdapter(), nettyTransport.getNamedWriteableRegistry(), logger) {
                     @Override
-                    protected String handleRequest(TCPMessageHandler.ChannelFactory channelFactory, TCPMessageHandler.Marker marker,
+                    protected String handleRequest(TCPMessageHandler.ChannelFactory channelFactory,
                                                    StreamInput buffer, long requestId, int messageLengthBytes, Version version,
                                                    InetSocketAddress remoteAddress) throws IOException {
-                        String action = super.handleRequest(channelFactory, marker, buffer, requestId, messageLengthBytes, version,
+                        String action = super.handleRequest(channelFactory, buffer, requestId, messageLengthBytes, version,
                             remoteAddress);
                         channelProfileName = TransportSettings.DEFAULT_PROFILE;
                         return action;
                     }
 
                     @Override
-                    protected void validateRequest(TCPMessageHandler.Marker marker, StreamInput buffer, long requestId, String action)
+                    protected void validateRequest(StreamInput buffer, long requestId, String action)
                         throws IOException {
-                        super.validateRequest(marker, buffer, requestId, action);
+                        super.validateRequest(buffer, requestId, action);
                         String error = threadPool.getThreadContext().getHeader("ERROR");
                         if (error != null) {
                             throw new ElasticsearchException(error);

@@ -59,7 +59,7 @@ final class ChannelBufferBytesReference implements BytesReference {
 
     @Override
     public StreamInput streamInput() {
-        return ChannelBufferStreamInputFactory.create(buffer.duplicate());
+        return ChannelBufferStreamInputFactory.create(buffer.duplicate(), size);
     }
 
     @Override

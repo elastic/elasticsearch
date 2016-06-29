@@ -73,6 +73,9 @@ public class MigrateToolIT extends MigrateToolTestCase {
 
         logger.info("--> output:\n{}", t.getOutput());
 
+        Client client = getClient();
+        SecurityClient c = new SecurityClient(client);
+
         // Check that the migrated user can be retrieved
         GetUsersResponse resp = c.prepareGetUsers("bob").get();
         assertTrue("user 'bob' should exist", resp.hasUsers());

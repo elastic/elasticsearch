@@ -17,8 +17,8 @@
  * under the License.
  */
 
-
 import org.elasticsearch.gradle.precommit.PrecommitTasks
+import org.gradle.api.JavaVersion
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'ru.vyarus.animalsniffer'

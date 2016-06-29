@@ -28,6 +28,7 @@ import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
+import org.mockito.internal.util.collections.Sets;
 
 import java.util.Arrays;
 import java.util.Collections;

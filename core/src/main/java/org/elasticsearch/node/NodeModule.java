@@ -20,8 +20,10 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.ingest.ProcessorsRegistry;
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.TemplateService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.service.NodeService;
 

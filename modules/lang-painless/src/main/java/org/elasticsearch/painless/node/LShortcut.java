@@ -20,16 +20,17 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Objects;
 import java.util.Set;
+
+import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a field load/store shortcut.  (Internal only.)
@@ -46,7 +47,7 @@ final class LShortcut extends ALink {
 
         this.value = Objects.requireNonNull(value);
     }
-
+    
     @Override
     void extractVariables(Set<String> variables) {}
 

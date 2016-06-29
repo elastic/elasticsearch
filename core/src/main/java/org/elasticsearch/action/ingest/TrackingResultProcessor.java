@@ -24,6 +24,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**

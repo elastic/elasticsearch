@@ -20,13 +20,14 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.ingest.PipelineStore;
+import org.elasticsearch.ingest.ProcessorsRegistry;
+import org.elasticsearch.ingest.TestProcessor;
+import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.ingest.PipelineStore;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.ProcessorsRegistry;
-import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;

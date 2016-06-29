@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.http.Header;

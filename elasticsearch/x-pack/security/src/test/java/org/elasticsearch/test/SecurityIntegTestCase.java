@@ -25,6 +25,7 @@ import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.security.transport.netty.SecurityNettyHttpServerTransport;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -367,14 +368,14 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     protected String getHttpURL() {
-        return getHttpURL(false);
-    }
-
-    protected String getHttpURL(boolean useSSL) {
+        boolean useSSL = false;
         final NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
         final List<NodeInfo> nodes = nodeInfos.getNodes();
         assertTrue("there is at least one node", nodes.size() > 0);
         NodeInfo ni = randomFrom(nodes);
+        if (SecurityNettyHttpServerTransport.SSL_SETTING.get(ni.getSettings())) {
+            useSSL = true;
+        }
         TransportAddress publishAddress = ni.getHttp().address().publishAddress();
         assertEquals(1, publishAddress.uniqueAddressTypeId());
         InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();

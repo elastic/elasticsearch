@@ -91,7 +91,7 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         MockTerminal t = new MockTerminal();
         String username = nodeClientUsername();
         String password = new String(nodeClientPassword().utf8Bytes(), Charsets.UTF_8);
-        String url = getHttpURL(useSSL);
+        String url = getHttpURL();
         ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();
         Settings sslSettings =
                 SecuritySettingsSource.getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks",
@@ -131,7 +131,7 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         MockTerminal t = new MockTerminal();
         String username = nodeClientUsername();
         String password = new String(nodeClientPassword().utf8Bytes(), Charsets.UTF_8);
-        String url = getHttpURL(useSSL);
+        String url = getHttpURL();
         ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();
         Settings sslSettings =
                 SecuritySettingsSource.getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks",

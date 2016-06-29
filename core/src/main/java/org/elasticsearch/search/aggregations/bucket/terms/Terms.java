@@ -62,7 +62,7 @@ public interface Terms extends MultiBucketsAggregation {
     /**
      * A bucket that is associated with a single term
      */
-    static abstract class Bucket extends InternalMultiBucketAggregation.InternalBucket {
+    static abstract class Bucket implements InternalMultiBucketAggregation.Bucket {
 
         public abstract Number getKeyAsNumber();
 

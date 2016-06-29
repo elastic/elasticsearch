@@ -75,7 +75,7 @@ public final class InternalBinaryRange
         BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 
-    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Range.Bucket {
+    public static class Bucket implements InternalMultiBucketAggregation.Bucket, Range.Bucket {
 
         private final transient DocValueFormat format;
         private final transient boolean keyed;

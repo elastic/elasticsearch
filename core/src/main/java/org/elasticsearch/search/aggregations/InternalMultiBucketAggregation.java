@@ -25,7 +25,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.util.List;
 import java.util.Map;
 
-public abstract class InternalMultiBucketAggregation<A extends InternalMultiBucketAggregation, B extends InternalMultiBucketAggregation.InternalBucket>
+public abstract class InternalMultiBucketAggregation<A extends InternalMultiBucketAggregation, B extends InternalMultiBucketAggregation.Bucket>
         extends InternalAggregation implements MultiBucketsAggregation {
 
     public InternalMultiBucketAggregation() {
@@ -69,8 +69,5 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
             }
             return propertyArray;
         }
-    }
-
-    public static abstract class InternalBucket implements Bucket {
     }
 }

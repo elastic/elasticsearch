@@ -74,7 +74,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
         BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 
-    public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket implements Filters.Bucket {
+    public static class InternalBucket implements InternalMultiBucketAggregation.Bucket, Filters.Bucket {
 
         private final boolean keyed;
         private String key;

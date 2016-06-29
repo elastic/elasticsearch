@@ -82,7 +82,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
     }
 
 
-    static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements GeoHashGrid.Bucket, Comparable<Bucket> {
+    static class Bucket implements InternalMultiBucketAggregation.Bucket, GeoHashGrid.Bucket, Comparable<Bucket> {
 
         protected long geohashAsLong;
         protected long docCount;

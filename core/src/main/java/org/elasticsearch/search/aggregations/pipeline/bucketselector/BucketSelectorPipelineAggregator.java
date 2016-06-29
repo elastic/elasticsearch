@@ -85,8 +85,8 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
-        InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
-                (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
+        InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.Bucket> originalAgg =
+                (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.Bucket>) aggregation;
         List<? extends Bucket> buckets = originalAgg.getBuckets();
 
         CompiledScript compiledScript = reduceContext.scriptService().compile(script, ScriptContext.Standard.AGGS,

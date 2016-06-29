@@ -52,13 +52,13 @@ public abstract class SiblingPipelineAggregator extends PipelineAggregator {
             List<? extends Bucket> buckets = multiBucketsAgg.getBuckets();
             List<Bucket> newBuckets = new ArrayList<>();
             for (int i = 0; i < buckets.size(); i++) {
-                InternalMultiBucketAggregation.InternalBucket bucket = (InternalMultiBucketAggregation.InternalBucket) buckets.get(i);
+                InternalMultiBucketAggregation.Bucket bucket = (InternalMultiBucketAggregation.Bucket) buckets.get(i);
                 InternalAggregation aggToAdd = doReduce(bucket.getAggregations(), reduceContext);
                 List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map((p) -> {
                     return (InternalAggregation) p;
                 }).collect(Collectors.toList());
                 aggs.add(aggToAdd);
-                InternalMultiBucketAggregation.InternalBucket newBucket = multiBucketsAgg.createBucket(new InternalAggregations(aggs),
+                InternalMultiBucketAggregation.Bucket newBucket = multiBucketsAgg.createBucket(new InternalAggregations(aggs),
                         bucket);
                 newBuckets.add(newBucket);
             }

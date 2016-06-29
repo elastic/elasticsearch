@@ -79,7 +79,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 
-    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Range.Bucket {
+    public static class Bucket implements InternalMultiBucketAggregation.Bucket, Range.Bucket {
 
         protected transient final boolean keyed;
         protected transient final DocValueFormat format;

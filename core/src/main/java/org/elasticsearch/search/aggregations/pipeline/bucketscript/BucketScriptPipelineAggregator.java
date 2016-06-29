@@ -89,7 +89,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
-        InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg = (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
+        InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.Bucket> originalAgg = (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.Bucket>) aggregation;
         List<? extends Bucket> buckets = originalAgg.getBuckets();
 
         CompiledScript compiledScript = reduceContext.scriptService().compile(script, ScriptContext.Standard.AGGS,
@@ -128,8 +128,8 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
                     }).collect(Collectors.toList());
                     aggs.add(new InternalSimpleValue(name(), ((Number) returned).doubleValue(), formatter,
                             new ArrayList<>(), metaData()));
-                    InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(new InternalAggregations(aggs),
-                            (InternalMultiBucketAggregation.InternalBucket) bucket);
+                    InternalMultiBucketAggregation.Bucket newBucket = originalAgg.createBucket(new InternalAggregations(aggs),
+                            (InternalMultiBucketAggregation.Bucket) bucket);
                     newBuckets.add(newBucket);
                 }
             }

@@ -91,7 +91,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 
-    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Histogram.Bucket {
+    public static class Bucket implements InternalMultiBucketAggregation.Bucket, Histogram.Bucket {
 
         long key;
         long docCount;

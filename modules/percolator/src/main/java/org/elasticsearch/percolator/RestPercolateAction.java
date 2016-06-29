@@ -36,13 +36,9 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestPercolateAction extends BaseRestHandler {
-
-    private final TransportPercolateAction action;
-
     @Inject
-    public RestPercolateAction(Settings settings, RestController controller, Client client, TransportPercolateAction action) {
+    public RestPercolateAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
-        this.action = action;
         controller.registerHandler(GET, "/{index}/{type}/_percolate", this);
         controller.registerHandler(POST, "/{index}/{type}/_percolate", this);
 
@@ -54,7 +50,8 @@ public class RestPercolateAction extends BaseRestHandler {
         controller.registerHandler(GET, "/{index}/{type}/_percolate/count", countHandler);
         controller.registerHandler(POST, "/{index}/{type}/_percolate/count", countHandler);
 
-        RestCountPercolateExistingDocHandler countExistingDocHandler = new RestCountPercolateExistingDocHandler(settings, controller, client);
+        RestCountPercolateExistingDocHandler countExistingDocHandler = new RestCountPercolateExistingDocHandler(settings, controller,
+                client);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_percolate/count", countExistingDocHandler);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_percolate/count", countExistingDocHandler);
     }
@@ -67,10 +64,11 @@ public class RestPercolateAction extends BaseRestHandler {
         percolateRequest.source(RestActions.getRestContent(restRequest));
 
         percolateRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, percolateRequest.indicesOptions()));
-        executePercolate(percolateRequest, restChannel);
+        executePercolate(client, percolateRequest, restChannel);
     }
 
-    void parseExistingDocPercolate(PercolateRequest percolateRequest, RestRequest restRequest, RestChannel restChannel, final Client client) {
+    void parseExistingDocPercolate(PercolateRequest percolateRequest, RestRequest restRequest, RestChannel restChannel,
+            final Client client) {
         String index = restRequest.param("index");
         String type = restRequest.param("type");
         percolateRequest.indices(Strings.splitStringByCommaToArray(restRequest.param("percolate_index", index)));
@@ -91,11 +89,11 @@ public class RestPercolateAction extends BaseRestHandler {
         percolateRequest.source(RestActions.getRestContent(restRequest));
 
         percolateRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, percolateRequest.indicesOptions()));
-        executePercolate(percolateRequest, restChannel);
+        executePercolate(client, percolateRequest, restChannel);
     }
 
-    void executePercolate(final PercolateRequest percolateRequest, final RestChannel restChannel) {
-        action.execute(percolateRequest, new RestToXContentListener<>(restChannel));
+    void executePercolate(final Client client, final PercolateRequest percolateRequest, final RestChannel restChannel) {
+        client.execute(PercolateAction.INSTANCE, percolateRequest, new RestToXContentListener<>(restChannel));
     }
 
     @Override

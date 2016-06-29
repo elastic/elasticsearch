@@ -22,10 +22,8 @@ package org.elasticsearch.transport.netty;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.netty.NettyUtils;
 import org.jboss.netty.buffer.ChannelBuffer;
 
-import java.io.EOFException;
 import java.io.IOException;
 
 /**

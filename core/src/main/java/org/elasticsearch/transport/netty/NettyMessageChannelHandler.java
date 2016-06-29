@@ -20,7 +20,6 @@
 package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.transport.TcpMessageHandler;
 import org.elasticsearch.transport.TcpHeader;
 import org.elasticsearch.transport.TcpTransportChannel;
@@ -39,14 +38,14 @@ import java.net.InetSocketAddress;
  * A handler (must be the last one!) that does size based frame decoding and forwards the actual message
  * to the relevant action.
  */
-public class NettyMessageChannelHandler extends SimpleChannelUpstreamHandler {
+class NettyMessageChannelHandler extends SimpleChannelUpstreamHandler {
 
     protected final TransportServiceAdapter transportServiceAdapter;
     protected final NettyTransport transport;
     protected final String profileName;
     private final TcpMessageHandler messageChannelHandler;
 
-    public NettyMessageChannelHandler(NettyTransport transport, String profileName, TcpMessageHandler handler) {
+    NettyMessageChannelHandler(NettyTransport transport, String profileName, TcpMessageHandler handler) {
         messageChannelHandler = handler;
         this.transportServiceAdapter = transport.transportServiceAdapter();
         this.transport = transport;

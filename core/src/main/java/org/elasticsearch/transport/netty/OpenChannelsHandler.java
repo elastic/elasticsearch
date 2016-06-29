@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.netty;
+package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.ESLogger;

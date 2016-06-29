@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.common.netty;
+package org.elasticsearch.transport.netty;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.transport.netty.NettyInternalESLoggerFactory;
+import org.elasticsearch.common.logging.Loggers;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.logging.InternalLogger;
@@ -93,10 +93,11 @@ public class NettyUtils {
     }
 
     static {
-        InternalLoggerFactory.setDefaultFactory(new NettyInternalESLoggerFactory() {
+        InternalLoggerFactory.setDefaultFactory(new InternalLoggerFactory() {
             @Override
             public InternalLogger newInstance(String name) {
-                return super.newInstance(name.replace("org.jboss.netty.", "netty.").replace("org.jboss.netty.", "netty."));
+                name = name.replace("org.jboss.netty.", "netty.").replace("org.jboss.netty.", "netty.");
+                return new NettyInternalESLogger(Loggers.getLogger(name));
             }
         });
 

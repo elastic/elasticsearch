@@ -16,13 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.common.netty;
+package org.elasticsearch.transport.netty;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.transport.netty.ChannelBufferStreamInputFactory;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.IOException;
@@ -59,7 +58,7 @@ final class ChannelBufferBytesReference implements BytesReference {
 
     @Override
     public StreamInput streamInput() {
-        return ChannelBufferStreamInputFactory.create(buffer.duplicate(), size);
+        return new ChannelBufferStreamInput(buffer.duplicate(), size);
     }
 
     @Override

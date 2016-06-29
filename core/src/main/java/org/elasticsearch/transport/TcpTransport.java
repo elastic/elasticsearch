@@ -223,7 +223,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent<T
 
         /**
          * The magic number (must be lower than 0) for a ping message. This is handled
-         * specifically in {@link org.elasticsearch.transport.netty.SizeHeaderFrameDecoder}.
+         * specifically in {@link TcpTransport#validateMessageHeader}.
          */
         private final BytesReference pingHeader;
         final CounterMetric successfulPings = new CounterMetric();

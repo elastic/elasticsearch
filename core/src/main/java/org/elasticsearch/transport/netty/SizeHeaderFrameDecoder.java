@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport.netty;
 
-import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.transport.TcpHeader;
 import org.elasticsearch.transport.TcpTransport;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -30,7 +29,7 @@ import org.jboss.netty.handler.codec.frame.TooLongFrameException;
 
 /**
  */
-public class SizeHeaderFrameDecoder extends FrameDecoder {
+final class SizeHeaderFrameDecoder extends FrameDecoder {
 
     @Override
     protected Object decode(ChannelHandlerContext ctx, Channel channel, ChannelBuffer buffer) throws Exception {

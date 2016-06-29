@@ -361,8 +361,6 @@ public class PagedBytesReference implements BytesReference {
 
     @Override
     public final BytesRefIterator iterator() {
-        // this BytesRef is reused across the iteration on purpose - BytesRefIterator interface was designed for this
-        final BytesRef slice = new BytesRef();
         final int offset = this.offset;
         final int length = this.length;
         // this iteration is page aligned to ensure we do NOT materialize the pages from the ByteArray
@@ -373,7 +371,9 @@ public class PagedBytesReference implements BytesReference {
         return new BytesRefIterator() {
             int position = 0;
             int nextFragmentSize = Math.min(length, initialFragmentSize);
-
+            // this BytesRef is reused across the iteration on purpose - BytesRefIterator interface was designed for this
+            final BytesRef slice = new BytesRef();
+            
             @Override
             public BytesRef next() throws IOException {
                 if (nextFragmentSize != 0) {

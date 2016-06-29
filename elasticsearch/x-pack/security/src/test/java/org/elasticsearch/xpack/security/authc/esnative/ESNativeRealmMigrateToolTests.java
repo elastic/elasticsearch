@@ -43,7 +43,8 @@ public class ESNativeRealmMigrateToolTests extends CommandTestCase {
         String[] runAs = Strings.EMPTY_ARRAY;
         RoleDescriptor rd = new RoleDescriptor("rolename", cluster, ips, runAs);
         assertThat(ESNativeRealmMigrateTool.MigrateUserOrRoles.createRoleJson(rd),
-                equalTo("{\"indices\":[{\"names\":[\"i1\",\"i2\",\"i3\"],\"privileges\":[\"all\"],\"fields\":[\"body\"]}]}"));
+                equalTo("{\"cluster\":[],\"indices\":[{\"names\":[\"i1\",\"i2\",\"i3\"]," +
+                                "\"privileges\":[\"all\"],\"fields\":[\"body\"]}],\"run_as\":[]}"));
 
     }
 

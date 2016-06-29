@@ -244,9 +244,9 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
         public void importUsers(Terminal terminal, Settings settings, Environment env, OptionSet options) {
             String usersCsv = usersToMigrateCsv.value(options);
             String[] usersToMigrate = (usersCsv != null) ? usersCsv.split(",") : Strings.EMPTY_ARRAY;
-            Settings esusersSettings = Realms.fileRealmSettings(settings);
-            Path usersFile = FileUserPasswdStore.resolveFile(esusersSettings, env);
-            Path usersRolesFile = FileUserRolesStore.resolveFile(esusersSettings, env);
+            Settings fileRealmSettings = Realms.fileRealmSettings(settings);
+            Path usersFile = FileUserPasswdStore.resolveFile(fileRealmSettings, env);
+            Path usersRolesFile = FileUserRolesStore.resolveFile(fileRealmSettings, env);
             terminal.println("importing users from [" + usersFile + "]...");
             Map<String, char[]> userToHashedPW = FileUserPasswdStore.parseFile(usersFile, null);
             Map<String, String[]> userToRoles = FileUserRolesStore.parseFile(usersRolesFile, null);
@@ -303,67 +303,22 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
 
         public static String createRoleJson(RoleDescriptor rd) throws IOException {
             XContentBuilder builder = jsonBuilder();
-            builder.startObject();
-            {
-                String[] clusterStrings = rd.getClusterPrivileges();
-                String[] runAs = rd.getRunAs();
-                RoleDescriptor.IndicesPrivileges[] indicesPrivileges = rd.getIndicesPrivileges();
-
-                if (clusterStrings != null && clusterStrings.length > 0) {
-                    builder.array("cluster", clusterStrings);
-                }
-
-                if (runAs != null && runAs.length > 0) {
-                    builder.array("run_as", runAs);
-                }
-
-                if (indicesPrivileges != null && indicesPrivileges.length > 0) {
-                    builder.startArray("indices");
-                    for (RoleDescriptor.IndicesPrivileges ip : indicesPrivileges) {
-                        builder.startObject();
-                        {
-                            String[] indices = ip.getIndices();
-                            String[] privs = ip.getPrivileges();
-                            String[] fields = ip.getFields();
-                            BytesReference query = ip.getQuery();
-
-                            if (indices != null && indices.length > 0) {
-                                builder.array("names", indices);
-                            }
-
-                            if (privs != null && privs.length > 0) {
-                                builder.array("privileges", privs);
-                            }
-
-                            if (fields != null && fields.length > 0) {
-                                builder.array("fields", fields);
-                            }
-
-                            if (query != null) {
-                                builder.field("query", query.toUtf8());
-                            }
-                        }
-                        builder.endObject();
-                    }
-                    builder.endArray();
-                }
-            }
-            builder.endObject();
+            rd.toXContent(builder, ToXContent.EMPTY_PARAMS);
             return builder.string();
         }
 
         public void importRoles(Terminal terminal, Settings settings, Environment env, OptionSet options) {
             String rolesCsv = rolesToMigrateCsv.value(options);
             String[] rolesToMigrate = (rolesCsv != null) ? rolesCsv.split(",") : Strings.EMPTY_ARRAY;
-            Settings esusersSettings = Realms.fileRealmSettings(settings);
-            Path rolesFile = FileRolesStore.resolveFile(esusersSettings, env).toAbsolutePath();
+            Settings fileRealmSettings = Realms.fileRealmSettings(settings);
+            Path rolesFile = FileRolesStore.resolveFile(fileRealmSettings, env).toAbsolutePath();
             terminal.println("importing roles from [" + rolesFile + "]...");
             Map<String, RoleDescriptor> roles = FileRolesStore.parseRoleDescriptors(rolesFile, null, true, Settings.EMPTY);
             Set<String> existingRoles;
             try {
                 existingRoles = getRolesThatExist(terminal, settings, env, options);
             } catch (Exception e) {
-                thow new ElasticsearchException("failed to get roles that already exist, skipping role import", e);
+                throw new ElasticsearchException("failed to get roles that already exist, skipping role import", e);
             }
             if (rolesToMigrate.length == 0) {
                 rolesToMigrate = roles.keySet().toArray(new String[roles.size()]);

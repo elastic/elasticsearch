@@ -43,6 +43,8 @@ import java.util.regex.Pattern;
  */
 public final class WriterConstants {
 
+    public final static int CLASS_VERSION = Opcodes.V1_8;
+    public final static int ASM_VERSION = Opcodes.ASM5;
     public final static String BASE_CLASS_NAME = Executable.class.getName();
     public final static Type BASE_CLASS_TYPE   = Type.getType(Executable.class);
 

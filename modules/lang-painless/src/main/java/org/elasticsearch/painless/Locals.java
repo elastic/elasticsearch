@@ -74,7 +74,11 @@ public final class Locals {
         Locals locals = new Locals(programScope, returnType);
         for (int i = 0; i < parameters.size(); i++) {
             Parameter parameter = parameters.get(i);
-            boolean isCapture = i < captureCount;
+            // TODO: allow non-captures to be r/w:
+            // boolean isCapture = i < captureCount;
+            // currently, this cannot be allowed, as we swap in real types,
+            // but that can prevent a store of a different type...
+            boolean isCapture = true;
             locals.addVariable(parameter.location, parameter.type, parameter.name, isCapture);
         }
         // Loop counter to catch infinite loops.  Internal use only.

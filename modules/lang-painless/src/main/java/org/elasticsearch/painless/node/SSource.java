@@ -31,6 +31,7 @@ import org.elasticsearch.painless.node.SFunction.Reserved;
 import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.SimpleChecksAdapter;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
@@ -146,7 +147,6 @@ public final class SSource extends AStatement {
         // Create the ClassWriter.
 
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
-        int classVersion = Opcodes.V1_8;
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
         String classBase = BASE_CLASS_TYPE.getInternalName();
         String className = CLASS_TYPE.getInternalName();
@@ -155,10 +155,15 @@ public final class SSource extends AStatement {
         ClassWriter writer = new ClassWriter(classFrames);
         ClassVisitor visitor = writer;
         
+        // if picky is enabled, turn on some checks. instead of VerifyError at the end, you get a helpful stacktrace.
+        if (settings.isPicky()) {
+            visitor = new SimpleChecksAdapter(visitor);
+        }
+
         if (debugStream != null) {
             visitor = new TraceClassVisitor(visitor, debugStream, null);
         }
-        visitor.visit(classVersion, classAccess, className, null, classBase, classInterfaces);
+        visitor.visit(WriterConstants.CLASS_VERSION, classAccess, className, null, classBase, classInterfaces);
         visitor.visitSource(Location.computeSourceName(name, source), null);
 
         // Write the constructor:
@@ -207,6 +212,7 @@ public final class SSource extends AStatement {
             // Initialize the constants in a static initializer
             final MethodWriter clinit = new MethodWriter(Opcodes.ACC_STATIC, 
                     WriterConstants.CLINIT, visitor, globals.getStatements(), settings);
+            clinit.visitCode();
             for (Constant constant : inits) {
                 constant.initializer.accept(clinit);
                 clinit.putStatic(CLASS_TYPE, constant.name, constant.type);

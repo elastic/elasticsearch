@@ -237,8 +237,8 @@ POST hockey/player/_update_by_query
 ----------------------------------------------------------------
 // CONSOLE
 
-Or you can use the `Pattern.matcher` directory to get a `Matcher` instance and
-remove all of the vowels in all of their names:
+You can use the `Pattern.matcher` directly to get a `Matcher` instance and
+remove all of the vowels in all of their last names:
 
 [source,js]
 ----------------------------------------------------------------
@@ -247,6 +247,59 @@ POST hockey/player/_update_by_query
   "script": {
     "lang": "painless",
     "inline": "ctx._source.last = /[aeiou]/.matcher(ctx._source.last).replaceAll('')"
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+
+`Matcher.replaceAll` is just a call to Java's `Matcher`'s
+http://docs.oracle.com/javase/8/docs/api/java/util/regex/Matcher.html#replaceAll-java.lang.String-[replaceAll]
+method so it supports `$1` and `\1` for replacements:
+
+[source,js]
+----------------------------------------------------------------
+POST hockey/player/_update_by_query
+{
+  "script": {
+    "lang": "painless",
+    "inline": "ctx._source.last = /n([aeiou])/.matcher(ctx._source.last).replaceAll('$1')"
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+
+If you need more control over replacements you can call `replaceAll` on a
+`CharSequence` with a `Function<Matcher, String>` that builds the replacement.
+This does not support `$1` or `\1` to access replacements because you already
+have a reference to the matcher and can get them with `m.group(1)`.
+
+IMPORTANT: Calling `Matcher.find` inside of the function that builds the
+replacement is rude and will likely break the replacement process.
+
+This will make all of the vowels in the hockey player's last names upper case:
+
+[source,js]
+----------------------------------------------------------------
+POST hockey/player/_update_by_query
+{
+  "script": {
+    "lang": "painless",
+    "inline": "ctx._source.last = ctx._source.last.replaceAll(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))"
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+
+Or you can use the `CharSequence.replaceFirst` to make the first vowel in their
+last names upper case:
+
+[source,js]
+----------------------------------------------------------------
+POST hockey/player/_update_by_query
+{
+  "script": {
+    "lang": "painless",
+    "inline": "ctx._source.last = ctx._source.last.replaceFirst(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))"
   }
 }
 ----------------------------------------------------------------
@@ -265,18 +318,18 @@ documents that they have to check.
 
 The following Java packages are available for use in the Painless language:
 
-* https://docs.oracle.com/javase/8/docs/api/java/lang/package-summary.html[java.lang] 
-* https://docs.oracle.com/javase/8/docs/api/java/math/package-summary.html[java.math] 
-* https://docs.oracle.com/javase/8/docs/api/java/text/package-summary.html[java.text] 
-* https://docs.oracle.com/javase/8/docs/api/java/time/package-summary.html[java.time] 
-* https://docs.oracle.com/javase/8/docs/api/java/time/chrono/package-summary.html[java.time.chrono] 
-* https://docs.oracle.com/javase/8/docs/api/java/time/format/package-summary.html[java.time.format] 
-* https://docs.oracle.com/javase/8/docs/api/java/time/temporal/package-summary.html[java.time.temporal] 
-* https://docs.oracle.com/javase/8/docs/api/java/time/zone/package-summary.html[java.time.zone] 
-* https://docs.oracle.com/javase/8/docs/api/java/util/package-summary.html[java.util] 
-* https://docs.oracle.com/javase/8/docs/api/java/util/function/package-summary.html[java.util.function] 
-* https://docs.oracle.com/javase/8/docs/api/java/util/regex/package-summary.html[java.util.regex] 
-* https://docs.oracle.com/javase/8/docs/api/java/util/stream/package-summary.html[java.util.stream] 
+* https://docs.oracle.com/javase/8/docs/api/java/lang/package-summary.html[java.lang]
+* https://docs.oracle.com/javase/8/docs/api/java/math/package-summary.html[java.math]
+* https://docs.oracle.com/javase/8/docs/api/java/text/package-summary.html[java.text]
+* https://docs.oracle.com/javase/8/docs/api/java/time/package-summary.html[java.time]
+* https://docs.oracle.com/javase/8/docs/api/java/time/chrono/package-summary.html[java.time.chrono]
+* https://docs.oracle.com/javase/8/docs/api/java/time/format/package-summary.html[java.time.format]
+* https://docs.oracle.com/javase/8/docs/api/java/time/temporal/package-summary.html[java.time.temporal]
+* https://docs.oracle.com/javase/8/docs/api/java/time/zone/package-summary.html[java.time.zone]
+* https://docs.oracle.com/javase/8/docs/api/java/util/package-summary.html[java.util]
+* https://docs.oracle.com/javase/8/docs/api/java/util/function/package-summary.html[java.util.function]
+* https://docs.oracle.com/javase/8/docs/api/java/util/regex/package-summary.html[java.util.regex]
+* https://docs.oracle.com/javase/8/docs/api/java/util/stream/package-summary.html[java.util.stream]
 
 Note that unsafe classes and methods are not included, there is no support for:
 

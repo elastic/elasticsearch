@@ -18,23 +18,28 @@
  */
 package org.elasticsearch.test.disruption;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Random;
 
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 
-public class JespenPartition extends NetworkUnresponsivePartition {
+public class JepsenPartition extends NetworkPartition {
 
     String supperConnectedNode;
+    final boolean unresponsive;
 
-    public JespenPartition(Random random) {
+    public JepsenPartition(Random random, boolean unresponsive) {
         super(random);
+        this.unresponsive = unresponsive;
     }
 
     @Override
     public void applyToCluster(InternalTestCluster cluster) {
         supperConnectedNode = randomFrom(random, cluster.getNodeNames());
+        this.cluster = cluster;
         for (String node: cluster.getNodeNames()) {
             if (node.equals(supperConnectedNode) == false) {
                 super.applyToNode(node, cluster);
@@ -42,10 +47,24 @@ public class JespenPartition extends NetworkUnresponsivePartition {
         }
     }
 
+    @Override
+    public TimeValue expectedTimeToHeal() {
+        return TimeValue.timeValueSeconds(0);
+    }
 
+    @Override
+    void applyDisruption(MockTransportService transportService1, MockTransportService transportService2) {
+        if (unresponsive) {
+            transportService1.addUnresponsiveRule(transportService2);
+            transportService2.addUnresponsiveRule(transportService1);
+        } else {
+            transportService1.addFailToSendNoConnectRule(transportService2);
+            transportService2.addFailToSendNoConnectRule(transportService1);
+        }
+    }
 
     @Override
     protected String getPartitionDescription() {
-        return "jepsen (super connected node: [" + supperConnectedNode + "]";
+        return "jepsen (super connected node: [" + supperConnectedNode + "], unresponsive [" + unresponsive + "])";
     }
 }

@@ -20,9 +20,11 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.node.NodeModule;
 import org.elasticsearch.plugins.Plugin;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -36,11 +38,16 @@ import java.util.Map;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 
-public class IngestGeoIpPlugin extends Plugin {
+public class IngestGeoIpPlugin extends Plugin implements Closeable {
+
+    private Map<String, DatabaseReader> databaseReaders;
 
     public void onModule(NodeModule nodeModule) throws IOException {
+        if (databaseReaders != null) {
+            throw new IllegalStateException("called onModule twice for geoip plugin!!");
+        }
         Path geoIpConfigDirectory = nodeModule.getNode().getEnvironment().configFile().resolve("ingest-geoip");
-        Map<String, DatabaseReader> databaseReaders = loadDatabaseReaders(geoIpConfigDirectory);
+        databaseReaders = loadDatabaseReaders(geoIpConfigDirectory);
         nodeModule.registerProcessor(GeoIpProcessor.TYPE, (registry) -> new GeoIpProcessor.Factory(databaseReaders));
     }
 
@@ -64,5 +71,12 @@ public class IngestGeoIpPlugin extends Plugin {
             }
         }
         return Collections.unmodifiableMap(databaseReaders);
+    }
+
+    @Override
+    public void close() throws IOException {
+        if (databaseReaders != null) {
+            IOUtils.close(databaseReaders.values());
+        }
     }
 }

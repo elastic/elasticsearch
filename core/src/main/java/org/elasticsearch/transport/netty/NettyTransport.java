@@ -134,8 +134,6 @@ public class NettyTransport extends TcpTransport<Channel> {
     protected final int workerCount;
     protected final ByteSizeValue receivePredictorMin;
     protected final ByteSizeValue receivePredictorMax;
-
-
     // package private for testing
     volatile OpenChannelsHandler serverOpenChannels;
     protected volatile ClientBootstrap clientBootstrap;
@@ -462,18 +460,6 @@ public class NettyTransport extends TcpTransport<Channel> {
         return new ClientChannelPipelineFactory(this);
     }
 
-    BigArrays getBigArrays() {
-        return bigArrays;
-    }
-
-    ThreadPool getThreadPool() {
-        return threadPool;
-    }
-
-    NamedWriteableRegistry getNamedWriteableRegistry() {
-        return namedWriteableRegistry;
-    }
-
     protected static class ClientChannelPipelineFactory implements ChannelPipelineFactory {
         protected final NettyTransport nettyTransport;
 
@@ -574,6 +560,7 @@ public class NettyTransport extends TcpTransport<Channel> {
     @Override
     protected void closeChannels(List<Channel> channels) {
         List<ChannelFuture> futures = new ArrayList<>();
+
         for (Channel channel : channels) {
             try {
                 if (channel != null && channel.isOpen()) {

@@ -159,7 +159,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent<T
     protected final ScheduledPing scheduledPing;
     private final TimeValue pingSchedule;
     protected final ThreadPool threadPool;
-    protected final BigArrays bigArrays;
+    private final BigArrays bigArrays;
     protected final NetworkService networkService;
 
     protected volatile TransportServiceAdapter transportServiceAdapter;
@@ -169,7 +169,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent<T
     protected final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
 
     protected final KeyedLock<String> connectionLock = new KeyedLock<>();
-    protected final NamedWriteableRegistry namedWriteableRegistry;
+    private final NamedWriteableRegistry namedWriteableRegistry;
 
     // this lock is here to make sure we close this transport and disconnect all the client nodes
     // connections while no connect operations is going on... (this might help with 100% CPU when stopping the transport?)

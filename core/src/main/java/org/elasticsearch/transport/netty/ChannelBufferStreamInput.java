@@ -132,7 +132,7 @@ public class ChannelBufferStreamInput extends StreamInput {
     public void readBytes(byte[] b, int offset, int len) throws IOException {
         int read = read(b, offset, len);
         if (read < len) {
-            throw new EOFException();
+            throw new IndexOutOfBoundsException();
         }
     }
 

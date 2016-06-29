@@ -73,7 +73,6 @@ public class NettyUtilsTests extends ESTestCase {
     }
 
     private BytesReference getRandomizedBytesReference(int length) throws IOException {
-        // TODO we should factor out a BaseBytesReferenceTestCase
         // we know bytes stream output always creates a paged bytes reference, we use it to create randomized content
         ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(length, bigarrays);
         for (int i = 0; i < length; i++) {

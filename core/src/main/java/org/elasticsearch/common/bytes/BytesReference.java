@@ -160,7 +160,7 @@ public interface BytesReference {
      */
     default BytesRefIterator iterator() {
         return new BytesRefIterator() {
-            BytesRef ref = toBytesRef();
+            BytesRef ref = length() == 0 ? null : toBytesRef();
             @Override
             public BytesRef next() throws IOException {
                 BytesRef r = ref;

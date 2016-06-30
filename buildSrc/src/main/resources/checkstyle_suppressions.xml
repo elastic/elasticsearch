@@ -1179,10 +1179,10 @@
   <suppress files="plugins[/\\]analysis-kuromoji[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]analysis[/\\]JapaneseStopTokenFilterFactory.java" checks="LineLength" />
   <suppress files="plugins[/\\]analysis-kuromoji[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]analysis[/\\]KuromojiAnalysisTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]analysis-phonetic[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]analysis[/\\]PhoneticTokenFilterFactory.java" checks="LineLength" />
-  <suppress files="plugins[/\\]discovery-azure[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]cloud[/\\]azure[/\\]AbstractAzureTestCase.java" checks="LineLength" />
-  <suppress files="plugins[/\\]discovery-azure[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]azure[/\\]AzureMinimumMasterNodesTests.java" checks="LineLength" />
-  <suppress files="plugins[/\\]discovery-azure[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]azure[/\\]AzureSimpleTests.java" checks="LineLength" />
-  <suppress files="plugins[/\\]discovery-azure[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]azure[/\\]AzureTwoStartedNodesTests.java" checks="LineLength" />
+  <suppress files="plugins[/\\]discovery-azure-classic[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]cloud[/\\]azure[/\\]AbstractAzureTestCase.java" checks="LineLength" />
+  <suppress files="plugins[/\\]discovery-azure-classic[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]azure[/\\]AzureMinimumMasterNodesTests.java" checks="LineLength" />
+  <suppress files="plugins[/\\]discovery-azure-classic[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]azure[/\\]AzureSimpleTests.java" checks="LineLength" />
+  <suppress files="plugins[/\\]discovery-azure-classic[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]azure[/\\]AzureTwoStartedNodesTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]cloud[/\\]aws[/\\]AbstractAwsTestCase.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]ec2[/\\]AmazonEC2Mock.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-gce[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]gce[/\\]GceNetworkTests.java" checks="LineLength" />

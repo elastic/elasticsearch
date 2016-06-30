@@ -209,7 +209,7 @@ fi
     install_and_check_plugin discovery gce google-api-client-*.jar
 }
 
-@test "[$GROUP] install discovery-azure plugin" {
+@test "[$GROUP] install discovery-azure-classic plugin" {
     install_and_check_plugin discovery azure azure-core-*.jar
 }
 
@@ -341,8 +341,8 @@ fi
     remove_plugin discovery-gce
 }
 
-@test "[$GROUP] remove discovery-azure plugin" {
-    remove_plugin discovery-azure
+@test "[$GROUP] remove discovery-azure-classic plugin" {
+    remove_plugin discovery-azure-classic
 }
 
 @test "[$GROUP] remove discovery-ec2 plugin" {

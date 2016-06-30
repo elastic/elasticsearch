@@ -63,7 +63,7 @@ Proxy settings for both plugins have been renamed:
 
 Cloud Azure plugin has been split in three plugins:
 
-* {plugins}/discovery-azure.html[Discovery Azure plugin]
+* {plugins}/discovery-azure-classic.html[Discovery Azure plugin]
 * {plugins}/repository-azure.html[Repository Azure plugin]
 * {plugins}/store-smb.html[Store SMB plugin]
 

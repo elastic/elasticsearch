@@ -644,8 +644,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             @Override
             public void sendResponse(RestResponse response) {
                 try {
-                    assertThat(response.content().toUtf8(), containsString("notsecretusername"));
-                    assertThat(response.content().toUtf8(), not(containsString("verysecretpassword")));
+                    assertThat(response.content().utf8ToString(), containsString("notsecretusername"));
+                    assertThat(response.content().utf8ToString(), not(containsString("verysecretpassword")));
                 } catch (AssertionError ex) {
                     getRepoError.set(ex);
                 }
@@ -665,8 +665,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             @Override
             public void sendResponse(RestResponse response) {
                 try {
-                    assertThat(response.content().toUtf8(), containsString("notsecretusername"));
-                    assertThat(response.content().toUtf8(), not(containsString("verysecretpassword")));
+                    assertThat(response.content().utf8ToString(), containsString("notsecretusername"));
+                    assertThat(response.content().utf8ToString(), not(containsString("verysecretpassword")));
                 } catch (AssertionError ex) {
                     clusterStateError.set(ex);
                 }

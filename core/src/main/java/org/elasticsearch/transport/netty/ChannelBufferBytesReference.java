@@ -72,7 +72,7 @@ final class ChannelBufferBytesReference extends BytesReference {
     }
 
     @Override
-    public String toUtf8() {
+    public String utf8ToString() {
         return buffer.toString(StandardCharsets.UTF_8);
     }
 

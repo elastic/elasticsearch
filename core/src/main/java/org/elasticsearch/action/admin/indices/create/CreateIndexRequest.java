@@ -364,7 +364,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                 throw new ElasticsearchParseException("failed to parse source for create index", e);
             }
         } else {
-            settings(source.toUtf8());
+            settings(source.utf8ToString());
         }
         return this;
     }

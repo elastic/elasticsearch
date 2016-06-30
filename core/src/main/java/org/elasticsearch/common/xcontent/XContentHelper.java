@@ -21,7 +21,6 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.Compressor;
@@ -31,7 +30,6 @@ import org.elasticsearch.common.xcontent.ToXContent.Params;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -95,7 +93,7 @@ public class XContentHelper {
     public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint) throws IOException {
         XContentType xContentType = XContentFactory.xContentType(bytes);
         if (xContentType == XContentType.JSON && !reformatJson) {
-            return bytes.toUtf8();
+            return bytes.utf8ToString();
         }
         try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(bytes.streamInput())) {
             parser.nextToken();

@@ -131,11 +131,11 @@ public class MockFSDirectoryService extends FsDirectoryService {
                         ESTestCase.checkIndexFailed = true;
                         logger.warn("check index [failure] index files={}\n{}",
                                 Arrays.toString(dir.listAll()),
-                                os.bytes().toUtf8());
+                                os.bytes().utf8ToString());
                         throw new IOException("index check failure");
                     } else {
                         if (logger.isDebugEnabled()) {
-                            logger.debug("check index [success]\n{}", os.bytes().toUtf8());
+                            logger.debug("check index [success]\n{}", os.bytes().utf8ToString());
                         }
                     }
                 } catch (LockObtainFailedException e) {

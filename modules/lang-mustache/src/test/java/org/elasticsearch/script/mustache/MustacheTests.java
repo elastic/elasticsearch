@@ -72,7 +72,7 @@ public class MustacheTests extends ESTestCase {
                 "Mustache templating broken",
                 "GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                         + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.2 } }}",
-                ((BytesReference) result.run()).toUtf8()
+                ((BytesReference) result.run()).utf8ToString()
         );
     }
 
@@ -88,7 +88,7 @@ public class MustacheTests extends ESTestCase {
         assertThat(output, notNullValue());
         assertThat(output, instanceOf(BytesReference.class));
         BytesReference bytes = (BytesReference) output;
-        assertThat(bytes.toUtf8(), equalTo("foo bar"));
+        assertThat(bytes.utf8ToString(), equalTo("foo bar"));
 
         // Sets can come out in any order
         Set<String> setData = new HashSet<>();
@@ -99,7 +99,7 @@ public class MustacheTests extends ESTestCase {
         assertThat(output, notNullValue());
         assertThat(output, instanceOf(BytesReference.class));
         bytes = (BytesReference) output;
-        assertThat(bytes.toUtf8(), both(containsString("foo")).and(containsString("bar")));
+        assertThat(bytes.utf8ToString(), both(containsString("foo")).and(containsString("bar")));
     }
 
     public void testArrayInArrayAccess() throws Exception {
@@ -116,7 +116,7 @@ public class MustacheTests extends ESTestCase {
         assertThat(output, notNullValue());
         assertThat(output, instanceOf(BytesReference.class));
         BytesReference bytes = (BytesReference) output;
-        assertThat(bytes.toUtf8(), equalTo("foo bar"));
+        assertThat(bytes.utf8ToString(), equalTo("foo bar"));
     }
 
     public void testMapInArrayAccess() throws Exception {
@@ -131,7 +131,7 @@ public class MustacheTests extends ESTestCase {
         assertThat(output, notNullValue());
         assertThat(output, instanceOf(BytesReference.class));
         BytesReference bytes = (BytesReference) output;
-        assertThat(bytes.toUtf8(), equalTo("foo bar"));
+        assertThat(bytes.utf8ToString(), equalTo("foo bar"));
 
         // HashSet iteration order isn't fixed
         Set<Object> setData = new HashSet<>();
@@ -142,7 +142,7 @@ public class MustacheTests extends ESTestCase {
         assertThat(output, notNullValue());
         assertThat(output, instanceOf(BytesReference.class));
         bytes = (BytesReference) output;
-        assertThat(bytes.toUtf8(), both(containsString("foo")).and(containsString("bar")));
+        assertThat(bytes.utf8ToString(), both(containsString("foo")).and(containsString("bar")));
     }
 
     public void testEscaping() {
@@ -152,7 +152,7 @@ public class MustacheTests extends ESTestCase {
         CompiledScript compiledScript = new CompiledScript(INLINE, "name", "mustache", mustache);
         ExecutableScript executableScript = engine.executable(compiledScript, Collections.singletonMap("value", "a \"value\""));
         BytesReference rawResult = (BytesReference) executableScript.run();
-        String result = rawResult.toUtf8();
+        String result = rawResult.utf8ToString();
         assertThat(result, equalTo("{ \"field1\": \"a \\\"value\\\"\"}"));
 
         // json string escaping disabled:
@@ -160,7 +160,7 @@ public class MustacheTests extends ESTestCase {
         compiledScript = new CompiledScript(INLINE, "name", "mustache", mustache);
         executableScript = engine.executable(compiledScript, Collections.singletonMap("value", "a \"value\""));
         rawResult = (BytesReference) executableScript.run();
-        result = rawResult.toUtf8();
+        result = rawResult.utf8ToString();
         assertThat(result, equalTo("{ \"field1\": \"a \"value\"\"}"));
     }
 
@@ -182,7 +182,7 @@ public class MustacheTests extends ESTestCase {
 
         BytesReference bytes = (BytesReference) output;
         String expectedString = String.format(Locale.ROOT, "%s %s", randomArrayValues.length, randomList.size());
-        assertThat(bytes.toUtf8(), equalTo(expectedString));
+        assertThat(bytes.utf8ToString(), equalTo(expectedString));
     }
 
     public void testPrimitiveToJSON() throws Exception {
@@ -378,7 +378,7 @@ public class MustacheTests extends ESTestCase {
         Object result = engine.executable(new CompiledScript(INLINE, "inline", "mustache", compile(script)), vars).run();
         assertThat(result, notNullValue());
         assertThat(result, instanceOf(BytesReference.class));
-        assertThat(((BytesReference) result).toUtf8(), matcher);
+        assertThat(((BytesReference) result).utf8ToString(), matcher);
     }
 
     private Object compile(String script) {

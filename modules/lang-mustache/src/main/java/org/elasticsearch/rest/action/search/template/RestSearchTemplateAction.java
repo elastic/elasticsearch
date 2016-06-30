@@ -73,7 +73,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             request.setScriptType(ScriptService.ScriptType.INLINE);
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 try (XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType())) {
-                    request.setScript(builder.copyCurrentStructure(parser).bytes().toUtf8());
+                    request.setScript(builder.copyCurrentStructure(parser).bytes().utf8ToString());
                 } catch (IOException e) {
                     throw new ParsingException(parser.getTokenLocation(), "Could not parse inline template", e);
                 }

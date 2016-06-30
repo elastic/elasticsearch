@@ -88,11 +88,6 @@ public final class BytesArray extends BytesReference {
         return new BytesArray(bytes, offset + from, length);
     }
 
-    @Override
-    public void writeTo(OutputStream os) throws IOException {
-        os.write(bytes, offset, length);
-    }
-
     public byte[] array() {
         return bytes;
     }

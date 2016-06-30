@@ -23,14 +23,12 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.text.UTF8SortedAsUnicodeComparator;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -396,7 +394,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
     public void testToUtf8() throws IOException {
         // test empty
         BytesReference pbr = newBytesReference(0);
-        assertEquals("", pbr.toUtf8());
+        assertEquals("", pbr.utf8ToString());
         // TODO: good way to test?
     }
 
@@ -440,27 +438,23 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         assertEquals(sliceJdkHash, sliceHash);
     }
 
-    public void testEquals() {
-        int length = randomIntBetween(100, PAGE_SIZE * randomIntBetween(2, 5));
-        ByteArray ba1 = bigarrays.newByteArray(length, false);
-        ByteArray ba2 = bigarrays.newByteArray(length, false);
-
-        // copy contents
-        for (long i = 0; i < length; i++) {
-            ba2.set(i, ba1.get(i));
-        }
+    public void testEquals() throws IOException {
+        BytesReference bytesReference = newBytesReference(randomIntBetween(100, PAGE_SIZE * randomIntBetween(2, 5)));
+        BytesReference copy = bytesReference.slice(0, bytesReference.length());
 
         // get refs & compare
-        BytesReference pbr = new PagedBytesReference(bigarrays, ba1, length);
-        BytesReference pbr2 = new PagedBytesReference(bigarrays, ba2, length);
-        assertEquals(pbr, pbr2);
-    }
+        assertEquals(copy, bytesReference);
+        int sliceFrom = randomIntBetween(0, bytesReference.length());
+        int sliceLength = randomIntBetween(bytesReference.length() - sliceFrom, bytesReference.length() - sliceFrom);
+        assertEquals(copy.slice(sliceFrom, sliceLength), bytesReference.slice(sliceFrom, sliceLength));
 
-    public void testEqualsPeerClass() throws IOException {
-        int length = randomIntBetween(100, PAGE_SIZE * randomIntBetween(2, 5));
-        BytesReference pbr = newBytesReference(length);
-        BytesReference ba = new BytesArray(BytesReference.toBytes(pbr));
-        assertEquals(pbr, ba);
+        BytesRef bytesRef = BytesRef.deepCopyOf(copy.toBytesRef());
+        assertEquals(new BytesArray(bytesRef), copy);
+
+        int offsetToFlip = randomIntBetween(0, bytesRef.length - 1);
+        int value = ~Byte.toUnsignedInt(bytesRef.bytes[bytesRef.offset+offsetToFlip]);
+        bytesRef.bytes[bytesRef.offset+offsetToFlip] = (byte)value;
+        assertNotEquals(new BytesArray(bytesRef), copy);
     }
 
     public void testSliceEquals() {

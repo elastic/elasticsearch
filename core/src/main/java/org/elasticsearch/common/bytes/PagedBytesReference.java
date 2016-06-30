@@ -80,35 +80,6 @@ public class PagedBytesReference extends BytesReference {
     }
 
     @Override
-    public void writeTo(OutputStream os) throws IOException {
-        // nothing to do
-        if (length == 0) {
-            return;
-        }
-
-        BytesRef ref = new BytesRef();
-        int written = 0;
-
-        // are we a slice?
-        if (offset != 0) {
-            // remaining size of page fragment at offset
-            int fragmentSize = Math.min(length, PAGE_SIZE - (offset % PAGE_SIZE));
-            bytearray.get(offset, fragmentSize, ref);
-            os.write(ref.bytes, ref.offset, fragmentSize);
-            written += fragmentSize;
-        }
-
-        // handle remainder of pages + trailing fragment
-        while (written < length) {
-            int remaining = length - written;
-            int bulkSize = (remaining > PAGE_SIZE) ? PAGE_SIZE : remaining;
-            bytearray.get(offset + written, bulkSize, ref);
-            os.write(ref.bytes, ref.offset, bulkSize);
-            written += bulkSize;
-        }
-    }
-
-    @Override
     public BytesRef toBytesRef() {
         BytesRef bref = new BytesRef();
         // if length <= pagesize this will dereference the page, or materialize the byte[]

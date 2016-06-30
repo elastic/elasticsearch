@@ -112,4 +112,24 @@ public class PagedBytesReferenceTests extends AbstractBytesReferenceTestCase {
         assertEquals(length <= PAGE_SIZE, getNumPages(pbr) == 1);
     }
 
+    public void testEquals() {
+        int length = randomIntBetween(100, PAGE_SIZE * randomIntBetween(2, 5));
+        ByteArray ba1 = bigarrays.newByteArray(length, false);
+        ByteArray ba2 = bigarrays.newByteArray(length, false);
+
+        // copy contents
+        for (long i = 0; i < length; i++) {
+            ba2.set(i, ba1.get(i));
+        }
+
+        // get refs & compare
+        BytesReference pbr = new PagedBytesReference(bigarrays, ba1, length);
+        BytesReference pbr2 = new PagedBytesReference(bigarrays, ba2, length);
+        assertEquals(pbr, pbr2);
+        int offsetToFlip = randomIntBetween(0, length - 1);
+        int value = ~Byte.toUnsignedInt(ba1.get(offsetToFlip));
+        ba2.set(offsetToFlip, (byte)value);
+        assertNotEquals(pbr, pbr2);
+    }
+
 }

@@ -81,7 +81,7 @@ public class BulkRequestTests extends ESTestCase {
         assertThat(bulkRequest.numberOfActions(), equalTo(4));
         assertThat(((UpdateRequest) bulkRequest.requests().get(0)).id(), equalTo("1"));
         assertThat(((UpdateRequest) bulkRequest.requests().get(0)).retryOnConflict(), equalTo(2));
-        assertThat(((UpdateRequest) bulkRequest.requests().get(0)).doc().source().toUtf8(), equalTo("{\"field\":\"value\"}"));
+        assertThat(((UpdateRequest) bulkRequest.requests().get(0)).doc().source().utf8ToString(), equalTo("{\"field\":\"value\"}"));
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).id(), equalTo("0"));
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).type(), equalTo("type1"));
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).index(), equalTo("index1"));
@@ -93,7 +93,7 @@ public class BulkRequestTests extends ESTestCase {
         assertThat(scriptParams, notNullValue());
         assertThat(scriptParams.size(), equalTo(1));
         assertThat(((Integer) scriptParams.get("param1")), equalTo(1));
-        assertThat(((UpdateRequest) bulkRequest.requests().get(1)).upsertRequest().source().toUtf8(), equalTo("{\"counter\":1}"));
+        assertThat(((UpdateRequest) bulkRequest.requests().get(1)).upsertRequest().source().utf8ToString(), equalTo("{\"counter\":1}"));
     }
 
     public void testBulkAllowExplicitIndex() throws Exception {

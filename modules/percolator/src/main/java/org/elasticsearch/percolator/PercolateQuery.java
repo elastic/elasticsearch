@@ -292,7 +292,7 @@ public final class PercolateQuery extends Query implements Accountable {
 
     @Override
     public String toString(String s) {
-        return "PercolateQuery{document_type={" + documentType + "},document_source={" + documentSource.toUtf8() +
+        return "PercolateQuery{document_type={" + documentType + "},document_source={" + documentSource.utf8ToString() +
                 "},inner={" + percolatorQueriesQuery.toString(s)  + "}}";
     }
 

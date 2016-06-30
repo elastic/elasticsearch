@@ -61,7 +61,7 @@ public class RestClearScrollAction extends BaseRestHandler {
         if (RestActions.hasBodyContent(request)) {
             XContentType type = RestActions.guessBodyContentType(request);
            if (type == null) {
-               scrollIds = RestActions.getRestContent(request).toUtf8();
+               scrollIds = RestActions.getRestContent(request).utf8ToString();
                clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));
            } else {
                // NOTE: if rest request with xcontent body has request parameters, these parameters does not override xcontent value

@@ -106,7 +106,6 @@ import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -405,7 +404,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     .setOrder(0)
                     .setSettings(randomSettingsBuilder);
             if (mappings != null) {
-                logger.info("test using _default_ mappings: [{}]", mappings.bytes().toUtf8());
+                logger.info("test using _default_ mappings: [{}]", mappings.bytes().utf8ToString());
                 putTemplate.addMapping("_default_", mappings);
             }
             assertAcked(putTemplate.execute().actionGet());

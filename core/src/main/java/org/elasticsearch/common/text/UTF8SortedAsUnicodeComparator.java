@@ -27,14 +27,10 @@ import java.util.Comparator;
 
 // LUCENE 4 UPGRADE: Is this the right way of comparing bytesreferences inside Text instances?
 // Copied from Lucene's BytesRef comparator
-public class UTF8SortedAsUnicodeComparator implements Comparator<BytesReference> {
-
+public final class UTF8SortedAsUnicodeComparator implements Comparator<BytesReference> {
     public final static Comparator<BytesReference> utf8SortedAsUnicodeSortOrder = new UTF8SortedAsUnicodeComparator();
-
     // Only singleton
-    private UTF8SortedAsUnicodeComparator() {
-    }
-
+    private UTF8SortedAsUnicodeComparator() {}
     @Override
     public int compare(BytesReference a, BytesReference b) {
         try {

@@ -376,7 +376,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                             "] lang [" + scriptLang + "]", e);
                 }
             } else {
-                throw new IllegalArgumentException("Unable to find script in : " + scriptBytes.toUtf8());
+                throw new IllegalArgumentException("Unable to find script in : " + scriptBytes.utf8ToString());
             }
         } catch (IOException e) {
             throw new IllegalArgumentException("failed to parse template script", e);

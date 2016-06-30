@@ -49,7 +49,7 @@ public class RestRestoreSnapshotAction extends BaseRestHandler {
         RestoreSnapshotRequest restoreSnapshotRequest = restoreSnapshotRequest(request.param("repository"), request.param("snapshot"));
         restoreSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", restoreSnapshotRequest.masterNodeTimeout()));
         restoreSnapshotRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));
-        restoreSnapshotRequest.source(request.content().toUtf8());
+        restoreSnapshotRequest.source(request.content().utf8ToString());
         client.admin().cluster().restoreSnapshot(restoreSnapshotRequest, new RestToXContentListener<RestoreSnapshotResponse>(channel));
     }
 }

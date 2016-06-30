@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -45,7 +44,7 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
         assertNotNull(expected);
 
         // Verify that the result is equal to the expected string
-        assertThat(builder.bytes().toUtf8(), is(expected.bytes().toUtf8()));
+        assertThat(builder.bytes().utf8ToString(), is(expected.bytes().utf8ToString()));
     }
 
     protected void assertBinary(XContentBuilder expected, XContentBuilder builder) {

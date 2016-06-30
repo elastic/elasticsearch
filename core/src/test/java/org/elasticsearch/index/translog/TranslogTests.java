@@ -60,9 +60,7 @@ import java.nio.charset.Charset;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
-import java.nio.file.OpenOption;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -827,7 +825,7 @@ public class TranslogTests extends ESTestCase {
 
         assertEquals(max.generation, translog.currentFileGeneration());
         final Translog.Operation read = translog.read(max);
-        assertEquals(read.getSource().source.toUtf8(), Integer.toString(count));
+        assertEquals(read.getSource().source.utf8ToString(), Integer.toString(count));
     }
 
     public static Translog.Location max(Translog.Location a, Translog.Location b) {
@@ -859,7 +857,7 @@ public class TranslogTests extends ESTestCase {
                 Translog.Location location = locations.get(op);
                 if (op <= lastSynced) {
                     final Translog.Operation read = reader.read(location);
-                    assertEquals(Integer.toString(op), read.getSource().source.toUtf8());
+                    assertEquals(Integer.toString(op), read.getSource().source.utf8ToString());
                 } else {
                     try {
                         reader.read(location);
@@ -995,7 +993,7 @@ public class TranslogTests extends ESTestCase {
                 assertEquals("expected operation" + i + " to be in the previous translog but wasn't", translog.currentFileGeneration() - 1, locations.get(i).generation);
                 Translog.Operation next = snapshot.next();
                 assertNotNull("operation " + i + " must be non-null", next);
-                assertEquals(i, Integer.parseInt(next.getSource().source.toUtf8()));
+                assertEquals(i, Integer.parseInt(next.getSource().source.utf8ToString()));
             }
         }
     }
@@ -1030,7 +1028,7 @@ public class TranslogTests extends ESTestCase {
             for (int i = 0; i < upTo; i++) {
                 Translog.Operation next = snapshot.next();
                 assertNotNull("operation " + i + " must be non-null synced: " + sync, next);
-                assertEquals("payload missmatch, synced: " + sync, i, Integer.parseInt(next.getSource().source.toUtf8()));
+                assertEquals("payload missmatch, synced: " + sync, i, Integer.parseInt(next.getSource().source.utf8ToString()));
             }
         }
         if (randomBoolean()) { // recover twice
@@ -1043,7 +1041,7 @@ public class TranslogTests extends ESTestCase {
                 for (int i = 0; i < upTo; i++) {
                     Translog.Operation next = snapshot.next();
                     assertNotNull("operation " + i + " must be non-null synced: " + sync, next);
-                    assertEquals("payload missmatch, synced: " + sync, i, Integer.parseInt(next.getSource().source.toUtf8()));
+                    assertEquals("payload missmatch, synced: " + sync, i, Integer.parseInt(next.getSource().source.utf8ToString()));
                 }
             }
         }
@@ -1084,7 +1082,7 @@ public class TranslogTests extends ESTestCase {
             for (int i = 0; i < upTo; i++) {
                 Translog.Operation next = snapshot.next();
                 assertNotNull("operation " + i + " must be non-null synced: " + sync, next);
-                assertEquals("payload missmatch, synced: " + sync, i, Integer.parseInt(next.getSource().source.toUtf8()));
+                assertEquals("payload missmatch, synced: " + sync, i, Integer.parseInt(next.getSource().source.utf8ToString()));
             }
 
         }
@@ -1099,7 +1097,7 @@ public class TranslogTests extends ESTestCase {
                 for (int i = 0; i < upTo; i++) {
                     Translog.Operation next = snapshot.next();
                     assertNotNull("operation " + i + " must be non-null synced: " + sync, next);
-                    assertEquals("payload missmatch, synced: " + sync, i, Integer.parseInt(next.getSource().source.toUtf8()));
+                    assertEquals("payload missmatch, synced: " + sync, i, Integer.parseInt(next.getSource().source.utf8ToString()));
                 }
             }
         }
@@ -1143,7 +1141,7 @@ public class TranslogTests extends ESTestCase {
             for (int i = 0; i < upTo; i++) {
                 Translog.Operation next = snapshot.next();
                 assertNotNull("operation " + i + " must be non-null synced: " + sync, next);
-                assertEquals("payload missmatch, synced: " + sync, i, Integer.parseInt(next.getSource().source.toUtf8()));
+                assertEquals("payload missmatch, synced: " + sync, i, Integer.parseInt(next.getSource().source.utf8ToString()));
             }
         }
     }
@@ -1218,7 +1216,7 @@ public class TranslogTests extends ESTestCase {
         for (int i = firstUncommitted; i < translogOperations; i++) {
             Translog.Operation next = snapshot.next();
             assertNotNull("" + i, next);
-            assertEquals(Integer.parseInt(next.getSource().source.toUtf8()), i);
+            assertEquals(Integer.parseInt(next.getSource().source.utf8ToString()), i);
         }
         assertNull(snapshot.next());
     }
@@ -1392,7 +1390,7 @@ public class TranslogTests extends ESTestCase {
                 assertEquals("expected operation" + i + " to be in the previous translog but wasn't", tlog.currentFileGeneration() - 1, locations.get(i).generation);
                 Translog.Operation next = snapshot.next();
                 assertNotNull("operation " + i + " must be non-null", next);
-                assertEquals(i, Integer.parseInt(next.getSource().source.toUtf8()));
+                assertEquals(i, Integer.parseInt(next.getSource().source.utf8ToString()));
             }
         }
     }
@@ -1716,7 +1714,7 @@ public class TranslogTests extends ESTestCase {
             for (int i = 0; i < 1; i++) {
                 Translog.Operation next = snapshot.next();
                 assertNotNull("operation " + i + " must be non-null", next);
-                assertEquals("payload missmatch", i, Integer.parseInt(next.getSource().source.toUtf8()));
+                assertEquals("payload missmatch", i, Integer.parseInt(next.getSource().source.utf8ToString()));
             }
             tlog.add(new Translog.Index("test", "" + 1, Integer.toString(1).getBytes(Charset.forName("UTF-8"))));
         }
@@ -1727,7 +1725,7 @@ public class TranslogTests extends ESTestCase {
             for (int i = 0; i < 2; i++) {
                 Translog.Operation next = snapshot.next();
                 assertNotNull("operation " + i + " must be non-null", next);
-                assertEquals("payload missmatch", i, Integer.parseInt(next.getSource().source.toUtf8()));
+                assertEquals("payload missmatch", i, Integer.parseInt(next.getSource().source.utf8ToString()));
             }
         }
     }
@@ -1771,7 +1769,7 @@ public class TranslogTests extends ESTestCase {
             for (int i = 0; i < 1; i++) {
                 Translog.Operation next = snapshot.next();
                 assertNotNull("operation " + i + " must be non-null", next);
-                assertEquals("payload missmatch", i, Integer.parseInt(next.getSource().source.toUtf8()));
+                assertEquals("payload missmatch", i, Integer.parseInt(next.getSource().source.utf8ToString()));
             }
             tlog.add(new Translog.Index("test", "" + 1, Integer.toString(1).getBytes(Charset.forName("UTF-8"))));
         }
@@ -1870,7 +1868,7 @@ public class TranslogTests extends ESTestCase {
                 assertEquals(syncedDocs.size(), snapshot.totalOperations());
                 for (int i = 0; i < syncedDocs.size(); i++) {
                     Translog.Operation next = snapshot.next();
-                    assertEquals(syncedDocs.get(i), next.getSource().source.toUtf8());
+                    assertEquals(syncedDocs.get(i), next.getSource().source.utf8ToString());
                     assertNotNull("operation " + i + " must be non-null", next);
                 }
             }

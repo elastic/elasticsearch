@@ -57,12 +57,18 @@ public abstract class BytesReference implements Accountable {
     /**
      * Writes the bytes directly to the output stream.
      */
-    public abstract void writeTo(OutputStream os) throws IOException;
+    public void writeTo(OutputStream os) throws IOException {
+        final BytesRefIterator iterator = iterator();
+        BytesRef ref;
+        while ((ref = iterator.next()) != null) {
+            os.write(ref.bytes, ref.offset, ref.length);
+        }
+    }
 
     /**
-     * Converts to a string based on utf8.
+     * Interprets the referenced bytes as UTF8 bytes, returning the resulting string
      */
-    public String toUtf8() {
+    public String utf8ToString() {
         return toBytesRef().utf8ToString();
     }
 
@@ -99,7 +105,7 @@ public abstract class BytesReference implements Accountable {
                 return false;
             }
             for (int i = 0; i < length(); ++i) {
-                if (other.get(i) != other.get(i)) {
+                if (get(i) != other.get(i)) {
                     return false;
                 }
             }

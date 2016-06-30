@@ -24,7 +24,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Calendar;
 import java.util.Collections;
@@ -35,7 +34,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.BytesStream;
@@ -787,7 +785,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
      */
     public String string() throws IOException {
         close();
-        return bytes().toUtf8();
+        return bytes().utf8ToString();
     }
 
 

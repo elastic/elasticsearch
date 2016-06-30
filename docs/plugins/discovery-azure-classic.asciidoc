@@ -1,5 +1,5 @@
 [[discovery-azure-classic]]
-=== Azure Discovery Plugin
+=== Azure Classic Discovery Plugin
 
 The Azure Classic Discovery plugin uses the Azure Classic API for unicast discovery.
 

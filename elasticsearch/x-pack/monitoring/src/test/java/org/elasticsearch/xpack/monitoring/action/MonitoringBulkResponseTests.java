@@ -57,7 +57,7 @@ public class MonitoringBulkResponseTests extends ESTestCase {
             output.setVersion(outputVersion);
             response.writeTo(output);
 
-            StreamInput streamInput = StreamInput.wrap(output.bytes());
+            StreamInput streamInput = output.bytes().streamInput();
             streamInput.setVersion(randomVersion(random()));
             MonitoringBulkResponse response2 = new MonitoringBulkResponse();
             response2.readFrom(streamInput);

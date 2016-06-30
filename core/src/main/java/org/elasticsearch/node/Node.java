@@ -284,6 +284,7 @@ public class Node implements Closeable {
             modules.add(b -> {
                     b.bind(PluginsService.class).toInstance(pluginsService);
                     b.bind(Client.class).toInstance(client);
+                    b.bind(NodeClient.class).toInstance(client);
                     b.bind(Environment.class).toInstance(environment);
                     b.bind(ThreadPool.class).toInstance(threadPool);
                     b.bind(NodeEnvironment.class).toInstance(nodeEnvironment);

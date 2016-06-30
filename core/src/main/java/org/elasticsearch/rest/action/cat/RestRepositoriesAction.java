@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
@@ -40,13 +40,13 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 public class RestRepositoriesAction extends AbstractCatAction {
     @Inject
-    public RestRepositoriesAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestRepositoriesAction(Settings settings, RestController controller) {
+        super(settings, controller);
         controller.registerHandler(GET, "/_cat/repositories", this);
     }
 
     @Override
-    protected void doRequest(RestRequest request, RestChannel channel, Client client) {
+    protected void doRequest(RestRequest request, RestChannel channel, NodeClient client) {
         GetRepositoriesRequest getRepositoriesRequest = new GetRepositoriesRequest();
         getRepositoriesRequest.local(request.paramAsBoolean("local", getRepositoriesRequest.local()));
         getRepositoriesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRepositoriesRequest.masterNodeTimeout()));

@@ -50,10 +50,10 @@ public abstract class AbstractBulkByQueryRestHandler<
         Request extends AbstractBulkByScrollRequest<Request>,
         TA extends TransportAction<Request, BulkIndexByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, TA> {
 
-    protected AbstractBulkByQueryRestHandler(Settings settings, Client client, IndicesQueriesRegistry indicesQueriesRegistry,
+    protected AbstractBulkByQueryRestHandler(Settings settings, IndicesQueriesRegistry indicesQueriesRegistry,
                                              AggregatorParsers aggParsers, Suggesters suggesters, ClusterService clusterService,
                                              TA action) {
-        super(settings, client, indicesQueriesRegistry, aggParsers, suggesters, clusterService, action);
+        super(settings, indicesQueriesRegistry, aggParsers, suggesters, clusterService, action);
     }
 
     protected void parseInternalRequest(Request internal, RestRequest restRequest,

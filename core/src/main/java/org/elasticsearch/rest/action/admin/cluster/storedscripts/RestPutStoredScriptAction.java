@@ -19,7 +19,7 @@
 package org.elasticsearch.rest.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -34,12 +34,12 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestPutStoredScriptAction extends BaseRestHandler {
 
     @Inject
-    public RestPutStoredScriptAction(Settings settings, RestController controller, Client client) {
-        this(settings, controller, true, client);
+    public RestPutStoredScriptAction(Settings settings, RestController controller) {
+        this(settings, controller, true);
     }
 
-    protected RestPutStoredScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers, Client client) {
-        super(settings, client);
+    protected RestPutStoredScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers) {
+        super(settings);
         if (registerDefaultHandlers) {
             controller.registerHandler(POST, "/_scripts/{lang}/{id}", this);
             controller.registerHandler(PUT, "/_scripts/{lang}/{id}", this);
@@ -51,7 +51,7 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, NodeClient client) {
         PutStoredScriptRequest putRequest = new PutStoredScriptRequest(getScriptLang(request), request.param("id"));
         putRequest.script(request.content());
         client.admin().cluster().putStoredScript(putRequest, new AcknowledgedRestListener<>(channel));

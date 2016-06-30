@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -51,8 +51,8 @@ public class RestTasksAction extends AbstractCatAction {
     private final ClusterService clusterService;
 
     @Inject
-    public RestTasksAction(Settings settings, RestController controller, Client client, ClusterService clusterService) {
-        super(settings, controller, client);
+    public RestTasksAction(Settings settings, RestController controller, ClusterService clusterService) {
+        super(settings, controller);
         controller.registerHandler(GET, "/_cat/tasks", this);
         this.clusterService = clusterService;
     }
@@ -63,7 +63,7 @@ public class RestTasksAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         client.admin().cluster().listTasks(generateListTasksRequest(request), new RestResponseListener<ListTasksResponse>(channel) {
             @Override
             public RestResponse buildResponse(ListTasksResponse listTasksResponse) throws Exception {

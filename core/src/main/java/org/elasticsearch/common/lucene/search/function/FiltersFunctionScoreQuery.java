@@ -224,17 +224,23 @@ public class FiltersFunctionScoreQuery extends Query {
                     filterExplanations.add(filterExplanation);
                 }
             }
+            FiltersFunctionFactorScorer scorer = functionScorer(context);
+            int actualDoc = scorer.iterator().advance(doc);
+            assert (actualDoc == doc);
+            double score = scorer.computeScore(doc, expl.getValue());
+            Explanation factorExplanation;
             if (filterExplanations.size() > 0) {
-                FiltersFunctionFactorScorer scorer = functionScorer(context);
-                int actualDoc = scorer.iterator().advance(doc);
-                assert (actualDoc == doc);
-                double score = scorer.computeScore(doc, expl.getValue());
-                Explanation factorExplanation = Explanation.match(
+                factorExplanation = Explanation.match(
                         CombineFunction.toFloat(score),
                         "function score, score mode [" + scoreMode.toString().toLowerCase(Locale.ROOT) + "]",
                         filterExplanations);
-                expl = combineFunction.explain(expl, factorExplanation, maxBoost);
+
+            } else {
+                // it is a little weird to add a match although no function matches but that is the way function_score behaves right now
+                factorExplanation = Explanation.match(1.0f,
+                    "No function matched", new ArrayList<>());
             }
+            expl = combineFunction.explain(expl, factorExplanation, maxBoost);
             if (minScore != null && minScore > expl.getValue()) {
                 expl = Explanation.noMatch("Score value is too low, expected at least " + minScore + " but got " + expl.getValue(), expl);
             }

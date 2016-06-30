@@ -23,10 +23,14 @@ grant {
   // NOTE: no tests fail without this, but we know the problem
   // exists in AWS sdk, and tests here are not thorough
   permission java.lang.RuntimePermission "getClassLoader";
-  // Required by AmazonS3Client because when the region is not
-  // explicitly set the AmazonS3Client.resolveServiceEndpoint()
-  // method tries to load all known regions using PartitionsLoader
-  // and this one uses Jackson databinding and reflections to load
-  // the com/amazonaws/partitions/endpoints.json file.
+  // Needed because of problems in AmazonS3Client:
+  // When no region is set on a AmazonS3Client instance, the
+  // AWS SDK loads all known partitions from a JSON file and
+  // uses a Jackson's ObjectMapper for that: this one, in
+  // version 2.5.3 with the default binding options, tries
+  // to suppress access checks of ctor/field/method and thus
+  // requires this special permission. AWS must be fixed to
+  // uses Jackson correctly and have the correct modifiers
+  // on binded classes.
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };

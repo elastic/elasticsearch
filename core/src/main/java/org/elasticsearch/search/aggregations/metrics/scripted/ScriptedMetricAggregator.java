@@ -54,11 +54,11 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         ScriptService scriptService = context.searchContext().scriptService();
         ClusterState state = context.searchContext().getQueryShardContext().getClusterState();
         if (initScript != null) {
-            scriptService.executable(initScript, ScriptContext.Standard.AGGS, Collections.emptyMap(), state).run();
+            scriptService.executable(initScript, ScriptContext.Standard.AGGS, Collections.emptyMap()).run();
         }
-        this.mapScript = scriptService.search(context.searchContext().lookup(), mapScript, ScriptContext.Standard.AGGS, Collections.emptyMap(), state);
+        this.mapScript = scriptService.search(context.searchContext().lookup(), mapScript, ScriptContext.Standard.AGGS, Collections.emptyMap());
         if (combineScript != null) {
-            this.combineScript = scriptService.executable(combineScript, ScriptContext.Standard.AGGS, Collections.emptyMap(), state);
+            this.combineScript = scriptService.executable(combineScript, ScriptContext.Standard.AGGS, Collections.emptyMap());
         } else {
             this.combineScript = null;
         }

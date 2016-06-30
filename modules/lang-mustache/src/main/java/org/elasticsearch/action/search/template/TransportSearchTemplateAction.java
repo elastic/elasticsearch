@@ -53,7 +53,6 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
 
     private static final String TEMPLATE_LANG = MustacheScriptEngineService.NAME;
 
-    private final ClusterService clusterService;
     private final ScriptService scriptService;
     private final TransportSearchAction searchAction;
     private final IndicesQueriesRegistry queryRegistry;
@@ -63,11 +62,10 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
     @Inject
     public TransportSearchTemplateAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                          ActionFilters actionFilters, IndexNameExpressionResolver resolver,
-                                         ClusterService clusterService, ScriptService scriptService,
+                                         ScriptService scriptService,
                                          TransportSearchAction searchAction, IndicesQueriesRegistry indicesQueryRegistry,
                                          AggregatorParsers aggregatorParsers, Suggesters suggesters) {
         super(settings, SearchTemplateAction.NAME, threadPool, transportService, actionFilters, resolver, SearchTemplateRequest::new);
-        this.clusterService = clusterService;
         this.scriptService = scriptService;
         this.searchAction = searchAction;
         this.queryRegistry = indicesQueryRegistry;
@@ -80,7 +78,7 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         final SearchTemplateResponse response = new SearchTemplateResponse();
         try {
             Script script = new Script(request.getScript(), request.getScriptType(), TEMPLATE_LANG, request.getScriptParams());
-            ExecutableScript executable = scriptService.executable(script, SEARCH, emptyMap(), clusterService.state());
+            ExecutableScript executable = scriptService.executable(script, SEARCH, emptyMap());
 
             BytesReference source = (BytesReference) executable.run();
             response.setSource(source);

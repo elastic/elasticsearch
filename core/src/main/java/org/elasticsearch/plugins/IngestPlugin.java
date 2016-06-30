@@ -41,7 +41,7 @@ public interface IngestPlugin {
      * to create the processor from a given pipeline configuration.
      */
     default Map<String, Processor.Factory> getProcessors(
-        Environment env, ClusterService clusterService, ScriptService scriptService, TemplateService templateService) {
+        Environment env, ScriptService scriptService, TemplateService templateService) {
         return Collections.emptyMap();
     }
 }

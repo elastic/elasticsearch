@@ -171,8 +171,18 @@ one or more maths expressions:
 * `-1d` - subtract one day
 * `/d`  - round down to the nearest day
 
-The supported <<time-units,time units>> are: `y` (year), `M` (month), `w` (week),
-`d` (day), `h` (hour), `m` (minute), and `s` (second).
+The supported time units differ than those supported by <<time-units, time units>> for durations.
+The supported units are:
+
+[horizontal]
+`y`:: years
+`M`:: months
+`w`:: weeks
+`d`:: days
+`h`:: hours
+`H`:: hours
+`m`:: minutes
+`s`:: seconds
 
 Some examples are:
 
@@ -348,21 +358,17 @@ of supporting the native JSON number types.
 [float]
 === Time units
 
-Whenever durations need to be specified, eg for a `timeout` parameter, the
-duration must specify the unit, like `2d` for 2 days.  The supported units
-are:
+Whenever durations need to be specified, e.g. for a `timeout` parameter, the duration must specify
+the unit, like `2d` for 2 days.  The supported units are:
 
 [horizontal]
-`y`::   Year
-`M`::   Month
-`w`::   Week
-`d`::   Day
-`h`::   Hour
-`m`::   Minute
-`s`::   Second
-`ms`::  Milli-second
-`micros`::  Micro-second
-`nanos`::  Nano-second
+`d`::       days
+`h`::       hours
+`m`::       minutes
+`s`::       seconds
+`ms`::      milliseconds
+`micros`::  microseconds
+`nanos`::   nanoseconds
 
 [[byte-units]]
 [float]

@@ -23,13 +23,13 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.search.SearchModule;
 
 import java.util.Arrays;
@@ -41,11 +41,9 @@ public class PercolatorPlugin extends Plugin implements MapperPlugin, ActionPlug
 
     public static final String NAME = "percolator";
 
-    private final boolean transportClientMode;
     private final Settings settings;
 
     public PercolatorPlugin(Settings settings) {
-        this.transportClientMode = transportClientMode(settings);
         this.settings = settings;
     }
 
@@ -55,11 +53,9 @@ public class PercolatorPlugin extends Plugin implements MapperPlugin, ActionPlug
                 new ActionHandler<>(MultiPercolateAction.INSTANCE, TransportMultiPercolateAction.class));
     }
 
-    public void onModule(NetworkModule module) {
-        if (transportClientMode == false) {
-            module.registerRestHandler(RestPercolateAction.class);
-            module.registerRestHandler(RestMultiPercolateAction.class);
-        }
+    @Override
+    public List<Class<? extends RestHandler>> getRestHandlers() {
+        return Arrays.asList(RestPercolateAction.class, RestMultiPercolateAction.class);
     }
 
     public void onModule(SearchModule module) {

@@ -37,7 +37,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
 
     @Before
     public void init() {
-        factory = new ScriptProcessor.Factory(mock(ScriptService.class), mock(ClusterService.class));
+        factory = new ScriptProcessor.Factory(mock(ScriptService.class));
     }
 
 

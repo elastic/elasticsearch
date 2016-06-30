@@ -19,15 +19,6 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.TemplateService;
-import org.elasticsearch.node.NodeModule;
-import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptService;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,6 +27,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.TemplateService;
+import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptService;
 
 public class IngestCommonPlugin extends Plugin implements IngestPlugin {
 
@@ -46,8 +44,8 @@ public class IngestCommonPlugin extends Plugin implements IngestPlugin {
     }
 
     @Override
-    public Map<String, Processor.Factory> getProcessors(
-        Environment env, ClusterService clusterService, ScriptService scriptService, TemplateService templateService) {
+    public Map<String, Processor.Factory> getProcessors(Environment env, ScriptService scriptService,
+                                                        TemplateService templateService) {
         Map<String, Processor.Factory> processors = new HashMap<>();
         processors.put(DateProcessor.TYPE, new DateProcessor.Factory());
         processors.put(SetProcessor.TYPE, new SetProcessor.Factory(templateService));
@@ -66,7 +64,7 @@ public class IngestCommonPlugin extends Plugin implements IngestPlugin {
         processors.put(DateIndexNameProcessor.TYPE, new DateIndexNameProcessor.Factory());
         processors.put(SortProcessor.TYPE, new SortProcessor.Factory());
         processors.put(GrokProcessor.TYPE, new GrokProcessor.Factory(builtinPatterns));
-        processors.put(ScriptProcessor.TYPE, new ScriptProcessor.Factory(scriptService, clusterService));
+        processors.put(ScriptProcessor.TYPE, new ScriptProcessor.Factory(scriptService));
         return Collections.unmodifiableMap(processors);
     }
 

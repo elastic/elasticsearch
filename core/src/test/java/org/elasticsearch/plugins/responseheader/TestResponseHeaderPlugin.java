@@ -19,12 +19,17 @@
 
 package org.elasticsearch.plugins.responseheader;
 
-import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestHandler;
 
-public class TestResponseHeaderPlugin extends Plugin {
+import java.util.List;
 
-    public void onModule(NetworkModule module) {
-        module.registerRestHandler(TestResponseHeaderRestAction.class);
+import static java.util.Collections.singletonList;
+
+public class TestResponseHeaderPlugin extends Plugin implements ActionPlugin {
+    @Override
+    public List<Class<? extends RestHandler>> getRestHandlers() {
+        return singletonList(TestResponseHeaderRestAction.class);
     }
 }

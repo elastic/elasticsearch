@@ -128,7 +128,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         protected BiFunction<RequestWrapper<?>, SearchHit, RequestWrapper<?>> buildScriptApplier() {
             Script script = mainRequest.getScript();
             if (script != null) {
-                return new ReindexScriptApplier(task, scriptService, script, clusterState, script.getParams());
+                return new ReindexScriptApplier(task, scriptService, script, script.getParams());
             }
             return super.buildScriptApplier();
         }
@@ -205,9 +205,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
         class ReindexScriptApplier extends ScriptApplier {
 
-            ReindexScriptApplier(BulkByScrollTask task, ScriptService scriptService, Script script, ClusterState state,
+            ReindexScriptApplier(BulkByScrollTask task, ScriptService scriptService, Script script,
                                  Map<String, Object> params) {
-                super(task, scriptService, script, state, params);
+                super(task, scriptService, script, params);
             }
 
             /*

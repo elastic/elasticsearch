@@ -25,11 +25,11 @@ import org.elasticsearch.action.search.template.MultiSearchTemplateAction;
 import org.elasticsearch.action.search.template.SearchTemplateAction;
 import org.elasticsearch.action.search.template.TransportMultiSearchTemplateAction;
 import org.elasticsearch.action.search.template.TransportSearchTemplateAction;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.action.search.template.RestDeleteSearchTemplateAction;
 import org.elasticsearch.rest.action.search.template.RestGetSearchTemplateAction;
 import org.elasticsearch.rest.action.search.template.RestMultiSearchTemplateAction;
@@ -54,14 +54,9 @@ public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin
                 new ActionHandler<>(MultiSearchTemplateAction.INSTANCE, TransportMultiSearchTemplateAction.class));
     }
 
-    public void onModule(NetworkModule module) {
-        if (module.isTransportClient() == false) {
-            module.registerRestHandler(RestSearchTemplateAction.class);
-            module.registerRestHandler(RestMultiSearchTemplateAction.class);
-            module.registerRestHandler(RestGetSearchTemplateAction.class);
-            module.registerRestHandler(RestPutSearchTemplateAction.class);
-            module.registerRestHandler(RestDeleteSearchTemplateAction.class);
-            module.registerRestHandler(RestRenderSearchTemplateAction.class);
-        }
+    @Override
+    public List<Class<? extends RestHandler>> getRestHandlers() {
+        return Arrays.asList(RestSearchTemplateAction.class, RestMultiSearchTemplateAction.class, RestGetSearchTemplateAction.class,
+                RestPutSearchTemplateAction.class, RestDeleteSearchTemplateAction.class, RestRenderSearchTemplateAction.class);
     }
 }

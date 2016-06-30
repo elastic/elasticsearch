@@ -19,8 +19,13 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -29,13 +34,6 @@ import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.watcher.ResourceWatcherService;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -55,10 +53,9 @@ public class NativeScriptTests extends ESTestCase {
         List<Setting<?>> scriptSettings = scriptModule.getSettings();
         scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
 
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).build();
         ExecutableScript executable = scriptModule.getScriptService().executable(
                 new Script("my", ScriptType.INLINE, NativeScriptEngineService.NAME, null), ScriptContext.Standard.SEARCH,
-                Collections.emptyMap(), state);
+                Collections.emptyMap());
         assertThat(executable.run().toString(), equalTo("test"));
     }
 
@@ -85,7 +82,7 @@ public class NativeScriptTests extends ESTestCase {
 
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
             assertThat(scriptService.compile(new Script("my", ScriptType.INLINE, NativeScriptEngineService.NAME, null), scriptContext,
-                    Collections.emptyMap(), null), notNullValue());
+                    Collections.emptyMap()), notNullValue());
         }
     }
 

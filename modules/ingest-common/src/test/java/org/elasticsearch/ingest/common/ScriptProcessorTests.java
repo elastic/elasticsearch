@@ -19,7 +19,9 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.cluster.service.ClusterService;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.script.CompiledScript;
@@ -27,9 +29,6 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
-
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.core.Is.is;
@@ -42,16 +41,15 @@ public class ScriptProcessorTests extends ESTestCase {
     public void testScripting() throws Exception {
         int randomInt = randomInt();
         ScriptService scriptService = mock(ScriptService.class);
-        ClusterService clusterService = mock(ClusterService.class);
         CompiledScript compiledScript = mock(CompiledScript.class);
         Script script = mock(Script.class);
-        when(scriptService.compile(any(), any(), any(), any())).thenReturn(compiledScript);
+        when(scriptService.compile(any(), any(), any())).thenReturn(compiledScript);
         ExecutableScript executableScript = mock(ExecutableScript.class);
         when(scriptService.executable(any(), any())).thenReturn(executableScript);
         when(executableScript.run()).thenReturn(randomInt);
 
         ScriptProcessor processor = new ScriptProcessor(randomAsciiOfLength(10), script,
-            scriptService, clusterService, "bytes_total");
+            scriptService, "bytes_total");
 
         Map<String, Object> document = new HashMap<>();
         document.put("bytes_in", 1234);

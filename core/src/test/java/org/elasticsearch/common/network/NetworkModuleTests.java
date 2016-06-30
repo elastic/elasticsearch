@@ -36,11 +36,8 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
-import org.elasticsearch.rest.action.cat.RestNodesAction;
-import org.elasticsearch.rest.action.main.RestMainAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.transport.Transport;
@@ -161,32 +158,6 @@ public class NetworkModuleTests extends ModuleTestCase {
         module = new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry());
         assertNotBound(module, HttpServerTransport.class);
         assertFalse(module.isTransportClient());
-    }
-
-    public void testRegisterRestHandler() {
-        Settings settings = Settings.EMPTY;
-        NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry());
-        module.registerRestHandler(FakeRestHandler.class);
-        // also check a builtin is bound
-        assertSetMultiBinding(module, RestHandler.class, FakeRestHandler.class, RestMainAction.class);
-
-        // check registration not allowed for transport only
-        module = new NetworkModule(new NetworkService(settings), settings, true, new NamedWriteableRegistry());
-        try {
-            module.registerRestHandler(FakeRestHandler.class);
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("Cannot register rest handler"));
-            assertTrue(e.getMessage().contains("for transport client"));
-        }
-    }
-
-    public void testRegisterCatRestHandler() {
-        Settings settings = Settings.EMPTY;
-        NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry());
-        module.registerRestHandler(FakeCatRestHandler.class);
-        // also check a builtin is bound
-        assertSetMultiBinding(module, AbstractCatAction.class, FakeCatRestHandler.class, RestNodesAction.class);
     }
 
     public void testRegisterTaskStatus() {

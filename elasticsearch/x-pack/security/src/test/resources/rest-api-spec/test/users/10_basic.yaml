@@ -1,12 +1,21 @@
 ---
-"Test put user api":
+setup:
   - skip:
       features: headers
 
   - do:
       cluster.health:
-          wait_for_status: yellow
+        wait_for_status: yellow
 
+---
+teardown:
+  - do:
+      xpack.security.delete_user:
+        username: "joe"
+        ignore: 404
+
+---
+"Test put user api":
   - do:
       xpack.security.put_user:
         username: "joe"

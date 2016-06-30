@@ -13,9 +13,9 @@ The core discovery plugins are:
 
 The EC2 discovery plugin uses the https://github.com/aws/aws-sdk-java[AWS API] for unicast discovery.
 
-<<discovery-azure,Azure discovery>>::
+<<discovery-azure-classic,Azure discovery>>::
 
-The Azure discovery plugin uses the Azure API for unicast discovery.
+The Azure Classic discovery plugin uses the Azure Classic API for unicast discovery.
 
 <<discovery-gce,GCE discovery>>::
 
@@ -33,7 +33,7 @@ A number of discovery plugins have been contributed by our community:
 
 include::discovery-ec2.asciidoc[]
 
-include::discovery-azure.asciidoc[]
+include::discovery-azure-classic.asciidoc[]
 
 include::discovery-gce.asciidoc[]
 

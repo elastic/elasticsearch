@@ -1,9 +1,9 @@
-[[discovery-azure]]
+[[discovery-azure-classic]]
 === Azure Discovery Plugin
 
-The Azure Discovery plugin uses the Azure API for unicast discovery.
+The Azure Classic Discovery plugin uses the Azure Classic API for unicast discovery.
 
-[[discovery-azure-install]]
+[[discovery-azure-classic-install]]
 [float]
 ==== Installation
 
@@ -11,13 +11,13 @@ This plugin can be installed using the plugin manager:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/elasticsearch-plugin install discovery-azure
+sudo bin/elasticsearch-plugin install discovery-azure-classic
 ----------------------------------------------------------------
 
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
-[[discovery-azure-remove]]
+[[discovery-azure-classic-remove]]
 [float]
 ==== Removal
 
@@ -25,12 +25,12 @@ The plugin can be removed with the following command:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/elasticsearch-plugin remove discovery-azure
+sudo bin/elasticsearch-plugin remove discovery-azure-classic
 ----------------------------------------------------------------
 
 The node must be stopped before removing the plugin.
 
-[[discovery-azure-usage]]
+[[discovery-azure-classic-usage]]
 ==== Azure Virtual Machine Discovery
 
 Azure VM discovery allows to use the azure APIs to perform automatic discovery (similar to multicast in non hostile
@@ -64,7 +64,7 @@ You can use {ref}/modules-network.html[core network host settings]. For example 
 
 ==============================================
 
-[[discovery-azure-short]]
+[[discovery-azure-classic-short]]
 ===== How to start (short story)
 
 * Create Azure instances
@@ -73,7 +73,7 @@ You can use {ref}/modules-network.html[core network host settings]. For example 
 * Modify `elasticsearch.yml` file
 * Start Elasticsearch
 
-[[discovery-azure-settings]]
+[[discovery-azure-classic-settings]]
 ===== Azure credential API settings
 
 The following are a list of settings that can further control the credential API:
@@ -100,7 +100,7 @@ The following are a list of settings that can further control the credential API
     your_azure_cloud_service_name
 
 
-[[discovery-azure-settings-advanced]]
+[[discovery-azure-classic-settings-advanced]]
 ===== Advanced settings
 
 The following are a list of settings that can further control the discovery:
@@ -143,7 +143,7 @@ discovery:
             slot: production
 ----
 
-[[discovery-azure-long]]
+[[discovery-azure-classic-long]]
 ==== Setup process for Azure Discovery
 
 We will expose here one strategy which is to hide our Elasticsearch cluster from outside.
@@ -153,7 +153,7 @@ other.  That means that with this mode, you can use elasticsearch unicast
 discovery to build a cluster, using the Azure API to retrieve information
 about your nodes.
 
-[[discovery-azure-long-prerequisites]]
+[[discovery-azure-classic-long-prerequisites]]
 ===== Prerequisites
 
 Before starting, you need to have:
@@ -243,7 +243,7 @@ azure account download
 azure account import /tmp/azure.publishsettings
 ----
 
-[[discovery-azure-long-instance]]
+[[discovery-azure-classic-long-instance]]
 ===== Creating your first instance
 
 You need to have a storage account available. Check http://www.windowsazure.com/en-us/develop/net/how-to-guides/blob-storage/#create-account[Azure Blob Storage documentation]
@@ -396,7 +396,7 @@ This command should give you a JSON result:
 }
 ----
 
-[[discovery-azure-long-plugin]]
+[[discovery-azure-classic-long-plugin]]
 ===== Install elasticsearch cloud azure plugin
 
 [source,sh]
@@ -405,7 +405,7 @@ This command should give you a JSON result:
 sudo service elasticsearch stop
 
 # Install the plugin
-sudo /usr/share/elasticsearch/bin/elasticsearch-plugin install discovery-azure
+sudo /usr/share/elasticsearch/bin/elasticsearch-plugin install discovery-azure-classic
 
 # Configure it
 sudo vi /etc/elasticsearch/elasticsearch.yml
@@ -441,7 +441,7 @@ sudo service elasticsearch start
 
 If anything goes wrong, check your logs in `/var/log/elasticsearch`.
 
-[[discovery-azure-scale]]
+[[discovery-azure-classic-scale]]
 ==== Scaling Out!
 
 You need first to create an image of your previous machine.

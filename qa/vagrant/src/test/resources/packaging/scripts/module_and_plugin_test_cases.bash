@@ -210,7 +210,7 @@ fi
 }
 
 @test "[$GROUP] install discovery-azure-classic plugin" {
-    install_and_check_plugin discovery azure azure-core-*.jar
+    install_and_check_plugin discovery azure-classic azure-core-*.jar
 }
 
 @test "[$GROUP] install discovery-ec2 plugin" {

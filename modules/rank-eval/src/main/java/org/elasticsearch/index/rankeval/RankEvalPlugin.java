@@ -19,28 +19,24 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestHandler;
 
-public class RankEvalPlugin extends Plugin {
-    public static final String NAME = "rank-eval";
+import java.util.Arrays;
+import java.util.List;
 
-    @Override
-    public String name() {
-        return NAME;
-    }
+public class RankEvalPlugin extends Plugin implements ActionPlugin {
 
     @Override
-    public String description() {
-        return "The rank-eval module adds APIs to evaluate rankings.";
+    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+        return Arrays.asList(new ActionHandler<>(RankEvalAction.INSTANCE, TransportRankEvalAction.class));
     }
 
-    public void onModule(ActionModule actionModule) {        
-        actionModule.registerAction(RankEvalAction.INSTANCE, TransportRankEvalAction.class);
-    }
-
-    public void onModule(NetworkModule networkModule) {
-        networkModule.registerRestHandler(RestRankEvalAction.class);
+    @Override
+    public List<Class<? extends RestHandler>> getRestHandlers() {
+        return Arrays.asList(RestRankEvalAction.class);
     }
 }

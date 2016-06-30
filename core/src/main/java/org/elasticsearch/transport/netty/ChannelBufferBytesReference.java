@@ -19,8 +19,6 @@
 package org.elasticsearch.transport.netty;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -29,17 +27,17 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
-/**
- */
 final class ChannelBufferBytesReference extends BytesReference {
 
     private final ChannelBuffer buffer;
-    private final int size;
+    private final int length;
+    private final int offset;
 
-    ChannelBufferBytesReference(ChannelBuffer buffer, int size) {
+    ChannelBufferBytesReference(ChannelBuffer buffer, int length) {
         this.buffer = buffer;
-        this.size = size;
-        assert size <= buffer.readableBytes() : "size[" + size +"] > " + buffer.readableBytes();
+        this.length = length;
+        this.offset = buffer.readerIndex();
+        assert length <= buffer.readableBytes() : "length[" + length +"] > " + buffer.readableBytes();
     }
 
     @Override
@@ -49,25 +47,25 @@ final class ChannelBufferBytesReference extends BytesReference {
 
     @Override
     public int length() {
-        return size;
+        return length;
     }
 
     @Override
     public BytesReference slice(int from, int length) {
-        return new ChannelBufferBytesReference(buffer.slice(buffer.readerIndex() + from, length), length);
+        return new ChannelBufferBytesReference(buffer.slice(offset + from, length), length);
     }
 
     @Override
     public StreamInput streamInput() {
-        return new ChannelBufferStreamInput(buffer.duplicate(), size);
+        return new ChannelBufferStreamInput(buffer.duplicate(), length);
     }
 
     @Override
     public void writeTo(OutputStream os) throws IOException {
-        buffer.getBytes(buffer.readerIndex(), os, size);
+        buffer.getBytes(offset, os, length);
     }
 
-    public ChannelBuffer toChannelBuffer() {
+    ChannelBuffer toChannelBuffer() {
         return buffer.duplicate();
     }
 
@@ -79,9 +77,9 @@ final class ChannelBufferBytesReference extends BytesReference {
     @Override
     public BytesRef toBytesRef() {
         if (buffer.hasArray()) {
-            return new BytesRef(buffer.array(), buffer.arrayOffset() + buffer.readerIndex(), size);
+            return new BytesRef(buffer.array(), buffer.arrayOffset() + offset, length);
         }
-        byte[] copy = new byte[buffer.readableBytes()];
+        final byte[] copy = new byte[length];
         buffer.getBytes(buffer.readerIndex(), copy);
         return new BytesRef(copy);
     }

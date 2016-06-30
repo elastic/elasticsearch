@@ -19,9 +19,8 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -48,11 +47,11 @@ import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.SIZE_A
  */
 public abstract class AbstractBulkByQueryRestHandler<
         Request extends AbstractBulkByScrollRequest<Request>,
-        TA extends TransportAction<Request, BulkIndexByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, TA> {
+        A extends GenericAction<Request, BulkIndexByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
 
     protected AbstractBulkByQueryRestHandler(Settings settings, IndicesQueriesRegistry indicesQueriesRegistry,
                                              AggregatorParsers aggParsers, Suggesters suggesters, ClusterService clusterService,
-                                             TA action) {
+                                             A action) {
         super(settings, indicesQueriesRegistry, aggParsers, suggesters, clusterService, action);
     }
 

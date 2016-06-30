@@ -39,20 +39,20 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<UpdateByQueryRequest, TransportUpdateByQueryAction> {
+public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<UpdateByQueryRequest, UpdateByQueryAction> {
 
     @Inject
     public RestUpdateByQueryAction(Settings settings, RestController controller,
             IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, Suggesters suggesters,
-            ClusterService clusterService, TransportUpdateByQueryAction action) {
-        super(settings, indicesQueriesRegistry, aggParsers, suggesters, clusterService, action);
+            ClusterService clusterService) {
+        super(settings, indicesQueriesRegistry, aggParsers, suggesters, clusterService, UpdateByQueryAction.INSTANCE);
         controller.registerHandler(POST, "/{index}/_update_by_query", this);
         controller.registerHandler(POST, "/{index}/{type}/_update_by_query", this);
     }
 
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        handleRequest(request, channel, false, true);
+        handleRequest(request, channel, client, false, true);
     }
 
     @Override

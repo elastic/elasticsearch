@@ -32,6 +32,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 

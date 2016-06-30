@@ -11,7 +11,10 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.Security;
@@ -22,16 +25,19 @@ import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.security.transport.netty.SecurityNettyHttpServerTransport;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.ExternalResource;
 
+import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -359,5 +365,18 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
     public static SecurityClient securityClient(Client client) {
         return randomBoolean() ? new XPackClient(client).security() : new SecurityClient(client);
+    }
+
+    protected String getHttpURL() {
+        boolean useSSL = false;
+        final NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
+        final List<NodeInfo> nodes = nodeInfos.getNodes();
+        assertTrue("there is at least one node", nodes.size() > 0);
+        NodeInfo ni = randomFrom(nodes);
+        useSSL = SecurityNettyHttpServerTransport.SSL_SETTING.get(ni.getSettings());
+        TransportAddress publishAddress = ni.getHttp().address().publishAddress();
+        assertEquals(1, publishAddress.uniqueAddressTypeId());
+        InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();
+        return (useSSL ? "https://" : "http://") + NetworkAddress.format(address.getAddress()) + ":" + address.getPort();
     }
 }

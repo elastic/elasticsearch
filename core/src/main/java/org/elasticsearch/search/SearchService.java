@@ -740,7 +740,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         if (source.scriptFields() != null) {
             for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
                 SearchScript searchScript = context.scriptService().search(context.lookup(), field.script(), ScriptContext.Standard.SEARCH,
-                        Collections.emptyMap(), context.getQueryShardContext().getClusterState());
+                        Collections.emptyMap());
                 context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, field.ignoreFailure()));
             }
         }

@@ -134,8 +134,25 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         verify(completionHandler, times(1)).accept(true);
     }
 
+    public void testExecuteEmptyPipeline() throws Exception {
+        CompoundProcessor processor = mock(CompoundProcessor.class);
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", processor));
+        when(processor.getProcessors()).thenReturn(Collections.emptyList());
+
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("_id");
+        @SuppressWarnings("unchecked")
+        Consumer<Throwable> failureHandler = mock(Consumer.class);
+        @SuppressWarnings("unchecked")
+        Consumer<Boolean> completionHandler = mock(Consumer.class);
+        executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
+        verify(processor, never()).execute(any());
+        verify(failureHandler, never()).accept(any());
+        verify(completionHandler, times(1)).accept(true);
+    }
+
     public void testExecutePropagateAllMetaDataUpdates() throws Exception {
         CompoundProcessor processor = mock(CompoundProcessor.class);
+        when(processor.getProcessors()).thenReturn(Collections.singletonList(mock(Processor.class)));
         doAnswer((InvocationOnMock invocationOnMock) -> {
             IngestDocument ingestDocument = (IngestDocument) invocationOnMock.getArguments()[0];
             for (IngestDocument.MetaData metaData : IngestDocument.MetaData.values()) {
@@ -171,6 +188,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
 
     public void testExecuteFailure() throws Exception {
         CompoundProcessor processor = mock(CompoundProcessor.class);
+        when(processor.getProcessors()).thenReturn(Collections.singletonList(mock(Processor.class)));
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", processor));
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("_id");
         doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
@@ -313,6 +331,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         }
 
         CompoundProcessor processor = mock(CompoundProcessor.class);
+        when(processor.getProcessors()).thenReturn(Collections.singletonList(mock(Processor.class)));
         Exception error = new RuntimeException();
         doThrow(error).when(processor).execute(any());
         when(store.get(pipelineId)).thenReturn(new Pipeline(pipelineId, null, processor));
@@ -356,8 +375,8 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         assertThat(ingestStats.getTotalStats().getIngestFailedCount(), equalTo(0L));
         assertThat(ingestStats.getTotalStats().getIngestTimeInMillis(), equalTo(0L));
 
-        when(store.get("_id1")).thenReturn(new Pipeline("_id1", null, new CompoundProcessor()));
-        when(store.get("_id2")).thenReturn(new Pipeline("_id2", null, new CompoundProcessor()));
+        when(store.get("_id1")).thenReturn(new Pipeline("_id1", null, new CompoundProcessor(mock(Processor.class))));
+        when(store.get("_id2")).thenReturn(new Pipeline("_id2", null, new CompoundProcessor(mock(Processor.class))));
 
         Map<String, PipelineConfiguration> configurationMap = new HashMap<>();
         configurationMap.put("_id1", new PipelineConfiguration("_id1", new BytesArray("{}")));

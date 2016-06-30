@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.netty;
+package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;

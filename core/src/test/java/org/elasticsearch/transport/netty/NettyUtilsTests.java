@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.common.netty;
+package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -27,7 +27,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.buffer.CompositeChannelBuffer;
-import org.junit.Before;
 
 import java.io.IOException;
 

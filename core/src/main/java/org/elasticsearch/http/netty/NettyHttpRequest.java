@@ -21,7 +21,7 @@ package org.elasticsearch.http.netty;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.netty.NettyUtils;
+import org.elasticsearch.transport.netty.NettyUtils;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.support.RestUtils;
 import org.jboss.netty.channel.Channel;

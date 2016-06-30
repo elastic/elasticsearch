@@ -373,9 +373,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         final List<NodeInfo> nodes = nodeInfos.getNodes();
         assertTrue("there is at least one node", nodes.size() > 0);
         NodeInfo ni = randomFrom(nodes);
-        if (SecurityNettyHttpServerTransport.SSL_SETTING.get(ni.getSettings())) {
-            useSSL = true;
-        }
+        useSSL = SecurityNettyHttpServerTransport.SSL_SETTING.get(ni.getSettings());
         TransportAddress publishAddress = ni.getHttp().address().publishAddress();
         assertEquals(1, publishAddress.uniqueAddressTypeId());
         InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();

@@ -3,6 +3,10 @@
 
 The Azure Classic Discovery plugin uses the Azure Classic API for unicast discovery.
 
+// TODO: Link to ARM plugin when ready
+// See issue https://github.com/elastic/elasticsearch/issues/19146
+deprecated[5.0.0, Use coming Azure ARM Discovery plugin instead]
+
 [[discovery-azure-classic-install]]
 [float]
 ==== Installation

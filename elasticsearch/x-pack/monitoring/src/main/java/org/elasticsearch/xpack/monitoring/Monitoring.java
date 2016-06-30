@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.client.MonitoringClientModule;
 import org.elasticsearch.xpack.monitoring.rest.action.RestMonitoringBulkAction;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.ArrayList;
@@ -84,16 +85,18 @@ public class Monitoring implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
-        if (enabled && tribeNode == false) {
-            return singletonList(new ActionHandler<>(MonitoringBulkAction.INSTANCE, TransportMonitoringBulkAction.class));
+        if (false == enabled || tribeNode) {
+            return emptyList();
         }
-        return emptyList();
+        return singletonList(new ActionHandler<>(MonitoringBulkAction.INSTANCE, TransportMonitoringBulkAction.class));
     }
 
-    public void onModule(NetworkModule module) {
-        if (enabled && transportClientMode == false && tribeNode == false) {
-            module.registerRestHandler(RestMonitoringBulkAction.class);
+    @Override
+    public List<Class<? extends RestHandler>> getRestHandlers() {
+        if (false == enabled || tribeNode) {
+            return emptyList();
         }
+        return singletonList(RestMonitoringBulkAction.class);
     }
 
     public static boolean enabled(Settings settings) {

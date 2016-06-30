@@ -45,7 +45,7 @@ public class FailProcessorFactoryTests extends ESTestCase {
         config.put("message", "error");
         String processorTag = randomAsciiOfLength(10);
         config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
-        FailProcessor failProcessor = factory.create(null, config);
+        FailProcessor failProcessor = (FailProcessor)factory.create(null, config);
         assertThat(failProcessor.getTag(), equalTo(processorTag));
         assertThat(failProcessor.getMessage().execute(Collections.emptyMap()), equalTo("error"));
     }

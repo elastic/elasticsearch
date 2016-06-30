@@ -56,9 +56,8 @@ public class PipelineStoreTests extends ESTestCase {
 
     @Before
     public void init() throws Exception {
-        store = new PipelineStore(Settings.EMPTY);
-        ProcessorsRegistry.Builder registryBuilder = new ProcessorsRegistry.Builder();
-        registryBuilder.registerProcessor("set", (registry) -> config -> {
+        Map<String, Processor.Factory> processorFactories = new HashMap<>();
+        processorFactories.put("set", (factories, config) -> {
             String field = (String) config.remove("field");
             String value = (String) config.remove("value");
             return new Processor() {
@@ -78,7 +77,7 @@ public class PipelineStoreTests extends ESTestCase {
                 }
             };
         });
-        registryBuilder.registerProcessor("remove", (registry) -> config -> {
+        processorFactories.put("remove", (factories, config) -> {
             String field = (String) config.remove("field");
             return new Processor() {
                 @Override
@@ -97,7 +96,7 @@ public class PipelineStoreTests extends ESTestCase {
                 }
             };
         });
-        store.buildProcessorFactoryRegistry(registryBuilder, mock(ScriptService.class), mock(ClusterService.class));
+        store = new PipelineStore(Settings.EMPTY, processorFactories);
     }
 
     public void testUpdatePipelines() {

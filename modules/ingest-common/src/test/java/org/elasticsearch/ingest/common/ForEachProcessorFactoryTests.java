@@ -21,7 +21,7 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.ProcessorsRegistry;
+import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
@@ -37,9 +37,8 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
 
     public void testCreate() throws Exception {
         Processor processor = new TestProcessor(ingestDocument -> {});
-        Map<String, Processor.Factory> processors = new HashMap<>();
-        processors.put("_name", (r, c) -> processor);
-        ProcessorsRegistry registry = new ProcessorsRegistry(processors);
+        Map<String, Processor.Factory> registry = new HashMap<>();
+        registry.put("_name", (r, c) -> processor);
         ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory();
 
         Map<String, Object> config = new HashMap<>();

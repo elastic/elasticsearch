@@ -19,20 +19,18 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.ingest.ProcessorsRegistry;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.junit.Before;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
@@ -97,10 +95,8 @@ public class ConfigurationUtilsTests extends ESTestCase {
 
     public void testReadProcessors() throws Exception {
         Processor processor = mock(Processor.class);
-        ProcessorsRegistry.Builder builder = new ProcessorsRegistry.Builder();
-        builder.registerProcessor("test_processor", (registry) -> config -> processor);
-        ProcessorsRegistry registry = builder.build(mock(ScriptService.class), mock(ClusterService.class));
-
+        Map<String, Processor.Factory> registry =
+            Collections.singletonMap("test_processor", (factories, config) -> processor);
 
         List<Map<String, Map<String, Object>>> config = new ArrayList<>();
         Map<String, Object> emptyConfig = Collections.emptyMap();

@@ -23,7 +23,7 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.ProcessorsRegistry;
+import org.elasticsearch.ingest.Processor;
 
 import java.util.HashMap;
 import java.util.List;
@@ -115,7 +115,7 @@ public final class GrokProcessor extends AbstractProcessor {
         return combinedPattern;
     }
 
-    public final static class Factory extends AbstractProcessorFactory<GrokProcessor> {
+    public final static class Factory extends AbstractProcessorFactory {
 
         private final Map<String, String> builtinPatterns;
 
@@ -124,7 +124,8 @@ public final class GrokProcessor extends AbstractProcessor {
         }
 
         @Override
-        public GrokProcessor doCreate(ProcessorsRegistry registry, String processorTag, Map<String, Object> config) throws Exception {
+        public GrokProcessor doCreate(Map<String, Processor.Factory> registry, String processorTag,
+                                      Map<String, Object> config) throws Exception {
             String matchField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             List<String> matchPatterns = ConfigurationUtils.readList(TYPE, processorTag, config, "patterns");
             boolean traceMatch = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "trace_match", false);

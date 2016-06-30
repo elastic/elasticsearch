@@ -25,14 +25,15 @@ import java.util.Map;
  * A processor implementation may modify the data belonging to a document.
  * Whether changes are made and what exactly is modified is up to the implementation.
  */
-public abstract class AbstractProcessorFactory<P extends Processor> implements Processor.Factory<P> {
+public abstract class AbstractProcessorFactory implements Processor.Factory {
     public static final String TAG_KEY = "tag";
 
     @Override
-    public P create(ProcessorsRegistry registry, Map<String, Object> config) throws Exception {
+    public Processor create(Map<String, Processor.Factory> registry, Map<String, Object> config) throws Exception {
         String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
         return doCreate(registry, tag, config);
     }
 
-    protected abstract P doCreate(ProcessorsRegistry registry, String tag, Map<String, Object> config) throws Exception;
+    protected abstract Processor doCreate(Map<String, Processor.Factory> registry, String tag,
+                                          Map<String, Object> config) throws Exception;
 }

@@ -234,12 +234,12 @@ public final class ConfigurationUtils {
     }
 
     public static List<Processor> readProcessorConfigs(List<Map<String, Map<String, Object>>> processorConfigs,
-                                                       ProcessorsRegistry processorRegistry) throws Exception {
+                                                       Map<String, Processor.Factory> processorFactories) throws Exception {
         List<Processor> processors = new ArrayList<>();
         if (processorConfigs != null) {
             for (Map<String, Map<String, Object>> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Map<String, Object>> entry : processorConfigWithKey.entrySet()) {
-                    processors.add(readProcessor(processorRegistry, entry.getKey(), entry.getValue()));
+                    processors.add(readProcessor(processorFactories, entry.getKey(), entry.getValue()));
                 }
             }
         }
@@ -247,15 +247,15 @@ public final class ConfigurationUtils {
         return processors;
     }
 
-    private static Processor readProcessor(ProcessorsRegistry processorRegistry, String type, Map<String, Object> config) throws Exception {
-        Processor.Factory factory = processorRegistry.getProcessorFactory(type);
+    private static Processor readProcessor(Map<String, Processor.Factory> processorFactories, String type, Map<String, Object> config) throws Exception {
+        Processor.Factory factory = processorFactories.get(type);
         if (factory != null) {
             boolean ignoreFailure = ConfigurationUtils.readBooleanProperty(null, null, config, "ignore_failure", false);
             List<Map<String, Map<String, Object>>> onFailureProcessorConfigs =
                 ConfigurationUtils.readOptionalList(null, null, config, Pipeline.ON_FAILURE_KEY);
 
-            List<Processor> onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, processorRegistry);
-            Processor processor = factory.create(processorRegistry, config);
+            List<Processor> onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, processorFactories);
+            Processor processor = factory.create(processorFactories, config);
 
             if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
                 throw newConfigurationException(processor.getType(), processor.getTag(), Pipeline.ON_FAILURE_KEY,

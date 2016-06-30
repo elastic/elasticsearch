@@ -24,7 +24,7 @@ import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.ProcessorsRegistry;
+import org.elasticsearch.ingest.Processor;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -83,12 +83,13 @@ public final class ForEachProcessor extends AbstractProcessor {
         return processors;
     }
 
-    public static final class Factory extends AbstractProcessorFactory<ForEachProcessor> {
+    public static final class Factory extends AbstractProcessorFactory {
         @Override
-        protected ForEachProcessor doCreate(String tag, Map<String, Object> config) throws Exception {
+        protected ForEachProcessor doCreate(Map<String, Processor.Factory> factories, String tag,
+                                            Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, tag, config, "field");
             List<Map<String, Map<String, Object>>> processorConfigs = readList(TYPE, tag, config, "processors");
-            List<Processor> processors = ConfigurationUtils.readProcessorConfigs(processorConfigs, processorRegistry);
+            List<Processor> processors = ConfigurationUtils.readProcessorConfigs(processorConfigs, factories);
             return new ForEachProcessor(tag, field, Collections.unmodifiableList(processors));
         }
     }

@@ -85,12 +85,14 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -255,6 +257,9 @@ public class Node implements Closeable {
             final TribeService tribeService = new TribeService(settings, clusterService);
             resourcesToClose.add(tribeService);
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+            final IngestService ingestService = new IngestService(settings, threadPool, environment,
+                scriptModule.getScriptService(), pluginsService.filterPlugins(IngestPlugin.class));
+
             ModulesBuilder modules = new ModulesBuilder();
             // plugin modules must be added here, before others or we can get crazy injection errors...
             for (Module pluginModule : pluginsService.nodeModules()) {
@@ -293,6 +298,7 @@ public class Node implements Closeable {
                     b.bind(BigArrays.class).toInstance(bigArrays);
                     b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
                     b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
+                    b.bind(IngestService.class).toInstance(ingestService);
                 }
             );
             injector = modules.createInjector();

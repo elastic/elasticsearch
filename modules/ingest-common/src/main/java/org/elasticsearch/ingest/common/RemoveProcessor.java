@@ -23,7 +23,7 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.ProcessorsRegistry;
+import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.TemplateService;
 
 import java.util.Map;
@@ -56,7 +56,7 @@ public final class RemoveProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public static final class Factory extends AbstractProcessorFactory<RemoveProcessor> {
+    public static final class Factory extends AbstractProcessorFactory {
 
         private final TemplateService templateService;
 
@@ -65,7 +65,8 @@ public final class RemoveProcessor extends AbstractProcessor {
         }
 
         @Override
-        public RemoveProcessor doCreate(ProcessorsRegistry registry, String processorTag, Map<String, Object> config) throws Exception {
+        public RemoveProcessor doCreate(Map<String, Processor.Factory> registry, String processorTag,
+                                        Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             return new RemoveProcessor(processorTag, templateService.compile(field));
         }

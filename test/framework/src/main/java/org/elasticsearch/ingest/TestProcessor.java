@@ -64,9 +64,9 @@ public class TestProcessor implements Processor {
         return invokedCounter.get();
     }
 
-    public static final class Factory extends AbstractProcessorFactory<TestProcessor> {
+    public static final class Factory extends AbstractProcessorFactory {
         @Override
-        public TestProcessor doCreate(ProcessorsRegistry registry, String processorTag, Map<String, Object> config) throws Exception {
+        public TestProcessor doCreate(Map<String, Processor.Factory> registry, String processorTag, Map<String, Object> config) throws Exception {
             return new TestProcessor(processorTag, "test-processor", ingestDocument -> {});
         }
     }

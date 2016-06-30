@@ -37,7 +37,7 @@ public class SplitProcessorFactoryTests extends ESTestCase {
         config.put("separator", "\\.");
         String processorTag = randomAsciiOfLength(10);
         config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
-        SplitProcessor splitProcessor = factory.create(null, config);
+        SplitProcessor splitProcessor = (SplitProcessor)factory.create(null, config);
         assertThat(splitProcessor.getTag(), equalTo(processorTag));
         assertThat(splitProcessor.getField(), equalTo("field1"));
         assertThat(splitProcessor.getSeparator(), equalTo("\\."));

@@ -23,7 +23,7 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.ProcessorsRegistry;
+import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.TemplateService;
 import org.elasticsearch.ingest.ValueSource;
 
@@ -76,7 +76,7 @@ public final class SetProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public static final class Factory extends AbstractProcessorFactory<SetProcessor> {
+    public static final class Factory extends AbstractProcessorFactory {
 
         private final TemplateService templateService;
 
@@ -85,7 +85,8 @@ public final class SetProcessor extends AbstractProcessor {
         }
 
         @Override
-        public SetProcessor doCreate(ProcessorsRegistry registry, String processorTag, Map<String, Object> config) throws Exception {
+        public SetProcessor doCreate(Map<String, Processor.Factory> registry, String processorTag,
+                                     Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             Object value = ConfigurationUtils.readObject(TYPE, processorTag, config, "value");
             boolean overrideEnabled = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "override", true);

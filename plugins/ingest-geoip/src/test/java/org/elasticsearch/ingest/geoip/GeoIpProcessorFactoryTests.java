@@ -78,7 +78,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAsciiOfLength(10);
         config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
 
-        GeoIpProcessor processor = factory.create(null, config);
+        GeoIpProcessor processor = (GeoIpProcessor)factory.create(null, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
@@ -96,7 +96,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAsciiOfLength(10);
         config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
 
-        GeoIpProcessor processor = factory.create(null, config);
+        GeoIpProcessor processor = (GeoIpProcessor)factory.create(null, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
@@ -109,7 +109,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("target_field", "_field");
-        GeoIpProcessor processor = factory.create(null, config);
+        GeoIpProcessor processor = (GeoIpProcessor)factory.create(null, config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("_field"));
     }
@@ -119,7 +119,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "GeoLite2-Country.mmdb.gz");
-        GeoIpProcessor processor = factory.create(null, config);
+        GeoIpProcessor processor = (GeoIpProcessor)factory.create(null, config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
         assertThat(processor.getDbReader().getMetadata().getDatabaseType(), equalTo("GeoLite2-Country"));
@@ -171,7 +171,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("properties", fieldNames);
-        GeoIpProcessor processor = factory.create(null, config);
+        GeoIpProcessor processor = (GeoIpProcessor)factory.create(null, config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getProperties(), equalTo(properties));
     }

@@ -33,6 +33,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -45,6 +46,7 @@ import org.junit.Before;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.Map;
 
 public class HttpServerTests extends ESTestCase {
@@ -74,8 +76,9 @@ public class HttpServerTests extends ESTestCase {
 
         ClusterService clusterService = new ClusterService(Settings.EMPTY,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null);
-        NodeService nodeService = new NodeService(Settings.EMPTY, null, null, null, null, null, null, null, null,
-            clusterService, null);
+        IngestService ingestService = new IngestService(settings, null, null, null, Collections.emptyList());
+        NodeService nodeService = new NodeService(Settings.EMPTY, null, null, null, null, null, null, null,
+            ingestService, clusterService, null);
         httpServer = new HttpServer(settings, httpServerTransport, restController, nodeService, circuitBreakerService);
         httpServer.start();
     }

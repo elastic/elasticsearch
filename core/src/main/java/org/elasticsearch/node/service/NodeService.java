@@ -19,6 +19,11 @@
 
 package org.elasticsearch.node.service;
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -35,17 +40,11 @@ import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -76,7 +75,7 @@ public class NodeService extends AbstractComponent implements Closeable {
     public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService,
                        Discovery discovery, TransportService transportService, IndicesService indicesService,
                        PluginsService pluginService, CircuitBreakerService circuitBreakerService,
-                       ProcessorsRegistry.Builder processorsRegistryBuilder, ClusterService clusterService, SettingsFilter settingsFilter) {
+                       IngestService ingestService, ClusterService clusterService, SettingsFilter settingsFilter) {
         super(settings);
         this.threadPool = threadPool;
         this.monitorService = monitorService;
@@ -86,17 +85,17 @@ public class NodeService extends AbstractComponent implements Closeable {
         this.pluginService = pluginService;
         this.circuitBreakerService = circuitBreakerService;
         this.clusterService = clusterService;
-        this.ingestService = new IngestService(settings, threadPool, processorsRegistryBuilder);
+        this.ingestService = ingestService;
         this.settingsFilter = settingsFilter;
         clusterService.add(ingestService.getPipelineStore());
         clusterService.add(ingestService.getPipelineExecutionService());
     }
 
     // can not use constructor injection or there will be a circular dependency
+    // nocommit: try removing this...
     @Inject(optional = true)
     public void setScriptService(ScriptService scriptService) {
         this.scriptService = scriptService;
-        this.ingestService.buildProcessorsFactoryRegistry(scriptService, clusterService);
     }
 
     public void setHttpServer(@Nullable HttpServer httpServer) {

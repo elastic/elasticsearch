@@ -49,7 +49,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
 
     @Override
     public synchronized Map<String, Processor.Factory> getProcessors(
-        Environment env, ClusterService clusterService, ScriptService scriptService, TemplateService templateService) {
+        Environment env, ScriptService scriptService, TemplateService templateService) {
         if (databaseReaders != null) {
             throw new IllegalStateException("called onModule twice for geoip plugin!!");
         }

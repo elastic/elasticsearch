@@ -28,7 +28,7 @@ import org.elasticsearch.plugins.Plugin;
 public class IngestTestPlugin extends Plugin {
 
     public void onModule(NodeModule nodeModule) {
-        nodeModule.registerProcessor("test", (registry) -> config ->
+        nodeModule.registerProcessor("test", (registry) -> (tag, config) ->
                 new TestProcessor("id", "test", doc -> {
                     doc.setFieldValue("processed", true);
                     if (doc.hasField("fail") && doc.getFieldValue("fail", Boolean.class)) {

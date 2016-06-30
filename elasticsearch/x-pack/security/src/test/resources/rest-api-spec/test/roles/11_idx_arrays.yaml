@@ -1,30 +1,31 @@
 ---
+setup:
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+teardown:
+  - do:
+      xpack.security.delete_role:
+        name: "admin_role2"
+        ignore: 404
+
+  - do:
+      xpack.security.delete_user:
+        username: "joe"
+        ignore: 404
+
+  - do:
+      delete:
+        index: foo
+        type: doc
+        id: 1
+        ignore: 404
+
+---
 "Test put role api using as array of index names":
   - skip:
       features: headers
-
-  - setup:
-      - do:
-          cluster.health:
-            wait_for_status: yellow
-
-  - teardown:
-      - do:
-          xpack.security.delete_role:
-            name: "admin_role2"
-            ignore: 404
-
-      - do:
-          xpack.security.delete_user:
-            username: "joe"
-            ignore: 404
-
-      - do:
-          delete:
-            index: foo
-            type: doc
-            id: 1
-            ignore: 404
 
   - do:
       xpack.security.put_role:

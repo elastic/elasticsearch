@@ -49,6 +49,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.mapper.ParseContext;
 
 import java.io.IOException;
@@ -75,7 +76,7 @@ public final class ExtractQueryTermsService {
     static final Map<Class<? extends Query>, Function<Query, Result>> queryProcessors;
 
     static {
-        Map<Class<? extends Query>, Function<Query, Result>> map = new HashMap<>(16);
+        Map<Class<? extends Query>, Function<Query, Result>> map = new HashMap<>(17);
         map.put(MatchNoDocsQuery.class, matchNoDocsQuery());
         map.put(ConstantScoreQuery.class, constantScoreQuery());
         map.put(BoostQuery.class, boostQuery());
@@ -92,6 +93,7 @@ public final class ExtractQueryTermsService {
         map.put(BooleanQuery.class, booleanQuery());
         map.put(DisjunctionMaxQuery.class, disjunctionMaxQuery());
         map.put(SynonymQuery.class, synonymQuery());
+        map.put(FunctionScoreQuery.class, functionScoreQuery());
         queryProcessors = Collections.unmodifiableMap(map);
     }
 
@@ -373,6 +375,19 @@ public final class ExtractQueryTermsService {
         return query -> {
             List<Query> disjuncts = ((DisjunctionMaxQuery) query).getDisjuncts();
             return handleDisjunction(disjuncts, 1, false);
+        };
+    }
+
+    static Function<Query, Result> functionScoreQuery() {
+        return query -> {
+            FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) query;
+            Result result = extractQueryTerms(functionScoreQuery.getSubQuery());
+            // If min_score is specified we can't guarantee upfront that this percolator query matches,
+            // so in that case we set verified to false.
+            // (if it matches with the percolator document matches with the extracted terms.
+            // Min score filters out docs, which is different than the functions, which just influences the score.)
+            boolean verified = functionScoreQuery.getMinScore() == null;
+            return new Result(verified, result.terms);
         };
     }
 

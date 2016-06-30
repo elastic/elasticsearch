@@ -25,9 +25,11 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -110,10 +112,19 @@ public final class PercolatorHighlightSubFetchPhase extends HighlightPhase {
                     return result;
                 }
             }
+        } else if (query instanceof DisjunctionMaxQuery) {
+            for (Query disjunct : ((DisjunctionMaxQuery) query).getDisjuncts()) {
+                PercolateQuery result = locatePercolatorQuery(disjunct);
+                if (result != null) {
+                    return result;
+                }
+            }
         } else if (query instanceof ConstantScoreQuery) {
             return locatePercolatorQuery(((ConstantScoreQuery) query).getQuery());
         } else if (query instanceof BoostQuery) {
             return locatePercolatorQuery(((BoostQuery) query).getQuery());
+        } else if (query instanceof FunctionScoreQuery) {
+            return locatePercolatorQuery(((FunctionScoreQuery) query).getSubQuery());
         }
 
         return null;

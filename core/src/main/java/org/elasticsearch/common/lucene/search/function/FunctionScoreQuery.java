@@ -73,6 +73,10 @@ public class FunctionScoreQuery extends Query {
         return function;
     }
 
+    public Float getMinScore() {
+        return minScore;
+    }
+
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
         Query rewritten = super.rewrite(reader);

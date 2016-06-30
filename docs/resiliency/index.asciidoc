@@ -118,7 +118,7 @@ This status page is a start, but we can do a better job of explicitly documentin
 === Run Jepsen (STATUS: ONGOING)
 
 We have ported all of the known scenarios in the Jepsen blogs to our testing infrastructure. The new tests are run continuously in our
-testing farm and are passing. We also working on running Jepsen independently and verify no failures are found.
+testing farm and are passing. We are also working on running Jepsen independently and verify no failures are found.
 
 
 == Unreleased

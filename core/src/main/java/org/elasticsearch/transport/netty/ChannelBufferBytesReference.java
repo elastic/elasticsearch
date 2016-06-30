@@ -42,7 +42,7 @@ final class ChannelBufferBytesReference extends BytesReference {
 
     @Override
     public byte get(int index) {
-        return buffer.getByte(buffer.readerIndex() + index);
+        return buffer.getByte(offset + index);
     }
 
     @Override
@@ -71,7 +71,7 @@ final class ChannelBufferBytesReference extends BytesReference {
 
     @Override
     public String utf8ToString() {
-        return buffer.toString(StandardCharsets.UTF_8);
+        return buffer.toString(offset, length, StandardCharsets.UTF_8);
     }
 
     @Override
@@ -80,7 +80,7 @@ final class ChannelBufferBytesReference extends BytesReference {
             return new BytesRef(buffer.array(), buffer.arrayOffset() + offset, length);
         }
         final byte[] copy = new byte[length];
-        buffer.getBytes(buffer.readerIndex(), copy);
+        buffer.getBytes(offset, copy);
         return new BytesRef(copy);
     }
 

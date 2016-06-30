@@ -45,14 +45,17 @@ public interface Processor {
     /**
      * A factory that knows how to construct a processor based on a map of maps.
      */
-    interface Factory<P extends Processor> {
+    interface Factory {
 
         /**
          * Creates a processor based on the specified map of maps config.
          *
+         * @param tag The tag for the processor
+         * @param config Configuration for the processor to create
+         *
          * Implementations are responsible for removing the used keys, so that after creating a pipeline ingest can
          * verify if all configurations settings have been used.
          */
-        P create(Map<String, Object> config) throws Exception;
+        Processor create(String tag, Map<String, Object> config) throws Exception;
     }
 }

@@ -20,7 +20,6 @@
 package org.elasticsearch.common.io;
 
 import org.elasticsearch.common.SuppressForbidden;
-import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -158,25 +157,6 @@ public final class Channels {
         }
         return bytesRead;
     }
-
-
-    /**
-     * Copies bytes from source {@link org.jboss.netty.buffer.ChannelBuffer} to a {@link java.nio.channels.GatheringByteChannel}
-     *
-     * @param source      ChannelBuffer to copy from
-     * @param sourceIndex index in <i>source</i> to start copying from
-     * @param length      how many bytes to copy
-     * @param channel     target GatheringByteChannel
-     */
-    public static void writeToChannel(ChannelBuffer source, int sourceIndex, int length, GatheringByteChannel channel) throws IOException {
-        while (length > 0) {
-            int written = source.getBytes(sourceIndex, channel, length);
-            sourceIndex += written;
-            length -= written;
-        }
-        assert length == 0;
-    }
-
 
     /**
      * Writes part of a byte array to a {@link java.nio.channels.WritableByteChannel}

@@ -699,7 +699,9 @@ The meaning of the stats are as follows:
 
     This is not currently used and will always report `0`. Currently aggregation profiling only times the shard level parts of the aggregation execution. Timing of the reduce phase will be added later.
 
-=== Performance Notes
+=== Profiling Considerations
+
+==== Performance Notes
 
 Like any profiler, the Profile API introduces a non-negligible overhead to search execution.  The act of instrumenting
 low-level method calls such as `collect`, `advance` and `next_doc` can be fairly expensive, since these methods are called
@@ -710,7 +712,7 @@ There are also cases where special Lucene optimizations are disabled, since they
 could cause some queries to report larger relative times than their non-profiled counterparts, but in general should
 not have a drastic effect compared to other components in the profiled query.
 
-=== Limitations
+==== Limitations
 
 - Profiling statistics are currently not available for suggestions, highlighting, `dfs_query_then_fetch`
 - Profiling of the reduce phase of aggregation is currently not available

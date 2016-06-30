@@ -18,12 +18,10 @@
  */
 package org.elasticsearch.search.aggregations.metrics.stats.extended;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -32,26 +30,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
-*
-*/
 public class InternalExtendedStats extends InternalStats implements ExtendedStats {
-
-    public final static Type TYPE = new Type("extended_stats", "estats");
-
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalExtendedStats readResult(StreamInput in) throws IOException {
-            InternalExtendedStats result = new InternalExtendedStats();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     enum Metrics {
 
         count, sum, min, max, avg, sum_of_squares, variance, std_deviation, std_upper, std_lower;
@@ -61,10 +40,8 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         }
     }
 
-    private double sumOfSqrs;
-    private double sigma;
-
-    protected InternalExtendedStats() {} // for serialization
+    private final double sumOfSqrs;
+    private final double sigma;
 
     public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs, double sigma,
             DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
@@ -73,9 +50,24 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         this.sigma = sigma;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public InternalExtendedStats(StreamInput in) throws IOException {
+        super(in);
+        sumOfSqrs = in.readDouble();
+        sigma = in.readDouble();
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    protected void writeOtherStatsTo(StreamOutput out) throws IOException {
+        out.writeDouble(sumOfSqrs);
+        out.writeDouble(sigma);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ExtendedStatsAggregationBuilder.NAME;
     }
 
     @Override
@@ -156,19 +148,6 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         return new InternalExtendedStats(name, stats.getCount(), stats.getSum(), stats.getMin(), stats.getMax(), sumOfSqrs, sigma,
                 format, pipelineAggregators(), getMetaData());
     }
-
-    @Override
-    public void readOtherStatsFrom(StreamInput in) throws IOException {
-        sumOfSqrs = in.readDouble();
-        sigma = in.readDouble();
-    }
-
-    @Override
-    protected void writeOtherStatsTo(StreamOutput out) throws IOException {
-        out.writeDouble(sumOfSqrs);
-        out.writeDouble(sigma);
-    }
-
 
     static class Fields {
         public static final String SUM_OF_SQRS = "sum_of_squares";

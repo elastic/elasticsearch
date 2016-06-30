@@ -36,20 +36,20 @@ import java.util.Objects;
 
 public class ExtendedStatsBucketPipelineAggregationBuilder
         extends BucketMetricsPipelineAggregationBuilder<ExtendedStatsBucketPipelineAggregationBuilder> {
-    public static final String NAME = ExtendedStatsBucketPipelineAggregator.TYPE.name();
+    public static final String NAME = "extended_stats_bucket";
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private double sigma = 2.0;
 
     public ExtendedStatsBucketPipelineAggregationBuilder(String name, String bucketsPath) {
-        super(name, ExtendedStatsBucketPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
+        super(name, NAME, new String[] { bucketsPath });
     }
 
     /**
      * Read from a stream.
      */
     public ExtendedStatsBucketPipelineAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ExtendedStatsBucketPipelineAggregator.TYPE.name());
+        super(in, NAME);
         sigma = in.readDouble();
     }
 

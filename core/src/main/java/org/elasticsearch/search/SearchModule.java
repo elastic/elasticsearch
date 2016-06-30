@@ -91,8 +91,8 @@ import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.WeightBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.action.SearchTransportService;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -119,6 +119,7 @@ import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalReverseNested;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.InternalBinaryRange;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeParser;
@@ -129,7 +130,6 @@ import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanc
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceParser;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.InternalGeoDistance;
 import org.elasticsearch.search.aggregations.bucket.range.ip.IpRangeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.range.InternalBinaryRange;
 import org.elasticsearch.search.aggregations.bucket.range.ip.IpRangeParser;
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedSamplerParser;
@@ -200,40 +200,42 @@ import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountParser
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValue;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg.AvgBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg.AvgBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg.AvgBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.InternalStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucketPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketParser;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.InternalExtendedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.bucketselector.BucketSelectorPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketselector.BucketSelectorPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketselector.BucketSelectorPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.derivative.InternalDerivative;
-import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.EwmaModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltLinearModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltWintersModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.LinearModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
-import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregator;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -445,15 +447,30 @@ public class SearchModule extends AbstractModule {
      * Register a pipeline aggregation.
      *
      * @param reader reads the aggregation builder from a stream
+     * @param internalReader reads the {@link PipelineAggregator} from a stream
+     * @param internalReader reads the {@link InternalAggregation} that represents a bucket in this aggregation from a stream
      * @param aggregationParser reads the aggregation builder from XContent
      * @param aggregationName names by which the aggregation may be parsed. The first name is special because it is the name that the reader
      *        is registered under.
      */
     public void registerPipelineAggregation(Writeable.Reader<? extends PipelineAggregationBuilder> reader,
+            Writeable.Reader<? extends PipelineAggregator> internalReader, Writeable.Reader<? extends InternalAggregation> bucketReader,
             PipelineAggregator.Parser aggregationParser, ParseField aggregationName) {
+        if (false == transportClient) {
+            namedWriteableRegistry.register(PipelineAggregationBuilder.class, aggregationName.getPreferredName(), reader);
+            pipelineAggregationParserRegistry.register(aggregationParser, aggregationName);
+        }
+        namedWriteableRegistry.register(PipelineAggregator.class, aggregationName.getPreferredName(), internalReader);
+        namedWriteableRegistry.register(InternalAggregation.class, aggregationName.getPreferredName(), bucketReader);
+    }
+
+    public void registerPipelineAggregation(Writeable.Reader<? extends PipelineAggregationBuilder> reader,
+            PipelineAggregator.Parser aggregationParser, ParseField aggregationName) {
+        // NORELEASE remove me in favor of the above method
         pipelineAggregationParserRegistry.register(aggregationParser, aggregationName);
         namedWriteableRegistry.register(PipelineAggregationBuilder.class, aggregationName.getPreferredName(), reader);
     }
+
 
     @Override
     protected void configure() {
@@ -475,9 +492,10 @@ public class SearchModule extends AbstractModule {
         registerAggregation(SumAggregationBuilder::new, new SumParser(), SumAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(MinAggregationBuilder::new, new MinParser(), MinAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(MaxAggregationBuilder::new, new MaxParser(), MaxAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(StatsAggregationBuilder::new, new StatsParser(), StatsAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(ExtendedStatsAggregationBuilder::new, new ExtendedStatsParser(),
-        ExtendedStatsAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(StatsAggregationBuilder::new, InternalStats::new, new StatsParser(),
+                StatsAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(ExtendedStatsAggregationBuilder::new, InternalExtendedStats::new, new ExtendedStatsParser(),
+                ExtendedStatsAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(ValueCountAggregationBuilder::new, new ValueCountParser(), ValueCountAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(PercentilesAggregationBuilder::new, new PercentilesParser(),
                 PercentilesAggregationBuilder.AGGREGATION_NAME_FIELD);
@@ -522,6 +540,7 @@ public class SearchModule extends AbstractModule {
                 ScriptedMetricAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(ChildrenAggregationBuilder::new, ChildrenAggregationBuilder::parse,
                 ChildrenAggregationBuilder.AGGREGATION_NAME_FIELD);
+
         registerPipelineAggregation(DerivativePipelineAggregationBuilder::new, DerivativePipelineAggregationBuilder::parse,
                 DerivativePipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerPipelineAggregation(MaxBucketPipelineAggregationBuilder::new, MaxBucketPipelineAggregationBuilder.PARSER,
@@ -532,9 +551,11 @@ public class SearchModule extends AbstractModule {
                 AvgBucketPipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerPipelineAggregation(SumBucketPipelineAggregationBuilder::new, SumBucketPipelineAggregationBuilder.PARSER,
                 SumBucketPipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerPipelineAggregation(StatsBucketPipelineAggregationBuilder::new, StatsBucketPipelineAggregationBuilder.PARSER,
+        registerPipelineAggregation(StatsBucketPipelineAggregationBuilder::new, StatsBucketPipelineAggregator::new,
+                InternalStatsBucket::new, StatsBucketPipelineAggregationBuilder.PARSER,
                 StatsBucketPipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerPipelineAggregation(ExtendedStatsBucketPipelineAggregationBuilder::new, new ExtendedStatsBucketParser(),
+        registerPipelineAggregation(ExtendedStatsBucketPipelineAggregationBuilder::new, ExtendedStatsBucketPipelineAggregator::new,
+                InternalExtendedStatsBucket::new, new ExtendedStatsBucketParser(),
                 ExtendedStatsBucketPipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerPipelineAggregation(PercentilesBucketPipelineAggregationBuilder::new, PercentilesBucketPipelineAggregationBuilder.PARSER,
                 PercentilesBucketPipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
@@ -703,8 +724,6 @@ public class SearchModule extends AbstractModule {
         InternalSum.registerStreams();
         InternalMin.registerStreams();
         InternalMax.registerStreams();
-        InternalStats.registerStreams();
-        InternalExtendedStats.registerStreams();
         InternalValueCount.registerStreams();
         InternalTDigestPercentiles.registerStreams();
         InternalTDigestPercentileRanks.registerStreams();
@@ -749,8 +768,6 @@ public class SearchModule extends AbstractModule {
         MinBucketPipelineAggregator.registerStreams();
         AvgBucketPipelineAggregator.registerStreams();
         SumBucketPipelineAggregator.registerStreams();
-        StatsBucketPipelineAggregator.registerStreams();
-        ExtendedStatsBucketPipelineAggregator.registerStreams();
         PercentilesBucketPipelineAggregator.registerStreams();
         MovAvgPipelineAggregator.registerStreams();
         CumulativeSumPipelineAggregator.registerStreams();

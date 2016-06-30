@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport.netty;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.AbstractBytesReferenceTestCase;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -38,17 +39,16 @@ public class ChannelBufferBytesReferenceTests extends AbstractBytesReferenceTest
         assertEquals(out.size(), length);
         BytesReference ref = out.bytes();
         assertEquals(ref.length(), length);
-        BytesArray bytesArray = ref.toBytesArray();
-        return NettyUtils.toBytesReference(ChannelBuffers.wrappedBuffer(bytesArray.array(), bytesArray.arrayOffset(),
-            bytesArray.length()));
+        BytesRef bytesArray = ref.toBytesRef();
+        return NettyUtils.toBytesReference(ChannelBuffers.wrappedBuffer(bytesArray.bytes, bytesArray.offset,
+            bytesArray.length));
     }
 
     public void testSliceOnAdvancedBuffer() throws IOException {
         BytesReference bytesReference = newBytesReference(randomIntBetween(10, 3 * PAGE_SIZE));
-        BytesArray bytesArray = bytesReference.toBytesArray();
-
-        ChannelBuffer channelBuffer = ChannelBuffers.wrappedBuffer(bytesArray.array(), bytesArray.arrayOffset(),
-            bytesArray.length());
+        BytesRef bytesArray = bytesReference.toBytesRef();
+        ChannelBuffer channelBuffer = ChannelBuffers.wrappedBuffer(bytesArray.bytes, bytesArray.offset,
+            bytesArray.length);
         int numBytesToRead = randomIntBetween(1, 5);
         for (int i = 0; i < numBytesToRead; i++) {
             channelBuffer.readByte();

@@ -381,7 +381,7 @@ public class InnerHitBuilderTests extends ESTestCase {
     private static InnerHitBuilder serializedCopy(InnerHitBuilder original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 return new InnerHitBuilder(in);
             }
         }

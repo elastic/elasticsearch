@@ -70,7 +70,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         out.setVersion(version);
         nodeInfo.writeTo(out);
         out.close();
-        StreamInput in = StreamInput.wrap(out.bytes());
+        StreamInput in = out.bytes().streamInput();
         in.setVersion(version);
         NodeInfo readNodeInfo = NodeInfo.readNodeInfo(in);
         assertExpectedUnchanged(nodeInfo, readNodeInfo);

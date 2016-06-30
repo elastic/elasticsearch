@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.bytes;
 
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,59 +29,7 @@ import java.io.OutputStream;
 /**
  * A reference to bytes.
  */
-public interface BytesReference {
-
-    class Helper {
-
-        public static boolean bytesEqual(BytesReference a, BytesReference b) {
-            if (a == b) {
-                return true;
-            }
-            if (a.length() != b.length()) {
-                return false;
-            }
-
-            return bytesEquals(a, b);
-        }
-
-        // pkg-private for testing
-        static boolean bytesEquals(BytesReference a, BytesReference b) {
-            assert a.length() == b.length();
-            for (int i = 0, end = a.length(); i < end; ++i) {
-                if (a.get(i) != b.get(i)) {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        public static int bytesHashCode(BytesReference a) {
-            if (a.hasArray()) {
-                return hashCode(a.array(), a.arrayOffset(), a.length());
-            } else {
-                return slowHashCode(a);
-            }
-        }
-
-        // pkg-private for testing
-        static int hashCode(byte[] array, int offset, int length) {
-            int result = 1;
-            for (int i = offset, end = offset + length; i < end; ++i) {
-                result = 31 * result + array[i];
-            }
-            return result;
-        }
-
-        // pkg-private for testing
-        static int slowHashCode(BytesReference a) {
-            int result = 1;
-            for (int i = 0, end = a.length(); i < end; ++i) {
-                result = 31 * result + a.get(i);
-            }
-            return result;
-        }
-    }
+public interface BytesReference extends Accountable {
 
     /**
      * Returns the byte at the specified index. Need to be between 0 and length.
@@ -100,58 +49,27 @@ public interface BytesReference {
     /**
      * A stream input of the bytes.
      */
-    StreamInput streamInput();
+    default StreamInput streamInput() {
+        BytesRef ref = toBytesRef();
+        return StreamInput.wrap(ref.bytes, ref.offset, ref.length);
+    }
 
     /**
      * Writes the bytes directly to the output stream.
      */
     void writeTo(OutputStream os) throws IOException;
 
-
-    /**
-     * Returns the bytes as a single byte array.
-     */
-    byte[] toBytes();
-
-    /**
-     * Returns the bytes as a byte array, possibly sharing the underlying byte buffer.
-     */
-    BytesArray toBytesArray();
-
-    /**
-     * Returns the bytes copied over as a byte array.
-     */
-    BytesArray copyBytesArray();
-
-    /**
-     * Is there an underlying byte array for this bytes reference.
-     */
-    boolean hasArray();
-
-    /**
-     * The underlying byte array (if exists).
-     */
-    byte[] array();
-
-    /**
-     * The offset into the underlying byte array.
-     */
-    int arrayOffset();
-
     /**
      * Converts to a string based on utf8.
      */
-    String toUtf8();
+    default String toUtf8() {
+        return toBytesRef().utf8ToString();
+    }
 
     /**
      * Converts to Lucene BytesRef.
      */
     BytesRef toBytesRef();
-
-    /**
-     * Converts to a copied Lucene BytesRef.
-     */
-    BytesRef copyBytesRef();
 
     /**
      * Returns a BytesRefIterator for this BytesReference. This method allows
@@ -168,6 +86,56 @@ public interface BytesReference {
                 return r;
             }
         };
+    }
+
+    static boolean bytesEqual(BytesReference a, BytesReference b) {
+        if (a == b) {
+            return true;
+        }
+        if (a.length() != b.length()) {
+            return false;
+        }
+
+        return bytesEquals(a, b);
+    }
+
+    static boolean bytesEquals(BytesReference a, BytesReference b) {
+        assert a.length() == b.length();
+        for (int i = 0, end = a.length(); i < end; ++i) {
+            if (a.get(i) != b.get(i)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    static int hashCode(byte[] array, int offset, int length) {
+        int result = 1;
+        for (int i = offset, end = offset + length; i < end; ++i) {
+            result = 31 * result + array[i];
+        }
+        return result;
+    }
+
+    static int slowHashCode(BytesReference a) {
+        int result = 1;
+        for (int i = 0, end = a.length(); i < end; ++i) {
+            result = 31 * result + a.get(i);
+        }
+        return result;
+    }
+
+    /**
+     * Returns a compact array from the given BytesReference. The returned array won't be copied unless necessary. If you need
+     * to modify the returned array use <tt>BytesRef.deepCopyOf(reference.toBytesRef()</tt> instead
+     */
+    static byte[] toBytes(BytesReference reference) {
+        final BytesRef bytesRef = reference.toBytesRef();
+        if (bytesRef.offset == 0 && bytesRef.length == bytesRef.bytes.length) {
+            return bytesRef.bytes;
+        }
+        return BytesRef.deepCopyOf(bytesRef).bytes;
     }
 
 }

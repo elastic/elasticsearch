@@ -217,24 +217,24 @@ public class TranslogTests extends ESTestCase {
         Translog.Location loc2 = translog.add(new Translog.Index("test", "2", new byte[]{2}));
         assertThat(loc2, greaterThan(loc1));
         assertThat(translog.getLastWriteLocation(), greaterThan(loc2));
-        assertThat(translog.read(loc1).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
-        assertThat(translog.read(loc2).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
+        assertThat(translog.read(loc1).getSource().source, equalTo(new BytesArray(new byte[]{1})));
+        assertThat(translog.read(loc2).getSource().source, equalTo(new BytesArray(new byte[]{2})));
 
         Translog.Location lastLocBeforeSync = translog.getLastWriteLocation();
         translog.sync();
         assertEquals(lastLocBeforeSync, translog.getLastWriteLocation());
-        assertThat(translog.read(loc1).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
-        assertThat(translog.read(loc2).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
+        assertThat(translog.read(loc1).getSource().source, equalTo(new BytesArray(new byte[]{1})));
+        assertThat(translog.read(loc2).getSource().source, equalTo(new BytesArray(new byte[]{2})));
 
         Translog.Location loc3 = translog.add(new Translog.Index("test", "2", new byte[]{3}));
         assertThat(loc3, greaterThan(loc2));
         assertThat(translog.getLastWriteLocation(), greaterThan(loc3));
-        assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
+        assertThat(translog.read(loc3).getSource().source, equalTo(new BytesArray(new byte[]{3})));
 
         lastLocBeforeSync = translog.getLastWriteLocation();
         translog.sync();
         assertEquals(lastLocBeforeSync, translog.getLastWriteLocation());
-        assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
+        assertThat(translog.read(loc3).getSource().source, equalTo(new BytesArray(new byte[]{3})));
         translog.prepareCommit();
         /*
          * The commit adds to the lastWriteLocation even though is isn't really a write. This is just an implementation artifact but it can
@@ -242,7 +242,7 @@ public class TranslogTests extends ESTestCase {
          * and less than the location of the next write operation.
          */
         assertThat(translog.getLastWriteLocation(), greaterThan(lastLocBeforeSync));
-        assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
+        assertThat(translog.read(loc3).getSource().source, equalTo(new BytesArray(new byte[]{3})));
         translog.commit();
         assertNull(translog.read(loc1));
         assertNull(translog.read(loc2));
@@ -274,7 +274,7 @@ public class TranslogTests extends ESTestCase {
 
         Translog.Index index = (Translog.Index) snapshot.next();
         assertThat(index != null, equalTo(true));
-        assertThat(index.source().toBytes(), equalTo(new byte[]{1}));
+        assertThat(BytesReference.toBytes(index.source()), equalTo(new byte[]{1}));
 
         Translog.Delete delete = (Translog.Delete) snapshot.next();
         assertThat(delete != null, equalTo(true));
@@ -303,7 +303,7 @@ public class TranslogTests extends ESTestCase {
         if (randomBoolean()) {
             BytesStreamOutput out = new BytesStreamOutput();
             stats.writeTo(out);
-            StreamInput in = StreamInput.wrap(out.bytes());
+            StreamInput in = out.bytes().streamInput();
             stats = new TranslogStats();
             stats.readFrom(in);
         }
@@ -350,7 +350,7 @@ public class TranslogTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         total.writeTo(out);
         TranslogStats copy = new TranslogStats();
-        copy.readFrom(StreamInput.wrap(out.bytes()));
+        copy.readFrom(out.bytes().streamInput());
 
         assertEquals(6, copy.estimatedNumberOfOperations());
         assertEquals(431, copy.getTranslogSizeInBytes());
@@ -1157,7 +1157,7 @@ public class TranslogTests extends ESTestCase {
             ops.add(test);
         }
         Translog.writeOperations(out, ops);
-        final List<Translog.Operation> readOperations = Translog.readOperations(StreamInput.wrap(out.bytes()));
+        final List<Translog.Operation> readOperations = Translog.readOperations(out.bytes().streamInput());
         assertEquals(ops.size(), readOperations.size());
         assertEquals(ops, readOperations);
     }

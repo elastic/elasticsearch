@@ -298,13 +298,7 @@ public final class PercolateQuery extends Query implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        long sizeInBytes = 0;
-        if (documentSource.hasArray()) {
-            sizeInBytes += documentSource.array().length;
-        } else {
-            sizeInBytes += documentSource.length();
-        }
-        return sizeInBytes;
+        return documentSource.ramBytesUsed();
     }
 
     @FunctionalInterface

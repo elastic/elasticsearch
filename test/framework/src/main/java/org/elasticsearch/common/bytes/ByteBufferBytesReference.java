@@ -82,74 +82,13 @@ public class ByteBufferBytesReference implements BytesReference {
     }
 
     @Override
-    public byte[] toBytes() {
-        if (!buffer.hasRemaining()) {
-            return BytesRef.EMPTY_BYTES;
-        }
-        byte[] tmp = new byte[buffer.remaining()];
-        buffer.duplicate().get(tmp);
-        return tmp;
-    }
-
-    @Override
-    public BytesArray toBytesArray() {
-        if (buffer.hasArray()) {
-            return new BytesArray(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
-        }
-        return new BytesArray(toBytes());
-    }
-
-    @Override
-    public BytesArray copyBytesArray() {
-        return new BytesArray(toBytes());
-    }
-
-    @Override
-    public boolean hasArray() {
-        return buffer.hasArray();
-    }
-
-    @Override
-    public byte[] array() {
-        return buffer.array();
-    }
-
-    @Override
-    public int arrayOffset() {
-        return buffer.arrayOffset() + buffer.position();
-    }
-
-    @Override
     public int hashCode() {
-        return Helper.bytesHashCode(this);
+        return BytesReference.slowHashCode(this);
     }
 
     @Override
     public boolean equals(Object obj) {
-        return Helper.bytesEqual(this, (BytesReference) obj);
-    }
-
-    @Override
-    public String toUtf8() {
-        if (!buffer.hasRemaining()) {
-            return "";
-        }
-        final CharsetDecoder decoder = CharsetUtil.getDecoder(StandardCharsets.UTF_8);
-        final CharBuffer dst = CharBuffer.allocate(
-                (int) ((double) buffer.remaining() * decoder.maxCharsPerByte()));
-        try {
-            CoderResult cr = decoder.decode(buffer, dst, true);
-            if (!cr.isUnderflow()) {
-                cr.throwException();
-            }
-            cr = decoder.flush(dst);
-            if (!cr.isUnderflow()) {
-                cr.throwException();
-            }
-        } catch (CharacterCodingException x) {
-            throw new IllegalStateException(x);
-        }
-        return dst.flip().toString();
+        return BytesReference.bytesEqual(this, (BytesReference) obj);
     }
 
     @Override
@@ -157,11 +96,17 @@ public class ByteBufferBytesReference implements BytesReference {
         if (buffer.hasArray()) {
             return new BytesRef(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
         }
-        return new BytesRef(toBytes());
+        if (!buffer.hasRemaining()) {
+            return new BytesRef();
+        }
+        byte[] tmp = new byte[buffer.remaining()];
+        buffer.duplicate().get(tmp);
+        return new BytesRef(tmp);
     }
 
+
     @Override
-    public BytesRef copyBytesRef() {
-        return new BytesRef(toBytes());
+    public long ramBytesUsed() {
+        return buffer.capacity();
     }
 }

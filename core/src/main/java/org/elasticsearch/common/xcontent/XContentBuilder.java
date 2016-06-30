@@ -323,10 +323,8 @@ public final class XContentBuilder implements BytesStream, Releasable {
      */
     public XContentBuilder field(String name, BytesReference value) throws IOException {
         field(name);
-        if (!value.hasArray()) {
-            value = value.toBytesArray();
-        }
-        generator.writeBinary(value.array(), value.arrayOffset(), value.length());
+        final BytesRef ref = value.toBytesRef();
+        generator.writeBinary(ref.bytes, ref.offset, ref.length);
         return this;
     }
 
@@ -342,17 +340,13 @@ public final class XContentBuilder implements BytesStream, Releasable {
 
     public XContentBuilder field(String name, Text value) throws IOException {
         field(name);
-        if (value.hasBytes() && value.bytes().hasArray()) {
-            generator.writeUTF8String(value.bytes().array(), value.bytes().arrayOffset(), value.bytes().length());
-            return this;
-        }
         if (value.hasString()) {
             generator.writeString(value.string());
             return this;
+        } else {
+            // TODO: TextBytesOptimization we can use a buffer here to convert it? maybe add a request to jackson to support InputStream as well?
+
         }
-        // TODO: TextBytesOptimization we can use a buffer here to convert it? maybe add a request to jackson to support InputStream as well?
-        BytesArray bytesArray = value.bytes().toBytesArray();
-        generator.writeUTF8String(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length());
         return this;
     }
 
@@ -701,27 +695,20 @@ public final class XContentBuilder implements BytesStream, Releasable {
         if (value == null) {
             return nullValue();
         }
-        if (!value.hasArray()) {
-            value = value.toBytesArray();
-        }
-        generator.writeBinary(value.array(), value.arrayOffset(), value.length());
+        BytesRef ref = value.toBytesRef();
+        generator.writeBinary(ref.bytes, ref.offset, ref.length);
         return this;
     }
 
     public XContentBuilder value(Text value) throws IOException {
         if (value == null) {
             return nullValue();
-        }
-        if (value.hasBytes() && value.bytes().hasArray()) {
-            generator.writeUTF8String(value.bytes().array(), value.bytes().arrayOffset(), value.bytes().length());
-            return this;
-        }
-        if (value.hasString()) {
+        } else if (value.hasString()) {
             generator.writeString(value.string());
-            return this;
+        } else {
+            BytesRef bytesRef = value.bytes().toBytesRef();
+            generator.writeUTF8String(bytesRef.bytes, bytesRef.offset, bytesRef.length);
         }
-        BytesArray bytesArray = value.bytes().toBytesArray();
-        generator.writeUTF8String(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length());
         return this;
     }
 
@@ -800,8 +787,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
      */
     public String string() throws IOException {
         close();
-        BytesArray bytesArray = bytes().toBytesArray();
-        return new String(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length(), StandardCharsets.UTF_8);
+        return bytes().toUtf8();
     }
 
 
@@ -885,13 +871,11 @@ public final class XContentBuilder implements BytesStream, Releasable {
         });
         map.put(Text.class, (g, v) -> {
             Text text = (Text) v;
-            if (text.hasBytes() && text.bytes().hasArray()) {
-                g.writeUTF8String(text.bytes().array(), text.bytes().arrayOffset(), text.bytes().length());
-            } else if (text.hasString()) {
-                g.writeString(text.string());
+            if (text.hasString()) {
+                    g.writeString(text.string());
             } else {
-                BytesArray bytesArray = text.bytes().toBytesArray();
-                g.writeUTF8String(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length());
+                BytesRef ref = text.bytes().toBytesRef();
+                g.writeUTF8String(ref.bytes, ref.offset, ref.length);
             }
         });
         MAP = Collections.unmodifiableMap(map);
@@ -934,11 +918,8 @@ public final class XContentBuilder implements BytesStream, Releasable {
     }
 
     private void writeBytesReference(BytesReference value) throws IOException {
-        BytesReference bytes = value;
-        if (!bytes.hasArray()) {
-            bytes = bytes.toBytesArray();
-        }
-        generator.writeBinary(bytes.array(), bytes.arrayOffset(), bytes.length());
+        BytesRef ref = value.toBytesRef();
+        generator.writeBinary(ref.bytes, ref.offset, ref.length);
     }
 
     private void writeIterable(Iterable<?> value) throws IOException {

@@ -26,6 +26,7 @@ import com.fasterxml.jackson.core.filter.FilteringGeneratorDelegate;
 import com.fasterxml.jackson.core.io.SerializedString;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -357,16 +358,10 @@ public class JsonXContentGenerator implements XContentGenerator {
     protected void copyRawValue(BytesReference content, XContent xContent) throws IOException {
         XContentParser parser = null;
         try {
-            if (content.hasArray()) {
-                parser = xContent.createParser(content.array(), content.arrayOffset(), content.length());
-            } else {
-                parser = xContent.createParser(content.streamInput());
-            }
+            parser = xContent.createParser(content.streamInput());
             copyCurrentStructure(parser);
         } finally {
-            if (parser != null) {
-                parser.close();
-            }
+            IOUtils.close(parser);
         }
     }
 

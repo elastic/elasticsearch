@@ -215,7 +215,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         AB testAgg = createTestAggregatorBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.writeNamedWriteable(testAgg);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 AggregationBuilder deserialized = in.readNamedWriteable(AggregationBuilder.class);
                 assertEquals(testAgg, deserialized);
                 assertEquals(testAgg.hashCode(), deserialized.hashCode());
@@ -255,7 +255,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
     private AB copyAggregation(AB agg) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             agg.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 @SuppressWarnings("unchecked")
                 AB secondAgg = (AB) namedWriteableRegistry.getReader(AggregationBuilder.class, agg.getWriteableName()).read(in);
                 return secondAgg;

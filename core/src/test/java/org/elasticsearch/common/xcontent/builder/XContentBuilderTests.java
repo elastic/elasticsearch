@@ -21,6 +21,7 @@ package org.elasticsearch.common.xcontent.builder;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -161,8 +162,7 @@ public class XContentBuilderTests extends ESTestCase {
         gen.writeEndObject();
         gen.close();
 
-        byte[] data = bos.bytes().toBytes();
-        String sData = new String(data, "UTF8");
+        String sData = bos.bytes().toUtf8();
         assertThat(sData, equalTo("{\"name\":\"something\", source : { test : \"value\" },\"name2\":\"something2\"}"));
     }
 

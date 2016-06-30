@@ -18,8 +18,11 @@
  */
 package org.elasticsearch.common.text;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesReference;
 
+import java.io.IOException;
 import java.util.Comparator;
 
 // LUCENE 4 UPGRADE: Is this the right way of comparing bytesreferences inside Text instances?
@@ -34,44 +37,61 @@ public class UTF8SortedAsUnicodeComparator implements Comparator<BytesReference>
 
     @Override
     public int compare(BytesReference a, BytesReference b) {
-        if (a.hasArray() && b.hasArray()) {
-            final byte[] aBytes = a.array();
-            int aUpto = a.arrayOffset();
-            final byte[] bBytes = b.array();
-            int bUpto = b.arrayOffset();
+        try {
+            // we use the iterators since it's a 0-copy comparison where possible!
+            final BytesRefIterator aIter = a.iterator();
+            final BytesRefIterator bIter = b.iterator();
+            final long lengthToCompare = Math.min(a.length(), b.length());
+            BytesRef aRef = aIter.next();
+            BytesRef bRef = bIter.next();
+            if (aRef != null && bRef != null) { // do we have any data?
+                if (aRef.length == a.length() && bRef.length == b.length()) { // is it only one array slice we are comparing?
+                    return aRef.compareTo(bRef);
+                } else {
+                    for (int i = 0; i < lengthToCompare;) {
+                        if (aRef.length == 0) {
+                            aRef = aIter.next();
+                            if (aRef == null) {
+                                break;
+                            }
+                        }
+                        if (bRef.length == 0) {
+                            bRef = bIter.next();
+                            if (bRef == null) {
+                                break;
+                            }
+                        }
+                        final int aLength = aRef.length;
+                        final int bLength = bRef.length;
+                        final int length = Math.min(aLength, bLength); // shrink to the same length and use the fast compare in lucene
+                        aRef.length = bRef.length = length;
+                        // now we move to the fast comparison - this is the hot part of the loop
+                        int diff = aRef.compareTo(bRef);
+                        aRef.length = aLength;
+                        bRef.length = bLength;
 
-            final int aStop = aUpto + Math.min(a.length(), b.length());
-            while (aUpto < aStop) {
-                int aByte = aBytes[aUpto++] & 0xff;
-                int bByte = bBytes[bUpto++] & 0xff;
-
-                int diff = aByte - bByte;
-                if (diff != 0) {
-                    return diff;
+                        if (diff != 0) {
+                            return diff;
+                        }
+                        advance(aRef, length);
+                        advance(bRef, length);
+                        i += length;
+                    }
                 }
             }
-
             // One is a prefix of the other, or, they are equal:
             return a.length() - b.length();
-        } else {
-            final byte[] aBytes = a.toBytes();
-            int aUpto = 0;
-            final byte[] bBytes = b.toBytes();
-            int bUpto = 0;
-
-            final int aStop = aUpto + Math.min(a.length(), b.length());
-            while (aUpto < aStop) {
-                int aByte = aBytes[aUpto++] & 0xff;
-                int bByte = bBytes[bUpto++] & 0xff;
-
-                int diff = aByte - bByte;
-                if (diff != 0) {
-                    return diff;
-                }
-            }
-
-            // One is a prefix of the other, or, they are equal:
-            return a.length() - b.length();
+        } catch (IOException ex) {
+            throw new AssertionError("can not happen", ex);
         }
     }
+
+    private static final void advance(BytesRef ref, int length) {
+        assert ref.length >= length : " ref.length: " + ref.length + " length: " + length;
+        assert ref.offset+length < ref.bytes.length || (ref.offset+length == ref.bytes.length && ref.length-length == 0)
+            : "offset: " + ref.offset + " ref.bytes.length: " + ref.bytes.length + " length: " + length + " ref.length: " + ref.length;
+        ref.length -= length;
+        ref.offset += length;
+    }
+
 }

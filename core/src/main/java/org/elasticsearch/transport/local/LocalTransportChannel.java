@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.local;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -84,7 +85,7 @@ public class LocalTransportChannel implements TransportChannel {
             status = TransportStatus.setResponse(status);
             stream.writeByte(status); // 0 for request, 1 for response.
             response.writeTo(stream);
-            sendResponseData(stream.bytes().toBytes());
+            sendResponseData(BytesReference.toBytes(stream.bytes()));
             sourceTransportServiceAdapter.onResponseSent(requestId, action, response, options);
         }
     }
@@ -96,7 +97,7 @@ public class LocalTransportChannel implements TransportChannel {
         RemoteTransportException tx = new RemoteTransportException(targetTransport.nodeName(),
                 targetTransport.boundAddress().boundAddresses()[0], action, error);
         stream.writeThrowable(tx);
-        sendResponseData(stream.bytes().toBytes());
+        sendResponseData(BytesReference.toBytes(stream.bytes()));
         sourceTransportServiceAdapter.onResponseSent(requestId, action, error);
     }
 

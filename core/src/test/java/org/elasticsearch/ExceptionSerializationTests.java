@@ -223,7 +223,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(random()), exception);
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeThrowable(exception);
-        StreamInput in = StreamInput.wrap(out.bytes());
+        StreamInput in = out.bytes().streamInput();
         return in.readThrowable();
     }
 

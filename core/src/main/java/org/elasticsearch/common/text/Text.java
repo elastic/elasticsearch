@@ -82,13 +82,7 @@ public final class Text implements Comparable<Text> {
      * Returns a {@link String} view of the data.
      */
     public String string() {
-        if (text == null) {
-            if (!bytes.hasArray()) {
-                bytes = bytes.toBytesArray();
-            }
-            text = new String(bytes.array(), bytes.arrayOffset(), bytes.length(), StandardCharsets.UTF_8);
-        }
-        return text;
+        return text == null ? bytes.toUtf8() : text;
     }
 
     @Override

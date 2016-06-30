@@ -36,25 +36,25 @@ public class BytesReferenceTests extends ESTestCase {
 
         final BytesArray b1 = new BytesArray(array1, offset1, len);
         final BytesArray b2 = new BytesArray(array2, offset2, len);
-        assertTrue(BytesReference.Helper.bytesEqual(b1, b2));
-        assertTrue(BytesReference.Helper.bytesEquals(b1, b2));
-        assertEquals(Arrays.hashCode(b1.toBytes()), b1.hashCode());
-        assertEquals(BytesReference.Helper.bytesHashCode(b1), BytesReference.Helper.slowHashCode(b2));
+        assertTrue(BytesReference.bytesEqual(b1, b2));
+        assertTrue(BytesReference.bytesEquals(b1, b2));
+        assertEquals(Arrays.hashCode(BytesReference.toBytes(b1)), b1.hashCode());
+        assertEquals(BytesReference.hashCode(b1.array(), b1.offset(), b2.length()), BytesReference.slowHashCode(b2));
 
         // test same instance
-        assertTrue(BytesReference.Helper.bytesEqual(b1, b1));
-        assertTrue(BytesReference.Helper.bytesEquals(b1, b1));
-        assertEquals(BytesReference.Helper.bytesHashCode(b1), BytesReference.Helper.slowHashCode(b1));
+        assertTrue(BytesReference.bytesEqual(b1, b1));
+        assertTrue(BytesReference.bytesEquals(b1, b1));
+        assertEquals(BytesReference.hashCode(b1.array(), b1.offset(), b2.length()), BytesReference.slowHashCode(b1));
 
         if (len > 0) {
             // test different length
             BytesArray differentLen = new BytesArray(array1, offset1, randomInt(len - 1));
-            assertFalse(BytesReference.Helper.bytesEqual(b1, differentLen));
+            assertFalse(BytesReference.bytesEqual(b1, differentLen));
 
             // test changed bytes
             array1[offset1 + randomInt(len - 1)] += 13;
-            assertFalse(BytesReference.Helper.bytesEqual(b1, b2));
-            assertFalse(BytesReference.Helper.bytesEquals(b1, b2));
+            assertFalse(BytesReference.bytesEqual(b1, b2));
+            assertFalse(BytesReference.bytesEquals(b1, b2));
         }
     }
 

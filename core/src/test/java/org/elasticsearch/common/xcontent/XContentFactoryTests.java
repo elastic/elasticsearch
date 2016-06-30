@@ -57,11 +57,10 @@ public class XContentFactoryTests extends ESTestCase {
         builder.endObject();
 
         assertThat(XContentFactory.xContentType(builder.bytes()), equalTo(type));
-        BytesArray bytesArray = builder.bytes().toBytesArray();
-        assertThat(XContentFactory.xContentType(StreamInput.wrap(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length())), equalTo(type));
+        assertThat(XContentFactory.xContentType(builder.bytes().streamInput()), equalTo(type));
 
         // CBOR is binary, cannot use String
-        if (type != XContentType.CBOR) {
+        if (type != XContentType.CBOR && type != XContentType.SMILE) {
             assertThat(XContentFactory.xContentType(builder.string()), equalTo(type));
         }
     }

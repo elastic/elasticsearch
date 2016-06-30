@@ -24,6 +24,8 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -378,10 +380,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         } else {
             indexOutput = getOpenIndexOutput(name);
         }
-        if (content.hasArray() == false) {
-            content = content.toBytesArray();
+        BytesRefIterator iterator = content.iterator();
+        BytesRef scratch;
+        while((scratch = iterator.next()) != null) { // we iterate over all pages - this is a 0-copy for all core impls
+            indexOutput.writeBytes(scratch.bytes, scratch.offset, scratch.length);
         }
-        indexOutput.writeBytes(content.array(), content.arrayOffset(), content.length());
         indexState.addRecoveredBytesToFile(name, content.length());
         if (indexOutput.getFilePointer() >= fileMetaData.length() || lastChunk) {
             try {

@@ -130,7 +130,7 @@ public final class TermVectorsFields extends Fields {
      * @param termVectors Stores the actual term vectors as a {@link BytesRef}.
      */
     public TermVectorsFields(BytesReference headerRef, BytesReference termVectors) throws IOException {
-        StreamInput header = StreamInput.wrap(headerRef.toBytesArray());
+        StreamInput header = headerRef.streamInput();
         fieldMap = new ObjectLongHashMap<>();
         // here we read the header to fill the field offset map
         String headerString = header.readString();
@@ -201,7 +201,7 @@ public final class TermVectorsFields extends Fields {
         private int docCount;
 
         public TermVector(BytesReference termVectors, long readOffset) throws IOException {
-            this.perFieldTermVectorInput = StreamInput.wrap(termVectors.toBytesArray());
+            this.perFieldTermVectorInput = termVectors.streamInput();
             this.readOffset = readOffset;
             reset();
         }

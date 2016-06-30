@@ -50,15 +50,15 @@ public class PagedBytesReferenceTests extends AbstractBytesReferenceTestCase {
         return ref;
     }
 
-    public void testToBytesArrayMaterializedPages() throws IOException {
+    public void testToBytesRefMaterializedPages() throws IOException {
         // we need a length != (n * pagesize) to avoid page sharing at boundaries
         int length = 0;
         while ((length % PAGE_SIZE) == 0) {
             length = randomIntBetween(PAGE_SIZE, PAGE_SIZE * randomIntBetween(2, 5));
         }
         BytesReference pbr = newBytesReference(length);
-        BytesArray ba = pbr.toBytesArray();
-        BytesArray ba2 = pbr.toBytesArray();
+        BytesArray ba = new BytesArray(pbr.toBytesRef());
+        BytesArray ba2 = new BytesArray(pbr.toBytesRef());
         assertNotNull(ba);
         assertNotNull(ba2);
         assertEquals(pbr.length(), ba.length());
@@ -67,23 +67,23 @@ public class PagedBytesReferenceTests extends AbstractBytesReferenceTestCase {
         assertNotSame(ba.array(), ba2.array());
     }
 
-    public void testArray() throws IOException {
+    public void testSinglePage() throws IOException {
         int[] sizes = {0, randomInt(PAGE_SIZE), PAGE_SIZE, randomIntBetween(2, PAGE_SIZE * randomIntBetween(2, 5))};
 
         for (int i = 0; i < sizes.length; i++) {
             BytesReference pbr = newBytesReference(sizes[i]);
             // verify that array() is cheap for small payloads
             if (sizes[i] <= PAGE_SIZE) {
-                byte[] array = pbr.array();
+                BytesRef page = getSinglePageOrNull(pbr);
+                assertNotNull(page);
+                byte[] array = page.bytes;
                 assertNotNull(array);
                 assertEquals(sizes[i], array.length);
-                assertSame(array, pbr.array());
+                assertSame(array, page.bytes);
             } else {
-                try {
-                    pbr.array();
-                    fail("expected IllegalStateException");
-                } catch (IllegalStateException isx) {
-                    // expected
+                BytesRef page = getSinglePageOrNull(pbr);
+                if (pbr.length() > 0) {
+                    assertNull(page);
                 }
             }
         }
@@ -94,22 +94,22 @@ public class PagedBytesReferenceTests extends AbstractBytesReferenceTestCase {
 
         for (int i = 0; i < sizes.length; i++) {
             BytesReference pbr = newBytesReference(sizes[i]);
-            byte[] bytes = pbr.toBytes();
+            byte[] bytes = BytesReference.toBytes(pbr);
             assertEquals(sizes[i], bytes.length);
             // verify that toBytes() is cheap for small payloads
             if (sizes[i] <= PAGE_SIZE) {
-                assertSame(bytes, pbr.toBytes());
+                assertSame(bytes, BytesReference.toBytes(pbr));
             } else {
-                assertNotSame(bytes, pbr.toBytes());
+                assertNotSame(bytes, BytesReference.toBytes(pbr));
             }
         }
     }
 
-    public void testHasArray() throws IOException {
+    public void testHasSinglePage() throws IOException {
         int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(1, 3));
         BytesReference pbr = newBytesReference(length);
         // must return true for <= pagesize
-        assertEquals(length <= PAGE_SIZE, pbr.hasArray());
+        assertEquals(length <= PAGE_SIZE, getNumPages(pbr) == 1);
     }
 
 }

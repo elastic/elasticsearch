@@ -1312,7 +1312,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             out.flush();
             if (corrupt != null) {
-                logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
+                logger.warn("check index [failure]\n{}", os.bytes().toUtf8());
                 throw corrupt;
             }
         } else {
@@ -1327,7 +1327,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         // ignore if closed....
                         return;
                     }
-                    logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
+                    logger.warn("check index [failure]\n{}", os.bytes().toUtf8());
                     if ("fix".equals(checkIndexOnStartup)) {
                         if (logger.isDebugEnabled()) {
                             logger.debug("fixing index, writing new segments file ...");
@@ -1345,7 +1345,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
 
         if (logger.isDebugEnabled()) {
-            logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
+            logger.debug("check index [success]\n{}", os.bytes().toUtf8());
         }
 
         recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));

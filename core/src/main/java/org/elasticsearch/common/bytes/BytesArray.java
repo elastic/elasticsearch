@@ -90,54 +90,16 @@ public final class BytesArray implements BytesReference {
     }
 
     @Override
-    public StreamInput streamInput() {
-        return StreamInput.wrap(bytes, offset, length);
-    }
-
-    @Override
     public void writeTo(OutputStream os) throws IOException {
         os.write(bytes, offset, length);
     }
 
-    @Override
-    public byte[] toBytes() {
-        if (offset == 0 && bytes.length == length) {
-            return bytes;
-        }
-        return Arrays.copyOfRange(bytes, offset, offset + length);
-    }
-
-    @Override
-    public BytesArray toBytesArray() {
-        return this;
-    }
-
-    @Override
-    public BytesArray copyBytesArray() {
-        return new BytesArray(Arrays.copyOfRange(bytes, offset, offset + length));
-    }
-
-    @Override
-    public boolean hasArray() {
-        return true;
-    }
-
-    @Override
     public byte[] array() {
         return bytes;
     }
 
-    @Override
-    public int arrayOffset() {
+    public int offset() {
         return offset;
-    }
-
-    @Override
-    public String toUtf8() {
-        if (length == 0) {
-            return "";
-        }
-        return new String(bytes, offset, length, StandardCharsets.UTF_8);
     }
 
     @Override
@@ -146,17 +108,17 @@ public final class BytesArray implements BytesReference {
     }
 
     @Override
-    public BytesRef copyBytesRef() {
-        return new BytesRef(Arrays.copyOfRange(bytes, offset, offset + length));
-    }
-
-    @Override
     public int hashCode() {
-        return Helper.bytesHashCode(this);
+        return BytesReference.hashCode(bytes, offset, length);
     }
 
     @Override
     public boolean equals(Object obj) {
-        return Helper.bytesEqual(this, (BytesReference) obj);
+        return BytesReference.bytesEqual(this, (BytesReference) obj);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return bytes.length;
     }
 }

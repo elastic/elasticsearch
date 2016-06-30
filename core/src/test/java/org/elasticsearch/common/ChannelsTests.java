@@ -85,7 +85,7 @@ public class ChannelsTests extends ESTestCase {
         BytesReference source = new BytesArray(randomBytes, offset + offsetToRead, lengthToRead);
         BytesReference read = new BytesArray(readBytes, offset + offsetToRead, lengthToRead);
 
-        assertThat("read bytes didn't match written bytes", source.toBytes(), Matchers.equalTo(read.toBytes()));
+        assertThat("read bytes didn't match written bytes", BytesReference.toBytes(source), Matchers.equalTo(BytesReference.toBytes(read)));
     }
 
     public void testBufferReadPastEOFWithException() throws Exception {

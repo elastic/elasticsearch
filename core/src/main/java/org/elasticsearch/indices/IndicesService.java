@@ -1137,7 +1137,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
         BytesReference statsRef = cacheShardLevelResult(shard, searcher.getDirectoryReader(), cacheKey, out -> {
             out.writeOptionalWriteable(fieldType.stats(searcher.reader()));
         });
-        try (StreamInput in = StreamInput.wrap(statsRef)) {
+        try (StreamInput in = statsRef.streamInput()) {
             return in.readOptionalWriteable(FieldStats::readFrom);
         }
     }

@@ -383,7 +383,7 @@ public class MockTransportService extends TransportService {
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 request.writeTo(bStream);
                 final TransportRequest clonedRequest = reg.newRequest();
-                clonedRequest.readFrom(StreamInput.wrap(bStream.bytes()));
+                clonedRequest.readFrom(bStream.bytes().streamInput());
 
                 threadPool.schedule(delay, ThreadPool.Names.GENERIC, new AbstractRunnable() {
                     @Override

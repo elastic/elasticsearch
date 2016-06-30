@@ -292,7 +292,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         Item expectedItem = generateRandomItem();
         BytesStreamOutput output = new BytesStreamOutput();
         expectedItem.writeTo(output);
-        Item newItem = new Item(StreamInput.wrap(output.bytes()));
+        Item newItem = new Item(output.bytes().streamInput());
         assertEquals(expectedItem, newItem);
     }
 

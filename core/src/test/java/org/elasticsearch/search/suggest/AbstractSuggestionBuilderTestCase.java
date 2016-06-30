@@ -215,7 +215,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     protected SB serializedCopy(SB original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.writeNamedWriteable(original);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 return (SB) in.readNamedWriteable(SuggestionBuilder.class);
             }
         }

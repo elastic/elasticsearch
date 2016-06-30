@@ -647,7 +647,7 @@ public class ElasticsearchAssertions {
                 ((ActionRequest<?>) streamable).validate();
             }
             BytesReference orig = serialize(version, streamable);
-            StreamInput input = StreamInput.wrap(orig);
+            StreamInput input = orig.streamInput();
             if (namedWriteableRegistry != null) {
                 input = new NamedWriteableAwareStreamInput(input, namedWriteableRegistry);
             }

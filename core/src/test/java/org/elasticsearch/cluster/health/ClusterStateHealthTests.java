@@ -169,7 +169,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         if (randomBoolean()) {
             BytesStreamOutput out = new BytesStreamOutput();
             clusterStateHealth.writeTo(out);
-            StreamInput in = StreamInput.wrap(out.bytes());
+            StreamInput in = out.bytes().streamInput();
             clusterStateHealth = new ClusterStateHealth(in);
         }
         return clusterStateHealth;

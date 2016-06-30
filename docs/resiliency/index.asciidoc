@@ -59,9 +59,9 @@ We are committed to tracking down and fixing all the issues that are posted.
 ==== Jepsen Tests
 
 The Jepsen platform is specifically designed to test distributed systems. It is not a single test and is regularly adapted
-to create new scenarios. We have taken over the scenarios tested so far and added them to our testing infrastructure. Of course
-as the system evolves, new scenarios can come up that are not yet covered. We are committed to investigate them and report the issues
-we find, both here in in our github repository.
+to create new scenarios. We have ported all published scenarios to our testing infrastructure. Of course
+as the system evolves, new scenarios can come up that are not yet covered. We are committed to investigating all new scenarios and will
+report issues that we find on this page and in our GitHub repository.
 
 [float]
 === Better request retry mechanism when nodes are disconnected (STATUS: ONGOING)
@@ -110,15 +110,17 @@ Indices stats and indices segments requests reach out to all nodes that have sha
 while the stats request arrives will make that part of the request fail and are just ignored in the overall stats result. {GIT}13719[#13719]
 
 [float]
-=== Document guarantees and handling of failure (STATUS: ONGOING)
+=== Documentation of guarantees and handling of failures (STATUS: ONGOING)
 
-This status page is a start, but we can do a better job of explicitly documenting the processes at work in Elasticsearch, and what happens in the case of each type of failure. The plan is to have a test case that validates each behavior under simulated conditions. Every test will document the expected results, the associated test code and an explicit PASS or FAIL status for each simulated case.
+This status page is a start, but we can do a better job of explicitly documenting the processes at work in Elasticsearch and what happens
+in the case of each type of failure. The plan is to have a test case that validates each behavior under simulated conditions. Every test
+ will document the expected results, the associated test code, and an explicit PASS or FAIL status for each simulated case.
 
 [float]
 === Run Jepsen (STATUS: ONGOING)
 
 We have ported all of the known scenarios in the Jepsen blogs to our testing infrastructure. The new tests are run continuously in our
-testing farm and are passing. We are also working on running Jepsen independently and verify no failures are found.
+testing farm and are passing. We are also working on running Jepsen independently to verify that no failures are found.
 
 
 == Unreleased
@@ -216,7 +218,7 @@ data type from the cluster state will be applied to the new shard, which
 can result in a corrupt shard.  To prevent this, new fields should not
 be added to a shard's mapping until confirmed by the master.
 {GIT}8688[#8688] (STATUS: DONE)
-[[
+
 [float]
 === Add per-segment and per-commit ID to help replication (STATUS: DONE, v2.0.0)
 

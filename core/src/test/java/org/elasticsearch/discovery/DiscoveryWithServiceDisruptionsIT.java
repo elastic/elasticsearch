@@ -448,7 +448,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         final int seconds = !(TEST_NIGHTLY && rarely()) ? 1 : 5;
         final String timeout = seconds + "s";
 
-        // TODO: add node count randomizaion
         final List<String> nodes = startCluster(rarely() ? 5 : 3);
 
         assertAcked(prepareCreate("test")

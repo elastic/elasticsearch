@@ -221,10 +221,12 @@ public class GceDiscoveryTests extends ESTestCase {
 
 
     /**
-     * For issue https://github.com/elastic/elasticsearch/issues/16967
+     * For issue https://github.com/elastic/elasticsearch/issues/16967:
+     * When using multiple regions and one of them has no instance at all, this
+     * was producing a NPE as a result.
      */
     @Test
-    public void emptyRegion16967() {
+    public void noRegionReturnsEmptyList() {
         Settings nodeSettings = Settings.builder()
             .put(GceComputeService.Fields.PROJECT, projectName)
             .putArray(GceComputeService.Fields.ZONE, "europe-west1-b", "us-central1-a")

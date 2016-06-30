@@ -244,7 +244,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         Request request = new Request();
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        setState(clusterService, ClusterStateCreationUtils.state(localNode, randomFrom(null, localNode, remoteNode), allNodes));
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, randomFrom(random(), null, localNode, remoteNode), allNodes));
 
         new Action(Settings.EMPTY, "testAction", transportService, clusterService, threadPool) {
             @Override

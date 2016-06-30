@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
@@ -93,6 +94,7 @@ import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.Aggregator.Parser;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -259,8 +261,10 @@ import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.Suggesters;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 
 /**
  *
@@ -419,21 +423,54 @@ public class SearchModule extends AbstractModule {
 
     /**
      * Register an aggregation.
-     *
-     * @param builderReader reads the {@link AggregationBuilder} from a stream
-     * @param internalReader reads the {@link InternalAggregation} from a stream
-     * @param aggregationParser reads the aggregation builder from XContent
-     * @param aggregationName names by which the aggregation may be parsed. The first name is special because it is the name that the reader
-     *        is registered under.
      */
-    public void registerAggregation(Writeable.Reader<? extends AggregationBuilder> builderReader,
-            Writeable.Reader<? extends InternalAggregation> internalReader, Aggregator.Parser aggregationParser,
-            ParseField aggregationName) {
+    public void registerAggregation(AggregationSpec spec) {
         if (false == transportClient) {
-            namedWriteableRegistry.register(AggregationBuilder.class, aggregationName.getPreferredName(), builderReader);
-            aggregationParserRegistry.register(aggregationParser, aggregationName);
+            namedWriteableRegistry.register(AggregationBuilder.class, spec.aggregationName.getPreferredName(), spec.builderReader);
+            aggregationParserRegistry.register(spec.aggregationParser, spec.aggregationName);
         }
-        namedWriteableRegistry.register(InternalAggregation.class, aggregationName.getPreferredName(), internalReader);
+        for (Map.Entry<String, Writeable.Reader<? extends InternalAggregation>> t : spec.internalReaders.entrySet()) {
+            String writeableName = t.getKey();
+            Writeable.Reader<? extends InternalAggregation> internalReader = t.getValue();
+            namedWriteableRegistry.register(InternalAggregation.class, writeableName, internalReader);
+        }
+    }
+
+    public static class AggregationSpec {
+        private final Map<String, Writeable.Reader<? extends InternalAggregation>> internalReaders = new TreeMap<>();
+        private final Writeable.Reader<? extends AggregationBuilder> builderReader;
+        private final Aggregator.Parser aggregationParser;
+        private final ParseField aggregationName;
+
+        /**
+         * Register an aggregation.
+         *
+         * @param builderReader reads the {@link AggregationBuilder} from a stream
+         * @param aggregationParser reads the aggregation builder from XContent
+         * @param aggregationName names by which the aggregation may be parsed. The first name is special because it is the name that the
+         *          reader is registered under.
+         */
+        public AggregationSpec(Reader<? extends AggregationBuilder> builderReader, Parser aggregationParser, ParseField aggregationName) {
+            this.builderReader = builderReader;
+            this.aggregationParser = aggregationParser;
+            this.aggregationName = aggregationName;
+        }
+
+        /**
+         * Add a reader for the shard level results of the aggregation with {@linkplain aggregationName}'s
+         * {@link ParseField#getPreferredName()} as the {@link NamedWriteable#getWriteableName()}.
+         */
+        public AggregationSpec addResultReader(Writeable.Reader<? extends InternalAggregation> resultReader) {
+            return addResultReader(aggregationName.getPreferredName(), resultReader);
+        }
+
+        /**
+         * Add a reader for the shard level results of the aggregation.
+         */
+        public AggregationSpec addResultReader(String writeableName, Writeable.Reader<? extends InternalAggregation> resultReader) {
+            internalReaders.put(writeableName, resultReader);
+            return this;
+        }
     }
 
     public void registerAggregation(Writeable.Reader<? extends AggregationBuilder> builderReader, Aggregator.Parser aggregationParser,
@@ -488,19 +525,28 @@ public class SearchModule extends AbstractModule {
     }
 
     private void registerBuiltinAggregations() {
-        registerAggregation(AvgAggregationBuilder::new, InternalAvg::new, new AvgParser(), AvgAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(SumAggregationBuilder::new, InternalSum::new, new SumParser(), SumAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(MinAggregationBuilder::new, InternalMin::new, new MinParser(), MinAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(MaxAggregationBuilder::new, InternalMax::new, new MaxParser(), MaxAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(StatsAggregationBuilder::new, InternalStats::new, new StatsParser(),
-                StatsAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(ExtendedStatsAggregationBuilder::new, InternalExtendedStats::new, new ExtendedStatsParser(),
-                ExtendedStatsAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(ValueCountAggregationBuilder::new, new ValueCountParser(), ValueCountAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(PercentilesAggregationBuilder::new, new PercentilesParser(),
-                PercentilesAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(PercentileRanksAggregationBuilder::new, new PercentileRanksParser(),
-                PercentileRanksAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(new AggregationSpec(AvgAggregationBuilder::new, new AvgParser(), AvgAggregationBuilder.AGGREGATION_NAME_FIELD)
+                .addResultReader(InternalAvg::new));
+        registerAggregation(new AggregationSpec(SumAggregationBuilder::new, new SumParser(), SumAggregationBuilder.AGGREGATION_NAME_FIELD)
+                .addResultReader(InternalSum::new));
+        registerAggregation(new AggregationSpec(MinAggregationBuilder::new, new MinParser(), MinAggregationBuilder.AGGREGATION_NAME_FIELD)
+                .addResultReader(InternalMin::new));
+        registerAggregation(new AggregationSpec(MaxAggregationBuilder::new, new MaxParser(), MaxAggregationBuilder.AGGREGATION_NAME_FIELD)
+                .addResultReader(InternalMax::new));
+        registerAggregation(new AggregationSpec(StatsAggregationBuilder::new, new StatsParser(),
+                StatsAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalStats::new));
+        registerAggregation(new AggregationSpec(ExtendedStatsAggregationBuilder::new, new ExtendedStatsParser(),
+                ExtendedStatsAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalExtendedStats::new));
+        registerAggregation(new AggregationSpec(ValueCountAggregationBuilder::new, new ValueCountParser(),
+                ValueCountAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalValueCount::new));
+        registerAggregation(new AggregationSpec(PercentilesAggregationBuilder::new, new PercentilesParser(),
+                PercentilesAggregationBuilder.AGGREGATION_NAME_FIELD)
+                    .addResultReader(InternalTDigestPercentiles.NAME, InternalTDigestPercentiles::new)
+                    .addResultReader(InternalHDRPercentiles.NAME, InternalHDRPercentiles::new));
+        registerAggregation(new AggregationSpec(PercentileRanksAggregationBuilder::new, new PercentileRanksParser(),
+                PercentileRanksAggregationBuilder.AGGREGATION_NAME_FIELD)
+                    .addResultReader(InternalTDigestPercentileRanks.NAME, InternalTDigestPercentileRanks::new)
+                    .addResultReader(InternalHDRPercentileRanks.NAME, InternalHDRPercentileRanks::new));
         registerAggregation(CardinalityAggregationBuilder::new, new CardinalityParser(),
                 CardinalityAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(GlobalAggregationBuilder::new, GlobalAggregationBuilder::parse,
@@ -721,11 +767,6 @@ public class SearchModule extends AbstractModule {
 
     static {
         // calcs
-        InternalValueCount.registerStreams();
-        InternalTDigestPercentiles.registerStreams();
-        InternalTDigestPercentileRanks.registerStreams();
-        InternalHDRPercentiles.registerStreams();
-        InternalHDRPercentileRanks.registerStreams();
         InternalCardinality.registerStreams();
         InternalScriptedMetric.registerStreams();
         InternalGeoCentroid.registerStreams();

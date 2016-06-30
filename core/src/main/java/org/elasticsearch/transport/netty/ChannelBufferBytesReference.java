@@ -31,7 +31,7 @@ import java.nio.charset.StandardCharsets;
 
 /**
  */
-final class ChannelBufferBytesReference implements BytesReference {
+final class ChannelBufferBytesReference extends BytesReference {
 
     private final ChannelBuffer buffer;
     private final int size;
@@ -84,15 +84,6 @@ final class ChannelBufferBytesReference implements BytesReference {
         byte[] copy = new byte[buffer.readableBytes()];
         buffer.getBytes(buffer.readerIndex(), copy);
         return new BytesRef(copy);
-    }
-
-    public int hashCode() {
-        return BytesReference.hashCode(this);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        return BytesReference.bytesEqual(this, (BytesReference) obj);
     }
 
     @Override

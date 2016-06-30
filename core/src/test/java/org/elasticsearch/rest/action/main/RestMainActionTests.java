@@ -95,6 +95,6 @@ public class RestMainActionTests extends ESTestCase {
         }
         mainResponse.toXContent(responseBuilder, ToXContent.EMPTY_PARAMS);
         BytesReference xcontentBytes = responseBuilder.bytes();
-        assertTrue(BytesReference.bytesEqual(xcontentBytes, response.content()));
+        assertEquals(xcontentBytes, response.content());
     }
 }

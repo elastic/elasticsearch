@@ -29,27 +29,27 @@ import java.io.OutputStream;
 /**
  * A reference to bytes.
  */
-public interface BytesReference extends Accountable {
+public abstract class BytesReference implements Accountable {
 
     /**
      * Returns the byte at the specified index. Need to be between 0 and length.
      */
-    byte get(int index);
+    public abstract byte get(int index);
 
     /**
      * The length.
      */
-    int length();
+    public abstract int length();
 
     /**
      * Slice the bytes from the <tt>from</tt> index up to <tt>length</tt>.
      */
-    BytesReference slice(int from, int length);
+    public abstract BytesReference slice(int from, int length);
 
     /**
      * A stream input of the bytes.
      */
-    default StreamInput streamInput() {
+    public StreamInput streamInput() {
         BytesRef ref = toBytesRef();
         return StreamInput.wrap(ref.bytes, ref.offset, ref.length);
     }
@@ -57,26 +57,26 @@ public interface BytesReference extends Accountable {
     /**
      * Writes the bytes directly to the output stream.
      */
-    void writeTo(OutputStream os) throws IOException;
+    public abstract void writeTo(OutputStream os) throws IOException;
 
     /**
      * Converts to a string based on utf8.
      */
-    default String toUtf8() {
+    public String toUtf8() {
         return toBytesRef().utf8ToString();
     }
 
     /**
      * Converts to Lucene BytesRef.
      */
-    BytesRef toBytesRef();
+    public abstract BytesRef toBytesRef();
 
     /**
      * Returns a BytesRefIterator for this BytesReference. This method allows
      * access to the internal pages of this reference without copying them. Use with care!
      * @see BytesRefIterator
      */
-    default BytesRefIterator iterator() {
+    public BytesRefIterator iterator() {
         return new BytesRefIterator() {
             BytesRef ref = length() == 0 ? null : toBytesRef();
             @Override
@@ -88,28 +88,29 @@ public interface BytesReference extends Accountable {
         };
     }
 
-    /**
-     * Expert: compares two BytesReference instances against each other,
-     * returning true if the bytes are equal.
-     */
-    static boolean bytesEqual(BytesReference a, BytesReference b) {
-        if (a == b) {
+    @Override
+    public boolean equals(Object b) {
+        if (this == b) {
             return true;
         }
-        if (a.length() != b.length()) {
-            return false;
-        }
-        for (int i = 0, end = a.length(); i < end; ++i) {
-            if (a.get(i) != b.get(i)) {
+        if (b instanceof BytesReference) {
+            BytesReference other = (BytesReference) b;
+            if (this.length() != other.length()) {
                 return false;
             }
+            for (int i = 0; i < length(); ++i) {
+                if (other.get(i) != other.get(i)) {
+                    return false;
+                }
+            }
+            return true;
         }
-        return true;
+        return false;
     }
 
-
-    static int hashCode(BytesReference a) {
-        final BytesRefIterator iterator = a.iterator();
+    @Override
+    public int hashCode() {
+        final BytesRefIterator iterator = iterator();
         BytesRef ref;
         int result = 1;
         try {
@@ -128,7 +129,7 @@ public interface BytesReference extends Accountable {
      * Returns a compact array from the given BytesReference. The returned array won't be copied unless necessary. If you need
      * to modify the returned array use <tt>BytesRef.deepCopyOf(reference.toBytesRef()</tt> instead
      */
-    static byte[] toBytes(BytesReference reference) {
+    public static byte[] toBytes(BytesReference reference) {
         final BytesRef bytesRef = reference.toBytesRef();
         if (bytesRef.offset == 0 && bytesRef.length == bytesRef.bytes.length) {
             return bytesRef.bytes;

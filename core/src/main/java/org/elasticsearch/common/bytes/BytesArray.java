@@ -27,13 +27,12 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
-public final class BytesArray implements BytesReference {
+public final class BytesArray extends BytesReference {
 
     public static final BytesArray EMPTY = new BytesArray(BytesRef.EMPTY_BYTES, 0, 0);
-
-    private byte[] bytes;
-    private int offset;
-    private int length;
+    private final byte[] bytes;
+    private final int offset;
+    private final int length;
 
     public BytesArray(String bytes) {
         BytesRef bytesRef = new BytesRef(bytes);
@@ -105,16 +104,6 @@ public final class BytesArray implements BytesReference {
     @Override
     public BytesRef toBytesRef() {
         return new BytesRef(bytes, offset, length);
-    }
-
-    @Override
-    public int hashCode() {
-        return BytesReference.hashCode(this);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        return BytesReference.bytesEqual(this, (BytesReference) obj);
     }
 
     @Override

@@ -34,7 +34,7 @@ import java.util.Arrays;
  * A page based bytes reference, internally holding the bytes in a paged
  * data structure.
  */
-public class PagedBytesReference implements BytesReference {
+public class PagedBytesReference extends BytesReference {
 
     private static final int PAGE_SIZE = BigArrays.BYTE_PAGE_SIZE;
 
@@ -143,7 +143,7 @@ public class PagedBytesReference implements BytesReference {
         }
 
         if (!(obj instanceof PagedBytesReference)) {
-            return BytesReference.bytesEqual(this, (BytesReference) obj);
+            return super.equals(obj);
         }
 
         PagedBytesReference other = (PagedBytesReference) obj;

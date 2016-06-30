@@ -531,4 +531,34 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         }
         return num;
     }
+
+
+    public void testBasicEquals() {
+        final int len = randomIntBetween(0, randomBoolean() ? 10: 100000);
+        final int offset1 = randomInt(5);
+        final byte[] array1 = new byte[offset1 + len + randomInt(5)];
+        random().nextBytes(array1);
+        final int offset2 = randomInt(offset1);
+        final byte[] array2 = Arrays.copyOfRange(array1, offset1 - offset2, array1.length);
+
+        final BytesArray b1 = new BytesArray(array1, offset1, len);
+        final BytesArray b2 = new BytesArray(array2, offset2, len);
+        assertEquals(b1, b2);
+        assertEquals(Arrays.hashCode(BytesReference.toBytes(b1)), b1.hashCode());
+        assertEquals(Arrays.hashCode(BytesReference.toBytes(b2)), b2.hashCode());
+
+        // test same instance
+        assertEquals(b1, b1);
+        assertEquals(b2, b2);
+
+        if (len > 0) {
+            // test different length
+            BytesArray differentLen = new BytesArray(array1, offset1, randomInt(len - 1));
+            assertNotEquals(b1, differentLen);
+
+            // test changed bytes
+            array1[offset1 + randomInt(len - 1)] += 13;
+            assertNotEquals(b1, b2);
+        }
+    }
 }

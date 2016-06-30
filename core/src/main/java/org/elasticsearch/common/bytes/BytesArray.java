@@ -109,7 +109,7 @@ public final class BytesArray implements BytesReference {
 
     @Override
     public int hashCode() {
-        return BytesReference.hashCode(bytes, offset, length);
+        return BytesReference.hashCode(this);
     }
 
     @Override

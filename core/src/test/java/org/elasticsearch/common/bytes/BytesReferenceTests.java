@@ -37,14 +37,13 @@ public class BytesReferenceTests extends ESTestCase {
         final BytesArray b1 = new BytesArray(array1, offset1, len);
         final BytesArray b2 = new BytesArray(array2, offset2, len);
         assertTrue(BytesReference.bytesEqual(b1, b2));
-        assertTrue(BytesReference.bytesEquals(b1, b2));
         assertEquals(Arrays.hashCode(BytesReference.toBytes(b1)), b1.hashCode());
-        assertEquals(BytesReference.hashCode(b1.array(), b1.offset(), b2.length()), BytesReference.slowHashCode(b2));
+        assertEquals(Arrays.hashCode(BytesReference.toBytes(b2)), b2.hashCode());
+        assertEquals(b2.hashCode(), BytesReference.hashCode(b2));
 
         // test same instance
         assertTrue(BytesReference.bytesEqual(b1, b1));
-        assertTrue(BytesReference.bytesEquals(b1, b1));
-        assertEquals(BytesReference.hashCode(b1.array(), b1.offset(), b2.length()), BytesReference.slowHashCode(b1));
+        assertEquals(b1.hashCode(), BytesReference.hashCode(b1));
 
         if (len > 0) {
             // test different length
@@ -54,7 +53,6 @@ public class BytesReferenceTests extends ESTestCase {
             // test changed bytes
             array1[offset1 + randomInt(len - 1)] += 13;
             assertFalse(BytesReference.bytesEqual(b1, b2));
-            assertFalse(BytesReference.bytesEquals(b1, b2));
         }
     }
 

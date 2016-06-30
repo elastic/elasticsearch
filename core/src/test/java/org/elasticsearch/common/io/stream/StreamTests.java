@@ -19,14 +19,13 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.bytes.ByteBufferBytesReference;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -63,7 +62,7 @@ public class StreamTests extends ESTestCase {
             BytesStreamOutput out = new BytesStreamOutput();
             out.writeZLong(value.v1());
             assertArrayEquals(Long.toString(value.v1()), value.v2(), BytesReference.toBytes(out.bytes()));
-            ByteBufferBytesReference bytes = new ByteBufferBytesReference(ByteBuffer.wrap(value.v2()));
+            BytesReference bytes = new BytesArray(value.v2());
             assertEquals(Arrays.toString(value.v2()), (long)value.v1(), bytes.streamInput().readZLong());
         }
     }

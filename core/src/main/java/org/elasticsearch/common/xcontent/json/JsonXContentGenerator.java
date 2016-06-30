@@ -26,9 +26,9 @@ import com.fasterxml.jackson.core.filter.FilteringGeneratorDelegate;
 import com.fasterxml.jackson.core.io.SerializedString;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -70,10 +70,6 @@ public class JsonXContentGenerator implements XContentGenerator {
     private static final SerializedString LF = new SerializedString("\n");
     private static final DefaultPrettyPrinter.Indenter INDENTER = new DefaultIndenter("  ", LF.getValue());
     private boolean prettyPrint = false;
-
-    public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, String... filters) {
-        this(jsonGenerator, os, filters, true);
-    }
 
     public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, String[] filters, boolean inclusive) {
         if (jsonGenerator instanceof GeneratorBase) {
@@ -356,12 +352,9 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     protected void copyRawValue(BytesReference content, XContent xContent) throws IOException {
-        XContentParser parser = null;
-        try {
-            parser = xContent.createParser(content.streamInput());
+        try (StreamInput input = content.streamInput();
+             XContentParser parser = xContent.createParser(input)) {
             copyCurrentStructure(parser);
-        } finally {
-            IOUtils.close(parser);
         }
     }
 

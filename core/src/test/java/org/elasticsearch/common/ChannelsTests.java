@@ -19,14 +19,11 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.common.bytes.ByteBufferBytesReference;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import org.jboss.netty.buffer.ByteBufferBackedChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffer;
 import org.junit.After;
 import org.junit.Before;
 
@@ -157,7 +154,9 @@ public class ChannelsTests extends ESTestCase {
         copy.flip();
 
         BytesReference sourceRef = new BytesArray(randomBytes, offset + offsetToRead, lengthToRead);
-        BytesReference copyRef = new ByteBufferBytesReference(copy);
+        byte[] tmp = new byte[copy.remaining()];
+        copy.duplicate().get(tmp);
+        BytesReference copyRef = new BytesArray(tmp);
 
         assertTrue("read bytes didn't match written bytes", sourceRef.equals(copyRef));
     }

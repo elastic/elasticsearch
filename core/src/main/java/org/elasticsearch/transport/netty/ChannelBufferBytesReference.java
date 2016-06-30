@@ -87,11 +87,7 @@ final class ChannelBufferBytesReference implements BytesReference {
     }
 
     public int hashCode() {
-        if (buffer.hasArray()) {
-            return BytesReference.hashCode(buffer.array(), buffer.arrayOffset() + buffer.readerIndex(), buffer.readableBytes());
-        } else {
-            return BytesReference.slowHashCode(this);
-        }
+        return BytesReference.hashCode(this);
     }
 
     @Override

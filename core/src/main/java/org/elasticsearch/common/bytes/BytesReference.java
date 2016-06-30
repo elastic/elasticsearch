@@ -88,6 +88,10 @@ public interface BytesReference extends Accountable {
         };
     }
 
+    /**
+     * Expert: compares two BytesReference instances against each other,
+     * returning true if the bytes are equal.
+     */
     static boolean bytesEqual(BytesReference a, BytesReference b) {
         if (a == b) {
             return true;
@@ -95,33 +99,27 @@ public interface BytesReference extends Accountable {
         if (a.length() != b.length()) {
             return false;
         }
-
-        return bytesEquals(a, b);
-    }
-
-    static boolean bytesEquals(BytesReference a, BytesReference b) {
-        assert a.length() == b.length();
         for (int i = 0, end = a.length(); i < end; ++i) {
             if (a.get(i) != b.get(i)) {
                 return false;
             }
         }
-
         return true;
     }
 
-    static int hashCode(byte[] array, int offset, int length) {
-        int result = 1;
-        for (int i = offset, end = offset + length; i < end; ++i) {
-            result = 31 * result + array[i];
-        }
-        return result;
-    }
 
-    static int slowHashCode(BytesReference a) {
+    static int hashCode(BytesReference a) {
+        final BytesRefIterator iterator = a.iterator();
+        BytesRef ref;
         int result = 1;
-        for (int i = 0, end = a.length(); i < end; ++i) {
-            result = 31 * result + a.get(i);
+        try {
+            while ((ref = iterator.next()) != null) {
+                for (int i = 0; i < ref.length; i++) {
+                    result = 31 * result + ref.bytes[ref.offset + i];
+                }
+            }
+        } catch (IOException ex) {
+            throw new AssertionError("wont happen", ex);
         }
         return result;
     }

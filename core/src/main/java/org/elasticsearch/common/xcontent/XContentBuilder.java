@@ -342,10 +342,10 @@ public final class XContentBuilder implements BytesStream, Releasable {
         field(name);
         if (value.hasString()) {
             generator.writeString(value.string());
-            return this;
         } else {
             // TODO: TextBytesOptimization we can use a buffer here to convert it? maybe add a request to jackson to support InputStream as well?
-
+            final BytesRef ref = value.bytes().toBytesRef();
+            generator.writeUTF8String(ref.bytes, ref.offset, ref.length);
         }
         return this;
     }

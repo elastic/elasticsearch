@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.monitoring.agent.collector;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SysGlobals;
-import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -26,14 +25,13 @@ import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -205,11 +203,12 @@ public abstract class AbstractCollectorTestCase extends MonitoringIntegTestCase 
         }
 
         @Override
-        public void onModule(NetworkModule module) {
+        public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+            return emptyList();
         }
 
         @Override
-        public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+        public List<Class<? extends RestHandler>> getRestHandlers() {
             return emptyList();
         }
 

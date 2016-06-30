@@ -32,6 +32,7 @@ import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
@@ -272,11 +273,12 @@ public class LicensingTests extends SecurityIntegTestCase {
         }
 
         @Override
-        public void onModule(NetworkModule module) {
+        public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+            return emptyList();
         }
 
         @Override
-        public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+        public List<Class<? extends RestHandler>> getRestHandlers() {
             return emptyList();
         }
 

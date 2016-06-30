@@ -1142,7 +1142,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent<T
 
     /**
      * This method handles the message receive part for both request and responses
-     * @throws IOException
      */
     public final void messageReceived(BytesReference reference, Channel channel, String profileName,
                                       InetSocketAddress remoteAddress, int messageLengthBytes) throws IOException {

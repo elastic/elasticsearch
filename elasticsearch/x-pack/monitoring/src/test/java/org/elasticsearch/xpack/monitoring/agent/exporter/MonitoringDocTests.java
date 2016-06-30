@@ -45,7 +45,7 @@ public class MonitoringDocTests extends ESTestCase {
             output.setVersion(outputVersion);
             monitoringDoc.writeTo(output);
 
-            StreamInput streamInput = StreamInput.wrap(output.bytes());
+            StreamInput streamInput = output.bytes().streamInput();
             streamInput.setVersion(randomVersion(random()));
             MonitoringDoc monitoringDoc2 = new MonitoringDoc(streamInput);
 

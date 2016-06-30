@@ -58,9 +58,7 @@ public class WatcherTemplateTests extends ESTestCase {
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, registry);
         ScriptService scriptService = new ScriptService(setting, environment, resourceWatcherService, scriptEngineRegistry,
                 registry, scriptSettings);
-        ClusterService clusterService = Mockito.mock(ClusterService.class);
-        Mockito.when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name")).build());
-        engine = new DefaultTextTemplateEngine(Settings.EMPTY, ScriptServiceProxy.of(scriptService, clusterService));
+        engine = new DefaultTextTemplateEngine(Settings.EMPTY, ScriptServiceProxy.of(scriptService));
     }
 
     public void testEscaping() throws Exception {

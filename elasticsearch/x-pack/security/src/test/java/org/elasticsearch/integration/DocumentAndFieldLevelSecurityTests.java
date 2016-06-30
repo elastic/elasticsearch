@@ -8,6 +8,8 @@ package org.elasticsearch.integration;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
@@ -38,7 +40,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 "user1:" + USERS_PASSWD_HASHED + "\n" +
                 "user2:" + USERS_PASSWD_HASHED + "\n" +
                 "user3:" + USERS_PASSWD_HASHED + "\n" +
-                "user4:" + USERS_PASSWD_HASHED + "\n";
+                "user4:" + USERS_PASSWD_HASHED + "\n" +
+                "user5:" + USERS_PASSWD_HASHED + "\n";
     }
 
     @Override
@@ -47,7 +50,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 "role1:user1\n" +
                 "role2:user1,user4\n" +
                 "role3:user2,user4\n" +
-                "role4:user3,user4\n";
+                "role4:user3,user4,user5\n";
     }
 
     @Override
@@ -126,6 +129,33 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         assertSearchHits(response, "1", "2");
         assertThat(response.getHits().getAt(0).getSource().get("field1").toString(), equalTo("value1"));
         assertThat(response.getHits().getAt(1).getSource().get("field2").toString(), equalTo("value2"));
+    }
+
+    public void testDLSIsAppliedBeforeFLS() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("type1", "field1", "type=text", "field2", "type=text")
+        );
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value1")
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
+        client().prepareIndex("test", "type1", "2").setSource("field1", "value2", "field2", "value2")
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
+
+        SearchResponse response = client().filterWithHeader(
+                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
+                .prepareSearch("test").setQuery(QueryBuilders.termQuery("field1", "value2"))
+                .get();
+        assertHitCount(response, 1);
+        assertSearchHits(response, "2");
+        assertThat(response.getHits().getAt(0).getSource().size(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getSource().get("field1").toString(), equalTo("value2"));
+
+        response = client().filterWithHeader(
+                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
+                .prepareSearch("test").setQuery(QueryBuilders.termQuery("field1", "value1"))
+                .get();
+        assertHitCount(response, 0);
     }
 
     public void testQueryCache() throws Exception {

@@ -26,13 +26,11 @@ public class ScriptServiceProxy {
 
     private final ScriptService service;
     private final SecurityContext securityContext;
-    private final ClusterService clusterService;
 
     @Inject
-    public ScriptServiceProxy(ScriptService service, SecurityContext securityContext, ClusterService clusterService) {
+    public ScriptServiceProxy(ScriptService service, SecurityContext securityContext) {
         this.service = service;
         this.securityContext = securityContext;
-        this.clusterService = clusterService;
     }
 
     public CompiledScript compile(Script script) {
@@ -41,7 +39,7 @@ public class ScriptServiceProxy {
 
     public CompiledScript compile(org.elasticsearch.script.Script script, Map<String, String> compileParams) {
         return securityContext.executeAs(XPackUser.INSTANCE, () ->
-                service.compile(script, WatcherScriptContext.CTX, compileParams, clusterService.state()));
+                service.compile(script, WatcherScriptContext.CTX, compileParams));
     }
 
     public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
@@ -64,7 +62,7 @@ public class ScriptServiceProxy {
     /**
      * Factory helper method for testing.
      */
-    public static ScriptServiceProxy of(ScriptService service, ClusterService clusterService) {
-        return new ScriptServiceProxy(service, SecurityContext.Insecure.INSTANCE, clusterService);
+    public static ScriptServiceProxy of(ScriptService service) {
+        return new ScriptServiceProxy(service, SecurityContext.Insecure.INSTANCE);
     }
 }

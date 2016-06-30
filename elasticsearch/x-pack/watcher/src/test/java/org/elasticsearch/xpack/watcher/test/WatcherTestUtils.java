@@ -256,11 +256,8 @@ public final class WatcherTestUtils {
         ScriptEngineRegistry scriptEngineRegistry =
                 new ScriptEngineRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        ClusterService clusterService = Mockito.mock(ClusterService.class);
-        Mockito.when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name")).build());
         return  ScriptServiceProxy.of(new ScriptService(settings, new Environment(settings),
-                new ResourceWatcherService(settings, tp), scriptEngineRegistry, scriptContextRegistry, scriptSettings),
-                clusterService);
+                new ResourceWatcherService(settings, tp), scriptEngineRegistry, scriptContextRegistry, scriptSettings));
     }
 
     public static SearchType getRandomSupportedSearchType() {
@@ -269,13 +266,5 @@ public final class WatcherTestUtils {
                 SearchType.QUERY_THEN_FETCH,
                 SearchType.DFS_QUERY_THEN_FETCH,
                 SearchType.DFS_QUERY_AND_FETCH);
-    }
-
-    public static boolean areJsonEquivalent(String json1, String json2) throws IOException {
-        XContentParser parser1 = XContentHelper.createParser(new BytesArray(json1.getBytes(StandardCharsets.UTF_8)));
-        XContentParser parser2 = XContentHelper.createParser(new BytesArray(json2.getBytes(StandardCharsets.UTF_8)));
-        Map<String, Object> map1 = parser1.map();
-        Map<String, Object> map2 = parser2.map();
-        return map1.equals(map2);
     }
 }

@@ -97,7 +97,7 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
                     }
                 });
                 // assist type inference
-                return instanceList.isEmpty() ? Collections.<Instance>emptyList() : instanceList.getItems();
+                return instanceList.isEmpty()  || instanceList.getItems() == null ? Collections.<Instance>emptyList() : instanceList.getItems();
             } catch (PrivilegedActionException e) {
                 logger.warn("Problem fetching instance list for zone {}", e, zoneId);
                 logger.debug("Full exception:", e);

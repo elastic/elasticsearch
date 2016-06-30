@@ -20,9 +20,9 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.Processor;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -72,9 +72,9 @@ public final class SplitProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public static class Factory extends AbstractProcessorFactory<SplitProcessor> {
+    public static class Factory implements Processor.Factory {
         @Override
-        public SplitProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
+        public SplitProcessor create(String processorTag, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             return new SplitProcessor(processorTag, field, ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "separator"));
         }

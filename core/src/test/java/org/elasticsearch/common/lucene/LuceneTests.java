@@ -357,7 +357,6 @@ public class LuceneTests extends ESTestCase {
         dir.close();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/19151")
     public void testAsSequentialAccessBits() throws Exception {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new KeywordAnalyzer()));
@@ -378,7 +377,7 @@ public class LuceneTests extends ESTestCase {
             IndexSearcher searcher = newSearcher(reader);
             Weight termWeight = new TermQuery(new Term("foo", "bar")).createWeight(searcher, false);
             assertEquals(1, reader.leaves().size());
-            LeafReaderContext leafReaderContext = reader.leaves().get(0);
+            LeafReaderContext leafReaderContext = searcher.getIndexReader().leaves().get(0);
             Bits bits = Lucene.asSequentialAccessBits(leafReaderContext.reader().maxDoc(), termWeight.scorer(leafReaderContext));
 
             expectThrows(IndexOutOfBoundsException.class, () -> bits.get(-1));

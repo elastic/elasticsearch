@@ -36,13 +36,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestMultiPercolateAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
-    private final TransportMultiPercolateAction action;
 
     @Inject
-    public RestMultiPercolateAction(Settings settings, RestController controller,
-                                    TransportMultiPercolateAction action) {
+    public RestMultiPercolateAction(Settings settings, RestController controller) {
         super(settings);
-        this.action = action;
         controller.registerHandler(POST, "/_mpercolate", this);
         controller.registerHandler(POST, "/{index}/_mpercolate", this);
         controller.registerHandler(POST, "/{index}/{type}/_mpercolate", this);
@@ -61,7 +58,8 @@ public class RestMultiPercolateAction extends BaseRestHandler {
         multiPercolateRequest.indices(Strings.splitStringByCommaToArray(restRequest.param("index")));
         multiPercolateRequest.documentType(restRequest.param("type"));
         multiPercolateRequest.add(RestActions.getRestContent(restRequest), allowExplicitIndex);
-        action.execute(multiPercolateRequest, new RestToXContentListener<MultiPercolateResponse>(restChannel));
+        client.execute(MultiPercolateAction.INSTANCE, multiPercolateRequest,
+                new RestToXContentListener<MultiPercolateResponse>(restChannel));
     }
 
 }

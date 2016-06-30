@@ -44,7 +44,7 @@ public final class LowercaseProcessor extends AbstractStringProcessor {
         return TYPE;
     }
 
-    public final static class Factory extends AbstractStringProcessor.Factory<LowercaseProcessor> {
+    public final static class Factory extends AbstractStringProcessor.Factory {
 
         public Factory() {
             super(TYPE);

@@ -24,7 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.ingest.AbstractProcessorFactory;
+import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.IOException;
@@ -91,7 +91,7 @@ public class SimulateProcessorResult implements Writeable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (processorTag != null) {
-            builder.field(AbstractProcessorFactory.TAG_KEY, processorTag);
+            builder.field(ConfigurationUtils.TAG_KEY, processorTag);
         }
         if (failure == null) {
             ingestDocument.toXContent(builder, params);

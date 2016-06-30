@@ -37,12 +37,12 @@ public final class ProcessorsRegistry {
     private final ClusterService clusterService;
 
     private ProcessorsRegistry(ScriptService scriptService, ClusterService clusterService,
-                               Map<String, Function<ProcessorsRegistry, Processor.Factory<?>>> providers) {
+                               Map<String, Function<ProcessorsRegistry, Processor.Factory>> providers) {
         this.templateService = new InternalTemplateService(scriptService);
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         Map<String, Processor.Factory> processorFactories = new HashMap<>();
-        for (Map.Entry<String, Function<ProcessorsRegistry, Processor.Factory<?>>> entry : providers.entrySet()) {
+        for (Map.Entry<String, Function<ProcessorsRegistry, Processor.Factory>> entry : providers.entrySet()) {
             processorFactories.put(entry.getKey(), entry.getValue().apply(this));
         }
         this.processorFactories = Collections.unmodifiableMap(processorFactories);
@@ -71,13 +71,13 @@ public final class ProcessorsRegistry {
 
     public static final class Builder {
 
-        private final Map<String, Function<ProcessorsRegistry, Processor.Factory<?>>> providers = new HashMap<>();
+        private final Map<String, Function<ProcessorsRegistry, Processor.Factory>> providers = new HashMap<>();
 
         /**
          * Adds a processor factory under a specific name.
          */
-        public void registerProcessor(String name, Function<ProcessorsRegistry, Processor.Factory<?>> provider) {
-            Function<ProcessorsRegistry, Processor.Factory<?>> previous = this.providers.putIfAbsent(name, provider);
+        public void registerProcessor(String name, Function<ProcessorsRegistry, Processor.Factory> provider) {
+            Function<ProcessorsRegistry, Processor.Factory> previous = this.providers.putIfAbsent(name, provider);
             if (previous != null) {
                 throw new IllegalArgumentException("Processor factory already registered for name [" + name + "]");
             }

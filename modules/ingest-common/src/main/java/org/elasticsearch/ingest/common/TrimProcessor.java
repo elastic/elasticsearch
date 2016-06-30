@@ -41,7 +41,7 @@ public final class TrimProcessor extends AbstractStringProcessor {
         return TYPE;
     }
 
-    public static final class Factory extends AbstractStringProcessor.Factory<TrimProcessor> {
+    public static final class Factory extends AbstractStringProcessor.Factory {
 
         public Factory() {
             super(TYPE);

@@ -36,14 +36,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.admin.cluster.node.tasks.RestListTasksAction.nodeSettingListener;
 
 public class RestRethrottleAction extends BaseRestHandler {
-    private final TransportRethrottleAction action;
     private final ClusterService clusterService;
 
     @Inject
-    public RestRethrottleAction(Settings settings, RestController controller, TransportRethrottleAction action,
-            ClusterService clusterService) {
+    public RestRethrottleAction(Settings settings, RestController controller, ClusterService clusterService) {
         super(settings);
-        this.action = action;
         this.clusterService = clusterService;
         controller.registerHandler(POST, "/_update_by_query/{taskId}/_rethrottle", this);
         controller.registerHandler(POST, "/_delete_by_query/{taskId}/_rethrottle", this);
@@ -60,6 +57,6 @@ public class RestRethrottleAction extends BaseRestHandler {
         }
         internalRequest.setRequestsPerSecond(requestsPerSecond);
         ActionListener<ListTasksResponse> listener = nodeSettingListener(clusterService, new RestToXContentListener<>(channel));
-        action.execute(internalRequest, listener);
+        client.execute(RethrottleAction.INSTANCE, internalRequest, listener);
     }
 }

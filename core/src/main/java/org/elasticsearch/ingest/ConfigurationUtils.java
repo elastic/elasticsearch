@@ -29,6 +29,8 @@ import java.util.Map;
 
 public final class ConfigurationUtils {
 
+    public static final String TAG_KEY = "tag";
+
     private ConfigurationUtils() {
     }
 
@@ -255,8 +257,8 @@ public final class ConfigurationUtils {
                 ConfigurationUtils.readOptionalList(null, null, config, Pipeline.ON_FAILURE_KEY);
 
             List<Processor> onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, processorRegistry);
-            Processor processor;
-            processor = factory.create(config);
+            String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
+            Processor processor = factory.create(tag, config);
 
             if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
                 throw newConfigurationException(processor.getType(), processor.getTag(), Pipeline.ON_FAILURE_KEY,

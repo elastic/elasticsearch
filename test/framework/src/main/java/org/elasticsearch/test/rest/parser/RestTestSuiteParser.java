@@ -21,6 +21,7 @@ package org.elasticsearch.test.rest.parser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.rest.section.RestTestSuite;
+import org.elasticsearch.test.rest.section.TeardownSection;
 import org.elasticsearch.test.rest.section.TestSection;
 
 import java.io.IOException;
@@ -75,6 +76,7 @@ public class RestTestSuiteParser implements RestTestFragmentParser<RestTestSuite
         RestTestSuite restTestSuite = new RestTestSuite(parseContext.getApi(), parseContext.getSuiteName());
 
         restTestSuite.setSetupSection(parseContext.parseSetupSection());
+        restTestSuite.setTeardownSection(parseContext.parseTeardownSection());
 
         while(true) {
             //the "---" section separator is not understood by the yaml parser. null is returned, same as when the parser is closed

@@ -38,7 +38,7 @@ public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
         super(AzureComputeServiceSimpleMock.TestPlugin.class);
     }
 
-    public void testOneNodeDhouldRunUsingPrivateIp() {
+    public void testOneNodeShouldRunUsingPrivateIp() {
         Settings.Builder settings = Settings.builder()
                 .put(Management.SERVICE_NAME_SETTING.getKey(), "dummy")
                 .put(Discovery.HOST_TYPE_SETTING.getKey(), "private_ip");

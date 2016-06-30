@@ -21,7 +21,7 @@ import org.elasticsearch.gradle.LoggedExec
 
 esplugin {
   description 'The Azure Classic Discovery plugin allows to use Azure Classic API for the unicast discovery mechanism'
-  classname 'AzureDiscoveryPlugin'
+  classname 'org.elasticsearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin'
 }
 
 versions << [

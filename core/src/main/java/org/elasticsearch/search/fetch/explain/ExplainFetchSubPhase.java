@@ -30,24 +30,13 @@ import java.io.IOException;
 /**
  *
  */
-public class ExplainFetchSubPhase implements FetchSubPhase {
-
-    @Override
-    public boolean hitsExecutionNeeded(SearchContext context) {
-        return false;
-    }
-
-    @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
-    }
-
-    @Override
-    public boolean hitExecutionNeeded(SearchContext context) {
-        return context.explain();
-    }
+public final class ExplainFetchSubPhase implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {
+        if (context.explain() == false) {
+            return;
+        }
         try {
             final int topLevelDocId = hitContext.hit().docId();
             Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);

@@ -29,7 +29,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -70,8 +69,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
-
-    private Template template;
 
     public SearchRequest() {
     }
@@ -222,21 +219,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         return source;
     }
 
-
-    /**
-     * The stored template
-     */
-    public void template(Template template) {
-        this.template = template;
-    }
-
-    /**
-     * The stored template
-     */
-    public Template template() {
-        return template;
-    }
-
     /**
      * The tye of search to execute.
      */
@@ -326,7 +308,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         indicesOptions = IndicesOptions.readIndicesOptions(in);
 
         requestCache = in.readOptionalBoolean();
-        template = in.readOptionalWriteable(Template::new);
     }
 
     @Override
@@ -357,6 +338,5 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalBoolean(requestCache);
-        out.writeOptionalWriteable(template);
     }
 }

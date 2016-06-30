@@ -23,7 +23,6 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -48,18 +47,18 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
     private final NodeService nodeService;
 
     @Inject
-    public TransportNodesStatsAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+    public TransportNodesStatsAction(Settings settings, ThreadPool threadPool,
                                      ClusterService clusterService, TransportService transportService,
                                      NodeService nodeService, ActionFilters actionFilters,
                                      IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, NodesStatsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+        super(settings, NodesStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
               indexNameExpressionResolver, NodesStatsRequest::new, NodeStatsRequest::new, ThreadPool.Names.MANAGEMENT, NodeStats.class);
         this.nodeService = nodeService;
     }
 
     @Override
     protected NodesStatsResponse newResponse(NodesStatsRequest request, List<NodeStats> responses, List<FailedNodeException> failures) {
-        return new NodesStatsResponse(clusterName, responses, failures);
+        return new NodesStatsResponse(clusterService.getClusterName(), responses, failures);
     }
 
     @Override

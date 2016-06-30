@@ -43,21 +43,6 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
         if (registerDefaultHandlers) {
             controller.registerHandler(POST, "/_scripts/{lang}/{id}", this);
             controller.registerHandler(PUT, "/_scripts/{lang}/{id}", this);
-
-            controller.registerHandler(PUT, "/_scripts/{lang}/{id}/_create", new CreateHandler(settings, controller, client));
-            controller.registerHandler(POST, "/_scripts/{lang}/{id}/_create", new CreateHandler(settings, controller, client));
-        }
-    }
-
-    final class CreateHandler extends BaseRestHandler {
-        protected CreateHandler(Settings settings, RestController controller, Client client) {
-            super(settings, client);
-        }
-
-        @Override
-        public void handleRequest(RestRequest request, RestChannel channel, final Client client) {
-            request.params().put("op_type", "create");
-            RestPutStoredScriptAction.this.handleRequest(request, channel, client);
         }
     }
 
@@ -71,5 +56,4 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
         putRequest.script(request.content());
         client.admin().cluster().putStoredScript(putRequest, new AcknowledgedRestListener<>(channel));
     }
-
 }

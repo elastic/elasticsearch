@@ -29,7 +29,7 @@ import org.elasticsearch.painless.Definition.Type;
  */
 public final class AnalyzerCaster {
 
-    public static Cast getLegalCast(String location, Type actual, Type expected, boolean explicit, boolean internal) {
+    public static Cast getLegalCast(Location location, Type actual, Type expected, boolean explicit, boolean internal) {
         if (actual.equals(expected)) {
             return null;
         }
@@ -40,6 +40,10 @@ public final class AnalyzerCaster {
                     case DEF:
                         return new Cast(actual, Definition.DEF_TYPE, explicit, false, false, true, false);
                     case OBJECT:
+                        if (Definition.OBJECT_TYPE.equals(expected) && internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+
+                        break;
                     case BOOL_OBJ:
                         if (internal)
                             return new Cast(actual, actual, explicit, false, false, false, true);
@@ -62,6 +66,10 @@ public final class AnalyzerCaster {
                     case DEF:
                         return new Cast(actual, Definition.DEF_TYPE, explicit, false, false, true, false);
                     case OBJECT:
+                        if (Definition.OBJECT_TYPE.equals(expected) && internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+
+                        break;
                     case NUMBER:
                     case BYTE_OBJ:
                         if (internal)
@@ -117,6 +125,10 @@ public final class AnalyzerCaster {
                     case DEF:
                         return new Cast(actual, Definition.DEF_TYPE, explicit, false, false, true, false);
                     case OBJECT:
+                        if (Definition.OBJECT_TYPE.equals(expected) && internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+
+                        break;
                     case NUMBER:
                     case SHORT_OBJ:
                         if (internal)
@@ -172,6 +184,10 @@ public final class AnalyzerCaster {
                     case DEF:
                         return new Cast(actual, Definition.DEF_TYPE, explicit, false, false, true, false);
                     case OBJECT:
+                        if (Definition.OBJECT_TYPE.equals(expected) && internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+
+                        break;
                     case NUMBER:
                     case CHAR_OBJ:
                         if (internal)
@@ -229,6 +245,10 @@ public final class AnalyzerCaster {
                     case DEF:
                         return new Cast(actual, Definition.DEF_TYPE, explicit, false, false, true, false);
                     case OBJECT:
+                        if (Definition.OBJECT_TYPE.equals(expected) && internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+
+                        break;
                     case NUMBER:
                     case INT_OBJ:
                         if (internal)
@@ -284,6 +304,10 @@ public final class AnalyzerCaster {
                     case DEF:
                         return new Cast(actual, Definition.DEF_TYPE, explicit, false, false, true, false);
                     case OBJECT:
+                        if (Definition.OBJECT_TYPE.equals(expected) && internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+
+                        break;
                     case NUMBER:
                     case LONG_OBJ:
                         if (internal)
@@ -339,6 +363,10 @@ public final class AnalyzerCaster {
                     case DEF:
                         return new Cast(actual, Definition.DEF_TYPE, explicit, false, false, true, false);
                     case OBJECT:
+                        if (Definition.OBJECT_TYPE.equals(expected) && internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+
+                        break;
                     case NUMBER:
                     case FLOAT_OBJ:
                         if (internal)
@@ -392,6 +420,10 @@ public final class AnalyzerCaster {
                     case DEF:
                         return new Cast(actual, Definition.DEF_TYPE, explicit, false, false, true, false);
                     case OBJECT:
+                        if (Definition.OBJECT_TYPE.equals(expected) && internal)
+                            return new Cast(actual, actual, explicit, false, false, false, true);
+
+                        break;
                     case NUMBER:
                     case DOUBLE_OBJ:
                         if (internal)
@@ -432,6 +464,45 @@ public final class AnalyzerCaster {
 
                 break;
             case OBJECT:
+                if (Definition.OBJECT_TYPE.equals(actual))
+                    switch (expected.sort) {
+                        case BYTE:
+                            if (internal && explicit)
+                                return new Cast(actual, Definition.BYTE_OBJ_TYPE, true, false, true, false, false);
+
+                            break;
+                        case SHORT:
+                            if (internal && explicit)
+                                return new Cast(actual, Definition.SHORT_OBJ_TYPE, true, false, true, false, false);
+
+                            break;
+                        case CHAR:
+                            if (internal && explicit)
+                                return new Cast(actual, Definition.CHAR_OBJ_TYPE, true, false, true, false, false);
+
+                            break;
+                        case INT:
+                            if (internal && explicit)
+                                return new Cast(actual, Definition.INT_OBJ_TYPE, true, false, true, false, false);
+
+                            break;
+                        case LONG:
+                            if (internal && explicit)
+                                return new Cast(actual, Definition.LONG_OBJ_TYPE, true, false, true, false, false);
+
+                            break;
+                        case FLOAT:
+                            if (internal && explicit)
+                                return new Cast(actual, Definition.FLOAT_OBJ_TYPE, true, false, true, false, false);
+
+                            break;
+                        case DOUBLE:
+                            if (internal && explicit)
+                                return new Cast(actual, Definition.DOUBLE_OBJ_TYPE, true, false, true, false, false);
+
+                            break;
+                    }
+                break;
             case NUMBER:
                 switch (expected.sort) {
                     case BYTE:
@@ -653,11 +724,11 @@ public final class AnalyzerCaster {
             explicit && actual.clazz.isAssignableFrom(expected.clazz)) {
             return new Cast(actual, expected, explicit);
         } else {
-            throw new ClassCastException("Error" + location + ": Cannot cast from [" + actual.name + "] to [" + expected.name + "].");
+            throw location.createError(new ClassCastException("Cannot cast from [" + actual.name + "] to [" + expected.name + "]."));
         }
     }
 
-    public static Object constCast(final String location, final Object constant, final Cast cast) {
+    public static Object constCast(Location location, final Object constant, final Cast cast) {
         final Sort fsort = cast.from.sort;
         final Sort tsort = cast.to.sort;
 
@@ -685,12 +756,12 @@ public final class AnalyzerCaster {
                 case FLOAT:  return number.floatValue();
                 case DOUBLE: return number.doubleValue();
                 default:
-                    throw new IllegalStateException("Error" + location + ": Cannot cast from " +
-                        "[" + cast.from.clazz.getCanonicalName() + "] to [" + cast.to.clazz.getCanonicalName() + "].");
+                    throw location.createError(new IllegalStateException("Cannot cast from " +
+                        "[" + cast.from.clazz.getCanonicalName() + "] to [" + cast.to.clazz.getCanonicalName() + "]."));
             }
         } else {
-            throw new IllegalStateException("Error" + location + ": Cannot cast from " +
-                "[" + cast.from.clazz.getCanonicalName() + "] to [" + cast.to.clazz.getCanonicalName() + "].");
+            throw location.createError(new IllegalStateException("Cannot cast from " +
+                "[" + cast.from.clazz.getCanonicalName() + "] to [" + cast.to.clazz.getCanonicalName() + "]."));
         }
     }
 
@@ -754,6 +825,10 @@ public final class AnalyzerCaster {
     public static Type promoteXor(final Type from0, final Type from1) {
         final Sort sort0 = from0.sort;
         final Sort sort1 = from1.sort;
+
+        if (sort0 == Sort.DEF || sort1 == Sort.DEF) {
+            return Definition.DEF_TYPE;
+        }
 
         if (sort0.bool || sort1.bool) {
             return Definition.BOOLEAN_TYPE;

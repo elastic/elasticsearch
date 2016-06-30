@@ -27,13 +27,13 @@ import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IllegalShardRoutingStateException;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -70,7 +70,9 @@ import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotException;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.VersionUtils;
@@ -119,7 +121,6 @@ public class ExceptionSerializationTests extends ESTestCase {
                 .resolve("org").resolve("elasticsearch");
         final Set<? extends Class<?>> ignore = Sets.newHashSet(
                 org.elasticsearch.test.rest.parser.RestTestParseException.class,
-                org.elasticsearch.test.rest.client.RestException.class,
                 CancellableThreadsTests.CustomException.class,
                 org.elasticsearch.rest.BytesRestResponseTests.WithHeadersException.class,
                 AbstractClientHeadersTestCase.InternalException.class);
@@ -303,14 +304,16 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testSnapshotException() throws IOException {
-        SnapshotException ex = serialize(
-                new SnapshotException(new SnapshotId("repo", "snap"), "no such snapshot", new NullPointerException()));
-        assertEquals(ex.snapshot(), new SnapshotId("repo", "snap"));
-        assertEquals(ex.getMessage(), "[repo:snap] no such snapshot");
+        final Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap", UUIDs.randomBase64UUID()));
+        SnapshotException ex = serialize(new SnapshotException(snapshot, "no such snapshot", new NullPointerException()));
+        assertEquals(ex.getRepositoryName(), snapshot.getRepository());
+        assertEquals(ex.getSnapshotName(), snapshot.getSnapshotId().getName());
+        assertEquals(ex.getMessage(), "[" + snapshot + "] no such snapshot");
         assertTrue(ex.getCause() instanceof NullPointerException);
 
         ex = serialize(new SnapshotException(null, "no such snapshot", new NullPointerException()));
-        assertEquals(ex.snapshot(), null);
+        assertNull(ex.getRepositoryName());
+        assertNull(ex.getSnapshotName());
         assertEquals(ex.getMessage(), "[_na] no such snapshot");
         assertTrue(ex.getCause() instanceof NullPointerException);
     }

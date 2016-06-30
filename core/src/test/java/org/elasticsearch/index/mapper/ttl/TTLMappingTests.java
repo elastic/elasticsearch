@@ -20,7 +20,9 @@
 package org.elasticsearch.index.mapper.ttl;
 
 import org.apache.lucene.index.IndexOptions;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -30,22 +32,48 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
+import java.util.Collection;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class TTLMappingTests extends ESSingleNodeTestCase {
+
+    private static final Settings BW_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_0).build();
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
+
+    public void testRejectedOn5x() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("_ttl")
+                        .field("enabled", true)
+                    .endObject()
+                .endObject().endObject().string();
+        IndexService index = createIndex("test");
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class,
+                () -> index.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, false));
+        assertThat(expected.getMessage(), startsWith("[_ttl] is removed"));
+    }
+
     public void testSimpleDisabled() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test", BW_SETTINGS).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
@@ -60,7 +88,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_ttl").field("enabled", "yes").endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test", BW_SETTINGS).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
@@ -75,7 +103,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
 
     public void testDefaultValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test", BW_SETTINGS).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         assertThat(docMapper.TTLFieldMapper().enabled(), equalTo(TTLFieldMapper.Defaults.ENABLED_STATE.enabled));
         assertThat(docMapper.TTLFieldMapper().fieldType().stored(), equalTo(TTLFieldMapper.Defaults.TTL_FIELD_TYPE.stored()));
         assertThat(docMapper.TTLFieldMapper().fieldType().indexOptions(), equalTo(TTLFieldMapper.Defaults.TTL_FIELD_TYPE.indexOptions()));
@@ -93,7 +121,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").field("field").startObject().field("type", "text").endObject().endObject()
                 .endObject().endObject().string();
 
-        MapperService mapperService = createIndex("test").mapperService();
+        MapperService mapperService = createIndex("test", BW_SETTINGS).mapperService();
         DocumentMapper mapperWithoutTtl = mapperService.merge("type", new CompressedXContent(mappingWithoutTtl), MapperService.MergeReason.MAPPING_UPDATE, false);
         DocumentMapper mapperWithTtl = mapperService.merge("type", new CompressedXContent(mappingWithTtl), MapperService.MergeReason.MAPPING_UPDATE, false);
 
@@ -111,12 +139,12 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
 
         String updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_ttl")
-                .field("default", "1w")
+                .field("default", "7d")
                 .endObject()
                 .startObject("properties").field("field").startObject().field("type", "text").endObject().endObject()
                 .endObject().endObject().string();
 
-        MapperService mapperService = createIndex("test").mapperService();
+        MapperService mapperService = createIndex("test", BW_SETTINGS).mapperService();
         DocumentMapper initialMapper = mapperService.merge("type", new CompressedXContent(mappingWithTtl), MapperService.MergeReason.MAPPING_UPDATE, false);
         DocumentMapper updatedMapper = mapperService.merge("type", new CompressedXContent(updatedMapping), MapperService.MergeReason.MAPPING_UPDATE, false);
 
@@ -127,7 +155,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
     public void testThatDisablingTTLReportsConflict() throws Exception {
         String mappingWithTtl = getMappingWithTtlEnabled().string();
         String mappingWithTtlDisabled = getMappingWithTtlDisabled().string();
-        MapperService mapperService = createIndex("test").mapperService();
+        MapperService mapperService = createIndex("test", BW_SETTINGS).mapperService();
         DocumentMapper initialMapper = mapperService.merge("type", new CompressedXContent(mappingWithTtl), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         try {
@@ -143,7 +171,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
     public void testThatDisablingTTLReportsConflictOnCluster() throws Exception {
         String mappingWithTtl = getMappingWithTtlEnabled().string();
         String mappingWithTtlDisabled = getMappingWithTtlDisabled().string();
-        assertAcked(client().admin().indices().prepareCreate("testindex").addMapping("type", mappingWithTtl));
+        assertAcked(client().admin().indices().prepareCreate("testindex").setSettings(BW_SETTINGS).addMapping("type", mappingWithTtl));
         GetMappingsResponse mappingsBeforeUpdateResponse = client().admin().indices().prepareGetMappings("testindex").addTypes("type").get();
         try {
             client().admin().indices().preparePutMapping("testindex").setSource(mappingWithTtlDisabled).setType("type").get();
@@ -158,7 +186,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
     public void testThatEnablingTTLAfterFirstDisablingWorks() throws Exception {
         String mappingWithTtl = getMappingWithTtlEnabled().string();
         String withTtlDisabled = getMappingWithTtlDisabled().string();
-        assertAcked(client().admin().indices().prepareCreate("testindex").addMapping("type", withTtlDisabled));
+        assertAcked(client().admin().indices().prepareCreate("testindex").setSettings(BW_SETTINGS).addMapping("type", withTtlDisabled));
         GetMappingsResponse mappingsAfterUpdateResponse = client().admin().indices().prepareGetMappings("testindex").addTypes("type").get();
         assertThat(mappingsAfterUpdateResponse.getMappings().get("testindex").get("type").sourceAsMap().get("_ttl").toString(), equalTo("{enabled=false}"));
         client().admin().indices().preparePutMapping("testindex").setSource(mappingWithTtl).setType("type").get();
@@ -167,20 +195,20 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testNoConflictIfNothingSetAndDisabledLater() throws Exception {
-        IndexService indexService = createIndex("testindex", Settings.builder().build(), "type");
+        IndexService indexService = createIndex("testindex", BW_SETTINGS, "type");
         XContentBuilder mappingWithTtlDisabled = getMappingWithTtlDisabled("7d");
         indexService.mapperService().merge("type", new CompressedXContent(mappingWithTtlDisabled.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
     }
 
     public void testNoConflictIfNothingSetAndEnabledLater() throws Exception {
-        IndexService indexService = createIndex("testindex", Settings.builder().build(), "type");
+        IndexService indexService = createIndex("testindex", BW_SETTINGS, "type");
         XContentBuilder mappingWithTtlEnabled = getMappingWithTtlEnabled("7d");
         indexService.mapperService().merge("type", new CompressedXContent(mappingWithTtlEnabled.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
     }
 
     public void testMergeWithOnlyDefaultSet() throws Exception {
         XContentBuilder mappingWithTtlEnabled = getMappingWithTtlEnabled("7d");
-        IndexService indexService = createIndex("testindex", Settings.builder().build(), "type", mappingWithTtlEnabled);
+        IndexService indexService = createIndex("testindex", BW_SETTINGS, "type", mappingWithTtlEnabled);
         XContentBuilder mappingWithOnlyDefaultSet = getMappingWithOnlyTtlDefaultSet("6m");
         indexService.mapperService().merge("type", new CompressedXContent(mappingWithOnlyDefaultSet.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         CompressedXContent mappingAfterMerge = indexService.mapperService().documentMapper("type").mappingSource();
@@ -189,7 +217,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
 
     public void testMergeWithOnlyDefaultSetTtlDisabled() throws Exception {
         XContentBuilder mappingWithTtlEnabled = getMappingWithTtlDisabled("7d");
-        IndexService indexService = createIndex("testindex", Settings.builder().build(), "type", mappingWithTtlEnabled);
+        IndexService indexService = createIndex("testindex", BW_SETTINGS, "type", mappingWithTtlEnabled);
         CompressedXContent mappingAfterCreation = indexService.mapperService().documentMapper("type").mappingSource();
         assertThat(mappingAfterCreation, equalTo(new CompressedXContent("{\"type\":{\"_ttl\":{\"enabled\":false},\"properties\":{\"field\":{\"type\":\"text\"}}}}")));
         XContentBuilder mappingWithOnlyDefaultSet = getMappingWithOnlyTtlDefaultSet("6m");
@@ -202,7 +230,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_ttl").field("enabled", true).endObject()
             .endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test", BW_SETTINGS).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         try {
             docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()

@@ -43,6 +43,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.TreeMap;
 
 /**
@@ -556,7 +557,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         builder.endObject();
     }
 
-    public static MultiMatchQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<MultiMatchQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         Object value = null;
@@ -660,7 +661,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                     "Fuziness not allowed for type [" + type.parseField.getPreferredName() + "]");
         }
 
-        return new MultiMatchQueryBuilder(value)
+        return Optional.of(new MultiMatchQueryBuilder(value)
                 .fields(fieldsBoosts)
                 .type(type)
                 .analyzer(analyzer)
@@ -677,7 +678,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                 .tieBreaker(tieBreaker)
                 .zeroTermsQuery(zeroTermsQuery)
                 .boost(boost)
-                .queryName(queryName);
+                .queryName(queryName));
     }
 
     private static void parseFieldAndBoost(XContentParser parser, Map<String, Float> fieldsBoosts) throws IOException {

@@ -77,7 +77,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     private final CountDownLatch blockIncomingRequestsLatch = new CountDownLatch(1);
     protected final Transport transport;
     protected final ThreadPool threadPool;
-    private final ClusterName clusterName;
+    protected final ClusterName clusterName;
     protected final TaskManager taskManager;
 
     volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
@@ -117,16 +117,12 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     /** if set will call requests sent to this id to shortcut and executed locally */
     volatile DiscoveryNode localNode = null;
 
-    public TransportService(Transport transport, ThreadPool threadPool, ClusterName clusterName) {
-        this(EMPTY_SETTINGS, transport, threadPool, clusterName);
-    }
-
     @Inject
-    public TransportService(Settings settings, Transport transport, ThreadPool threadPool, ClusterName clusterName) {
+    public TransportService(Settings settings, Transport transport, ThreadPool threadPool) {
         super(settings);
         this.transport = transport;
         this.threadPool = threadPool;
-        this.clusterName = clusterName;
+        this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         setTracerLogInclude(TRACE_LOG_INCLUDE_SETTING.get(settings));
         setTracerLogExclude(TRACE_LOG_EXCLUDE_SETTING.get(settings));
         tracerLog = Loggers.getLogger(logger, ".tracer");
@@ -397,7 +393,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             discoveryNode = in.readOptionalWriteable(DiscoveryNode::new);
-            clusterName = ClusterName.readClusterName(in);
+            clusterName = new ClusterName(in);
             version = Version.readVersion(in);
         }
 
@@ -1054,5 +1050,4 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
 
     }
-
 }

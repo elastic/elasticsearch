@@ -70,7 +70,8 @@ public class CreateIndexIT extends ESIntegTestCase {
             prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, 4L)).get();
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals("unknown setting [index.creation_date]", ex.getMessage());
+            assertEquals("unknown setting [index.creation_date] please check that any required plugins are installed, or check the " +
+                "breaking changes documentation for removed settings", ex.getMessage());
         }
     }
 
@@ -165,7 +166,8 @@ public class CreateIndexIT extends ESIntegTestCase {
                 .get();
             fail("should have thrown an exception about the shard count");
         } catch (IllegalArgumentException e) {
-            assertEquals("unknown setting [index.unknown.value]", e.getMessage());
+            assertEquals("unknown setting [index.unknown.value] please check that any required plugins are installed, or check the" +
+                " breaking changes documentation for removed settings", e.getMessage());
         }
     }
 
@@ -211,13 +213,16 @@ public class CreateIndexIT extends ESIntegTestCase {
                      @Override
                     public void run() {
                          try {
-                             client().prepareIndex("test", "test").setSource("index_version", indexVersion.get()).get(); // recreate that index
+                             // recreate that index
+                             client().prepareIndex("test", "test").setSource("index_version", indexVersion.get()).get();
                              synchronized (indexVersionLock) {
-                                 // we sync here since we have to ensure that all indexing operations below for a given ID are done before we increment the
-                                 // index version otherwise a doc that is in-flight could make it into an index that it was supposed to be deleted for and our assertion fail...
+                                 // we sync here since we have to ensure that all indexing operations below for a given ID are done before
+                                 // we increment the index version otherwise a doc that is in-flight could make it into an index that it
+                                 // was supposed to be deleted for and our assertion fail...
                                  indexVersion.incrementAndGet();
                              }
-                             assertAcked(client().admin().indices().prepareDelete("test").get()); // from here on all docs with index_version == 0|1 must be gone!!!! only 2 are ok;
+                             // from here on all docs with index_version == 0|1 must be gone!!!! only 2 are ok;
+                             assertAcked(client().admin().indices().prepareDelete("test").get());
                          } finally {
                              latch.countDown();
                          }
@@ -249,8 +254,10 @@ public class CreateIndexIT extends ESIntegTestCase {
         latch.await();
         refresh();
 
-        // we only really assert that we never reuse segments of old indices or anything like this here and that nothing fails with crazy exceptions
-        SearchResponse expected = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(new RangeQueryBuilder("index_version").from(indexVersion.get(), true)).get();
+        // we only really assert that we never reuse segments of old indices or anything like this here and that nothing fails with
+        // crazy exceptions
+        SearchResponse expected = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setQuery(new RangeQueryBuilder("index_version").from(indexVersion.get(), true)).get();
         SearchResponse all = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
         assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits(), all.getHits().getTotalHits());
         logger.info("total: {}", expected.getHits().getTotalHits());
@@ -283,10 +290,81 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none")).get();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable",
+            "none")).get();
         client().admin().indices().prepareCreate("test").setSettings(indexSettings()).get();
         internalCluster().fullRestart();
         ensureGreen("test");
+    }
+
+    public void testCreateShrinkIndexToN() {
+        int[][] possibleShardSplits = new int[][] {{8,4,2}, {9, 3, 1}, {4, 2, 1}, {15,5,1}};
+        int[] shardSplits = randomFrom(possibleShardSplits);
+        assertEquals(shardSplits[0], (shardSplits[0] / shardSplits[1]) * shardSplits[1]);
+        assertEquals(shardSplits[1], (shardSplits[1] / shardSplits[2]) * shardSplits[2]);
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        prepareCreate("source").setSettings(Settings.builder().put(indexSettings()).put("number_of_shards", shardSplits[0])).get();
+        for (int i = 0; i < 20; i++) {
+            client().prepareIndex("source", "t1", Integer.toString(i)).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();
+        }
+        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
+            .getDataNodes();
+        assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
+        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
+        String mergeNode = discoveryNodes[0].getName();
+        // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
+        // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
+        // to the require._name below.
+        ensureGreen();
+        // relocate all shards to one node such that we can merge it.
+        client().admin().indices().prepareUpdateSettings("source")
+            .setSettings(Settings.builder()
+                .put("index.routing.allocation.require._name", mergeNode)
+                .put("index.blocks.write", true)).get();
+        ensureGreen();
+        // now merge source into a 4 shard index
+        assertAcked(client().admin().indices().prepareShrinkIndex("source", "first_shrink")
+            .setSettings(Settings.builder()
+                .put("index.number_of_replicas", 0)
+                .put("index.number_of_shards", shardSplits[1]).build()).get());
+        ensureGreen();
+        assertHitCount(client().prepareSearch("first_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+
+        for (int i = 0; i < 20; i++) { // now update
+            client().prepareIndex("first_shrink", "t1", Integer.toString(i)).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();
+        }
+        flushAndRefresh();
+        assertHitCount(client().prepareSearch("first_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+        assertHitCount(client().prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+
+        // relocate all shards to one node such that we can merge it.
+        client().admin().indices().prepareUpdateSettings("first_shrink")
+            .setSettings(Settings.builder()
+                .put("index.routing.allocation.require._name", mergeNode)
+                .put("index.blocks.write", true)).get();
+        ensureGreen();
+        // now merge source into a 2 shard index
+        assertAcked(client().admin().indices().prepareShrinkIndex("first_shrink", "second_shrink")
+            .setSettings(Settings.builder()
+                .put("index.number_of_replicas", 0)
+                .put("index.number_of_shards", shardSplits[2]).build()).get());
+        ensureGreen();
+        assertHitCount(client().prepareSearch("second_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+        // let it be allocated anywhere and bump replicas
+        client().admin().indices().prepareUpdateSettings("second_shrink")
+            .setSettings(Settings.builder()
+                .putNull("index.routing.allocation.include._id")
+                .put("index.number_of_replicas", 1)).get();
+        ensureGreen();
+        assertHitCount(client().prepareSearch("second_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+
+        for (int i = 0; i < 20; i++) { // now update
+            client().prepareIndex("second_shrink", "t1", Integer.toString(i)).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();
+        }
+        flushAndRefresh();
+        assertHitCount(client().prepareSearch("second_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+        assertHitCount(client().prepareSearch("first_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+        assertHitCount(client().prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
     }
 
     public void testCreateShrinkIndex() {
@@ -300,6 +378,10 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
         DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
         String mergeNode = discoveryNodes[0].getName();
+        // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
+        // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
+        // to the require._name below.
+        ensureGreen();
         // relocate all shards to one node such that we can merge it.
         client().admin().indices().prepareUpdateSettings("source")
             .setSettings(Settings.builder()
@@ -311,10 +393,9 @@ public class CreateIndexIT extends ESIntegTestCase {
             .setSettings(Settings.builder().put("index.number_of_replicas", 0).build()).get());
         ensureGreen();
         assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
-        // let it be allocated anywhere and bump replicas
+        // bump replicas
         client().admin().indices().prepareUpdateSettings("target")
             .setSettings(Settings.builder()
-                .putNull("index.routing.allocation.include._id")
                 .put("index.number_of_replicas", 1)).get();
         ensureGreen();
         assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
@@ -344,6 +425,10 @@ public class CreateIndexIT extends ESIntegTestCase {
         DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
         String spareNode = discoveryNodes[0].getName();
         String mergeNode = discoveryNodes[1].getName();
+        // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
+        // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
+        // to the require._name below.
+        ensureGreen();
         // relocate all shards to one node such that we can merge it.
         client().admin().indices().prepareUpdateSettings("source")
             .setSettings(Settings.builder().put("index.routing.allocation.require._name", mergeNode)

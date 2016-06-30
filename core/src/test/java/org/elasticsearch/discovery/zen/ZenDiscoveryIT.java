@@ -297,7 +297,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         Settings nodeSettings = Settings.builder()
                 .put("discovery.type", "zen") // <-- To override the local setting if set externally
                 .build();
-        String nodeName = internalCluster().startNode(nodeSettings, Version.CURRENT);
+        String nodeName = internalCluster().startNode(nodeSettings);
         ZenDiscovery zenDiscovery = (ZenDiscovery) internalCluster().getInstance(Discovery.class, nodeName);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeName);
         DiscoveryNode node = new DiscoveryNode("_node_id", new InetSocketTransportAddress(InetAddress.getByName("0.0.0.0"), 0),
@@ -320,7 +320,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
     }
 
     public void testJoinElectedMaster_incompatibleMinVersion() {
-        ElectMasterService electMasterService = new ElectMasterService(Settings.EMPTY, Version.CURRENT);
+        ElectMasterService electMasterService = new ElectMasterService(Settings.EMPTY);
 
         DiscoveryNode node = new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), emptyMap(),
                 Collections.singleton(DiscoveryNode.Role.MASTER), Version.CURRENT);

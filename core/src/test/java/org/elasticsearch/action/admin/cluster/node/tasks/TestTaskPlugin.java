@@ -20,8 +20,9 @@ package org.elasticsearch.action.admin.cluster.node.tasks;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
@@ -38,7 +39,6 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -47,6 +47,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -56,6 +57,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -65,22 +67,12 @@ import static org.elasticsearch.test.ESTestCase.awaitBusy;
 /**
  * A plugin that adds a cancellable blocking test task of integration testing of the task manager.
  */
-public class TestTaskPlugin extends Plugin {
-
-
-    @Override
-    public String name() {
-        return "test-task-plugin";
-    }
+public class TestTaskPlugin extends Plugin implements ActionPlugin {
 
     @Override
-    public String description() {
-        return "Test plugin for testing task management";
-    }
-
-    public void onModule(ActionModule module) {
-        module.registerAction(TestTaskAction.INSTANCE, TransportTestTaskAction.class);
-        module.registerAction(UnblockTestTasksAction.INSTANCE, TransportUnblockTestTasksAction.class);
+    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+        return Arrays.asList(new ActionHandler<>(TestTaskAction.INSTANCE, TransportTestTaskAction.class),
+                new ActionHandler<>(UnblockTestTasksAction.INSTANCE, TransportUnblockTestTasksAction.class));
     }
 
     static class TestTask extends CancellableTask {
@@ -257,9 +249,9 @@ public class TestTaskPlugin extends Plugin {
     public static class TransportTestTaskAction extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
 
         @Inject
-        public TransportTestTaskAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+        public TransportTestTaskAction(Settings settings, ThreadPool threadPool,
                                        ClusterService clusterService, TransportService transportService) {
-            super(settings, TestTaskAction.NAME, clusterName, threadPool, clusterService, transportService,
+            super(settings, TestTaskAction.NAME, threadPool, clusterService, transportService,
                   new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
                   NodesRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeResponse.class);
         }
@@ -269,18 +261,7 @@ public class TestTaskPlugin extends Plugin {
             if (request.getShouldFail()) {
                 throw new IllegalStateException("Simulating operation failure");
             }
-            return new NodesResponse(clusterName, responses, failures);
-        }
-
-        @Override
-        protected String[] filterNodeIds(DiscoveryNodes nodes, String[] nodesIds) {
-            List<String> list = new ArrayList<>();
-            for (String node : nodesIds) {
-                if (nodes.nodeExists(node)) {
-                    list.add(node);
-                }
-            }
-            return list.toArray(new String[list.size()]);
+            return new NodesResponse(clusterService.getClusterName(), responses, failures);
         }
 
         @Override
@@ -436,10 +417,10 @@ public class TestTaskPlugin extends Plugin {
         UnblockTestTasksResponse, UnblockTestTaskResponse> {
 
         @Inject
-        public TransportUnblockTestTasksAction(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService
+        public TransportUnblockTestTasksAction(Settings settings,ThreadPool threadPool, ClusterService
             clusterService,
                                                TransportService transportService) {
-            super(settings, UnblockTestTasksAction.NAME, clusterName, threadPool, clusterService, transportService, new ActionFilters(new
+            super(settings, UnblockTestTasksAction.NAME, threadPool, clusterService, transportService, new ActionFilters(new
                 HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
                 UnblockTestTasksRequest::new, UnblockTestTasksResponse::new, ThreadPool.Names.MANAGEMENT);
         }

@@ -39,7 +39,8 @@ http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html
 credentials for authentication. These can be overridden by, in increasing
 order of precedence, system properties `aws.accessKeyId` and `aws.secretKey`,
 environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_KEY`, or the
-elasticsearch config using `cloud.aws.access_key` and `cloud.aws.secret_key`:
+elasticsearch config using `cloud.aws.access_key` and `cloud.aws.secret_key` or
+if you wish to set credentials specifically for s3 `cloud.aws.s3.access_key` and `cloud.aws.s3.secret_key`:
 
 [source,yaml]
 ----
@@ -106,21 +107,21 @@ cloud:
 ===== Region
 
 The `cloud.aws.region` can be set to a region and will automatically use the relevant settings for both `ec2` and `s3`.
+You can specifically set it for s3 only using `cloud.aws.s3.region`.
 The available values are:
 
-* `us-east` (`us-east-1`)
-* `us-west` (`us-west-1`)
-* `us-west-1`
-* `us-west-2`
-* `ap-southeast` (`ap-southeast-1`)
-* `ap-southeast-1`
-* `ap-southeast-2`
-* `ap-northeast` (`ap-northeast-1`)
-* `ap-northeast-2` (`ap-northeast-2`)
-* `eu-west` (`eu-west-1`)
-* `eu-central` (`eu-central-1`)
-* `sa-east` (`sa-east-1`)
-* `cn-north` (`cn-north-1`)
+* `us-east` (`us-east-1`) for US East (N. Virginia)
+* `us-west` (`us-west-1`) for US West (N. California)
+* `us-west-2` for US West (Oregon)
+* `ap-south-1` for Asia Pacific (Mumbai)
+* `ap-southeast` (`ap-southeast-1`) for Asia Pacific (Singapore)
+* `ap-southeast-2` for Asia Pacific (Sydney)
+* `ap-northeast` (`ap-northeast-1`) for Asia Pacific (Tokyo)
+* `ap-northeast-2` (`ap-northeast-2`) for Asia Pacific (Seoul)
+* `eu-west` (`eu-west-1`) for EU (Ireland)
+* `eu-central` (`eu-central-1`) for EU (Frankfurt)
+* `sa-east` (`sa-east-1`) for South America (São Paulo)
+* `cn-north` (`cn-north-1`) for China (Beijing)
 
 [[repository-s3-usage-signer]]
 ===== S3 Signer API
@@ -149,6 +150,7 @@ PUT _snapshot/my_s3_repository
 }
 ----
 // CONSOLE
+// TEST[skip:we don't have s3 set up while testing this]
 
 The following settings are supported:
 
@@ -216,9 +218,13 @@ The following settings are supported:
 
     Number of retries in case of S3 errors. Defaults to `3`.
 
+`use_throttle_retries`::
+
+    Set to `true` if you want to throttle retries. Defaults to AWS SDK default value (`false`).
+
 `read_only`::
 
-    Makes repository read-only. coming[2.1.0]  Defaults to `false`.
+    Makes repository read-only. Defaults to `false`.
 
 `canned_acl`::
 
@@ -235,6 +241,10 @@ The following settings are supported:
     Due to the extra complexity with the Glacier class lifecycle, it is not
     currently supported by the plugin. For more information about the
     different classes, see http://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS Storage Classes Guide]
+
+Note that you can define S3 repository settings for all S3 repositories in `elasticsearch.yml` configuration file.
+They are all prefixed with `repositories.s3.`. For example, you can define compression for all S3 repositories
+by setting `repositories.s3.compress: true` in `elasticsearch.yml`.
 
 The S3 repositories use the same credentials as the rest of the AWS services
 provided by this plugin (`discovery`). See <<repository-s3-usage>> for details.

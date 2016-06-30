@@ -30,6 +30,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -111,16 +112,18 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         internalCluster().startNode(settingsBuilder().put(Node.NODE_DATA_SETTING.getKey(), true).put(Node.NODE_MASTER_SETTING.getKey(), false));
 
         createIndex("test");
-        assertAcked(client().admin().indices().preparePutMapping("test").setType("_default_").setSource("_timestamp", "enabled=true"));
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("_default_").setSource("timestamp", "type=date"));
 
         MappingMetaData defaultMapping = client().admin().cluster().prepareState().get().getState().getMetaData().getIndices().get("test").getMappings().get("_default_");
-        assertThat(defaultMapping.getSourceAsMap().get("_timestamp"), notNullValue());
+        Map<?,?> properties = (Map<?, ?>) defaultMapping.getSourceAsMap().get("properties");
+        assertThat(properties.get("timestamp"), notNullValue());
 
-        assertAcked(client().admin().indices().preparePutMapping("test").setType("_default_").setSource("_timestamp", "enabled=true"));
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("_default_").setSource("timestamp", "type=date"));
 
         assertAcked(client().admin().indices().preparePutMapping("test").setType("type1").setSource("foo", "enabled=true"));
         MappingMetaData type1Mapping = client().admin().cluster().prepareState().get().getState().getMetaData().getIndices().get("test").getMappings().get("type1");
-        assertThat(type1Mapping.getSourceAsMap().get("_timestamp"), notNullValue());
+        properties = (Map<?, ?>) type1Mapping.getSourceAsMap().get("properties");
+        assertThat(properties.get("timestamp"), notNullValue());
     }
 
     public void testAliasFilterValidation() throws Exception {

@@ -52,7 +52,8 @@ import java.util.function.Function;
  * The following settings can be set for each dictionary:
  * <ul>
  * <li>{@code ignore_case} - If true, dictionary matching will be case insensitive (defaults to {@code false})</li>
- * <li>{@code strict_affix_parsing} - Determines whether errors while reading a affix rules file will cause exception or simple be ignored (defaults to {@code true})</li>
+ * <li>{@code strict_affix_parsing} - Determines whether errors while reading a affix rules file will cause exception or simple be ignored
+ *      (defaults to {@code true})</li>
  * </ul>
  * <p>
  * These settings can either be configured as node level configuration, such as:
@@ -86,7 +87,8 @@ public class HunspellService extends AbstractComponent {
     private final Path hunspellDir;
     private final Function<String, Dictionary> loadingFunction;
 
-    public HunspellService(final Settings settings, final Environment env, final Map<String, Dictionary> knownDictionaries) throws IOException {
+    public HunspellService(final Settings settings, final Environment env, final Map<String, Dictionary> knownDictionaries)
+            throws IOException {
         super(settings);
         this.knownDictionaries = Collections.unmodifiableMap(knownDictionaries);
         this.hunspellDir = resolveHunspellDirectory(env);
@@ -166,7 +168,7 @@ public class HunspellService extends AbstractComponent {
 
         // merging node settings with hunspell dictionary specific settings
         Settings dictSettings = HUNSPELL_DICTIONARY_OPTIONS.get(nodeSettings);
-        nodeSettings = loadDictionarySettings(dicDir, dictSettings.getByPrefix(locale));
+        nodeSettings = loadDictionarySettings(dicDir, dictSettings.getByPrefix(locale + "."));
 
         boolean ignoreCase = nodeSettings.getAsBoolean("ignore_case", defaultIgnoreCase);
 
@@ -210,7 +212,7 @@ public class HunspellService extends AbstractComponent {
      * @param defaults The default settings for this dictionary
      * @return The resolved settings.
      */
-    private static Settings loadDictionarySettings(Path dir, Settings defaults) {
+    private static Settings loadDictionarySettings(Path dir, Settings defaults) throws IOException {
         Path file = dir.resolve("settings.yml");
         if (Files.exists(file)) {
             return Settings.builder().loadFromPath(file).put(defaults).build();

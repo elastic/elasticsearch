@@ -19,7 +19,6 @@
 
 package org.elasticsearch.tribe;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
@@ -32,6 +31,6 @@ import java.util.Collections;
  */
 class TribeClientNode extends Node {
     TribeClientNode(Settings settings) {
-        super(new Environment(settings), Version.CURRENT, Collections.<Class<? extends Plugin>>emptyList());
+        super(new Environment(settings), Collections.<Class<? extends Plugin>>emptyList());
     }
 }

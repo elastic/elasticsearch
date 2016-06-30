@@ -75,16 +75,6 @@ public class IndexTemplateFilteringIT extends ESIntegTestCase {
     }
 
     public static class TestPlugin extends Plugin {
-        @Override
-        public String name() {
-            return "test-plugin";
-        }
-
-        @Override
-        public String description() {
-            return "";
-        }
-
         public void onModule(ClusterModule module) {
             module.registerIndexTemplateFilter(TestFilter.class);
         }

@@ -200,7 +200,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 Files.createDirectories(location);
                 final long generation = 1;
                 Checkpoint checkpoint = new Checkpoint(0, 0, generation);
-                Checkpoint.write(location.resolve(CHECKPOINT_FILE_NAME), checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
+                Checkpoint.write(getChannelFactory(), location.resolve(CHECKPOINT_FILE_NAME), checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
                 current = createWriter(generation);
                 this.lastCommittedTranslogFileGeneration = NOT_SET_GENERATION;
 
@@ -444,6 +444,21 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
         } finally {
             Releasables.close(out.bytes());
+        }
+    }
+
+    /**
+     * The a {@linkplain Location} that will sort after the {@linkplain Location} returned by the last write but before any locations which
+     * can be returned by the next write.
+     */
+    public Location getLastWriteLocation() {
+        try (ReleasableLock lock = readLock.acquire()) {
+            /*
+             * We use position = current - 1 and size = Integer.MAX_VALUE here instead of position current and size = 0 for two reasons:
+             * 1. Translog.Location's compareTo doesn't actually pay attention to size even though it's equals method does.
+             * 2. It feels more right to return a *position* that is before the next write's position rather than rely on the size.
+             */
+            return new Location(current.generation, current.sizeInBytes() - 1, Integer.MAX_VALUE);
         }
     }
 
@@ -1298,8 +1313,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return outstandingViews.size();
     }
 
-    TranslogWriter.ChannelFactory getChannelFactory() {
-        return TranslogWriter.ChannelFactory.DEFAULT;
+    ChannelFactory getChannelFactory() {
+        return FileChannel::open;
     }
 
     /**

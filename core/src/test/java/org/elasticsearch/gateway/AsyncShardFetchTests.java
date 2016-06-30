@@ -27,6 +27,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -60,7 +61,7 @@ public class AsyncShardFetchTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        this.threadPool = new ThreadPool(getTestName());
+        this.threadPool = new TestThreadPool(getTestName());
         this.test = new TestFetch(threadPool);
     }
 
@@ -269,8 +270,9 @@ public class AsyncShardFetchTests extends ESTestCase {
         }
 
         @Override
-        protected void asyncFetch(final ShardId shardId, String[] nodesIds) {
-            for (final String nodeId : nodesIds) {
+        protected void asyncFetch(final ShardId shardId, DiscoveryNode[] nodes) {
+            for (final DiscoveryNode node : nodes) {
+                final String nodeId = node.getId();
                 threadPool.generic().execute(new Runnable() {
                     @Override
                     public void run() {

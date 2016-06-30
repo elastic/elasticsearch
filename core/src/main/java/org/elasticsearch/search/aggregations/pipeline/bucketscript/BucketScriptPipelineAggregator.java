@@ -93,7 +93,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
         List<? extends Bucket> buckets = originalAgg.getBuckets();
 
         CompiledScript compiledScript = reduceContext.scriptService().compile(script, ScriptContext.Standard.AGGS,
-                Collections.emptyMap(), reduceContext.clusterState());
+                Collections.emptyMap());
         List newBuckets = new ArrayList<>();
         for (Bucket bucket : buckets) {
             Map<String, Object> vars = new HashMap<>();

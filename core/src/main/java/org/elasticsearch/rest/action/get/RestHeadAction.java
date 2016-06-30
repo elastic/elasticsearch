@@ -39,15 +39,47 @@ import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
- *
+ * Base class for {@code HEAD} request handlers for a single document.
  */
-public class RestHeadAction extends BaseRestHandler {
+public abstract class RestHeadAction extends BaseRestHandler {
 
-    @Inject
-    public RestHeadAction(Settings settings, RestController controller, Client client) {
+    /**
+     * Handler to check for document existence.
+     */
+    public static class Document extends RestHeadAction {
+
+        @Inject
+        public Document(Settings settings, RestController controller, Client client) {
+            super(settings, client, false);
+            controller.registerHandler(HEAD, "/{index}/{type}/{id}", this);
+        }
+    }
+
+    /**
+     * Handler to check for document source existence (may be disabled in the mapping).
+     */
+    public static class Source extends RestHeadAction {
+
+        @Inject
+        public Source(Settings settings, RestController controller, Client client) {
+            super(settings, client, true);
+            controller.registerHandler(HEAD, "/{index}/{type}/{id}/_source", this);
+        }
+    }
+
+    private final boolean source;
+
+    /**
+     * All subclasses must be registered in {@link org.elasticsearch.common.network.NetworkModule}.
+     *
+     * @param settings injected settings
+     * @param client   injected client
+     * @param source   {@code false} to check for {@link GetResponse#isExists()}.
+     *                 {@code true} to also check for {@link GetResponse#isSourceEmpty()}.
+     */
+    public RestHeadAction(Settings settings, Client client, boolean source) {
         super(settings, client);
-        controller.registerHandler(HEAD, "/{index}/{type}/{id}", this);
-        controller.registerHandler(HEAD, "/{index}/{type}/{id}/_source", this);
+        this.source = source;
     }
 
     @Override
@@ -67,6 +99,8 @@ public class RestHeadAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(GetResponse response) {
                 if (!response.isExists()) {
+                    return new BytesRestResponse(NOT_FOUND, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
+                } else if (source && response.isSourceEmpty()) { // doc exists, but source might not (disabled in the mapping)
                     return new BytesRestResponse(NOT_FOUND, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
                 } else {
                     return new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);

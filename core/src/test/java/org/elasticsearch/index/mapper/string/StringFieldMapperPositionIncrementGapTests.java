@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
@@ -160,19 +161,22 @@ public class StringFieldMapperPositionIncrementGapTests extends ESSingleNodeTest
     }
 
     private static void testGap(Client client, String indexName, String type, int positionIncrementGap) throws IOException {
-        client.prepareIndex(indexName, type, "position_gap_test").setSource("string", Arrays.asList("one", "two three")).setRefresh(true).get();
+        client.prepareIndex(indexName, type, "position_gap_test").setSource("string", Arrays.asList("one", "two three"))
+                .setRefreshPolicy(IMMEDIATE).get();
 
         // Baseline - phrase query finds matches in the same field value
         assertHitCount(client.prepareSearch(indexName).setQuery(matchPhraseQuery("string", "two three")).get(), 1);
 
         if (positionIncrementGap > 0) {
             // No match across gaps when slop < position gap
-            assertHitCount(client.prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(positionIncrementGap - 1)).get(),
+            assertHitCount(
+                    client.prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(positionIncrementGap - 1)).get(),
                     0);
         }
 
         // Match across gaps when slop >= position gap
         assertHitCount(client.prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(positionIncrementGap)).get(), 1);
-        assertHitCount(client.prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(positionIncrementGap + 1)).get(), 1);
+        assertHitCount(client.prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(positionIncrementGap + 1)).get(),
+                1);
     }
 }

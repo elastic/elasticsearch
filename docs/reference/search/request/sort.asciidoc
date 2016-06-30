@@ -26,6 +26,8 @@ PUT /my_index
         }
     }
 }
+
+GET /_cluster/health?wait_for_status=yellow
 --------------------------------------------------
 // CONSOLE
 
@@ -376,7 +378,8 @@ GET /_search
         "_script" : {
             "type" : "number",
             "script" : {
-                "inline": "doc['field_name'].value * factor",
+                "lang": "painless",
+                "inline": "doc['field_name'].value * params.factor",
                 "params" : {
                     "factor" : 1.1
                 }

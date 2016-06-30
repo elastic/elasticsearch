@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -28,9 +29,11 @@ public class BulkShardRequestTests extends ESTestCase {
     public void testToString() {
         String index = randomSimpleString(random(), 10);
         int count = between(1, 100);
-        BulkShardRequest r = new BulkShardRequest(null, new ShardId(index, "ignored", 0), false, new BulkItemRequest[count]);
+        BulkShardRequest r = new BulkShardRequest(null, new ShardId(index, "ignored", 0), RefreshPolicy.NONE, new BulkItemRequest[count]);
         assertEquals("BulkShardRequest to [" + index + "] containing [" + count + "] requests", r.toString());
-        r = new BulkShardRequest(null, new ShardId(index, "ignored", 0), true, new BulkItemRequest[count]);
+        r = new BulkShardRequest(null, new ShardId(index, "ignored", 0), RefreshPolicy.IMMEDIATE, new BulkItemRequest[count]);
         assertEquals("BulkShardRequest to [" + index + "] containing [" + count + "] requests and a refresh", r.toString());
+        r = new BulkShardRequest(null, new ShardId(index, "ignored", 0), RefreshPolicy.WAIT_UNTIL, new BulkItemRequest[count]);
+        assertEquals("BulkShardRequest to [" + index + "] containing [" + count + "] requests blocking until refresh", r.toString());
     }
 }

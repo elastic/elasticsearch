@@ -20,11 +20,17 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.Variables.Variable;
+import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Locals.Variable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
+
+import java.util.Objects;
+import java.util.Set;
+
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -42,36 +48,44 @@ public final class SCatch extends AStatement {
     Label end;
     Label exception;
 
-    public SCatch(int line, int offset, String location, String type, String name, SBlock block) {
-        super(line, offset, location);
+    public SCatch(Location location, String type, String name, SBlock block) {
+        super(location);
 
-        this.type = type;
-        this.name = name;
+        this.type = Objects.requireNonNull(type);
+        this.name = Objects.requireNonNull(name);
         this.block = block;
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        variables.add(name);
+        if (block != null) {
+            block.extractVariables(variables);
+        }
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         final Type type;
 
         try {
             type = Definition.getType(this.type);
         } catch (IllegalArgumentException exception) {
-            throw new IllegalArgumentException(error("Not a type [" + this.type + "]."));
+            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
         if (!Exception.class.isAssignableFrom(type.clazz)) {
-            throw new ClassCastException(error("Not an exception type [" + this.type + "]."));
+            throw createError(new ClassCastException("Not an exception type [" + this.type + "]."));
         }
 
-        variable = variables.addVariable(location, type, name, true, false);
+        variable = locals.addVariable(location, type, name, true);
 
         if (block != null) {
             block.lastSource = lastSource;
             block.inLoop = inLoop;
             block.lastLoop = lastLoop;
 
-            block.analyze(variables);
+            block.analyze(locals);
 
             methodEscape = block.methodEscape;
             loopEscape = block.loopEscape;
@@ -83,17 +97,18 @@ public final class SCatch extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer) {
-        writer.writeStatementOffset(offset);
+    void write(MethodWriter writer, Globals globals) {
+        writer.writeStatementOffset(location);
+
         Label jump = new Label();
 
         writer.mark(jump);
-        writer.visitVarInsn(variable.type.type.getOpcode(Opcodes.ISTORE), variable.slot);
+        writer.visitVarInsn(variable.type.type.getOpcode(Opcodes.ISTORE), variable.getSlot());
 
         if (block != null) {
             block.continu = continu;
             block.brake = brake;
-            block.write(writer);
+            block.write(writer, globals);
         }
 
         writer.visitTryCatchBlock(begin, end, jump, variable.type.type.getInternalName());

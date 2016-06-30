@@ -26,6 +26,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -48,6 +49,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     public static final int VERSION = VERSION_CHECKPOINTS;
 
     private final ShardId shardId;
+    private final ChannelFactory channelFactory;
     /* the offset in bytes that was written when the file was last synced*/
     private volatile long lastSyncedOffset;
     /* the number of translog operations written to this file */
@@ -63,9 +65,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     // lock order synchronized(syncLock) -> synchronized(this)
     private final Object syncLock = new Object();
 
-    public TranslogWriter(ShardId shardId, long generation, FileChannel channel, Path path, ByteSizeValue bufferSize) throws IOException {
+    public TranslogWriter(ChannelFactory channelFactory, ShardId shardId, long generation, FileChannel channel, Path path, ByteSizeValue bufferSize) throws IOException {
         super(generation, channel, path, channel.position());
         this.shardId = shardId;
+        this.channelFactory = channelFactory;
         this.outputStream = new BufferedChannelOutputStream(java.nio.channels.Channels.newOutputStream(channel), bufferSize.bytesAsInt());
         this.lastSyncedOffset = channel.position();
         totalOffset = lastSyncedOffset;
@@ -91,8 +94,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             out.writeInt(ref.length);
             out.writeBytes(ref.bytes, ref.offset, ref.length);
             channel.force(true);
-            writeCheckpoint(headerLength, 0, file.getParent(), fileGeneration, StandardOpenOption.WRITE);
-            final TranslogWriter writer = new TranslogWriter(shardId, fileGeneration, channel, file, bufferSize);
+            writeCheckpoint(channelFactory, headerLength, 0, file.getParent(), fileGeneration);
+            final TranslogWriter writer = new TranslogWriter(channelFactory, shardId, fileGeneration, channel, file, bufferSize);
             return writer;
         } catch (Throwable throwable) {
             // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
@@ -253,7 +256,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // we can continue writing to the buffer etc.
                     try {
                         channel.force(false);
-                        writeCheckpoint(offsetToSync, opsCounter, path.getParent(), generation, StandardOpenOption.WRITE);
+                        writeCheckpoint(channelFactory, offsetToSync, opsCounter, path.getParent(), generation);
                     } catch (Throwable ex) {
                         closeWithTragicEvent(ex);
                         throw ex;
@@ -285,20 +288,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         Channels.readFromFileChannelWithEofException(channel, position, targetBuffer);
     }
 
-    private static void writeCheckpoint(long syncPosition, int numOperations, Path translogFile, long generation, OpenOption... options) throws IOException {
+    private static void writeCheckpoint(ChannelFactory channelFactory, long syncPosition, int numOperations, Path translogFile, long generation) throws IOException {
         final Path checkpointFile = translogFile.resolve(Translog.CHECKPOINT_FILE_NAME);
         Checkpoint checkpoint = new Checkpoint(syncPosition, numOperations, generation);
-        Checkpoint.write(checkpointFile, checkpoint, options);
-    }
-
-    static class ChannelFactory {
-
-        static final ChannelFactory DEFAULT = new ChannelFactory();
-
-        // only for testing until we have a disk-full FileSystem
-        public FileChannel open(Path file) throws IOException {
-            return FileChannel.open(file, StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE_NEW);
-        }
+        Checkpoint.write(channelFactory::open, checkpointFile, checkpoint, StandardOpenOption.WRITE);
     }
 
     protected final void ensureOpen() {

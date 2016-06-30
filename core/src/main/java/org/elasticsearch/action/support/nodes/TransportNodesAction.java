@@ -24,13 +24,10 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.NoSuchNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,6 +41,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -59,21 +57,19 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                                            NodeResponse extends BaseNodeResponse>
     extends HandledTransportAction<NodesRequest, NodesResponse> {
 
-    protected final ClusterName clusterName;
     protected final ClusterService clusterService;
     protected final TransportService transportService;
     protected final Class<NodeResponse> nodeResponseClass;
 
     final String transportNodeAction;
 
-    protected TransportNodesAction(Settings settings, String actionName, ClusterName clusterName, ThreadPool threadPool,
+    protected TransportNodesAction(Settings settings, String actionName, ThreadPool threadPool,
                                    ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver,
                                    Supplier<NodesRequest> request, Supplier<NodeRequest> nodeRequest,
                                    String nodeExecutor,
                                    Class<NodeResponse> nodeResponseClass) {
         super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
-        this.clusterName = Objects.requireNonNull(clusterName);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.transportService = Objects.requireNonNull(transportService);
         this.nodeResponseClass = Objects.requireNonNull(nodeResponseClass);
@@ -152,20 +148,19 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
 
     protected abstract boolean accumulateExceptions();
 
-    protected String[] filterNodeIds(DiscoveryNodes nodes, String[] nodesIds) {
-        return nodesIds;
-    }
-
-    protected String[] resolveNodes(NodesRequest request, ClusterState clusterState) {
-        return clusterState.nodes().resolveNodesIds(request.nodesIds());
+    /**
+     * resolve node ids to concrete nodes of the incoming request
+     **/
+    protected void resolveRequest(NodesRequest request, ClusterState clusterState) {
+        assert request.concreteNodes() == null : "request concreteNodes shouldn't be set";
+        String[] nodesIds = clusterState.nodes().resolveNodes(request.nodesIds());
+        request.setConcreteNodes(Arrays.stream(nodesIds).map(clusterState.nodes()::get).toArray(DiscoveryNode[]::new));
     }
 
 
     class AsyncAction {
 
         private final NodesRequest request;
-        private final String[] nodesIds;
-        private final DiscoveryNode[] nodes;
         private final ActionListener<NodesResponse> listener;
         private final AtomicReferenceArray<Object> responses;
         private final AtomicInteger counter = new AtomicInteger();
@@ -175,24 +170,18 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
             this.task = task;
             this.request = request;
             this.listener = listener;
-            ClusterState clusterState = clusterService.state();
-            nodesIds = filterNodeIds(clusterState.nodes(), resolveNodes(request, clusterState));
-            this.nodes = new DiscoveryNode[nodesIds.length];
-            for (int i = 0; i < nodesIds.length; i++) {
-                this.nodes[i] = clusterState.nodes().get(nodesIds[i]);
+            if (request.concreteNodes() == null) {
+                resolveRequest(request, clusterService.state());
+                assert request.concreteNodes() != null;
             }
-            this.responses = new AtomicReferenceArray<>(this.nodesIds.length);
+            this.responses = new AtomicReferenceArray<>(request.concreteNodes().length);
         }
 
         void start() {
-            if (nodesIds.length == 0) {
+            final DiscoveryNode[] nodes = request.concreteNodes();
+            if (nodes.length == 0) {
                 // nothing to notify
-                threadPool.generic().execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        listener.onResponse(newResponse(request, responses));
-                    }
-                });
+                threadPool.generic().execute(() -> listener.onResponse(newResponse(request, responses)));
                 return;
             }
             TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
@@ -200,10 +189,10 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                 builder.withTimeout(request.timeout());
             }
             builder.withCompress(transportCompress());
-            for (int i = 0; i < nodesIds.length; i++) {
-                final String nodeId = nodesIds[i];
+            for (int i = 0; i < nodes.length; i++) {
                 final int idx = i;
                 final DiscoveryNode node = nodes[i];
+                final String nodeId = node.getId();
                 try {
                     if (node == null) {
                         onFailure(idx, nodeId, new NoSuchNodeException(nodeId));

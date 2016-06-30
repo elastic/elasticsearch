@@ -30,7 +30,8 @@ The result of the above index operation is:
     "_type" : "tweet",
     "_id" : "1",
     "_version" : 1,
-    "created" : true
+    "created" : true,
+    "forced_refresh": false
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"successful" : 2/"successful" : 1/]
@@ -221,7 +222,8 @@ The result of the above index operation is:
     "_type" : "tweet",
     "_id" : "6a8ca01c-7896-48e9-81cc-9f70661fcb32",
     "_version" : 1,
-    "created" : true
+    "created" : true,
+    "forced_refresh": false
 }
 --------------------------------------------------
 // TESTRESPONSE[s/6a8ca01c-7896-48e9-81cc-9f70661fcb32/$body._id/ s/"successful" : 2/"successful" : 1/]
@@ -289,70 +291,6 @@ to be the same as its parent, unless the routing value is explicitly
 specified using the `routing` parameter.
 
 [float]
-[[index-timestamp]]
-=== Timestamp
-
-deprecated[2.0.0,The `_timestamp` field is deprecated.  Instead, use a normal <<date,`date`>> field and set its value explicitly]
-
-A document can be indexed with a `timestamp` associated with it. The
-`timestamp` value of a document can be set using the `timestamp`
-parameter. For example:
-
-[source,js]
---------------------------------------------------
-PUT twitter/tweet/1?timestamp=2009-11-15T14:12:12
-{
-    "user" : "kimchy",
-    "message" : "trying out Elasticsearch"
-}
---------------------------------------------------
-// CONSOLE
-
-If the `timestamp` value is not provided externally or in the `_source`,
-the `timestamp` will be automatically set to the date the document was
-processed by the indexing chain. More information can be found on the
-<<mapping-timestamp-field,_timestamp mapping
-page>>.
-
-[float]
-[[index-ttl]]
-=== TTL
-
-deprecated[2.0.0,The current `_ttl` implementation is deprecated and will be replaced with a different implementation in a future version]
-
-
-A document can be indexed with a `ttl` (time to live) associated with
-it. Expired documents will be expunged automatically. The expiration
-date that will be set for a document with a provided `ttl` is relative
-to the `timestamp` of the document, meaning it can be based on the time
-of indexing or on any time provided. The provided `ttl` must be strictly
-positive and can be a number (in milliseconds) or any valid time value
-as shown in the following examples:
-
-[source,js]
---------------------------------------------------
-PUT twitter/tweet/1?ttl=86400000ms
-{
-    "user": "kimchy",
-    "message": "Trying out elasticsearch, so far so good?"
-}
---------------------------------------------------
-// CONSOLE
-
-[source,js]
---------------------------------------------------
-PUT twitter/tweet/1?ttl=1d
-{
-    "user": "kimchy",
-    "message": "Trying out elasticsearch, so far so good?"
-}
---------------------------------------------------
-// CONSOLE
-
-More information can be found on the
-<<mapping-ttl-field,_ttl mapping page>>.
-
-[float]
 [[index-distributed]]
 === Distributed
 
@@ -385,13 +323,8 @@ replication group have indexed the document (sync replication).
 [[index-refresh]]
 === Refresh
 
-To refresh the shard (not the whole index) immediately after the operation
-occurs, so that the document appears in search results immediately, the
-`refresh` parameter can be set to `true`. Setting this option to `true` should
-*ONLY* be done after careful thought and verification that it does not lead to
-poor performance, both from an indexing and a search standpoint. Note, getting
-a document using the get API is completely realtime and doesn't require a
-refresh.
+Control when the changes made by this request are visible to search. See
+<<docs-refresh>>.
 
 [float]
 [[index-noop]]

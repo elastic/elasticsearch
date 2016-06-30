@@ -22,7 +22,6 @@ package org.elasticsearch.rest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -59,7 +58,6 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     // non volatile since the assumption is that pre processors are registered on startup
     private RestFilter[] filters = new RestFilter[0];
 
-    @Inject
     public RestController(Settings settings) {
         super(settings);
     }
@@ -113,30 +111,14 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     }
 
     /**
-     * Registers a rest handler to be execute when the provided method and path match the request.
+     * Registers a rest handler to be executed when the provided method and path match the request.
      */
     public void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
-        switch (method) {
-            case GET:
-                getHandlers.insert(path, handler);
-                break;
-            case DELETE:
-                deleteHandlers.insert(path, handler);
-                break;
-            case POST:
-                postHandlers.insert(path, handler);
-                break;
-            case PUT:
-                putHandlers.insert(path, handler);
-                break;
-            case OPTIONS:
-                optionsHandlers.insert(path, handler);
-                break;
-            case HEAD:
-                headHandlers.insert(path, handler);
-                break;
-            default:
-                throw new IllegalArgumentException("Can't handle [" + method + "] for path [" + path + "]");
+        PathTrie<RestHandler> handlers = getHandlersForMethod(method);
+        if (handlers != null) {
+            handlers.insert(path, handler);
+        } else {
+            throw new IllegalArgumentException("Can't handle [" + method + "] for path [" + path + "]");
         }
     }
 
@@ -157,6 +139,15 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
      */
     public RestFilterChain filterChain(RestFilter executionFilter) {
         return new ControllerFilterChain(executionFilter);
+    }
+
+    /**
+     * @param request The current request. Must not be null.
+     * @return true iff the circuit breaker limit must be enforced for processing this request.
+     */
+    public boolean canTripCircuitBreaker(RestRequest request) {
+        RestHandler handler = getHandler(request);
+        return (handler != null) ? handler.canTripCircuitBreaker() : true;
     }
 
     public void dispatchRequest(final RestRequest request, final RestChannel channel, ThreadContext threadContext) throws Exception {
@@ -226,19 +217,27 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
 
     private RestHandler getHandler(RestRequest request) {
         String path = getPath(request);
-        RestRequest.Method method = request.method();
+        PathTrie<RestHandler> handlers = getHandlersForMethod(request.method());
+        if (handlers != null) {
+            return handlers.retrieve(path, request.params());
+        } else {
+            return null;
+        }
+    }
+
+    private PathTrie<RestHandler> getHandlersForMethod(RestRequest.Method method) {
         if (method == RestRequest.Method.GET) {
-            return getHandlers.retrieve(path, request.params());
+            return getHandlers;
         } else if (method == RestRequest.Method.POST) {
-            return postHandlers.retrieve(path, request.params());
+            return postHandlers;
         } else if (method == RestRequest.Method.PUT) {
-            return putHandlers.retrieve(path, request.params());
+            return putHandlers;
         } else if (method == RestRequest.Method.DELETE) {
-            return deleteHandlers.retrieve(path, request.params());
+            return deleteHandlers;
         } else if (method == RestRequest.Method.HEAD) {
-            return headHandlers.retrieve(path, request.params());
+            return headHandlers;
         } else if (method == RestRequest.Method.OPTIONS) {
-            return optionsHandlers.retrieve(path, request.params());
+            return optionsHandlers;
         } else {
             return null;
         }

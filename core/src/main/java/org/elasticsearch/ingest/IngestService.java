@@ -19,10 +19,8 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.ingest.core.IngestInfo;
-import org.elasticsearch.ingest.core.Processor;
-import org.elasticsearch.ingest.core.ProcessorInfo;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -35,7 +33,7 @@ import java.util.Map;
 /**
  * Holder class for several ingest related services.
  */
-public class IngestService implements Closeable {
+public class IngestService {
 
     private final PipelineStore pipelineStore;
     private final PipelineExecutionService pipelineExecutionService;
@@ -55,8 +53,8 @@ public class IngestService implements Closeable {
         return pipelineExecutionService;
     }
 
-    public void setScriptService(ScriptService scriptService) {
-        pipelineStore.buildProcessorFactoryRegistry(processorsRegistryBuilder, scriptService);
+    public void buildProcessorsFactoryRegistry(ScriptService scriptService, ClusterService clusterService) {
+        pipelineStore.buildProcessorFactoryRegistry(processorsRegistryBuilder, scriptService, clusterService);
     }
 
     public IngestInfo info() {
@@ -67,10 +65,4 @@ public class IngestService implements Closeable {
         }
         return new IngestInfo(processorInfoList);
     }
-
-    @Override
-    public void close() throws IOException {
-        pipelineStore.close();
-    }
-
 }

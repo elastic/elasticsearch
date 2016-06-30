@@ -54,7 +54,7 @@ public class DiscoveryNodeServiceTests extends ESTestCase {
                 }
             }
         }
-        DiscoveryNodeService discoveryNodeService = new DiscoveryNodeService(builder.build(), Version.CURRENT);
+        DiscoveryNodeService discoveryNodeService = new DiscoveryNodeService(builder.build());
         DiscoveryNode discoveryNode = discoveryNodeService.buildLocalNode(DummyTransportAddress.INSTANCE);
         assertThat(discoveryNode.getRoles(), equalTo(selectedRoles));
         assertThat(discoveryNode.getAttributes(), equalTo(expectedAttributes));
@@ -68,7 +68,7 @@ public class DiscoveryNodeServiceTests extends ESTestCase {
             builder.put("node.attr.attr" + i, "value" + i);
             expectedAttributes.put("attr" + i, "value" + i);
         }
-        DiscoveryNodeService discoveryNodeService = new DiscoveryNodeService(builder.build(), Version.CURRENT);
+        DiscoveryNodeService discoveryNodeService = new DiscoveryNodeService(builder.build());
         int numCustomAttributes = randomIntBetween(0, 5);
         Map<String, String> customAttributes = new HashMap<>();
         for (int i = 0; i < numCustomAttributes; i++) {

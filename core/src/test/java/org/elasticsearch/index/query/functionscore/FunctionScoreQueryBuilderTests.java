@@ -26,6 +26,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -599,8 +600,30 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 "  }\n" +
                 "}";
 
-        FunctionScoreQueryBuilder parsed = (FunctionScoreQueryBuilder) parseQuery(json);
-        checkGeneratedJson(json, parsed);
+        FunctionScoreQueryBuilder parsed = (FunctionScoreQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
+        // this should be equivalent to the same with a match_all query
+        String expected =
+                "{\n" +
+                    "  \"function_score\" : {\n" +
+                    "    \"query\" : { \"match_all\" : {} },\n" +
+                    "    \"functions\" : [ {\n" +
+                    "      \"filter\" : { },\n" +
+                    "      \"weight\" : 23.0,\n" +
+                    "      \"random_score\" : { }\n" +
+                    "    }, {\n" +
+                    "      \"filter\" : { },\n" +
+                    "      \"weight\" : 5.0\n" +
+                    "    } ],\n" +
+                    "    \"score_mode\" : \"multiply\",\n" +
+                    "    \"boost_mode\" : \"multiply\",\n" +
+                    "    \"max_boost\" : 100.0,\n" +
+                    "    \"min_score\" : 1.0,\n" +
+                    "    \"boost\" : 42.0\n" +
+                    "  }\n" +
+                    "}";
+
+        FunctionScoreQueryBuilder expectedParsed = (FunctionScoreQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
+        assertEquals(expectedParsed, parsed);
 
         assertEquals(json, 2, parsed.filterFunctionBuilders().length);
         assertEquals(json, 42, parsed.boost(), 0.0001);
@@ -738,17 +761,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public static class TestPlugin extends Plugin {
-
-        @Override
-        public String name() {
-            return "test-plugin";
-        }
-
-        @Override
-        public String description() {
-            return "Adds random function with fixed seed";
-        }
-
         public void onModule(SearchModule module) {
             module.registerScoreFunction(RandomScoreFunctionBuilderWithFixedSeed::new,
                     RandomScoreFunctionBuilderWithFixedSeed::fromXContent, RandomScoreFunctionBuilderWithFixedSeed.FUNCTION_NAME_FIELD);

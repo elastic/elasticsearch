@@ -134,7 +134,10 @@ It is also possible to customize the key for each range:
     "aggs" : {
         "price_ranges" : {
             "range" : {
-                "script" : "doc['price'].value",
+                "script" : {
+                    "lang": "painless",
+                    "inline": "doc['price'].value"
+                },
                 "ranges" : [
                     { "to" : 50 },
                     { "from" : 50, "to" : 100 },
@@ -146,7 +149,7 @@ It is also possible to customize the key for each range:
 }
 --------------------------------------------------
 
-This will interpret the `script` parameter as an `inline` script with the default script language and no script parameters. To use a file script use the following syntax:
+This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a file script use the following syntax:
 
 [source,js]
 --------------------------------------------------
@@ -184,9 +187,12 @@ Lets say the product prices are in USD but we would like to get the price ranges
         "price_ranges" : {
             "range" : {
                 "field" : "price",
-                "script" : "_value * conversion_rate",
-                "params" : {
-                    "conversion_rate" : 0.8
+                "script" : {
+                    "lang": "painless",
+                    "inline": "_value * params.conversion_rate",
+                    "params" : {
+                        "conversion_rate" : 0.8
+                    }
                 },
                 "ranges" : [
                     { "to" : 35 },

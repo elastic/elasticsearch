@@ -19,26 +19,33 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+
+import java.util.Set;
 
 /**
  * Represents a continue statement.
  */
 public final class SContinue extends AStatement {
 
-    public SContinue(int line, int offset, String location) {
-        super(line, offset, location);
+    public SContinue(Location location) {
+        super(location);
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {}
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         if (!inLoop) {
-            throw new IllegalArgumentException(error("Continue statement outside of a loop."));
+            throw createError(new IllegalArgumentException("Continue statement outside of a loop."));
         }
 
         if (lastLoop) {
-            throw new IllegalArgumentException(error("Extraneous continue statement."));
+            throw createError(new IllegalArgumentException("Extraneous continue statement."));
         }
 
         allEscape = true;
@@ -47,7 +54,7 @@ public final class SContinue extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         writer.goTo(continu);
     }
 }

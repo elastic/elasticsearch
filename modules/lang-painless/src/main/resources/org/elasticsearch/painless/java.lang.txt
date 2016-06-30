@@ -36,6 +36,8 @@ class CharSequence -> java.lang.CharSequence {
   IntStream chars()
   IntStream codePoints()
   int length()
+  String replaceAll*(Pattern,Function)
+  String replaceFirst*(Pattern,Function)
   CharSequence subSequence(int,int)
   String toString()
 }
@@ -50,6 +52,18 @@ class Iterable -> java.lang.Iterable {
   void forEach(Consumer)
   Iterator iterator()
   Spliterator spliterator()
+  # some adaptations of groovy methods
+  boolean any*(Predicate)
+  Collection asCollection*()
+  List asList*()
+  def each*(Consumer)
+  def eachWithIndex*(ObjIntConsumer)
+  boolean every*(Predicate)
+  List findResults*(Function)
+  Map groupBy*(Function)
+  String join*(String)
+  double sum*()
+  double sum*(ToDoubleFunction)
 }
 
 # Readable: i/o
@@ -63,6 +77,7 @@ class Boolean -> java.lang.Boolean extends Comparable,Object {
   Boolean FALSE
   boolean booleanValue()
   int compare(boolean,boolean)
+  int compareTo(Boolean)
   int hashCode(boolean)
   boolean logicalAnd(boolean,boolean)
   boolean logicalOr(boolean,boolean)
@@ -78,6 +93,7 @@ class Byte -> java.lang.Byte extends Number,Comparable,Object {
   byte MIN_VALUE
   int SIZE
   int compare(byte,byte)
+  int compareTo(Byte)
   Byte decode(String)
   int hashCode(byte)
   byte parseByte(String)
@@ -163,6 +179,7 @@ class Character -> java.lang.Character extends Comparable,Object {
   int codePointBefore(CharSequence,int)
   int codePointCount(CharSequence,int,int)
   int compare(char,char)
+  int compareTo(Character)
   int digit(int,int)
   char forDigit(int,int)
   byte getDirectionality(int)
@@ -454,6 +471,7 @@ class Double -> java.lang.Double extends Number,Comparable,Object {
   double POSITIVE_INFINITY
   int SIZE
   int compare(double,double)
+  int compareTo(Double)
   long doubleToLongBits(double)
   long doubleToRawLongBits(double)
   int hashCode(double)
@@ -473,6 +491,7 @@ class Double -> java.lang.Double extends Number,Comparable,Object {
 }
 
 class Enum -> java.lang.Enum extends Comparable,Object {
+  int compareTo(Enum)
   String name();
   int ordinal();
 }
@@ -489,6 +508,7 @@ class Float -> java.lang.Float extends Number,Comparable,Object {
   float POSITIVE_INFINITY
   int SIZE
   int compare(float,float)
+  int compareTo(Float)
   int floatToIntBits(float)
   int floatToRawIntBits(float)
   int hashCode(float)
@@ -516,6 +536,7 @@ class Integer -> java.lang.Integer extends Number,Comparable,Object {
   int SIZE
   int bitCount(int)
   int compare(int,int)
+  int compareTo(Integer)
   int compareUnsigned(int,int)
   Integer decode(String)
   int divideUnsigned(int,int)
@@ -555,6 +576,7 @@ class Long -> java.lang.Long extends Number,Comparable,Object {
   int SIZE
   int bitCount(long)
   int compare(long,long)
+  int compareTo(Long)
   int compareUnsigned(long,long)
   Long decode(String)
   long divideUnsigned(long,long)
@@ -587,7 +609,7 @@ class Long -> java.lang.Long extends Number,Comparable,Object {
   Long valueOf(String,int)
 }
 
-class Math -> java.lang.Math {
+class Math -> java.lang.Math extends Object {
   double E
   double PI
   double abs(double)
@@ -658,6 +680,7 @@ class Short -> java.lang.Short extends Number,Comparable,Object {
   short MIN_VALUE
   int SIZE
   int compare(short,short)
+  int compareTo(Short)
   Short decode(String)
   int hashCode(short)
   short parseShort(String)
@@ -679,7 +702,7 @@ class StackTraceElement -> java.lang.StackTraceElement extends Object {
   boolean isNativeMethod()
 }
 
-class StrictMath -> java.lang.StrictMath {
+class StrictMath -> java.lang.StrictMath extends Object {
   double E
   double PI
   double abs(double)
@@ -726,6 +749,7 @@ class String -> java.lang.String extends CharSequence,Comparable,Object {
   int codePointAt(int)
   int codePointBefore(int)
   int codePointCount(int,int)
+  int compareTo(String)
   int compareToIgnoreCase(String)
   String concat(String)
   boolean contains(CharSequence)

@@ -228,8 +228,8 @@ fi
     install_and_check_plugin ingest geoip geoip2-*.jar jackson-annotations-*.jar jackson-databind-*.jar maxmind-db-*.jar
 }
 
-@test "[$GROUP] check ingest-grok module" {
-    check_module ingest-grok jcodings-*.jar joni-*.jar
+@test "[$GROUP] check ingest-common module" {
+    check_module ingest-common jcodings-*.jar joni-*.jar
 }
 
 @test "[$GROUP] check lang-expression module" {
@@ -248,10 +248,7 @@ fi
 }
 
 @test "[$GROUP] check lang-painless module" {
-    # we specify the version on the asm-5.0.4.jar so that the test does
-    # not spuriously pass if the jar is missing but the other asm jars
-    # are present
-    check_secure_module lang-painless antlr4-runtime-*.jar asm-5.0.4.jar asm-commons-*.jar asm-tree-*.jar
+    check_secure_module lang-painless antlr4-runtime-*.jar asm-debug-all-*.jar
 }
 
 @test "[$GROUP] install javascript plugin" {
@@ -421,17 +418,18 @@ fi
 @test "[$GROUP] install jvm-example with different logging modes and check output" {
     local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
     sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" > /tmp/plugin-cli-output
-    local loglines=$(cat /tmp/plugin-cli-output | wc -l)
+    # exclude progress line
+    local loglines=$(cat /tmp/plugin-cli-output | grep -v "^[[:cntrl:]]" | wc -l)
     if [ "$GROUP" == "TAR PLUGINS" ]; then
     # tar extraction does not create the plugins directory so the plugin tool will print an additional line that the directory will be created
         [ "$loglines" -eq "3" ] || {
-            echo "Expected 3 lines but the output was:"
+            echo "Expected 3 lines excluding progress bar but the output had $loglines lines and was:"
             cat /tmp/plugin-cli-output
             false
         }
     else
         [ "$loglines" -eq "2" ] || {
-            echo "Expected 2 lines but the output was:"
+            echo "Expected 2 lines excluding progress bar but the output had $loglines lines and was:"
             cat /tmp/plugin-cli-output
             false
         }
@@ -440,16 +438,16 @@ fi
 
     local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
     sudo -E -u $ESPLUGIN_COMMAND_USER ES_JAVA_OPTS="-Des.logger.level=DEBUG" "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" > /tmp/plugin-cli-output
-    local loglines=$(cat /tmp/plugin-cli-output | wc -l)
+    local loglines=$(cat /tmp/plugin-cli-output | grep -v "^[[:cntrl:]]" | wc -l)
     if [ "$GROUP" == "TAR PLUGINS" ]; then
         [ "$loglines" -gt "3" ] || {
-            echo "Expected more than 3 lines but the output was:"
+            echo "Expected more than 3 lines excluding progress bar but the output had $loglines lines and was:"
             cat /tmp/plugin-cli-output
             false
         }
     else
         [ "$loglines" -gt "2" ] || {
-            echo "Expected more than 2 lines but the output was:"
+            echo "Expected more than 2 lines excluding progress bar but the output had $loglines lines and was:"
             cat /tmp/plugin-cli-output
             false
         }

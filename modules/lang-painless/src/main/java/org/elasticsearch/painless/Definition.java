@@ -19,27 +19,36 @@
 
 package org.elasticsearch.painless;
 
+import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.SetOnce;
+
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.LineNumberReader;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.PrimitiveIterator;
+import java.util.Spliterator;
 
 /**
  * The entire API for Painless.  Also used as a whitelist for checking for legal
  * methods and fields during at both compile-time and runtime.
  */
 public final class Definition {
-    
+
     private static final List<String> DEFINITION_FILES = Collections.unmodifiableList(
-        Arrays.asList("org.elasticsearch.txt", 
+        Arrays.asList("org.elasticsearch.txt",
                       "java.lang.txt",
                       "java.math.txt",
                       "java.text.txt",
@@ -50,6 +59,7 @@ public final class Definition {
                       "java.time.zone.txt",
                       "java.util.txt",
                       "java.util.function.txt",
+                      "java.util.regex.txt",
                       "java.util.stream.txt",
                       "joda.time.txt"));
 
@@ -77,6 +87,8 @@ public final class Definition {
     public static final Type DEF_TYPE = getType("def");
     public static final Type STRING_TYPE = getType("String");
     public static final Type EXCEPTION_TYPE = getType("Exception");
+    public static final Type PATTERN_TYPE = getType("Pattern");
+    public static final Type MATCHER_TYPE = getType("Matcher");
 
     public enum Sort {
         VOID(       void.class      , 0 , true  , false , false , false ),
@@ -164,41 +176,99 @@ public final class Definition {
 
             return result;
         }
-    }
 
-    public static final class Constructor {
-        public final String name;
-        public final Struct owner;
-        public final List<Type> arguments;
-        public final org.objectweb.asm.commons.Method method;
-
-        private Constructor(String name, Struct owner, List<Type> arguments,
-                            org.objectweb.asm.commons.Method method) {
-            this.name = name;
-            this.owner = owner;
-            this.arguments = Collections.unmodifiableList(arguments);
-            this.method = method;
+        @Override
+        public String toString() {
+            return name;
         }
     }
 
     public static class Method {
         public final String name;
         public final Struct owner;
+        public final boolean augmentation;
         public final Type rtn;
         public final List<Type> arguments;
         public final org.objectweb.asm.commons.Method method;
         public final int modifiers;
         public final MethodHandle handle;
 
-        private Method(String name, Struct owner, Type rtn, List<Type> arguments,
-                       org.objectweb.asm.commons.Method method, int modifiers, MethodHandle handle) {
+        public Method(String name, Struct owner, boolean augmentation, Type rtn, List<Type> arguments,
+                      org.objectweb.asm.commons.Method method, int modifiers, MethodHandle handle) {
             this.name = name;
+            this.augmentation = augmentation;
             this.owner = owner;
             this.rtn = rtn;
             this.arguments = Collections.unmodifiableList(arguments);
             this.method = method;
             this.modifiers = modifiers;
             this.handle = handle;
+        }
+        
+        /** 
+         * Returns MethodType for this method.
+         * <p>
+         * This works even for user-defined Methods (where the MethodHandle is null).
+         */
+        public MethodType getMethodType() {
+            // we have a methodhandle already (e.g. whitelisted class)
+            // just return its type
+            if (handle != null) {
+                return handle.type();
+            }
+            // otherwise compute it
+            final Class<?> params[];
+            final Class<?> returnValue;
+            if (augmentation) {
+                // static method disguised as virtual/interface method
+                params = new Class<?>[1 + arguments.size()];
+                params[0] = Augmentation.class;
+                for (int i = 0; i < arguments.size(); i++) {
+                    params[i + 1] = arguments.get(i).clazz;
+                }
+                returnValue = rtn.clazz;
+            } else if (Modifier.isStatic(modifiers)) {
+                // static method: straightforward copy
+                params = new Class<?>[arguments.size()];
+                for (int i = 0; i < arguments.size(); i++) {
+                    params[i] = arguments.get(i).clazz;
+                }
+                returnValue = rtn.clazz;
+            } else if ("<init>".equals(name)) {
+                // constructor: returns the owner class
+                params = new Class<?>[arguments.size()];
+                for (int i = 0; i < arguments.size(); i++) {
+                    params[i] = arguments.get(i).clazz;
+                }
+                returnValue = owner.clazz;
+            } else {
+                // virtual/interface method: add receiver class
+                params = new Class<?>[1 + arguments.size()];
+                params[0] = owner.clazz;
+                for (int i = 0; i < arguments.size(); i++) {
+                    params[i + 1] = arguments.get(i).clazz;
+                }
+                returnValue = rtn.clazz;
+            }
+            return MethodType.methodType(returnValue, params);
+        }
+        
+        public void write(MethodWriter writer) {
+            final org.objectweb.asm.Type type;
+            if (augmentation) {
+                assert java.lang.reflect.Modifier.isStatic(modifiers);
+                type = WriterConstants.AUGMENTATION_TYPE;
+            } else {
+                type = owner.type;
+            }
+
+            if (java.lang.reflect.Modifier.isStatic(modifiers)) {
+                writer.invokeStatic(type, method);
+            } else if (java.lang.reflect.Modifier.isInterface(owner.clazz.getModifiers())) {
+                writer.invokeInterface(type, method);
+            } else {
+                writer.invokeVirtual(type, method);
+            }
         }
     }
 
@@ -282,12 +352,14 @@ public final class Definition {
         public final Class<?> clazz;
         public final org.objectweb.asm.Type type;
 
-        public final Map<MethodKey, Constructor> constructors;
+        public final Map<MethodKey, Method> constructors;
         public final Map<MethodKey, Method> staticMethods;
         public final Map<MethodKey, Method> methods;
 
         public final Map<String, Field> staticMembers;
         public final Map<String, Field> members;
+
+        private final SetOnce<Method> functionalMethod;
 
         private Struct(final String name, final Class<?> clazz, final org.objectweb.asm.Type type) {
             this.name = name;
@@ -300,6 +372,8 @@ public final class Definition {
 
             staticMembers = new HashMap<>();
             members = new HashMap<>();
+
+            functionalMethod = new SetOnce<>();
         }
 
         private Struct(final Struct struct) {
@@ -313,6 +387,8 @@ public final class Definition {
 
             staticMembers = Collections.unmodifiableMap(struct.staticMembers);
             members = Collections.unmodifiableMap(struct.members);
+
+            functionalMethod = struct.functionalMethod;
         }
 
         private Struct freeze() {
@@ -337,6 +413,14 @@ public final class Definition {
         @Override
         public int hashCode() {
             return name.hashCode();
+        }
+
+        /**
+         * If this class is a functional interface according to JLS, returns its method.
+         * Otherwise returns null.
+         */
+        public Method getFunctionalMethod() {
+            return functionalMethod.get();
         }
     }
 
@@ -434,6 +518,23 @@ public final class Definition {
         for (Map.Entry<String,List<String>> clazz : hierarchy.entrySet()) {
             copyStruct(clazz.getKey(), clazz.getValue());
         }
+        // if someone declares an interface type, its still an Object
+        for (Map.Entry<String,Struct> clazz : structsMap.entrySet()) {
+            String name = clazz.getKey();
+            Class<?> javaPeer = clazz.getValue().clazz;
+            if (javaPeer.isInterface()) {
+                copyStruct(name, Collections.singletonList("Object"));
+            } else if (name.equals("def") == false && name.equals("Object") == false && javaPeer.isPrimitive() == false) {
+                // but otherwise, unless its a primitive type, it really should
+                assert hierarchy.get(name) != null : "class '" + name + "' does not extend Object!";
+                assert hierarchy.get(name).contains("Object") : "class '" + name + "' does not extend Object!";
+            }
+        }
+        // mark functional interfaces (or set null, to mark class is not)
+        for (Struct clazz : structsMap.values()) {
+            clazz.functionalMethod.set(computeFunctionalInterfaceMethod(clazz));
+        }
+
         // precompute runtime classes
         for (Struct struct : structsMap.values()) {
           addRuntimeClass(struct);
@@ -568,7 +669,7 @@ public final class Definition {
                 "Owner struct [" + struct + "] not defined for constructor [" + name + "].");
         }
 
-        if (!name.matches("^[_a-zA-Z][_a-zA-Z0-9]*$")) {
+        if (!name.matches("<init>")) {
             throw new IllegalArgumentException(
                 "Invalid constructor name [" + name + "] with the struct [" + owner.name + "].");
         }
@@ -606,7 +707,18 @@ public final class Definition {
         }
 
         final org.objectweb.asm.commons.Method asm = org.objectweb.asm.commons.Method.getMethod(reflect);
-        final Constructor constructor = new Constructor(name, owner, Arrays.asList(args), asm);
+        final Type returnType = getTypeInternal("void");
+        final MethodHandle handle;
+
+        try {
+            handle = MethodHandles.publicLookup().in(owner.clazz).unreflectConstructor(reflect);
+        } catch (final IllegalAccessException exception) {
+            throw new IllegalArgumentException("Constructor " +
+                " not found for class [" + owner.clazz.getName() + "]" +
+                " with arguments " + Arrays.toString(classes) + ".");
+        }
+
+        final Method constructor = new Method(name, owner, false, returnType, Arrays.asList(args), asm, reflect.getModifiers(), handle);
 
         owner.constructors.put(methodKey, constructor);
     }
@@ -648,26 +760,22 @@ public final class Definition {
                 if (!elements[0].equals(className)) {
                     throw new IllegalArgumentException("Constructors must return their own type");
                 }
-                addConstructorInternal(className, "new", args);
+                addConstructorInternal(className, "<init>", args);
             } else {
-                if (methodName.indexOf('/') >= 0) {
-                    String nameAndAlias[] = methodName.split("/");
-                    if (nameAndAlias.length != 2) {
-                        throw new IllegalArgumentException("Currently only two aliases are allowed!");
-                    }
-                    addMethodInternal(className, nameAndAlias[0], nameAndAlias[1], rtn, args);
+                if (methodName.indexOf("*") >= 0) {
+                    addMethodInternal(className, methodName.substring(0, methodName.length() - 1), true, rtn, args);
                 } else {
-                    addMethodInternal(className, methodName, null, rtn, args);
+                    addMethodInternal(className, methodName, false, rtn, args);
                 }
             }
         } else {
             // field
-            addFieldInternal(className, elements[1], null, rtn);
+            addFieldInternal(className, elements[1], rtn);
         }
     }
 
-    private final void addMethodInternal(final String struct, final String name, final String alias,
-                                         final Type rtn, final Type[] args) {
+    private final void addMethodInternal(String struct, String name, boolean augmentation,
+                                         Type rtn, Type[] args) {
         final Struct owner = structsMap.get(struct);
 
         if (owner == null) {
@@ -690,23 +798,35 @@ public final class Definition {
 
         if (owner.staticMethods.containsKey(methodKey) || owner.methods.containsKey(methodKey)) {
             throw new IllegalArgumentException(
-                "Duplicate  method signature [" + methodKey + "] found within the struct [" + owner.name + "].");
+                "Duplicate method signature [" + methodKey + "] found within the struct [" + owner.name + "].");
         }
 
-        final Class<?>[] classes = new Class<?>[args.length];
-
-        for (int count = 0; count < classes.length; ++count) {
-            classes[count] = args[count].clazz;
+        final Class<?> implClass;
+        final Class<?>[] params;
+        
+        if (augmentation == false) {
+            implClass = owner.clazz;
+            params = new Class<?>[args.length];
+            for (int count = 0; count < args.length; ++count) {
+                params[count] = args[count].clazz;
+            }
+        } else {
+            implClass = Augmentation.class;
+            params = new Class<?>[args.length + 1];
+            params[0] = owner.clazz;
+            for (int count = 0; count < args.length; ++count) {
+                params[count+1] = args[count].clazz;
+            }
         }
-
+        
         final java.lang.reflect.Method reflect;
 
         try {
-            reflect = owner.clazz.getMethod(alias == null ? name : alias, classes);
-        } catch (final NoSuchMethodException exception) {
-            throw new IllegalArgumentException("Method [" + (alias == null ? name : alias) +
-                "] not found for class [" + owner.clazz.getName() + "]" +
-                " with arguments " + Arrays.toString(classes) + ".");
+            reflect = implClass.getMethod(name, params);
+        } catch (NoSuchMethodException exception) {
+            throw new IllegalArgumentException("Method [" + name +
+                "] not found for class [" + implClass.getName() + "]" +
+                " with arguments " + Arrays.toString(params) + ".");
         }
 
         if (!reflect.getReturnType().equals(rtn.clazz)) {
@@ -721,25 +841,24 @@ public final class Definition {
         MethodHandle handle;
 
         try {
-            handle = MethodHandles.publicLookup().in(owner.clazz).unreflect(reflect);
+            handle = MethodHandles.publicLookup().in(implClass).unreflect(reflect);
         } catch (final IllegalAccessException exception) {
-            throw new IllegalArgumentException("Method [" + (alias == null ? name : alias) + "]" +
-                " not found for class [" + owner.clazz.getName() + "]" +
-                " with arguments " + Arrays.toString(classes) + ".");
+            throw new IllegalArgumentException("Method [" + name + "]" +
+                " not found for class [" + implClass.getName() + "]" +
+                " with arguments " + Arrays.toString(params) + ".");
         }
 
         final int modifiers = reflect.getModifiers();
-        final Method method = new Method(name, owner, rtn, Arrays.asList(args), asm, modifiers, handle);
+        final Method method = new Method(name, owner, augmentation, rtn, Arrays.asList(args), asm, modifiers, handle);
 
-        if (java.lang.reflect.Modifier.isStatic(modifiers)) {
+        if (augmentation == false && java.lang.reflect.Modifier.isStatic(modifiers)) {
             owner.staticMethods.put(methodKey, method);
         } else {
             owner.methods.put(methodKey, method);
         }
     }
 
-    private final void addFieldInternal(final String struct, final String name, final String alias,
-                                        final Type type) {
+    private final void addFieldInternal(String struct, String name, Type type) {
         final Struct owner = structsMap.get(struct);
 
         if (owner == null) {
@@ -760,9 +879,9 @@ public final class Definition {
         java.lang.reflect.Field reflect;
 
         try {
-            reflect = owner.clazz.getField(alias == null ? name : alias);
+            reflect = owner.clazz.getField(name);
         } catch (final NoSuchFieldException exception) {
-            throw new IllegalArgumentException("Field [" + (alias == null ? name : alias) + "]" +
+            throw new IllegalArgumentException("Field [" + name + "]" +
                 " not found for class [" + owner.clazz.getName() + "].");
         }
 
@@ -778,7 +897,7 @@ public final class Definition {
                 setter = MethodHandles.publicLookup().unreflectSetter(reflect);
             }
         } catch (final IllegalAccessException exception) {
-            throw new IllegalArgumentException("Getter/Setter [" + (alias == null ? name : alias) + "]" +
+            throw new IllegalArgumentException("Getter/Setter [" + name + "]" +
                 " not found for class [" + owner.clazz.getName() + "].");
         }
 
@@ -791,9 +910,9 @@ public final class Definition {
                     " within the struct [" + owner.name + "] is not final.");
             }
 
-            owner.staticMembers.put(alias == null ? name : alias, field);
+            owner.staticMembers.put(name, field);
         } else {
-            owner.members.put(alias == null ? name : alias, field);
+            owner.members.put(name, field);
         }
     }
 
@@ -821,8 +940,49 @@ public final class Definition {
                 MethodKey methodKey = kvPair.getKey();
                 Method method = kvPair.getValue();
                 if (owner.methods.get(methodKey) == null) {
-                    owner.methods.put(methodKey,
-                        new Method(method.name, owner, method.rtn, method.arguments, method.method, method.modifiers, method.handle));
+                    // sanity check, look for missing covariant/generic override
+                    if (owner.clazz.isInterface() && child.clazz == Object.class) {
+                        // ok
+                    } else if (child.clazz == Spliterator.OfPrimitive.class || child.clazz == PrimitiveIterator.class) {
+                        // ok, we rely on generics erasure for these (its guaranteed in the javadocs though!!!!)
+                    } else if (Constants.JRE_IS_MINIMUM_JAVA9 && owner.clazz == LocalDate.class) {
+                        // ok, java 9 added covariant override for LocalDate.getEra() to return IsoEra:
+                        // https://bugs.openjdk.java.net/browse/JDK-8072746
+                    } else {
+                        try {
+                            // TODO: we *have* to remove all these public members and use getter methods to encapsulate!
+                            final Class<?> impl;
+                            final Class<?> arguments[];
+                            if (method.augmentation) {
+                                impl = Augmentation.class;
+                                arguments = new Class<?>[method.arguments.size() + 1];
+                                arguments[0] = method.owner.clazz;
+                                for (int i = 0; i < method.arguments.size(); i++) {
+                                    arguments[i + 1] = method.arguments.get(i).clazz;
+                                }
+                            } else {
+                                impl = owner.clazz;
+                                arguments = new Class<?>[method.arguments.size()];
+                                for (int i = 0; i < method.arguments.size(); i++) {
+                                    arguments[i] = method.arguments.get(i).clazz;
+                                }
+                            }
+                            java.lang.reflect.Method m = impl.getMethod(method.method.getName(), arguments);
+                            if (m.getReturnType() != method.rtn.clazz) {
+                                throw new IllegalStateException("missing covariant override for: " + m + " in " + owner.name);
+                            }
+                            if (m.isBridge() && !Modifier.isVolatile(method.modifiers)) {
+                                // its a bridge in the destination, but not in the source, but it might still be ok, check generics:
+                                java.lang.reflect.Method source = child.clazz.getMethod(method.method.getName(), arguments);
+                                if (!Arrays.equals(source.getGenericParameterTypes(), source.getParameterTypes())) {
+                                    throw new IllegalStateException("missing generic override for: " + m + " in " + owner.name);
+                                }
+                            }
+                        } catch (ReflectiveOperationException e) {
+                            throw new AssertionError(e);
+                        }
+                    }
+                    owner.methods.put(methodKey, method);
                 }
             }
 
@@ -884,6 +1044,50 @@ public final class Definition {
         }
 
         runtimeMap.put(struct.clazz, new RuntimeClass(methods, getters, setters));
+    }
+
+    /** computes the functional interface method for a class, or returns null */
+    private Method computeFunctionalInterfaceMethod(Struct clazz) {
+        if (!clazz.clazz.isInterface()) {
+            return null;
+        }
+        // if its marked with this annotation, we fail if the conditions don't hold (means whitelist bug)
+        // otherwise, this annotation is pretty useless.
+        boolean hasAnnotation = clazz.clazz.isAnnotationPresent(FunctionalInterface.class);
+        List<java.lang.reflect.Method> methods = new ArrayList<>();
+        for (java.lang.reflect.Method m : clazz.clazz.getMethods()) {
+            // default interface methods don't count
+            if (m.isDefault()) {
+                continue;
+            }
+            // static methods don't count
+            if (Modifier.isStatic(m.getModifiers())) {
+                continue;
+            }
+            // if its from Object, it doesn't count
+            try {
+                Object.class.getMethod(m.getName(), m.getParameterTypes());
+                continue;
+            } catch (ReflectiveOperationException e) {
+                // it counts
+            }
+            methods.add(m);
+        }
+        if (methods.size() != 1) {
+            if (hasAnnotation) {
+                throw new IllegalArgumentException("Class: " + clazz.name +
+                                                   " is marked with FunctionalInterface but doesn't fit the bill: " + methods);
+            }
+            return null;
+        }
+        // inspect the one method found from the reflection API, it should match the whitelist!
+        java.lang.reflect.Method oneMethod = methods.get(0);
+        Method painless = clazz.methods.get(new Definition.MethodKey(oneMethod.getName(), oneMethod.getParameterCount()));
+        if (painless == null || painless.method.equals(org.objectweb.asm.commons.Method.getMethod(oneMethod)) == false) {
+            throw new IllegalArgumentException("Class: " + clazz.name + " is functional but the functional " +
+                                               "method is not whitelisted!");
+        }
+        return painless;
     }
 
     private Type getTypeInternal(String name) {

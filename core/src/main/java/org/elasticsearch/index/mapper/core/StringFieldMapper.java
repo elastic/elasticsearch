@@ -73,12 +73,12 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             "type",
             // common keyword parameters, for which the upgrade is straightforward
             "index", "store", "doc_values", "omit_norms", "norms", "fields", "copy_to",
-            "fielddata", "ignore_above"));
+            "fielddata", "include_in_all", "ignore_above"));
     private static final Set<String> SUPPORTED_PARAMETERS_FOR_AUTO_UPGRADE_TO_TEXT = new HashSet<>(Arrays.asList(
             "type",
             // common text parameters, for which the upgrade is straightforward
             "index", "store", "doc_values", "omit_norms", "norms", "fields", "copy_to",
-            "fielddata", "analyzer", "search_analyzer", "search_quote_analyzer"));
+            "fielddata", "include_in_all", "analyzer", "search_analyzer", "search_quote_analyzer"));
 
     public static class Defaults {
         public static double FIELDDATA_MIN_FREQUENCY = 0;

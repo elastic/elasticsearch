@@ -18,13 +18,11 @@
  */
 package org.elasticsearch.search.fetch.fielddata;
 
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -37,7 +35,7 @@ import java.util.HashMap;
  *
  * Specifying {@code "fielddata_fields": ["field1", "field2"]}
  */
-public class FieldDataFieldsFetchSubPhase implements FetchSubPhase {
+public final class FieldDataFieldsFetchSubPhase implements FetchSubPhase {
 
     public static final String[] NAMES = {"fielddata_fields", "fielddataFields"};
     public static final ContextFactory<FieldDataFieldsContext> CONTEXT_FACTORY = new ContextFactory<FieldDataFieldsContext>() {
@@ -53,29 +51,14 @@ public class FieldDataFieldsFetchSubPhase implements FetchSubPhase {
         }
     };
 
-    @Inject
-    public FieldDataFieldsFetchSubPhase() {
-    }
-
-    @Override
-    public boolean hitsExecutionNeeded(SearchContext context) {
-        return false;
-    }
-
-    @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
-    }
-
-    @Override
-    public boolean hitExecutionNeeded(SearchContext context) {
-        return context.getFetchSubPhaseContext(CONTEXT_FACTORY).hitExecutionNeeded();
-    }
-
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {
+        if (context.getFetchSubPhaseContext(CONTEXT_FACTORY).hitExecutionNeeded() == false) {
+            return;
+        }
         for (FieldDataFieldsContext.FieldDataField field : context.getFetchSubPhaseContext(CONTEXT_FACTORY).fields()) {
             if (hitContext.hit().fieldsOrNull() == null) {
-                hitContext.hit().fields(new HashMap<String, SearchHitField>(2));
+                hitContext.hit().fields(new HashMap<>(2));
             }
             SearchHitField hitField = hitContext.hit().fields().get(field.name());
             if (hitField == null) {

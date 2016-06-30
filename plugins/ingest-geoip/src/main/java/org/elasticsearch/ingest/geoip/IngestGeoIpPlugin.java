@@ -20,9 +20,11 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.node.NodeModule;
 import org.elasticsearch.plugins.Plugin;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -34,23 +36,19 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.stream.Stream;
+import java.util.zip.GZIPInputStream;
 
-public class IngestGeoIpPlugin extends Plugin {
+public class IngestGeoIpPlugin extends Plugin implements Closeable {
 
-    @Override
-    public String name() {
-        return "ingest-geoip";
-    }
-
-    @Override
-    public String description() {
-        return "Ingest processor that adds information about the geographical location of ip addresses";
-    }
+    private Map<String, DatabaseReader> databaseReaders;
 
     public void onModule(NodeModule nodeModule) throws IOException {
+        if (databaseReaders != null) {
+            throw new IllegalStateException("called onModule twice for geoip plugin!!");
+        }
         Path geoIpConfigDirectory = nodeModule.getNode().getEnvironment().configFile().resolve("ingest-geoip");
-        Map<String, DatabaseReader> databaseReaders = loadDatabaseReaders(geoIpConfigDirectory);
-        nodeModule.registerProcessor(GeoIpProcessor.TYPE, (templateService, registry) -> new GeoIpProcessor.Factory(databaseReaders));
+        databaseReaders = loadDatabaseReaders(geoIpConfigDirectory);
+        nodeModule.registerProcessor(GeoIpProcessor.TYPE, (registry) -> new GeoIpProcessor.Factory(databaseReaders));
     }
 
     public static Map<String, DatabaseReader> loadDatabaseReaders(Path geoIpConfigDirectory) throws IOException {
@@ -60,18 +58,25 @@ public class IngestGeoIpPlugin extends Plugin {
 
         Map<String, DatabaseReader> databaseReaders = new HashMap<>();
         try (Stream<Path> databaseFiles = Files.list(geoIpConfigDirectory)) {
-            PathMatcher pathMatcher = geoIpConfigDirectory.getFileSystem().getPathMatcher("glob:**.mmdb");
+            PathMatcher pathMatcher = geoIpConfigDirectory.getFileSystem().getPathMatcher("glob:**.mmdb.gz");
             // Use iterator instead of forEach otherwise IOException needs to be caught twice...
             Iterator<Path> iterator = databaseFiles.iterator();
             while (iterator.hasNext()) {
                 Path databasePath = iterator.next();
                 if (Files.isRegularFile(databasePath) && pathMatcher.matches(databasePath)) {
-                    try (InputStream inputStream = Files.newInputStream(databasePath, StandardOpenOption.READ)) {
+                    try (InputStream inputStream = new GZIPInputStream(Files.newInputStream(databasePath, StandardOpenOption.READ))) {
                         databaseReaders.put(databasePath.getFileName().toString(), new DatabaseReader.Builder(inputStream).build());
                     }
                 }
             }
         }
         return Collections.unmodifiableMap(databaseReaders);
+    }
+
+    @Override
+    public void close() throws IOException {
+        if (databaseReaders != null) {
+            IOUtils.close(databaseReaders.values());
+        }
     }
 }

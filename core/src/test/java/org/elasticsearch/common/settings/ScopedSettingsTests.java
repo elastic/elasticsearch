@@ -98,7 +98,7 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(0, aC.get());
         assertEquals(0, bC.get());
         try {
-            service.dryRun(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", -15).build());
+            service.validateUpdate(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", -15).build());
             fail("invalid value");
         } catch (IllegalArgumentException ex) {
             assertEquals("illegal value can't update [foo.bar.baz] from [1] to [-15]", ex.getMessage());
@@ -108,7 +108,7 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(0, consumer2.get());
         assertEquals(0, aC.get());
         assertEquals(0, bC.get());
-        service.dryRun(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", 15).build());
+        service.validateUpdate(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", 15).build());
         assertEquals(0, consumer.get());
         assertEquals(0, consumer2.get());
         assertEquals(0, aC.get());
@@ -202,20 +202,22 @@ public class ScopedSettingsTests extends ESTestCase {
         IndexScopedSettings settings = new IndexScopedSettings(
             Settings.EMPTY,
             IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        String unknownMsgSuffix = " please check that any required plugins are installed, or check the breaking changes documentation for" +
+            " removed settings";
         settings.validate(Settings.builder().put("index.store.type", "boom"));
         settings.validate(Settings.builder().put("index.store.type", "boom").build());
         try {
             settings.validate(Settings.builder().put("index.store.type", "boom", "i.am.not.a.setting", true));
             fail();
         } catch (IllegalArgumentException e) {
-            assertEquals("unknown setting [i.am.not.a.setting]", e.getMessage());
+            assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
         }
 
         try {
             settings.validate(Settings.builder().put("index.store.type", "boom", "i.am.not.a.setting", true).build());
             fail();
         } catch (IllegalArgumentException e) {
-            assertEquals("unknown setting [i.am.not.a.setting]", e.getMessage());
+            assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
         }
 
         try {

@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
@@ -58,20 +57,17 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -103,7 +99,6 @@ import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
@@ -134,7 +129,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
 
     private final BigArrays bigArrays;
 
-    private final DfsPhase dfsPhase;
+    private final DfsPhase dfsPhase = new DfsPhase();
 
     private final QueryPhase queryPhase;
 
@@ -153,24 +148,18 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     private final Map<String, SearchParseElement> elementParsers;
 
     private final ParseFieldMatcher parseFieldMatcher;
-    private final AggregatorParsers aggParsers;
-    private final Suggesters suggesters;
 
     @Inject
     public SearchService(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService, IndicesService indicesService,
-                         ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays, DfsPhase dfsPhase,
-                         QueryPhase queryPhase, FetchPhase fetchPhase, AggregatorParsers aggParsers, Suggesters suggesters) {
+                         ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays, FetchPhase fetchPhase) {
         super(settings);
-        this.aggParsers = aggParsers;
-        this.suggesters = suggesters;
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.bigArrays = bigArrays;
-        this.dfsPhase = dfsPhase;
-        this.queryPhase = queryPhase;
+        this.queryPhase = new QueryPhase(settings);
         this.fetchPhase = fetchPhase;
 
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
@@ -257,8 +246,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     /**
      * Try to load the query results from the cache or execute the query phase directly if the cache cannot be used.
      */
-    private void loadOrExecuteQueryPhase(final ShardSearchRequest request, final SearchContext context,
-            final QueryPhase queryPhase) throws Exception {
+    private void loadOrExecuteQueryPhase(final ShardSearchRequest request, final SearchContext context) throws Exception {
         final boolean canCache = indicesService.canCache(request, context);
         if (canCache) {
             indicesService.loadIntoContext(request, context, queryPhase);
@@ -275,7 +263,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             long time = System.nanoTime();
             contextProcessing(context);
 
-            loadOrExecuteQueryPhase(request, context, queryPhase);
+            loadOrExecuteQueryPhase(request, context);
 
             if (context.queryResult().topDocs().scoreDocs.length == 0 && context.scrollContext() == null) {
                 freeContext(context.id());
@@ -367,7 +355,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             operationListener.onPreQueryPhase(context);
             long time = System.nanoTime();
             try {
-                loadOrExecuteQueryPhase(request, context, queryPhase);
+                loadOrExecuteQueryPhase(request, context);
             } catch (Throwable e) {
                 operationListener.onFailedQueryPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
@@ -546,27 +534,17 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 indexShard, scriptService, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher,
                 defaultSearchTimeout, fetchPhase);
         SearchContext.setCurrent(context);
-        request.rewrite(context.getQueryShardContext());
-        // reset that we have used nowInMillis from the context since it may
-        // have been rewritten so its no longer in the query and the request can
-        // be cached. If it is still present in the request (e.g. in a range
-        // aggregation) it will still be caught when the aggregation is
-        // evaluated.
-        context.resetNowInMillisUsed();
         try {
+            request.rewrite(context.getQueryShardContext());
+            // reset that we have used nowInMillis from the context since it may
+            // have been rewritten so its no longer in the query and the request can
+            // be cached. If it is still present in the request (e.g. in a range
+            // aggregation) it will still be caught when the aggregation is
+            // evaluated.
+            context.resetNowInMillisUsed();
             if (request.scroll() != null) {
                 context.scrollContext(new ScrollContext());
                 context.scrollContext().scroll = request.scroll();
-            }
-            if (request.template() != null) {
-                ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH,
-                        Collections.emptyMap(), context.getQueryShardContext().getClusterState());
-                BytesReference run = (BytesReference) executable.run();
-                try (XContentParser parser = XContentFactory.xContent(run).createParser(run)) {
-                    QueryParseContext queryParseContext = new QueryParseContext(indicesService.getIndicesQueryRegistry(), parser,
-                            parseFieldMatcher);
-                    parseSource(context, SearchSourceBuilder.fromXContent(queryParseContext, aggParsers, suggesters));
-                }
             }
             parseSource(context, request.source());
 
@@ -707,7 +685,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         if (source.profile()) {
             context.setProfilers(new Profilers(context.searcher()));
         }
-        context.timeoutInMillis(source.timeoutInMillis());
+        context.timeout(source.timeout());
         context.terminateAfter(source.terminateAfter());
         if (source.aggregations() != null) {
             try {
@@ -762,7 +740,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         if (source.scriptFields() != null) {
             for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
                 SearchScript searchScript = context.scriptService().search(context.lookup(), field.script(), ScriptContext.Standard.SEARCH,
-                        Collections.emptyMap(), context.getQueryShardContext().getClusterState());
+                        Collections.emptyMap());
                 context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, field.ignoreFailure()));
             }
         }
@@ -820,6 +798,13 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             }
             FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(context.sort(), source.searchAfter());
             context.searchAfter(fieldDoc);
+        }
+
+        if (source.slice() != null) {
+            if (context.scrollContext() == null) {
+                throw new SearchContextException(context, "`slice` cannot be used outside of a scroll context");
+            }
+            context.sliceBuilder(source.slice());
         }
     }
 

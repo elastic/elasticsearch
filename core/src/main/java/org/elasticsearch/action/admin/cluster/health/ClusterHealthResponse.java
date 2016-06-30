@@ -187,7 +187,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         timedOut = in.readBoolean();
         numberOfInFlightFetch = in.readInt();
         delayedUnassignedShards= in.readInt();
-        taskMaxWaitingTime = TimeValue.readTimeValue(in);
+        taskMaxWaitingTime = new TimeValue(in);
     }
 
     @Override

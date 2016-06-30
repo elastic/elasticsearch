@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.netty.ReleaseChannelFutureListener;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
@@ -42,9 +43,6 @@ import org.jboss.netty.channel.ChannelFutureListener;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- *
- */
 public class NettyTransportChannel implements TransportChannel {
 
     private final NettyTransport transport;
@@ -55,7 +53,7 @@ public class NettyTransportChannel implements TransportChannel {
     private final long requestId;
     private final String profileName;
     private final long reservedBytes;
-    private final AtomicBoolean closed = new AtomicBoolean();
+    private final AtomicBoolean released = new AtomicBoolean();
 
     public NettyTransportChannel(NettyTransport transport, TransportServiceAdapter transportServiceAdapter, String action, Channel channel,
                                  long requestId, Version version, String profileName, long reservedBytes) {
@@ -86,7 +84,7 @@ public class NettyTransportChannel implements TransportChannel {
 
     @Override
     public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
-        close();
+        release();
         if (transport.compress) {
             options = TransportResponseOptions.builder(options).withCompress(transport.compress).build();
         }
@@ -102,14 +100,14 @@ public class NettyTransportChannel implements TransportChannel {
             StreamOutput stream = bStream;
             if (options.compress()) {
                 status = TransportStatus.setCompress(status);
-                stream = CompressorFactory.defaultCompressor().streamOutput(stream);
+                stream = CompressorFactory.COMPRESSOR.streamOutput(stream);
             }
             stream.setVersion(version);
             response.writeTo(stream);
             stream.close();
 
             ReleasablePagedBytesReference bytes = bStream.bytes();
-            ChannelBuffer buffer = bytes.toChannelBuffer();
+            ChannelBuffer buffer = NettyUtils.toChannelBuffer(bytes);
             NettyHeader.writeHeader(buffer, requestId, status, version);
             ChannelFuture future = channel.write(buffer);
             ReleaseChannelFutureListener listener = new ReleaseChannelFutureListener(bytes);
@@ -128,7 +126,7 @@ public class NettyTransportChannel implements TransportChannel {
 
     @Override
     public void sendResponse(Throwable error) throws IOException {
-        close();
+        release();
         BytesStreamOutput stream = new BytesStreamOutput();
         stream.skip(NettyHeader.HEADER_SIZE);
         RemoteTransportException tx = new RemoteTransportException(
@@ -139,7 +137,7 @@ public class NettyTransportChannel implements TransportChannel {
         status = TransportStatus.setError(status);
 
         BytesReference bytes = stream.bytes();
-        ChannelBuffer buffer = bytes.toChannelBuffer();
+        ChannelBuffer buffer = NettyUtils.toChannelBuffer(bytes);
         NettyHeader.writeHeader(buffer, requestId, status, version);
         ChannelFuture future = channel.write(buffer);
         ChannelFutureListener onResponseSentListener =
@@ -147,10 +145,10 @@ public class NettyTransportChannel implements TransportChannel {
         future.addListener(onResponseSentListener);
     }
 
-    private void close() {
-        // attempt to close once atomically
-        if (closed.compareAndSet(false, true) == false) {
-            throw new IllegalStateException("Channel is already closed");
+    private void release() {
+        // attempt to release once atomically
+        if (released.compareAndSet(false, true) == false) {
+            throw new IllegalStateException("reserved bytes are already released");
         }
         transport.inFlightRequestsBreaker().addWithoutBreaking(-reservedBytes);
     }
@@ -174,4 +172,5 @@ public class NettyTransportChannel implements TransportChannel {
     public Channel getChannel() {
         return channel;
     }
+
 }

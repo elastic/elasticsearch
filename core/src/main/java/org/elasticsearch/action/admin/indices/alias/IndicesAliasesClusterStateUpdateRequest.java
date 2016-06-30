@@ -28,7 +28,7 @@ public class IndicesAliasesClusterStateUpdateRequest extends ClusterStateUpdateR
 
     AliasAction[] actions;
 
-    IndicesAliasesClusterStateUpdateRequest() {
+    public IndicesAliasesClusterStateUpdateRequest() {
 
     }
 

@@ -79,6 +79,22 @@ on the thread pool type, `keep_alive`, `queue_size`, etc.).
 The `suggest` threadpool has been removed, now suggest requests use the
 `search` threadpool.
 
+The prefix on all thread pool settings has been changed from
+`threadpool` to `thread_pool`.
+
+The minimum size setting for a scaling thread pool has been changed
+from `min` to `core`.
+
+The maximum size setting for a scaling thread pool has been changed
+from `size` to `max`.
+
+The queue size setting for a fixed thread pool must be `queue_size`
+(all other variants that were previously supported are no longer
+supported).
+
+Thread pool settings are now node-level settings. As such, it is not
+possible to update thread pool settings via the cluster settings API.
+
 ==== Analysis settings
 
 The `index.analysis.analyzer.default_index` analyzer is not supported anymore.
@@ -234,11 +250,11 @@ Due to the fact that indexed script has been replaced by stored
 scripts the following settings have been replaced to:
 
 * `script.indexed` has been replaced by `script.stored`
-* `script.engine.*.indexed.aggs` has been replaced by `script.engine.*.stored.aggs` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
-* `script.engine.*.indexed.mapping` has been replaced by `script.engine.*.stored.mapping` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
-* `script.engine.*.indexed.search` has been replaced by `script.engine.*.stored.search` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
-* `script.engine.*.indexed.update` has been replaced by `script.engine.*.stored.update` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
-* `script.engine.*.indexed.plugin` has been replaced by `script.engine.*.stored.plugin` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
+* `script.engine.*.indexed.aggs` has been replaced by `script.engine.*.stored.aggs` (where `*` represents the script language, like `groovy`, `mustache`, `painless` etc.)
+* `script.engine.*.indexed.mapping` has been replaced by `script.engine.*.stored.mapping` (where `*` represents the script language, like `groovy`, `mustache`, `painless` etc.)
+* `script.engine.*.indexed.search` has been replaced by `script.engine.*.stored.search` (where `*` represents the script language, like `groovy`, `mustache`, `painless` etc.)
+* `script.engine.*.indexed.update` has been replaced by `script.engine.*.stored.update` (where `*` represents the script language, like `groovy`, `mustache`, `painless` etc.)
+* `script.engine.*.indexed.plugin` has been replaced by `script.engine.*.stored.plugin` (where `*` represents the script language, like `groovy`, `mustache`, `painless` etc.)
 
 ==== Script mode settings
 
@@ -264,3 +280,16 @@ should be used instead.
 
 The setting `bootstrap.mlockall` has been renamed to
 `bootstrap.memory_lock`.
+
+==== Snapshot settings
+
+The default setting `include_global_state` for restoring snapshots has been
+changed from `true` to `false`. It has not been changed for taking snapshots and
+still defaults to `true` in that case.
+
+==== Time value parsing
+
+The unit 'w' representing weeks is no longer supported.
+
+Fractional time values (e.g., 0.5s) are no longer supported. For example, this means when setting
+timeouts "0.5s" will be rejected and should instead be input as "500ms".

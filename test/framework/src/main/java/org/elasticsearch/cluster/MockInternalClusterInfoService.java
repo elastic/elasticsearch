@@ -52,14 +52,6 @@ import static java.util.Collections.emptySet;
 public class MockInternalClusterInfoService extends InternalClusterInfoService {
 
     public static class TestPlugin extends Plugin {
-        @Override
-        public String name() {
-            return "mock-cluster-info-service";
-        }
-        @Override
-        public String description() {
-            return "a mock cluster info service for testing";
-        }
         public void onModule(ClusterModule module) {
             module.clusterInfoServiceImpl = MockInternalClusterInfoService.class;
         }
@@ -89,7 +81,7 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                                           TransportIndicesStatsAction transportIndicesStatsAction,
                                           ClusterService clusterService, ThreadPool threadPool) {
         super(settings, clusterSettings, transportNodesStatsAction, transportIndicesStatsAction, clusterService, threadPool);
-        this.clusterName = ClusterName.clusterNameFromSettings(settings);
+        this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         stats[0] = makeStats("node_t1", new DiskUsage("node_t1", "n1", "/dev/null", 100, 100));
         stats[1] = makeStats("node_t2", new DiskUsage("node_t2", "n2", "/dev/null", 100, 100));
         stats[2] = makeStats("node_t3", new DiskUsage("node_t3", "n3", "/dev/null", 100, 100));

@@ -28,6 +28,7 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -37,9 +38,10 @@ import org.elasticsearch.plugins.Plugin;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 public class GceDiscoveryPlugin extends Plugin {
 
@@ -67,23 +69,6 @@ public class GceDiscoveryPlugin extends Plugin {
         });
     }
 
-    private final Settings settings;
-    protected final ESLogger logger = Loggers.getLogger(GceDiscoveryPlugin.class);
-
-    public GceDiscoveryPlugin(Settings settings) {
-        this.settings = settings;
-    }
-
-    @Override
-    public String name() {
-        return "discovery-gce";
-    }
-
-    @Override
-    public String description() {
-        return "Cloud Google Compute Engine Discovery Plugin";
-    }
-
     @Override
     public Collection<Module> nodeModules() {
         return Collections.singletonList(new GceModule(settings));
@@ -105,14 +90,15 @@ public class GceDiscoveryPlugin extends Plugin {
         discoveryModule.addUnicastHostProvider(GCE, GceUnicastHostsProvider.class);
     }
 
-    public void onModule(SettingsModule settingsModule) {
-        logger.debug("registering GCE Settings");
-        // Register GCE settings
-        settingsModule.registerSetting(GceInstancesService.PROJECT_SETTING);
-        settingsModule.registerSetting(GceInstancesService.ZONE_SETTING);
-        settingsModule.registerSetting(GceUnicastHostsProvider.TAGS_SETTING);
-        settingsModule.registerSetting(GceInstancesService.REFRESH_SETTING);
-        settingsModule.registerSetting(GceInstancesService.RETRY_SETTING);
-        settingsModule.registerSetting(GceInstancesService.MAX_WAIT_SETTING);
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Arrays.asList(
+            // Register GCE settings
+            GceInstancesService.PROJECT_SETTING,
+            GceInstancesService.ZONE_SETTING,
+            GceUnicastHostsProvider.TAGS_SETTING,
+            GceInstancesService.REFRESH_SETTING,
+            GceInstancesService.RETRY_SETTING,
+            GceInstancesService.MAX_WAIT_SETTING);
     }
 }

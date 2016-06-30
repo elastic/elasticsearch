@@ -19,10 +19,14 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.action.admin.indices.rollover.Condition;
+import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -60,8 +64,11 @@ import org.elasticsearch.indices.recovery.RecoveryTargetService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
+import org.elasticsearch.plugins.MapperPlugin;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -69,76 +76,90 @@ import java.util.Map;
  */
 public class IndicesModule extends AbstractModule {
 
-    private final Map<String, Mapper.TypeParser> mapperParsers
-        = new LinkedHashMap<>();
-    // Use a LinkedHashMap for metadataMappers because iteration order matters
-    private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers
-        = new LinkedHashMap<>();
+    private final Map<String, Mapper.TypeParser> mapperParsers;
+    private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
+    private final MapperRegistry mapperRegistry;
+    private final NamedWriteableRegistry namedWritableRegistry;
 
-    public IndicesModule() {
-        registerBuiltInMappers();
-        registerBuiltInMetadataMappers();
+    public IndicesModule(NamedWriteableRegistry namedWriteableRegistry, List<MapperPlugin> mapperPlugins) {
+        this.namedWritableRegistry = namedWriteableRegistry;
+        this.mapperParsers = getMappers(mapperPlugins);
+        this.metadataMapperParsers = getMetadataMappers(mapperPlugins);
+        this.mapperRegistry = new MapperRegistry(mapperParsers, metadataMapperParsers);
+        registerBuildInWritables();
     }
 
-    private void registerBuiltInMappers() {
+    private void registerBuildInWritables() {
+        namedWritableRegistry.register(Condition.class, MaxAgeCondition.NAME, MaxAgeCondition::new);
+        namedWritableRegistry.register(Condition.class, MaxDocsCondition.NAME, MaxDocsCondition::new);
+    }
+
+    private Map<String, Mapper.TypeParser> getMappers(List<MapperPlugin> mapperPlugins) {
+        Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
+
+        // builtin mappers
         for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
-            registerMapper(type.typeName(), new NumberFieldMapper.TypeParser(type));
+            mappers.put(type.typeName(), new NumberFieldMapper.TypeParser(type));
         }
-        registerMapper(BooleanFieldMapper.CONTENT_TYPE, new BooleanFieldMapper.TypeParser());
-        registerMapper(BinaryFieldMapper.CONTENT_TYPE, new BinaryFieldMapper.TypeParser());
-        registerMapper(DateFieldMapper.CONTENT_TYPE, new DateFieldMapper.TypeParser());
-        registerMapper(IpFieldMapper.CONTENT_TYPE, new IpFieldMapper.TypeParser());
-        registerMapper(StringFieldMapper.CONTENT_TYPE, new StringFieldMapper.TypeParser());
-        registerMapper(TextFieldMapper.CONTENT_TYPE, new TextFieldMapper.TypeParser());
-        registerMapper(KeywordFieldMapper.CONTENT_TYPE, new KeywordFieldMapper.TypeParser());
-        registerMapper(TokenCountFieldMapper.CONTENT_TYPE, new TokenCountFieldMapper.TypeParser());
-        registerMapper(ObjectMapper.CONTENT_TYPE, new ObjectMapper.TypeParser());
-        registerMapper(ObjectMapper.NESTED_CONTENT_TYPE, new ObjectMapper.TypeParser());
-        registerMapper(CompletionFieldMapper.CONTENT_TYPE, new CompletionFieldMapper.TypeParser());
-        registerMapper(GeoPointFieldMapper.CONTENT_TYPE, new GeoPointFieldMapper.TypeParser());
-
+        mappers.put(BooleanFieldMapper.CONTENT_TYPE, new BooleanFieldMapper.TypeParser());
+        mappers.put(BinaryFieldMapper.CONTENT_TYPE, new BinaryFieldMapper.TypeParser());
+        mappers.put(DateFieldMapper.CONTENT_TYPE, new DateFieldMapper.TypeParser());
+        mappers.put(IpFieldMapper.CONTENT_TYPE, new IpFieldMapper.TypeParser());
+        mappers.put(StringFieldMapper.CONTENT_TYPE, new StringFieldMapper.TypeParser());
+        mappers.put(TextFieldMapper.CONTENT_TYPE, new TextFieldMapper.TypeParser());
+        mappers.put(KeywordFieldMapper.CONTENT_TYPE, new KeywordFieldMapper.TypeParser());
+        mappers.put(TokenCountFieldMapper.CONTENT_TYPE, new TokenCountFieldMapper.TypeParser());
+        mappers.put(ObjectMapper.CONTENT_TYPE, new ObjectMapper.TypeParser());
+        mappers.put(ObjectMapper.NESTED_CONTENT_TYPE, new ObjectMapper.TypeParser());
+        mappers.put(CompletionFieldMapper.CONTENT_TYPE, new CompletionFieldMapper.TypeParser());
+        mappers.put(GeoPointFieldMapper.CONTENT_TYPE, new GeoPointFieldMapper.TypeParser());
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
-            registerMapper(GeoShapeFieldMapper.CONTENT_TYPE, new GeoShapeFieldMapper.TypeParser());
+            mappers.put(GeoShapeFieldMapper.CONTENT_TYPE, new GeoShapeFieldMapper.TypeParser());
         }
+
+        for (MapperPlugin mapperPlugin : mapperPlugins) {
+            for (Map.Entry<String, Mapper.TypeParser> entry : mapperPlugin.getMappers().entrySet()) {
+                if (mappers.put(entry.getKey(), entry.getValue()) != null) {
+                    throw new IllegalArgumentException("Mapper [" + entry.getKey() + "] is already registered");
+                }
+            }
+        }
+        return Collections.unmodifiableMap(mappers);
     }
 
-    private void registerBuiltInMetadataMappers() {
-        // NOTE: the order is important
+    private Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers(List<MapperPlugin> mapperPlugins) {
+        // Use a LinkedHashMap for metadataMappers because iteration order matters
+        Map<String, MetadataFieldMapper.TypeParser> metadataMappers = new LinkedHashMap<>();
 
+        // builtin metadata mappers
         // UID first so it will be the first stored field to load (so will benefit from "fields: []" early termination
-        registerMetadataMapper(UidFieldMapper.NAME, new UidFieldMapper.TypeParser());
-        registerMetadataMapper(IdFieldMapper.NAME, new IdFieldMapper.TypeParser());
-        registerMetadataMapper(RoutingFieldMapper.NAME, new RoutingFieldMapper.TypeParser());
-        registerMetadataMapper(IndexFieldMapper.NAME, new IndexFieldMapper.TypeParser());
-        registerMetadataMapper(SourceFieldMapper.NAME, new SourceFieldMapper.TypeParser());
-        registerMetadataMapper(TypeFieldMapper.NAME, new TypeFieldMapper.TypeParser());
-        registerMetadataMapper(AllFieldMapper.NAME, new AllFieldMapper.TypeParser());
-        registerMetadataMapper(TimestampFieldMapper.NAME, new TimestampFieldMapper.TypeParser());
-        registerMetadataMapper(TTLFieldMapper.NAME, new TTLFieldMapper.TypeParser());
-        registerMetadataMapper(VersionFieldMapper.NAME, new VersionFieldMapper.TypeParser());
-        registerMetadataMapper(ParentFieldMapper.NAME, new ParentFieldMapper.TypeParser());
-        // _field_names is not registered here, see #getMapperRegistry: we need to register it
-        // last so that it can see all other mappers, including those coming from plugins
-    }
+        metadataMappers.put(UidFieldMapper.NAME, new UidFieldMapper.TypeParser());
+        metadataMappers.put(IdFieldMapper.NAME, new IdFieldMapper.TypeParser());
+        metadataMappers.put(RoutingFieldMapper.NAME, new RoutingFieldMapper.TypeParser());
+        metadataMappers.put(IndexFieldMapper.NAME, new IndexFieldMapper.TypeParser());
+        metadataMappers.put(SourceFieldMapper.NAME, new SourceFieldMapper.TypeParser());
+        metadataMappers.put(TypeFieldMapper.NAME, new TypeFieldMapper.TypeParser());
+        metadataMappers.put(AllFieldMapper.NAME, new AllFieldMapper.TypeParser());
+        metadataMappers.put(TimestampFieldMapper.NAME, new TimestampFieldMapper.TypeParser());
+        metadataMappers.put(TTLFieldMapper.NAME, new TTLFieldMapper.TypeParser());
+        metadataMappers.put(VersionFieldMapper.NAME, new VersionFieldMapper.TypeParser());
+        metadataMappers.put(ParentFieldMapper.NAME, new ParentFieldMapper.TypeParser());
+        // _field_names is not registered here, see below
 
-    /**
-     * Register a mapper for the given type.
-     */
-    public synchronized void registerMapper(String type, Mapper.TypeParser parser) {
-        if (mapperParsers.containsKey(type)) {
-            throw new IllegalArgumentException("A mapper is already registered for type [" + type + "]");
+        for (MapperPlugin mapperPlugin : mapperPlugins) {
+            for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : mapperPlugin.getMetadataMappers().entrySet()) {
+                if (entry.getKey().equals(FieldNamesFieldMapper.NAME)) {
+                    throw new IllegalArgumentException("Plugin cannot contain metadata mapper [" + FieldNamesFieldMapper.NAME + "]");
+                }
+                if (metadataMappers.put(entry.getKey(), entry.getValue()) != null) {
+                    throw new IllegalArgumentException("MetadataFieldMapper [" + entry.getKey() + "] is already registered");
+                }
+            }
         }
-        mapperParsers.put(type, parser);
-    }
 
-    /**
-     * Register a root mapper under the given name.
-     */
-    public synchronized void registerMetadataMapper(String name, MetadataFieldMapper.TypeParser parser) {
-        if (metadataMapperParsers.containsKey(name)) {
-            throw new IllegalArgumentException("A mapper is already registered for metadata mapper [" + name + "]");
-        }
-        metadataMapperParsers.put(name, parser);
+        // we register _field_names here so that it has a chance to see all other mappers, including from plugins
+        metadataMappers.put(FieldNamesFieldMapper.NAME, new FieldNamesFieldMapper.TypeParser());
+        return Collections.unmodifiableMap(metadataMappers);
     }
 
     @Override
@@ -160,16 +181,8 @@ public class IndicesModule extends AbstractModule {
     }
 
     // public for testing
-    public synchronized MapperRegistry getMapperRegistry() {
-        // NOTE: we register _field_names here so that it has a chance to see all other
-        // mappers, including from plugins
-        if (metadataMapperParsers.containsKey(FieldNamesFieldMapper.NAME)) {
-            throw new IllegalStateException("Metadata mapper [" + FieldNamesFieldMapper.NAME + "] is already registered");
-        }
-        final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers
-            = new LinkedHashMap<>(this.metadataMapperParsers);
-        metadataMapperParsers.put(FieldNamesFieldMapper.NAME, new FieldNamesFieldMapper.TypeParser());
-        return new MapperRegistry(mapperParsers, metadataMapperParsers);
+    public MapperRegistry getMapperRegistry() {
+        return mapperRegistry;
     }
 
     protected void bindMapperExtension() {

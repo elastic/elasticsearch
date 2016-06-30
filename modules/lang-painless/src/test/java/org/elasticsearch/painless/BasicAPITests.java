@@ -19,8 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -111,7 +109,19 @@ public class BasicAPITests extends ScriptTestCase {
         assertBytecodeExists("def x = 1D", "INVOKESTATIC java/lang/Double.valueOf (D)Ljava/lang/Double;");
     }
 
-    void testStream() {
-        assertEquals(11, exec("params.list.stream().sum()", Collections.singletonMap("list", Arrays.asList(1,2,3,5))));
+    public void testInterfaceDefaultMethods() {
+        assertEquals(1, exec("Map map = new HashMap(); return map.getOrDefault(5,1);"));
+        assertEquals(1, exec("def map = new HashMap(); return map.getOrDefault(5,1);"));
+    }
+
+    public void testInterfacesHaveObject() {
+        assertEquals("{}", exec("Map map = new HashMap(); return map.toString();"));
+        assertEquals("{}", exec("def map = new HashMap(); return map.toString();"));
+    }
+    
+    public void testPrimitivesHaveMethods() {
+        assertEquals(5, exec("int x = 5; return x.intValue();"));
+        assertEquals("5", exec("int x = 5; return x.toString();"));
+        assertEquals(0, exec("int x = 5; return x.compareTo(5);"));
     }
 }

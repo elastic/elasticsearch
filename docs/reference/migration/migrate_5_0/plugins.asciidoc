@@ -117,3 +117,26 @@ via ES_JAVA_OPTS.
 
 The ability to specify a custom plugins path via `path.plugins` has
 been removed.
+
+==== ScriptPlugin
+
+Plugins that register custom scripts should implement `ScriptPlugin` and remove
+their `onModule(ScriptModule)` implementation.
+
+==== AnalysisPlugin
+
+Plugins that register custom analysis components should implement
+`AnalysisPlugin` and remove their `onModule(AnalysisModule)` implementation.
+
+==== MapperPlugin
+
+Plugins that register custom mappers should implement
+`MapperPlugin` and remove their `onModule(IndicesModule)` implementation.
+
+==== ActionPlugin
+
+Plugins that register custom actions should implement `ActionPlugin` and
+remove their `onModule(ActionModule)` implementation.
+
+Plugins that register custom `RestHandler`s should implement `ActionPlugin` and
+remove their `onModule(NetworkModule)` implemnetation.

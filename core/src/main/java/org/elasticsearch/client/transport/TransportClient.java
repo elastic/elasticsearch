@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.transport;
 
-import org.elasticsearch.Version;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
@@ -28,7 +28,6 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.client.transport.support.TransportProxyClient;
-import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
@@ -37,22 +36,24 @@ import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.indices.breaker.CircuitBreakerModule;
-import org.elasticsearch.monitor.MonitorService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
 
+import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -119,48 +120,59 @@ public class TransportClient extends AbstractClient {
         public TransportClient build() {
             final PluginsService pluginsService = newPluginService(providedSettings);
             final Settings settings = pluginsService.updatedSettings();
-
-            Version version = Version.CURRENT;
-
+            final List<Closeable> resourcesToClose = new ArrayList<>();
             final ThreadPool threadPool = new ThreadPool(settings);
+            resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             final NetworkService networkService = new NetworkService(settings);
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-            boolean success = false;
             try {
+                final List<Setting<?>> additionalSettings = new ArrayList<>();
+                final List<String> additionalSettingsFilter = new ArrayList<>();
+                additionalSettings.addAll(pluginsService.getPluginSettings());
+                additionalSettingsFilter.addAll(pluginsService.getPluginSettingsFilter());
+                for (final ExecutorBuilder<?> builder : threadPool.builders()) {
+                    additionalSettings.addAll(builder.getRegisteredSettings());
+                }
+                SettingsModule settingsModule = new SettingsModule(settings, additionalSettings, additionalSettingsFilter);
+
                 ModulesBuilder modules = new ModulesBuilder();
-                modules.add(new Version.Module(version));
                 // plugin modules must be added here, before others or we can get crazy injection errors...
                 for (Module pluginModule : pluginsService.nodeModules()) {
                     modules.add(pluginModule);
                 }
-                modules.add(new PluginsModule(pluginsService));
-                modules.add(new SettingsModule(settings));
                 modules.add(new NetworkModule(networkService, settings, true, namedWriteableRegistry));
-                modules.add(new ClusterNameModule(settings));
-                modules.add(new ThreadPoolModule(threadPool));
+                modules.add(b -> b.bind(ThreadPool.class).toInstance(threadPool));
                 modules.add(new SearchModule(settings, namedWriteableRegistry) {
                     @Override
                     protected void configure() {
                         // noop
                     }
                 });
-                modules.add(new ActionModule(false, true));
-                modules.add(new CircuitBreakerModule(settings));
+                modules.add(new ActionModule(false, true, settings, null, settingsModule.getClusterSettings(),
+                        pluginsService.filterPlugins(ActionPlugin.class)));
 
                 pluginsService.processModules(modules);
+                CircuitBreakerService circuitBreakerService = Node.createCircuitBreakerService(settingsModule.getSettings(),
+                    settingsModule.getClusterSettings());
+                resourcesToClose.add(circuitBreakerService);
+                BigArrays bigArrays = new BigArrays(settings, circuitBreakerService);
+                resourcesToClose.add(bigArrays);
+                modules.add(settingsModule);
+                modules.add((b -> {
+                    b.bind(BigArrays.class).toInstance(bigArrays);
+                    b.bind(PluginsService.class).toInstance(pluginsService);
+                    b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService);
+                }));
 
                 Injector injector = modules.createInjector();
                 final TransportService transportService = injector.getInstance(TransportService.class);
                 transportService.start();
                 transportService.acceptIncomingRequests();
-
                 TransportClient transportClient = new TransportClient(injector);
-                success = true;
+                resourcesToClose.clear();
                 return transportClient;
             } finally {
-                if (!success) {
-                    ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
-                }
+                IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
     }
@@ -255,24 +267,16 @@ public class TransportClient extends AbstractClient {
      */
     @Override
     public void close() {
-        injector.getInstance(TransportClientNodesService.class).close();
-        injector.getInstance(TransportService.class).close();
-        try {
-            injector.getInstance(MonitorService.class).close();
-        } catch (Exception e) {
-            // ignore, might not be bounded
-        }
+        List<Closeable> closeables = new ArrayList<>();
+        closeables.add(injector.getInstance(TransportClientNodesService.class));
+        closeables.add(injector.getInstance(TransportService.class));
 
         for (Class<? extends LifecycleComponent> plugin : injector.getInstance(PluginsService.class).nodeServices()) {
-            injector.getInstance(plugin).close();
+            closeables.add(injector.getInstance(plugin));
         }
-        try {
-            ThreadPool.terminate(injector.getInstance(ThreadPool.class), 10, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            // ignore
-        }
-
-        injector.getInstance(BigArrays.class).close();
+        closeables.add(() -> ThreadPool.terminate(injector.getInstance(ThreadPool.class), 10, TimeUnit.SECONDS));
+        closeables.add(injector.getInstance(BigArrays.class));
+        IOUtils.closeWhileHandlingException(closeables);
     }
 
     @Override

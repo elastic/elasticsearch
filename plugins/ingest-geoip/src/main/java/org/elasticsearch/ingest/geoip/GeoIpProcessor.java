@@ -33,9 +33,9 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.ingest.core.AbstractProcessor;
-import org.elasticsearch.ingest.core.AbstractProcessorFactory;
-import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.AbstractProcessor;
+import org.elasticsearch.ingest.AbstractProcessorFactory;
+import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -51,9 +51,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.ingest.core.ConfigurationUtils.newConfigurationException;
-import static org.elasticsearch.ingest.core.ConfigurationUtils.readOptionalList;
-import static org.elasticsearch.ingest.core.ConfigurationUtils.readStringProperty;
+import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
+import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public final class GeoIpProcessor extends AbstractProcessor {
 
@@ -96,7 +96,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 }
                 break;
             default:
-                throw new ElasticsearchParseException("Unsupported database type [" + dbReader.getMetadata().getDatabaseType() + "]", new IllegalStateException());
+                throw new ElasticsearchParseException("Unsupported database type [" + dbReader.getMetadata().getDatabaseType()
+                        + "]", new IllegalStateException());
         }
         ingestDocument.setFieldValue(targetField, geoData);
     }
@@ -216,7 +217,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
-    public static final class Factory extends AbstractProcessorFactory<GeoIpProcessor> implements Closeable {
+    public static final class Factory extends AbstractProcessorFactory<GeoIpProcessor> {
         static final Set<Property> DEFAULT_CITY_PROPERTIES = EnumSet.of(
             Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE, Property.REGION_NAME,
             Property.CITY_NAME, Property.LOCATION
@@ -233,7 +234,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         public GeoIpProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String ipField = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "geoip");
-            String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb");
+            String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb.gz");
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
 
             DatabaseReader databaseReader = databaseReaders.get(databaseFile);
@@ -259,16 +260,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 } else if (COUNTRY_DB_TYPE.equals(databaseType)) {
                     properties = DEFAULT_COUNTRY_PROPERTIES;
                 } else {
-                    throw newConfigurationException(TYPE, processorTag, "database_file", "Unsupported database type [" + databaseType + "]");
+                    throw newConfigurationException(TYPE, processorTag, "database_file", "Unsupported database type ["
+                            + databaseType + "]");
                 }
             }
 
             return new GeoIpProcessor(processorTag, ipField, databaseReader, targetField, properties);
-        }
-
-        @Override
-        public void close() throws IOException {
-            IOUtils.close(databaseReaders.values());
         }
     }
 
@@ -312,7 +309,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 }
                 return property;
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("illegal property value [" + value + "]. valid values are " + Arrays.toString(validProperties.toArray()));
+                throw new IllegalArgumentException("illegal property value [" + value + "]. valid values are " +
+                        Arrays.toString(validProperties.toArray()));
             }
         }
     }

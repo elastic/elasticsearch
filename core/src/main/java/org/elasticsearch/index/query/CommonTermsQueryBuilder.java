@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * CommonTermsQuery query is a query that executes high-frequency terms in a
@@ -263,7 +264,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         builder.endObject();
     }
 
-    public static CommonTermsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<CommonTermsQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
@@ -352,7 +353,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         if (text == null) {
             throw new ParsingException(parser.getTokenLocation(), "No text specified for text query");
         }
-        return new CommonTermsQueryBuilder(fieldName, text)
+        return Optional.of(new CommonTermsQueryBuilder(fieldName, text)
                 .lowFreqMinimumShouldMatch(lowFreqMinimumShouldMatch)
                 .highFreqMinimumShouldMatch(highFreqMinimumShouldMatch)
                 .analyzer(analyzer)
@@ -361,7 +362,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
                 .disableCoord(disableCoord)
                 .cutoffFrequency(cutoffFrequency)
                 .boost(boost)
-                .queryName(queryName);
+                .queryName(queryName));
     }
 
     @Override

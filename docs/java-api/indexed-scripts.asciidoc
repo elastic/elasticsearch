@@ -8,20 +8,20 @@ and delete indexed scripts and templates.
 [source,java]
 --------------------------------------------------
 PutIndexedScriptResponse = client.preparePutIndexedScript()
-			 .setScriptLang("groovy")		
+			 .setScriptLang("painless")
 			 .setId("script1") 
 			 .setSource("script", "_score * doc['my_numeric_field'].value")
 			 .execute()
 			 .actionGet();
 
 GetIndexedScriptResponse = client.prepareGetIndexedScript()
-			    .setScriptLang("groovy")
+			    .setScriptLang("painless")
 			    .setId("script1")
 			    .execute()
 			    .actionGet();
 
 DeleteIndexedScriptResponse = client.prepareDeleteIndexedScript()
-			    .setScriptLang("groovy")
+			    .setScriptLang("painless")
 			    .setId("script1")
 			    .execute()
 			    .actionGet();

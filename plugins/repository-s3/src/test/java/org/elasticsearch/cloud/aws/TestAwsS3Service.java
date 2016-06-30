@@ -29,14 +29,6 @@ import java.util.IdentityHashMap;
 
 public class TestAwsS3Service extends InternalAwsS3Service {
     public static class TestPlugin extends Plugin {
-        @Override
-        public String name() {
-            return "mock-s3-service";
-        }
-        @Override
-        public String description() {
-            return "plugs in mock s3 service";
-        }
         public void onModule(S3Module s3Module) {
             S3Module.s3ServiceImpl = TestAwsS3Service.class;
         }
@@ -51,8 +43,9 @@ public class TestAwsS3Service extends InternalAwsS3Service {
 
 
     @Override
-    public synchronized AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries) {
-        return cachedWrapper(super.client(endpoint, protocol, region, account, key, maxRetries));
+    public synchronized AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries,
+                                        boolean useThrottleRetries) {
+        return cachedWrapper(super.client(endpoint, protocol, region, account, key, maxRetries, useThrottleRetries));
     }
 
     private AmazonS3 cachedWrapper(AmazonS3 client) {

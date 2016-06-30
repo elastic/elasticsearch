@@ -20,9 +20,15 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Variables;
+
+import java.util.Objects;
+import java.util.Set;
+
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -34,56 +40,58 @@ final class LMapShortcut extends ALink {
     Method getter;
     Method setter;
 
-    LMapShortcut(int line, int offset, String location, AExpression index) {
-        super(line, offset, location, 2);
+    LMapShortcut(Location location, AExpression index) {
+        super(location, 2);
 
-        this.index = index;
+        this.index = Objects.requireNonNull(index);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        index.extractVariables(variables);
     }
 
     @Override
-    ALink analyze(Variables variables) {
+    ALink analyze(Locals locals) {
         getter = before.struct.methods.get(new Definition.MethodKey("get", 1));
         setter = before.struct.methods.get(new Definition.MethodKey("put", 2));
 
         if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1)) {
-            throw new IllegalArgumentException(error("Illegal map get shortcut for type [" + before.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal map get shortcut for type [" + before.name + "]."));
         }
 
         if (setter != null && setter.arguments.size() != 2) {
-            throw new IllegalArgumentException(error("Illegal map set shortcut for type [" + before.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal map set shortcut for type [" + before.name + "]."));
         }
 
         if (getter != null && setter != null &&
             (!getter.arguments.get(0).equals(setter.arguments.get(0)) || !getter.rtn.equals(setter.arguments.get(1)))) {
-            throw new IllegalArgumentException(error("Shortcut argument types must match."));
+            throw createError(new IllegalArgumentException("Shortcut argument types must match."));
         }
 
         if ((load || store) && (!load || getter != null) && (!store || setter != null)) {
             index.expected = setter != null ? setter.arguments.get(0) : getter.arguments.get(0);
-            index.analyze(variables);
-            index = index.cast(variables);
+            index.analyze(locals);
+            index = index.cast(locals);
 
             after = setter != null ? setter.arguments.get(1) : getter.rtn;
         } else {
-            throw new IllegalArgumentException(error("Illegal map shortcut for type [" + before.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal map shortcut for type [" + before.name + "]."));
         }
 
         return this;
     }
 
     @Override
-    void write(MethodWriter writer) {
-        index.write(writer);
+    void write(MethodWriter writer, Globals globals) {
+        index.write(writer, globals);
     }
 
     @Override
-    void load(MethodWriter writer) {
-        writer.writeDebugInfo(offset);
-        if (java.lang.reflect.Modifier.isInterface(getter.owner.clazz.getModifiers())) {
-            writer.invokeInterface(getter.owner.type, getter.method);
-        } else {
-            writer.invokeVirtual(getter.owner.type, getter.method);
-        }
+    void load(MethodWriter writer, Globals globals) {
+        writer.writeDebugInfo(location);
+
+        getter.write(writer);
 
         if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
             writer.checkCast(getter.rtn.type);
@@ -91,13 +99,10 @@ final class LMapShortcut extends ALink {
     }
 
     @Override
-    void store(MethodWriter writer) {
-        writer.writeDebugInfo(offset);
-        if (java.lang.reflect.Modifier.isInterface(setter.owner.clazz.getModifiers())) {
-            writer.invokeInterface(setter.owner.type, setter.method);
-        } else {
-            writer.invokeVirtual(setter.owner.type, setter.method);
-        }
+    void store(MethodWriter writer, Globals globals) {
+        writer.writeDebugInfo(location);
+
+        setter.write(writer);
 
         writer.writePop(setter.rtn.sort.size);
     }

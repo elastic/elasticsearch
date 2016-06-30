@@ -20,8 +20,13 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Opcodes;
+
+import java.util.Set;
+
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -29,17 +34,20 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class ENull extends AExpression {
 
-    public ENull(int line, int offset, String location) {
-        super(line, offset, location);
+    public ENull(Location location) {
+        super(location);
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {}
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         isNull = true;
 
         if (expected != null) {
             if (expected.sort.primitive) {
-                throw new IllegalArgumentException(error("Cannot cast null to a primitive type [" + expected.name + "]."));
+                throw createError(new IllegalArgumentException("Cannot cast null to a primitive type [" + expected.name + "]."));
             }
 
             actual = expected;
@@ -49,7 +57,7 @@ public final class ENull extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         writer.visitInsn(Opcodes.ACONST_NULL);
     }
 }

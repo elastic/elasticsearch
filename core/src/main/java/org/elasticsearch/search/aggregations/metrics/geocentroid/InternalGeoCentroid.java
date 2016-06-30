@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.geocentroid;
 
-import org.apache.lucene.spatial.util.GeoEncodingUtils;
+import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -61,6 +61,7 @@ public class InternalGeoCentroid extends InternalMetricsAggregation implements G
     public InternalGeoCentroid(String name, GeoPoint centroid, long count, List<PipelineAggregator>
             pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
+        assert (centroid == null) == (count == 0);
         this.centroid = centroid;
         assert count >= 0;
         this.count = count;
@@ -68,7 +69,7 @@ public class InternalGeoCentroid extends InternalMetricsAggregation implements G
 
     @Override
     public GeoPoint centroid() {
-        return (centroid == null || Double.isNaN(centroid.lon()) ? null : centroid);
+        return centroid;
     }
 
     @Override
@@ -128,7 +129,8 @@ public class InternalGeoCentroid extends InternalMetricsAggregation implements G
     protected void doReadFrom(StreamInput in) throws IOException {
         count = in.readVLong();
         if (in.readBoolean()) {
-            centroid = GeoPoint.fromIndexLong(in.readLong());
+            final long hash = in.readLong();
+            centroid = new GeoPoint(GeoPointField.decodeLatitude(hash), GeoPointField.decodeLongitude(hash));
         } else {
             centroid = null;
         }
@@ -139,7 +141,8 @@ public class InternalGeoCentroid extends InternalMetricsAggregation implements G
         out.writeVLong(count);
         if (centroid != null) {
             out.writeBoolean(true);
-            out.writeLong(GeoEncodingUtils.mortonHash(centroid.lat(), centroid.lon()));
+            // should we just write lat and lon separately?
+            out.writeLong(GeoPointField.encodeLatLon(centroid.lat(), centroid.lon()));
         } else {
             out.writeBoolean(false);
         }

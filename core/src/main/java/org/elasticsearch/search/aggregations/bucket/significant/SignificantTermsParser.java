@@ -38,6 +38,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  *
@@ -91,8 +92,10 @@ public class SignificantTermsParser extends AbstractTermsParser {
                 return true;
             } else if (parseFieldMatcher.match(currentFieldName, SignificantTermsAggregationBuilder.BACKGROUND_FILTER)) {
                 QueryParseContext queryParseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
-                QueryBuilder filter = queryParseContext.parseInnerQueryBuilder();
-                otherOptions.put(SignificantTermsAggregationBuilder.BACKGROUND_FILTER, filter);
+                Optional<QueryBuilder> filter = queryParseContext.parseInnerQueryBuilder();
+                if (filter.isPresent()) {
+                    otherOptions.put(SignificantTermsAggregationBuilder.BACKGROUND_FILTER, filter.get());
+                }
                 return true;
             }
         }

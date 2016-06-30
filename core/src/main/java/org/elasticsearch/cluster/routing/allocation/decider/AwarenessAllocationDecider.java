@@ -126,15 +126,6 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         this.forcedAwarenessAttributes = forcedAwarenessAttributes;
     }
 
-    /**
-     * Get the attributes defined by this instance
-     *
-     * @return attributes defined by this instance
-     */
-    public String[] awarenessAttributes() {
-        return this.awarenessAttributes;
-    }
-
     private void setAwarenessAttributes(String[] awarenessAttributes) {
         this.awarenessAttributes = awarenessAttributes;
     }

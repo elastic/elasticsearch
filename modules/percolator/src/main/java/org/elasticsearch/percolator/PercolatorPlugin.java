@@ -19,59 +19,58 @@
 
 package org.elasticsearch.percolator;
 
-import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.search.SearchModule;
 
-public class PercolatorPlugin extends Plugin {
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+public class PercolatorPlugin extends Plugin implements MapperPlugin, ActionPlugin {
 
     public static final String NAME = "percolator";
 
-    private final boolean transportClientMode;
+    private final Settings settings;
 
     public PercolatorPlugin(Settings settings) {
-        this.transportClientMode = transportClientMode(settings);
+        this.settings = settings;
     }
 
     @Override
-    public String name() {
-        return NAME;
+    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+        return Arrays.asList(new ActionHandler<>(PercolateAction.INSTANCE, TransportPercolateAction.class),
+                new ActionHandler<>(MultiPercolateAction.INSTANCE, TransportMultiPercolateAction.class));
     }
 
     @Override
-    public String description() {
-        return "Percolator module adds capability to index queries and query these queries by specifying documents";
-    }
-
-    public void onModule(ActionModule module) {
-        module.registerAction(PercolateAction.INSTANCE, TransportPercolateAction.class);
-        module.registerAction(MultiPercolateAction.INSTANCE, TransportMultiPercolateAction.class);
-    }
-
-    public void onModule(NetworkModule module) {
-        if (transportClientMode == false) {
-            module.registerRestHandler(RestPercolateAction.class);
-            module.registerRestHandler(RestMultiPercolateAction.class);
-        }
-    }
-
-    public void onModule(IndicesModule module) {
-        module.registerMapper(PercolatorFieldMapper.CONTENT_TYPE, new PercolatorFieldMapper.TypeParser());
+    public List<Class<? extends RestHandler>> getRestHandlers() {
+        return Arrays.asList(RestPercolateAction.class, RestMultiPercolateAction.class);
     }
 
     public void onModule(SearchModule module) {
         module.registerQuery(PercolateQueryBuilder::new, PercolateQueryBuilder::fromXContent, PercolateQueryBuilder.QUERY_NAME_FIELD);
-        module.registerFetchSubPhase(PercolatorHighlightSubFetchPhase.class);
+        module.registerFetchSubPhase(new PercolatorHighlightSubFetchPhase(settings, module.getHighlighters()));
     }
 
-    public void onModule(SettingsModule module) {
-        module.registerSetting(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Arrays.asList(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
+    }
+
+    @Override
+    public Map<String, Mapper.TypeParser> getMappers() {
+        return Collections.singletonMap(PercolatorFieldMapper.CONTENT_TYPE, new PercolatorFieldMapper.TypeParser());
     }
 
     static boolean transportClientMode(Settings settings) {

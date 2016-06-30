@@ -23,7 +23,6 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -48,11 +47,11 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
     private final NodeService nodeService;
 
     @Inject
-    public TransportNodesInfoAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+    public TransportNodesInfoAction(Settings settings, ThreadPool threadPool,
                                     ClusterService clusterService, TransportService transportService,
                                     NodeService nodeService, ActionFilters actionFilters,
                                     IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, NodesInfoAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+        super(settings, NodesInfoAction.NAME, threadPool, clusterService, transportService, actionFilters,
               indexNameExpressionResolver, NodesInfoRequest::new, NodeInfoRequest::new, ThreadPool.Names.MANAGEMENT, NodeInfo.class);
         this.nodeService = nodeService;
     }
@@ -60,7 +59,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
     @Override
     protected NodesInfoResponse newResponse(NodesInfoRequest nodesInfoRequest,
                                             List<NodeInfo> responses, List<FailedNodeException> failures) {
-        return new NodesInfoResponse(clusterName, responses, failures);
+        return new NodesInfoResponse(clusterService.getClusterName(), responses, failures);
     }
 
     @Override
@@ -77,7 +76,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
     protected NodeInfo nodeOperation(NodeInfoRequest nodeRequest) {
         NodesInfoRequest request = nodeRequest.request;
         return nodeService.info(request.settings(), request.os(), request.process(), request.jvm(), request.threadPool(),
-                request.transport(), request.http(), request.plugins(), request.ingest());
+                request.transport(), request.http(), request.plugins(), request.ingest(), request.indices());
     }
 
     @Override

@@ -118,8 +118,6 @@ An example of a response snippet that could be generated from the above search r
                  "total": ...,
                  "hits": [
                     {
-                       "_type": "question",
-                       "_id": "1",
                        "_nested": {
                           "field": "comments",
                           "offset": 2

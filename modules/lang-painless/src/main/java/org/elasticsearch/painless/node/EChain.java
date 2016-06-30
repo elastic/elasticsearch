@@ -20,15 +20,21 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.AnalyzerCaster;
+import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents the entirety of a variable/method chain for read/write operations.
@@ -43,35 +49,51 @@ public final class EChain extends AExpression {
 
     boolean cat = false;
     Type promote = null;
+    Type shiftDistance; // for shifts, the RHS is promoted independently
     Cast there = null;
     Cast back = null;
+    
+    /** Creates a new RHS-only EChain */
+    public EChain(Location location, ALink link) {
+        this(location, Arrays.asList(link), false, false, null, null);
+    }
 
-    public EChain(int line, int offset, String location, List<ALink> links,
+    public EChain(Location location, List<ALink> links,
                   boolean pre, boolean post, Operation operation, AExpression expression) {
-        super(line, offset, location);
+        super(location);
 
-        this.links = links;
+        this.links = Objects.requireNonNull(links);
         this.pre = pre;
         this.post = post;
         this.operation = operation;
         this.expression = expression;
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        for (ALink link : links) {
+            link.extractVariables(variables);
+        }
+        if (expression != null) {
+            expression.extractVariables(variables);
+        }
+    }
 
     @Override
-    void analyze(Variables variables) {
-        analyzeLinks(variables);
+    void analyze(Locals locals) {
+        analyzeLinks(locals);
         analyzeIncrDecr();
 
         if (operation != null) {
-            analyzeCompound(variables);
+            analyzeCompound(locals);
         } else if (expression != null) {
-            analyzeWrite(variables);
+            analyzeWrite(locals);
         } else {
             analyzeRead();
         }
     }
 
-    private void analyzeLinks(Variables variables) {
+    private void analyzeLinks(Locals variables) {
         ALink previous = null;
         int index = 0;
 
@@ -114,48 +136,49 @@ public final class EChain extends AExpression {
         ALink last = links.get(links.size() - 1);
 
         if (pre && post) {
-            throw new IllegalStateException(error("Illegal tree structure."));
+            throw createError(new IllegalStateException("Illegal tree structure."));
         } else if (pre || post) {
             if (expression != null) {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
 
             Sort sort = last.after.sort;
 
             if (operation == Operation.INCR) {
                 if (sort == Sort.DOUBLE) {
-                    expression = new EConstant(line, offset, location, 1D);
+                    expression = new EConstant(location, 1D);
                 } else if (sort == Sort.FLOAT) {
-                    expression = new EConstant(line, offset, location, 1F);
+                    expression = new EConstant(location, 1F);
                 } else if (sort == Sort.LONG) {
-                    expression = new EConstant(line, offset, location, 1L);
+                    expression = new EConstant(location, 1L);
                 } else {
-                    expression = new EConstant(line, offset, location, 1);
+                    expression = new EConstant(location, 1);
                 }
 
                 operation = Operation.ADD;
             } else if (operation == Operation.DECR) {
                 if (sort == Sort.DOUBLE) {
-                    expression = new EConstant(line, offset, location, 1D);
+                    expression = new EConstant(location, 1D);
                 } else if (sort == Sort.FLOAT) {
-                    expression = new EConstant(line, offset, location, 1F);
+                    expression = new EConstant(location, 1F);
                 } else if (sort == Sort.LONG) {
-                    expression = new EConstant(line, offset, location, 1L);
+                    expression = new EConstant(location, 1L);
                 } else {
-                    expression = new EConstant(line, offset, location, 1);
+                    expression = new EConstant(location, 1);
                 }
 
                 operation = Operation.SUB;
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
     }
 
-    private void analyzeCompound(Variables variables) {
+    private void analyzeCompound(Locals variables) {
         ALink last = links.get(links.size() - 1);
 
         expression.analyze(variables);
+        boolean shift = false;
 
         if (operation == Operation.MUL) {
             promote = AnalyzerCaster.promoteNumeric(last.after, expression.actual, true);
@@ -169,10 +192,16 @@ public final class EChain extends AExpression {
             promote = AnalyzerCaster.promoteNumeric(last.after, expression.actual, true);
         } else if (operation == Operation.LSH) {
             promote = AnalyzerCaster.promoteNumeric(last.after, false);
+            shiftDistance = AnalyzerCaster.promoteNumeric(expression.actual, false);
+            shift = true;
         } else if (operation == Operation.RSH) {
             promote = AnalyzerCaster.promoteNumeric(last.after, false);
+            shiftDistance = AnalyzerCaster.promoteNumeric(expression.actual, false);
+            shift = true;
         } else if (operation == Operation.USH) {
             promote = AnalyzerCaster.promoteNumeric(last.after, false);
+            shiftDistance = AnalyzerCaster.promoteNumeric(expression.actual, false);
+            shift = true;
         } else if (operation == Operation.BWAND) {
             promote = AnalyzerCaster.promoteXor(last.after, expression.actual);
         } else if (operation == Operation.XOR) {
@@ -180,12 +209,12 @@ public final class EChain extends AExpression {
         } else if (operation == Operation.BWOR) {
             promote = AnalyzerCaster.promoteXor(last.after, expression.actual);
         } else {
-            throw new IllegalStateException(error("Illegal tree structure."));
+            throw createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        if (promote == null) {
-            throw new ClassCastException("Cannot apply compound assignment " +
-                "[" + operation.symbol + "=] to types [" + last.after + "] and [" + expression.actual + "].");
+        if (promote == null || (shift && shiftDistance == null)) {
+            throw createError(new ClassCastException("Cannot apply compound assignment " +
+                "[" + operation.symbol + "=] to types [" + last.after + "] and [" + expression.actual + "]."));
         }
 
         cat = operation == Operation.ADD && promote.sort == Sort.STRING;
@@ -197,9 +226,16 @@ public final class EChain extends AExpression {
             }
 
             expression.expected = expression.actual;
-        } else if (operation == Operation.LSH || operation == Operation.RSH || operation == Operation.USH) {
-            expression.expected = Definition.INT_TYPE;
-            expression.explicit = true;
+        } else if (shift) {
+            if (promote.sort == Sort.DEF) {
+                // shifts are promoted independently, but for the def type, we need object.
+                expression.expected = promote;
+            } else if (shiftDistance.sort == Sort.LONG) {
+                expression.expected = Definition.INT_TYPE;
+                expression.explicit = true;   
+            } else {
+                expression.expected = shiftDistance;
+            }
         } else {
             expression.expected = promote;
         }
@@ -213,7 +249,7 @@ public final class EChain extends AExpression {
         this.actual = read ? last.after : Definition.VOID_TYPE;
     }
 
-    private void analyzeWrite(Variables variables) {
+    private void analyzeWrite(Locals variables) {
         ALink last = links.get(links.size() - 1);
 
         // If the store node is a def node, we remove the cast to def from the expression
@@ -246,75 +282,124 @@ public final class EChain extends AExpression {
         actual = last.after;
     }
 
+    /**
+     * Handles writing byte code for variable/method chains for all given possibilities
+     * including String concatenation, compound assignment, regular assignment, and simple
+     * reads.  Includes proper duplication for chained assignments and assignments that are
+     * also read from.
+     *
+     * Example given 'x[0] += 5;' where x is an array of shorts and x[0] is 1.
+     * Note this example has two links -- x (LVariable) and [0] (LBrace).
+     * The following steps occur:
+     * 1. call link{x}.write(...) -- no op [...]
+     * 2. call link{x}.load(...) -- loads the address of the x array onto the stack [..., address(x)]
+     * 3. call writer.dup(...) -- dup's the address of the x array onto the stack for later use with store [..., address(x), address(x)]
+     * 4. call link{[0]}.write(...) -- load the array index value of the constant int 0 onto the stack [..., address(x), address(x), int(0)]
+     * 5. call link{[0]}.load(...) -- load the short value from x[0] onto the stack [..., address(x), short(1)]
+     * 6. call writer.writeCast(there) -- casts the short on the stack to an int so it can be added with the rhs [..., address(x), int(1)]
+     * 7. call expression.write(...) -- puts the expression's value of the constant int 5 onto the stack [..., address(x), int(1), int(5)]
+     * 8. call writer.writeBinaryInstruction(operation) -- writes the int addition instruction [..., address(x), int(6)]
+     * 9. call writer.writeCast(back) -- convert the value on the stack back into a short [..., address(x), short(6)]
+     * 10. call link{[0]}.store(...) -- store the value on the stack into the 0th index of the array x [...]
+     */
     @Override
-    void write(MethodWriter writer) {
-        if (cat) {
-            writer.writeDebugInfo(offset);
-        }
+    void write(MethodWriter writer, Globals globals) {
+        writer.writeDebugInfo(location);
 
+        // For the case where the chain represents a String concatenation
+        // we must, depending on the Java version, write a StringBuilder or
+        // track types going onto the stack.  This must be done before the
+        // links in the chain are read because we need the StringBuilder to
+        // be placed on the stack ahead of any potential concatenation arguments.
+        int catElementStackSize = 0;
         if (cat) {
-            writer.writeNewStrings();
+            catElementStackSize = writer.writeNewStrings();
         }
 
         ALink last = links.get(links.size() - 1);
 
+        // Go through all the links in the chain first calling write
+        // and then load, except for the final link which may be a store.
+        // See individual links for more information on what each of the
+        // write, load, and store methods do.
         for (ALink link : links) {
-            link.write(writer);
+            link.write(writer, globals); // call the write method on the link to prepare for a load/store operation
 
             if (link == last && link.store) {
                 if (cat) {
-                    writer.writeDup(link.size, 1);
-                    link.load(writer);
-                    writer.writeAppendStrings(link.after);
+                    // Handle the case where we are doing a compound assignment
+                    // representing a String concatenation.
 
-                    expression.write(writer);
+                    writer.writeDup(link.size, catElementStackSize);  // dup the top element and insert it before concat helper on stack
+                    link.load(writer, globals);                       // read the current link's value
+                    writer.writeAppendStrings(link.after); // append the link's value using the StringBuilder
+
+                    expression.write(writer, globals); // write the bytecode for the rhs expression
 
                     if (!(expression instanceof EBinary) ||
                         ((EBinary)expression).operation != Operation.ADD || expression.actual.sort != Sort.STRING) {
-                        writer.writeAppendStrings(expression.actual);
+                        writer.writeAppendStrings(expression.actual); // append the expression's value unless it's also a concatenation
                     }
 
-                    writer.writeToStrings();
-                    writer.writeCast(back);
+                    writer.writeToStrings(); // put the value for string concat onto the stack
+                    writer.writeCast(back);  // if necessary, cast the String to the lhs actual type
 
                     if (link.load) {
-                        writer.writeDup(link.after.sort.size, link.size);
+                        writer.writeDup(link.after.sort.size, link.size); // if this link is also read from dup the value onto the stack
                     }
 
-                    link.store(writer);
+                    link.store(writer, globals); // store the link's value from the stack in its respective variable/field/array
                 } else if (operation != null) {
-                    writer.writeDup(link.size, 0);
-                    link.load(writer);
+                    // Handle the case where we are doing a compound assignment that
+                    // does not represent a String concatenation.
+
+                    writer.writeDup(link.size, 0); // if necessary, dup the previous link's value to be both loaded from and stored to
+                    link.load(writer, globals);             // load the current link's value
 
                     if (link.load && post) {
-                        writer.writeDup(link.after.sort.size, link.size);
+                        writer.writeDup(link.after.sort.size, link.size); // dup the value if the link is also
+                                                                          // read from and is a post increment
                     }
 
-                    writer.writeCast(there);
-                    expression.write(writer);
-                    writer.writeBinaryInstruction(location, promote, operation);
+                    writer.writeCast(there);                                     // if necessary cast the current link's value
+                                                                                 // to the promotion type between the lhs and rhs types
+                    expression.write(writer, globals);                           // write the bytecode for the rhs expression
+                    // XXX: fix these types, but first we need def compound assignment tests.
+                    // its tricky here as there are possibly explicit casts, too.
+                    // write the operation instruction for compound assignment
+                    if (promote.sort == Sort.DEF) {
+                        writer.writeDynamicBinaryInstruction(location, promote, 
+                            Definition.DEF_TYPE, Definition.DEF_TYPE, operation, DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
+                    } else {
+                        writer.writeBinaryInstruction(location, promote, operation);
+                    }
 
-                    writer.writeCast(back);
+                    writer.writeCast(back); // if necessary cast the promotion type value back to the link's type
 
                     if (link.load && !post) {
-                        writer.writeDup(link.after.sort.size, link.size);
+                        writer.writeDup(link.after.sort.size, link.size); // dup the value if the link is also
+                                                                          // read from and is not a post increment
                     }
 
-                    link.store(writer);
+                    link.store(writer, globals); // store the link's value from the stack in its respective variable/field/array
                 } else {
-                    expression.write(writer);
+                    // Handle the case for a simple write.
+
+                    expression.write(writer, globals); // write the bytecode for the rhs expression
 
                     if (link.load) {
-                        writer.writeDup(link.after.sort.size, link.size);
+                        writer.writeDup(link.after.sort.size, link.size); // dup the value if the link is also read from
                     }
 
-                    link.store(writer);
+                    link.store(writer, globals); // store the link's value from the stack in its respective variable/field/array
                 }
             } else {
-                link.load(writer);
+                // Handle the case for a simple read.
+
+                link.load(writer, globals); // read the link's value onto the stack
             }
         }
 
-        writer.writeBranch(tru, fals);
+        writer.writeBranch(tru, fals); // if this is a branch node, write the bytecode to make an appropiate jump
     }
 }

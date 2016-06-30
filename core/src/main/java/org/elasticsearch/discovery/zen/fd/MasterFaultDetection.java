@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -75,8 +76,8 @@ public class MasterFaultDetection extends FaultDetection {
     private final AtomicBoolean notifiedMasterFailure = new AtomicBoolean();
 
     public MasterFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                ClusterName clusterName, ClusterService clusterService) {
-        super(settings, threadPool, transportService, clusterName);
+                                ClusterService clusterService) {
+        super(settings, threadPool, transportService, clusterService.getClusterName());
         this.clusterService = clusterService;
 
         logger.debug("[master] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
@@ -196,14 +197,15 @@ public class MasterFaultDetection extends FaultDetection {
 
     private void notifyMasterFailure(final DiscoveryNode masterNode, final Throwable cause, final String reason) {
         if (notifiedMasterFailure.compareAndSet(false, true)) {
-            threadPool.generic().execute(new Runnable() {
-                @Override
-                public void run() {
+            try {
+                threadPool.generic().execute(() -> {
                     for (Listener listener : listeners) {
                         listener.onMasterFailure(masterNode, cause, reason);
                     }
-                }
-            });
+                });
+            } catch (EsRejectedExecutionException e) {
+                logger.error("master failure notification was rejected, it's highly likely the node is shutting down", e);
+            }
             stop("master failure, " + reason);
         }
     }
@@ -416,7 +418,7 @@ public class MasterFaultDetection extends FaultDetection {
             super.readFrom(in);
             nodeId = in.readString();
             masterNodeId = in.readString();
-            clusterName = ClusterName.readClusterName(in);
+            clusterName = new ClusterName(in);
         }
 
         @Override

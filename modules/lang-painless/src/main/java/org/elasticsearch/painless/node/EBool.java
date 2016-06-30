@@ -20,9 +20,15 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
+
+import java.util.Objects;
+import java.util.Set;
+
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -34,23 +40,29 @@ public final class EBool extends AExpression {
     AExpression left;
     AExpression right;
 
-    public EBool(int line, int offset, String location, Operation operation, AExpression left, AExpression right) {
-        super(line, offset, location);
+    public EBool(Location location, Operation operation, AExpression left, AExpression right) {
+        super(location);
 
-        this.operation = operation;
-        this.left = left;
-        this.right = right;
+        this.operation = Objects.requireNonNull(operation);
+        this.left = Objects.requireNonNull(left);
+        this.right = Objects.requireNonNull(right);
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        left.extractVariables(variables);
+        right.extractVariables(variables);
     }
 
     @Override
-    void analyze(Variables variables) {
+    void analyze(Locals locals) {
         left.expected = Definition.BOOLEAN_TYPE;
-        left.analyze(variables);
-        left = left.cast(variables);
+        left.analyze(locals);
+        left = left.cast(locals);
 
         right.expected = Definition.BOOLEAN_TYPE;
-        right.analyze(variables);
-        right = right.cast(variables);
+        right.analyze(locals);
+        right = right.cast(locals);
 
         if (left.constant != null && right.constant != null) {
             if (operation == Operation.AND) {
@@ -58,7 +70,7 @@ public final class EBool extends AExpression {
             } else if (operation == Operation.OR) {
                 constant = (boolean)left.constant || (boolean)right.constant;
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
 
@@ -66,7 +78,7 @@ public final class EBool extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         if (tru != null || fals != null) {
             if (operation == Operation.AND) {
                 Label localfals = fals == null ? new Label() : fals;
@@ -75,8 +87,8 @@ public final class EBool extends AExpression {
                 right.tru = tru;
                 right.fals = fals;
 
-                left.write(writer);
-                right.write(writer);
+                left.write(writer, globals);
+                right.write(writer, globals);
 
                 if (fals == null) {
                     writer.mark(localfals);
@@ -88,14 +100,14 @@ public final class EBool extends AExpression {
                 right.tru = tru;
                 right.fals = fals;
 
-                left.write(writer);
-                right.write(writer);
+                left.write(writer, globals);
+                right.write(writer, globals);
 
                 if (tru == null) {
                     writer.mark(localtru);
                 }
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         } else {
             if (operation == Operation.AND) {
@@ -105,8 +117,8 @@ public final class EBool extends AExpression {
                 left.fals = localfals;
                 right.fals = localfals;
 
-                left.write(writer);
-                right.write(writer);
+                left.write(writer, globals);
+                right.write(writer, globals);
 
                 writer.push(true);
                 writer.goTo(end);
@@ -121,8 +133,8 @@ public final class EBool extends AExpression {
                 left.tru = localtru;
                 right.fals = localfals;
 
-                left.write(writer);
-                right.write(writer);
+                left.write(writer, globals);
+                right.write(writer, globals);
 
                 writer.mark(localtru);
                 writer.push(true);
@@ -131,7 +143,7 @@ public final class EBool extends AExpression {
                 writer.push(false);
                 writer.mark(end);
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
     }

@@ -37,10 +37,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.ingest.core.IngestInfo;
-import org.elasticsearch.ingest.core.Pipeline;
-import org.elasticsearch.ingest.core.Processor;
-import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.Closeable;
@@ -51,7 +47,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class PipelineStore extends AbstractComponent implements Closeable, ClusterStateListener {
+public class PipelineStore extends AbstractComponent implements ClusterStateListener {
 
     private final Pipeline.Factory factory = new Pipeline.Factory();
     private ProcessorsRegistry processorRegistry;
@@ -66,16 +62,9 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
         super(settings);
     }
 
-    public void buildProcessorFactoryRegistry(ProcessorsRegistry.Builder processorsRegistryBuilder, ScriptService scriptService) {
-        TemplateService templateService = new InternalTemplateService(scriptService);
-        this.processorRegistry = processorsRegistryBuilder.build(templateService);
-    }
-
-    @Override
-    public void close() throws IOException {
-        // TODO: When org.elasticsearch.node.Node can close Closable instances we should try to remove this code,
-        // since any wired closable should be able to close itself
-        processorRegistry.close();
+    public void buildProcessorFactoryRegistry(ProcessorsRegistry.Builder processorsRegistryBuilder, ScriptService scriptService,
+                                              ClusterService clusterService) {
+        this.processorRegistry = processorsRegistryBuilder.build(scriptService, clusterService);
     }
 
     @Override
@@ -106,7 +95,8 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
      * Deletes the pipeline specified by id in the request.
      */
     public void delete(ClusterService clusterService, DeletePipelineRequest request, ActionListener<WritePipelineResponse> listener) {
-        clusterService.submitStateUpdateTask("delete-pipeline-" + request.getId(), new AckedClusterStateUpdateTask<WritePipelineResponse>(request, listener) {
+        clusterService.submitStateUpdateTask("delete-pipeline-" + request.getId(),
+                new AckedClusterStateUpdateTask<WritePipelineResponse>(request, listener) {
 
             @Override
             protected WritePipelineResponse newResponse(boolean acknowledged) {
@@ -142,10 +132,12 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
     /**
      * Stores the specified pipeline definition in the request.
      */
-    public void put(ClusterService clusterService, Map<DiscoveryNode, IngestInfo> ingestInfos, PutPipelineRequest request, ActionListener<WritePipelineResponse> listener) throws Exception {
+    public void put(ClusterService clusterService, Map<DiscoveryNode, IngestInfo> ingestInfos, PutPipelineRequest request,
+                    ActionListener<WritePipelineResponse> listener) throws Exception {
         // validates the pipeline and processor configuration before submitting a cluster update task:
         validatePipeline(ingestInfos, request);
-        clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(), new AckedClusterStateUpdateTask<WritePipelineResponse>(request, listener) {
+        clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(),
+                new AckedClusterStateUpdateTask<WritePipelineResponse>(request, listener) {
 
             @Override
             protected WritePipelineResponse newResponse(boolean acknowledged) {

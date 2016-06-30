@@ -47,7 +47,6 @@ public final class AutoCreateIndex {
     private final IndexNameExpressionResolver resolver;
     private final AutoCreate autoCreate;
 
-    @Inject
     public AutoCreateIndex(Settings settings, IndexNameExpressionResolver resolver) {
         this.resolver = resolver;
         dynamicMappingDisabled = !MapperService.INDEX_MAPPER_DYNAMIC_SETTING.get(settings);

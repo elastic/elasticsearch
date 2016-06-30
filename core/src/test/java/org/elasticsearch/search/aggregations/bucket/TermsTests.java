@@ -69,37 +69,10 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             factory.missing("MISSING");
         }
         if (randomBoolean()) {
-            int size = randomInt(4);
-            switch (size) {
-            case 0:
-                break;
-            case 1:
-            case 2:
-            case 3:
-            case 4:
-                size = randomInt();
-                break;
-            default:
-                fail();
-            }
-            factory.bucketCountThresholds().setRequiredSize(size);
-
+            factory.bucketCountThresholds().setRequiredSize(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            int shardSize = randomInt(4);
-            switch (shardSize) {
-            case 0:
-                break;
-            case 1:
-            case 2:
-            case 3:
-            case 4:
-                shardSize = randomInt();
-                break;
-            default:
-                fail();
-            }
-            factory.bucketCountThresholds().setShardSize(shardSize);
+            factory.bucketCountThresholds().setShardSize(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
             int minDocCount = randomInt(4);

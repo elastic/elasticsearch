@@ -38,14 +38,6 @@ import java.net.InetAddress;
 public class AzureComputeServiceSimpleMock extends AzureComputeServiceAbstractMock {
 
     public static class TestPlugin extends Plugin {
-        @Override
-        public String name() {
-            return "mock-compute-service";
-        }
-        @Override
-        public String description() {
-            return "plugs in a mock compute service for testing";
-        }
         public void onModule(AzureDiscoveryModule azureDiscoveryModule) {
             azureDiscoveryModule.computeServiceImpl = AzureComputeServiceSimpleMock.class;
         }

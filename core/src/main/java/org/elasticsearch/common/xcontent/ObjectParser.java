@@ -426,6 +426,7 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
         OBJECT(START_OBJECT),
         OBJECT_ARRAY(START_OBJECT, START_ARRAY),
         OBJECT_OR_BOOLEAN(START_OBJECT, VALUE_BOOLEAN),
+        OBJECT_OR_STRING(START_OBJECT, VALUE_STRING),
         VALUE(VALUE_BOOLEAN, VALUE_NULL, VALUE_EMBEDDED_OBJECT, VALUE_NUMBER, VALUE_STRING);
 
         private final EnumSet<XContentParser.Token> tokens;

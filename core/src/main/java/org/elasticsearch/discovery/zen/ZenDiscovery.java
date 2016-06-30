@@ -150,12 +150,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private volatile NodeJoinController nodeJoinController;
 
     @Inject
-    public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+    public ZenDiscovery(Settings settings, ThreadPool threadPool,
                         TransportService transportService, final ClusterService clusterService, ClusterSettings clusterSettings,
                         ZenPingService pingService, ElectMasterService electMasterService) {
         super(settings);
-        this.clusterName = clusterName;
         this.clusterService = clusterService;
+        this.clusterName = clusterService.getClusterName();
         this.transportService = transportService;
         this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
         this.pingService = pingService;
@@ -182,10 +182,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             }
         });
 
-        this.masterFD = new MasterFaultDetection(settings, threadPool, transportService, clusterName, clusterService);
+        this.masterFD = new MasterFaultDetection(settings, threadPool, transportService, clusterService);
         this.masterFD.addListener(new MasterNodeFailureListener());
 
-        this.nodesFD = new NodesFaultDetection(settings, threadPool, transportService, clusterName);
+        this.nodesFD = new NodesFaultDetection(settings, threadPool, transportService, clusterService.getClusterName());
         this.nodesFD.addListener(new NodeFaultDetectionListener());
 
         this.publishClusterState =
@@ -195,7 +195,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         clusterService::state,
                         new NewPendingClusterStateListener(),
                         discoverySettings,
-                        clusterName);
+                        clusterService.getClusterName());
         this.pingService.setPingContextProvider(this);
         this.membership = new MembershipAction(settings, clusterService, transportService, this, new MembershipListener());
 
@@ -372,7 +372,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private void innerJoinCluster() {
         DiscoveryNode masterNode = null;
         final Thread currentThread = Thread.currentThread();
-        nodeJoinController.startAccumulatingJoins();
+        nodeJoinController.startElectionContext();
         while (masterNode == null && joinThreadControl.joinThreadActive(currentThread)) {
             masterNode = findMaster();
         }
@@ -406,7 +406,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             );
         } else {
             // process any incoming joins (they will fail because we are not the master)
-            nodeJoinController.stopAccumulatingJoins("not master");
+            nodeJoinController.stopElectionContext("not master");
 
             // send join request
             final boolean success = joinElectedMaster(masterNode);

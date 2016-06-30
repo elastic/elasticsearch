@@ -30,6 +30,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
@@ -52,27 +53,27 @@ import static org.hamcrest.Matchers.greaterThan;
  */
 public class NettyScheduledPingTests extends ESTestCase {
     public void testScheduledPing() throws Exception {
-        ThreadPool threadPool = new ThreadPool(getClass().getName());
+        ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
         Settings settings = Settings.builder()
             .put(NettyTransport.PING_SCHEDULE.getKey(), "5ms")
             .put(TransportSettings.PORT.getKey(), 0)
+            .put("cluster.name", "test")
             .build();
 
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
 
         NamedWriteableRegistry registryA = new NamedWriteableRegistry();
         final NettyTransport nettyA = new NettyTransport(settings, threadPool, new NetworkService(settings),
-            BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, registryA, circuitBreakerService);
-        ClusterName test = new ClusterName("test");
-        MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool, test);
+            BigArrays.NON_RECYCLING_INSTANCE, registryA, circuitBreakerService);
+        MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool);
         serviceA.start();
         serviceA.acceptIncomingRequests();
 
         NamedWriteableRegistry registryB = new NamedWriteableRegistry();
         final NettyTransport nettyB = new NettyTransport(settings, threadPool, new NetworkService(settings),
-            BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, registryB, circuitBreakerService);
-        MockTransportService serviceB = new MockTransportService(settings, nettyB, threadPool, test);
+            BigArrays.NON_RECYCLING_INSTANCE, registryB, circuitBreakerService);
+        MockTransportService serviceB = new MockTransportService(settings, nettyB, threadPool);
 
         serviceB.start();
         serviceB.acceptIncomingRequests();

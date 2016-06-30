@@ -20,8 +20,14 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
+
+import java.util.Objects;
+import java.util.Set;
+
 import org.elasticsearch.painless.MethodWriter;
 
 /**
@@ -29,25 +35,31 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class SWhile extends AStatement {
 
-    final int maxLoopCounter;
     AExpression condition;
     final SBlock block;
 
-    public SWhile(int line, int offset, String location, int maxLoopCounter, AExpression condition, SBlock block) {
-        super(line, offset, location);
+    public SWhile(Location location, AExpression condition, SBlock block) {
+        super(location);
 
-        this.maxLoopCounter = maxLoopCounter;
-        this.condition = condition;
+        this.condition = Objects.requireNonNull(condition);
         this.block = block;
+    }
+    
+    @Override
+    void extractVariables(Set<String> variables) {
+        condition.extractVariables(variables);
+        if (block != null) {
+            block.extractVariables(variables);
+        }
     }
 
     @Override
-    void analyze(Variables variables) {
-        variables.incrementScope();
+    void analyze(Locals locals) {
+        locals = Locals.newLocalScope(locals);
 
         condition.expected = Definition.BOOLEAN_TYPE;
-        condition.analyze(variables);
-        condition = condition.cast(variables);
+        condition.analyze(locals);
+        condition = condition.cast(locals);
 
         boolean continuous = false;
 
@@ -55,11 +67,11 @@ public final class SWhile extends AStatement {
             continuous = (boolean)condition.constant;
 
             if (!continuous) {
-                throw new IllegalArgumentException(error("Extraneous while loop."));
+                throw createError(new IllegalArgumentException("Extraneous while loop."));
             }
 
             if (block == null) {
-                throw new IllegalArgumentException(error("While loop has no escape."));
+                throw createError(new IllegalArgumentException("While loop has no escape."));
             }
         }
 
@@ -67,10 +79,10 @@ public final class SWhile extends AStatement {
             block.beginLoop = true;
             block.inLoop = true;
 
-            block.analyze(variables);
+            block.analyze(locals);
 
             if (block.loopEscape && !block.anyContinue) {
-                throw new IllegalArgumentException(error("Extraneous while loop."));
+                throw createError(new IllegalArgumentException("Extraneous while loop."));
             }
 
             if (continuous && !block.anyBreak) {
@@ -83,32 +95,35 @@ public final class SWhile extends AStatement {
 
         statementCount = 1;
 
-        if (maxLoopCounter > 0) {
-            loopCounterSlot = variables.getVariable(location, "#loop").slot;
+        if (locals.hasVariable(Locals.LOOP)) {
+            loopCounter = locals.getVariable(location, Locals.LOOP);
         }
-
-        variables.decrementScope();
     }
 
     @Override
-    void write(MethodWriter writer) {
-        writer.writeStatementOffset(offset);
+    void write(MethodWriter writer, Globals globals) {
+        writer.writeStatementOffset(location);
+
         Label begin = new Label();
         Label end = new Label();
 
         writer.mark(begin);
 
         condition.fals = end;
-        condition.write(writer);
+        condition.write(writer, globals);
 
         if (block != null) {
-            writer.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount), offset);
+            if (loopCounter != null) {
+                writer.writeLoopCounter(loopCounter.getSlot(), Math.max(1, block.statementCount), location);
+            }
 
             block.continu = begin;
             block.brake = end;
-            block.write(writer);
+            block.write(writer, globals);
         } else {
-            writer.writeLoopCounter(loopCounterSlot, 1, offset);
+            if (loopCounter != null) {
+                writer.writeLoopCounter(loopCounter.getSlot(), 1, location);
+            }
         }
 
         if (block == null || !block.allEscape) {

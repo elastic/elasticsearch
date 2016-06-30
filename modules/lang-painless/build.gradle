@@ -26,10 +26,7 @@ esplugin {
 
 dependencies {
   compile 'org.antlr:antlr4-runtime:4.5.1-1'
-  compile 'org.ow2.asm:asm:5.0.4'
-  compile 'org.ow2.asm:asm-commons:5.0.4'
-  compile 'org.ow2.asm:asm-tree:5.0.4'
-  testCompile 'org.ow2.asm:asm-util:5.0.4'
+  compile 'org.ow2.asm:asm-debug-all:5.1'
 }
 
 dependencyLicenses {

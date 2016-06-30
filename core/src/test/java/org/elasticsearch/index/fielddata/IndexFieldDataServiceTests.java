@@ -55,6 +55,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
@@ -177,7 +178,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     }
 
     private void doTestRequireDocValues(MappedFieldType ft) {
-        ThreadPool threadPool = new ThreadPool("random_threadpool_name");
+        ThreadPool threadPool = new TestThreadPool("random_threadpool_name");
         try {
             IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
             IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), cache, null, null);

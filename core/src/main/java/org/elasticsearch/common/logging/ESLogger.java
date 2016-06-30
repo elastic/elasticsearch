@@ -21,12 +21,14 @@ package org.elasticsearch.common.logging;
 
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
+import org.elasticsearch.common.SuppressLoggerChecks;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 /**
  * Elasticsearch's logger wrapper.
  */
+@SuppressLoggerChecks(reason = "safely delegates to itself")
 public class ESLogger {
     private static final String FQCN = ESLogger.class.getName();
 

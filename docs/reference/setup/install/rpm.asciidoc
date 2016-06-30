@@ -169,7 +169,7 @@ locations for an RPM-based system:
 | script
   | Location of script files.
   | /etc/elasticsearch/scripts
-  | path.script
+  | path.scripts
 
 |=======================================================================
 

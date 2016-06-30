@@ -24,6 +24,8 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -43,6 +45,7 @@ import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.startsWith;
 
 public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilder> {
     @Override
@@ -343,6 +346,51 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertEquals(query, 42, queryBuilder.boost, 0.00001);
         assertEquals(query, "23", queryBuilder.minimumShouldMatch());
         assertEquals(query, "kimchy", ((TermQueryBuilder)queryBuilder.must().get(0)).value());
+    }
+
+    /**
+     * we ignore empty query bodies if we are not in strict mode
+     */
+    public void testFromJsonEmptyQueryBody() throws IOException {
+        String query =
+                "{" +
+                "\"bool\" : {" +
+                "  \"must\" : [ { } ]," +
+                "  \"filter\" : { }," +
+                "  \"must_not\" : [ { \"constant_score\" : {\"filter\" : { } } } ]" +
+                "}" +
+              "}";
+
+        BoolQueryBuilder queryBuilder = (BoolQueryBuilder) parseQuery(query, ParseFieldMatcher.EMPTY);
+        assertEquals(query, 0, queryBuilder.must().size());
+        assertEquals(query, 0, queryBuilder.filter().size());
+        assertEquals(query, 0, queryBuilder.mustNot().size());
+        assertEquals(query, 0, queryBuilder.should().size());
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseQuery(query, ParseFieldMatcher.STRICT));
+        assertThat(ex.getMessage(), startsWith("query malformed, empty clause found at"));
+    }
+
+    /**
+     * test that unknown query names in the clauses throw an error
+     */
+    public void testUnknownQueryName() throws IOException {
+        String query = "{\"bool\" : {\"must\" : { \"unknown_query\" : { } } } }";
+
+        ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query, ParseFieldMatcher.EMPTY));
+        assertEquals("no [query] registered for [unknown_query]", ex.getMessage());
+    }
+
+    /**
+     * test that two queries in object throws error
+     */
+    public void testTooManyQueriesInObject() throws IOException {
+        String clauseType = randomFrom(new String[] {"must", "should", "must_not", "filter"});
+        // should also throw error if invalid query is preceded by a valid one
+        String query = "{\"bool\" : {\"" + clauseType
+                + "\" : { \"match\" : { \"foo\" : \"bar\" } , \"match\" : { \"baz\" : \"buzz\" } } } }";
+        ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query, ParseFieldMatcher.EMPTY));
+        assertEquals("expected [END_OBJECT] but got [FIELD_NAME], possibly too many query clauses", ex.getMessage());
     }
 
     public void testRewrite() throws IOException {

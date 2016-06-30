@@ -48,6 +48,7 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
@@ -421,7 +422,7 @@ public class SearchScrollIT extends ESIntegTestCase {
     public void testDeepScrollingDoesNotBlowUp() throws Exception {
         client().prepareIndex("index", "type", "1")
                 .setSource("field", "value")
-                .setRefresh(true)
+                .setRefreshPolicy(IMMEDIATE)
                 .execute().get();
 
         for (SearchType searchType : SearchType.values()) {

@@ -103,7 +103,11 @@ public class InternalSettingsPreparer {
             Path path = environment.configFile().resolve("elasticsearch" + allowedSuffix);
             if (Files.exists(path)) {
                 if (!settingsFileFound) {
-                    output.loadFromPath(path);
+                    try {
+                        output.loadFromPath(path);
+                    } catch (IOException e) {
+                        throw new SettingsException("Failed to settings from " + path.toString(), e);
+                    }
                 }
                 settingsFileFound = true;
                 foundSuffixes.add(allowedSuffix);
@@ -159,7 +163,7 @@ public class InternalSettingsPreparer {
 
         // put the cluster name
         if (output.get(ClusterName.CLUSTER_NAME_SETTING.getKey()) == null) {
-            output.put(ClusterName.CLUSTER_NAME_SETTING.getKey(), ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY));
+            output.put(ClusterName.CLUSTER_NAME_SETTING.getKey(), ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY).value());
         }
 
         replacePromptPlaceholders(output, terminal);

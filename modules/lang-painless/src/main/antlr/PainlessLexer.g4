@@ -32,10 +32,15 @@ LBRACE:    '[';
 RBRACE:    ']';
 LP:        '(';
 RP:        ')';
+// We switch modes after a dot to ensure there are not conflicts
+// between shortcuts and decimal values.  Without the mode switch
+// shortcuts such as id.0.0 will fail because 0.0 will be interpreted
+// as a decimal value instead of two individual list-style shortcuts.
 DOT:       '.' -> mode(AFTER_DOT);
 COMMA:     ',';
 SEMICOLON: ';';
 IF:        'if';
+IN:        'in';
 ELSE:      'else';
 WHILE:     'while';
 DO:        'do';
@@ -47,11 +52,13 @@ NEW:       'new';
 TRY:       'try';
 CATCH:     'catch';
 THROW:     'throw';
+THIS:      'this';
+INSTANCEOF: 'instanceof';
 
 BOOLNOT: '!';
 BWNOT:   '~';
 MUL:     '*';
-DIV:     '/';
+DIV:     '/' { false == SlashStrategy.slashIsRegex(this) }?;
 REM:     '%';
 ADD:     '+';
 SUB:     '-';
@@ -74,6 +81,9 @@ BOOLOR:  '||';
 COND:    '?';
 COLON:   ':';
 REF:     '::';
+ARROW:   '->';
+FIND:    '=~';
+MATCH:   '==~';
 INCR:    '++';
 DECR:    '--';
 
@@ -96,6 +106,7 @@ INTEGER: ( '0' | [1-9] [0-9]* ) [lLfFdD]?;
 DECIMAL: ( '0' | [1-9] [0-9]* ) (DOT [0-9]+)? ( [eE] [+\-]? [0-9]+ )? [fF]?;
 
 STRING: ( '"' ( '\\"' | '\\\\' | ~[\\"] )*? '"' ) | ( '\'' ( '\\\'' | '\\\\' | ~[\\"] )*? '\'' );
+REGEX: '/' ( ~('/' | '\n') | '\\' ~'\n' )+ '/' [cilmsUux]* { SlashStrategy.slashIsRegex(this) }?;
 
 TRUE:  'true';
 FALSE: 'false';

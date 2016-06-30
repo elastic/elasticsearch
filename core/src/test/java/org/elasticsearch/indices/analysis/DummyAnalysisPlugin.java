@@ -19,31 +19,38 @@
 
 package org.elasticsearch.indices.analysis;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.elasticsearch.index.analysis.AnalyzerProvider;
+import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 
-public class DummyAnalysisPlugin extends Plugin {
-    /**
-     * The name of the plugin.
-     */
+import java.util.Map;
+
+import static java.util.Collections.singletonMap;
+
+public class DummyAnalysisPlugin extends Plugin implements AnalysisPlugin {
     @Override
-    public String name() {
-        return "analysis-dummy";
+    public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
+        return singletonMap("dummy_char_filter", (a, b, c, d) -> new DummyCharFilterFactory());
     }
 
-    /**
-     * The description of the plugin.
-     */
     @Override
-    public String description() {
-        return "Analysis Dummy Plugin";
+    public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
+        return singletonMap("dummy_token_filter", (a, b, c, d) -> new DummyTokenFilterFactory());
     }
 
+    @Override
+    public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
+        return singletonMap("dummy_tokenizer", (a, b, c, d) -> new DummyTokenizerFactory());
+    }
 
-    public void onModule(AnalysisModule module) {
-        module.registerAnalyzer("dummy", (a, b, c, d) -> new DummyAnalyzerProvider());
-        module.registerTokenFilter("dummy_token_filter", (a, b, c, d) -> new DummyTokenFilterFactory());
-        module.registerTokenizer("dummy_tokenizer", (a, b, c, d) -> new DummyTokenizerFactory());
-        module.registerCharFilter("dummy_char_filter", (a, b, c, d) -> new DummyCharFilterFactory());
+    @Override
+    public Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
+        return singletonMap("dummy", (a, b, c, d) -> new DummyAnalyzerProvider());
     }
 
 }

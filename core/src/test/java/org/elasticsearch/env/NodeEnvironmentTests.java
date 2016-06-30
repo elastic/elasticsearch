@@ -22,6 +22,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
@@ -47,6 +48,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -382,10 +385,10 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
                 env.availableShardPaths(sid),
-                equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/" + index.getUUID() + "/0")));
+                equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID() + "/0")));
 
         assertThat("index paths uses the regular template",
-                env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/" + index.getUUID())));
+                env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID())));
 
         env.close();
         NodeEnvironment env2 = newNodeEnvironment(dataPaths, "/tmp",
@@ -396,12 +399,55 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
                 env2.availableShardPaths(sid),
-                equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/" + index.getUUID() + "/0")));
+                equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID() + "/0")));
 
         assertThat("index paths uses the regular template",
-                env2.indexPaths(index), equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/" + index.getUUID())));
+                env2.indexPaths(index), equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID())));
 
         env2.close();
+    }
+
+    public void testWhetherClusterFolderShouldBeUsed() throws Exception {
+        Path tempNoCluster = createTempDir();
+        Path tempDataPath = tempNoCluster.toAbsolutePath();
+
+        Path tempPath = tempNoCluster.resolve("foo"); // "foo" is the cluster name
+        Path tempClusterPath = tempPath.toAbsolutePath();
+
+        assertFalse("non-existent directory should not be used", NodeEnvironment.readFromDataPathWithClusterName(tempPath));
+        Settings settings = Settings.builder()
+                .put("cluster.name", "foo")
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+                .put(Environment.PATH_DATA_SETTING.getKey(), tempDataPath.toString()).build();
+        try (NodeEnvironment env = new NodeEnvironment(settings, new Environment(settings))) {
+            Path nodeDataPath = env.nodeDataPaths()[0];
+            assertEquals(nodeDataPath, tempDataPath.resolve("nodes").resolve("0"));
+        }
+        IOUtils.rm(tempNoCluster);
+
+        Files.createDirectories(tempPath);
+        assertFalse("empty directory should not be read from", NodeEnvironment.readFromDataPathWithClusterName(tempPath));
+        settings = Settings.builder()
+                .put("cluster.name", "foo")
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+                .put(Environment.PATH_DATA_SETTING.getKey(), tempDataPath.toString()).build();
+        try (NodeEnvironment env = new NodeEnvironment(settings, new Environment(settings))) {
+            Path nodeDataPath = env.nodeDataPaths()[0];
+            assertEquals(nodeDataPath, tempDataPath.resolve("nodes").resolve("0"));
+        }
+        IOUtils.rm(tempNoCluster);
+
+        // Create a directory for the cluster name
+        Files.createDirectories(tempPath.resolve(NodeEnvironment.NODES_FOLDER));
+        assertTrue("there is data in the directory", NodeEnvironment.readFromDataPathWithClusterName(tempPath));
+        settings = Settings.builder()
+                .put("cluster.name", "foo")
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+                .put(Environment.PATH_DATA_SETTING.getKey(), tempClusterPath.toString()).build();
+        try (NodeEnvironment env = new NodeEnvironment(settings, new Environment(settings))) {
+            Path nodeDataPath = env.nodeDataPaths()[0];
+            assertEquals(nodeDataPath, tempClusterPath.resolve("nodes").resolve("0"));
+        }
     }
 
     /** Converts an array of Strings to an array of Paths, adding an additional child if specified */

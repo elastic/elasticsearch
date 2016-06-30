@@ -80,7 +80,7 @@ public class RestIndexAction extends BaseRestHandler {
         indexRequest.setPipeline(request.param("pipeline"));
         indexRequest.source(request.content());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
-        indexRequest.refresh(request.paramAsBoolean("refresh", indexRequest.refresh()));
+        indexRequest.setRefreshPolicy(request.param("refresh"));
         indexRequest.version(RestActions.parseVersion(request));
         indexRequest.versionType(VersionType.fromString(request.param("version_type"), indexRequest.versionType()));
         String sOpType = request.param("op_type");

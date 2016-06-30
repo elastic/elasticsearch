@@ -30,7 +30,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -47,6 +46,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.sort.SortOrder;
@@ -78,6 +78,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         //Filter/Query cache is cleaned periodically, default is 60s, so make sure it runs often. Thread.sleep for 60s is bad
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), "1ms")
+                .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
                 .build();
     }
 
@@ -1013,22 +1014,27 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertCumulativeQueryCacheStats(response);
         assertEquals(0, response.getTotal().queryCache.getCacheSize());
 
-        SearchResponse r;
-        assertSearchResponse(r = client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))).get());
-        response = client().admin().indices().prepareStats("index").setQueryCache(true).get();
-        assertCumulativeQueryCacheStats(response);
-        assertThat(response.getTotal().queryCache.getHitCount(), equalTo(0L));
-        assertThat(response.getTotal().queryCache.getEvictions(), equalTo(0L));
-        assertThat(response.getTotal().queryCache.getMissCount(), greaterThan(0L));
-        assertThat(response.getTotal().queryCache.getCacheSize(), greaterThan(0L));
+        // the query cache has an optimization that disables it automatically if there is contention,
+        // so we run it in an assertBusy block which should eventually succeed
+        assertBusy(() -> {
+            assertSearchResponse(client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))).get());
+            IndicesStatsResponse stats = client().admin().indices().prepareStats("index").setQueryCache(true).get();
+            assertCumulativeQueryCacheStats(stats);
+            assertThat(stats.getTotal().queryCache.getHitCount(), equalTo(0L));
+            assertThat(stats.getTotal().queryCache.getEvictions(), equalTo(0L));
+            assertThat(stats.getTotal().queryCache.getMissCount(), greaterThan(0L));
+            assertThat(stats.getTotal().queryCache.getCacheSize(), greaterThan(0L));
+        });
 
-        assertSearchResponse(client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))).get());
-        response = client().admin().indices().prepareStats("index").setQueryCache(true).get();
-        assertCumulativeQueryCacheStats(response);
-        assertThat(response.getTotal().queryCache.getHitCount(), greaterThan(0L));
-        assertThat(response.getTotal().queryCache.getEvictions(), equalTo(0L));
-        assertThat(response.getTotal().queryCache.getMissCount(), greaterThan(0L));
-        assertThat(response.getTotal().queryCache.getCacheSize(), greaterThan(0L));
+        assertBusy(() -> {
+            assertSearchResponse(client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))).get());
+            IndicesStatsResponse stats = client().admin().indices().prepareStats("index").setQueryCache(true).get();
+            assertCumulativeQueryCacheStats(stats);
+            assertThat(stats.getTotal().queryCache.getHitCount(), greaterThan(0L));
+            assertThat(stats.getTotal().queryCache.getEvictions(), equalTo(0L));
+            assertThat(stats.getTotal().queryCache.getMissCount(), greaterThan(0L));
+            assertThat(stats.getTotal().queryCache.getCacheSize(), greaterThan(0L));
+        });
 
         assertTrue(client().prepareDelete("index", "type", "1").get().isFound());
         assertTrue(client().prepareDelete("index", "type", "2").get().isFound());
@@ -1043,15 +1049,17 @@ public class IndexStatsIT extends ESIntegTestCase {
         indexRandom(true,
                 client().prepareIndex("index", "type", "1").setSource("foo", "bar"),
                 client().prepareIndex("index", "type", "2").setSource("foo", "baz"));
-        assertSearchResponse(client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))).get());
 
-        response = client().admin().indices().prepareStats("index").setQueryCache(true).get();
-        assertCumulativeQueryCacheStats(response);
-        assertThat(response.getTotal().queryCache.getHitCount(), greaterThan(0L));
-        assertThat(response.getTotal().queryCache.getEvictions(), greaterThan(0L));
-        assertThat(response.getTotal().queryCache.getMissCount(), greaterThan(0L));
-        assertThat(response.getTotal().queryCache.getCacheSize(), greaterThan(0L));
-        assertThat(response.getTotal().queryCache.getMemorySizeInBytes(), greaterThan(0L));
+        assertBusy(() -> {
+            assertSearchResponse(client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))).get());
+            IndicesStatsResponse stats = client().admin().indices().prepareStats("index").setQueryCache(true).get();
+            assertCumulativeQueryCacheStats(stats);
+            assertThat(stats.getTotal().queryCache.getHitCount(), greaterThan(0L));
+            assertThat(stats.getTotal().queryCache.getEvictions(), greaterThan(0L));
+            assertThat(stats.getTotal().queryCache.getMissCount(), greaterThan(0L));
+            assertThat(stats.getTotal().queryCache.getCacheSize(), greaterThan(0L));
+            assertThat(stats.getTotal().queryCache.getMemorySizeInBytes(), greaterThan(0L));
+        });
 
         assertAllSuccessful(client().admin().indices().prepareClearCache("index").setQueryCache(true).get());
         response = client().admin().indices().prepareStats("index").setQueryCache(true).get();

@@ -104,7 +104,7 @@ public class AggregatorParsers {
             }
 
             AggregationBuilder aggFactory = null;
-            PipelineAggregatorBuilder pipelineAggregatorFactory = null;
+            PipelineAggregationBuilder pipelineAggregatorFactory = null;
             AggregatorFactories.Builder subFactories = null;
 
             Map<String, Object> metaData = null;

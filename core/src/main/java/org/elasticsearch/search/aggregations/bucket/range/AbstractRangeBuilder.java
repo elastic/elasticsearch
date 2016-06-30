@@ -20,8 +20,8 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamInputReader;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -47,7 +47,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
     /**
      * Read from a stream.
      */
-    protected AbstractRangeBuilder(StreamInput in, InternalRange.Factory<?, ?> rangeFactory, StreamInputReader<R> rangeReader)
+    protected AbstractRangeBuilder(StreamInput in, InternalRange.Factory<?, ?> rangeFactory, Writeable.Reader<R> rangeReader)
             throws IOException {
         super(in, rangeFactory.type(), rangeFactory.getValueSourceType(), rangeFactory.getValueType());
         this.rangeFactory = rangeFactory;

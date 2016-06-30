@@ -182,7 +182,10 @@ relevancy order of the most relevant document in a bucket.
         },
         "top_hit" : {
           "max": {
-            "script": "_score"
+            "script": {
+              "lang": "painless",
+              "inline": "_score"
+            }
           }
         }
       }

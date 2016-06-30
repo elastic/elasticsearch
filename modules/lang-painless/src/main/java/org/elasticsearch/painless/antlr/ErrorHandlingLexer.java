@@ -22,16 +22,19 @@ package org.elasticsearch.painless.antlr;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.LexerNoViableAltException;
 import org.antlr.v4.runtime.misc.Interval;
-
-import java.text.ParseException;
+import org.elasticsearch.painless.Location;
 
 /**
  * A lexer that will override the default error behavior to fail on the first error.
  */
 final class ErrorHandlingLexer extends PainlessLexer {
+    final String sourceName;
 
-    ErrorHandlingLexer(final CharStream charStream) {
+    ErrorHandlingLexer(CharStream charStream, String sourceName) {
         super(charStream);
+        this.sourceName = sourceName;
+        // Replace the TokenFactory with a stashing wrapper so we can do token-level lookbehind for regex detection
+        _factory = new StashingTokenFactory<>(_factory);
     }
 
     @Override
@@ -40,11 +43,7 @@ final class ErrorHandlingLexer extends PainlessLexer {
         final int startIndex = lnvae.getStartIndex();
         final String text = charStream.getText(Interval.of(startIndex, charStream.index()));
 
-        final ParseException parseException = new ParseException("Error [" + _tokenStartLine + ":" +
-                _tokenStartCharPositionInLine + "]: unexpected character [" +
-                getErrorDisplay(text) + "].",  _tokenStartCharIndex);
-        parseException.initCause(lnvae);
-
-        throw new RuntimeException(parseException);
+        Location location = new Location(sourceName, _tokenStartCharIndex);
+        throw location.createError(new IllegalArgumentException("unexpected character [" + getErrorDisplay(text) + "].", lnvae));
     }
 }

@@ -30,6 +30,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty.NettyTransport;
 import org.junit.After;
@@ -51,22 +52,21 @@ public class NettyTransportServiceHandshakeTests extends ESTestCase {
 
     @BeforeClass
     public static void startThreadPool() {
-        threadPool = new ThreadPool(NettyTransportServiceHandshakeTests.class.getSimpleName());
+        threadPool = new TestThreadPool(NettyTransportServiceHandshakeTests.class.getSimpleName());
     }
 
     private List<TransportService> transportServices = new ArrayList<>();
 
-    private NetworkHandle startServices(String nodeNameAndId, Settings settings, Version version, ClusterName clusterName) {
+    private NetworkHandle startServices(String nodeNameAndId, Settings settings, Version version) {
         NettyTransport transport =
                 new NettyTransport(
                         settings,
                         threadPool,
                         new NetworkService(settings),
                         BigArrays.NON_RECYCLING_INSTANCE,
-                        Version.CURRENT,
                         new NamedWriteableRegistry(),
                         new NoneCircuitBreakerService());
-        TransportService transportService = new MockTransportService(settings, transport, threadPool, clusterName);
+        TransportService transportService = new MockTransportService(settings, transport, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
         DiscoveryNode node =
@@ -98,17 +98,14 @@ public class NettyTransportServiceHandshakeTests extends ESTestCase {
     }
 
     public void testConnectToNodeLight() {
-        Settings settings = Settings.EMPTY;
+        Settings settings = Settings.builder().put("cluster.name", "test").build();
 
-        ClusterName test = new ClusterName("test");
-
-        NetworkHandle handleA = startServices("TS_A", settings, Version.CURRENT, test);
+        NetworkHandle handleA = startServices("TS_A", settings, Version.CURRENT);
         NetworkHandle handleB =
                 startServices(
                         "TS_B",
                         settings,
-                        VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT),
-                        test);
+                        VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT));
         DiscoveryNode discoveryNode = new DiscoveryNode(
             "",
             handleB.discoveryNode.getAddress(),
@@ -126,10 +123,9 @@ public class NettyTransportServiceHandshakeTests extends ESTestCase {
     }
 
     public void testMismatchedClusterName() {
-        Settings settings = Settings.EMPTY;
 
-        NetworkHandle handleA = startServices("TS_A", settings, Version.CURRENT, new ClusterName("a"));
-        NetworkHandle handleB = startServices("TS_B", settings, Version.CURRENT, new ClusterName("b"));
+        NetworkHandle handleA = startServices("TS_A", Settings.builder().put("cluster.name", "a").build(), Version.CURRENT);
+        NetworkHandle handleB = startServices("TS_B", Settings.builder().put("cluster.name", "b").build(), Version.CURRENT);
         DiscoveryNode discoveryNode = new DiscoveryNode(
             "",
             handleB.discoveryNode.getAddress(),
@@ -143,12 +139,10 @@ public class NettyTransportServiceHandshakeTests extends ESTestCase {
 }
 
     public void testIncompatibleVersions() {
-        Settings settings = Settings.EMPTY;
-
-        ClusterName test = new ClusterName("test");
-        NetworkHandle handleA = startServices("TS_A", settings, Version.CURRENT, test);
+        Settings settings = Settings.builder().put("cluster.name", "test").build();
+        NetworkHandle handleA = startServices("TS_A", settings, Version.CURRENT);
         NetworkHandle handleB =
-                startServices("TS_B", settings, VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()), test);
+                startServices("TS_B", settings, VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()));
         DiscoveryNode discoveryNode = new DiscoveryNode(
             "",
             handleB.discoveryNode.getAddress(),
@@ -162,15 +156,14 @@ public class NettyTransportServiceHandshakeTests extends ESTestCase {
     }
 
     public void testIgnoreMismatchedClusterName() {
-        Settings settings = Settings.EMPTY;
+        Settings settings = Settings.builder().put("cluster.name", "a").build();
 
-        NetworkHandle handleA = startServices("TS_A", settings, Version.CURRENT, new ClusterName("a"));
+        NetworkHandle handleA = startServices("TS_A", settings, Version.CURRENT);
         NetworkHandle handleB =
                 startServices(
                         "TS_B",
-                        settings,
-                        VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT),
-                        new ClusterName("b")
+                        Settings.builder().put("cluster.name", "b").build(),
+                        VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT)
                 );
         DiscoveryNode discoveryNode = new DiscoveryNode(
             "",

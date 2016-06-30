@@ -48,6 +48,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -66,7 +67,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 /**
  *
  */
-public class TransportClientNodesService extends AbstractComponent {
+public class TransportClientNodesService extends AbstractComponent implements Closeable {
 
     private final TimeValue nodesSamplerInterval;
 
@@ -111,13 +112,13 @@ public class TransportClientNodesService extends AbstractComponent {
         Setting.boolSetting("client.transport.sniff", false, Property.NodeScope);
 
     @Inject
-    public TransportClientNodesService(Settings settings, ClusterName clusterName, TransportService transportService,
-                                       ThreadPool threadPool, Version version) {
+    public TransportClientNodesService(Settings settings,TransportService transportService,
+                                       ThreadPool threadPool) {
         super(settings);
-        this.clusterName = clusterName;
+        this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.transportService = transportService;
         this.threadPool = threadPool;
-        this.minCompatibilityVersion = version.minimumCompatibilityVersion();
+        this.minCompatibilityVersion = Version.CURRENT.minimumCompatibilityVersion();
 
         this.nodesSamplerInterval = CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL.get(this.settings);
         this.pingTimeout = CLIENT_TRANSPORT_PING_TIMEOUT.get(this.settings).millis();
@@ -211,7 +212,18 @@ public class TransportClientNodesService extends AbstractComponent {
     }
 
     public <Response> void execute(NodeListenerCallback<Response> callback, ActionListener<Response> listener) {
-        List<DiscoveryNode> nodes = this.nodes;
+        // we first read nodes before checking the closed state; this
+        // is because otherwise we could be subject to a race where we
+        // read the state as not being closed, and then the client is
+        // closed and the nodes list is cleared, and then a
+        // NoNodeAvailableException is thrown
+        // it is important that the order of first setting the state of
+        // closed and then clearing the list of nodes is maintained in
+        // the close method
+        final List<DiscoveryNode> nodes = this.nodes;
+        if (closed) {
+            throw new IllegalStateException("transport client is closed");
+        }
         ensureNodesAreAvailable(nodes);
         int index = getNodeNumber();
         RetryListener<Response> retryListener = new RetryListener<>(callback, listener, nodes, index);

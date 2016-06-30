@@ -113,8 +113,8 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
      * (defaults to 10)
      */
     public SignificantTermsAggregationBuilder size(int size) {
-        if (size < 0) {
-            throw new IllegalArgumentException("[size] must be greater than or equal to 0. Found [" + size + "] in [" + name + "]");
+        if (size <= 0) {
+            throw new IllegalArgumentException("[size] must be greater than 0. Found [" + size + "] in [" + name + "]");
         }
         bucketCountThresholds.setRequiredSize(size);
         return this;
@@ -127,9 +127,9 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
      * results are.
      */
     public SignificantTermsAggregationBuilder shardSize(int shardSize) {
-        if (shardSize < 0) {
+        if (shardSize <= 0) {
             throw new IllegalArgumentException(
-                    "[shardSize] must be greater than or equal to 0. Found [" + shardSize + "] in [" + name + "]");
+                    "[shardSize] must be greater than  0. Found [" + shardSize + "] in [" + name + "]");
         }
         bucketCountThresholds.setShardSize(shardSize);
         return this;

@@ -129,8 +129,12 @@ public class ESLoggerUsageTests extends ESTestCase {
         logger.info("Hello {}, {}", "world", 42, new Exception());
     }
 
-    public void checkFailNonConstantMessage(boolean b) {
-        logger.info(Boolean.toString(b));
+    public void checkNonConstantMessageWithZeroArguments(boolean b) {
+        logger.info(Boolean.toString(b), new Exception());
+    }
+
+    public void checkFailNonConstantMessageWithArguments(boolean b) {
+        logger.info(Boolean.toString(b), new Exception(), 42);
     }
 
     public void checkComplexUsage(boolean b) {

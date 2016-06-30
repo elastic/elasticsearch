@@ -110,16 +110,6 @@ public class GoogleCloudStoragePlugin extends Plugin {
     }
 
     @Override
-    public String name() {
-        return NAME;
-    }
-
-    @Override
-    public String description() {
-        return "Google Cloud Storage Repository Plugin";
-    }
-
-    @Override
     public Collection<Module> nodeModules() {
         return Collections.singletonList(new GoogleCloudStorageModule());
     }

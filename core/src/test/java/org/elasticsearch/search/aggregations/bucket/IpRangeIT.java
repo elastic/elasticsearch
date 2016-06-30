@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
@@ -25,11 +26,13 @@ import static org.hamcrest.Matchers.containsString;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
@@ -52,6 +55,7 @@ public class IpRangeIT extends ESIntegTestCase {
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("idx")
                 .addMapping("type", "ip", "type=ip", "ips", "type=ip"));
+        waitForRelocation(ClusterHealthStatus.GREEN);
 
         indexRandom(true,
                 client().prepareIndex("idx", "type", "1").setSource(
@@ -65,6 +69,8 @@ public class IpRangeIT extends ESIntegTestCase {
                         "ips", Arrays.asList("2001:db8::ff00:42:8329", "2001:db8::ff00:42:8380")));
 
         assertAcked(prepareCreate("idx_unmapped"));
+        waitForRelocation(ClusterHealthStatus.GREEN);
+        refresh();
     }
 
     public void testSingleValuedField() {
@@ -216,20 +222,10 @@ public class IpRangeIT extends ESIntegTestCase {
         assertThat(e.getMessage(), containsString("[ip_range] does not support scripts"));
     }
 
-    public static class DummyScriptPlugin extends Plugin {
-
+    public static class DummyScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public String name() {
-            return "DummyScriptPlugin";
-        }
-
-        @Override
-        public String description() {
-            return "A mock script plugin.";
-        }
-
-        public void onModule(ScriptModule module) {
-            module.registerScript(DummyScript.NAME, DummyScriptFactory.class);
+        public List<NativeScriptFactory> getNativeScripts() {
+            return Collections.singletonList(new DummyScriptFactory());
         }
     }
 
@@ -242,6 +238,11 @@ public class IpRangeIT extends ESIntegTestCase {
         @Override
         public boolean needsScores() {
             return false;
+        }
+
+        @Override
+        public String getName() {
+            return DummyScript.NAME;
         }
     }
 

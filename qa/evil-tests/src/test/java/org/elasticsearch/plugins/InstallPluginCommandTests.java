@@ -25,6 +25,7 @@ import com.google.common.jimfs.Jimfs;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
@@ -67,8 +68,10 @@ import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.not;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class InstallPluginCommandTests extends ESTestCase {
@@ -178,6 +181,10 @@ public class InstallPluginCommandTests extends ESTestCase {
 
     /** creates a plugin .zip and returns the url for testing */
     static String createPlugin(String name, Path structure) throws IOException {
+        return createPlugin(name, structure, false);
+    }
+
+    static String createPlugin(String name, Path structure, boolean createSecurityPolicyFile) throws IOException {
         PluginTestUtil.writeProperties(structure,
             "description", "fake desc",
             "name", name,
@@ -185,6 +192,10 @@ public class InstallPluginCommandTests extends ESTestCase {
             "elasticsearch.version", Version.CURRENT.toString(),
             "java.version", System.getProperty("java.specification.version"),
             "classname", "FakePlugin");
+        if (createSecurityPolicyFile) {
+            String securityPolicyContent = "grant {\n  permission java.lang.RuntimePermission \"setFactory\";\n};\n";
+            Files.write(structure.resolve("plugin-security.policy"), securityPolicyContent.getBytes(StandardCharsets.UTF_8));
+        }
         writeJar(structure.resolve("plugin.jar"), "FakePlugin");
         return writeZip(structure, "elasticsearch");
     }
@@ -305,6 +316,12 @@ public class InstallPluginCommandTests extends ESTestCase {
         // has two colons, so it appears similar to maven coordinates
         MalformedURLException e = expectThrows(MalformedURLException.class, () -> installPlugin("://host:1234", env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("no protocol"));
+    }
+
+    public void testUnknownPlugin() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        UserError e = expectThrows(UserError.class, () -> installPlugin("foo", env.v1()));
+        assertTrue(e.getMessage(), e.getMessage().contains("Unknown plugin foo"));
     }
 
     public void testPluginsDirMissing() throws Exception {
@@ -561,7 +578,56 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertTrue(terminal.getOutput(), terminal.getOutput().contains("x-pack"));
     }
 
-    // TODO: test batch flag?
+    public void testInstallMisspelledOfficialPlugins() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        UserError e = expectThrows(UserError.class, () -> installPlugin("xpack", env.v1()));
+        assertThat(e.getMessage(), containsString("Unknown plugin xpack, did you mean [x-pack]?"));
+
+        e = expectThrows(UserError.class, () -> installPlugin("analysis-smartnc", env.v1()));
+        assertThat(e.getMessage(), containsString("Unknown plugin analysis-smartnc, did you mean [analysis-smartcn]?"));
+
+        e = expectThrows(UserError.class, () -> installPlugin("repository", env.v1()));
+        assertThat(e.getMessage(), containsString("Unknown plugin repository, did you mean any of [repository-s3, repository-gcs]?"));
+
+        e = expectThrows(UserError.class, () -> installPlugin("unknown_plugin", env.v1()));
+        assertThat(e.getMessage(), containsString("Unknown plugin unknown_plugin"));
+    }
+
+    public void testBatchFlag() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        installPlugin(terminal, true);
+        assertThat(terminal.getOutput(), containsString("WARNING: plugin requires additional permissions"));
+    }
+
+    public void testQuietFlagDisabled() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        terminal.setVerbosity(randomFrom(Terminal.Verbosity.NORMAL, Terminal.Verbosity.VERBOSE));
+        installPlugin(terminal, false);
+        assertThat(terminal.getOutput(), containsString("100%"));
+    }
+
+    public void testQuietFlagEnabled() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        terminal.setVerbosity(Terminal.Verbosity.SILENT);
+        installPlugin(terminal, false);
+        assertThat(terminal.getOutput(), not(containsString("100%")));
+    }
+
+    private void installPlugin(MockTerminal terminal, boolean isBatch) throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        // if batch is enabled, we also want to add a security policy
+        String pluginZip = createPlugin("fake", pluginDir, isBatch);
+
+        Map<String, String> settings = new HashMap<>();
+        settings.put("path.home", env.v1().toString());
+        new InstallPluginCommand() {
+            @Override
+            void jarHellCheck(Path candidate, Path pluginsDir) throws Exception {
+            }
+        }.execute(terminal, pluginZip, isBatch, settings);
+    }
+
     // TODO: test checksum (need maven/official below)
     // TODO: test maven, official, and staging install...need tests with fixtures...
 }

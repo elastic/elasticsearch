@@ -20,14 +20,18 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents a field load/store or defers to a possible shortcuts.
@@ -38,24 +42,27 @@ public final class LField extends ALink {
 
     Field field;
 
-    public LField(int line, int offset, String location, String value) {
-        super(line, offset, location, 1);
+    public LField(Location location, String value) {
+        super(location, 1);
 
-        this.value = value;
+        this.value = Objects.requireNonNull(value);
     }
+    
+    @Override
+    void extractVariables(Set<String> variables) {}
 
     @Override
-    ALink analyze(Variables variables) {
+    ALink analyze(Locals locals) {
         if (before == null) {
-            throw new IllegalArgumentException(error("Illegal field [" + value + "] access made without target."));
+            throw createError(new IllegalArgumentException("Illegal field [" + value + "] access made without target."));
         }
 
         Sort sort = before.sort;
 
         if (sort == Sort.ARRAY) {
-            return new LArrayLength(line, offset, location, value).copy(this).analyze(variables);
+            return new LArrayLength(location, value).copy(this).analyze(locals);
         } else if (sort == Sort.DEF) {
-            return new LDefField(line, offset, location, value).copy(this).analyze(variables);
+            return new LDefField(location, value).copy(this).analyze(locals);
         }
 
         Struct struct = before.struct;
@@ -63,7 +70,7 @@ public final class LField extends ALink {
 
         if (field != null) {
             if (store && java.lang.reflect.Modifier.isFinal(field.modifiers)) {
-                throw new IllegalArgumentException(error(
+                throw createError(new IllegalArgumentException(
                     "Cannot write to read-only field [" + value + "] for type [" + struct.name + "]."));
             }
 
@@ -80,32 +87,33 @@ public final class LField extends ALink {
                     Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
 
             if (shortcut) {
-                return new LShortcut(line, offset, location, value).copy(this).analyze(variables);
+                return new LShortcut(location, value).copy(this).analyze(locals);
             } else {
-                EConstant index = new EConstant(line, offset, location, value);
-                index.analyze(variables);
+                EConstant index = new EConstant(location, value);
+                index.analyze(locals);
 
                 if (Map.class.isAssignableFrom(before.clazz)) {
-                    return new LMapShortcut(line, offset, location, index).copy(this).analyze(variables);
+                    return new LMapShortcut(location, index).copy(this).analyze(locals);
                 }
 
                 if (List.class.isAssignableFrom(before.clazz)) {
-                    return new LListShortcut(line, offset, location, index).copy(this).analyze(variables);
+                    return new LListShortcut(location, index).copy(this).analyze(locals);
                 }
             }
         }
 
-        throw new IllegalArgumentException(error("Unknown field [" + value + "] for type [" + struct.name + "]."));
+        throw createError(new IllegalArgumentException("Unknown field [" + value + "] for type [" + struct.name + "]."));
     }
 
     @Override
-    void write(MethodWriter writer) {
+    void write(MethodWriter writer, Globals globals) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter writer) {
-        writer.writeDebugInfo(offset);
+    void load(MethodWriter writer, Globals globals) {
+        writer.writeDebugInfo(location);
+
         if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
             writer.getStatic(field.owner.type, field.javaName, field.type.type);
         } else {
@@ -114,8 +122,9 @@ public final class LField extends ALink {
     }
 
     @Override
-    void store(MethodWriter writer) {
-        writer.writeDebugInfo(offset);
+    void store(MethodWriter writer, Globals globals) {
+        writer.writeDebugInfo(location);
+
         if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
             writer.putStatic(field.owner.type, field.javaName, field.type.type);
         } else {

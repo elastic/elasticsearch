@@ -36,6 +36,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -101,7 +102,8 @@ public class SimpleSearchIT extends ESIntegTestCase {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client().prepareIndex("test", "type1", "1").setSource("from", "192.168.0.5", "to", "192.168.0.10").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("from", "192.168.0.5", "to", "192.168.0.10").setRefreshPolicy(IMMEDIATE)
+                .get();
 
         SearchResponse search = client().prepareSearch()
                 .setQuery(boolQuery().must(rangeQuery("from").lte("192.168.0.7")).must(rangeQuery("to").gte("192.168.0.7")))
@@ -185,7 +187,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     public void testSimpleId() {
         createIndex("test");
 
-        client().prepareIndex("test", "type", "XXX1").setSource("field", "value").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type", "XXX1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         // id is not indexed, but lets see that we automatically convert to
         SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
         assertHitCount(searchResponse, 1L);
@@ -441,6 +443,6 @@ public class SimpleSearchIT extends ESIntegTestCase {
         assertThat(e.toString(), containsString("Rescore window [" + windowSize + "] is too large. It must "
                 + "be less than [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.get(Settings.EMPTY)));
         assertThat(e.toString(), containsString(
-                "This limit can be set by chaning the [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey() + "] index level setting."));
+                "This limit can be set by changing the [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey() + "] index level setting."));
     }
 }

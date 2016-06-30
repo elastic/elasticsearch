@@ -80,6 +80,9 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequestBuilder;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
@@ -799,5 +802,20 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * Shrinks an index using an explicit request allowing to specify the settings, mappings and aliases of the target index of the index.
      */
     void shrinkIndex(ShrinkRequest request, ActionListener<ShrinkResponse> listener);
+
+    /**
+     * Swaps the index pointed to by an alias given all provided conditions are satisfied
+     */
+    RolloverRequestBuilder prepareRolloverIndex(String sourceAlias);
+
+    /**
+     * Swaps the index pointed to by an alias given all provided conditions are satisfied
+     */
+    ActionFuture<RolloverResponse> rolloversIndex(RolloverRequest request);
+
+    /**
+     * Swaps the index pointed to by an alias given all provided conditions are satisfied
+     */
+    void rolloverIndex(RolloverRequest request, ActionListener<RolloverResponse> listener);
 
 }

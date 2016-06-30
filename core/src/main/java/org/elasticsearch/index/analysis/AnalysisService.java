@@ -58,16 +58,6 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         this.tokenFilters = unmodifiableMap(tokenFilterFactoryFactories);
         analyzerProviders = new HashMap<>(analyzerProviders);
 
-        if (!analyzerProviders.containsKey("default")) {
-            analyzerProviders.put("default", new StandardAnalyzerProvider(indexSettings, null, "default", Settings.Builder.EMPTY_SETTINGS));
-        }
-        if (!analyzerProviders.containsKey("default_search")) {
-            analyzerProviders.put("default_search", analyzerProviders.get("default"));
-        }
-        if (!analyzerProviders.containsKey("default_search_quoted")) {
-            analyzerProviders.put("default_search_quoted", analyzerProviders.get("default_search"));
-        }
-
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();
         for (Map.Entry<String, AnalyzerProvider> entry : analyzerProviders.entrySet()) {
             AnalyzerProvider analyzerFactory = entry.getValue();
@@ -119,6 +109,17 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
             for (String alias : aliases) {
                 analyzers.put(alias, analyzer);
             }
+        }
+
+        if (!analyzerProviders.containsKey("default")) {
+            AnalyzerProvider standardAnalyzerProvider = new StandardAnalyzerProvider(indexSettings, null, "default", Settings.Builder.EMPTY_SETTINGS);
+            analyzers.put("default", new NamedAnalyzer("default", standardAnalyzerProvider.scope(), standardAnalyzerProvider.get(), TextFieldMapper.Defaults.POSITION_INCREMENT_GAP));
+        }
+        if (!analyzerProviders.containsKey("default_search")) {
+            analyzers.put("default_search", analyzers.get("default"));
+        }
+        if (!analyzerProviders.containsKey("default_search_quoted")) {
+            analyzers.put("default_search_quoted", analyzers.get("default_search"));
         }
 
         NamedAnalyzer defaultAnalyzer = analyzers.get("default");
@@ -188,4 +189,5 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
     public TokenFilterFactory tokenFilter(String name) {
         return tokenFilters.get(name);
     }
+
 }

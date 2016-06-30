@@ -82,15 +82,6 @@ public enum PreBuiltAnalyzers {
         }
     },
 
-    DEFAULT(CachingStrategy.ELASTICSEARCH){
-        @Override
-        protected Analyzer create(Version version) {
-            // by calling get analyzer we are ensuring reuse of the same STANDARD analyzer for DEFAULT!
-            // this call does not create a new instance
-            return STANDARD.getAnalyzer(version);
-        }
-    },
-
     KEYWORD(CachingStrategy.ONE) {
         @Override
         protected Analyzer create(Version version) {

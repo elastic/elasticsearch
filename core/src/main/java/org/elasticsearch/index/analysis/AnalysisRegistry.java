@@ -262,7 +262,6 @@ public final class AnalysisRegistry implements Closeable {
     }
 
     private void registerBuiltInAnalyzer(Map<String, AnalysisModule.AnalysisProvider<AnalyzerProvider>> analyzers) {
-        analyzers.put("default", StandardAnalyzerProvider::new);
         analyzers.put("standard", StandardAnalyzerProvider::new);
         analyzers.put("standard_html_strip", StandardHtmlStripAnalyzerProvider::new);
         analyzers.put("simple", SimpleAnalyzerProvider::new);

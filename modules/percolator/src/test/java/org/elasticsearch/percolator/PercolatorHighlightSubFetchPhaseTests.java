@@ -22,9 +22,12 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.Highlighters;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
@@ -32,6 +35,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
+import java.util.Arrays;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.is;
@@ -77,6 +81,16 @@ public class PercolatorHighlightSubFetchPhaseTests extends ESTestCase {
         assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(boostQuery), nullValue());
         boostQuery = new BoostQuery(percolateQuery, 1f);
         assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(boostQuery), sameInstance(percolateQuery));
+
+        FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(new MatchAllDocsQuery(), new RandomScoreFunction());
+        assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(functionScoreQuery), nullValue());
+        functionScoreQuery = new FunctionScoreQuery(percolateQuery, new RandomScoreFunction());
+        assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(functionScoreQuery), sameInstance(percolateQuery));
+
+        DisjunctionMaxQuery disjunctionMaxQuery = new DisjunctionMaxQuery(Arrays.asList(new MatchAllDocsQuery()), 1f);
+        assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(disjunctionMaxQuery), nullValue());
+        disjunctionMaxQuery = new DisjunctionMaxQuery(Arrays.asList(percolateQuery, new MatchAllDocsQuery()), 1f);
+        assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(disjunctionMaxQuery), sameInstance(percolateQuery));
     }
 
 }

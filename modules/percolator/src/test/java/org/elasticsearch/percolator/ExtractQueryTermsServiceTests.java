@@ -46,6 +46,8 @@ import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.percolator.ExtractQueryTermsService.Result;
 import org.elasticsearch.test.ESTestCase;
@@ -569,6 +571,14 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         result = extractQueryTerms(query);
         assertThat(result.verified, is(true));
         assertTermsEqual(result.terms, new Term("_field", "_value1"), new Term("_field", "_value2"));
+    }
+
+    public void testFunctionScoreQuery() {
+        TermQuery termQuery = new TermQuery(new Term("_field", "_value"));
+        FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(termQuery, new RandomScoreFunction());
+        Result result = extractQueryTerms(functionScoreQuery);
+        assertThat(result.verified, is(false));
+        assertTermsEqual(result.terms, new Term("_field", "_value"));
     }
 
     public void testCreateQueryMetadataQuery() throws Exception {

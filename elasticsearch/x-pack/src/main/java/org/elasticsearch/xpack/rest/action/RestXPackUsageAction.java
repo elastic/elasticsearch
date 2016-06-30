@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.rest.action;
 
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -27,13 +26,13 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestXPackUsageAction extends XPackRestHandler {
 
     @Inject
-    public RestXPackUsageAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestXPackUsageAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, URI_BASE + "/usage", this);
     }
 
     @Override
-    protected void handleRequest(RestRequest request, RestChannel restChannel, XPackClient client) throws Exception {
+    public void handleRequest(RestRequest request, RestChannel restChannel, XPackClient client) throws Exception {
         new XPackUsageRequestBuilder(client.es()).execute(new RestBuilderListener<XPackUsageResponse>(restChannel) {
             @Override
             public RestResponse buildResponse(XPackUsageResponse response, XContentBuilder builder) throws Exception {

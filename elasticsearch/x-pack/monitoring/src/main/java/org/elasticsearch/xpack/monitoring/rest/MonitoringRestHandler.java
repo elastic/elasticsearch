@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.monitoring.rest;
 
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.rest.XPackRestHandler;
 
@@ -13,7 +12,7 @@ public abstract class MonitoringRestHandler extends XPackRestHandler {
 
     protected static String URI_BASE = XPackRestHandler.URI_BASE + "/monitoring";
 
-    public MonitoringRestHandler(Settings settings, Client client) {
-        super(settings, client);
+    public MonitoringRestHandler(Settings settings) {
+        super(settings);
     }
 }

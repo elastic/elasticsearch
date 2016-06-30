@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.monitoring.rest.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -32,8 +32,8 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
     public static final String MONITORING_VERSION = "system_version";
 
     @Inject
-    public RestMonitoringBulkAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestMonitoringBulkAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(POST, URI_BASE + "/_bulk", this);
         controller.registerHandler(PUT, URI_BASE + "/_bulk", this);
         controller.registerHandler(POST, URI_BASE + "/{type}/_bulk", this);
@@ -41,7 +41,7 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
     }
 
     @Override
-    protected void handleRequest(RestRequest request, RestChannel channel, XPackClient client) throws Exception {
+    public void handleRequest(RestRequest request, RestChannel channel, XPackClient client) throws Exception {
         String defaultType = request.param("type");
 
         String id = request.param(MONITORING_ID);

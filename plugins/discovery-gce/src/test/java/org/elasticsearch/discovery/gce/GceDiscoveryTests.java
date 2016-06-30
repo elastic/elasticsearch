@@ -256,10 +256,10 @@ public class GceDiscoveryTests extends ESTestCase {
      */
     public void testNoRegionReturnsEmptyList() {
         Settings nodeSettings = Settings.builder()
-            .put(GceComputeService.PROJECT_SETTING.getKey(), projectName)
-            .putArray(GceComputeService.ZONE_SETTING.getKey(), "europe-west1-b", "us-central1-a")
+            .put(GceInstancesService.PROJECT_SETTING.getKey(), projectName)
+            .putArray(GceInstancesService.ZONE_SETTING.getKey(), "europe-west1-b", "us-central1-a")
             .build();
-        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        mock = new GceInstancesServiceMock(nodeSettings);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
         assertThat(discoveryNodes, hasSize(1));
     }

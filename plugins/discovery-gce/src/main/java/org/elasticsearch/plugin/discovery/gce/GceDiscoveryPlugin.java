@@ -38,6 +38,7 @@ import org.elasticsearch.plugins.Plugin;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -46,6 +47,8 @@ import java.util.List;
 public class GceDiscoveryPlugin extends Plugin {
 
     public static final String GCE = "gce";
+    private final Settings settings;
+    protected final ESLogger logger = Loggers.getLogger(GceDiscoveryPlugin.class);
 
     static {
         /*
@@ -67,6 +70,11 @@ public class GceDiscoveryPlugin extends Plugin {
                 return null;
             }
         });
+    }
+
+    public GceDiscoveryPlugin(Settings settings) {
+        this.settings = settings;
+        logger.trace("starting gce discovery plugin...");
     }
 
     @Override

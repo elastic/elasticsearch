@@ -36,6 +36,10 @@ Response:
                     "key" : "female",
                     "doc_count" : 10
                 },
+                {
+                    "key" : "other",
+                    "doc_count" : 10
+                },
             ]
         }
     }

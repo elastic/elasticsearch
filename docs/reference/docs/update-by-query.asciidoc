@@ -46,6 +46,10 @@ conflict if the document changes between the time when the snapshot was taken
 and when the index request is processed. When the versions match the document
 is updated and the version number is incremented.
 
+NOTE: Since `internal` versioning does not support the value 0 as a valid
+version number, documents with version equal to zero cannot be updated using
+`_update_by_query` and will fail the request.
+
 All update and query failures cause the `_update_by_query` to abort and are
 returned in the `failures` of the response. The updates that have been
 performed still stick. In other words, the process is not rolled back, only

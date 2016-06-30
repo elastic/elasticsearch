@@ -178,8 +178,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent<T
     protected volatile BoundTransportAddress boundAddress;
     private final String transportName;
 
-    public TcpTransport(String transportName, Settings settings, ThreadPool threadPool, BigArrays bigArrays, CircuitBreakerService circuitBreakerService,
-                        NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
+    public TcpTransport(String transportName, Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                        CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
+                        NetworkService networkService) {
         super(settings);
         this.threadPool = threadPool;
         this.bigArrays = bigArrays;
@@ -1343,6 +1344,4 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent<T
             }
         }
     }
-
-
 }

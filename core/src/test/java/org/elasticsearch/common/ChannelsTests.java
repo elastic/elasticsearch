@@ -162,20 +162,6 @@ public class ChannelsTests extends ESTestCase {
         assertTrue("read bytes didn't match written bytes", sourceRef.equals(copyRef));
     }
 
-
-    public void testWriteFromChannel() throws IOException {
-        int length = randomIntBetween(1, randomBytes.length / 2);
-        int offset = randomIntBetween(0, randomBytes.length - length);
-        ByteBuffer byteBuffer = ByteBuffer.wrap(randomBytes);
-        ChannelBuffer source = new ByteBufferBackedChannelBuffer(byteBuffer);
-        Channels.writeToChannel(source, offset, length, fileChannel);
-
-        BytesReference copyRef = new BytesArray(Channels.readFromFileChannel(fileChannel, 0, length));
-        BytesReference sourceRef = new BytesArray(randomBytes, offset, length);
-
-        assertTrue("read bytes didn't match written bytes", sourceRef.equals(copyRef));
-    }
-
     class MockFileChannel extends FileChannel {
 
         FileChannel delegate;

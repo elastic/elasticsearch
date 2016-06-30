@@ -102,7 +102,7 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
                                 return list.execute();
                             }
                         });
-                        if (instanceList.isEmpty()) {
+                        if (instanceList.isEmpty() || instanceList.getItems() == null) {
                             return Collections.EMPTY_LIST;
                         }
 

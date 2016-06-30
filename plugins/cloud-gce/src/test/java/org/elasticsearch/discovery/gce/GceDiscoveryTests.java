@@ -218,4 +218,19 @@ public class GceDiscoveryTests extends ESTestCase {
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
         assertThat(discoveryNodes, hasSize(0));
     }
+
+
+    /**
+     * For issue https://github.com/elastic/elasticsearch/issues/16967
+     */
+    @Test
+    public void emptyRegion16967() {
+        Settings nodeSettings = Settings.builder()
+            .put(GceComputeService.Fields.PROJECT, projectName)
+            .putArray(GceComputeService.Fields.ZONE, "europe-west1-b", "us-central1-a")
+            .build();
+        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
+        assertThat(discoveryNodes, hasSize(1));
+    }
 }

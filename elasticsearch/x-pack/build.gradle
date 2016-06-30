@@ -1,6 +1,8 @@
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.NodeInfo
 
+import java.nio.charset.StandardCharsets
+
 group 'org.elasticsearch.plugin'
 
 apply plugin: 'elasticsearch.esplugin'
@@ -57,7 +59,7 @@ dependencies {
 
 // we keep the source directories in the original structure of split plugins,
 // in order to facilitate backports to 2.x.  TODO: remove after 5.0 release
-for (String module : ['', 'license-plugin/', 'security/', 'watcher/', 'marvel/', 'graph/']) {
+for (String module : ['', 'license-plugin/', 'security/', 'watcher/', 'monitoring/', 'graph/']) {
   sourceSets {
     main {
       java.srcDir("${module}src/main/java")
@@ -132,15 +134,33 @@ integTest {
   systemProperty 'tests.rest.blacklist', 'getting_started/10_monitor_cluster_health/*,bulk/10_basic/*'
   cluster {
     setting 'xpack.monitoring.agent.interval', '3s'
-    setupCommand 'setupDummyUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
     waitCondition = { NodeInfo node, AntBuilder ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
-        ant.get(src: "http://${node.httpUri()}",
-                dest: tmpFile.toString(),
-                username: "test_user",
-                password: "changeme",
-                ignoreerrors: true, // do not fail on error, so logging buffers can be flushed by the wait task
-                retries: 10)
+        for (int i = 0; i < 10; i++) {
+          // we use custom wait logic here as the elastic user is not available immediately and ant.get will fail when a 401 is returned
+          HttpURLConnection httpURLConnection = null;
+          try {
+            httpURLConnection = (HttpURLConnection) new URL("http://${node.httpUri()}").openConnection();
+            httpURLConnection.setRequestProperty("Authorization", "Basic " +
+                    Base64.getEncoder().encodeToString("elastic:changeme".getBytes(StandardCharsets.UTF_8)));
+            httpURLConnection.setRequestMethod("GET");
+            httpURLConnection.connect();
+            if (httpURLConnection.getResponseCode() == 200) {
+              tmpFile.withWriter StandardCharsets.UTF_8.name(), {
+                it.write(httpURLConnection.getInputStream().getText(StandardCharsets.UTF_8.name()))
+              }
+            }
+          } catch (Exception e) {
+            e.printStackTrace()
+          } finally {
+            if (httpURLConnection != null) {
+              httpURLConnection.disconnect();
+            }
+          }
+
+          // did not start, so wait a bit before trying again
+          Thread.sleep(500L);
+        }
         return tmpFile.exists()
     }
   }

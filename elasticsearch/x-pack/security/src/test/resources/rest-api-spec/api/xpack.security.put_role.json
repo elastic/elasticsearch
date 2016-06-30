@@ -1,6 +1,6 @@
 {
   "xpack.security.put_role": {
-    "documentation": "Update or create a role for the native realm",
+    "documentation": "https://www.elastic.co/guide/en/x-pack/master/security-api-roles.html#security-api-put-role",
     "methods": [ "PUT", "POST" ],
     "url": {
       "path": "/_xpack/security/role/{name}",

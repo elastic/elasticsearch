@@ -8,7 +8,7 @@ logstash:
         - read
         - create_index
 
-# Marvel user role. Assign to marvel users.
+# Monitoring user role. Assign to monitoring users.
 monitoring_user:
   indices:
     - names:
@@ -20,8 +20,8 @@ monitoring_user:
         - view_index_metadata
         - read
 
-# Marvel remote agent role. Assign to the agent user on the remote marvel cluster
-# to which the marvel agent will export all its data
+# Monitoring remote agent role. Assign to the agent user on the remote monitoring cluster
+# to which the monitoring agent will export all its data
 remote_monitoring_agent:
   cluster: [ "manage_index_templates", "monitor" ]
   indices:

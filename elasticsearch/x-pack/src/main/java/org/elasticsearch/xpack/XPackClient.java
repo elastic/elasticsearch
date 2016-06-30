@@ -8,7 +8,7 @@ package org.elasticsearch.xpack;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.license.plugin.LicensingClient;
-import org.elasticsearch.marvel.client.MonitoringClient;
+import org.elasticsearch.xpack.monitoring.client.MonitoringClient;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;

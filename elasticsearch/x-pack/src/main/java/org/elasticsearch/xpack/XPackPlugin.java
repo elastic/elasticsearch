@@ -21,11 +21,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.plugin.Licensing;
-import org.elasticsearch.marvel.Monitoring;
-import org.elasticsearch.marvel.MonitoringSettings;
+import org.elasticsearch.xpack.monitoring.Monitoring;
+import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.xpack.action.TransportXPackInfoAction;
@@ -212,15 +213,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
     }
 
     public void onModule(NetworkModule module) {
-        if (!transportClientMode) {
-            module.registerRestHandler(RestXPackInfoAction.class);
-            module.registerRestHandler(RestXPackUsageAction.class);
-        }
-        licensing.onModule(module);
-        monitoring.onModule(module);
         security.onModule(module);
-        watcher.onModule(module);
-        graph.onModule(module);
     }
 
     @Override
@@ -245,6 +238,19 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
         filters.addAll(watcher.getActionFilters());
         filters.addAll(graph.getActionFilters());
         return filters;
+    }
+
+    @Override
+    public List<Class<? extends RestHandler>> getRestHandlers() {
+        List<Class<? extends RestHandler>> handlers = new ArrayList<>();
+        handlers.add(RestXPackInfoAction.class);
+        handlers.add(RestXPackUsageAction.class);
+        handlers.addAll(licensing.getRestHandlers());
+        handlers.addAll(monitoring.getRestHandlers());
+        handlers.addAll(security.getRestHandlers());
+        handlers.addAll(watcher.getRestHandlers());
+        handlers.addAll(graph.getRestHandlers());
+        return handlers;
     }
 
     public void onModule(AuthenticationModule module) {

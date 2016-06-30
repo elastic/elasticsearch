@@ -19,7 +19,7 @@ import org.elasticsearch.license.plugin.action.put.PutLicenseAction;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
-import org.elasticsearch.marvel.Monitoring;
+import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.security.Security;

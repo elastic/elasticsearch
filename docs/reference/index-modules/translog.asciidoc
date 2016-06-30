@@ -62,7 +62,7 @@ The following _static_ per-index setting controls sync frequency of the translog
 
 `index.translog.sync_interval`::
 
-deprecated[2.3.0,Removed in 5.0.0] How often the translog is ++fsync++ed to disk and committed, regardless of
+How often the translog is ++fsync++ed to disk and committed, regardless of
 write operations. Defaults to `5s`.
 
 The following <<indices-update-settings,dynamically updatable>> per-index settings

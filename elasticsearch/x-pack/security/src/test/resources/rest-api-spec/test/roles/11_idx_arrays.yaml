@@ -1,9 +1,12 @@
 ---
 setup:
+  - skip:
+      features: headers
   - do:
       cluster.health:
         wait_for_status: yellow
 
+---
 teardown:
   - do:
       xpack.security.delete_role:
@@ -24,8 +27,6 @@ teardown:
 
 ---
 "Test put role api using as array of index names":
-  - skip:
-      features: headers
 
   - do:
       xpack.security.put_role:

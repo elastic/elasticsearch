@@ -1,23 +1,58 @@
 ---
-"Test changing users password":
+setup:
   - skip:
       features: headers
-
   - do:
       cluster.health:
         wait_for_status: yellow
-
   - do:
       xpack.security.put_user:
         username: "joe"
         body:  >
-            {
-              "password": "s3krit",
-              "roles" : [ "superuser" ]
-            }
-  - match: { user: { created: true } }
+          {
+            "password": "s3krit",
+            "roles" : [ "superuser" ]
+          }
+  - do:
+      xpack.security.put_role:
+        name: "user"
+        body:  >
+          {
+            "cluster": ["monitor"],
+            "indices": [
+              {
+                "names": "*",
+                "privileges": ["all"]
+              }
+            ]
+          }
+  - do:
+      xpack.security.put_user:
+        username: "unprivileged_user"
+        body:  >
+          {
+            "password": "s3krit",
+            "roles" : [ "user" ]
+          }
 
-# test that the role actually works
+---
+teardown:
+  - do:
+      xpack.security.delete_user:
+        username: "joe"
+        ignore: 404
+  - do:
+      xpack.security.delete_role:
+        name: "user"
+        ignore: 404
+  - do:
+      xpack.security.delete_user:
+        username: "unprivileged_user"
+        ignore: 404
+
+---
+"Test changing users password":
+# validate that the user actually works
   - do:
       headers:
         Authorization: "Basic am9lOnMza3JpdA=="
@@ -49,49 +84,17 @@
 
 ---
 "Test user changing their own password":
-  - skip:
-      features: headers
-
-  - do:
-      cluster.health:
-        wait_for_status: yellow
-
-  - do:
-      xpack.security.put_role:
-        name: "user"
-        body:  >
-            {
-              "cluster": ["monitor"],
-              "indices": [
-                {
-                  "names": "*",
-                  "privileges": ["all"]
-                }
-              ]
-            }
-  - match: { role: { created: true } }
-
-  - do:
-      xpack.security.put_user:
-        username: "joe"
-        body:  >
-            {
-              "password": "s3krit",
-              "roles" : [ "user" ]
-            }
-  - match: { user: { created: true } }
-
 # test that the role actually works
   - do:
       headers:
-        Authorization: "Basic am9lOnMza3JpdA=="
+        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0"
       cluster.health: {}
   - match: { timed_out: false }
 
-# change password as the current user. the power_user role only grants the ability to change their own password
+# change password as the current user. the user role only grants the ability to change their own password
   - do:
       headers:
-        Authorization: "Basic am9lOnMza3JpdA=="
+        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0"
       xpack.security.change_password:
         body:  >
             {
@@ -102,61 +105,29 @@
   - do:
       catch: request
       headers:
-        Authorization: "Basic am9lOnMza3JpdA=="
+        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0"
       cluster.health: {}
 
 # login with new credentials
   - do:
       headers:
-        Authorization: "Basic am9lOnMza3JpdDI="
+        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0Mg=="
       cluster.health: {}
   - match: { timed_out: false }
 
 ---
 "Test unauthorized user changing anothers password":
-  - skip:
-      features: headers
-
-  - do:
-      cluster.health:
-        wait_for_status: yellow
-
-  - do:
-      xpack.security.put_role:
-        name: "user"
-        body:  >
-            {
-              "cluster": ["monitor"],
-              "indices": [
-                {
-                  "names": "*",
-                  "privileges": ["all"]
-                }
-              ]
-            }
-  - match: { role: { created: true } }
-
-  - do:
-      xpack.security.put_user:
-        username: "joe"
-        body:  >
-            {
-              "password": "s3krit",
-              "roles" : [ "user" ]
-            }
-  - match: { user: { created: true } }
-
 # test that the role actually works
   - do:
       headers:
-        Authorization: "Basic am9lOnMza3JpdA=="
+        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0"
       cluster.health: {}
   - match: { timed_out: false }
 
 # attempt to change another users password
   - do:
       headers:
-        Authorization: "Basic am9lOnMza3JpdA=="
+        Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0"
       catch: forbidden
       xpack.security.change_password:
         username: "anotheruser"

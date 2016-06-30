@@ -1,4 +1,9 @@
 ---
+teardown:
+  - do:
+      license.delete: {}
+
+---
 "installing and getting license works":
 
     ## current license version

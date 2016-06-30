@@ -1,22 +1,30 @@
 ---
-"Test overwriting a user":
+setup:
   - skip:
       features: headers
 
   - do:
       cluster.health:
-          wait_for_status: yellow
+        wait_for_status: yellow
 
   - do:
       xpack.security.put_user:
         username: "joe"
         body:  >
-            {
-              "password": "s3krit",
-              "roles" : [ "superuser" ]
-            }
-  - match: { user: { created: true } }
+          {
+            "password": "s3krit",
+            "roles" : [ "superuser" ]
+          }
 
+---
+teardown:
+  - do:
+      xpack.security.delete_user:
+        username: "joe"
+        ignore: 404
+
+---
+"Test overwriting a user":
   - do:
       xpack.security.get_user:
         username: "joe"

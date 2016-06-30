@@ -63,29 +63,6 @@ public abstract class XPackRestTestCase extends ESRestTestCase {
         }
     }
 
-    @After
-    public void clearUsersAndRoles() throws Exception {
-        // we cannot delete the .security index from a rest test since we aren't the internal user, lets wipe the data
-        // TODO remove this once the built-in SUPERUSER role is added that can delete the index and we use the built in admin user here
-        RestTestResponse response = getAdminExecutionContext().callApi("xpack.security.get_user", emptyMap(), emptyList(), emptyMap());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> users = (Map<String, Object>) response.getBody();
-        for (String user: users.keySet()) {
-            if (ReservedRealm.isReserved(user) == false) {
-                getAdminExecutionContext().callApi("xpack.security.delete_user", singletonMap("username", user), emptyList(), emptyMap());
-            }
-        }
-
-        response = getAdminExecutionContext().callApi("xpack.security.get_role", emptyMap(), emptyList(), emptyMap());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> roles = (Map<String, Object>) response.getBody();
-        for (String role: roles.keySet()) {
-            if (ReservedRolesStore.isReserved(role) == false) {
-                getAdminExecutionContext().callApi("xpack.security.delete_role", singletonMap("name", role), emptyList(), emptyMap());
-            }
-        }
-    }
-
     @Override
     protected Settings restClientSettings() {
         return Settings.builder()

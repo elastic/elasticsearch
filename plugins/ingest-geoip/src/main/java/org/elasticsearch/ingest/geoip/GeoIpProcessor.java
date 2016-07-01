@@ -272,7 +272,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     // Geoip2's AddressNotFoundException is checked and due to the fact that we need run their code
     // inside a PrivilegedAction code block, we are forced to catch any checked exception and rethrow
     // it with an unchecked exception.
-    private final static class AddressNotFoundRuntimeException extends RuntimeException {
+    private static final class AddressNotFoundRuntimeException extends RuntimeException {
 
         public AddressNotFoundRuntimeException(Throwable cause) {
             super(cause);

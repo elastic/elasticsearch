@@ -88,25 +88,25 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
  */
 public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery, PingContextProvider {
 
-    public final static Setting<TimeValue> PING_TIMEOUT_SETTING =
+    public static final Setting<TimeValue> PING_TIMEOUT_SETTING =
         Setting.positiveTimeSetting("discovery.zen.ping_timeout", timeValueSeconds(3), Property.NodeScope);
-    public final static Setting<TimeValue> JOIN_TIMEOUT_SETTING =
+    public static final Setting<TimeValue> JOIN_TIMEOUT_SETTING =
         Setting.timeSetting("discovery.zen.join_timeout",
             settings -> TimeValue.timeValueMillis(PING_TIMEOUT_SETTING.get(settings).millis() * 20).toString(),
             TimeValue.timeValueMillis(0), Property.NodeScope);
-    public final static Setting<Integer> JOIN_RETRY_ATTEMPTS_SETTING =
+    public static final Setting<Integer> JOIN_RETRY_ATTEMPTS_SETTING =
         Setting.intSetting("discovery.zen.join_retry_attempts", 3, 1, Property.NodeScope);
-    public final static Setting<TimeValue> JOIN_RETRY_DELAY_SETTING =
+    public static final Setting<TimeValue> JOIN_RETRY_DELAY_SETTING =
         Setting.positiveTimeSetting("discovery.zen.join_retry_delay", TimeValue.timeValueMillis(100), Property.NodeScope);
-    public final static Setting<Integer> MAX_PINGS_FROM_ANOTHER_MASTER_SETTING =
+    public static final Setting<Integer> MAX_PINGS_FROM_ANOTHER_MASTER_SETTING =
         Setting.intSetting("discovery.zen.max_pings_from_another_master", 3, 1, Property.NodeScope);
-    public final static Setting<Boolean> SEND_LEAVE_REQUEST_SETTING =
+    public static final Setting<Boolean> SEND_LEAVE_REQUEST_SETTING =
         Setting.boolSetting("discovery.zen.send_leave_request", true, Property.NodeScope);
-    public final static Setting<TimeValue> MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING =
+    public static final Setting<TimeValue> MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING =
         Setting.timeSetting("discovery.zen.master_election.wait_for_joins_timeout",
             settings -> TimeValue.timeValueMillis(JOIN_TIMEOUT_SETTING.get(settings).millis() / 2).toString(), TimeValue.timeValueMillis(0),
             Property.NodeScope);
-    public final static Setting<Boolean> MASTER_ELECTION_IGNORE_NON_MASTER_PINGS_SETTING =
+    public static final Setting<Boolean> MASTER_ELECTION_IGNORE_NON_MASTER_PINGS_SETTING =
             Setting.boolSetting("discovery.zen.master_election.ignore_non_master_pings", false, Property.NodeScope);
 
     public static final String DISCOVERY_REJOIN_ACTION_NAME = "internal:discovery/zen/rejoin";
@@ -197,7 +197,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         discoverySettings,
                         clusterService.getClusterName());
         this.pingService.setPingContextProvider(this);
-        this.membership = new MembershipAction(settings, clusterService, transportService, this, new MembershipListener());
+        this.membership = new MembershipAction(settings, transportService, this, new MembershipListener());
 
         this.joinThreadControl = new JoinThreadControl(threadPool);
 

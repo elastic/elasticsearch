@@ -206,7 +206,7 @@ public class ShardRoutingTests extends ESTestCase {
             if (randomBoolean()) {
                 BytesStreamOutput out = new BytesStreamOutput();
                 routing.writeTo(out);
-                routing = new ShardRouting(StreamInput.wrap(out.bytes()));
+                routing = new ShardRouting(out.bytes().streamInput());
             }
             if (routing.initializing() || routing.relocating()) {
                 assertEquals(routing.toString(), byteSize, routing.getExpectedShardSize());

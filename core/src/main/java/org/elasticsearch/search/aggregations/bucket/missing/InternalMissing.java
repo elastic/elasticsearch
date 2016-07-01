@@ -33,9 +33,9 @@ import java.util.Map;
  */
 public class InternalMissing extends InternalSingleBucketAggregation implements Missing {
 
-    public final static Type TYPE = new Type("missing");
+    public static final Type TYPE = new Type("missing");
 
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalMissing readResult(StreamInput in) throws IOException {
             InternalMissing missing = new InternalMissing();

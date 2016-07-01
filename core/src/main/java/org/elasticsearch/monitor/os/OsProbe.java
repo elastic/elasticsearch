@@ -153,7 +153,7 @@ public class OsProbe {
     }
 
     private static class OsProbeHolder {
-        private final static OsProbe INSTANCE = new OsProbe();
+        private static final OsProbe INSTANCE = new OsProbe();
     }
 
     public static OsProbe getInstance() {

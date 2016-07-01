@@ -22,6 +22,7 @@ package org.elasticsearch.recovery;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.procedures.IntProcedure;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -92,8 +93,6 @@ import static org.hamcrest.Matchers.startsWith;
 @TestLogging("_root:DEBUG,indices.recovery:TRACE,index.shard.service:TRACE")
 public class RelocationIT extends ESIntegTestCase {
     private final TimeValue ACCEPTABLE_RELOCATION_TIME = new TimeValue(5, TimeUnit.MINUTES);
-
-
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -505,7 +504,8 @@ public class RelocationIT extends ESIntegTestCase {
                 if (chunkRequest.name().startsWith(IndexFileNames.SEGMENTS)) {
                     // corrupting the segments_N files in order to make sure future recovery re-send files
                     logger.debug("corrupting [{}] to {}. file name: [{}]", action, node, chunkRequest.name());
-                    byte[] array = chunkRequest.content().array();
+                    assert chunkRequest.content().toBytesRef().bytes == chunkRequest.content().toBytesRef().bytes : "no internal reference!!";
+                    byte[] array = chunkRequest.content().toBytesRef().bytes;
                     array[0] = (byte) ~array[0]; // flip one byte in the content
                     corruptionCount.countDown();
                 }

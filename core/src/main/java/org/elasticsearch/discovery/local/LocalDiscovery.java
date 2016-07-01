@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -49,7 +50,6 @@ import java.util.HashSet;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.ClusterState.Builder;
 
@@ -67,8 +67,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     private final DiscoverySettings discoverySettings;
 
     private volatile boolean master = false;
-
-    private final AtomicBoolean initialStateSent = new AtomicBoolean();
 
     private static final ConcurrentMap<ClusterName, ClusterGroup> clusterGroups = ConcurrentCollections.newConcurrentMap();
 
@@ -318,7 +316,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                             Diff diff = clusterState.diff(clusterChangedEvent.previousState());
                             BytesStreamOutput os = new BytesStreamOutput();
                             diff.writeTo(os);
-                            clusterStateDiffBytes = os.bytes().toBytes();
+                            clusterStateDiffBytes = BytesReference.toBytes(os.bytes());
                         }
                         try {
                             newNodeSpecificClusterState = discovery.lastProcessedClusterState.readDiffFrom(StreamInput.wrap(clusterStateDiffBytes)).apply(discovery.lastProcessedClusterState);

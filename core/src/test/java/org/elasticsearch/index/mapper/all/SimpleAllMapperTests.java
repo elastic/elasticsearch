@@ -24,6 +24,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -292,17 +293,17 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
         }
 
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = mappingBuilder.endObject().endObject().bytes().toUtf8();
+        String mapping = mappingBuilder.endObject().endObject().bytes().utf8ToString();
         logger.info("Mapping: {}", mapping);
         DocumentMapper docMapper = parser.parse("test", new CompressedXContent(mapping));
         String builtMapping = docMapper.mappingSource().string();
         // reparse it
         DocumentMapper builtDocMapper = parser.parse("test", new CompressedXContent(builtMapping));
 
-        byte[] json = jsonBuilder().startObject()
+        byte[] json = BytesReference.toBytes(jsonBuilder().startObject()
                 .field("foo", "bar")
                 .field("foobar", "foobar")
-                .endObject().bytes().toBytes();
+                .endObject().bytes());
         Document doc = builtDocMapper.parse("test", "test", "1", new BytesArray(json)).rootDoc();
         IndexableField[] fields = doc.getFields("_all");
         if (enabled) {

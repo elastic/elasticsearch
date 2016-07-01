@@ -38,7 +38,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestPendingClusterTasksAction extends AbstractCatAction {
     @Inject
     public RestPendingClusterTasksAction(Settings settings, RestController controller) {
-        super(settings, controller);
+        super(settings);
         controller.registerHandler(GET, "/_cat/pending_tasks", this);
     }
 

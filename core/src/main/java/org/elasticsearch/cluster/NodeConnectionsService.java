@@ -57,7 +57,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent<NodeConne
     // if a node doesn't appear in this list it shouldn't be monitored
     private ConcurrentMap<DiscoveryNode, Integer> nodes = ConcurrentCollections.newConcurrentMap();
 
-    final private KeyedLock<DiscoveryNode> nodeLocks = new KeyedLock<>();
+    private final KeyedLock<DiscoveryNode> nodeLocks = new KeyedLock<>();
 
     private final TimeValue reconnectInterval;
 

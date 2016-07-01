@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.transport.netty;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.AbstractBytesReferenceTestCase;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
@@ -47,7 +49,7 @@ public class NettyUtilsTests extends ESTestCase {
         BytesReference slice = ref.slice(sliceOffset, sliceLength);
         ChannelBuffer channelBuffer = NettyUtils.toChannelBuffer(slice);
         BytesReference bytesReference = NettyUtils.toBytesReference(channelBuffer);
-        assertArrayEquals(slice.toBytes(), bytesReference.toBytes());
+        assertArrayEquals(BytesReference.toBytes(slice), BytesReference.toBytes(bytesReference));
     }
 
     public void testToChannelBufferWithSliceAfter() throws IOException {
@@ -56,7 +58,8 @@ public class NettyUtilsTests extends ESTestCase {
         int sliceLength = randomIntBetween(ref.length() - sliceOffset, ref.length() - sliceOffset);
         ChannelBuffer channelBuffer = NettyUtils.toChannelBuffer(ref);
         BytesReference bytesReference = NettyUtils.toBytesReference(channelBuffer);
-        assertArrayEquals(ref.slice(sliceOffset, sliceLength).toBytes(), bytesReference.slice(sliceOffset, sliceLength).toBytes());
+        assertArrayEquals(BytesReference.toBytes(ref.slice(sliceOffset, sliceLength)),
+            BytesReference.toBytes(bytesReference.slice(sliceOffset, sliceLength)));
     }
 
     public void testToChannelBuffer() throws IOException {
@@ -65,10 +68,10 @@ public class NettyUtilsTests extends ESTestCase {
         BytesReference bytesReference = NettyUtils.toBytesReference(channelBuffer);
         if (ref instanceof ChannelBufferBytesReference) {
             assertEquals(channelBuffer, ((ChannelBufferBytesReference) ref).toChannelBuffer());
-        } else if (ref.hasArray() == false) { // we gather the buffers into a channel buffer
+        } else if (AbstractBytesReferenceTestCase.getNumPages(ref) > 1) { // we gather the buffers into a channel buffer
             assertTrue(channelBuffer instanceof CompositeChannelBuffer);
         }
-        assertArrayEquals(ref.toBytes(), bytesReference.toBytes());
+        assertArrayEquals(BytesReference.toBytes(ref), BytesReference.toBytes(bytesReference));
     }
 
     private BytesReference getRandomizedBytesReference(int length) throws IOException {
@@ -81,13 +84,14 @@ public class NettyUtilsTests extends ESTestCase {
         BytesReference ref = out.bytes();
         assertEquals(ref.length(), length);
         if (randomBoolean()) {
-            return ref.toBytesArray();
+            return new BytesArray(ref.toBytesRef());
         } else if (randomBoolean()) {
-            BytesArray bytesArray = ref.toBytesArray();
-            return NettyUtils.toBytesReference(ChannelBuffers.wrappedBuffer(bytesArray.array(), bytesArray.arrayOffset(),
-                bytesArray.length()));
+            BytesRef bytesRef = ref.toBytesRef();
+            return NettyUtils.toBytesReference(ChannelBuffers.wrappedBuffer(bytesRef.bytes, bytesRef.offset,
+                bytesRef.length));
         } else {
             return ref;
         }
     }
+
 }

@@ -27,7 +27,7 @@ import org.elasticsearch.common.logging.Loggers;
  * need a listener but aren't returning the result to the user.
  */
 public final class LoggingTaskListener<Response> implements TaskListener<Response> {
-    private final static ESLogger logger = Loggers.getLogger(LoggingTaskListener.class);
+    private static final ESLogger logger = Loggers.getLogger(LoggingTaskListener.class);
 
     /**
      * Get the instance of NoopActionListener cast appropriately.

@@ -274,7 +274,7 @@ public class ClusterStateObserver {
     }
 
 
-    public static abstract class ValidationPredicate implements ChangePredicate {
+    public abstract static class ValidationPredicate implements ChangePredicate {
 
         @Override
         public boolean apply(ClusterState previousState, ClusterState.ClusterStateStatus previousStatus, ClusterState newState, ClusterState.ClusterStateStatus newStatus) {
@@ -289,7 +289,7 @@ public class ClusterStateObserver {
         }
     }
 
-    public static abstract class EventPredicate implements ChangePredicate {
+    public abstract static class EventPredicate implements ChangePredicate {
         @Override
         public boolean apply(ClusterState previousState, ClusterState.ClusterStateStatus previousStatus, ClusterState newState, ClusterState.ClusterStateStatus newStatus) {
             return previousState != newState || previousStatus != newStatus;
@@ -298,8 +298,8 @@ public class ClusterStateObserver {
     }
 
     static class ObservingContext {
-        final public Listener listener;
-        final public ChangePredicate changePredicate;
+        public final Listener listener;
+        public final ChangePredicate changePredicate;
 
         public ObservingContext(Listener listener, ChangePredicate changePredicate) {
             this.listener = listener;
@@ -308,8 +308,8 @@ public class ClusterStateObserver {
     }
 
     static class ObservedState {
-        final public ClusterState clusterState;
-        final public ClusterState.ClusterStateStatus status;
+        public final ClusterState clusterState;
+        public final ClusterState.ClusterStateStatus status;
 
         public ObservedState(ClusterState clusterState) {
             this.clusterState = clusterState;
@@ -322,7 +322,7 @@ public class ClusterStateObserver {
         }
     }
 
-    private final static class ContextPreservingListener implements Listener {
+    private static final class ContextPreservingListener implements Listener {
         private final Listener delegate;
         private final ThreadContext.StoredContext tempContext;
 

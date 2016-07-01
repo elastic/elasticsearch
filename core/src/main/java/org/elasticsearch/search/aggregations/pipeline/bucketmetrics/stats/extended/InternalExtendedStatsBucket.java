@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.exten
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.InternalExtendedStats;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -31,35 +30,22 @@ import java.util.List;
 import java.util.Map;
 
 public class InternalExtendedStatsBucket extends InternalExtendedStats implements ExtendedStatsBucket {
-
-    public final static Type TYPE = new Type("extended_stats_bucket");
-
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalExtendedStatsBucket readResult(StreamInput in) throws IOException {
-            InternalExtendedStatsBucket result = new InternalExtendedStatsBucket();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     InternalExtendedStatsBucket(String name, long count, double sum, double min, double max, double sumOfSqrs, double sigma,
                                             DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) {
         super(name, count, sum, min, max, sumOfSqrs, sigma, formatter, pipelineAggregators, metaData);
     }
 
-    InternalExtendedStatsBucket() {
-        // for serialization
+    /**
+     * Read from a stream.
+     */
+    public InternalExtendedStatsBucket(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override
-    public Type type() {
-        return TYPE;
+    public String getWriteableName() {
+        return ExtendedStatsBucketPipelineAggregationBuilder.NAME;
     }
 
     @Override

@@ -122,7 +122,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final Path location;
     private TranslogWriter current;
 
-    private final static long NOT_SET_GENERATION = -1; // -1 is safe as it will not cause a translog deletion.
+    private static final long NOT_SET_GENERATION = -1; // -1 is safe as it will not cause a translog deletion.
 
     private volatile long currentCommittingGeneration = NOT_SET_GENERATION;
     private volatile long lastCommittedTranslogFileGeneration = NOT_SET_GENERATION;
@@ -570,10 +570,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         try (ReleasableLock lock = readLock.acquire()) {
             return new TranslogStats(totalOperations(), sizeInBytes());
         }
-    }
-
-    private boolean isReferencedGeneration(long generation) { // used to make decisions if a file can be deleted
-        return generation >= lastCommittedTranslogFileGeneration;
     }
 
     public TranslogConfig getConfig() {
@@ -1261,7 +1257,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * References a transaction log generation
      */
-    public final static class TranslogGeneration {
+    public static final class TranslogGeneration {
         public final String translogUUID;
         public final long translogFileGeneration;
 

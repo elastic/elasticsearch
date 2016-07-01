@@ -551,7 +551,7 @@ public final class Errors {
         return root.errors == null ? 0 : root.errors.size();
     }
 
-    private static abstract class Converter<T> {
+    private abstract static class Converter<T> {
 
         final Class<T> type;
 

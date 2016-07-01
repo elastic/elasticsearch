@@ -50,7 +50,7 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
         }
     };
 
-    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
+    private static final BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
         @Override
         public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
             Bucket buckets = new Bucket(context.keyed());

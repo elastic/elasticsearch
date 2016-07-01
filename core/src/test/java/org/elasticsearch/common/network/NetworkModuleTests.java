@@ -95,7 +95,7 @@ public class NetworkModuleTests extends ModuleTestCase {
 
     static class FakeCatRestHandler extends AbstractCatAction {
         public FakeCatRestHandler() {
-            super(null, null);
+            super(null);
         }
         @Override
         protected void doRequest(RestRequest request, RestChannel channel, NodeClient client) {}

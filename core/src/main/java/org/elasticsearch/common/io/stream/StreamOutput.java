@@ -408,7 +408,7 @@ public abstract class StreamOutput extends OutputStream {
         void write(StreamOutput o, Object value) throws IOException;
     }
 
-    private final static Map<Class<?>, Writer> WRITERS;
+    private static final Map<Class<?>, Writer> WRITERS;
 
     static {
         Map<Class<?>, Writer> writers = new HashMap<>();

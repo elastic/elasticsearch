@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.metrics.valuecount;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -34,30 +33,30 @@ import java.util.Map;
  * An internal implementation of {@link ValueCount}.
  */
 public class InternalValueCount extends InternalNumericMetricsAggregation.SingleValue implements ValueCount {
-
-    public static final Type TYPE = new Type("value_count", "vcount");
-
-    private static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalValueCount readResult(StreamInput in) throws IOException {
-            InternalValueCount count = new InternalValueCount();
-            count.readFrom(in);
-            return count;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-    private long value;
-
-    InternalValueCount() {} // for serialization
+    private final long value;
 
     public InternalValueCount(String name, long value, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.value = value;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public InternalValueCount(StreamInput in) throws IOException {
+        super(in);
+        value = in.readVLong();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeVLong(value);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ValueCountAggregationBuilder.NAME;
     }
 
     @Override
@@ -71,27 +70,12 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
     }
 
     @Override
-    public Type type() {
-        return TYPE;
-    }
-
-    @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long valueCount = 0;
         for (InternalAggregation aggregation : aggregations) {
             valueCount += ((InternalValueCount) aggregation).value;
         }
         return new InternalValueCount(name, valueCount, pipelineAggregators(), getMetaData());
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        value = in.readVLong();
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVLong(value);
     }
 
     @Override

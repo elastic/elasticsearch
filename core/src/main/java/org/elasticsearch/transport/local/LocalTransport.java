@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
@@ -80,7 +81,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     private volatile TransportServiceAdapter transportServiceAdapter;
     private volatile BoundTransportAddress boundAddress;
     private volatile LocalTransportAddress localAddress;
-    private final static ConcurrentMap<LocalTransportAddress, LocalTransport> transports = newConcurrentMap();
+    private static final ConcurrentMap<LocalTransportAddress, LocalTransport> transports = newConcurrentMap();
     private static final AtomicLong transportAddressIdGenerator = new AtomicLong();
     private final ConcurrentMap<DiscoveryNode, LocalTransport> connectedNodes = newConcurrentMap();
     protected final NamedWriteableRegistry namedWriteableRegistry;
@@ -226,7 +227,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
                 throw new NodeNotConnectedException(node, "Node not connected");
             }
 
-            final byte[] data = stream.bytes().toBytes();
+            final byte[] data = BytesReference.toBytes(stream.bytes());
             transportServiceAdapter.sent(data.length);
             transportServiceAdapter.onRequestSent(node, requestId, action, request, options);
             targetTransport.workers().execute(() -> {

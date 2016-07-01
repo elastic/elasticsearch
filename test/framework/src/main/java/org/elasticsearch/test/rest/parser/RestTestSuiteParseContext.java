@@ -18,21 +18,20 @@
  */
 package org.elasticsearch.test.rest.parser;
 
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.test.rest.section.DoSection;
 import org.elasticsearch.test.rest.section.ExecutableSection;
-import org.elasticsearch.test.rest.section.ResponseBodyAssertion;
 import org.elasticsearch.test.rest.section.SetupSection;
 import org.elasticsearch.test.rest.section.SkipSection;
 import org.elasticsearch.test.rest.section.TeardownSection;
 import org.elasticsearch.test.rest.section.TestSection;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Context shared across the whole tests parse phase.
@@ -57,7 +56,6 @@ public class RestTestSuiteParseContext {
         EXECUTABLE_SECTIONS_PARSERS.put("lt", new LessThanParser());
         EXECUTABLE_SECTIONS_PARSERS.put("lte", new LessThanOrEqualToParser());
         EXECUTABLE_SECTIONS_PARSERS.put("length", new LengthParser());
-        EXECUTABLE_SECTIONS_PARSERS.put("response_body", ResponseBodyAssertion.PARSER);
     }
 
     private final String api;
@@ -160,7 +158,8 @@ public class RestTestSuiteParseContext {
             token = parser.nextToken();
         }
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new RestTestParseException("malformed test section: field name expected but found " + token + " at " + parser.getTokenLocation());
+            throw new RestTestParseException("malformed test section: field name expected but found " + token + " at "
+                    + parser.getTokenLocation());
         }
     }
 

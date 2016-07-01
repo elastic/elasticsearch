@@ -43,7 +43,7 @@ public class NodeExplanation implements Writeable, ToXContent {
     private final String finalExplanation;
 
     public NodeExplanation(final DiscoveryNode node, final Decision nodeDecision, final Float nodeWeight,
-                           final @Nullable IndicesShardStoresResponse.StoreStatus storeStatus,
+                           @Nullable final IndicesShardStoresResponse.StoreStatus storeStatus,
                            final ClusterAllocationExplanation.FinalDecision finalDecision,
                            final String finalExplanation,
                            final ClusterAllocationExplanation.StoreCopy storeCopy) {

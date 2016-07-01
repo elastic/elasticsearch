@@ -34,9 +34,9 @@ import java.util.Map;
  */
 public class InternalGlobal extends InternalSingleBucketAggregation implements Global {
 
-    public final static Type TYPE = new Type("global");
+    public static final Type TYPE = new Type("global");
 
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalGlobal readResult(StreamInput in) throws IOException {
             InternalGlobal result = new InternalGlobal();

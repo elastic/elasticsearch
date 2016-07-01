@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -85,7 +86,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
         if (source == null || source.length() == 0) {
             throw new IllegalArgumentException("query source text cannot be null or empty");
         }
-        this.source = source.array();
+        this.source = BytesRef.deepCopyOf(source.toBytesRef()).bytes;
     }
 
     /**

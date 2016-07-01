@@ -55,7 +55,7 @@ import java.util.function.Predicate;
  */
 public class URLRepository extends BlobStoreRepository {
 
-    public final static String TYPE = "url";
+    public static final String TYPE = "url";
 
     public static final Setting<List<String>> SUPPORTED_PROTOCOLS_SETTING =
         Setting.listSetting("repositories.url.supported_protocols", Arrays.asList("http", "https", "ftp", "file", "jar"),

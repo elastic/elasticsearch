@@ -31,9 +31,9 @@ import java.util.Map;
  */
 public final class Pipeline {
 
-    final static String DESCRIPTION_KEY = "description";
-    final static String PROCESSORS_KEY = "processors";
-    final static String ON_FAILURE_KEY = "on_failure";
+    static final String DESCRIPTION_KEY = "description";
+    static final String PROCESSORS_KEY = "processors";
+    static final String ON_FAILURE_KEY = "on_failure";
 
     private final String id;
     private final String description;
@@ -96,7 +96,7 @@ public final class Pipeline {
         return compoundProcessor.flattenProcessors();
     }
 
-    public final static class Factory {
+    public static final class Factory {
 
         public Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorFactories) throws Exception {
             String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);

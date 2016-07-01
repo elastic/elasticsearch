@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
@@ -38,7 +37,7 @@ import static org.elasticsearch.rest.action.support.RestTable.pad;
  */
 public abstract class AbstractCatAction extends BaseRestHandler {
 
-    public AbstractCatAction(Settings settings, RestController controller) {
+    public AbstractCatAction(Settings settings) {
         super(settings);
     }
 

@@ -47,7 +47,7 @@ public class ProcessProbe {
     }
 
     private static class ProcessProbeHolder {
-        private final static ProcessProbe INSTANCE = new ProcessProbe();
+        private static final ProcessProbe INSTANCE = new ProcessProbe();
     }
 
     public static ProcessProbe getInstance() {

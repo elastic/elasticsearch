@@ -615,17 +615,17 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
         }
     }
 
-    private final static class Fields {
-        final static String MAX_DOC = new String("max_doc");
-        final static String DOC_COUNT = new String("doc_count");
-        final static String DENSITY = new String("density");
-        final static String SUM_DOC_FREQ = new String("sum_doc_freq");
-        final static String SUM_TOTAL_TERM_FREQ = new String("sum_total_term_freq");
-        final static String SEARCHABLE = new String("searchable");
-        final static String AGGREGATABLE = new String("aggregatable");
-        final static String MIN_VALUE = new String("min_value");
-        final static String MIN_VALUE_AS_STRING = new String("min_value_as_string");
-        final static String MAX_VALUE = new String("max_value");
-        final static String MAX_VALUE_AS_STRING = new String("max_value_as_string");
+    private static final class Fields {
+        static final String MAX_DOC = new String("max_doc");
+        static final String DOC_COUNT = new String("doc_count");
+        static final String DENSITY = new String("density");
+        static final String SUM_DOC_FREQ = new String("sum_doc_freq");
+        static final String SUM_TOTAL_TERM_FREQ = new String("sum_total_term_freq");
+        static final String SEARCHABLE = new String("searchable");
+        static final String AGGREGATABLE = new String("aggregatable");
+        static final String MIN_VALUE = new String("min_value");
+        static final String MIN_VALUE_AS_STRING = new String("min_value_as_string");
+        static final String MAX_VALUE = new String("max_value");
+        static final String MAX_VALUE_AS_STRING = new String("max_value_as_string");
     }
 }

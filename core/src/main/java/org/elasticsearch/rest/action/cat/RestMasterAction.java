@@ -40,7 +40,7 @@ public class RestMasterAction extends AbstractCatAction {
 
     @Inject
     public RestMasterAction(Settings settings, RestController controller) {
-        super(settings, controller);
+        super(settings);
         controller.registerHandler(GET, "/_cat/master", this);
     }
 

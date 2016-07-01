@@ -76,7 +76,7 @@ final class DocumentParser {
                     docMapperParser, docMapper, source, parser);
             validateStart(parser);
             internalParseDocument(mapping, context, parser);
-            validateEnd(source, parser);
+            validateEnd(parser);
         } catch (Throwable t) {
             throw wrapInMapperParsingException(source, t);
         }
@@ -128,7 +128,7 @@ final class DocumentParser {
         }
     }
 
-    private static void validateEnd(SourceToParse source, XContentParser parser) throws IOException {
+    private static void validateEnd(XContentParser parser) throws IOException {
         XContentParser.Token token;// only check for end of tokens if we created the parser here
         // try to parse the next token, this should be null if the object is ended properly
         // but will throw a JSON exception if the extra tokens is not valid JSON (this will be handled by the catch)
@@ -368,7 +368,6 @@ final class DocumentParser {
             token = parser.nextToken();
         }
 
-        ObjectMapper update = null;
         innerParseObject(context, mapper, parser, currentFieldName, token);
         // restore the enable path flag
         if (nested.isNested()) {

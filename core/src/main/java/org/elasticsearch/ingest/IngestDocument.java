@@ -47,7 +47,7 @@ import java.util.TimeZone;
  */
 public final class IngestDocument {
 
-    public final static String INGEST_KEY = "_ingest";
+    public static final String INGEST_KEY = "_ingest";
     private static final String INGEST_KEY_PREFIX = INGEST_KEY + ".";
     private static final String SOURCE_PREFIX = SourceFieldMapper.NAME + ".";
 

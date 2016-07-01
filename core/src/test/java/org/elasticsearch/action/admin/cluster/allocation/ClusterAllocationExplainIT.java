@@ -48,12 +48,9 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         // Wait for all 3 nodes to be up
         logger.info("--> waiting for 3 nodes to be up");
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                NodesStatsResponse resp = client().admin().cluster().prepareNodesStats().get();
-                assertThat(resp.getNodes().size(), equalTo(3));
-            }
+        assertBusy(() -> {
+            NodesStatsResponse resp = client().admin().cluster().prepareNodesStats().get();
+            assertThat(resp.getNodes().size(), equalTo(3));
         });
 
         logger.info("--> creating 'test' index");
@@ -126,7 +123,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         Map<DiscoveryNode, NodeExplanation> explanations = cae.getNodeExplanations();
 
-        Float noAttrWeight = -1f;
         Float barAttrWeight = -1f;
         Float fooBarAttrWeight = -1f;
         for (Map.Entry<DiscoveryNode, NodeExplanation> entry : explanations.entrySet()) {
@@ -134,7 +130,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             String nodeName = node.getName();
             NodeExplanation explanation = entry.getValue();
             ClusterAllocationExplanation.FinalDecision finalDecision = explanation.getFinalDecision();
-            String finalExplanation = explanation.getFinalExplanation();
             ClusterAllocationExplanation.StoreCopy storeCopy = explanation.getStoreCopy();
             Decision d = explanation.getDecision();
             float weight = explanation.getWeight();
@@ -143,7 +138,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             assertEquals(d.type(), Decision.Type.NO);
             if (noAttrNode.equals(nodeName)) {
                 assertThat(d.toString(), containsString("node does not match index include filters [foo:\"bar\"]"));
-                noAttrWeight = weight;
                 assertNull(storeStatus);
                 assertEquals("the shard cannot be assigned because one or more allocation decider returns a 'NO' decision",
                         explanation.getFinalExplanation());

@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.not;
 
 public class BlockingClusterStatePublishResponseHandlerTests extends ESTestCase {
 
-    static private class PublishResponder extends AbstractRunnable {
+    private static class PublishResponder extends AbstractRunnable {
 
         final boolean fail;
         final DiscoveryNode node;

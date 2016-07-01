@@ -50,7 +50,7 @@ public class RestSegmentsAction extends AbstractCatAction {
 
     @Inject
     public RestSegmentsAction(Settings settings, RestController controller) {
-        super(settings, controller);
+        super(settings);
         controller.registerHandler(GET, "/_cat/segments", this);
         controller.registerHandler(GET, "/_cat/segments/{index}", this);
     }

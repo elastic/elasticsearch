@@ -37,7 +37,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * Round trip tests for {@link PersistedTaskInfo} and those classes that it includes like {@link TaskInfo} and {@link RawTaskStatus}. 
+ * Round trip tests for {@link PersistedTaskInfo} and those classes that it includes like {@link TaskInfo} and {@link RawTaskStatus}.
  */
 public class PersistedTaskInfoTests extends ESTestCase {
     public void testBinaryRoundTrip() throws IOException {
@@ -47,7 +47,7 @@ public class PersistedTaskInfoTests extends ESTestCase {
         PersistedTaskInfo read;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             result.writeTo(out);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes()), registry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
                 read = new PersistedTaskInfo(in);
             }
         } catch (IOException e) {

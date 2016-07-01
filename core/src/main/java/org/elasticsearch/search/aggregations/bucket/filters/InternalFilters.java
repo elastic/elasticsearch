@@ -42,9 +42,9 @@ import java.util.Map;
  */
 public class InternalFilters extends InternalMultiBucketAggregation<InternalFilters, InternalFilters.InternalBucket> implements Filters {
 
-    public final static Type TYPE = new Type("filters");
+    public static final Type TYPE = new Type("filters");
 
-    private final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    private static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalFilters readResult(StreamInput in) throws IOException {
             InternalFilters filters = new InternalFilters();
@@ -53,7 +53,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
         }
     };
 
-    private final static BucketStreams.Stream<InternalBucket> BUCKET_STREAM = new BucketStreams.Stream<InternalBucket>() {
+    private static final BucketStreams.Stream<InternalBucket> BUCKET_STREAM = new BucketStreams.Stream<InternalBucket>() {
         @Override
         public InternalBucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
             InternalBucket filters = new InternalBucket(context.keyed());

@@ -35,9 +35,9 @@ import java.util.Map;
 
 public final class InternalCardinality extends InternalNumericMetricsAggregation.SingleValue implements Cardinality {
 
-    public final static Type TYPE = new Type("cardinality");
+    public static final Type TYPE = new Type("cardinality");
 
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalCardinality readResult(StreamInput in) throws IOException {
             InternalCardinality result = new InternalCardinality();

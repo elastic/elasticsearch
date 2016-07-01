@@ -57,8 +57,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class RecoveryTargetTests extends ESTestCase {
     abstract class Streamer<T extends Streamable> extends Thread {
         private T lastRead;
-        final private AtomicBoolean shouldStop;
-        final private T source;
+        private final AtomicBoolean shouldStop;
+        private final T source;
         final AtomicReference<Throwable> error = new AtomicReference<>();
         final Version streamVersion;
 
@@ -84,7 +84,7 @@ public class RecoveryTargetTests extends ESTestCase {
             BytesStreamOutput out = new BytesStreamOutput();
             source.writeTo(out);
             out.close();
-            StreamInput in = StreamInput.wrap(out.bytes());
+            StreamInput in = out.bytes().streamInput();
             T obj = deserialize(in);
             lastRead = obj;
             return obj;

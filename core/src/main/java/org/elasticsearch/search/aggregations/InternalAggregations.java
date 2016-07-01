@@ -43,7 +43,7 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class InternalAggregations implements Aggregations, ToXContent, Streamable {
 
-    public final static InternalAggregations EMPTY = new InternalAggregations();
+    public static final InternalAggregations EMPTY = new InternalAggregations();
 
     private List<InternalAggregation> aggregations = Collections.emptyList();
 

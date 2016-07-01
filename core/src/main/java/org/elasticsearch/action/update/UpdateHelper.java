@@ -22,8 +22,6 @@ package org.elasticsearch.action.update;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -63,13 +61,11 @@ import java.util.Map;
 public class UpdateHelper extends AbstractComponent {
 
     private final ScriptService scriptService;
-    private final ClusterService clusterService;
 
     @Inject
-    public UpdateHelper(Settings settings, ScriptService scriptService, ClusterService clusterService) {
+    public UpdateHelper(Settings settings, ScriptService scriptService) {
         super(settings);
         this.scriptService = scriptService;
-        this.clusterService = clusterService;
     }
 
     /**

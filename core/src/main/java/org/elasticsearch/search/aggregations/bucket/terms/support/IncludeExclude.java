@@ -135,7 +135,7 @@ public class IncludeExclude implements Writeable, ToXContent {
         }
     }
 
-    public static abstract class OrdinalsFilter {
+    public abstract static class OrdinalsFilter {
         public abstract LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource)
                 throws IOException;
 

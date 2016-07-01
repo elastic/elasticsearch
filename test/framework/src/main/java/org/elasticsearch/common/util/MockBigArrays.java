@@ -246,7 +246,7 @@ public class MockBigArrays extends BigArrays {
         return arr;
     }
 
-    private static abstract class AbstractArrayWrapper {
+    private abstract static class AbstractArrayWrapper {
 
         final BigArray in;
         boolean clearOnResize;

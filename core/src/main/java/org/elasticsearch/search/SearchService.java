@@ -19,19 +19,7 @@
 
 package org.elasticsearch.search;
 
-import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
-
-import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.atomic.AtomicLong;
-
+import com.carrotsearch.hppc.ObjectFloatHashMap;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ExceptionsHelper;
@@ -57,8 +45,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.InnerHitBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -101,7 +89,18 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import com.carrotsearch.hppc.ObjectFloatHashMap;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicLong;
+
+import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
 /**
  *
@@ -842,20 +841,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             }
             context.docIdsToLoad(docIdsToLoad, 0, counter);
         }
-    }
-
-    private void shortcutDocIdsToLoadForScanning(SearchContext context) {
-        TopDocs topDocs = context.queryResult().topDocs();
-        if (topDocs.scoreDocs.length == 0) {
-            // no more docs...
-            context.docIdsToLoad(EMPTY_DOC_IDS, 0, 0);
-            return;
-        }
-        int[] docIdsToLoad = new int[topDocs.scoreDocs.length];
-        for (int i = 0; i < docIdsToLoad.length; i++) {
-            docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
-        }
-        context.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
     }
 
     private void processScroll(InternalScrollSearchRequest request, SearchContext context) {

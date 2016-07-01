@@ -20,7 +20,6 @@ package org.elasticsearch.http;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.bytes.ByteBufferBytesReference;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -205,7 +204,7 @@ public class HttpServerTests extends ESTestCase {
 
         private TestRestRequest(String path, String content) {
             this.path = path;
-            this.content = new ByteBufferBytesReference(ByteBuffer.wrap(content.getBytes(StandardCharsets.UTF_8)));
+            this.content = new BytesArray(content);
         }
 
         @Override

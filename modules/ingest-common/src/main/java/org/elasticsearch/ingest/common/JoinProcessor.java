@@ -70,7 +70,7 @@ public final class JoinProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public final static class Factory implements Processor.Factory {
+    public static final class Factory implements Processor.Factory {
         @Override
         public JoinProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                     Map<String, Object> config) throws Exception {

@@ -35,7 +35,7 @@ public final class ProcessService extends AbstractComponent {
     private final ProcessInfo info;
     private final SingleObjectCache<ProcessStats> processStatsCache;
 
-    public final static Setting<TimeValue> REFRESH_INTERVAL_SETTING =
+    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING =
         Setting.timeSetting("monitor.process.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1),
             Property.NodeScope);
 

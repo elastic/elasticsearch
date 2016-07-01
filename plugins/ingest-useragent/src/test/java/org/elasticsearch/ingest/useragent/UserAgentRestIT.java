@@ -17,23 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws.blobstore;
+package org.elasticsearch.ingest.useragent;
 
-import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.RestTestCandidate;
+import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
-import java.util.Locale;
 
-public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
-    protected BlobStore newBlobStore() throws IOException {
-        MockAmazonS3 client = new MockAmazonS3();
-        String bucket = randomAsciiOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
+public class UserAgentRestIT extends ESRestTestCase {
 
-        return new S3BlobStore(Settings.EMPTY, client, bucket, null, false,
-            new ByteSizeValue(10, ByteSizeUnit.MB), 5, "public-read-write", "standard");
+    public UserAgentRestIT(@Name("yaml") RestTestCandidate testCandidate) {
+        super(testCandidate);
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+        return ESRestTestCase.createParameters(0, 1);
     }
 }

@@ -85,17 +85,17 @@ public abstract class TransportReplicationAction<
             Response extends ReplicationResponse
         > extends TransportAction<Request, Response> {
 
-    final protected TransportService transportService;
-    final protected ClusterService clusterService;
-    final protected IndicesService indicesService;
-    final private ShardStateAction shardStateAction;
-    final private WriteConsistencyLevel defaultWriteConsistencyLevel;
-    final private TransportRequestOptions transportOptions;
+    protected final TransportService transportService;
+    protected final ClusterService clusterService;
+    protected final IndicesService indicesService;
+    private final ShardStateAction shardStateAction;
+    private final WriteConsistencyLevel defaultWriteConsistencyLevel;
+    private final TransportRequestOptions transportOptions;
 
     // package private for testing
     final String transportReplicaAction;
     final String transportPrimaryAction;
-    final private ReplicasProxy replicasProxy;
+    private final ReplicasProxy replicasProxy;
 
     protected TransportReplicationAction(Settings settings, String actionName, TransportService transportService,
                                          ClusterService clusterService, IndicesService indicesService,

@@ -132,7 +132,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
         return Integer.MAX_VALUE;
     }
 
-    final static class BulkRequestModifier implements Iterator<ActionRequest<?>> {
+    static final class BulkRequestModifier implements Iterator<ActionRequest<?>> {
 
         final BulkRequest bulkRequest;
         final Set<Integer> failedSlots;
@@ -210,7 +210,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
 
     }
 
-    final static class IngestBulkResponseListener implements ActionListener<BulkResponse> {
+    static final class IngestBulkResponseListener implements ActionListener<BulkResponse> {
 
         private final long ingestTookInMillis;
         private final int[] originalSlots;

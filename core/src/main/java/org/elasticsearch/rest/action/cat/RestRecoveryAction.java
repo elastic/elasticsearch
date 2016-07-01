@@ -52,7 +52,7 @@ public class RestRecoveryAction extends AbstractCatAction {
 
     @Inject
     public RestRecoveryAction(Settings settings, RestController restController, RestController controller) {
-        super(settings, controller);
+        super(settings);
         restController.registerHandler(GET, "/_cat/recovery", this);
         restController.registerHandler(GET, "/_cat/recovery/{index}", this);
     }

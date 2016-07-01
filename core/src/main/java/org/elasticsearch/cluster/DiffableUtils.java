@@ -330,7 +330,7 @@ public final class DiffableUtils {
      * @param <T> the type of map values
      * @param <M> the map implementation type
      */
-    public static abstract class MapDiff<K, T, M> implements Diff<M> {
+    public abstract static class MapDiff<K, T, M> implements Diff<M> {
 
         protected final List<K> deletes;
         protected final Map<K, Diff<T>> diffs; // incremental updates
@@ -534,7 +534,7 @@ public final class DiffableUtils {
      * @param <K> type of map keys
      * @param <V> type of map values
      */
-    public static abstract class DiffableValueSerializer<K, V extends Diffable<V>> implements ValueSerializer<K, V> {
+    public abstract static class DiffableValueSerializer<K, V extends Diffable<V>> implements ValueSerializer<K, V> {
         private static final DiffableValueSerializer WRITE_ONLY_INSTANCE = new DiffableValueSerializer() {
             @Override
             public Object read(StreamInput in, Object key) throws IOException {
@@ -577,7 +577,7 @@ public final class DiffableUtils {
      * @param <K> type of map keys
      * @param <V> type of map values
      */
-    public static abstract class NonDiffableValueSerializer<K, V> implements ValueSerializer<K, V> {
+    public abstract static class NonDiffableValueSerializer<K, V> implements ValueSerializer<K, V> {
         @Override
         public boolean supportsDiffableValues() {
             return false;

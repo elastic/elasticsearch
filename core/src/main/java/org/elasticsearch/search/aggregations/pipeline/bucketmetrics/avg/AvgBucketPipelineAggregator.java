@@ -35,9 +35,9 @@ import java.util.Map;
 
 public class AvgBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
 
-    public final static Type TYPE = new Type("avg_bucket");
+    public static final Type TYPE = new Type("avg_bucket");
 
-    public final static PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
+    public static final PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
         @Override
         public AvgBucketPipelineAggregator readResult(StreamInput in) throws IOException {
             AvgBucketPipelineAggregator result = new AvgBucketPipelineAggregator();

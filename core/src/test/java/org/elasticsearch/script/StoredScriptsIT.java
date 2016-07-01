@@ -29,8 +29,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 
 public class StoredScriptsIT extends ESIntegTestCase {
 
-    private final static int SCRIPT_MAX_SIZE_IN_BYTES = 64;
-    private final static String LANG = MockScriptEngine.NAME;
+    private static final int SCRIPT_MAX_SIZE_IN_BYTES = 64;
+    private static final String LANG = MockScriptEngine.NAME;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

@@ -357,7 +357,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                                     parentType, scoreMode, parentChildIndexFieldData, context.getSearchSimilarity());
     }
 
-    final static class LateParsingQuery extends Query {
+    static final class LateParsingQuery extends Query {
 
         private final Query toQuery;
         private final Query innerQuery;

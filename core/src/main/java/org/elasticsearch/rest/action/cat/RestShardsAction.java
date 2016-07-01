@@ -50,7 +50,7 @@ public class RestShardsAction extends AbstractCatAction {
 
     @Inject
     public RestShardsAction(Settings settings, RestController controller) {
-        super(settings, controller);
+        super(settings);
         controller.registerHandler(GET, "/_cat/shards", this);
         controller.registerHandler(GET, "/_cat/shards/{index}", this);
     }

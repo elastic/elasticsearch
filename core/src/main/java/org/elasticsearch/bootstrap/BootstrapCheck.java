@@ -508,7 +508,7 @@ final class BootstrapCheck {
 
     }
 
-    static abstract class MightForkCheck implements BootstrapCheck.Check {
+    abstract static class MightForkCheck implements BootstrapCheck.Check {
 
         @Override
         public boolean check() {

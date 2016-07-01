@@ -53,7 +53,7 @@ public class InternalTemplateService implements TemplateService {
                     ExecutableScript executableScript = scriptService.executable(compiledScript, model);
                     Object result = executableScript.run();
                     if (result instanceof BytesReference) {
-                        return ((BytesReference) result).toUtf8();
+                        return ((BytesReference) result).utf8ToString();
                     }
                     return String.valueOf(result);
                 }

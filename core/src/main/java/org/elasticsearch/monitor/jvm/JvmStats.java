@@ -48,10 +48,10 @@ import java.util.concurrent.TimeUnit;
  */
 public class JvmStats implements Streamable, ToXContent {
 
-    private final static RuntimeMXBean runtimeMXBean;
-    private final static MemoryMXBean memoryMXBean;
-    private final static ThreadMXBean threadMXBean;
-    private final static ClassLoadingMXBean classLoadingMXBean;
+    private static final RuntimeMXBean runtimeMXBean;
+    private static final MemoryMXBean memoryMXBean;
+    private static final ThreadMXBean threadMXBean;
+    private static final ClassLoadingMXBean classLoadingMXBean;
 
     static {
         runtimeMXBean = ManagementFactory.getRuntimeMXBean();

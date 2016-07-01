@@ -44,9 +44,9 @@ public class Script implements ToXContent, Writeable {
     private static final ScriptParser PARSER = new ScriptParser();
 
     private String script;
-    private @Nullable ScriptType type;
-    private @Nullable String lang;
-    private @Nullable Map<String, Object> params;
+    @Nullable private ScriptType type;
+    @Nullable private String lang;
+    @Nullable private Map<String, Object> params;
 
     /**
      * Constructor for simple inline script. The script will have no lang or

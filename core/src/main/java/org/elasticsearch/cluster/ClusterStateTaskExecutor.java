@@ -51,8 +51,8 @@ public interface ClusterStateTaskExecutor<T> {
      * @param <T> the type of the cluster state update task
      */
     class BatchResult<T> {
-        final public ClusterState resultingState;
-        final public Map<T, TaskResult> executionResults;
+        public final ClusterState resultingState;
+        public final Map<T, TaskResult> executionResults;
 
         /**
          * Construct an execution result instance with a correspondence between the tasks and their execution result

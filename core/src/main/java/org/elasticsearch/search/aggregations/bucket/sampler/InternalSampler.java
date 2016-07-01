@@ -33,9 +33,9 @@ import java.util.Map;
 */
 public class InternalSampler extends InternalSingleBucketAggregation implements Sampler {
 
-    public final static Type TYPE = new Type("sampler");
+    public static final Type TYPE = new Type("sampler");
 
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalSampler readResult(StreamInput in) throws IOException {
             InternalSampler result = new InternalSampler();

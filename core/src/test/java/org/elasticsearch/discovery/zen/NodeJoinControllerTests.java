@@ -581,7 +581,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         }
     }
 
-    final static AtomicInteger joinId = new AtomicInteger();
+    static final AtomicInteger joinId = new AtomicInteger();
 
     private SimpleFuture joinNodeAsync(final DiscoveryNode node) throws InterruptedException {
         final SimpleFuture future = new SimpleFuture("join of " + node + " (id [" + joinId.incrementAndGet() + "]");

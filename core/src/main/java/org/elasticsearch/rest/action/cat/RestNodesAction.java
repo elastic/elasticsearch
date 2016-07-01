@@ -73,7 +73,7 @@ public class RestNodesAction extends AbstractCatAction {
 
     @Inject
     public RestNodesAction(Settings settings, RestController controller) {
-        super(settings, controller);
+        super(settings);
         controller.registerHandler(GET, "/_cat/nodes", this);
     }
 

@@ -18,11 +18,10 @@
  */
 package org.elasticsearch.transport.netty;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.AbstractBytesReferenceTestCase;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
-import org.elasticsearch.transport.netty.NettyUtils;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 
@@ -38,17 +37,16 @@ public class ChannelBufferBytesReferenceTests extends AbstractBytesReferenceTest
         assertEquals(out.size(), length);
         BytesReference ref = out.bytes();
         assertEquals(ref.length(), length);
-        BytesArray bytesArray = ref.toBytesArray();
-        return NettyUtils.toBytesReference(ChannelBuffers.wrappedBuffer(bytesArray.array(), bytesArray.arrayOffset(),
-            bytesArray.length()));
+        BytesRef bytesRef = ref.toBytesRef();
+        final ChannelBuffer channelBuffer = ChannelBuffers.wrappedBuffer(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        return NettyUtils.toBytesReference(channelBuffer);
     }
 
     public void testSliceOnAdvancedBuffer() throws IOException {
         BytesReference bytesReference = newBytesReference(randomIntBetween(10, 3 * PAGE_SIZE));
-        BytesArray bytesArray = bytesReference.toBytesArray();
-
-        ChannelBuffer channelBuffer = ChannelBuffers.wrappedBuffer(bytesArray.array(), bytesArray.arrayOffset(),
-            bytesArray.length());
+        BytesRef bytesRef = bytesReference.toBytesRef();
+        ChannelBuffer channelBuffer = ChannelBuffers.wrappedBuffer(bytesRef.bytes, bytesRef.offset,
+            bytesRef.length);
         int numBytesToRead = randomIntBetween(1, 5);
         for (int i = 0; i < numBytesToRead; i++) {
             channelBuffer.readByte();
@@ -56,7 +54,25 @@ public class ChannelBufferBytesReferenceTests extends AbstractBytesReferenceTest
         BytesReference other = NettyUtils.toBytesReference(channelBuffer);
         BytesReference slice = bytesReference.slice(numBytesToRead, bytesReference.length() - numBytesToRead);
         assertEquals(other, slice);
-
         assertEquals(other.slice(3, 1), slice.slice(3, 1));
+    }
+
+    public void testImmutable() throws IOException {
+        BytesReference bytesReference = newBytesReference(randomIntBetween(10, 3 * PAGE_SIZE));
+        BytesRef bytesRef = BytesRef.deepCopyOf(bytesReference.toBytesRef());
+        ChannelBuffer channelBuffer = ChannelBuffers.wrappedBuffer(bytesRef.bytes, bytesRef.offset,
+            bytesRef.length);
+        ChannelBufferBytesReference channelBufferBytesReference = new ChannelBufferBytesReference(channelBuffer, bytesRef.length);
+        assertEquals(channelBufferBytesReference, bytesReference);
+        channelBuffer.readInt(); // this advances the index of the channel buffer
+        assertEquals(channelBufferBytesReference, bytesReference);
+        assertEquals(bytesRef, channelBufferBytesReference.toBytesRef());
+
+        BytesRef unicodeBytes = new BytesRef(randomUnicodeOfCodepointLength(100));
+        channelBuffer = ChannelBuffers.wrappedBuffer(unicodeBytes.bytes, unicodeBytes.offset, unicodeBytes.length);
+        channelBufferBytesReference = new ChannelBufferBytesReference(channelBuffer, unicodeBytes.length);
+        String utf8ToString = channelBufferBytesReference.utf8ToString();
+        channelBuffer.readInt(); // this advances the index of the channel buffer
+        assertEquals(utf8ToString, channelBufferBytesReference.utf8ToString());
     }
 }

@@ -67,7 +67,7 @@ public abstract class ValuesSource {
         return false;
     }
 
-    public static abstract class Bytes extends ValuesSource {
+    public abstract static class Bytes extends ValuesSource {
 
         public static final WithOrdinals EMPTY = new WithOrdinals() {
 
@@ -98,7 +98,7 @@ public abstract class ValuesSource {
             }
         }
 
-        public static abstract class WithOrdinals extends Bytes {
+        public abstract static class WithOrdinals extends Bytes {
 
             @Override
             public Bits docsWithValue(LeafReaderContext context) {
@@ -224,7 +224,7 @@ public abstract class ValuesSource {
 
     }
 
-    public static abstract class Numeric extends ValuesSource {
+    public abstract static class Numeric extends ValuesSource {
 
         public static final Numeric EMPTY = new Numeric() {
 
@@ -487,7 +487,7 @@ public abstract class ValuesSource {
         }
     }
 
-    public static abstract class GeoPoint extends ValuesSource {
+    public abstract static class GeoPoint extends ValuesSource {
 
         public static final GeoPoint EMPTY = new GeoPoint() {
 

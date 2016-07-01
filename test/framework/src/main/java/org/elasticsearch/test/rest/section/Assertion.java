@@ -51,14 +51,14 @@ public abstract class Assertion implements ExecutableSection {
             return executionContext.stash().replaceStashedValues(map);
         }
 
-        if (executionContext.stash().isStashedValue(expectedValue)) {
+        if (executionContext.stash().containsStashedValue(expectedValue)) {
             return executionContext.stash().getValue(expectedValue.toString());
         }
         return expectedValue;
     }
 
     protected final Object getActualValue(RestTestExecutionContext executionContext) throws IOException {
-        if (executionContext.stash().isStashedValue(field)) {
+        if (executionContext.stash().containsStashedValue(field)) {
             return executionContext.stash().getValue(field);
         }
         return executionContext.response(field);

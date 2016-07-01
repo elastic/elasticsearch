@@ -45,5 +45,4 @@
 
   - match: { found : true }
   - match: { _id: "my_watch" }
-  - match: { _status.version: 1 }
   - match: { _status.state.active: false }

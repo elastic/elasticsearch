@@ -87,55 +87,6 @@ public class PagedBytesReference extends BytesReference {
         return bref;
     }
 
-    @Override
-    public int hashCode() {
-        if (hash == 0) {
-            // TODO: delegate to BigArrays via:
-            // hash = bigarrays.hashCode(bytearray);
-            // and for slices:
-            // hash = bigarrays.hashCode(bytearray, offset, length);
-            int tmphash = 1;
-            for (int i = 0; i < length; i++) {
-                tmphash = 31 * tmphash + bytearray.get(offset + i);
-            }
-            hash = tmphash;
-        }
-        return hash;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-
-        if (obj == null) {
-            return false;
-        }
-
-        if (!(obj instanceof PagedBytesReference)) {
-            return super.equals(obj);
-        }
-
-        PagedBytesReference other = (PagedBytesReference) obj;
-        if (length != other.length) {
-            return false;
-        }
-
-        // TODO: delegate to BigArrays via:
-        // return bigarrays.equals(bytearray, other.bytearray);
-        // and for slices:
-        // return bigarrays.equals(bytearray, start, other.bytearray, otherstart, len);
-        ByteArray otherArray = other.bytearray;
-        int otherOffset = other.offset;
-        for (int i = 0; i < length; i++) {
-            if (bytearray.get(offset + i) != otherArray.get(otherOffset + i)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     private static class PagedBytesReferenceStreamInput extends StreamInput {
 
         private final ByteArray bytearray;

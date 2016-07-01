@@ -202,16 +202,6 @@ public class NodeInfo extends BaseNodeResponse {
         } else {
             totalIndexingBuffer = null;
         }
-        if (version.onOrBefore(Version.V_5_0_0_alpha4)) {
-            // service attributes were removed
-            if (in.readBoolean()) {
-                int size = in.readVInt();
-                for (int i = 0; i < size; i++) {
-                    in.readString(); // key
-                    in.readString(); // value
-                }
-            }
-        }
         if (in.readBoolean()) {
             settings = Settings.readSettingsFromStream(in);
         }
@@ -252,9 +242,6 @@ public class NodeInfo extends BaseNodeResponse {
         } else {
             out.writeBoolean(true);
             out.writeLong(totalIndexingBuffer.bytes());
-        }
-        if (version.onOrBefore(Version.V_5_0_0_alpha4)) {
-            out.writeBoolean(false); // service attributes removed
         }
         if (settings == null) {
             out.writeBoolean(false);

@@ -120,7 +120,7 @@ public final class QueryRescorer implements Rescorer {
         }
     }
 
-    private final static Comparator<ScoreDoc> SCORE_DOC_COMPARATOR = new Comparator<ScoreDoc>() {
+    private static final Comparator<ScoreDoc> SCORE_DOC_COMPARATOR = new Comparator<ScoreDoc>() {
         @Override
         public int compare(ScoreDoc o1, ScoreDoc o2) {
             int cmp = Float.compare(o2.score, o1.score);

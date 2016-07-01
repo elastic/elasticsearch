@@ -35,7 +35,7 @@ import java.util.Iterator;
  */
 public class BulkResponse extends ActionResponse implements Iterable<BulkItemResponse> {
 
-    public final static long NO_INGEST_TOOK = -1L;
+    public static final long NO_INGEST_TOOK = -1L;
 
     private BulkItemResponse[] responses;
     private long tookInMillis;

@@ -668,7 +668,7 @@ public class NettyTransport extends TcpTransport<Channel> {
         }
     }
 
-    private final static class ChannelBufferStreamOutput extends StreamOutput {
+    private static final class ChannelBufferStreamOutput extends StreamOutput {
 
         private final ChannelBuffer buffer;
         private int offset;

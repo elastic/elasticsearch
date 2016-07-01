@@ -143,7 +143,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
      * Returns the profiled results for this search, or potentially null if result was empty
      * @return The profiled results, or null
      */
-    public @Nullable ProfileShardResult profileResults() {
+    @Nullable public ProfileShardResult profileResults() {
         return profileShardResults;
     }
 

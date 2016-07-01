@@ -75,7 +75,7 @@ public class RestTermVectorsAction extends BaseRestHandler {
         client.termVectors(termVectorsRequest, new RestToXContentListener<TermVectorsResponse>(channel));
     }
 
-    static public void readURIParameters(TermVectorsRequest termVectorsRequest, RestRequest request) {
+    public static void readURIParameters(TermVectorsRequest termVectorsRequest, RestRequest request) {
         String fields = request.param("fields");
         addFieldStringsFromParameter(termVectorsRequest, fields);
         termVectorsRequest.offsets(request.paramAsBoolean("offsets", termVectorsRequest.offsets()));
@@ -93,7 +93,7 @@ public class RestTermVectorsAction extends BaseRestHandler {
         termVectorsRequest.fieldStatistics(request.paramAsBoolean("field_statistics", termVectorsRequest.fieldStatistics()));
     }
 
-    static public void addFieldStringsFromParameter(TermVectorsRequest termVectorsRequest, String fields) {
+    public static void addFieldStringsFromParameter(TermVectorsRequest termVectorsRequest, String fields) {
         Set<String> selectedFields = termVectorsRequest.selectedFields();
         if (fields != null) {
             String[] paramFieldStrings = Strings.commaDelimitedListToStringArray(fields);

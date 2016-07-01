@@ -393,7 +393,7 @@ public enum PreBuiltTokenFilters {
 
     ;
 
-    abstract public TokenStream create(TokenStream tokenStream, Version version);
+    public abstract  TokenStream create(TokenStream tokenStream, Version version);
 
     protected final PreBuiltCacheFactory.PreBuiltCache<TokenFilterFactory> cache;
 

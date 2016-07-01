@@ -63,7 +63,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     private final ESLogger logger;
 
-    private final static AtomicLong idGenerator = new AtomicLong();
+    private static final AtomicLong idGenerator = new AtomicLong();
 
     private final String RECOVERY_PREFIX = "recovery.";
 

@@ -44,8 +44,8 @@ public class YamlXContent implements XContent {
         return XContentBuilder.builder(yamlXContent);
     }
 
-    final static YAMLFactory yamlFactory;
-    public final static YamlXContent yamlXContent;
+    static final YAMLFactory yamlFactory;
+    public static final YamlXContent yamlXContent;
 
     static {
         yamlFactory = new YAMLFactory();

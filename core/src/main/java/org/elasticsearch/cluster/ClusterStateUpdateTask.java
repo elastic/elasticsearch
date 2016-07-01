@@ -28,9 +28,9 @@ import java.util.List;
 /**
  * A task that can update the cluster state.
  */
-abstract public class ClusterStateUpdateTask implements ClusterStateTaskConfig, ClusterStateTaskExecutor<ClusterStateUpdateTask>, ClusterStateTaskListener {
+public abstract  class ClusterStateUpdateTask implements ClusterStateTaskConfig, ClusterStateTaskExecutor<ClusterStateUpdateTask>, ClusterStateTaskListener {
 
-    final private Priority priority;
+    private final Priority priority;
 
     public ClusterStateUpdateTask() {
         this(Priority.NORMAL);
@@ -41,7 +41,7 @@ abstract public class ClusterStateUpdateTask implements ClusterStateTaskConfig, 
     }
 
     @Override
-    final public BatchResult<ClusterStateUpdateTask> execute(ClusterState currentState, List<ClusterStateUpdateTask> tasks) throws Exception {
+    public final BatchResult<ClusterStateUpdateTask> execute(ClusterState currentState, List<ClusterStateUpdateTask> tasks) throws Exception {
         ClusterState result = execute(currentState);
         return BatchResult.<ClusterStateUpdateTask>builder().successes(tasks).build(result);
     }
@@ -50,12 +50,12 @@ abstract public class ClusterStateUpdateTask implements ClusterStateTaskConfig, 
      * Update the cluster state based on the current state. Return the *same instance* if no state
      * should be changed.
      */
-    abstract public ClusterState execute(ClusterState currentState) throws Exception;
+    public abstract  ClusterState execute(ClusterState currentState) throws Exception;
 
     /**
      * A callback called when execute fails.
      */
-    abstract public void onFailure(String source, Throwable t);
+    public abstract  void onFailure(String source, Throwable t);
 
     /**
      * If the cluster state update task wasn't processed by the provided timeout, call

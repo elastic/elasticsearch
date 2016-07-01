@@ -53,7 +53,7 @@ abstract class AbstractStringProcessor extends AbstractProcessor {
 
     protected abstract String process(String value);
 
-    static abstract class Factory implements Processor.Factory {
+    abstract static class Factory implements Processor.Factory {
         protected final String processorType;
 
         protected Factory(String processorType) {

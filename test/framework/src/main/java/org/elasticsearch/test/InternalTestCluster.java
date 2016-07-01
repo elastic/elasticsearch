@@ -1337,7 +1337,7 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Restarts a node and calls the callback during restart.
      */
-    synchronized public void restartNode(String nodeName, RestartCallback callback) throws Exception {
+    public synchronized void restartNode(String nodeName, RestartCallback callback) throws Exception {
         ensureOpen();
         NodeAndClient nodeAndClient = nodes.get(nodeName);
         if (nodeAndClient != null) {
@@ -1346,7 +1346,7 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    synchronized private void restartAllNodes(boolean rollingRestart, RestartCallback callback) throws Exception {
+    private synchronized void restartAllNodes(boolean rollingRestart, RestartCallback callback) throws Exception {
         ensureOpen();
         List<NodeAndClient> toRemove = new ArrayList<>();
         try {

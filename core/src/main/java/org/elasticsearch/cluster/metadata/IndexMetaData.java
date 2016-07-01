@@ -255,7 +255,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
     private final ImmutableOpenIntMap<Set<String>> activeAllocationIds;
 
-    private transient final int totalNumberOfShards;
+    private final transient int totalNumberOfShards;
 
     private final DiscoveryNodeFilters requireFilters;
     private final DiscoveryNodeFilters includeFilters;

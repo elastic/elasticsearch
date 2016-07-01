@@ -37,9 +37,9 @@ import java.util.Map;
 */
 public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles implements Percentiles {
 
-    public final static Type TYPE = new Type(Percentiles.TYPE_NAME, "hdr_percentiles");
+    public static final Type TYPE = new Type(Percentiles.TYPE_NAME, "hdr_percentiles");
 
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalHDRPercentiles readResult(StreamInput in) throws IOException {
             InternalHDRPercentiles result = new InternalHDRPercentiles();

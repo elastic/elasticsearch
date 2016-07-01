@@ -590,7 +590,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
      * Can be used for implementations of {@link #shardOperation(BroadcastRequest, ShardRouting) shardOperation} for
      * which there is no shard-level return value.
      */
-    public final static class EmptyResult implements Streamable {
+    public static final class EmptyResult implements Streamable {
         public static EmptyResult INSTANCE = new EmptyResult();
 
         private EmptyResult() {

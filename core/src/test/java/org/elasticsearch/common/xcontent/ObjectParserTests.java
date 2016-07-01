@@ -35,7 +35,7 @@ import org.elasticsearch.test.ESTestCase;
 
 public class ObjectParserTests extends ESTestCase {
 
-    private final static ParseFieldMatcherSupplier STRICT_PARSING = () -> ParseFieldMatcher.STRICT;
+    private static final ParseFieldMatcherSupplier STRICT_PARSING = () -> ParseFieldMatcher.STRICT;
 
     public void testBasics() throws IOException {
         XContentParser parser = XContentType.JSON.xContent().createParser(

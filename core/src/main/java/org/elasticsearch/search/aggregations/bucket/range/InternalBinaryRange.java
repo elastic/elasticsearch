@@ -44,7 +44,7 @@ public final class InternalBinaryRange
 
     public static final Type TYPE = new Type("binary_range");
 
-    private final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    private static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalBinaryRange readResult(StreamInput in) throws IOException {
             InternalBinaryRange range = new InternalBinaryRange();
@@ -53,7 +53,7 @@ public final class InternalBinaryRange
         }
     };
 
-    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
+    private static final BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
         @Override
         public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
             Bucket bucket = new Bucket(context.format(), context.keyed());

@@ -105,7 +105,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         }
     }
 
-    public final static class TermVectorsFetchSubPhase implements FetchSubPhase {
+    public static final class TermVectorsFetchSubPhase implements FetchSubPhase {
 
         public static final ContextFactory<TermVectorsFetchContext> CONTEXT_FACTORY = new ContextFactory<TermVectorsFetchContext>() {
 

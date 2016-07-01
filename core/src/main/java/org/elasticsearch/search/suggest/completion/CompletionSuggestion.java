@@ -128,7 +128,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
         return new Entry();
     }
 
-    public final static class Entry extends Suggest.Suggestion.Entry<CompletionSuggestion.Entry.Option> {
+    public static final class Entry extends Suggest.Suggestion.Entry<CompletionSuggestion.Entry.Option> {
 
         public Entry(Text text, int offset, int length) {
             super(text, offset, length);

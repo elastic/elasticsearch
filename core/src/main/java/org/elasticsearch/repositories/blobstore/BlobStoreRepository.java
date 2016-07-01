@@ -233,12 +233,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      *
      * @return blob store
      */
-    abstract protected BlobStore blobStore();
+    protected abstract  BlobStore blobStore();
 
     /**
      * Returns base path of the repository
      */
-    abstract protected BlobPath basePath();
+    protected abstract  BlobPath basePath();
 
     /**
      * Returns true if metadata and snapshot files should be compressed

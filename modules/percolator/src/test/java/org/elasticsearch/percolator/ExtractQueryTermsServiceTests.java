@@ -71,9 +71,9 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class ExtractQueryTermsServiceTests extends ESTestCase {
 
-    public final static String QUERY_TERMS_FIELD = "extracted_terms";
-    public final static String EXTRACTION_RESULT_FIELD = "extraction_result";
-    public final static FieldType QUERY_TERMS_FIELD_TYPE = new FieldType();
+    public static final String QUERY_TERMS_FIELD = "extracted_terms";
+    public static final String EXTRACTION_RESULT_FIELD = "extraction_result";
+    public static final FieldType QUERY_TERMS_FIELD_TYPE = new FieldType();
 
     static {
         QUERY_TERMS_FIELD_TYPE.setTokenized(false);

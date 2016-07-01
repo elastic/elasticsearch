@@ -45,8 +45,8 @@ public class SmileXContent implements XContent {
         return XContentBuilder.builder(smileXContent);
     }
 
-    final static SmileFactory smileFactory;
-    public final static SmileXContent smileXContent;
+    static final SmileFactory smileFactory;
+    public static final SmileXContent smileXContent;
 
     static {
         smileFactory = new SmileFactory();

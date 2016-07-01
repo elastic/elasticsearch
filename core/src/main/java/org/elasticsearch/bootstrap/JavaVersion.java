@@ -62,7 +62,7 @@ public class JavaVersion implements Comparable<JavaVersion> {
         return value.matches("^0*[0-9]+(\\.[0-9]+)*$");
     }
 
-    private final static JavaVersion CURRENT = parse(System.getProperty("java.specification.version"));
+    private static final JavaVersion CURRENT = parse(System.getProperty("java.specification.version"));
 
     public static JavaVersion current() {
         return CURRENT;

@@ -350,7 +350,7 @@ public enum GeoDistance implements Writeable {
      * Basic implementation of {@link FixedSourceDistance}. This class keeps the basic parameters for a distance
      * functions based on a fixed source. Namely latitude, longitude and unit.
      */
-    public static abstract class FixedSourceDistanceBase implements FixedSourceDistance {
+    public abstract static class FixedSourceDistanceBase implements FixedSourceDistance {
         protected final double sourceLatitude;
         protected final double sourceLongitude;
         protected final DistanceUnit unit;

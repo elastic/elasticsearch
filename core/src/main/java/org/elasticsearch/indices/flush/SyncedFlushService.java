@@ -443,7 +443,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         return new InFlightOpsResponse(opCount);
     }
 
-    public final static class PreShardSyncedFlushRequest extends TransportRequest {
+    public static final class PreShardSyncedFlushRequest extends TransportRequest {
         private ShardId shardId;
 
         public PreShardSyncedFlushRequest() {
@@ -480,7 +480,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
     /**
      * Response for first step of synced flush (flush) for one shard copy
      */
-    final static class PreSyncedFlushResponse extends TransportResponse {
+    static final class PreSyncedFlushResponse extends TransportResponse {
 
         Engine.CommitId commitId;
 

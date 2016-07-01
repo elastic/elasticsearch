@@ -48,7 +48,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     public static final String NAME = "template";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
-    private final static Map<String, ScriptService.ScriptType> parametersToTypes = new HashMap<>();
+    private static final Map<String, ScriptService.ScriptType> parametersToTypes = new HashMap<>();
     static {
         parametersToTypes.put("query", ScriptService.ScriptType.INLINE);
         parametersToTypes.put("file", ScriptService.ScriptType.FILE);

@@ -195,7 +195,7 @@ public abstract class TimeZoneRounding extends Rounding {
 
     static class TimeIntervalRounding extends TimeZoneRounding {
 
-        final static byte ID = 2;
+        static final byte ID = 2;
 
         private long interval;
         private DateTimeZone timeZone;

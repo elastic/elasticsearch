@@ -134,7 +134,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         });
     }
 
-    final static class SearchRequestSlot {
+    static final class SearchRequestSlot {
 
         final SearchRequest request;
         final int responseSlot;

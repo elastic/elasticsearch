@@ -36,9 +36,9 @@ import java.util.Map;
 */
 public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPercentiles implements PercentileRanks {
 
-    public final static Type TYPE = new Type(PercentileRanks.TYPE_NAME, "t_digest_percentile_ranks");
+    public static final Type TYPE = new Type(PercentileRanks.TYPE_NAME, "t_digest_percentile_ranks");
 
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalTDigestPercentileRanks readResult(StreamInput in) throws IOException {
             InternalTDigestPercentileRanks result = new InternalTDigestPercentileRanks();

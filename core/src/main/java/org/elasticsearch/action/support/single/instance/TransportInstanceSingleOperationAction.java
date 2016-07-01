@@ -205,7 +205,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
             });
         }
 
-        void retry(final @Nullable Throwable failure) {
+        void retry(@Nullable final Throwable failure) {
             if (observer.isTimedOut()) {
                 // we running as a last attempt after a timeout has happened. don't retry
                 Throwable listenFailure = failure;

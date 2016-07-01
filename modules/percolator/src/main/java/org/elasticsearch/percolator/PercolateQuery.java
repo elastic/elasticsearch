@@ -315,7 +315,7 @@ public final class PercolateQuery extends Query implements Accountable {
 
     }
 
-    static abstract class BaseScorer extends Scorer {
+    abstract static class BaseScorer extends Scorer {
 
         final Scorer approximation;
         final QueryStore.Leaf percolatorQueries;

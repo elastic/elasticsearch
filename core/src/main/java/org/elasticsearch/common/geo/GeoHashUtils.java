@@ -195,7 +195,7 @@ public class GeoHashUtils {
      * @param dy      delta of the second grid coordinate (must be -1, 0 or +1)
      * @return geohash of the defined cell
      */
-    public final static String neighbor(String geohash, int level, int dx, int dy) {
+    public static final String neighbor(String geohash, int level, int dx, int dy) {
         int cell = BASE_32_STRING.indexOf(geohash.charAt(level -1));
 
         // Decoding the Geohash bit pattern to determine grid coordinates

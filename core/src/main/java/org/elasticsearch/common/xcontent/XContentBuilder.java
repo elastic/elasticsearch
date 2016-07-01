@@ -52,7 +52,7 @@ import org.joda.time.format.ISODateTimeFormat;
  */
 public final class XContentBuilder implements BytesStream, Releasable {
 
-    public final static DateTimeFormatter defaultDatePrinter = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
+    public static final DateTimeFormatter defaultDatePrinter = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
 
     public static XContentBuilder builder(XContent xContent) throws IOException {
         return new XContentBuilder(xContent, new BytesStreamOutput());
@@ -809,7 +809,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         void write(XContentGenerator g, Object v) throws IOException;
     }
 
-    private final static Map<Class<?>, Writer> MAP;
+    private static final Map<Class<?>, Writer> MAP;
 
     static {
         Map<Class<?>, Writer> map = new HashMap<>();

@@ -52,8 +52,8 @@ import java.util.Map;
 
 public class PercolatorFieldMapper extends FieldMapper {
 
-    public final static XContentType QUERY_BUILDER_CONTENT_TYPE = XContentType.SMILE;
-    public final static Setting<Boolean> INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING =
+    public static final XContentType QUERY_BUILDER_CONTENT_TYPE = XContentType.SMILE;
+    public static final Setting<Boolean> INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING =
             Setting.boolSetting("index.percolator.map_unmapped_fields_as_string", false, Setting.Property.IndexScope);
     public static final String CONTENT_TYPE = "percolator";
     private static final PercolatorFieldType FIELD_TYPE = new PercolatorFieldType();

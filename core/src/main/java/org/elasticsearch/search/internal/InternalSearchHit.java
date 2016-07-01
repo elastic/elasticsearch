@@ -762,7 +762,7 @@ public class InternalSearchHit implements SearchHit {
         }
     }
 
-    public final static class InternalNestedIdentity implements NestedIdentity, Streamable, ToXContent {
+    public static final class InternalNestedIdentity implements NestedIdentity, Streamable, ToXContent {
 
         private Text field;
         private int offset;

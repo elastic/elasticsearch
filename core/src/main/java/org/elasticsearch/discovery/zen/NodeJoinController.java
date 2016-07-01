@@ -344,7 +344,7 @@ public class NodeJoinController extends AbstractComponent {
 
     static class JoinTaskListener implements ClusterStateTaskListener {
         final List<MembershipAction.JoinCallback> callbacks;
-        final private ESLogger logger;
+        private final ESLogger logger;
 
         JoinTaskListener(MembershipAction.JoinCallback callback, ESLogger logger) {
             this(Collections.singletonList(callback), logger);
@@ -379,12 +379,12 @@ public class NodeJoinController extends AbstractComponent {
     }
 
     // a task indicated that the current node should become master, if no current master is known
-    private final static DiscoveryNode BECOME_MASTER_TASK = new DiscoveryNode("_BECOME_MASTER_TASK_", DummyTransportAddress.INSTANCE,
+    private static final DiscoveryNode BECOME_MASTER_TASK = new DiscoveryNode("_BECOME_MASTER_TASK_", DummyTransportAddress.INSTANCE,
         Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
 
     // a task that is used to process pending joins without explicitly becoming a master and listening to the results
     // this task is used when election is stop without the local node becoming a master per se (though it might
-    private final static DiscoveryNode FINISH_ELECTION_NOT_MASTER_TASK = new DiscoveryNode("_NOT_MASTER_TASK_",
+    private static final DiscoveryNode FINISH_ELECTION_NOT_MASTER_TASK = new DiscoveryNode("_NOT_MASTER_TASK_",
         DummyTransportAddress.INSTANCE, Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
 
     class JoinTaskExecutor implements ClusterStateTaskExecutor<DiscoveryNode> {

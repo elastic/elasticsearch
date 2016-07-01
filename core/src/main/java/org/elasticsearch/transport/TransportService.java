@@ -909,7 +909,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
      * This handler wrapper ensures that the response thread executes with the correct thread context. Before any of the4 handle methods
      * are invoked we restore the context.
      */
-    private final static class ContextRestoreResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
+    private static final class ContextRestoreResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
         private final TransportResponseHandler<T> delegate;
         private final ThreadContext.StoredContext threadContext;
 
@@ -944,8 +944,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     static class DirectResponseChannel implements TransportChannel {
         final ESLogger logger;
         final DiscoveryNode localNode;
-        final private String action;
-        final private long requestId;
+        private final String action;
+        private final long requestId;
         final TransportServiceAdapter adapter;
         final ThreadPool threadPool;
 

@@ -186,7 +186,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      * Return the shard with the provided id, or null if there is no such shard.
      */
     @Override
-    public @Nullable IndexShard getShardOrNull(int shardId) {
+    @Nullable
+    public IndexShard getShardOrNull(int shardId) {
         return shards.get(shardId);
     }
 
@@ -730,7 +731,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    static abstract class BaseAsyncTask implements Runnable, Closeable {
+    abstract static class BaseAsyncTask implements Runnable, Closeable {
         protected final IndexService indexService;
         protected final ThreadPool threadPool;
         private final TimeValue interval;
@@ -827,7 +828,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     /**
      * FSyncs the translog for all shards of this index in a defined interval.
      */
-    final static class AsyncTranslogFSync extends BaseAsyncTask {
+    static final class AsyncTranslogFSync extends BaseAsyncTask {
 
         AsyncTranslogFSync(IndexService indexService) {
             super(indexService, indexService.getIndexSettings().getTranslogSyncInterval());

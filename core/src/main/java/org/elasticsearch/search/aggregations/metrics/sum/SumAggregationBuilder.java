@@ -38,7 +38,7 @@ import java.io.IOException;
 
 public class SumAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, SumAggregationBuilder> {
     public static final String NAME = "sum";
-    private final static Type TYPE = new Type(NAME);
+    private static final Type TYPE = new Type(NAME);
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public SumAggregationBuilder(String name) {

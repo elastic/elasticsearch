@@ -459,7 +459,7 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    private static abstract class BaseNamedWriteable implements NamedWriteable {
+    private abstract static class BaseNamedWriteable implements NamedWriteable {
 
     }
 

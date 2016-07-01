@@ -71,8 +71,8 @@ import static org.elasticsearch.action.support.replication.ReplicationOperation.
  */
 public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardResponse> {
 
-    private final static String OP_TYPE_UPDATE = "update";
-    private final static String OP_TYPE_DELETE = "delete";
+    private static final String OP_TYPE_UPDATE = "update";
+    private static final String OP_TYPE_DELETE = "delete";
 
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
 

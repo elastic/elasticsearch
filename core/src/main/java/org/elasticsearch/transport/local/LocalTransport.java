@@ -81,7 +81,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     private volatile TransportServiceAdapter transportServiceAdapter;
     private volatile BoundTransportAddress boundAddress;
     private volatile LocalTransportAddress localAddress;
-    private final static ConcurrentMap<LocalTransportAddress, LocalTransport> transports = newConcurrentMap();
+    private static final ConcurrentMap<LocalTransportAddress, LocalTransport> transports = newConcurrentMap();
     private static final AtomicLong transportAddressIdGenerator = new AtomicLong();
     private final ConcurrentMap<DiscoveryNode, LocalTransport> connectedNodes = newConcurrentMap();
     protected final NamedWriteableRegistry namedWriteableRegistry;

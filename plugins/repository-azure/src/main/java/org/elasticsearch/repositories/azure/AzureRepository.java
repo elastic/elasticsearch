@@ -65,7 +65,7 @@ public class AzureRepository extends BlobStoreRepository {
 
     private static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(64, ByteSizeUnit.MB);
 
-    public final static String TYPE = "azure";
+    public static final String TYPE = "azure";
 
     public static final class Repository {
         public static final Setting<String> ACCOUNT_SETTING = Setting.simpleString("account", Property.NodeScope);

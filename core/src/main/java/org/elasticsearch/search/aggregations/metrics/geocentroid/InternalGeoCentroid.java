@@ -38,8 +38,8 @@ import java.util.Map;
  */
 public class InternalGeoCentroid extends InternalMetricsAggregation implements GeoCentroid {
 
-    public final static Type TYPE = new Type("geo_centroid");
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final Type TYPE = new Type("geo_centroid");
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalGeoCentroid readResult(StreamInput in) throws IOException {
             InternalGeoCentroid result = new InternalGeoCentroid();

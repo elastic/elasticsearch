@@ -143,7 +143,7 @@ public class StreamTests extends ESTestCase {
         assertThat(targetArray, equalTo(sourceArray));
     }
 
-    final static class WriteableString implements Writeable {
+    static final class WriteableString implements Writeable {
         final String string;
 
         public WriteableString(String string) {

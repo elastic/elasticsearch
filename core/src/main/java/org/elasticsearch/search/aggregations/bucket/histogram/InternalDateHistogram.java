@@ -32,7 +32,7 @@ import org.joda.time.DateTimeZone;
 public class InternalDateHistogram {
 
     public static final Factory HISTOGRAM_FACTORY = new Factory();
-    final static Type TYPE = new Type("date_histogram", "dhisto");
+    static final Type TYPE = new Type("date_histogram", "dhisto");
 
     static class Bucket extends InternalHistogram.Bucket {
 

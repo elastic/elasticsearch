@@ -543,11 +543,11 @@ public class PublishClusterStateAction extends AbstractComponent {
             }
         }
 
-        synchronized public boolean isCommitted() {
+        public synchronized boolean isCommitted() {
             return committed;
         }
 
-        synchronized public void onNodeSendAck(DiscoveryNode node) {
+        public synchronized void onNodeSendAck(DiscoveryNode node) {
             if (committed) {
                 assert sendAckedBeforeCommit.isEmpty();
                 sendCommitToNode(node, clusterState, this);
@@ -570,7 +570,7 @@ public class PublishClusterStateAction extends AbstractComponent {
          * check if enough master node responded to commit the change. fails the commit
          * if there are no more pending master nodes but not enough acks to commit.
          */
-        synchronized private void checkForCommitOrFailIfNoPending(DiscoveryNode masterNode) {
+        private synchronized void checkForCommitOrFailIfNoPending(DiscoveryNode masterNode) {
             logger.trace("master node {} acked cluster state version [{}]. processing ... (current pending [{}], needed [{}])",
                     masterNode, clusterState.version(), pendingMasterNodes, neededMastersToCommit);
             neededMastersToCommit--;
@@ -585,14 +585,14 @@ public class PublishClusterStateAction extends AbstractComponent {
             decrementPendingMasterAcksAndChangeForFailure();
         }
 
-        synchronized private void decrementPendingMasterAcksAndChangeForFailure() {
+        private synchronized void decrementPendingMasterAcksAndChangeForFailure() {
             pendingMasterNodes--;
             if (pendingMasterNodes == 0 && neededMastersToCommit > 0) {
                 markAsFailed("no more pending master nodes, but failed to reach needed acks ([" + neededMastersToCommit + "] left)");
             }
         }
 
-        synchronized public void onNodeSendFailed(DiscoveryNode node, Throwable t) {
+        public synchronized void onNodeSendFailed(DiscoveryNode node, Throwable t) {
             if (node.isMasterNode()) {
                 logger.trace("master node {} failed to ack cluster state version [{}]. processing ... (current pending [{}], needed [{}])",
                         node, clusterState.version(), pendingMasterNodes, neededMastersToCommit);
@@ -606,7 +606,7 @@ public class PublishClusterStateAction extends AbstractComponent {
          *
          * @return true if successful
          */
-        synchronized private boolean markAsCommitted() {
+        private synchronized boolean markAsCommitted() {
             if (committedOrFailed()) {
                 return committed;
             }
@@ -621,7 +621,7 @@ public class PublishClusterStateAction extends AbstractComponent {
          *
          * @return true if the publishing was failed and the cluster state is *not* committed
          **/
-        synchronized private boolean markAsFailed(String details, Throwable reason) {
+        private synchronized boolean markAsFailed(String details, Throwable reason) {
             if (committedOrFailed()) {
                 return committed == false;
             }
@@ -636,7 +636,7 @@ public class PublishClusterStateAction extends AbstractComponent {
          *
          * @return true if the publishing was failed and the cluster state is *not* committed
          **/
-        synchronized private boolean markAsFailed(String reason) {
+        private synchronized boolean markAsFailed(String reason) {
             if (committedOrFailed()) {
                 return committed == false;
             }

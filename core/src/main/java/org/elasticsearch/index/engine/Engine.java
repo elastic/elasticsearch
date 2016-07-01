@@ -297,7 +297,7 @@ public abstract class Engine implements Closeable {
         PENDING_OPERATIONS
     }
 
-    final protected GetResult getFromSearcher(Get get, Function<String, Searcher> searcherFactory) throws EngineException {
+    protected final GetResult getFromSearcher(Get get, Function<String, Searcher> searcherFactory) throws EngineException {
         final Searcher searcher = searcherFactory.apply("get");
         final Versions.DocIdAndVersion docIdAndVersion;
         try {
@@ -506,7 +506,7 @@ public abstract class Engine implements Closeable {
     }
 
     /** How much heap is used that would be freed by a refresh.  Note that this may throw {@link AlreadyClosedException}. */
-    abstract public long getIndexBufferRAMBytesUsed();
+    public abstract  long getIndexBufferRAMBytesUsed();
 
     protected Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
         ensureOpen();
@@ -757,7 +757,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public static abstract class Operation {
+    public abstract static class Operation {
         private final Term uid;
         private long version;
         private final VersionType versionType;

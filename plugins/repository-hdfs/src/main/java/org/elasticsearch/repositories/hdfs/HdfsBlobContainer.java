@@ -131,7 +131,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobsByPrefix(final @Nullable String prefix) throws IOException {
+    public Map<String, BlobMetaData> listBlobsByPrefix(@Nullable final String prefix) throws IOException {
         FileStatus[] files = store.execute(new Operation<FileStatus[]>() {
             @Override
             public FileStatus[] run(FileContext fileContext) throws IOException {

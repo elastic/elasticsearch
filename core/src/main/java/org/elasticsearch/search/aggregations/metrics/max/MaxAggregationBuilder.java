@@ -38,7 +38,7 @@ import java.io.IOException;
 
 public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, MaxAggregationBuilder> {
     public static final String NAME = "max";
-    public final static Type TYPE = new Type(NAME);
+    public static final Type TYPE = new Type(NAME);
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public MaxAggregationBuilder(String name) {

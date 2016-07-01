@@ -36,9 +36,9 @@ import java.util.Map;
 */
 public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentiles implements Percentiles {
 
-    public final static Type TYPE = new Type(Percentiles.TYPE_NAME, "t_digest_percentiles");
+    public static final Type TYPE = new Type(Percentiles.TYPE_NAME, "t_digest_percentiles");
 
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalTDigestPercentiles readResult(StreamInput in) throws IOException {
             InternalTDigestPercentiles result = new InternalTDigestPercentiles();

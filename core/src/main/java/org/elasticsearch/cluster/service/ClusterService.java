@@ -154,17 +154,17 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
         this.slowTaskLoggingThreshold = slowTaskLoggingThreshold;
     }
 
-    synchronized public void setClusterStatePublisher(BiConsumer<ClusterChangedEvent, Discovery.AckListener> publisher) {
+    public synchronized void setClusterStatePublisher(BiConsumer<ClusterChangedEvent, Discovery.AckListener> publisher) {
         clusterStatePublisher = publisher;
     }
 
-    synchronized public void setLocalNode(DiscoveryNode localNode) {
+    public synchronized void setLocalNode(DiscoveryNode localNode) {
         assert clusterState.nodes().getLocalNodeId() == null : "local node is already set";
         DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder(clusterState.nodes()).put(localNode).localNodeId(localNode.getId());
         this.clusterState = ClusterState.builder(clusterState).nodes(nodeBuilder).build();
     }
 
-    synchronized public void setNodeConnectionsService(NodeConnectionsService nodeConnectionsService) {
+    public synchronized void setNodeConnectionsService(NodeConnectionsService nodeConnectionsService) {
         assert this.nodeConnectionsService == null : "nodeConnectionsService is already set";
         this.nodeConnectionsService = nodeConnectionsService;
     }
@@ -172,7 +172,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
     /**
      * Adds an initial block to be set on the first cluster state created.
      */
-    synchronized public void addInitialStateBlock(ClusterBlock block) throws IllegalStateException {
+    public synchronized void addInitialStateBlock(ClusterBlock block) throws IllegalStateException {
         if (lifecycle.started()) {
             throw new IllegalStateException("can't set initial block when started");
         }
@@ -182,14 +182,14 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
     /**
      * Remove an initial block to be set on the first cluster state created.
      */
-    synchronized public void removeInitialStateBlock(ClusterBlock block) throws IllegalStateException {
+    public synchronized void removeInitialStateBlock(ClusterBlock block) throws IllegalStateException {
         removeInitialStateBlock(block.id());
     }
 
     /**
      * Remove an initial block to be set on the first cluster state created.
      */
-    synchronized public void removeInitialStateBlock(int blockId) throws IllegalStateException {
+    public synchronized void removeInitialStateBlock(int blockId) throws IllegalStateException {
         if (lifecycle.started()) {
             throw new IllegalStateException("can't set initial block when started");
         }
@@ -197,7 +197,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
     }
 
     @Override
-    synchronized protected void doStart() {
+    protected synchronized void doStart() {
         Objects.requireNonNull(clusterStatePublisher, "please set a cluster state publisher before starting");
         Objects.requireNonNull(clusterState.nodes().getLocalNode(), "please set the local node before starting");
         Objects.requireNonNull(nodeConnectionsService, "please set the node connection service before starting");
@@ -209,7 +209,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
     }
 
     @Override
-    synchronized protected void doStop() {
+    protected synchronized void doStop() {
         for (NotifyTimeout onGoingTimeout : onGoingTimeouts) {
             onGoingTimeout.cancel();
             try {
@@ -230,7 +230,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
     }
 
     @Override
-    synchronized protected void doClose() {
+    protected synchronized void doClose() {
     }
 
     /**
@@ -497,7 +497,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
         return clusterName;
     }
 
-    static abstract class SourcePrioritizedRunnable extends PrioritizedRunnable {
+    abstract static class SourcePrioritizedRunnable extends PrioritizedRunnable {
         protected final String source;
 
         public SourcePrioritizedRunnable(Priority priority, String source) {
@@ -959,7 +959,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
 
     private static class DelegetingAckListener implements Discovery.AckListener {
 
-        final private List<Discovery.AckListener> listeners;
+        private final List<Discovery.AckListener> listeners;
 
         private DelegetingAckListener(List<Discovery.AckListener> listeners) {
             this.listeners = listeners;

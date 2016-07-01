@@ -33,7 +33,7 @@ import java.util.regex.Pattern;
  */
 public class LongGCDisruption extends SingleNodeDisruption {
 
-    private final static Pattern[] unsafeClasses = new Pattern[]{
+    private static final Pattern[] unsafeClasses = new Pattern[]{
             // logging has shared JVM locks - we may suspend a thread and block other nodes from doing their thing
             Pattern.compile("Logger")
     };

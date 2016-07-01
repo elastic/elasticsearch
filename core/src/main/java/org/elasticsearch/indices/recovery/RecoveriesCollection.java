@@ -45,8 +45,8 @@ public class RecoveriesCollection {
     /** This is the single source of truth for ongoing recoveries. If it's not here, it was canceled or done */
     private final ConcurrentMap<Long, RecoveryTarget> onGoingRecoveries = ConcurrentCollections.newConcurrentMap();
 
-    final private ESLogger logger;
-    final private ThreadPool threadPool;
+    private final ESLogger logger;
+    private final ThreadPool threadPool;
 
     public RecoveriesCollection(ESLogger logger, ThreadPool threadPool) {
         this.logger = logger;

@@ -331,7 +331,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
      * Returns an IndexService for the specified index if exists otherwise returns <code>null</code>.
      */
     @Override
-    public @Nullable IndexService indexService(Index index) {
+    @Nullable
+    public IndexService indexService(Index index) {
         return indices.get(index.getUUID());
     }
 
@@ -737,7 +738,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
      * @return IndexMetaData for the index loaded from disk
      */
     @Override
-    public @Nullable IndexMetaData verifyIndexIsDeleted(final Index index, final ClusterState clusterState) {
+    @Nullable
+    public IndexMetaData verifyIndexIsDeleted(final Index index, final ClusterState clusterState) {
         // this method should only be called when we know the index (name + uuid) is not part of the cluster state
         if (clusterState.metaData().index(index) != null) {
             throw new IllegalStateException("Cannot delete index [" + index + "], it is still part of the cluster state.");
@@ -997,7 +999,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
      * has an entry invalidated may not clean up the entry if it is not read from
      * or written to after invalidation.
      */
-    private final static class CacheCleaner implements Runnable, Releasable {
+    private static final class CacheCleaner implements Runnable, Releasable {
 
         private final IndicesFieldDataCache cache;
         private final ESLogger logger;
@@ -1160,7 +1162,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
         return indicesRequestCache.getOrCompute(cacheEntity, reader, cacheKey);
     }
 
-    final static class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {
+    static final class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {
         private final IndexShard indexShard;
 
         protected IndexShardCacheEntity(IndexShard indexShard, Loader loader) {

@@ -33,9 +33,9 @@ import java.util.Map;
 
 public class InternalDerivative extends InternalSimpleValue implements Derivative {
 
-    public final static Type TYPE = new Type("derivative");
+    public static final Type TYPE = new Type("derivative");
 
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalDerivative readResult(StreamInput in) throws IOException {
             InternalDerivative result = new InternalDerivative();

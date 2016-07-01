@@ -260,7 +260,7 @@ public class ClusterStateCreationUtils {
                 new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.CURRENT);
     }
 
-    static private String selectAndRemove(Set<String> strings) {
+    private static String selectAndRemove(Set<String> strings) {
         String selection = randomFrom(strings.toArray(new String[strings.size()]));
         strings.remove(selection);
         return selection;

@@ -541,7 +541,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         };
     }
 
-    private final static class LegacyQueryFieldVisitor extends StoredFieldVisitor {
+    private static final class LegacyQueryFieldVisitor extends StoredFieldVisitor {
 
         private BytesArray source;
 

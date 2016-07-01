@@ -45,10 +45,10 @@ public class JsonXContent implements XContent {
         return XContentBuilder.builder(jsonXContent);
     }
 
-    private final static JsonFactory jsonFactory;
-    public final static String JSON_ALLOW_UNQUOTED_FIELD_NAMES = "elasticsearch.json.allow_unquoted_field_names";
-    public final static JsonXContent jsonXContent;
-    public final static boolean unquotedFieldNamesSet;
+    private static final JsonFactory jsonFactory;
+    public static final String JSON_ALLOW_UNQUOTED_FIELD_NAMES = "elasticsearch.json.allow_unquoted_field_names";
+    public static final JsonXContent jsonXContent;
+    public static final boolean unquotedFieldNamesSet;
 
     static {
         jsonFactory = new JsonFactory();

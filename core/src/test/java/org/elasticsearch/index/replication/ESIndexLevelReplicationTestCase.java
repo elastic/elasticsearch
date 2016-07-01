@@ -107,10 +107,10 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
 
     private ThreadPool threadPool;
-    final private Index index = new Index("test", "uuid");
-    final private ShardId shardId = new ShardId(index, 0);
-    final private Map<String, String> indexMapping = Collections.singletonMap("type", "{ \"type\": {} }");
-    protected final static RecoveryTargetService.RecoveryListener recoveryListener = new RecoveryTargetService.RecoveryListener() {
+    private final Index index = new Index("test", "uuid");
+    private final ShardId shardId = new ShardId(index, 0);
+    private final Map<String, String> indexMapping = Collections.singletonMap("type", "{ \"type\": {} }");
+    protected static final RecoveryTargetService.RecoveryListener recoveryListener = new RecoveryTargetService.RecoveryListener() {
         @Override
         public void onRecoveryDone(RecoveryState state) {
 

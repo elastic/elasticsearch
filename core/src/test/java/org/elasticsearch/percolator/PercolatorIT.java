@@ -2081,5 +2081,20 @@ public class PercolatorIT extends ESIntegTestCase {
         assertNoFailures(response1);
     }
 
+    @Test
+    public void testWithFilterOnIdField() throws Exception {
+        createIndex("test");
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()))
+                .setRefresh(true)
+                .get();
+        PercolateResponse response1 = client().preparePercolate()
+                .setIndices("test").setDocumentType("type")
+                .setPercolateQuery(termQuery("_id", "1"))
+                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
+                .get();
+        assertMatchCount(response1, 1L);
+    }
+
 }
 

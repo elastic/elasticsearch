@@ -197,6 +197,11 @@ public class PercolatorService extends AbstractComponent {
         final PercolateContext context = new PercolateContext(
                 request, searchShardTarget, indexShard, percolateIndexService, pageCacheRecycler, bigArrays, scriptService, aliasFilter, parseFieldMatcher
         );
+        // Some queries (function_score query when for decay functions) rely on a SearchContext being set:
+        // We switch types because this context needs to be in the context of the percolate queries in the shard and
+        // not the in memory percolate doc
+        String[] previousTypes = context.types();
+        context.types(new String[]{TYPE_NAME});
         SearchContext.setCurrent(context);
         try {
             ParsedDocument parsedDocument = parseRequest(percolateIndexService, request, context, request.shardId().getIndex());
@@ -253,6 +258,7 @@ public class PercolatorService extends AbstractComponent {
             percolatorIndex.prepare(context, parsedDocument);
             return action.doPercolate(request, context, isNested);
         } finally {
+            context.types(previousTypes);
             SearchContext.removeCurrent();
             context.close();
             shardPercolateService.postPercolate(System.nanoTime() - startTime);
@@ -272,11 +278,6 @@ public class PercolatorService extends AbstractComponent {
         ParsedDocument doc = null;
         XContentParser parser = null;
 
-        // Some queries (function_score query when for decay functions) rely on a SearchContext being set:
-        // We switch types because this context needs to be in the context of the percolate queries in the shard and
-        // not the in memory percolate doc
-        String[] previousTypes = context.types();
-        context.types(new String[]{TYPE_NAME});
         try {
             parser = XContentFactory.xContent(source).createParser(source);
             String currentFieldName = null;
@@ -378,7 +379,6 @@ public class PercolatorService extends AbstractComponent {
         } catch (Throwable e) {
             throw new ElasticsearchParseException("failed to parse request", e);
         } finally {
-            context.types(previousTypes);
             if (parser != null) {
                 parser.close();
             }

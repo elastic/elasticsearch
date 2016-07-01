@@ -22,6 +22,7 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -210,7 +211,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                             out.flush();
                             CheckIndex.Status status = checkIndex.checkIndex();
                             if (!status.clean) {
-                                logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
+                                logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
                                 throw new IOException("index check failure");
                             }
                         }
@@ -346,7 +347,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
                     if (corrupt.get() && action.equals(RecoveryTargetService.Actions.FILE_CHUNK)) {
                         RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
-                        byte[] array = req.content().array();
+                        byte[] array = BytesRef.deepCopyOf(req.content().toBytesRef()).bytes;
                         int i = randomIntBetween(0, req.content().length() - 1);
                         array[i] = (byte) ~array[i]; // flip one byte in the content
                         hasCorrupted.countDown();
@@ -419,10 +420,12 @@ public class CorruptedFileIT extends ESIntegTestCase {
                     if (action.equals(RecoveryTargetService.Actions.FILE_CHUNK)) {
                         RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
                         if (truncate && req.length() > 1) {
-                            BytesArray array = new BytesArray(req.content().array(), req.content().arrayOffset(), (int) req.length() - 1);
+                            BytesRef bytesRef = req.content().toBytesRef();
+                            BytesArray array = new BytesArray(bytesRef.bytes, bytesRef.offset, (int) req.length() - 1);
                             request = new RecoveryFileChunkRequest(req.recoveryId(), req.shardId(), req.metadata(), req.position(), array, req.lastChunk(), req.totalTranslogOps(), req.sourceThrottleTimeInNanos());
                         } else {
-                            byte[] array = req.content().array();
+                            assert req.content().toBytesRef().bytes == req.content().toBytesRef().bytes : "no internal reference!!";
+                            final byte[] array = req.content().toBytesRef().bytes;
                             int i = randomIntBetween(0, req.content().length() - 1);
                             array[i] = (byte) ~array[i]; // flip one byte in the content
                         }

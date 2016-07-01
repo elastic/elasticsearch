@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -318,7 +319,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                             Diff diff = clusterState.diff(clusterChangedEvent.previousState());
                             BytesStreamOutput os = new BytesStreamOutput();
                             diff.writeTo(os);
-                            clusterStateDiffBytes = os.bytes().toBytes();
+                            clusterStateDiffBytes = BytesReference.toBytes(os.bytes());
                         }
                         try {
                             newNodeSpecificClusterState = discovery.lastProcessedClusterState.readDiffFrom(StreamInput.wrap(clusterStateDiffBytes)).apply(discovery.lastProcessedClusterState);

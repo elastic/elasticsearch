@@ -32,10 +32,28 @@ public class BytesArrayTests extends AbstractBytesReferenceTestCase {
             out.writeByte((byte) random().nextInt(1 << 8));
         }
         assertEquals(length, out.size());
-        BytesArray ref = out.bytes().toBytesArray();
+        BytesArray ref = new BytesArray(out.bytes().toBytesRef());
         assertEquals(length, ref.length());
         assertTrue(ref instanceof BytesArray);
         assertThat(ref.length(), Matchers.equalTo(length));
         return ref;
+    }
+
+    public void testArray() throws IOException {
+        int[] sizes = {0, randomInt(PAGE_SIZE), PAGE_SIZE, randomIntBetween(2, PAGE_SIZE * randomIntBetween(2, 5))};
+
+        for (int i = 0; i < sizes.length; i++) {
+            BytesArray pbr = (BytesArray) newBytesReference(sizes[i]);
+            byte[] array = pbr.array();
+            assertNotNull(array);
+            assertEquals(sizes[i], array.length);
+            assertSame(array, pbr.array());
+        }
+    }
+
+    public void testArrayOffset() throws IOException {
+        int length = randomInt(PAGE_SIZE * randomIntBetween(2, 5));
+        BytesArray pbr = (BytesArray) newBytesReference(length);
+        assertEquals(0, pbr.offset());
     }
 }

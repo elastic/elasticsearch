@@ -205,7 +205,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
                 "assignedNode", allocationDelay, remainingDelay, null, false, nodeExplanations);
         BytesStreamOutput out = new BytesStreamOutput();
         cae.writeTo(out);
-        StreamInput in = StreamInput.wrap(out.bytes());
+        StreamInput in = out.bytes().streamInput();
         ClusterAllocationExplanation cae2 = new ClusterAllocationExplanation(in);
         assertEquals(shard, cae2.getShard());
         assertTrue(cae2.isPrimary());

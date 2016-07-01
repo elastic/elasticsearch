@@ -82,7 +82,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         meta.writeTo(out);
         out.close();
 
-        UnassignedInfo read = new UnassignedInfo(StreamInput.wrap(out.bytes()));
+        UnassignedInfo read = new UnassignedInfo(out.bytes().streamInput());
         assertThat(read.getReason(), equalTo(meta.getReason()));
         assertThat(read.getUnassignedTimeInMillis(), equalTo(meta.getUnassignedTimeInMillis()));
         assertThat(read.getMessage(), equalTo(meta.getMessage()));

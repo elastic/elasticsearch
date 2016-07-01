@@ -84,7 +84,7 @@ public class RecoveryTargetTests extends ESTestCase {
             BytesStreamOutput out = new BytesStreamOutput();
             source.writeTo(out);
             out.close();
-            StreamInput in = StreamInput.wrap(out.bytes());
+            StreamInput in = out.bytes().streamInput();
             T obj = deserialize(in);
             lastRead = obj;
             return obj;

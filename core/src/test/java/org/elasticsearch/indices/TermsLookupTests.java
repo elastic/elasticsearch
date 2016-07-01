@@ -70,7 +70,7 @@ public class TermsLookupTests extends ESTestCase {
         TermsLookup termsLookup = randomTermsLookup();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             termsLookup.writeTo(output);
-            try (StreamInput in = StreamInput.wrap(output.bytes())) {
+            try (StreamInput in = output.bytes().streamInput()) {
                 TermsLookup deserializedLookup = new TermsLookup(in);
                 assertEquals(deserializedLookup, termsLookup);
                 assertEquals(deserializedLookup.hashCode(), termsLookup.hashCode());

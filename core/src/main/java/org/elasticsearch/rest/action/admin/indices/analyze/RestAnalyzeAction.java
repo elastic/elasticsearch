@@ -87,7 +87,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
             XContentType type = RestActions.guessBodyContentType(request);
             if (type == null) {
                 if (texts == null || texts.length == 0) {
-                    texts = new String[]{ RestActions.getRestContent(request).toUtf8() };
+                    texts = new String[]{ RestActions.getRestContent(request).utf8ToString() };
                     analyzeRequest.text(texts);
                 }
             } else {

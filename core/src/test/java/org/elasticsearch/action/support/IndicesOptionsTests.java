@@ -38,7 +38,7 @@ public class IndicesOptionsTests extends ESTestCase {
             output.setVersion(outputVersion);
             indicesOptions.writeIndicesOptions(output);
 
-            StreamInput streamInput = StreamInput.wrap(output.bytes());
+            StreamInput streamInput = output.bytes().streamInput();
             streamInput.setVersion(randomVersion(random()));
             IndicesOptions indicesOptions2 = IndicesOptions.readIndicesOptions(streamInput);
 

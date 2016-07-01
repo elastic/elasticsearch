@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.binary;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -79,7 +80,7 @@ public class BinaryMappingTests extends ESSingleNodeTestCase {
         try (StreamOutput compressed = CompressorFactory.COMPRESSOR.streamOutput(out)) {
             new BytesArray(binaryValue1).writeTo(compressed);
         }
-        final byte[] binaryValue2 = out.bytes().toBytes();
+        final byte[] binaryValue2 = BytesReference.toBytes(out.bytes());
         assertTrue(CompressorFactory.isCompressed(new BytesArray(binaryValue2)));
 
         for (byte[] value : Arrays.asList(binaryValue1, binaryValue2)) {

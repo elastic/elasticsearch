@@ -33,7 +33,6 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -208,7 +207,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
                 response.setExists(true);
                 Fields generatedFields;
                 if (request.doc() != null) {
-                    generatedFields = generateFields(randomFields, request.doc().toUtf8());
+                    generatedFields = generateFields(randomFields, request.doc().utf8ToString());
                 } else {
                     generatedFields = generateFields(request.selectedFields().toArray(new String[request.selectedFields().size()]), request.id());
                 }
@@ -292,7 +291,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         Item expectedItem = generateRandomItem();
         BytesStreamOutput output = new BytesStreamOutput();
         expectedItem.writeTo(output);
-        Item newItem = new Item(StreamInput.wrap(output.bytes()));
+        Item newItem = new Item(output.bytes().streamInput());
         assertEquals(expectedItem, newItem);
     }
 

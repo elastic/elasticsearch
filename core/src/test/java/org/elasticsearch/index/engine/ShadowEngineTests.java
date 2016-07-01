@@ -500,7 +500,7 @@ public class ShadowEngineTests extends ESTestCase {
     public void testShadowEngineIgnoresWriteOperations() throws Exception {
         // create a document
         ParseContext.Document document = testDocumentWithTextField();
-        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
         try {
             replicaEngine.index(new Engine.Index(newUid("1"), doc));
@@ -538,7 +538,7 @@ public class ShadowEngineTests extends ESTestCase {
 
         // Now, add a document to the primary so we can test shadow engine deletes
         document = testDocumentWithTextField();
-        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
         doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
         primaryEngine.index(new Engine.Index(newUid("1"), doc));
         primaryEngine.flush();
@@ -593,7 +593,7 @@ public class ShadowEngineTests extends ESTestCase {
 
         // create a document
         ParseContext.Document document = testDocumentWithTextField();
-        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
         primaryEngine.index(new Engine.Index(newUid("1"), doc));
 
@@ -612,7 +612,7 @@ public class ShadowEngineTests extends ESTestCase {
         // but, we can still get it (in realtime)
         Engine.GetResult getResult = primaryEngine.get(new Engine.Get(true, newUid("1")));
         assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.source().source.toBytesArray(), equalTo(B_1.toBytesArray()));
+        assertThat(getResult.source().source, equalTo(B_1));
         assertThat(getResult.docIdAndVersion(), nullValue());
         getResult.release();
 
@@ -649,7 +649,7 @@ public class ShadowEngineTests extends ESTestCase {
         // now do an update
         document = testDocument();
         document.add(new TextField("value", "test1", Field.Store.YES));
-        document.add(new Field(SourceFieldMapper.NAME, B_2.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_2), SourceFieldMapper.Defaults.FIELD_TYPE));
         doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_2, null);
         primaryEngine.index(new Engine.Index(newUid("1"), doc));
 
@@ -663,7 +663,7 @@ public class ShadowEngineTests extends ESTestCase {
         // but, we can still get it (in realtime)
         getResult = primaryEngine.get(new Engine.Get(true, newUid("1")));
         assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.source().source.toBytesArray(), equalTo(B_2.toBytesArray()));
+        assertThat(getResult.source().source, equalTo(B_2));
         assertThat(getResult.docIdAndVersion(), nullValue());
         getResult.release();
 
@@ -720,7 +720,7 @@ public class ShadowEngineTests extends ESTestCase {
 
         // add it back
         document = testDocumentWithTextField();
-        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
         doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
         primaryEngine.index(new Engine.Index(newUid("1"), doc));
 
@@ -971,7 +971,7 @@ public class ShadowEngineTests extends ESTestCase {
 
         // create a document
         ParseContext.Document document = testDocumentWithTextField();
-        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
         pEngine.index(new Engine.Index(newUid("1"), doc));
         pEngine.flush(true, true);

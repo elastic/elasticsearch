@@ -180,7 +180,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
     static SmoothingModel copyModel(SmoothingModel original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 return namedWriteableRegistry.getReader(SmoothingModel.class, original.getWriteableName()).read(in);
             }
         }

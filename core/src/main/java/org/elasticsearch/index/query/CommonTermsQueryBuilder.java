@@ -405,7 +405,6 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     private static Query parseQueryString(ExtendedCommonTermsQuery query, Object queryString, String field, Analyzer analyzer,
                                          String lowFreqMinimumShouldMatch, String highFreqMinimumShouldMatch) throws IOException {
         // Logic similar to QueryParser#getFieldQuery
-        int count = 0;
         try (TokenStream source = analyzer.tokenStream(field, queryString.toString())) {
             source.reset();
             CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
@@ -414,7 +413,6 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
                 // UTF-8
                 builder.copyChars(termAtt);
                 query.add(new Term(field, builder.toBytesRef()));
-                count++;
             }
         }
 

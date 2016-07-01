@@ -46,7 +46,7 @@ public class RestCountAction extends AbstractCatAction {
 
     @Inject
     public RestCountAction(Settings settings, RestController restController, RestController controller, IndicesQueriesRegistry indicesQueriesRegistry) {
-        super(settings, controller);
+        super(settings);
         restController.registerHandler(GET, "/_cat/count", this);
         restController.registerHandler(GET, "/_cat/count/{index}", this);
         this.indicesQueriesRegistry = indicesQueriesRegistry;

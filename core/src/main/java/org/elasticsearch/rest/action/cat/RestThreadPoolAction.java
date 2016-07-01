@@ -109,7 +109,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
 
     @Inject
     public RestThreadPoolAction(Settings settings, RestController controller) {
-        super(settings, controller);
+        super(settings);
         controller.registerHandler(GET, "/_cat/thread_pool", this);
     }
 

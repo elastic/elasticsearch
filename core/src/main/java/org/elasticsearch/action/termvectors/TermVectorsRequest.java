@@ -595,7 +595,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                 } else if (currentFieldName.equals("per_field_analyzer") || currentFieldName.equals("perFieldAnalyzer")) {
                     termVectorsRequest.perFieldAnalyzer(readPerFieldAnalyzer(parser.map()));
                 } else if (currentFieldName.equals("filter")) {
-                    termVectorsRequest.filterSettings(readFilterSettings(parser, termVectorsRequest));
+                    termVectorsRequest.filterSettings(readFilterSettings(parser));
                 } else if ("_index".equals(currentFieldName)) { // the following is important for multi request parsing.
                     termVectorsRequest.index = parser.text();
                 } else if ("_type".equals(currentFieldName)) {
@@ -641,7 +641,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         return mapStrStr;
     }
 
-    private static FilterSettings readFilterSettings(XContentParser parser, TermVectorsRequest termVectorsRequest) throws IOException {
+    private static FilterSettings readFilterSettings(XContentParser parser) throws IOException {
         FilterSettings settings = new FilterSettings();
         XContentParser.Token token;
         String currentFieldName = null;

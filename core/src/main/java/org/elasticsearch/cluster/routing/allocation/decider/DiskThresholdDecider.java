@@ -505,7 +505,6 @@ public class DiskThresholdDecider extends AllocationDecider {
     }
 
     private DiskUsage getDiskUsage(RoutingNode node, RoutingAllocation allocation, ImmutableOpenMap<String, DiskUsage> usages) {
-        ClusterInfo clusterInfo = allocation.clusterInfo();
         DiskUsage usage = usages.get(node.nodeId());
         if (usage == null) {
             // If there is no usage, and we have other nodes in the cluster,

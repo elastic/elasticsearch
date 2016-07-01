@@ -50,7 +50,6 @@ import java.util.HashSet;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.ClusterState.Builder;
 
@@ -68,8 +67,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     private final DiscoverySettings discoverySettings;
 
     private volatile boolean master = false;
-
-    private final AtomicBoolean initialStateSent = new AtomicBoolean();
 
     private static final ConcurrentMap<ClusterName, ClusterGroup> clusterGroups = ConcurrentCollections.newConcurrentMap();
 

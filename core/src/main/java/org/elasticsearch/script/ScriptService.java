@@ -236,7 +236,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         }
 
         ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
-        if (canExecuteScript(lang, scriptEngineService, script.getType(), scriptContext) == false) {
+        if (canExecuteScript(lang, script.getType(), scriptContext) == false) {
             throw new IllegalStateException("scripts of type [" + script.getType() + "], operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are disabled");
         }
 
@@ -357,7 +357,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                     ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(scriptLang);
                     //we don't know yet what the script will be used for, but if all of the operations for this lang with
                     //indexed scripts are disabled, it makes no sense to even compile it.
-                    if (isAnyScriptContextEnabled(scriptLang, scriptEngineService, ScriptType.STORED)) {
+                    if (isAnyScriptContextEnabled(scriptLang, ScriptType.STORED)) {
                         Object compiled = scriptEngineService.compile(id, template.getScript(), Collections.emptyMap());
                         if (compiled == null) {
                             throw new IllegalArgumentException("Unable to parse [" + template.getScript() +
@@ -466,16 +466,16 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return getScriptEngineServiceForLang(compiledScript.lang()).search(compiledScript, lookup, script.getParams());
     }
 
-    private boolean isAnyScriptContextEnabled(String lang, ScriptEngineService scriptEngineService, ScriptType scriptType) {
+    private boolean isAnyScriptContextEnabled(String lang, ScriptType scriptType) {
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
-            if (canExecuteScript(lang, scriptEngineService, scriptType, scriptContext)) {
+            if (canExecuteScript(lang, scriptType, scriptContext)) {
                 return true;
             }
         }
         return false;
     }
 
-    private boolean canExecuteScript(String lang, ScriptEngineService scriptEngineService, ScriptType scriptType, ScriptContext scriptContext) {
+    private boolean canExecuteScript(String lang, ScriptType scriptType, ScriptContext scriptContext) {
         assert lang != null;
         if (scriptContextRegistry.isSupportedContext(scriptContext) == false) {
             throw new IllegalArgumentException("script context [" + scriptContext.getKey() + "] not supported");
@@ -556,7 +556,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 try {
                     //we don't know yet what the script will be used for, but if all of the operations for this lang
                     // with file scripts are disabled, it makes no sense to even compile it and cache it.
-                    if (isAnyScriptContextEnabled(engineService.getType(), engineService, ScriptType.FILE)) {
+                    if (isAnyScriptContextEnabled(engineService.getType(), ScriptType.FILE)) {
                         logger.info("compiling script file [{}]", file.toAbsolutePath());
                         try (InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8)) {
                             String script = Streams.copyToString(reader);

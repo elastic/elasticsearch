@@ -52,7 +52,7 @@ public class RestTasksAction extends AbstractCatAction {
 
     @Inject
     public RestTasksAction(Settings settings, RestController controller, ClusterService clusterService) {
-        super(settings, controller);
+        super(settings);
         controller.registerHandler(GET, "/_cat/tasks", this);
         this.clusterService = clusterService;
     }

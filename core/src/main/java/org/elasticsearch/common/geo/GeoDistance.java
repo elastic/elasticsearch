@@ -80,7 +80,7 @@ public enum GeoDistance implements Writeable {
 
         @Override
         public FixedSourceDistance fixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
-            return new FactorFixedSourceDistance(sourceLatitude, sourceLongitude, unit);
+            return new FactorFixedSourceDistance(sourceLatitude, sourceLongitude);
         }
     },
     /**
@@ -217,12 +217,12 @@ public enum GeoDistance implements Writeable {
         throw new IllegalArgumentException("No geo distance for [" + name + "]");
     }
 
-    public static interface FixedSourceDistance {
+    public interface FixedSourceDistance {
 
         double calculate(double targetLatitude, double targetLongitude);
     }
 
-    public static interface DistanceBoundingCheck {
+    public interface DistanceBoundingCheck {
 
         boolean isWithin(double targetLatitude, double targetLongitude);
 
@@ -331,7 +331,7 @@ public enum GeoDistance implements Writeable {
         private final double sinA;
         private final double cosA;
 
-        public FactorFixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
+        public FactorFixedSourceDistance(double sourceLatitude, double sourceLongitude) {
             this.sourceLongitude = sourceLongitude;
             this.a = Math.toRadians(90D - sourceLatitude);
             this.sinA = Math.sin(a);

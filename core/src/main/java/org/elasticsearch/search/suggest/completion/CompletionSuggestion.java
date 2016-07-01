@@ -98,7 +98,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             // combine suggestion entries from participating shards on the coordinating node
             // the global top <code>size</code> entries are collected from the shard results
             // using a priority queue
-            Comparator<Suggest.Suggestion.Entry.Option> optionComparator = sortComparator();
             OptionPriorityQueue priorityQueue = new OptionPriorityQueue(size, sortComparator());
             for (Suggest.Suggestion<Entry> entries : toReduce) {
                 assert entries.getEntries().size() == 1 : "CompletionSuggestion must have only one entry";

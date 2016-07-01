@@ -48,7 +48,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestSnapshotAction extends AbstractCatAction {
     @Inject
     public RestSnapshotAction(Settings settings, RestController controller) {
-        super(settings, controller);
+        super(settings);
         controller.registerHandler(GET, "/_cat/snapshots/{repository}", this);
     }
 

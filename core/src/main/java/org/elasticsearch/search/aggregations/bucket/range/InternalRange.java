@@ -260,7 +260,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     }
 
     private List<B> ranges;
-    private Map<String, B> rangeMap;
     protected DocValueFormat format;
     protected boolean keyed;
 
@@ -333,7 +332,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             ranges.add(getFactory().createBucket(key, in.readDouble(), in.readDouble(), in.readVLong(), InternalAggregations.readAggregations(in), keyed, format));
         }
         this.ranges = ranges;
-        this.rangeMap = null;
     }
 
     @Override

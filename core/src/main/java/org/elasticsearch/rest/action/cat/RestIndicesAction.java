@@ -58,7 +58,7 @@ public class RestIndicesAction extends AbstractCatAction {
 
     @Inject
     public RestIndicesAction(Settings settings, RestController controller, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, controller);
+        super(settings);
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         controller.registerHandler(GET, "/_cat/indices", this);
         controller.registerHandler(GET, "/_cat/indices/{index}", this);

@@ -197,7 +197,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         discoverySettings,
                         clusterService.getClusterName());
         this.pingService.setPingContextProvider(this);
-        this.membership = new MembershipAction(settings, clusterService, transportService, this, new MembershipListener());
+        this.membership = new MembershipAction(settings, transportService, this, new MembershipListener());
 
         this.joinThreadControl = new JoinThreadControl(threadPool);
 

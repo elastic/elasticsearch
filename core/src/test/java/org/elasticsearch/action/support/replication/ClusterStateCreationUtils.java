@@ -220,7 +220,6 @@ public class ClusterStateCreationUtils {
      * Creates a cluster state with no index
      */
     public static ClusterState stateWithNoShard() {
-        int numberOfNodes = 2;
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         discoBuilder.localNodeId(newNode(0).getId());
         discoBuilder.masterNodeId(newNode(1).getId());

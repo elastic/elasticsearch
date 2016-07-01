@@ -40,7 +40,7 @@ public class RestHealthAction extends AbstractCatAction {
 
     @Inject
     public RestHealthAction(Settings settings, RestController controller) {
-        super(settings, controller);
+        super(settings);
         controller.registerHandler(GET, "/_cat/health", this);
     }
 

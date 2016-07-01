@@ -41,7 +41,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -215,9 +214,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         assertEquals(allocationDelay, cae2.getAllocationDelayMillis());
         assertEquals(remainingDelay, cae2.getRemainingDelayMillis());
         for (Map.Entry<DiscoveryNode, NodeExplanation> entry : cae2.getNodeExplanations().entrySet()) {
-            DiscoveryNode node = entry.getKey();
             NodeExplanation explanation = entry.getValue();
-            IndicesShardStoresResponse.StoreStatus status = explanation.getStoreStatus();
             assertNotNull(explanation.getStoreStatus());
             assertNotNull(explanation.getDecision());
             assertEquals(nodeWeight, explanation.getWeight());

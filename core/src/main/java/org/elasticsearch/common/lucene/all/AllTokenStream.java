@@ -22,7 +22,6 @@ package org.elasticsearch.common.lucene.all;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SmallFloat;
@@ -38,12 +37,10 @@ public final class AllTokenStream extends TokenFilter {
     }
 
     private final BytesRef payloadSpare = new BytesRef(new byte[1]);
-    private final OffsetAttribute offsetAttribute;
     private final PayloadAttribute payloadAttribute;
 
     AllTokenStream(TokenStream input, float boost) {
         super(input);
-        offsetAttribute = addAttribute(OffsetAttribute.class);
         payloadAttribute = addAttribute(PayloadAttribute.class);
         payloadSpare.bytes[0] = SmallFloat.floatToByte315(boost);
     }

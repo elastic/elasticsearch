@@ -42,7 +42,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
@@ -96,11 +95,11 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
 
     @Inject
     public GatewayService(Settings settings, AllocationService allocationService, ClusterService clusterService,
-                          ThreadPool threadPool, NodeEnvironment nodeEnvironment, GatewayMetaState metaState,
+                          ThreadPool threadPool, GatewayMetaState metaState,
                           TransportNodesListGatewayMetaState listGatewayMetaState, Discovery discovery,
                           NodeServicesProvider nodeServicesProvider, IndicesService indicesService) {
         super(settings);
-        this.gateway = new Gateway(settings, clusterService, nodeEnvironment, metaState, listGatewayMetaState, discovery,
+        this.gateway = new Gateway(settings, clusterService, metaState, listGatewayMetaState, discovery,
             nodeServicesProvider, indicesService);
         this.allocationService = allocationService;
         this.clusterService = clusterService;

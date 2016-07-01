@@ -572,10 +572,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    private boolean isReferencedGeneration(long generation) { // used to make decisions if a file can be deleted
-        return generation >= lastCommittedTranslogFileGeneration;
-    }
-
     public TranslogConfig getConfig() {
         return config;
     }

@@ -41,7 +41,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestRepositoriesAction extends AbstractCatAction {
     @Inject
     public RestRepositoriesAction(Settings settings, RestController controller) {
-        super(settings, controller);
+        super(settings);
         controller.registerHandler(GET, "/_cat/repositories", this);
     }
 

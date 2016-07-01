@@ -96,7 +96,7 @@ public class Stash implements ToXContent {
         Matcher matcher = EXTENDED_KEY.matcher(key);
         /*
          * String*Buffer* because that is what the Matcher API takes. In modern versions of java the uncontended synchronization is very,
-         * very cheap so that should be a problem.
+         * very cheap so that should not be a problem.
          */
         StringBuffer result = new StringBuffer(key.length());
         if (false == matcher.find()) {

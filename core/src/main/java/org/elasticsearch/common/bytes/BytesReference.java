@@ -155,18 +155,20 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
             final long lengthToCompare = Math.min(a.length(), b.length());
             final BytesRefIterator aIter = a.iterator();
             final BytesRefIterator bIter = b.iterator();
-            BytesRef aRef = aIter.next().clone(); // we clone since we modify the offsets and length in the iteration below
-            BytesRef bRef = bIter.next().clone();
+            BytesRef aRef = aIter.next();
+            BytesRef bRef = bIter.next();
             if (aRef != null && bRef != null) { // do we have any data?
+                aRef = aRef.clone(); // we clone since we modify the offsets and length in the iteration below
+                bRef = bRef.clone();
                 if (aRef.length == a.length() && bRef.length == b.length()) { // is it only one array slice we are comparing?
                     return f.applyAsInt(aRef, bRef);
                 } else {
                     for (int i = 0; i < lengthToCompare;) {
                         if (aRef.length == 0) {
-                            aRef = aIter.next().clone();
+                            aRef = aIter.next().clone(); // must be non null otherwise we have a bug
                         }
                         if (bRef.length == 0) {
-                            bRef = bIter.next().clone();
+                            bRef = bIter.next().clone(); // must be non null otherwise we have a bug
                         }
                         final int aLength = aRef.length;
                         final int bLength = bRef.length;

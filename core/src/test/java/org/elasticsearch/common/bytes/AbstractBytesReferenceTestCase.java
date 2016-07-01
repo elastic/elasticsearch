@@ -484,6 +484,9 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         for (int i = 0; i < iters; i++) {
             int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(2, 8));
             BytesReference bytesReference = newBytesReference(length);
+            assertTrue(bytesReference.compareTo(new BytesArray("")) > 0);
+            assertTrue(new BytesArray("").compareTo(bytesReference) < 0);
+
 
             assertEquals(0, bytesReference.compareTo(bytesReference));
             int sliceFrom = randomIntBetween(0, bytesReference.length());

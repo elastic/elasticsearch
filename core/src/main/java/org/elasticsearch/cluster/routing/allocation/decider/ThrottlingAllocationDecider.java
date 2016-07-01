@@ -21,11 +21,15 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.settings.NodeSettingsService;
+
+import static org.elasticsearch.cluster.routing.allocation.decider.Decision.THROTTLE;
+import static org.elasticsearch.cluster.routing.allocation.decider.Decision.YES;
 
 /**
  * {@link ThrottlingAllocationDecider} controls the recovery process per node in
@@ -47,89 +51,144 @@ import org.elasticsearch.node.settings.NodeSettingsService;
  */
 public class ThrottlingAllocationDecider extends AllocationDecider {
 
-    public static final String NAME = "throttling";
-
-    public static final String CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES = "cluster.routing.allocation.node_initial_primaries_recoveries";
-    public static final String CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES = "cluster.routing.allocation.node_concurrent_recoveries";
-    public static final String CLUSTER_ROUTING_ALLOCATION_CONCURRENT_RECOVERIES = "cluster.routing.allocation.concurrent_recoveries";
-
     public static final int DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES = 2;
     public static final int DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES = 4;
+    public static final String NAME = "throttling";
+    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING =
+        new Setting<>("cluster.routing.allocation.node_concurrent_recoveries",
+            Integer.toString(DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES),
+            (s) -> Setting.parseInt(s, 0, "cluster.routing.allocation.node_concurrent_recoveries"),
+            Property.Dynamic, Property.NodeScope);
+    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING =
+        Setting.intSetting("cluster.routing.allocation.node_initial_primaries_recoveries",
+            DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES, 0,
+            Property.Dynamic, Property.NodeScope);
+    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING =
+        new Setting<>("cluster.routing.allocation.node_concurrent_incoming_recoveries",
+            CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING::getRaw,
+            (s) -> Setting.parseInt(s, 0, "cluster.routing.allocation.node_concurrent_incoming_recoveries"),
+            Property.Dynamic, Property.NodeScope);
+    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING =
+        new Setting<>("cluster.routing.allocation.node_concurrent_outgoing_recoveries",
+            CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING::getRaw,
+            (s) -> Setting.parseInt(s, 0, "cluster.routing.allocation.node_concurrent_outgoing_recoveries"),
+            Property.Dynamic, Property.NodeScope);
+
 
     private volatile int primariesInitialRecoveries;
-    private volatile int concurrentRecoveries;
+    private volatile int concurrentIncomingRecoveries;
+    private volatile int concurrentOutgoingRecoveries;
+
 
     @Inject
-    public ThrottlingAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
+    public ThrottlingAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
+        this.primariesInitialRecoveries = CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.get(settings);
+        concurrentIncomingRecoveries = CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.get(settings);
+        concurrentOutgoingRecoveries = CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.get(settings);
 
-        this.primariesInitialRecoveries = settings.getAsInt(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES, DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES);
-        this.concurrentRecoveries = settings.getAsInt(CLUSTER_ROUTING_ALLOCATION_CONCURRENT_RECOVERIES, settings.getAsInt(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES, DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES));
-        logger.debug("using node_concurrent_recoveries [{}], node_initial_primaries_recoveries [{}]", concurrentRecoveries, primariesInitialRecoveries);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING,
+                this::setPrimariesInitialRecoveries);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
+                this::setConcurrentIncomingRecoverries);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
+                this::setConcurrentOutgoingRecoverries);
 
-        nodeSettingsService.addListener(new ApplySettings());
+        logger.debug("using node_concurrent_outgoing_recoveries [{}], node_concurrent_incoming_recoveries [{}], " +
+                        "node_initial_primaries_recoveries [{}]",
+                concurrentOutgoingRecoveries, concurrentIncomingRecoveries, primariesInitialRecoveries);
+    }
+
+    private void setConcurrentIncomingRecoverries(int concurrentIncomingRecoveries) {
+        this.concurrentIncomingRecoveries = concurrentIncomingRecoveries;
+    }
+    private void setConcurrentOutgoingRecoverries(int concurrentOutgoingRecoveries) {
+        this.concurrentOutgoingRecoveries = concurrentOutgoingRecoveries;
+    }
+
+    private void setPrimariesInitialRecoveries(int primariesInitialRecoveries) {
+        this.primariesInitialRecoveries = primariesInitialRecoveries;
     }
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        if (shardRouting.primary()) {
-            assert shardRouting.unassigned() || shardRouting.active();
-            if (shardRouting.unassigned()) {
-                // primary is unassigned, means we are going to do recovery from gateway
-                // count *just the primary* currently doing recovery on the node and check against concurrent_recoveries
-                int primariesInRecovery = 0;
-                for (ShardRouting shard : node) {
-                    // when a primary shard is INITIALIZING, it can be because of *initial recovery* or *relocation from another node*
-                    // we only count initial recoveries here, so we need to make sure that relocating node is null
-                    if (shard.initializing() && shard.primary() && shard.relocatingNodeId() == null) {
-                        primariesInRecovery++;
-                    }
-                }
-                if (primariesInRecovery >= primariesInitialRecoveries) {
-                    return allocation.decision(Decision.THROTTLE, NAME, "too many primaries currently recovering [%d], limit: [%d]",
-                            primariesInRecovery, primariesInitialRecoveries);
-                } else {
-                    return allocation.decision(Decision.YES, NAME, "below primary recovery limit of [%d]", primariesInitialRecoveries);
+        if (shardRouting.primary() && shardRouting.unassigned()) {
+            assert initializingShard(shardRouting, node.nodeId()).isPeerRecovery() == false;
+            // primary is unassigned, means we are going to do recovery from store, snapshot or local shards
+            // count *just the primaries* currently doing recovery on the node and check against primariesInitialRecoveries
+
+            int primariesInRecovery = 0;
+            for (ShardRouting shard : node) {
+                // when a primary shard is INITIALIZING, it can be because of *initial recovery* or *relocation from another node*
+                // we only count initial recoveries here, so we need to make sure that relocating node is null
+                if (shard.initializing() && shard.primary() && shard.relocatingNodeId() == null) {
+                    primariesInRecovery++;
                 }
             }
-        }
-
-        // either primary or replica doing recovery (from peer shard)
-
-        // count the number of recoveries on the node, its for both target (INITIALIZING) and source (RELOCATING)
-        return canAllocate(node, allocation);
-    }
-
-    @Override
-    public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
-        int currentRecoveries = 0;
-        for (ShardRouting shard : node) {
-            if (shard.initializing()) {
-                currentRecoveries++;
+            if (primariesInRecovery >= primariesInitialRecoveries) {
+                // TODO: Should index creation not be throttled for primary shards?
+                return allocation.decision(THROTTLE, NAME, "too many primaries are currently recovering [%d], limit: [%d]",
+                    primariesInRecovery, primariesInitialRecoveries);
+            } else {
+                return allocation.decision(YES, NAME, "below primary recovery limit of [%d]", primariesInitialRecoveries);
             }
-        }
-        if (currentRecoveries >= concurrentRecoveries) {
-            return allocation.decision(Decision.THROTTLE, NAME, "too many shards currently recovering [%d], limit: [%d]",
-                    currentRecoveries, concurrentRecoveries);
         } else {
-            return allocation.decision(Decision.YES, NAME, "below shard recovery limit of [%d]", concurrentRecoveries);
+            // Peer recovery
+            assert initializingShard(shardRouting, node.nodeId()).isPeerRecovery();
+
+            // Allocating a shard to this node will increase the incoming recoveries
+            int currentInRecoveries = allocation.routingNodes().getIncomingRecoveries(node.nodeId());
+            if (currentInRecoveries >= concurrentIncomingRecoveries) {
+                return allocation.decision(THROTTLE, NAME, "too many incoming shards are currently recovering [%d], limit: [%d]",
+                    currentInRecoveries, concurrentIncomingRecoveries);
+            } else {
+                // search for corresponding recovery source (= primary shard) and check number of outgoing recoveries on that node
+                ShardRouting primaryShard = allocation.routingNodes().activePrimary(shardRouting.shardId());
+                if (primaryShard == null) {
+                    return allocation.decision(Decision.NO, NAME, "primary shard for this replica is not yet active");
+                }
+                int primaryNodeOutRecoveries = allocation.routingNodes().getOutgoingRecoveries(primaryShard.currentNodeId());
+                if (primaryNodeOutRecoveries >= concurrentOutgoingRecoveries) {
+                    return allocation.decision(THROTTLE, NAME, "too many outgoing shards are currently recovering [%d], limit: [%d]",
+                        primaryNodeOutRecoveries, concurrentOutgoingRecoveries);
+                } else {
+                    return allocation.decision(YES, NAME, "below shard recovery limit of outgoing: [%d < %d] incoming: [%d < %d]",
+                        primaryNodeOutRecoveries,
+                        concurrentOutgoingRecoveries,
+                        currentInRecoveries,
+                        concurrentIncomingRecoveries);
+                }
+            }
         }
     }
 
-    class ApplySettings implements NodeSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            int primariesInitialRecoveries = settings.getAsInt(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES, ThrottlingAllocationDecider.this.primariesInitialRecoveries);
-            if (primariesInitialRecoveries != ThrottlingAllocationDecider.this.primariesInitialRecoveries) {
-                logger.info("updating [cluster.routing.allocation.node_initial_primaries_recoveries] from [{}] to [{}]", ThrottlingAllocationDecider.this.primariesInitialRecoveries, primariesInitialRecoveries);
-                ThrottlingAllocationDecider.this.primariesInitialRecoveries = primariesInitialRecoveries;
-            }
-
-            int concurrentRecoveries = settings.getAsInt(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES, ThrottlingAllocationDecider.this.concurrentRecoveries);
-            if (concurrentRecoveries != ThrottlingAllocationDecider.this.concurrentRecoveries) {
-                logger.info("updating [cluster.routing.allocation.node_concurrent_recoveries] from [{}] to [{}]", ThrottlingAllocationDecider.this.concurrentRecoveries, concurrentRecoveries);
-                ThrottlingAllocationDecider.this.concurrentRecoveries = concurrentRecoveries;
-            }
+    /**
+     * The shard routing passed to {@link #canAllocate(ShardRouting, RoutingNode, RoutingAllocation)} is not the initializing shard to this
+     * node but:
+     * - the unassigned shard routing in case if we want to assign an unassigned shard to this node.
+     * - the initializing shard routing if we want to assign the initializing shard to this node instead
+     * - the started shard routing in case if we want to check if we can relocate to this node.
+     * - the relocating shard routing if we want to relocate to this node now instead.
+     *
+     * This method returns the corresponding initializing shard that would be allocated to this node.
+     */
+    private ShardRouting initializingShard(ShardRouting shardRouting, String currentNodeId) {
+        final ShardRouting initializingShard;
+        if (shardRouting.unassigned()) {
+            initializingShard = shardRouting.initialize(currentNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+        } else if (shardRouting.initializing()) {
+            initializingShard = shardRouting.moveToUnassigned(shardRouting.unassignedInfo())
+                .initialize(currentNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+        } else if (shardRouting.relocating()) {
+            initializingShard = shardRouting.cancelRelocation()
+                .relocate(currentNodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
+                .buildTargetRelocatingShard();
+        } else {
+            assert shardRouting.started();
+            initializingShard = shardRouting.relocate(currentNodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
+                .buildTargetRelocatingShard();
         }
+        assert initializingShard.initializing();
+        return initializingShard;
     }
 }

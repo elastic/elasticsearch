@@ -19,10 +19,14 @@
 package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.hunspell.Dictionary;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 
@@ -31,7 +35,11 @@ import java.io.InputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
@@ -44,7 +52,8 @@ import java.util.function.Function;
  * The following settings can be set for each dictionary:
  * <ul>
  * <li>{@code ignore_case} - If true, dictionary matching will be case insensitive (defaults to {@code false})</li>
- * <li>{@code strict_affix_parsing} - Determines whether errors while reading a affix rules file will cause exception or simple be ignored (defaults to {@code true})</li>
+ * <li>{@code strict_affix_parsing} - Determines whether errors while reading a affix rules file will cause exception or simple be ignored
+ *      (defaults to {@code true})</li>
  * </ul>
  * <p>
  * These settings can either be configured as node level configuration, such as:
@@ -66,20 +75,24 @@ import java.util.function.Function;
  */
 public class HunspellService extends AbstractComponent {
 
-    public final static String HUNSPELL_LAZY_LOAD = "indices.analysis.hunspell.dictionary.lazy";
-    public final static String HUNSPELL_IGNORE_CASE = "indices.analysis.hunspell.dictionary.ignore_case";
-    private final static String OLD_HUNSPELL_LOCATION = "indices.analysis.hunspell.dictionary.location";
+    public static final Setting<Boolean> HUNSPELL_LAZY_LOAD =
+        Setting.boolSetting("indices.analysis.hunspell.dictionary.lazy", Boolean.FALSE, Property.NodeScope);
+    public static final Setting<Boolean> HUNSPELL_IGNORE_CASE =
+        Setting.boolSetting("indices.analysis.hunspell.dictionary.ignore_case", Boolean.FALSE, Property.NodeScope);
+    public static final Setting<Settings> HUNSPELL_DICTIONARY_OPTIONS =
+        Setting.groupSetting("indices.analysis.hunspell.dictionary.", Property.NodeScope);
     private final ConcurrentHashMap<String, Dictionary> dictionaries = new ConcurrentHashMap<>();
     private final Map<String, Dictionary> knownDictionaries;
     private final boolean defaultIgnoreCase;
     private final Path hunspellDir;
     private final Function<String, Dictionary> loadingFunction;
 
-    public HunspellService(final Settings settings, final Environment env, final Map<String, Dictionary> knownDictionaries) throws IOException {
+    public HunspellService(final Settings settings, final Environment env, final Map<String, Dictionary> knownDictionaries)
+            throws IOException {
         super(settings);
         this.knownDictionaries = Collections.unmodifiableMap(knownDictionaries);
-        this.hunspellDir = resolveHunspellDirectory(settings, env);
-        this.defaultIgnoreCase = settings.getAsBoolean(HUNSPELL_IGNORE_CASE, false);
+        this.hunspellDir = resolveHunspellDirectory(env);
+        this.defaultIgnoreCase = HUNSPELL_IGNORE_CASE.get(settings);
         this.loadingFunction = (locale) -> {
             try {
                 return loadDictionary(locale, settings, env);
@@ -87,7 +100,7 @@ public class HunspellService extends AbstractComponent {
                 throw new IllegalStateException("failed to load hunspell dictionary for locale: " + locale, e);
             }
         };
-        if (!settings.getAsBoolean(HUNSPELL_LAZY_LOAD, false)) {
+        if (!HUNSPELL_LAZY_LOAD.get(settings)) {
             scanAndLoadDictionaries();
         }
 
@@ -106,11 +119,7 @@ public class HunspellService extends AbstractComponent {
         return dictionary;
     }
 
-    private Path resolveHunspellDirectory(Settings settings, Environment env) {
-        String location = settings.get(OLD_HUNSPELL_LOCATION, null);
-        if (location != null) {
-            throw new IllegalArgumentException("please, put your hunspell dictionaries under config/hunspell !");
-        }
+    private Path resolveHunspellDirectory(Environment env) {
         return env.configFile().resolve("hunspell");
     }
 
@@ -158,7 +167,8 @@ public class HunspellService extends AbstractComponent {
         }
 
         // merging node settings with hunspell dictionary specific settings
-        nodeSettings = loadDictionarySettings(dicDir, nodeSettings.getByPrefix("indices.analysis.hunspell.dictionary." + locale + "."));
+        Settings dictSettings = HUNSPELL_DICTIONARY_OPTIONS.get(nodeSettings);
+        nodeSettings = loadDictionarySettings(dicDir, dictSettings.getByPrefix(locale + "."));
 
         boolean ignoreCase = nodeSettings.getAsBoolean("ignore_case", defaultIgnoreCase);
 
@@ -181,7 +191,9 @@ public class HunspellService extends AbstractComponent {
 
             affixStream = Files.newInputStream(affixFiles[0]);
 
-            return new Dictionary(affixStream, dicStreams, ignoreCase);
+            try (Directory tmp = new SimpleFSDirectory(env.tmpFile())) {
+                return new Dictionary(tmp, "hunspell", affixStream, dicStreams, ignoreCase);
+            }
 
         } catch (Exception e) {
             logger.error("Could not load hunspell dictionary [{}]", e, locale);
@@ -200,15 +212,15 @@ public class HunspellService extends AbstractComponent {
      * @param defaults The default settings for this dictionary
      * @return The resolved settings.
      */
-    private static Settings loadDictionarySettings(Path dir, Settings defaults) {
+    private static Settings loadDictionarySettings(Path dir, Settings defaults) throws IOException {
         Path file = dir.resolve("settings.yml");
         if (Files.exists(file)) {
-            return Settings.settingsBuilder().loadFromPath(file).put(defaults).build();
+            return Settings.builder().loadFromPath(file).put(defaults).build();
         }
 
         file = dir.resolve("settings.json");
         if (Files.exists(file)) {
-            return Settings.settingsBuilder().loadFromPath(file).put(defaults).build();
+            return Settings.builder().loadFromPath(file).put(defaults).build();
         }
 
         return defaults;

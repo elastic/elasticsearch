@@ -33,9 +33,9 @@ import java.util.Map;
 */
 public class InternalFilter extends InternalSingleBucketAggregation implements Filter {
 
-    public final static Type TYPE = new Type("filter");
+    public static final Type TYPE = new Type("filter");
 
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalFilter readResult(StreamInput in) throws IOException {
             InternalFilter result = new InternalFilter();

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.support;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.LeafSearchScript;
@@ -74,11 +73,6 @@ public class ScriptValuesTests extends ESTestCase {
 
         @Override
         public void setSource(Map<String, Object> source) {
-        }
-
-        @Override
-        public float runAsFloat() {
-            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -140,7 +134,7 @@ public class ScriptValuesTests extends ESTestCase {
         for (int i = 0; i < values.length; ++i) {
             String[] strings = new String[randomInt(8)];
             for (int j = 0; j < strings.length; ++j) {
-                strings[j] = RandomStrings.randomAsciiOfLength(getRandom(), 5);
+                strings[j] = RandomStrings.randomAsciiOfLength(random(), 5);
             }
             Arrays.sort(strings);
             values[i] = strings;

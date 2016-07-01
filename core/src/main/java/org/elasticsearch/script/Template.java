@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -37,11 +36,10 @@ import java.util.Map;
 
 public class Template extends Script {
 
-    private XContentType contentType;
+    /** Default templating language */
+    public static final String DEFAULT_LANG = "mustache";
 
-    public Template() {
-        super();
-    }
+    private XContentType contentType;
 
     /**
      * Constructor for simple inline template. The template will have no lang,
@@ -51,7 +49,7 @@ public class Template extends Script {
      *            The inline template.
      */
     public Template(String template) {
-        super(template, MustacheScriptEngineService.NAME);
+        super(template, DEFAULT_LANG);
     }
 
     /**
@@ -73,21 +71,12 @@ public class Template extends Script {
      */
     public Template(String template, ScriptType type, @Nullable String lang, @Nullable XContentType xContentType,
             @Nullable Map<String, Object> params) {
-        super(template, type, lang == null ? MustacheScriptEngineService.NAME : lang, params);
+        super(template, type, lang == null ? DEFAULT_LANG : lang, params);
         this.contentType = xContentType;
     }
 
-    /**
-     * Method for getting the {@link XContentType} of the template.
-     *
-     * @return The {@link XContentType} of the template.
-     */
-    public XContentType getContentType() {
-        return contentType;
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
+    public Template(StreamInput in) throws IOException {
+        super(in);
         if (in.readBoolean()) {
             this.contentType = XContentType.readFrom(in);
         }
@@ -102,6 +91,15 @@ public class Template extends Script {
         }
     }
 
+    /**
+     * Method for getting the {@link XContentType} of the template.
+     *
+     * @return The {@link XContentType} of the template.
+     */
+    public XContentType getContentType() {
+        return contentType;
+    }
+
     @Override
     protected XContentBuilder scriptFieldToXContent(String template, ScriptType type, XContentBuilder builder, Params builderParams)
             throws IOException {
@@ -113,25 +111,17 @@ public class Template extends Script {
         return builder;
     }
 
-    public static Template readTemplate(StreamInput in) throws IOException {
-        Template template = new Template();
-        template.readFrom(in);
-        return template;
-    }
-
-    @SuppressWarnings("unchecked")
     public static Script parse(Map<String, Object> config, boolean removeMatchedEntries, ParseFieldMatcher parseFieldMatcher) {
-        return new TemplateParser(Collections.EMPTY_MAP, MustacheScriptEngineService.NAME).parse(config, removeMatchedEntries, parseFieldMatcher);
+        return new TemplateParser(Collections.emptyMap(), DEFAULT_LANG).parse(config, removeMatchedEntries, parseFieldMatcher);
     }
 
-    @SuppressWarnings("unchecked")
     public static Template parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        return new TemplateParser(Collections.EMPTY_MAP, MustacheScriptEngineService.NAME).parse(parser, parseFieldMatcher);
+        return new TemplateParser(Collections.emptyMap(), DEFAULT_LANG).parse(parser, parseFieldMatcher);
     }
 
     @Deprecated
     public static Template parse(XContentParser parser, Map<String, ScriptType> additionalTemplateFieldNames, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        return new TemplateParser(additionalTemplateFieldNames, MustacheScriptEngineService.NAME).parse(parser, parseFieldMatcher);
+        return new TemplateParser(additionalTemplateFieldNames, DEFAULT_LANG).parse(parser, parseFieldMatcher);
     }
 
     @Deprecated
@@ -149,15 +139,11 @@ public class Template extends Script {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (!super.equals(obj))
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
+        if (this == obj) return true;
+        if (!super.equals(obj)) return false;
+        if (getClass() != obj.getClass()) return false;
         Template other = (Template) obj;
-        if (contentType != other.contentType)
-            return false;
+        if (contentType != other.contentType) return false;
         return true;
     }
 
@@ -174,7 +160,7 @@ public class Template extends Script {
 
         @Override
         protected Template createSimpleScript(XContentParser parser) throws IOException {
-            return new Template(String.valueOf(parser.objectText()), ScriptType.INLINE, MustacheScriptEngineService.NAME, contentType, null);
+            return new Template(String.valueOf(parser.objectText()), ScriptType.INLINE, DEFAULT_LANG, contentType, null);
         }
 
         @Override
@@ -187,7 +173,7 @@ public class Template extends Script {
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 contentType = parser.contentType();
                 XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-                return builder.copyCurrentStructure(parser).bytes().toUtf8();
+                return builder.copyCurrentStructure(parser).bytes().utf8ToString();
             } else {
                 return parser.text();
             }

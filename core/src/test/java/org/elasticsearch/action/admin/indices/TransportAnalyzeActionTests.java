@@ -25,18 +25,18 @@ import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static java.util.Collections.emptyList;
 
 public class TransportAnalyzeActionTests extends ESTestCase {
 
@@ -47,9 +47,9 @@ public class TransportAnalyzeActionTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        Settings settings = Settings.builder().put("path.home", createTempDir().toString()).build();
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
 
-        Settings indexSettings = settingsBuilder()
+        Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("index.analysis.filter.wordDelimiter.type", "word_delimiter")
                 .put("index.analysis.filter.wordDelimiter.split_on_numerics", false)
@@ -57,9 +57,9 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 .putArray("index.analysis.analyzer.custom_analyzer.filter", "lowercase", "wordDelimiter")
                 .put("index.analysis.analyzer.custom_analyzer.tokenizer", "whitespace")
                 .putArray("index.analysis.analyzer.custom_analyzer.filter", "lowercase", "wordDelimiter").build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index("index"), indexSettings);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
         environment = new Environment(settings);
-        registry = new AnalysisRegistry(null, environment);
+        registry = new AnalysisModule(environment, emptyList()).getAnalysisRegistry();
         analysisService = registry.build(idxSettings);
     }
 

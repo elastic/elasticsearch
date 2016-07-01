@@ -18,45 +18,31 @@
  */
 package org.elasticsearch.search.aggregations.bucket.missing;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.AnyValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.util.Map;
 
-/**
- *
- */
-public class MissingParser implements Aggregator.Parser {
+public class MissingParser extends AnyValuesSourceParser {
 
-    @Override
-    public String type() {
-        return InternalMissing.TYPE.name();
+    public MissingParser() {
+        super(true, true);
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
+    protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
+            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+        return false;
+    }
 
-        ValuesSourceParser vsParser = ValuesSourceParser.any(aggregationName, InternalMissing.TYPE, context)
-                .scriptable(false)
-                .build();
-
-        XContentParser.Token token;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (vsParser.token(currentFieldName, token, parser)) {
-                continue;
-            } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
-                        parser.getTokenLocation());
-            }
-        }
-
-        return new MissingAggregator.Factory(aggregationName, vsParser.config());
+    @Override
+    protected MissingAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                      ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        return new MissingAggregationBuilder(aggregationName, targetValueType);
     }
 }

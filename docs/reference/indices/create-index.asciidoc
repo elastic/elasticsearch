@@ -14,13 +14,14 @@ associated with it.
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'http://localhost:9200/twitter/'
-
-$ curl -XPUT 'http://localhost:9200/twitter/' -d '
-index :
-    number_of_shards : 3 <1>
-    number_of_replicas : 2 <2>
-'
+$ curl -XPUT 'http://localhost:9200/twitter/' -d '{
+    "settings" : {
+        "index" : {
+            "number_of_shards" : 3, <1>
+            "number_of_replicas" : 2 <2>
+        }
+    }
+}'
 --------------------------------------------------
 <1> Default for `number_of_shards` is 5
 <2> Default for `number_of_replicas` is 1 (ie one replica for each primary shard)
@@ -77,30 +78,8 @@ curl -XPOST localhost:9200/test -d '{
     },
     "mappings" : {
         "type1" : {
-            "_source" : { "enabled" : false },
             "properties" : {
-                "field1" : { "type" : "string", "index" : "not_analyzed" }
-            }
-        }
-    }
-}'
---------------------------------------------------
-
-[float]
-[[warmers]]
-=== Warmers
-
-The create index API allows also to provide a set of <<indices-warmers,warmers>>:
-
-[source,js]
---------------------------------------------------
-curl -XPUT localhost:9200/test -d '{
-    "warmers" : {
-        "warmer_1" : {
-            "source" : {
-                "query" : {
-                    ...
-                }
+                "field1" : { "type" : "text" }
             }
         }
     }
@@ -132,7 +111,7 @@ curl -XPUT localhost:9200/test -d '{
 === Creation Date
 
 When an index is created, a timestamp is stored in the index metadata for the creation date.  By 
-default this it is automatically generated but it can also be specified using the 
+default this is automatically generated but it can also be specified using the 
 `creation_date` parameter on the create index API:
 
 [source,js]

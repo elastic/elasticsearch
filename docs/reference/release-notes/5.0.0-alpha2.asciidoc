@@ -1,0 +1,257 @@
+[[release-notes-5.0.0-alpha2]]
+== 5.0.0-alpha2 Release Notes
+
+Also see <<breaking-changes-5.0>>.
+
+IMPORTANT: This is an alpha release and is intended for _testing purposes only_. Indices created in this version will *not be compatible with Elasticsearch 5.0.0 GA*. Upgrading 5.0.0-alpha2 to any other version is not supported.
+
+[[breaking-5.0.0-alpha2]]
+[float]
+=== Breaking changes
+
+Analysis::
+* Analyze API : Rename filters/token_filters/char_filter in Analyze API in master {pull}17843[#17843] (issue: {issue}15189[#15189])
+
+Cluster::
+* Remove validation errors from cluster health response {pull}17773[#17773] (issue: {issue}16979[#16979])
+
+Indexed Scripts/Templates::
+* Store indexed scripts in the cluster state instead of the `.scripts` index {pull}17650[#17650] (issue: {issue}16651[#16651])
+
+Packaging::
+* Add JVM options configuration file {pull}17675[#17675] (issue: {issue}17121[#17121])
+
+Percolator::
+* Remove `.percolator` type in favour of `percolator` field type {pull}17560[#17560]
+
+REST::
+* Remove camelCase support {pull}17933[#17933] (issue: {issue}8988[#8988])
+* Remove 'case' parameter from rest apis {pull}17774[#17774] (issue: {issue}8988[#8988])
+* Disallow unquoted field names {pull}15351[#15351] (issue: {issue}9800[#9800])
+
+Settings::
+* Remove `action.get.realtime` setting {pull}17857[#17857] (issue: {issue}12543[#12543])
+* Remove Settings.settingsBuilder. {pull}17619[#17619]
+
+
+
+[[deprecation-5.0.0-alpha2]]
+[float]
+=== Deprecations
+
+Query DSL::
+* Deprecate Indices query {pull}17710[#17710] (issue: {issue}12017[#12017])
+* Deprecate mlt, in and geo_bbox query name shortcuts {pull}17507[#17507]
+
+Query Refactoring::
+* Splits `phrase` and `phrase_prefix` in match query into `MatchPhraseQueryBuilder` and `MatchPhrasePrefixQueryBuilder` {pull}17508[#17508]
+
+
+
+[[feature-5.0.0-alpha2]]
+[float]
+=== New features
+
+Analysis::
+* Add `fingerprint` token filter and `fingerprint` analyzer {pull}17873[#17873] (issue: {issue}13325[#13325])
+
+Plugin Analysis ICU::
+* Adding support for customizing the rule file in ICU tokenizer {pull}13651[#13651] (issue: {issue}13146[#13146])
+
+
+
+[[enhancement-5.0.0-alpha2]]
+[float]
+=== Enhancements
+
+CAT API::
+* Add _cat/tasks {pull}17551[#17551]
+* Cat health supports ts=0 option {pull}13508[#13508] (issue: {issue}10109[#10109])
+
+Cache::
+* Allow the query cache to be disabled. {pull}16268[#16268] (issue: {issue}15802[#15802])
+
+Cluster::
+* Adds tombstones to cluster state for index deletions {pull}17265[#17265] (issues: {issue}16358[#16358], {issue}17435[#17435])
+* Enable acked indexing {pull}17038[#17038] (issue: {issue}7572[#7572])
+
+Core::
+* Kill thread local leak {pull}17921[#17921] (issues: {issue}283[#283], {issue}630[#630])
+* Add heap size bootstrap check {pull}17728[#17728] (issue: {issue}17490[#17490])
+* Remove hostname from NetworkAddress.format {pull}17601[#17601] (issue: {issue}17604[#17604])
+* Bootstrapping bootstrap checks {pull}17595[#17595] (issues: {issue}17474[#17474], {issue}17570[#17570])
+* Add max map count check {pull}16944[#16944]
+
+Geo::
+* Enhanced lat/long error handling {pull}16833[#16833] (issue: {issue}16137[#16137])
+
+Index APIs::
+* Fail hot_threads in a better way if unsupported by JDK {pull}15909[#15909]
+
+Ingest::
+* Streamline option naming for several processors {pull}17892[#17892] (issue: {issue}17835[#17835])
+
+Internal::
+* Makes Script type writeable {pull}17908[#17908] (issue: {issue}17753[#17753])
+* FiltersAggregatorBuilder: Don't create new context for inner parsing {pull}17851[#17851]
+* Clean up serialization on some stats {pull}17832[#17832] (issue: {issue}17085[#17085])
+* 	Normalize registration for SignificanceHeuristics {pull}17830[#17830] (issue: {issue}17085[#17085])
+* Make (read|write)NamedWriteable public {pull}17829[#17829] (issue: {issue}17682[#17682])
+* Use try-with-resource when creating new parser instances where possible {pull}17822[#17822]
+* Don't pass XContentParser to ParseFieldRegistry#lookup {pull}17794[#17794]
+* Internal: Remove threadlocal from document parser {pull}17764[#17764]
+* Cut range aggregations to registerAggregation {pull}17757[#17757] (issue: {issue}17085[#17085])
+* Remove ParseFieldMatcher from AbstractXContentParser {pull}17756[#17756] (issue: {issue}17417[#17417])
+* Remove parser argument from methods where we already pass in a parse context {pull}17738[#17738]
+* Switch SearchAfterBuilder to writeGenericValue {pull}17735[#17735] (issue: {issue}17085[#17085])
+* Remove StreamableReader {pull}17729[#17729] (issue: {issue}17085[#17085])
+* Cleanup nested, has_child & has_parent query builders for inner hits construction {pull}17719[#17719] (issue: {issue}11118[#11118])
+* Make AllocationCommands NamedWriteables {pull}17661[#17661]
+* Isolate StreamableReader {pull}17656[#17656] (issue: {issue}17085[#17085])
+* Create registration methods for aggregations similar to those for queries {pull}17653[#17653] (issues: {issue}17085[#17085], {issue}17389[#17389])
+* Turn RestChannel into an interface {pull}17643[#17643] (issue: {issue}17133[#17133])
+* Remove PROTOTYPEs from QueryBuilders {pull}17632[#17632] (issue: {issue}17085[#17085])
+* Remove registerQueryParser {pull}17608[#17608]
+* ParseField#getAllNamesIncludedDeprecated to not return duplicate names {pull}17504[#17504]
+* Rework a query parser and improve registration {pull}17458[#17458]
+* Clean up QueryParseContext and don't hold it inside QueryRewrite/ShardContext {pull}17417[#17417]
+
+Mapping::
+* Automatically upgrade analyzed strings with an analyzer to `text`. {pull}17861[#17861]
+* Support dots in field names when mapping already exists {pull}17759[#17759] (issue: {issue}15951[#15951])
+* Use the new points API to index numeric fields. {pull}17746[#17746] (issues: {issue}11513[#11513], {issue}16751[#16751], {issue}17007[#17007], {issue}17700[#17700])
+* Simplify AllEntries, AllField and AllFieldMapper: {pull}17613[#17613]
+
+Network::
+* Limit request size {pull}17133[#17133] (issue: {issue}16011[#16011])
+
+Packaging::
+* Remove unnecessary sleep from init script restart {pull}17966[#17966]
+* Explicitly set packaging permissions {pull}17912[#17912] (issue: {issue}17634[#17634])
+* Allow configuring Windows service name, description and user {pull}17312[#17312]
+* rpm uses non-portable `--system` flag to `useradd` {pull}14596[#14596] (issue: {issue}14211[#14211])
+
+Percolator::
+* PercolatorQueryBuilder cleanup by using MemoryIndex#fromDocument(...) helper {pull}17669[#17669] (issue: {issue}9386[#9386])
+
+Plugins::
+* Cli: Improve output for usage errors {pull}17938[#17938]
+* Cli: Add verbose output with zip url when installing plugin {pull}17662[#17662] (issue: {issue}17529[#17529])
+
+Query DSL::
+* Add MatchNoDocsQuery, a query that matches no documents and prints the reason why in the toString method. {pull}17780[#17780]
+* Adds `ignore_unmapped` option to geo queries {pull}17751[#17751]
+* Adds `ignore_unmapped` option to nested and P/C queries {pull}17748[#17748]
+* SimpleQueryParser should call MappedFieldType.termQuery when appropriate. {pull}17678[#17678]
+
+REST::
+* Allow JSON with unquoted field names by enabling system property {pull}17801[#17801] (issue: {issue}17674[#17674])
+
+Recovery::
+* TransportNodesListGatewayStartedShards should fall back to disk based index metadata if not found in cluster state {pull}17663[#17663] (issue: {issue}17630[#17630])
+
+Reindex API::
+* Properly mark reindex's child tasks as child tasks {pull}17770[#17770]
+
+Search::
+* Fail query if it contains very large rescores {pull}17917[#17917] (issue: {issue}17522[#17522])
+
+Settings::
+* Switch to registered Settings for all IndexingMemoryController settings {pull}17778[#17778] (issue: {issue}17442[#17442])
+
+Stats::
+* Add points to SegmentStats. {pull}17775[#17775] (issue: {issue}16974[#16974])
+* Remove FieldStats.Float. {pull}17749[#17749]
+* Show configured and remaining delay for an unassigned shard. {pull}17515[#17515] (issue: {issue}17372[#17372])
+
+Store::
+* Use `mmapfs` by default. {pull}17616[#17616] (issue: {issue}16983[#16983])
+
+Suggesters::
+* Add bwc support for reading  pre-5.0 completion index {pull}17602[#17602]
+
+Task Manager::
+* Move parentTaskId into TransportRequest  {pull}17872[#17872]
+* Shorten the serialization of the empty TaskId {pull}17870[#17870]
+* Expose whether a task is cancellable in the _tasks list API {pull}17464[#17464] (issue: {issue}17369[#17369])
+
+
+
+[[bug-5.0.0-alpha2]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Adds serialisation of sigma to extended_stats_bucket pipeline aggregation {pull}17703[#17703] (issue: {issue}17701[#17701])
+* Fixes NPE when no window is specified in moving average request {pull}17556[#17556] (issue: {issue}17516[#17516])
+* Fixes Filter and FiltersAggregation to work with empty query {pull}17542[#17542] (issue: {issue}17518[#17518])
+* ExtendedStatsAggregator should also pass sigma to emtpy aggs. {pull}17388[#17388] (issue: {issue}17362[#17362])
+
+Allocation::
+* Rebalancing policy shouldn't prevent hard allocation decisions {pull}17698[#17698] (issues: {issue}14057[#14057], {issue}14259[#14259])
+* When considering the size of shadow replica shards, set size to 0 {pull}17509[#17509] (issue: {issue}17460[#17460])
+
+Core::
+* Refactor UUID-generating methods out of Strings {pull}17837[#17837] (issue: {issue}17819[#17819])
+* Node names cleanup {pull}17723[#17723] (issue: {issue}17718[#17718])
+* NullPointerException from IndexingMemoryController when a version conflict happens during recovery {pull}17569[#17569]
+
+Ingest::
+* Ingest does not close its factories {pull}17626[#17626] (issue: {issue}17625[#17625])
+
+Internal::
+* Fix BulkItemResponse.Failure.toString {pull}17871[#17871]
+
+Logging::
+* Add missing index name to search slow log. {pull}17818[#17818] (issue: {issue}17025[#17025])
+
+Mapping::
+* Fix cross type mapping updates for `boolean` fields. {pull}17882[#17882] (issue: {issue}17879[#17879])
+* Fix dynamic check to properly handle parents {pull}17864[#17864] (issues: {issue}17644[#17644], {issue}17854[#17854])
+* Fix array parsing to remove its context when finished parsing {pull}17768[#17768]
+* Disallow fielddata loading on text fields that are not indexed. {pull}17747[#17747]
+* Fail if an object is added after a field with the same name. {pull}17568[#17568] (issue: {issue}17567[#17567])
+
+Packaging::
+* Fix exit code {pull}17082[#17082]
+
+Plugin Discovery EC2::
+* Fix EC2 Discovery settings {pull}17651[#17651] (issue: {issue}16602[#16602])
+
+Plugins::
+* Quote path to java binary {pull}17496[#17496] (issue: {issue}17495[#17495])
+
+Query DSL::
+* Apply the default operator on analyzed wildcard in simple_query_string builder {pull}17776[#17776]
+* Apply the default operator on analyzed wildcard in query_string builder: {pull}17711[#17711] (issue: {issue}2183[#2183])
+
+REST::
+* Fixes reading of CORS pre-flight headers and methods {pull}17523[#17523] (issue: {issue}17483[#17483])
+* index is a required url part for update by query {pull}17503[#17503]
+
+Reindex API::
+* Reindex should never report negative throttled_until {pull}17799[#17799] (issue: {issue}17783[#17783])
+* Reindex should gracefully handle when _source is disabled {pull}17667[#17667] (issue: {issue}17666[#17666])
+
+Settings::
+* convert settings for ResourceWatcherService to new infrastructure {pull}17948[#17948]
+
+Snapshot/Restore::
+* Fix the semantics for the BlobContainer interface {pull}17878[#17878] (issues: {issue}15579[#15579], {issue}15580[#15580])
+* On restore, selecting concrete indices can select wrong index {pull}17715[#17715]
+
+Task Manager::
+* Shard level tasks in Bulk Action lose reference to their parent tasks {pull}17743[#17743]
+
+Term Vectors::
+* Fix calculation of took time of term vectors request {pull}17817[#17817] (issue: {issue}12565[#12565])
+
+
+
+[[upgrade-5.0.0-alpha2]]
+[float]
+=== Upgrades
+
+Core::
+* Upgrade to lucene 6 release {pull}17657[#17657]
+

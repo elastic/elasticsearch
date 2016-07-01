@@ -1,7 +1,7 @@
 [[mapping-store]]
 === `store`
 
-By default, field values <<mapping-index,indexed>> to make them searchable,
+By default, field values are <<mapping-index,indexed>> to make them searchable,
 but they are not _stored_.  This means that the field can be queried, but the
 original field value cannot be retrieved.
 
@@ -18,13 +18,13 @@ to extract those fields from a large `_source` field:
 
 [source,js]
 --------------------------------------------------
-PUT /my_index
+PUT my_index
 {
   "mappings": {
     "my_type": {
       "properties": {
         "title": {
-          "type": "string",
+          "type": "text",
           "store": true <1>
         },
         "date": {
@@ -32,14 +32,14 @@ PUT /my_index
           "store": true <1>
         },
         "content": {
-          "type": "string"
+          "type": "text"
         }
       }
     }
   }
 }
 
-PUT /my_index/my_type/1
+PUT my_index/my_type/1
 {
   "title":   "Some short title",
   "date":    "2015-01-01",
@@ -51,7 +51,7 @@ GET my_index/_search
   "fields": [ "title", "date" ] <2>
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `title` and `date` fields are stored.
 <2> This request will retrieve the values of the `title` and `date` fields.
 
@@ -70,4 +70,3 @@ field instead.
 
 Another situation where it can make sense to make a field stored is for those
 that don't appear in the `_source` field (such as <<copy-to,`copy_to` fields>>).
-

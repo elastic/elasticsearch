@@ -19,22 +19,17 @@
 
 package org.elasticsearch.plugins.responseheader;
 
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestModule;
+import org.elasticsearch.rest.RestHandler;
 
-public class TestResponseHeaderPlugin extends Plugin {
+import java.util.List;
 
+import static java.util.Collections.singletonList;
+
+public class TestResponseHeaderPlugin extends Plugin implements ActionPlugin {
     @Override
-    public String name() {
-        return "test-plugin-custom-header";
-    }
-
-    @Override
-    public String description() {
-        return "test-plugin-custom-header-desc";
-    }
-
-    public void onModule(RestModule restModule) {
-        restModule.addRestAction(TestResponseHeaderRestAction.class);
+    public List<Class<? extends RestHandler>> getRestHandlers() {
+        return singletonList(TestResponseHeaderRestAction.class);
     }
 }

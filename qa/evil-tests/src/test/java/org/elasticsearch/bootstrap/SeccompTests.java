@@ -19,11 +19,15 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.test.ESTestCase;
 
 /** Simple tests seccomp filter is working. */
 public class SeccompTests extends ESTestCase {
     
+    /** command to try to run in tests */
+    static final String EXECUTABLE = Constants.WINDOWS ? "calc" : "ls";
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -44,7 +48,7 @@ public class SeccompTests extends ESTestCase {
     
     public void testNoExecution() throws Exception {
         try {
-            Runtime.getRuntime().exec("ls");
+            Runtime.getRuntime().exec(EXECUTABLE);
             fail("should not have been able to execute!");
         } catch (Exception expected) {
             // we can't guarantee how its converted, currently its an IOException, like this:
@@ -70,7 +74,7 @@ public class SeccompTests extends ESTestCase {
             @Override
             public void run() {
                 try {
-                    Runtime.getRuntime().exec("ls");
+                    Runtime.getRuntime().exec(EXECUTABLE);
                     fail("should not have been able to execute!");
                 } catch (Exception expected) {
                     // ok

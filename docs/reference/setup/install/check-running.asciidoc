@@ -1,0 +1,28 @@
+==== Checking that Elasticsearch is running
+
+You can test that your Elasticsearch node is running by sending an HTTP
+request to port `9200` on `localhost`:
+
+[source,sh]
+--------------------------------------------
+curl localhost:9200
+--------------------------------------------
+
+which should give you a response something like this:
+
+[source,js]
+--------------------------------------------
+{
+  "name" : "Harry Leland",
+  "cluster_name" : "elasticsearch",
+  "version" : {
+    "number" : "5.0.0-alpha1",
+    "build_hash" : "f27399d",
+    "build_date" : "2016-03-30T09:51:41.449Z",
+    "build_snapshot" : false,
+    "lucene_version" : "6.0.0"
+  },
+  "tagline" : "You Know, for Search"
+}
+--------------------------------------------
+

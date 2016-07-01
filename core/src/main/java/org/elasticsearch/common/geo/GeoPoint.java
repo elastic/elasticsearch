@@ -19,9 +19,11 @@
 
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.apache.lucene.util.BitUtil;
-import org.apache.lucene.util.GeoHashUtils;
-import org.apache.lucene.util.GeoUtils;
+
+import static org.elasticsearch.common.geo.GeoHashUtils.mortonEncode;
+import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
 
 /**
  *
@@ -35,7 +37,7 @@ public final class GeoPoint {
     }
 
     /**
-     * Create a new Geopointform a string. This String must either be a geohash
+     * Create a new Geopoint from a string. This String must either be a geohash
      * or a lat-lon tuple.
      *
      * @param value String to create the point from
@@ -81,14 +83,14 @@ public final class GeoPoint {
     }
 
     public GeoPoint resetFromIndexHash(long hash) {
-        lon = GeoUtils.mortonUnhashLon(hash);
-        lat = GeoUtils.mortonUnhashLat(hash);
+        lon = GeoPointField.decodeLongitude(hash);
+        lat = GeoPointField.decodeLatitude(hash);
         return this;
     }
 
     public GeoPoint resetFromGeoHash(String geohash) {
-        final long hash = GeoHashUtils.mortonEncode(geohash);
-        return this.reset(GeoUtils.mortonUnhashLat(hash), GeoUtils.mortonUnhashLon(hash));
+        final long hash = mortonEncode(geohash);
+        return this.reset(GeoPointField.decodeLatitude(hash), GeoPointField.decodeLongitude(hash));
     }
 
     public GeoPoint resetFromGeoHash(long geohashLong) {
@@ -113,11 +115,11 @@ public final class GeoPoint {
     }
 
     public final String geohash() {
-        return GeoHashUtils.stringEncode(lon, lat);
+        return stringEncode(lon, lat);
     }
 
     public final String getGeohash() {
-        return GeoHashUtils.stringEncode(lon, lat);
+        return stringEncode(lon, lat);
     }
 
     @Override
@@ -146,7 +148,7 @@ public final class GeoPoint {
 
     @Override
     public String toString() {
-        return "[" + lat + ", " + lon + "]";
+        return lat + ", " + lon;
     }
 
     public static GeoPoint parseFromLatLon(String latLon) {
@@ -160,9 +162,5 @@ public final class GeoPoint {
 
     public static GeoPoint fromGeohash(long geohashLong) {
         return new GeoPoint().resetFromGeoHash(geohashLong);
-    }
-
-    public static GeoPoint fromIndexLong(long indexLong) {
-        return new GeoPoint().resetFromIndexHash(indexLong);
     }
 }

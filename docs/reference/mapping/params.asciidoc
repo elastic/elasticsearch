@@ -8,7 +8,7 @@ parameters that are used by <<mapping-types,field mappings>>:
 The following mapping parameters are common to some or all field datatypes:
 
 * <<analyzer,`analyzer`>>
-* <<index-boost,`boost`>>
+* <<mapping-boost,`boost`>>
 * <<coerce,`coerce`>>
 * <<copy-to,`copy_to`>>
 * <<doc-values,`doc_values`>>
@@ -80,8 +80,6 @@ include::params/null-value.asciidoc[]
 
 include::params/position-increment-gap.asciidoc[]
 
-include::params/precision-step.asciidoc[]
-
 include::params/properties.asciidoc[]
 
 include::params/search-analyzer.asciidoc[]
@@ -91,10 +89,3 @@ include::params/similarity.asciidoc[]
 include::params/store.asciidoc[]
 
 include::params/term-vector.asciidoc[]
-
-
-[source,js]
---------------------------------------------------
---------------------------------------------------
-// AUTOSENSE
-

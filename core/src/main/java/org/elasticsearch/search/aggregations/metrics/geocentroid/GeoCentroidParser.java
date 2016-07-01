@@ -19,45 +19,35 @@
 
 package org.elasticsearch.search.aggregations.metrics.geocentroid;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.GeoPointValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Parser class for {@link org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggregator}
  */
-public class GeoCentroidParser implements Aggregator.Parser {
+public class GeoCentroidParser extends GeoPointValuesSourceParser {
 
-    @Override
-    public String type() {
-        return InternalGeoCentroid.TYPE.name();
+    public GeoCentroidParser() {
+        super(true, false);
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
-        ValuesSourceParser<ValuesSource.GeoPoint> vsParser = ValuesSourceParser.geoPoint(aggregationName, InternalGeoCentroid.TYPE, context)
-                .targetValueType(ValueType.GEOPOINT)
-                .formattable(true)
-                .build();
-        XContentParser.Token token;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (vsParser.token(currentFieldName, token, parser)) {
-                continue;
-            } else {
-                throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: ["
-                        + currentFieldName + "].", parser.getTokenLocation());
-            }
-        }
-        return new GeoCentroidAggregator.Factory(aggregationName, vsParser.config());
+    protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
+            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+        return false;
+    }
+
+    @Override
+    protected GeoCentroidAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                          ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        return new GeoCentroidAggregationBuilder(aggregationName);
     }
 }

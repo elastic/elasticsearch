@@ -40,7 +40,7 @@ public class StressSearchServiceReaperIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         // very frequent checks
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(SearchService.KEEPALIVE_INTERVAL_KEY, TimeValue.timeValueMillis(1)).build();
+                .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(1)).build();
     }
 
     // see issue #5165 - this test fails each time without the fix in pull #5170

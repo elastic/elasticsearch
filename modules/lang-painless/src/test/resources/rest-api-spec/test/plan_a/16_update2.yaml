@@ -1,0 +1,54 @@
+---
+"Indexed script":
+
+  - do:
+      put_script:
+        id: "1"
+        lang: "painless"
+        body: { "script":  "_score * doc['myParent.weight'].value" }
+  - match: { acknowledged: true }
+
+  - do:
+     get_script:
+       id: "1"
+       lang: "painless"
+  - match: { found: true }
+  - match: { lang: painless }
+  - match: { _id: "1" }
+  - match: { "script":  "_score * doc['myParent.weight'].value" }
+
+  - do:
+     catch: missing
+     get_script:
+       id: "2"
+       lang: "painless"
+  - match: { found: false }
+  - match: { lang: painless }
+  - match: { _id: "2" }
+  - is_false: script
+
+  - do:
+     delete_script:
+       id: "1"
+       lang: "painless"
+  - match: { acknowledged: true }
+
+  - do:
+     catch: missing
+     delete_script:
+       id: "non_existing"
+       lang: "painless"
+
+  - do:
+      catch: request
+      put_script:
+        id: "1"
+        lang: "painless"
+        body: { "script":  "_score * foo bar + doc['myParent.weight'].value" }
+
+  - do:
+      catch: /compile error/
+      put_script:
+        id: "1"
+        lang: "painless"
+        body: { "script":  "_score * foo bar + doc['myParent.weight'].value" }

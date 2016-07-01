@@ -34,10 +34,13 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -110,19 +113,21 @@ public class NestedAggregatorTests extends ESSingleNodeTestCase {
         indexWriter.commit();
         indexWriter.close();
 
-        DirectoryReader directoryReader =  DirectoryReader.open(directory);
+        IndexService indexService = createIndex("test");
+        DirectoryReader directoryReader = DirectoryReader.open(directory);
+        directoryReader = ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexService.index(), 0));
         IndexSearcher searcher = new IndexSearcher(directoryReader);
 
-        IndexService indexService = createIndex("test");
-        indexService.mapperService().merge("test", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("test", "nested_field", "type=nested").string()), true, false);
+        indexService.mapperService().merge("test", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("test", "nested_field", "type=nested").string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         SearchContext searchContext = createSearchContext(indexService);
         AggregationContext context = new AggregationContext(searchContext);
 
         AggregatorFactories.Builder builder = AggregatorFactories.builder();
-        builder.addAggregator(new NestedAggregator.Factory("test", "nested_field"));
-        AggregatorFactories factories = builder.build();
+        NestedAggregationBuilder factory = new NestedAggregationBuilder("test", "nested_field");
+        builder.addAggregator(factory);
+        AggregatorFactories factories = builder.build(context, null);
         searchContext.aggregations(new SearchContextAggregations(factories));
-        Aggregator[] aggs = factories.createTopLevelAggregators(context);
+        Aggregator[] aggs = factories.createTopLevelAggregators();
         BucketCollector collector = BucketCollector.wrap(Arrays.asList(aggs));
         collector.preCollection();
         // A regular search always exclude nested docs, so we use NonNestedDocsFilter.INSTANCE here (otherwise MatchAllDocsQuery would be sufficient)
@@ -136,7 +141,7 @@ public class NestedAggregatorTests extends ESSingleNodeTestCase {
 
         Nested nested = (Nested) aggs[0].buildAggregation(0);
         // The bug manifests if 6 docs are returned, because currentRootDoc isn't reset the previous child docs from the first segment are emitted as hits.
-        assertThat(nested.getDocCount(), equalTo(4l));
+        assertThat(nested.getDocCount(), equalTo(4L));
 
         directoryReader.close();
         directory.close();

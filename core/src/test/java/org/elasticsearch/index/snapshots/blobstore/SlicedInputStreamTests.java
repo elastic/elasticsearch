@@ -19,7 +19,6 @@
 package org.elasticsearch.index.snapshots.blobstore;
 
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
-
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;

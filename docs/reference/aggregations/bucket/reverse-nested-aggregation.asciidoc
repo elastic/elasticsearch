@@ -22,12 +22,12 @@ the issue documents as nested documents. The mapping could look like:
 
     "issue" : {
         "properties" : {
-            "tags" : { "type" : "string" }
+            "tags" : { "type" : "text" }
             "comments" : { <1>
                 "type" : "nested"
                 "properties" : {
-                    "username" : { "type" : "string", "index" : "not_analyzed" },
-                    "comment" : { "type" : "string" }
+                    "username" : { "type" : "keyword" },
+                    "comment" : { "type" : "text" }
                 }
             }
         }
@@ -77,7 +77,7 @@ tags of the issues the user has commented on:
 }
 --------------------------------------------------
 
-As you can see above, the the `reverse_nested` aggregation is put in to a `nested` aggregation as this is the only place
+As you can see above, the `reverse_nested` aggregation is put in to a `nested` aggregation as this is the only place
 in the dsl where the `reversed_nested` aggregation can be used. Its sole purpose is to join back to a parent doc higher
 up in the nested structure.
 

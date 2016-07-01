@@ -19,56 +19,145 @@
 
 package org.elasticsearch.indices;
 
-import org.apache.lucene.analysis.hunspell.Dictionary;
-import org.elasticsearch.common.inject.ModuleTestCase;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.*;
-
-import java.io.IOException;
-import java.io.InputStream;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
-public class IndicesModuleTests extends ModuleTestCase {
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
+import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.internal.IdFieldMapper;
+import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
-    static class FakeQueryParser implements QueryParser {
+public class IndicesModuleTests extends ESTestCase {
+
+    private static class FakeMapperParser implements Mapper.TypeParser {
         @Override
-        public String[] names() {
-            return new String[] {"fake-query-parser"};
-        }
-
-        @Override
-        public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext)
+            throws MapperParsingException {
             return null;
         }
+    }
 
+    private static class FakeMetadataMapperParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public QueryBuilder getBuilderPrototype() {
+        public MetadataFieldMapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext)
+            throws MapperParsingException {
+            return null;
+        }
+        @Override
+        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
             return null;
         }
     }
 
-    public void testRegisterQueryParser() {
-        IndicesModule module = new IndicesModule();
-        module.registerQueryParser(FakeQueryParser.class);
-        assertSetMultiBinding(module, QueryParser.class, FakeQueryParser.class);
-    }
-
-    public void testRegisterQueryParserDuplicate() {
-        IndicesModule module = new IndicesModule();
-        try {
-            module.registerQueryParser(TermQueryParser.class);
-        } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "Can't register the same [query_parser] more than once for [" + TermQueryParser.class.getName() + "]");
+    List<MapperPlugin> fakePlugins = Arrays.asList(new MapperPlugin() {
+        @Override
+        public Map<String, Mapper.TypeParser> getMappers() {
+            return Collections.singletonMap("fake-mapper", new FakeMapperParser());
         }
-    }
-
-    public void testRegisterHunspellDictionaryDuplicate() {
-        IndicesModule module = new IndicesModule();
-        try {
-            module.registerQueryParser(TermQueryParser.class);
-        } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "Can't register the same [query_parser] more than once for [" + TermQueryParser.class.getName() + "]");
+        @Override
+        public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+            return Collections.singletonMap("fake-metadata-mapper", new FakeMetadataMapperParser());
         }
+    });
+
+    public void testBuiltinMappers() {
+        IndicesModule module = new IndicesModule(new NamedWriteableRegistry(), Collections.emptyList());
+        assertFalse(module.getMapperRegistry().getMapperParsers().isEmpty());
+        assertFalse(module.getMapperRegistry().getMetadataMapperParsers().isEmpty());
     }
 
+    public void testBuiltinWithPlugins() {
+        IndicesModule module = new IndicesModule(new NamedWriteableRegistry(), fakePlugins);
+        MapperRegistry registry = module.getMapperRegistry();
+        assertThat(registry.getMapperParsers().size(), Matchers.greaterThan(1));
+        assertThat(registry.getMetadataMapperParsers().size(), Matchers.greaterThan(1));
+    }
+
+    public void testDuplicateBuiltinMapper() {
+        List<MapperPlugin> plugins = Arrays.asList(new MapperPlugin() {
+            @Override
+            public Map<String, Mapper.TypeParser> getMappers() {
+                return Collections.singletonMap(TextFieldMapper.CONTENT_TYPE, new FakeMapperParser());
+            }
+        });
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new IndicesModule(new NamedWriteableRegistry(), plugins));
+        assertThat(e.getMessage(), Matchers.containsString("already registered"));
+    }
+
+    public void testDuplicateOtherPluginMapper() {
+        MapperPlugin plugin = new MapperPlugin() {
+            @Override
+            public Map<String, Mapper.TypeParser> getMappers() {
+                return Collections.singletonMap("foo", new FakeMapperParser());
+            }
+        };
+        List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new IndicesModule(new NamedWriteableRegistry(), plugins));
+        assertThat(e.getMessage(), Matchers.containsString("already registered"));
+    }
+
+    public void testDuplicateBuiltinMetadataMapper() {
+        List<MapperPlugin> plugins = Arrays.asList(new MapperPlugin() {
+            @Override
+            public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+                return Collections.singletonMap(IdFieldMapper.NAME, new FakeMetadataMapperParser());
+            }
+        });
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new IndicesModule(new NamedWriteableRegistry(), plugins));
+        assertThat(e.getMessage(), Matchers.containsString("already registered"));
+    }
+
+    public void testDuplicateOtherPluginMetadataMapper() {
+        MapperPlugin plugin = new MapperPlugin() {
+            @Override
+            public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+                return Collections.singletonMap("foo", new FakeMetadataMapperParser());
+            }
+        };
+        List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new IndicesModule(new NamedWriteableRegistry(), plugins));
+        assertThat(e.getMessage(), Matchers.containsString("already registered"));
+    }
+
+    public void testDuplicateFieldNamesMapper() {
+        List<MapperPlugin> plugins = Arrays.asList(new MapperPlugin() {
+            @Override
+            public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+                return Collections.singletonMap(FieldNamesFieldMapper.NAME, new FakeMetadataMapperParser());
+            }
+        });
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new IndicesModule(new NamedWriteableRegistry(), plugins));
+        assertThat(e.getMessage(), Matchers.containsString("cannot contain metadata mapper [_field_names]"));
+    }
+
+    public void testFieldNamesIsLast() {
+        IndicesModule module = new IndicesModule(new NamedWriteableRegistry(), Collections.emptyList());
+        List<String> fieldNames = module.getMapperRegistry().getMetadataMapperParsers().keySet()
+            .stream().collect(Collectors.toList());
+        assertEquals(FieldNamesFieldMapper.NAME, fieldNames.get(fieldNames.size() - 1));
+    }
+
+    public void testFieldNamesIsLastWithPlugins() {
+        IndicesModule module = new IndicesModule(new NamedWriteableRegistry(), fakePlugins);
+        List<String> fieldNames = module.getMapperRegistry().getMetadataMapperParsers().keySet()
+            .stream().collect(Collectors.toList());
+        assertEquals(FieldNamesFieldMapper.NAME, fieldNames.get(fieldNames.size() - 1));
+    }
 }

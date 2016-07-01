@@ -28,9 +28,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 
 import static org.elasticsearch.search.internal.InternalSearchHits.readSearchHits;
 
@@ -40,7 +44,7 @@ import static org.elasticsearch.search.internal.InternalSearchHits.readSearchHit
 public class InternalSearchResponse implements Streamable, ToXContent {
 
     public static InternalSearchResponse empty() {
-        return new InternalSearchResponse(InternalSearchHits.empty(), null, null, false, null);
+        return new InternalSearchResponse(InternalSearchHits.empty(), null, null, null, false, null);
     }
 
     private InternalSearchHits hits;
@@ -49,6 +53,8 @@ public class InternalSearchResponse implements Streamable, ToXContent {
 
     private Suggest suggest;
 
+    private SearchProfileShardResults profileResults;
+
     private boolean timedOut;
 
     private Boolean terminatedEarly = null;
@@ -56,10 +62,12 @@ public class InternalSearchResponse implements Streamable, ToXContent {
     private InternalSearchResponse() {
     }
 
-    public InternalSearchResponse(InternalSearchHits hits, InternalAggregations aggregations, Suggest suggest, boolean timedOut, Boolean terminatedEarly) {
+    public InternalSearchResponse(InternalSearchHits hits, InternalAggregations aggregations, Suggest suggest,
+                                  SearchProfileShardResults profileResults, boolean timedOut, Boolean terminatedEarly) {
         this.hits = hits;
         this.aggregations = aggregations;
         this.suggest = suggest;
+        this.profileResults = profileResults;
         this.timedOut = timedOut;
         this.terminatedEarly = terminatedEarly;
     }
@@ -84,6 +92,19 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         return suggest;
     }
 
+    /**
+     * Returns the profile results for this search response (including all shards).
+     * An empty map is returned if profiling was not enabled
+     *
+     * @return Profile results
+     */
+    public Map<String, ProfileShardResult> profile() {
+        if (profileResults == null) {
+            return Collections.emptyMap();
+        }
+        return profileResults.getShardResults();
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         hits.toXContent(builder, params);
@@ -92,6 +113,9 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         }
         if (suggest != null) {
             suggest.toXContent(builder, params);
+        }
+        if (profileResults != null) {
+            profileResults.toXContent(builder, params);
         }
         return builder;
     }
@@ -109,11 +133,17 @@ public class InternalSearchResponse implements Streamable, ToXContent {
             aggregations = InternalAggregations.readAggregations(in);
         }
         if (in.readBoolean()) {
-            suggest = Suggest.readSuggest(Suggest.Fields.SUGGEST, in);
+            suggest = Suggest.readSuggest(in);
         }
         timedOut = in.readBoolean();
 
         terminatedEarly = in.readOptionalBoolean();
+
+        if (in.getVersion().onOrAfter(Version.V_2_2_0) && in.readBoolean()) {
+            profileResults = new SearchProfileShardResults(in);
+        } else {
+            profileResults = null;
+        }
     }
 
     @Override
@@ -134,5 +164,14 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         out.writeBoolean(timedOut);
 
         out.writeOptionalBoolean(terminatedEarly);
+
+        if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
+            if (profileResults == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                profileResults.writeTo(out);
+            }
+        }
     }
 }

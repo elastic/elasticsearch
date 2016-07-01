@@ -75,7 +75,7 @@ public class LeafDocLookup implements Map {
         String fieldName = key.toString();
         ScriptDocValues scriptValues = localCacheFieldData.get(fieldName);
         if (scriptValues == null) {
-            final MappedFieldType fieldType = mapperService.smartNameFieldType(fieldName, types);
+            final MappedFieldType fieldType = mapperService.fullName(fieldName);
             if (fieldType == null) {
                 throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping with types " + Arrays.toString(types) + "");
             }
@@ -99,7 +99,7 @@ public class LeafDocLookup implements Map {
         String fieldName = key.toString();
         ScriptDocValues scriptValues = localCacheFieldData.get(fieldName);
         if (scriptValues == null) {
-            MappedFieldType fieldType = mapperService.smartNameFieldType(fieldName, types);
+            MappedFieldType fieldType = mapperService.fullName(fieldName);
             if (fieldType == null) {
                 return false;
             }

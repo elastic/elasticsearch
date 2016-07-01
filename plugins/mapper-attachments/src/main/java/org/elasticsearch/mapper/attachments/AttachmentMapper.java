@@ -21,23 +21,38 @@ package org.elasticsearch.mapper.attachments;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.search.Query;
 import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.*;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
 
 /**
  * <pre>
@@ -61,11 +76,16 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
 public class AttachmentMapper extends FieldMapper {
 
     private static ESLogger logger = ESLoggerFactory.getLogger("mapper.attachment");
+    public static final Setting<Boolean> INDEX_ATTACHMENT_IGNORE_ERRORS_SETTING =
+        Setting.boolSetting("index.mapping.attachment.ignore_errors", true, Property.IndexScope);
+    public static final Setting<Boolean> INDEX_ATTACHMENT_DETECT_LANGUAGE_SETTING =
+        Setting.boolSetting("index.mapping.attachment.detect_language", false, Property.IndexScope);
+    public static final Setting<Integer> INDEX_ATTACHMENT_INDEXED_CHARS_SETTING =
+        Setting.intSetting("index.mapping.attachment.indexed_chars", 100000, Property.IndexScope);
 
     public static final String CONTENT_TYPE = "attachment";
 
     public static class Defaults {
-        public static final ContentPath.Type PATH_TYPE = ContentPath.Type.FULL;
 
         public static final AttachmentFieldType FIELD_TYPE = new AttachmentFieldType();
         static {
@@ -92,6 +112,7 @@ public class AttachmentMapper extends FieldMapper {
             super(ref);
         }
 
+        @Override
         public AttachmentMapper.AttachmentFieldType clone() {
             return new AttachmentMapper.AttachmentFieldType(this);
         }
@@ -101,14 +122,13 @@ public class AttachmentMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
-        public String value(Object value) {
-            return value == null?null:value.toString();
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            throw new QueryShardException(context, "Attachment fields are not searchable: [" + name() + "]");
         }
     }
 
     public static class Builder extends FieldMapper.Builder<Builder, AttachmentMapper> {
-
-        private ContentPath.Type pathType = Defaults.PATH_TYPE;
 
         private Boolean ignoreErrors = null;
 
@@ -116,84 +136,77 @@ public class AttachmentMapper extends FieldMapper {
 
         private Boolean langDetect = null;
 
-        private Mapper.Builder contentBuilder;
+        private Mapper.Builder<?, ?> contentBuilder;
 
-        private Mapper.Builder titleBuilder = stringField(FieldNames.TITLE);
+        private Mapper.Builder<?, ?> titleBuilder = new TextFieldMapper.Builder(FieldNames.TITLE);
 
-        private Mapper.Builder nameBuilder = stringField(FieldNames.NAME);
+        private Mapper.Builder<?, ?> nameBuilder = new TextFieldMapper.Builder(FieldNames.NAME);
 
-        private Mapper.Builder authorBuilder = stringField(FieldNames.AUTHOR);
+        private Mapper.Builder<?, ?> authorBuilder = new TextFieldMapper.Builder(FieldNames.AUTHOR);
 
-        private Mapper.Builder keywordsBuilder = stringField(FieldNames.KEYWORDS);
+        private Mapper.Builder<?, ?> keywordsBuilder = new TextFieldMapper.Builder(FieldNames.KEYWORDS);
 
-        private Mapper.Builder dateBuilder = dateField(FieldNames.DATE);
+        private Mapper.Builder<?, ?> dateBuilder = new DateFieldMapper.Builder(FieldNames.DATE);
 
-        private Mapper.Builder contentTypeBuilder = stringField(FieldNames.CONTENT_TYPE);
+        private Mapper.Builder<?, ?> contentTypeBuilder = new TextFieldMapper.Builder(FieldNames.CONTENT_TYPE);
 
-        private Mapper.Builder contentLengthBuilder = integerField(FieldNames.CONTENT_LENGTH);
+        private Mapper.Builder<?, ?> contentLengthBuilder = new NumberFieldMapper.Builder(FieldNames.CONTENT_LENGTH, NumberType.INTEGER);
 
-        private Mapper.Builder languageBuilder = stringField(FieldNames.LANGUAGE);
+        private Mapper.Builder<?, ?> languageBuilder = new TextFieldMapper.Builder(FieldNames.LANGUAGE);
 
         public Builder(String name) {
-            super(name, new AttachmentFieldType());
+            super(name, new AttachmentFieldType(), new AttachmentFieldType());
             this.builder = this;
-            this.contentBuilder = stringField(FieldNames.CONTENT);
+            this.contentBuilder = new TextFieldMapper.Builder(FieldNames.CONTENT);
         }
 
-        public Builder pathType(ContentPath.Type pathType) {
-            this.pathType = pathType;
-            return this;
-        }
-
-        public Builder content(Mapper.Builder content) {
+        public Builder content(Mapper.Builder<?, ?> content) {
             this.contentBuilder = content;
             return this;
         }
 
-        public Builder date(Mapper.Builder date) {
+        public Builder date(Mapper.Builder<?, ?> date) {
             this.dateBuilder = date;
             return this;
         }
 
-        public Builder author(Mapper.Builder author) {
+        public Builder author(Mapper.Builder<?, ?> author) {
             this.authorBuilder = author;
             return this;
         }
 
-        public Builder title(Mapper.Builder title) {
+        public Builder title(Mapper.Builder<?, ?> title) {
             this.titleBuilder = title;
             return this;
         }
 
-        public Builder name(Mapper.Builder name) {
+        public Builder name(Mapper.Builder<?, ?> name) {
             this.nameBuilder = name;
             return this;
         }
 
-        public Builder keywords(Mapper.Builder keywords) {
+        public Builder keywords(Mapper.Builder<?, ?> keywords) {
             this.keywordsBuilder = keywords;
             return this;
         }
 
-        public Builder contentType(Mapper.Builder contentType) {
+        public Builder contentType(Mapper.Builder<?, ?> contentType) {
             this.contentTypeBuilder = contentType;
             return this;
         }
 
-        public Builder contentLength(Mapper.Builder contentType) {
+        public Builder contentLength(Mapper.Builder<?, ?> contentType) {
             this.contentLengthBuilder = contentType;
             return this;
         }
 
-        public Builder language(Mapper.Builder language) {
+        public Builder language(Mapper.Builder<?, ?> language) {
             this.languageBuilder = language;
             return this;
         }
 
         @Override
         public AttachmentMapper build(BuilderContext context) {
-            ContentPath.Type origPathType = context.path().pathType();
-            context.path().pathType(pathType);
 
             FieldMapper contentMapper;
             if (context.indexCreatedVersion().before(Version.V_2_0_0_beta1)) {
@@ -201,7 +214,6 @@ public class AttachmentMapper extends FieldMapper {
                 if (contentBuilder instanceof FieldMapper.Builder == false) {
                     throw new IllegalStateException("content field for attachment must be a field mapper");
                 }
-                ((FieldMapper.Builder)contentBuilder).indexName(name);
                 contentBuilder.name = name + "." + FieldNames.CONTENT;
                 contentMapper = (FieldMapper) contentBuilder.build(context);
                 context.path().add(name);
@@ -220,24 +232,22 @@ public class AttachmentMapper extends FieldMapper {
             FieldMapper language = (FieldMapper) languageBuilder.build(context);
             context.path().remove();
 
-            context.path().pathType(origPathType);
-
             if (defaultIndexedChars == null && context.indexSettings() != null) {
-                defaultIndexedChars = context.indexSettings().getAsInt("index.mapping.attachment.indexed_chars", 100000);
+                defaultIndexedChars = INDEX_ATTACHMENT_INDEXED_CHARS_SETTING.get(context.indexSettings());
             }
             if (defaultIndexedChars == null) {
                 defaultIndexedChars = 100000;
             }
 
             if (ignoreErrors == null && context.indexSettings() != null) {
-                ignoreErrors = context.indexSettings().getAsBoolean("index.mapping.attachment.ignore_errors", Boolean.TRUE);
+                ignoreErrors = INDEX_ATTACHMENT_IGNORE_ERRORS_SETTING.get(context.indexSettings());
             }
             if (ignoreErrors == null) {
                 ignoreErrors = Boolean.TRUE;
             }
 
             if (langDetect == null && context.indexSettings() != null) {
-                langDetect = context.indexSettings().getAsBoolean("index.mapping.attachment.detect_language", Boolean.FALSE);
+                langDetect = INDEX_ATTACHMENT_DETECT_LANGUAGE_SETTING.get(context.indexSettings());
             }
             if (langDetect == null) {
                 langDetect = Boolean.FALSE;
@@ -257,7 +267,7 @@ public class AttachmentMapper extends FieldMapper {
 
             defaultFieldType.freeze();
             this.setupFieldType(context);
-            return new AttachmentMapper(name, fieldType, defaultFieldType, pathType, defaultIndexedChars, ignoreErrors, langDetect, contentMapper,
+            return new AttachmentMapper(name, fieldType, defaultFieldType, defaultIndexedChars, ignoreErrors, langDetect, contentMapper,
                     dateMapper, titleMapper, nameMapper, authorMapper, keywordsMapper, contentTypeMapper, contentLength,
                     language, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
@@ -292,27 +302,24 @@ public class AttachmentMapper extends FieldMapper {
             if (typeNode != null) {
                 type = typeNode.toString();
             } else {
-                type = "string";
+                type = "text";
             }
             Mapper.TypeParser typeParser = parserContext.typeParser(type);
-            Mapper.Builder<?, ?> mapperBuilder = typeParser.parse(propName, (Map<String, Object>) propNode, parserContext);
+            Mapper.Builder<?, ?> mapperBuilder = typeParser.parse(propName, propNode, parserContext);
 
             return mapperBuilder;
         }
 
-        @SuppressWarnings({"unchecked"})
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        @SuppressWarnings("unchecked")  // Safe because we know how our maps are shaped
+        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             AttachmentMapper.Builder builder = new AttachmentMapper.Builder(name);
 
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
-                if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-                    builder.pathType(parsePathType(name, fieldNode.toString()));
-                    iterator.remove();
-                } else if (fieldName.equals("fields")) {
+                if (fieldName.equals("fields")) {
                     Map<String, Object> fieldsNode = (Map<String, Object>) fieldNode;
                     for (Iterator<Map.Entry<String, Object>> fieldsIterator = fieldsNode.entrySet().iterator(); fieldsIterator.hasNext();) {
                         Map.Entry<String, Object> entry1 = fieldsIterator.next();
@@ -320,7 +327,7 @@ public class AttachmentMapper extends FieldMapper {
                         Map<String, Object> propNode = (Map<String, Object>) entry1.getValue();
 
                         Mapper.Builder<?, ?> mapperBuilder = findMapperBuilder(propNode, propName, parserContext);
-                        if (parseMultiField((FieldMapper.Builder) mapperBuilder, fieldName, parserContext, propName, propNode)) {
+                        if (parseMultiField((FieldMapper.Builder<?, ?>) mapperBuilder, fieldName, parserContext, propName, propNode)) {
                             fieldsIterator.remove();
                         } else if (propName.equals(name) && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                             builder.content(mapperBuilder);
@@ -375,8 +382,6 @@ public class AttachmentMapper extends FieldMapper {
         }
     }
 
-    private final ContentPath.Type pathType;
-
     private final int defaultIndexedChars;
 
     private final boolean ignoreErrors;
@@ -401,13 +406,12 @@ public class AttachmentMapper extends FieldMapper {
 
     private final FieldMapper languageMapper;
 
-    public AttachmentMapper(String simpleName, MappedFieldType type, MappedFieldType defaultFieldType, ContentPath.Type pathType, int defaultIndexedChars, Boolean ignoreErrors,
+    public AttachmentMapper(String simpleName, MappedFieldType type, MappedFieldType defaultFieldType, int defaultIndexedChars, Boolean ignoreErrors,
                             Boolean defaultLangDetect, FieldMapper contentMapper,
                             FieldMapper dateMapper, FieldMapper titleMapper, FieldMapper nameMapper, FieldMapper authorMapper,
                             FieldMapper keywordsMapper, FieldMapper contentTypeMapper, FieldMapper contentLengthMapper,
                             FieldMapper languageMapper, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, type, defaultFieldType, indexSettings, multiFields, copyTo);
-        this.pathType = pathType;
         this.defaultIndexedChars = defaultIndexedChars;
         this.ignoreErrors = ignoreErrors;
         this.defaultLangDetect = defaultLangDetect;
@@ -602,7 +606,7 @@ public class AttachmentMapper extends FieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         // ignore this for now
     }
 
@@ -624,11 +628,8 @@ public class AttachmentMapper extends FieldMapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name());
+        builder.startObject(simpleName());
         builder.field("type", CONTENT_TYPE);
-        if (indexCreatedBefore2x) {
-            builder.field("path", pathType.name().toLowerCase(Locale.ROOT));
-        }
 
         builder.startObject("fields");
         contentMapper.toXContent(builder, params);

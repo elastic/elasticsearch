@@ -19,29 +19,26 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class RestFilterChainTests extends ESTestCase {
-    public void testRestFilters() throws InterruptedException {
+    public void testRestFilters() throws Exception {
 
         RestController restController = new RestController(Settings.EMPTY);
 
@@ -75,16 +72,13 @@ public class RestFilterChainTests extends ESTestCase {
             }
         }
 
-        restController.registerHandler(RestRequest.Method.GET, "/", new RestHandler() {
-            @Override
-            public void handleRequest(RestRequest request, RestChannel channel) throws Exception {
-                channel.sendResponse(new TestResponse());
-            }
+        restController.registerHandler(RestRequest.Method.GET, "/", (request, channel, client) -> {
+            channel.sendResponse(new TestResponse());
         });
 
         FakeRestRequest fakeRestRequest = new FakeRestRequest();
-        FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, 1);
-        restController.dispatchRequest(fakeRestRequest, fakeRestChannel);
+        FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean(), 1);
+        restController.dispatchRequest(fakeRestRequest, fakeRestChannel, null, new ThreadContext(Settings.EMPTY));
         assertThat(fakeRestChannel.await(), equalTo(true));
 
 
@@ -117,16 +111,13 @@ public class RestFilterChainTests extends ESTestCase {
         }
     }
 
-    public void testTooManyContinueProcessing() throws InterruptedException {
+    public void testTooManyContinueProcessing() throws Exception {
 
         final int additionalContinueCount = randomInt(10);
 
-        TestFilter testFilter = new TestFilter(randomInt(), new Callback() {
-            @Override
-            public void execute(final RestRequest request, final RestChannel channel, final RestFilterChain filterChain) throws Exception {
-                for (int i = 0; i <= additionalContinueCount; i++) {
-                    filterChain.continueProcessing(request, channel);
-                }
+        TestFilter testFilter = new TestFilter(randomInt(), (request, channel, client, filterChain) -> {
+            for (int i = 0; i <= additionalContinueCount; i++) {
+                filterChain.continueProcessing(request, channel, null);
             }
         });
 
@@ -135,90 +126,39 @@ public class RestFilterChainTests extends ESTestCase {
 
         restController.registerHandler(RestRequest.Method.GET, "/", new RestHandler() {
             @Override
-            public void handleRequest(RestRequest request, RestChannel channel) throws Exception {
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 channel.sendResponse(new TestResponse());
             }
         });
 
         FakeRestRequest fakeRestRequest = new FakeRestRequest();
-        FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, additionalContinueCount + 1);
-        restController.dispatchRequest(fakeRestRequest, fakeRestChannel);
+        FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean(), additionalContinueCount + 1);
+        restController.dispatchRequest(fakeRestRequest, fakeRestChannel, null, new ThreadContext(Settings.EMPTY));
         fakeRestChannel.await();
 
         assertThat(testFilter.runs.get(), equalTo(1));
 
-        assertThat(fakeRestChannel.responses.get(), equalTo(1));
-        assertThat(fakeRestChannel.errors.get(), equalTo(additionalContinueCount));
-    }
-
-    private static class FakeRestChannel extends RestChannel {
-
-        private final CountDownLatch latch;
-        AtomicInteger responses = new AtomicInteger();
-        AtomicInteger errors = new AtomicInteger();
-
-        protected FakeRestChannel(RestRequest request, int responseCount) {
-            super(request, randomBoolean());
-            this.latch = new CountDownLatch(responseCount);
-        }
-
-        @Override
-        public XContentBuilder newBuilder() throws IOException {
-            return super.newBuilder();
-        }
-
-        @Override
-        public XContentBuilder newErrorBuilder() throws IOException {
-            return super.newErrorBuilder();
-        }
-
-        @Override
-        public XContentBuilder newBuilder(@Nullable BytesReference autoDetectSource, boolean useFiltering) throws IOException {
-            return super.newBuilder(autoDetectSource, useFiltering);
-        }
-
-        @Override
-        protected BytesStreamOutput newBytesOutput() {
-            return super.newBytesOutput();
-        }
-
-        @Override
-        public RestRequest request() {
-            return super.request();
-        }
-
-        @Override
-        public void sendResponse(RestResponse response) {
-            if (response.status() == RestStatus.OK) {
-                responses.incrementAndGet();
-            } else {
-                errors.incrementAndGet();
-            }
-            latch.countDown();
-        }
-
-        public boolean await() throws InterruptedException {
-            return latch.await(10, TimeUnit.SECONDS);
-        }
+        assertThat(fakeRestChannel.responses().get(), equalTo(1));
+        assertThat(fakeRestChannel.errors().get(), equalTo(additionalContinueCount));
     }
 
     private static enum Operation implements Callback {
         CONTINUE_PROCESSING {
             @Override
-            public void execute(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws Exception {
-                filterChain.continueProcessing(request, channel);
+            public void execute(RestRequest request, RestChannel channel, NodeClient client, RestFilterChain filterChain) throws Exception {
+                filterChain.continueProcessing(request, channel, client);
             }
         },
         CHANNEL_RESPONSE {
             @Override
-            public void execute(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws Exception {
+            public void execute(RestRequest request, RestChannel channel, NodeClient client, RestFilterChain filterChain) throws Exception {
                 channel.sendResponse(new TestResponse());
             }
         }
     }
 
     private static interface Callback {
-        void execute(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws Exception;
+        void execute(RestRequest request, RestChannel channel, NodeClient client, RestFilterChain filterChain) throws Exception;
     }
 
     private final AtomicInteger counter = new AtomicInteger();
@@ -235,10 +175,10 @@ public class RestFilterChainTests extends ESTestCase {
         }
 
         @Override
-        public void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws Exception {
+        public void process(RestRequest request, RestChannel channel, NodeClient client, RestFilterChain filterChain) throws Exception {
             this.runs.incrementAndGet();
             this.executionToken = counter.incrementAndGet();
-            this.callback.execute(request, channel, filterChain);
+            this.callback.execute(request, channel, client, filterChain);
         }
 
         @Override

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.typelevels;
 
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
@@ -30,16 +31,12 @@ import static org.hamcrest.Matchers.equalTo;
 public class ParseMappingTypeLevelTests extends ESSingleNodeTestCase {
     public void testTypeLevel() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_timestamp").field("enabled", true).endObject()
+                .startObject("_all").field("enabled", false).endObject()
                 .endObject().endObject().string();
 
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper mapper = parser.parse("type", mapping);
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertThat(mapper.type(), equalTo("type"));
-        assertThat(mapper.timestampFieldMapper().enabled(), equalTo(true));
-
-        mapper = parser.parse(mapping);
-        assertThat(mapper.type(), equalTo("type"));
-        assertThat(mapper.timestampFieldMapper().enabled(), equalTo(true));
+        assertThat(mapper.allFieldMapper().enabled(), equalTo(false));
     }
 }

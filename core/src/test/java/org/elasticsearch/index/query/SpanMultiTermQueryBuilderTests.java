@@ -25,6 +25,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanBoostQuery;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
@@ -59,12 +60,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
     }
 
     public void testIllegalArgument() {
-        try {
-            new SpanMultiTermQueryBuilder(null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> new SpanMultiTermQueryBuilder((MultiTermQueryBuilder) null));
     }
 
     /**
@@ -91,5 +87,28 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         Query query = new SpanOrQueryBuilder(createTestQueryBuilder()).toQuery(createShardContext());
         //verify that the result is still a span query, despite the boost that might get set (SpanBoostQuery rather than BoostQuery)
         assertThat(query, instanceOf(SpanQuery.class));
+    }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" +
+                "  \"span_multi\" : {\n" +
+                "    \"match\" : {\n" +
+                "      \"prefix\" : {\n" +
+                "        \"user\" : {\n" +
+                "          \"value\" : \"ki\",\n" +
+                "          \"boost\" : 1.08\n" +
+                "        }\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+
+        SpanMultiTermQueryBuilder parsed = (SpanMultiTermQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "ki", ((PrefixQueryBuilder) parsed.innerQuery()).value());
+        assertEquals(json, 1.08, parsed.innerQuery().boost(), 0.0001);
     }
 }

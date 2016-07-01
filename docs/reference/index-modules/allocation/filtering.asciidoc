@@ -9,19 +9,20 @@ conjunction with the cluster-wide allocation filters explained in
 <<shards-allocation>>.
 
 It is possible to assign arbitrary metadata attributes to each node at
-startup.  For instance, nodes could be assigned a `rack` and a `group`
+startup.  For instance, nodes could be assigned a `rack` and a `size`
 attribute as follows:
 
 [source,sh]
 ------------------------
-bin/elasticsearch --node.rack rack1 --node.size big  <1>
+bin/elasticsearch -Enode.attr.rack=rack1 -Enode.attr.size=big  <1>
 ------------------------
-<1> These attribute settings can also be specfied in the `elasticsearch.yml` config file.
+<1> These attribute settings can also be specified in the `elasticsearch.yml` config file.
 
 These metadata attributes can be used with the
 `index.routing.allocation.*` settings to allocate an index to a particular
 group of nodes.  For instance, we can move the index `test` to either `big` or
 `medium` nodes as follows:
+
 
 [source,js]
 ------------------------
@@ -30,7 +31,8 @@ PUT test/_settings
   "index.routing.allocation.include.size": "big,medium"
 }
 ------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[s/^/PUT test\n/]
 
 Alternatively, we can move the index `test` away from the `small` nodes with
 an `exclude` rule:
@@ -42,7 +44,8 @@ PUT test/_settings
   "index.routing.allocation.exclude.size": "small"
 }
 ------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[s/^/PUT test\n/]
 
 Multiple rules can be specified, in which case all conditions must be
 satisfied.  For instance, we could move the index `test` to `big` nodes in
@@ -56,7 +59,8 @@ PUT test/_settings
   "index.routing.allocation.include.rack": "rack1"
 }
 ------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[s/^/PUT test\n/]
 
 NOTE: If some conditions cannot be satisfied then shards will not be moved.
 
@@ -96,4 +100,5 @@ PUT test/_settings
   "index.routing.allocation.include._ip": "192.168.2.*"
 }
 ------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[skip:indexes don't assign]

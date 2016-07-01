@@ -1,0 +1,71 @@
+[[ingest-attachment]]
+=== Ingest Attachment Processor Plugin
+
+The ingest attachment plugin lets Elasticsearch extract file attachments in common formats (such as PPT, XLS, and PDF) by
+using the Apache text extraction library http://lucene.apache.org/tika/[Tika].
+
+You can use the ingest attachment plugin as a replacement for the mapper attachment plugin.
+
+The source field must be a base64 encoded binary. If you do not want to incur
+the overhead of converting back and forth between base64, you can use the CBOR
+format instead of JSON and specify the field as a bytes array instead of a string
+representation. The processor will skip the base64 decoding then.
+
+[[ingest-attachment-install]]
+[float]
+==== Installation
+
+This plugin can be installed using the plugin manager:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/elasticsearch-plugin install ingest-attachment
+----------------------------------------------------------------
+
+The plugin must be installed on every node in the cluster, and each node must
+be restarted after installation.
+
+[[ingest-attachment-remove]]
+[float]
+==== Removal
+
+The plugin can be removed with the following command:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/elasticsearch-plugin remove ingest-attachment
+----------------------------------------------------------------
+
+The node must be stopped before removing the plugin.
+
+[[using-ingest-attachment]]
+==== Using the Attachment Processor in a Pipeline
+
+[[ingest-attachment-options]]
+.Attachment options
+[options="header"]
+|======
+| Name                   | Required  | Default          | Description
+| `field`                | yes       | -                | The field to get the base64 encoded field from
+| `target_field`         | no        | attachment       | The field that will hold the attachment information
+| `indexed_chars`        | no        | 100000           | The number of chars being used for extraction to prevent huge fields. Use `-1` for no limit.
+| `properties`           | no        | all              | Properties to select to be stored. Can be `content`, `title`, `name`, `author`, `keywords`, `date`, `content_type`, `content_length`, `language`
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "description" : "...",
+  "processors" : [
+    {
+      "attachment" : {
+        "field" : "data"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+NOTE: Extracting contents from binary data is a resource intensive operation and
+      consumes a lot of resources. It is highly recommended to run pipelines
+      using this processor in a dedicated ingest node.

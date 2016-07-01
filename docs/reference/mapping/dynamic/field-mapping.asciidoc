@@ -14,7 +14,7 @@ determine which datatype the field should have:
 
 `null`::                            No field is added.
 `true` or `false`::                 <<boolean,`boolean`>> field
-floating{nbsp}point{nbsp}number::   <<number,`double`>> field
+floating{nbsp}point{nbsp}number::   <<number,`float`>> field
 integer::                           <<number,`long`>> field
 object::                            <<object,`object`>> field
 array::                             Depends on the first non-`null` value in the array.
@@ -22,13 +22,27 @@ string::                            Either a <<date,`date`>> field
                                         (if the value passes <<date-detection,date detection>>),
                                     a <<number,`double`>> or <<number,`long`>> field
                                         (if the value passes <<numeric-detection,numeric detection>>)
-                                    or an <<mapping-index,`analyzed`>> <<string,`string`>> field.
+                                    or a <<text,`text`>> field, with a <<keyword,`keyword`>> sub-field.
 
 These are the only <<mapping-types,field datatypes>> that are dynamically
 detected.  All other datatypes must be mapped explicitly.
 
 Besides the options listed below, dynamic field mapping rules can be further
 customised with <<dynamic-templates,`dynamic_templates`>>.
+
+[[mapping-limit-settings]]
+==== Settings to prevent mappings explosion
+
+Two settings allow to control mapping explosion, in order to prevent adversary
+documents to create huge mappings through dynamic mappings for instance:
+
+`index.mapping.total_fields.limit`::
+    The maximum number of fields in an index. The default value is `1000`.
+`index.mapping.depth.limit`::
+    The maximum depth for a field, which is measured as the number of nested
+    objects. For instance, if all fields are defined at the root object level,
+    then the depth is `1`. If there is one object mapping, then the depth is
+    `2`, etc. The default is `20`.
 
 [[date-detection]]
 ==== Date detection
@@ -54,14 +68,14 @@ PUT my_index/my_type/1
 
 GET my_index/_mapping <1>
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `create_date` field has been added as a <<date,`date`>>
     field with the <<mapping-date-format,`format`>>: +
     `"yyyy/MM/dd HH:mm:ss Z||yyyy/MM/dd Z"`.
 
 ===== Disabling date detection
 
-Dynamic date dection can be disabled by setting `date_detection` to `false`:
+Dynamic date detection can be disabled by setting `date_detection` to `false`:
 
 [source,js]
 --------------------------------------------------
@@ -79,9 +93,9 @@ PUT my_index/my_type/1 <1>
   "create": "2015/09/02"
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
-<1> The `create_date` field has been added as a <<string,`string`>> field.
+<1> The `create_date` field has been added as a <<text,`text`>> field.
 
 ===== Customising detected date formats
 
@@ -104,7 +118,7 @@ PUT my_index/my_type/1
   "create_date": "09/25/2015"
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 
 [[numeric-detection]]
@@ -133,7 +147,7 @@ PUT my_index/my_type/1
   "my_integer": "1" <2>
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `my_float` field is added as a <<number,`double`>> field.
 <2> The `my_integer` field is added as a <<number,`long`>> field.
 

@@ -29,7 +29,7 @@ PUT my_index/my_type/1
   ]
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `user` field is dynamically added as a field of type `object`.
 
 would be transformed internally into a document that looks more like this:
@@ -55,18 +55,19 @@ GET my_index/_search
     "bool": {
       "must": [
         { "match": { "user.first": "Alice" }},
-        { "match": { "user.last":  "White" }}
+        { "match": { "user.last":  "Smith" }}
       ]
     }
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[continued]
 
 ==== Using `nested` fields for arrays of objects
 
 If you need to index arrays of objects and to maintain the independence of
-each object in the array, you should used the `nested` datatype instead of the
+each object in the array, you should use the `nested` datatype instead of the
 <<object,`object`>> datatype.  Internally, nested objects index each object in
 the array as a separate hidden document, meaning that each nested object can be
 queried independently of the others, with the <<query-dsl-nested-query,`nested` query>>:
@@ -110,7 +111,7 @@ GET my_index/_search
         "bool": {
           "must": [
             { "match": { "user.first": "Alice" }},
-            { "match": { "user.last":  "White" }} <2>
+            { "match": { "user.last":  "Smith" }} <2>
           ]
         }
       }
@@ -127,7 +128,7 @@ GET my_index/_search
         "bool": {
           "must": [
             { "match": { "user.first": "Alice" }},
-            { "match": { "user.last":  "Smith" }} <3>
+            { "match": { "user.last":  "White" }} <3>
           ]
         }
       },
@@ -142,9 +143,9 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `user` field is mapped as type `nested` instead of type `object`.
-<2> This query doesn't match because `Alice` and `White` are not in the same nested object.
+<2> This query doesn't match because `Alice` and `Smith` are not in the same nested object.
 <3> This query matches because `Alice` and `White` are in the same nested object.
 <4> `inner_hits` allow us to highlight the matching nested documents.
 
@@ -199,3 +200,10 @@ phase.  Instead, highlighting needs to be performed via
 
 =============================================
 
+
+==== Limiting the number of `nested` fields
+
+Indexing a document with 100 nested fields actually indexes 101 documents as each nested
+document is indexed as a separate document. To safeguard against ill-defined mappings
+the number of nested fields that can be defined per index has been limited to 50. This
+default limit can be changed with the index setting `index.mapping.nested_fields.limit`.

@@ -33,6 +33,11 @@
         },
         "operation_threading": {
           "description" : "TODO: ?"
+        },
+        "verbose": {
+          "type": "boolean",
+          "description": "Includes detailed memory usage by Lucene.",
+          "default": false
         }
       }
     },

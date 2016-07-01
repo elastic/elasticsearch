@@ -29,15 +29,23 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.shard.MergePolicyConfig;
-import org.elasticsearch.index.shard.MergeSchedulerConfig;
+import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
@@ -50,13 +58,83 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateSettingsIT extends ESIntegTestCase {
+
+
+    public void testInvalidDynamicUpdate() {
+        createIndex("test");
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
+            client().admin().indices().prepareUpdateSettings("test")
+                .setSettings(Settings.builder()
+                    .put("index.dummy", "boom")
+                )
+                .execute().actionGet());
+        assertEquals(exception.getCause().getMessage(), "this setting goes boom");
+        IndexMetaData indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
+        assertNotEquals(indexMetaData.getSettings().get("index.dummy"), "invalid dynamic value");
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(DummySettingPlugin.class);
+    }
+
+    public static class DummySettingPlugin extends Plugin {
+        public static final Setting<String> DUMMY_SETTING = Setting.simpleString("index.dummy",
+            Setting.Property.IndexScope, Setting.Property.Dynamic);
+        @Override
+        public void onIndexModule(IndexModule indexModule) {
+            indexModule.addSettingsUpdateConsumer(DUMMY_SETTING, (s) -> {}, (s) -> {
+                if (s.equals("boom"))
+                    throw new IllegalArgumentException("this setting goes boom");
+            });
+        }
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Collections.singletonList(DUMMY_SETTING);
+        }
+    }
+
+    public void testResetDefault() {
+        createIndex("test");
+
+        client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder()
+                .put("index.refresh_interval", -1)
+                .put("index.translog.flush_threshold_size", "1024b")
+            )
+            .execute().actionGet();
+        IndexMetaData indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
+        assertEquals(indexMetaData.getSettings().get("index.refresh_interval"), "-1");
+        for (IndicesService service : internalCluster().getInstances(IndicesService.class)) {
+            IndexService indexService = service.indexService(resolveIndex("test"));
+            if (indexService != null) {
+                assertEquals(indexService.getIndexSettings().getRefreshInterval().millis(), -1);
+                assertEquals(indexService.getIndexSettings().getFlushThresholdSize().bytes(), 1024);
+            }
+        }
+        client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder()
+                .putNull("index.refresh_interval")
+            )
+            .execute().actionGet();
+        indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
+        assertNull(indexMetaData.getSettings().get("index.refresh_interval"));
+        for (IndicesService service : internalCluster().getInstances(IndicesService.class)) {
+            IndexService indexService = service.indexService(resolveIndex("test"));
+            if (indexService != null) {
+                assertEquals(indexService.getIndexSettings().getRefreshInterval().millis(), 1000);
+                assertEquals(indexService.getIndexSettings().getFlushThresholdSize().bytes(), 1024);
+            }
+        }
+    }
     public void testOpenCloseUpdateSettings() throws Exception {
         createIndex("test");
         try {
             client().admin().indices().prepareUpdateSettings("test")
-                    .setSettings(Settings.settingsBuilder()
+                    .setSettings(Settings.builder()
                             .put("index.refresh_interval", -1) // this one can change
-                            .put("index.cache.filter.type", "none") // this one can't
+                            .put("index.fielddata.cache", "none") // this one can't
                     )
                     .execute().actionGet();
             fail();
@@ -66,15 +144,15 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         IndexMetaData indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
         assertThat(indexMetaData.getSettings().get("index.refresh_interval"), nullValue());
-        assertThat(indexMetaData.getSettings().get("index.cache.filter.type"), nullValue());
+        assertThat(indexMetaData.getSettings().get("index.fielddata.cache"), nullValue());
 
         // Now verify via dedicated get settings api:
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
         assertThat(getSettingsResponse.getSetting("test", "index.refresh_interval"), nullValue());
-        assertThat(getSettingsResponse.getSetting("test", "index.cache.filter.type"), nullValue());
+        assertThat(getSettingsResponse.getSetting("test", "index.fielddata.cache"), nullValue());
 
         client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("index.refresh_interval", -1) // this one can change
                 )
                 .execute().actionGet();
@@ -95,30 +173,31 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         try {
             client().admin().indices().prepareUpdateSettings("test")
-                    .setSettings(Settings.settingsBuilder()
+                    .setSettings(Settings.builder()
                                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                     )
                     .execute().actionGet();
             fail("can't change number of replicas on a closed index");
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Can't update [index.number_of_replicas] on closed indices [[test]] - can leave index in an unopenable state");
+            assertTrue(ex.getMessage(), ex.getMessage().startsWith("Can't update [index.number_of_replicas] on closed indices [[test/"));
+            assertTrue(ex.getMessage(), ex.getMessage().endsWith("]] - can leave index in an unopenable state"));
             // expected
         }
         client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("index.refresh_interval", "1s") // this one can change
-                        .put("index.cache.filter.type", "none") // this one can't
+                        .put("index.fielddata.cache", "none") // this one can't
                 )
                 .execute().actionGet();
 
         indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
         assertThat(indexMetaData.getSettings().get("index.refresh_interval"), equalTo("1s"));
-        assertThat(indexMetaData.getSettings().get("index.cache.filter.type"), equalTo("none"));
+        assertThat(indexMetaData.getSettings().get("index.fielddata.cache"), equalTo("none"));
 
         // Now verify via dedicated get settings api:
         getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
         assertThat(getSettingsResponse.getSetting("test", "index.refresh_interval"), equalTo("1s"));
-        assertThat(getSettingsResponse.getSetting("test", "index.cache.filter.type"), equalTo("none"));
+        assertThat(getSettingsResponse.getSetting("test", "index.fielddata.cache"), equalTo("none"));
     }
 
     public void testEngineGCDeletesSetting() throws InterruptedException {
@@ -127,7 +206,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         client().prepareDelete("test", "type", "1").get(); // sets version to 2
         client().prepareIndex("test", "type", "1").setSource("f", 2).setVersion(2).get(); // delete is still in cache this should work & set version to 3
         client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("index.gc_deletes", 0)
                 ).get();
 
@@ -142,14 +221,14 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         // No throttling at first, only 1 non-replicated shard, force lots of merging:
         assertAcked(prepareCreate("test")
                     .setSettings(Settings.builder()
-                                 .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "none")
+                                 .put(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey(), "none")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-                                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
-                                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
-                                 .put(MergeSchedulerConfig.MAX_THREAD_COUNT, "1")
-                                 .put(MergeSchedulerConfig.MAX_MERGE_COUNT, "2")
-                                 .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, 0) // get stats all the time - no caching
+                                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
+                                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
+                                 .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
+                                 .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "2")
+                                 .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0) // get stats all the time - no caching
                                  ));
         ensureGreen();
         long termUpto = 0;
@@ -169,7 +248,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         // No merge IO throttling should have happened:
         NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
         for(NodeStats stats : nodesStats.getNodes()) {
-            assertThat(stats.getIndices().getStore().getThrottleTime().getMillis(), equalTo(0l));
+            assertThat(stats.getIndices().getStore().getThrottleTime().getMillis(), equalTo(0L));
         }
 
         logger.info("test: set low merge throttling");
@@ -180,13 +259,13 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             .indices()
             .prepareUpdateSettings("test")
             .setSettings(Settings.builder()
-                         .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
-                         .put(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, "1mb"))
+                         .put(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey(), "merge")
+                             .put(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING.getKey(), "1mb"))
             .get();
 
         // Make sure setting says it is in fact changed:
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
-        assertThat(getSettingsResponse.getSetting("test", IndexStore.INDEX_STORE_THROTTLE_TYPE), equalTo("merge"));
+        assertThat(getSettingsResponse.getSetting("test", IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey()), equalTo("merge"));
 
         // Also make sure we see throttling kicking in:
         boolean done = false;
@@ -220,7 +299,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             .indices()
             .prepareUpdateSettings("test")
             .setSettings(Settings.builder()
-                         .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "none"))
+                         .put(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey(), "none"))
             .get();
 
         // Optimize does a waitForMerges, which we must do to make sure all in-flight (throttled) merges finish:
@@ -310,11 +389,11 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                         .setSettings(Settings.builder()
                                      .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                      .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-                                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
-                                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
-                                     .put(MergeSchedulerConfig.MAX_THREAD_COUNT, "1")
-                                     .put(MergeSchedulerConfig.MAX_MERGE_COUNT, "2")
-                                     .put(MergeSchedulerConfig.AUTO_THROTTLE, "true")
+                                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
+                                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
+                                     .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
+                                     .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "2")
+                                     .put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), "true")
                                      ));
 
             // Disable auto throttle:
@@ -323,7 +402,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                 .indices()
                 .prepareUpdateSettings("test")
                 .setSettings(Settings.builder()
-                             .put(MergeSchedulerConfig.AUTO_THROTTLE, "no"))
+                             .put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), "false"))
                 .get();
 
             // Make sure we log the change:
@@ -331,7 +410,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
             // Make sure setting says it is in fact changed:
             GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
-            assertThat(getSettingsResponse.getSetting("test", MergeSchedulerConfig.AUTO_THROTTLE), equalTo("no"));
+            assertThat(getSettingsResponse.getSetting("test", MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey()), equalTo("false"));
         } finally {
             rootLogger.removeAppender(mockAppender);
             rootLogger.setLevel(savedLevel);
@@ -352,21 +431,20 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                         .setSettings(Settings.builder()
                                      .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                      .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-                                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
-                                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
-                                     .put(MergeSchedulerConfig.MAX_THREAD_COUNT, "10000")
-                                     .put(MergeSchedulerConfig.MAX_MERGE_COUNT, "10000")
+                                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
+                                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
+                                     .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "10000")
+                                     .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "10000")
                                      ));
 
             assertFalse(mockAppender.sawUpdateMaxThreadCount);
-
             // Now make a live change to reduce allowed merge threads:
             client()
                 .admin()
                 .indices()
                 .prepareUpdateSettings("test")
                 .setSettings(Settings.builder()
-                             .put(MergeSchedulerConfig.MAX_THREAD_COUNT, "1")
+                             .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
                              )
                 .get();
 
@@ -375,7 +453,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
             // Make sure setting says it is in fact changed:
             GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
-            assertThat(getSettingsResponse.getSetting("test", MergeSchedulerConfig.MAX_THREAD_COUNT), equalTo("1"));
+            assertThat(getSettingsResponse.getSetting("test", MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey()), equalTo("1"));
 
         } finally {
             rootLogger.removeAppender(mockAppender);

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.core.Lucene43StopFilter;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.util.CharArraySet;
@@ -35,14 +34,12 @@ import java.util.Set;
 /**
  *
  */
-@SuppressWarnings("deprecation")
 public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final CharArraySet stopWords;
 
     private final boolean ignoreCase;
 
-    private final boolean enablePositionIncrements;
     private final boolean removeTrailing;
 
     public StopTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
@@ -50,21 +47,15 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
         this.removeTrailing = settings.getAsBoolean("remove_trailing", true);
         this.stopWords = Analysis.parseStopWords(env, settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET, ignoreCase);
-        if (version.onOrAfter(Version.LUCENE_4_4) && settings.get("enable_position_increments") != null) {
-            throw new IllegalArgumentException("enable_position_increments is not supported anymore as of Lucene 4.4 as it can create broken token streams."
-                    + " Please fix your analysis chain or use an older compatibility version (<= 4.3).");
+        if (settings.get("enable_position_increments") != null) {
+            throw new IllegalArgumentException("enable_position_increments is not supported anymore. Please fix your analysis chain");
         }
-        this.enablePositionIncrements = settings.getAsBoolean("enable_position_increments", true);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
         if (removeTrailing) {
-            if (version.onOrAfter(Version.LUCENE_4_4)) {
-                return new StopFilter(tokenStream, stopWords);
-            } else {
-                return new Lucene43StopFilter(enablePositionIncrements, tokenStream, stopWords);
-            }
+            return new StopFilter(tokenStream, stopWords);
         } else {
             return new SuggestStopFilter(tokenStream, stopWords);
         }

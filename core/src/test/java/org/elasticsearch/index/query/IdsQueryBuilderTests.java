@@ -21,16 +21,16 @@ package org.elasticsearch.index.query;
 
 
 import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -88,8 +88,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
     @Override
     protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (queryBuilder.ids().size() == 0) {
-            assertThat(query, instanceOf(BooleanQuery.class));
-            assertThat(((BooleanQuery)query).clauses().size(), equalTo(0));
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
             assertThat(query, instanceOf(TermsQuery.class));
         }
@@ -151,5 +150,20 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         } catch (ParsingException e) {
             assertThat(e.getMessage(), is("Illegal value for id, expecting a string or number, got: START_ARRAY"));
         }
+    }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" +
+                "  \"ids\" : {\n" +
+                "    \"type\" : [ \"my_type\" ],\n" +
+                "    \"values\" : [ \"1\", \"100\", \"4\" ],\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        IdsQueryBuilder parsed = (IdsQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+        assertEquals(json, 3, parsed.ids().size());
+        assertEquals(json, "my_type", parsed.types()[0]);
     }
 }

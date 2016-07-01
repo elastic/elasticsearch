@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
@@ -46,7 +47,7 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
         String fieldInQuery = queryBuilder.fieldName();
         MappedFieldType fieldType = context.fieldMapper(fieldInQuery);
         if (fieldType != null) {
-            fieldInQuery = fieldType.names().indexName();
+            fieldInQuery = fieldType.name();
         }
         assertThat(query, instanceOf(FieldMaskingSpanQuery.class));
         FieldMaskingSpanQuery fieldMaskingSpanQuery = (FieldMaskingSpanQuery) query;
@@ -73,5 +74,30 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
         } catch (IllegalArgumentException e) {
             // okay
         }
+    }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" +
+                "  \"field_masking_span\" : {\n" +
+                "    \"query\" : {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"value\" : {\n" +
+                "          \"value\" : 0.5,\n" +
+                "          \"boost\" : 0.23\n" +
+                "        }\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"field\" : \"mapped_geo_shape\",\n" +
+                "    \"boost\" : 42.0,\n" +
+                "    \"_name\" : \"KPI\"\n" +
+                "  }\n" +
+                "}";
+
+        FieldMaskingSpanQueryBuilder parsed = (FieldMaskingSpanQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, 42.0, parsed.boost(), 0.00001);
+        assertEquals(json, 0.23, parsed.innerQuery().boost(), 0.00001);
     }
 }

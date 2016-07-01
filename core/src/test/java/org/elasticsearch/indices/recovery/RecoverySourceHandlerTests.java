@@ -36,15 +36,14 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
@@ -57,21 +56,25 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+
 public class RecoverySourceHandlerTests extends ESTestCase {
-    private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(new Index("index"), Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build());
+    private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build());
     private final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
-    private final NodeSettingsService service = new NodeSettingsService(Settings.EMPTY);
+    private final ClusterSettings service = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
     public void testSendFiles() throws Throwable {
         Settings settings = Settings.builder().put("indices.recovery.concurrent_streams", 1).
                 put("indices.recovery.concurrent_small_file_streams", 1).build();
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
-                new DiscoveryNode("b", DummyTransportAddress.INSTANCE, Version.CURRENT),
-                new DiscoveryNode("b", DummyTransportAddress.INSTANCE, Version.CURRENT),
-                randomBoolean(), null, RecoveryState.Type.STORE, randomLong());
+                new DiscoveryNode("b", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT),
+                new DiscoveryNode("b", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT),
+            null, RecoveryState.Type.STORE, randomLong());
         Store store = newStore(createTempDir());
-        RecoverySourceHandler handler = new RecoverySourceHandler(null, request, recoverySettings, null, logger);
+        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, recoverySettings.getChunkSize().bytesAsInt(),
+                logger);
         Directory dir = store.directory();
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig());
         int numDocs = randomIntBetween(10, 100);
@@ -94,7 +97,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                     @Override
                     public void close() throws IOException {
                         super.close();
-                        store.directory().sync(Collections.singleton(md.name())); // sync otherwise MDW will mess with it
+                        targetStore.directory().sync(Collections.singleton(md.name())); // sync otherwise MDW will mess with it
                     }
                 };
             } catch (IOException e) {
@@ -108,7 +111,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         assertEquals(0, recoveryDiff.missing.size());
         IndexReader reader = DirectoryReader.open(targetStore.directory());
         assertEquals(numDocs, reader.maxDoc());
-        IOUtils.close(reader, writer, store, targetStore, recoverySettings);
+        IOUtils.close(reader, writer, store, targetStore);
     }
 
     public void testHandleCorruptedIndexOnSendSendFiles() throws Throwable {
@@ -116,13 +119,13 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 put("indices.recovery.concurrent_small_file_streams", 1).build();
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
-                new DiscoveryNode("b", DummyTransportAddress.INSTANCE, Version.CURRENT),
-                new DiscoveryNode("b", DummyTransportAddress.INSTANCE, Version.CURRENT),
-                randomBoolean(), null, RecoveryState.Type.STORE, randomLong());
+                new DiscoveryNode("b", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT),
+                new DiscoveryNode("b", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT),
+            null, RecoveryState.Type.STORE, randomLong());
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
-        RecoverySourceHandler handler = new RecoverySourceHandler(null, request, recoverySettings, null, logger) {
+        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, recoverySettings.getChunkSize().bytesAsInt(), logger) {
             @Override
             protected void failEngine(IOException cause) {
                 assertFalse(failedEngine.get());
@@ -147,7 +150,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             metas.add(md);
         }
 
-        CorruptionUtils.corruptFile(getRandom(), FileSystemUtils.files(tempDir, (p) ->
+        CorruptionUtils.corruptFile(random(), FileSystemUtils.files(tempDir, (p) ->
                 (p.getFileName().toString().equals("write.lock") ||
                         p.getFileName().toString().startsWith("extra")) == false));
         Store targetStore = newStore(createTempDir(), false);
@@ -170,7 +173,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             assertNotNull(ExceptionsHelper.unwrapCorruption(ex));
         }
         assertTrue(failedEngine.get());
-        IOUtils.close(store, targetStore, recoverySettings);
+        IOUtils.close(store, targetStore);
     }
 
 
@@ -179,13 +182,13 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 put("indices.recovery.concurrent_small_file_streams", 1).build();
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
-                new DiscoveryNode("b", DummyTransportAddress.INSTANCE, Version.CURRENT),
-                new DiscoveryNode("b", DummyTransportAddress.INSTANCE, Version.CURRENT),
-                randomBoolean(), null, RecoveryState.Type.STORE, randomLong());
+                new DiscoveryNode("b", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT),
+                new DiscoveryNode("b", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT),
+            null, RecoveryState.Type.STORE, randomLong());
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
-        RecoverySourceHandler handler = new RecoverySourceHandler(null, request, recoverySettings, null, logger) {
+        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, recoverySettings.getChunkSize().bytesAsInt(), logger) {
             @Override
             protected void failEngine(IOException cause) {
                 assertFalse(failedEngine.get());
@@ -231,7 +234,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             fail("not expected here");
         }
         assertFalse(failedEngine.get());
-        IOUtils.close(store, targetStore, recoverySettings);
+        IOUtils.close(store, targetStore);
     }
 
     private Store newStore(Path path) throws IOException {

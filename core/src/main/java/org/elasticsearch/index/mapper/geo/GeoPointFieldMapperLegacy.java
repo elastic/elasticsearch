@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -35,16 +34,13 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper.CustomNumericDocValuesField;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.CustomDocValuesField;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
 
 import java.io.IOException;
@@ -105,21 +101,21 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
                 return new Explicit<>(coerce, true);
             }
             if (context.indexSettings() != null) {
-                return new Explicit<>(context.indexSettings().getAsBoolean("index.mapping.coerce", Defaults.COERCE.value()), false);
+                return new Explicit<>(COERCE_SETTING.get(context.indexSettings()), false);
             }
             return Defaults.COERCE;
         }
 
         @Override
         public GeoPointFieldMapperLegacy build(BuilderContext context, String simpleName, MappedFieldType fieldType,
-                                               MappedFieldType defaultFieldType, Settings indexSettings, ContentPath.Type pathType, DoubleFieldMapper latMapper,
-                                               DoubleFieldMapper lonMapper, StringFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
+                                               MappedFieldType defaultFieldType, Settings indexSettings, FieldMapper latMapper,
+                                               FieldMapper lonMapper, KeywordFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                                CopyTo copyTo) {
             fieldType.setTokenized(false);
             setupFieldType(context);
             fieldType.setHasDocValues(false);
             defaultFieldType.setHasDocValues(false);
-            return new GeoPointFieldMapperLegacy(simpleName, fieldType, defaultFieldType, indexSettings, pathType, latMapper, lonMapper,
+            return new GeoPointFieldMapperLegacy(simpleName, fieldType, defaultFieldType, indexSettings, latMapper, lonMapper,
                     geoHashMapper, multiFields, ignoreMalformed, coerce(context), copyTo);
         }
 
@@ -130,31 +126,12 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
     }
 
     public static Builder parse(Builder builder, Map<String, Object> node, Mapper.TypeParser.ParserContext parserContext) throws MapperParsingException {
-        final boolean indexCreatedBeforeV2_0 = parserContext.indexVersionCreated().before(Version.V_2_0_0);
         for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
             Map.Entry<String, Object> entry = iterator.next();
-            String propName = Strings.toUnderscoreCase(entry.getKey());
+            String propName = entry.getKey();
             Object propNode = entry.getValue();
-            if (indexCreatedBeforeV2_0 && propName.equals("validate")) {
-                builder.ignoreMalformed = !XContentMapValues.nodeBooleanValue(propNode);
-                iterator.remove();
-            } else if (indexCreatedBeforeV2_0 && propName.equals("validate_lon")) {
-                builder.ignoreMalformed = !XContentMapValues.nodeBooleanValue(propNode);
-                iterator.remove();
-            } else if (indexCreatedBeforeV2_0 && propName.equals("validate_lat")) {
-                builder.ignoreMalformed = !XContentMapValues.nodeBooleanValue(propNode);
-                iterator.remove();
-            } else if (propName.equals(Names.COERCE)) {
-                builder.coerce = XContentMapValues.nodeBooleanValue(propNode);
-                iterator.remove();
-            } else if (indexCreatedBeforeV2_0 && propName.equals("normalize")) {
-                builder.coerce = XContentMapValues.nodeBooleanValue(propNode);
-                iterator.remove();
-            } else if (indexCreatedBeforeV2_0 && propName.equals("normalize_lat")) {
-                builder.coerce = XContentMapValues.nodeBooleanValue(propNode);
-                iterator.remove();
-            } else if (indexCreatedBeforeV2_0 && propName.equals("normalize_lon")) {
-                builder.coerce = XContentMapValues.nodeBooleanValue(propNode);
+            if (propName.equals(Names.COERCE)) {
+                builder.coerce = XContentMapValues.lenientNodeBooleanValue(propNode);
                 iterator.remove();
             }
         }
@@ -289,32 +266,27 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
     protected Explicit<Boolean> coerce;
 
     public GeoPointFieldMapperLegacy(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings,
-                                     ContentPath.Type pathType, DoubleFieldMapper latMapper, DoubleFieldMapper lonMapper,
-                                     StringFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
+                                     FieldMapper latMapper, FieldMapper lonMapper,
+                                     KeywordFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                      Explicit<Boolean> coerce, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, pathType, latMapper, lonMapper, geoHashMapper, multiFields,
+        super(simpleName, fieldType, defaultFieldType, indexSettings, latMapper, lonMapper, geoHashMapper, multiFields,
                 ignoreMalformed, copyTo);
         this.coerce = coerce;
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
-        super.merge(mergeWith, mergeResult);
-        if (!this.getClass().equals(mergeWith.getClass())) {
-            return;
-        }
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+        super.doMerge(mergeWith, updateAllTypes);
 
         GeoPointFieldMapperLegacy gpfmMergeWith = (GeoPointFieldMapperLegacy) mergeWith;
         if (gpfmMergeWith.coerce.explicit()) {
             if (coerce.explicit() && coerce.value() != gpfmMergeWith.coerce.value()) {
-                mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different [coerce]");
+                throw new IllegalArgumentException("mapper [" + fieldType().name() + "] has different [coerce]");
             }
         }
 
-        if (mergeResult.simulate() == false && mergeResult.hasConflicts() == false) {
-            if (gpfmMergeWith.coerce.explicit()) {
-                this.coerce = gpfmMergeWith.coerce;
-            }
+        if (gpfmMergeWith.coerce.explicit()) {
+            this.coerce = gpfmMergeWith.coerce;
         }
     }
 
@@ -338,17 +310,17 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
         }
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            Field field = new Field(fieldType().names().indexName(), Double.toString(point.lat()) + ',' + Double.toString(point.lon()), fieldType());
+            Field field = new Field(fieldType().name(), Double.toString(point.lat()) + ',' + Double.toString(point.lon()), fieldType());
             context.doc().add(field);
         }
 
         super.parse(context, point, geoHash);
 
         if (fieldType().hasDocValues()) {
-            CustomGeoPointDocValuesField field = (CustomGeoPointDocValuesField) context.doc().getByKey(fieldType().names().indexName());
+            CustomGeoPointDocValuesField field = (CustomGeoPointDocValuesField) context.doc().getByKey(fieldType().name());
             if (field == null) {
-                field = new CustomGeoPointDocValuesField(fieldType().names().indexName(), point.lat(), point.lon());
-                context.doc().addWithKey(fieldType().names().indexName(), field);
+                field = new CustomGeoPointDocValuesField(fieldType().name(), point.lat(), point.lon());
+                context.doc().addWithKey(fieldType().name(), field);
             } else {
                 field.add(point.lat(), point.lon());
             }
@@ -363,7 +335,7 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
         }
     }
 
-    public static class CustomGeoPointDocValuesField extends CustomNumericDocValuesField {
+    public static class CustomGeoPointDocValuesField extends CustomDocValuesField {
 
         private final ObjectHashSet<GeoPoint> points;
 

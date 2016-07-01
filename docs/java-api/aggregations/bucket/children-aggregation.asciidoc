@@ -14,10 +14,9 @@ Here is an example on how to create the aggregation request:
 --------------------------------------------------
 AggregationBuilder aggregation =
     AggregationBuilders
-        .children("agg")
-        .childType("reseller");
+        .children("agg", "reseller"); <1>
 --------------------------------------------------
-
+1. `"agg"` is the name of the aggregation and `"reseller"` is the child type
 
 ===== Use aggregation response
 
@@ -34,4 +33,3 @@ import org.elasticsearch.search.aggregations.bucket.children.Children;
 Children agg = sr.getAggregations().get("agg");
 agg.getDocCount(); // Doc count
 --------------------------------------------------
-

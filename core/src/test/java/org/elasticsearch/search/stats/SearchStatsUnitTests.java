@@ -27,14 +27,14 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class SearchStatsUnitTests extends ESTestCase {
-    // https://github.com/elasticsearch/elasticsearch/issues/7644
+    // https://github.com/elastic/elasticsearch/issues/7644
     public void testShardLevelSearchGroupStats() throws Exception {
         // let's create two dummy search stats with groups
         Map<String, Stats> groupStats1 = new HashMap<>();
         Map<String, Stats> groupStats2 = new HashMap<>();
-        groupStats2.put("group1", new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1));
-        SearchStats searchStats1 = new SearchStats(new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1), 0, groupStats1);
-        SearchStats searchStats2 = new SearchStats(new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1), 0, groupStats2);
+        groupStats2.put("group1", new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1));
+        SearchStats searchStats1 = new SearchStats(new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), 0, groupStats1);
+        SearchStats searchStats2 = new SearchStats(new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), 0, groupStats2);
 
         // adding these two search stats and checking group stats are correct
         searchStats1.add(searchStats2);
@@ -62,5 +62,8 @@ public class SearchStatsUnitTests extends ESTestCase {
         assertEquals(equalTo, stats.getScrollCount());
         assertEquals(equalTo, stats.getScrollTimeInMillis());
         assertEquals(equalTo, stats.getScrollCurrent());
+        assertEquals(equalTo, stats.getSuggestCount());
+        assertEquals(equalTo, stats.getSuggestTimeInMillis());
+        assertEquals(equalTo, stats.getSuggestCurrent());
     }
 }

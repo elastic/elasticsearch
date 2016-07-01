@@ -19,18 +19,22 @@
 
 package org.elasticsearch.common.rounding;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.joda.time.DateTimeField;
 import org.joda.time.DateTimeZone;
-import org.joda.time.DurationField;
+import org.joda.time.IllegalInstantException;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  */
 public abstract class TimeZoneRounding extends Rounding {
+    public static final ParseField INTERVAL_FIELD = new ParseField("interval");
+    public static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
 
     public static Builder builder(DateTimeUnit unit) {
         return new Builder(unit);
@@ -42,8 +46,8 @@ public abstract class TimeZoneRounding extends Rounding {
 
     public static class Builder {
 
-        private DateTimeUnit unit;
-        private long interval = -1;
+        private final DateTimeUnit unit;
+        private final long interval;
 
         private DateTimeZone timeZone = DateTimeZone.UTC;
 
@@ -104,7 +108,6 @@ public abstract class TimeZoneRounding extends Rounding {
 
         private DateTimeUnit unit;
         private DateTimeField field;
-        private DurationField durationField;
         private DateTimeZone timeZone;
 
         TimeUnitRounding() { // for serialization
@@ -112,8 +115,7 @@ public abstract class TimeZoneRounding extends Rounding {
 
         TimeUnitRounding(DateTimeUnit unit, DateTimeZone timeZone) {
             this.unit = unit;
-            this.field = unit.field();
-            this.durationField = field.getDurationField();
+            this.field = unit.field(timeZone);
             this.timeZone = timeZone;
         }
 
@@ -124,10 +126,16 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long roundKey(long utcMillis) {
-            long timeLocal = utcMillis;
-            timeLocal = timeZone.convertUTCToLocal(utcMillis);
-            long rounded = field.roundFloor(timeLocal);
-            return timeZone.convertLocalToUTC(rounded, false, utcMillis);
+            long rounded = field.roundFloor(utcMillis);
+            if (timeZone.isFixed() == false && timeZone.getOffset(utcMillis) != timeZone.getOffset(rounded)) {
+                // in this case, we crossed a time zone transition. In some edge cases this will
+                // result in a value that is not a rounded value itself. We need to round again
+                // to make sure. This will have no affect in cases where 'rounded' was already a proper
+                // rounded value
+                rounded = field.roundFloor(rounded);
+            }
+            assert rounded == field.roundFloor(rounded);
+            return rounded;
         }
 
         @Override
@@ -137,19 +145,22 @@ public abstract class TimeZoneRounding extends Rounding {
         }
 
         @Override
-        public long nextRoundingValue(long time) {
-            long timeLocal = time;
-            timeLocal = timeZone.convertUTCToLocal(time);
-            long nextInLocalTime = durationField.add(timeLocal, 1);
-            return timeZone.convertLocalToUTC(nextInLocalTime, false);
+        public long nextRoundingValue(long utcMillis) {
+            long floor = roundKey(utcMillis);
+            // add one unit and round to get to next rounded value
+            long next = roundKey(field.add(floor, 1));
+            if (next == floor) {
+                // in rare case we need to add more than one unit
+                next = roundKey(field.add(floor, 2));
+            }
+            return next;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             unit = DateTimeUnit.resolve(in.readByte());
-            field = unit.field();
-            durationField = field.getDurationField();
             timeZone = DateTimeZone.forID(in.readString());
+            field = unit.field(timeZone);
         }
 
         @Override
@@ -157,11 +168,34 @@ public abstract class TimeZoneRounding extends Rounding {
             out.writeByte(unit.id());
             out.writeString(timeZone.getID());
         }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(unit, timeZone);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            TimeUnitRounding other = (TimeUnitRounding) obj;
+            return Objects.equals(unit, other.unit)
+                    && Objects.equals(timeZone, other.timeZone);
+        }
+
+        @Override
+        public String toString() {
+            return "[" + timeZone + "][" + unit +"]";
+        }
     }
 
     static class TimeIntervalRounding extends TimeZoneRounding {
 
-        final static byte ID = 2;
+        static final byte ID = 2;
 
         private long interval;
         private DateTimeZone timeZone;
@@ -183,10 +217,63 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long roundKey(long utcMillis) {
-            long timeLocal = utcMillis;
-            timeLocal = timeZone.convertUTCToLocal(utcMillis);
+            long timeLocal = timeZone.convertUTCToLocal(utcMillis);
             long rounded = Rounding.Interval.roundValue(Rounding.Interval.roundKey(timeLocal, interval), interval);
-            return timeZone.convertLocalToUTC(rounded, false);
+            long roundedUTC;
+            if (isInDSTGap(rounded) == false) {
+                roundedUTC  = timeZone.convertLocalToUTC(rounded, true, utcMillis);
+                // check if we crossed DST transition, in this case we want the last rounded value before the transition
+                long transition = timeZone.previousTransition(utcMillis);
+                if (transition != utcMillis && transition > roundedUTC) {
+                    roundedUTC = roundKey(transition - 1);
+                }
+            } else {
+                /*
+                 * Edge case where the rounded local time is illegal and landed
+                 * in a DST gap. In this case, we choose 1ms tick after the
+                 * transition date. We don't want the transition date itself
+                 * because those dates, when rounded themselves, fall into the
+                 * previous interval. This would violate the invariant that the
+                 * rounding operation should be idempotent.
+                 */
+                roundedUTC = timeZone.previousTransition(utcMillis) + 1;
+            }
+            return roundedUTC;
+        }
+
+        /**
+         * Determine whether the local instant is a valid instant in the given
+         * time zone. The logic for this is taken from
+         * {@link DateTimeZone#convertLocalToUTC(long, boolean)} for the
+         * `strict` mode case, but instead of throwing an
+         * {@link IllegalInstantException}, which is costly, we want to return a
+         * flag indicating that the value is illegal in that time zone.
+         */
+        private boolean isInDSTGap(long instantLocal) {
+            if (timeZone.isFixed()) {
+                return false;
+            }
+            // get the offset at instantLocal (first estimate)
+            int offsetLocal = timeZone.getOffset(instantLocal);
+            // adjust instantLocal using the estimate and recalc the offset
+            int offset = timeZone.getOffset(instantLocal - offsetLocal);
+            // if the offsets differ, we must be near a DST boundary
+            if (offsetLocal != offset) {
+                // determine if we are in the DST gap
+                long nextLocal = timeZone.nextTransition(instantLocal - offsetLocal);
+                if (nextLocal == (instantLocal - offsetLocal)) {
+                    nextLocal = Long.MAX_VALUE;
+                }
+                long nextAdjusted = timeZone.nextTransition(instantLocal - offset);
+                if (nextAdjusted == (instantLocal - offset)) {
+                    nextAdjusted = Long.MAX_VALUE;
+                }
+                if (nextLocal != nextAdjusted) {
+                    // we are in the DST gap
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override
@@ -213,6 +300,24 @@ public abstract class TimeZoneRounding extends Rounding {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(interval);
             out.writeString(timeZone.getID());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(interval, timeZone);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            TimeIntervalRounding other = (TimeIntervalRounding) obj;
+            return Objects.equals(interval, other.interval)
+                    && Objects.equals(timeZone, other.timeZone);
         }
     }
 }

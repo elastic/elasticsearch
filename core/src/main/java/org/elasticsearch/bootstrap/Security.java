@@ -20,16 +20,18 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.SecureSM;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.http.netty.NettyHttpServerTransport;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.transport.netty.NettyTransport;
+import org.elasticsearch.transport.TransportSettings;
 
-import java.io.*;
+import java.io.FilePermission;
+import java.io.IOException;
 import java.net.SocketPermission;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -49,7 +51,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 
+/**
  * Initializes SecurityManager with necessary permissions.
  * <br>
  * <h1>Initialization</h1>
@@ -92,12 +94,12 @@ import java.util.Map;
  * <h1>Debugging Security</h1>
  * A good place to start when there is a problem is to turn on security debugging:
  * <pre>
- * JAVA_OPTS="-Djava.security.debug=access,failure" bin/elasticsearch
+ * ES_JAVA_OPTS="-Djava.security.debug=access,failure" bin/elasticsearch
  * </pre>
  * <p>
  * When running tests you have to pass it to the test runner like this:
  * <pre>
- * mvn test -Dtests.jvm.argline="-Djava.security.debug=access,failure" ...
+ * gradle test -Dtests.jvm.argline="-Djava.security.debug=access,failure" ...
  * </pre>
  * See <a href="https://docs.oracle.com/javase/7/docs/technotes/guides/security/troubleshooting-security.html">
  * Troubleshooting Security</a> for information.
@@ -105,8 +107,8 @@ import java.util.Map;
 final class Security {
     /** no instantiation */
     private Security() {}
-       
-    /** 
+
+    /**
      * Initializes SecurityManager for the environment
      * Can only happen once!
      * @param environment configuration for generating dynamic permissions
@@ -131,34 +133,48 @@ final class Security {
     @SuppressForbidden(reason = "proper use of URL")
     static Map<String,Policy> getPluginPermissions(Environment environment) throws IOException, NoSuchAlgorithmException {
         Map<String,Policy> map = new HashMap<>();
+        // collect up lists of plugins and modules
+        List<Path> pluginsAndModules = new ArrayList<>();
         if (Files.exists(environment.pluginsFile())) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.pluginsFile())) {
                 for (Path plugin : stream) {
-                    Path policyFile = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY);
-                    if (Files.exists(policyFile)) {
-                        // first get a list of URLs for the plugins' jars:
-                        // we resolve symlinks so map is keyed on the normalize codebase name
-                        List<URL> codebases = new ArrayList<>();
-                        try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(plugin, "*.jar")) {
-                            for (Path jar : jarStream) {
-                                codebases.add(jar.toRealPath().toUri().toURL());
-                            }
-                        }
-                        
-                        // parse the plugin's policy file into a set of permissions
-                        Policy policy = readPolicy(policyFile.toUri().toURL(), codebases.toArray(new URL[codebases.size()]));
-                        
-                        // consult this policy for each of the plugin's jars:
-                        for (URL url : codebases) {
-                            if (map.put(url.getFile(), policy) != null) {
-                                // just be paranoid ok?
-                                throw new IllegalStateException("per-plugin permissions already granted for jar file: " + url);
-                            }
-                        }
+                    pluginsAndModules.add(plugin);
+                }
+            }
+        }
+        if (Files.exists(environment.modulesFile())) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.modulesFile())) {
+                for (Path plugin : stream) {
+                    pluginsAndModules.add(plugin);
+                }
+            }
+        }
+        // now process each one
+        for (Path plugin : pluginsAndModules) {
+            Path policyFile = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY);
+            if (Files.exists(policyFile)) {
+                // first get a list of URLs for the plugins' jars:
+                // we resolve symlinks so map is keyed on the normalize codebase name
+                List<URL> codebases = new ArrayList<>();
+                try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(plugin, "*.jar")) {
+                    for (Path jar : jarStream) {
+                        codebases.add(jar.toRealPath().toUri().toURL());
+                    }
+                }
+
+                // parse the plugin's policy file into a set of permissions
+                Policy policy = readPolicy(policyFile.toUri().toURL(), codebases.toArray(new URL[codebases.size()]));
+
+                // consult this policy for each of the plugin's jars:
+                for (URL url : codebases) {
+                    if (map.put(url.getFile(), policy) != null) {
+                        // just be paranoid ok?
+                        throw new IllegalStateException("per-plugin permissions already granted for jar file: " + url);
                     }
                 }
             }
         }
+
         return Collections.unmodifiableMap(map);
     }
 
@@ -226,45 +242,46 @@ final class Security {
      */
     static void addFilePermissions(Permissions policy, Environment environment) {
         // read-only dirs
-        addPath(policy, "path.home", environment.binFile(), "read,readlink");
-        addPath(policy, "path.home", environment.libFile(), "read,readlink");
-        addPath(policy, "path.plugins", environment.pluginsFile(), "read,readlink");
-        addPath(policy, "path.conf", environment.configFile(), "read,readlink");
-        addPath(policy, "path.scripts", environment.scriptsFile(), "read,readlink");
+        addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.binFile(), "read,readlink");
+        addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libFile(), "read,readlink");
+        addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink");
+        addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), "read,readlink");
+        addPath(policy, Environment.PATH_CONF_SETTING.getKey(), environment.configFile(), "read,readlink");
+        addPath(policy, Environment.PATH_SCRIPTS_SETTING.getKey(), environment.scriptsFile(), "read,readlink");
         // read-write dirs
         addPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete");
-        addPath(policy, "path.logs", environment.logsFile(), "read,readlink,write,delete");
+        addPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete");
         if (environment.sharedDataFile() != null) {
-            addPath(policy, "path.shared_data", environment.sharedDataFile(), "read,readlink,write,delete");
+            addPath(policy, Environment.PATH_SHARED_DATA_SETTING.getKey(), environment.sharedDataFile(), "read,readlink,write,delete");
         }
         for (Path path : environment.dataFiles()) {
-            addPath(policy, "path.data", path, "read,readlink,write,delete");
+            addPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
         }
+        // TODO: this should be removed in ES 6.0! We will no longer support data paths with the cluster as a folder
+        assert Version.CURRENT.major < 6 : "cluster name is no longer used in data path";
         for (Path path : environment.dataWithClusterFiles()) {
-            addPath(policy, "path.data", path, "read,readlink,write,delete");
+            addPathIfExists(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
         }
         for (Path path : environment.repoFiles()) {
-            addPath(policy, "path.repo", path, "read,readlink,write,delete");
+            addPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete");
         }
         if (environment.pidFile() != null) {
             // we just need permission to remove the file if its elsewhere.
             policy.add(new FilePermission(environment.pidFile().toString(), "delete"));
         }
     }
-    
+
     static void addBindPermissions(Permissions policy, Settings settings) throws IOException {
         // http is simple
-        String httpRange = settings.get("http.netty.port", 
-                               settings.get("http.port", 
-                                       NettyHttpServerTransport.DEFAULT_PORT_RANGE));
+        String httpRange = HttpTransportSettings.SETTING_HTTP_PORT.get(settings).getPortRangeString();
         // listen is always called with 'localhost' but use wildcard to be sure, no name service is consulted.
         // see SocketPermission implies() code
         policy.add(new SocketPermission("*:" + httpRange, "listen,resolve"));
         // transport is waaaay overengineered
-        Map<String, Settings> profiles = settings.getGroups("transport.profiles", true);
-        if (!profiles.containsKey(NettyTransport.DEFAULT_PROFILE)) {
+        Map<String, Settings> profiles = TransportSettings.TRANSPORT_PROFILES_SETTING.get(settings).getAsGroups();
+        if (!profiles.containsKey(TransportSettings.DEFAULT_PROFILE)) {
             profiles = new HashMap<>(profiles);
-            profiles.put(NettyTransport.DEFAULT_PROFILE, Settings.EMPTY);
+            profiles.put(TransportSettings.DEFAULT_PROFILE, Settings.EMPTY);
         }
 
         // loop through all profiles and add permissions for each one, if its valid.
@@ -272,12 +289,10 @@ final class Security {
         for (Map.Entry<String, Settings> entry : profiles.entrySet()) {
             Settings profileSettings = entry.getValue();
             String name = entry.getKey();
-            String transportRange = profileSettings.get("port", 
-                                        settings.get("transport.tcp.port", 
-                                                NettyTransport.DEFAULT_PORT_RANGE));
+            String transportRange = profileSettings.get("port", TransportSettings.PORT.get(settings));
 
             // a profile is only valid if its the default profile, or if it has an actual name and specifies a port
-            boolean valid = NettyTransport.DEFAULT_PROFILE.equals(name) || (Strings.hasLength(name) && profileSettings.get("port") != null);
+            boolean valid = TransportSettings.DEFAULT_PROFILE.equals(name) || (Strings.hasLength(name) && profileSettings.get("port") != null);
             if (valid) {
                 // listen is always called with 'localhost' but use wildcard to be sure, no name service is consulted.
                 // see SocketPermission implies() code
@@ -285,7 +300,7 @@ final class Security {
             }
         }
     }
-    
+
     /**
      * Add access to path (and all files underneath it)
      * @param policy current policy to add permissions to
@@ -305,7 +320,28 @@ final class Security {
         policy.add(new FilePermission(path.toString(), permissions));
         policy.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", permissions));
     }
-    
+
+    /**
+     * Add access to a directory iff it exists already
+     * @param policy current policy to add permissions to
+     * @param configurationName the configuration name associated with the path (for error messages only)
+     * @param path the path itself
+     * @param permissions set of filepermissions to grant to the path
+     */
+    static void addPathIfExists(Permissions policy, String configurationName, Path path, String permissions) {
+        if (Files.isDirectory(path)) {
+            // add each path twice: once for itself, again for files underneath it
+            policy.add(new FilePermission(path.toString(), permissions));
+            policy.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", permissions));
+            try {
+                path.getFileSystem().provider().checkAccess(path.toRealPath(), AccessMode.READ);
+            } catch (IOException e) {
+                throw new IllegalStateException("Unable to access '" + configurationName + "' (" + path + ")", e);
+            }
+        }
+    }
+
+
     /**
      * Ensures configured directory {@code path} exists.
      * @throws IOException if {@code path} exists, but is not a directory, not accessible, or broken symbolic link.

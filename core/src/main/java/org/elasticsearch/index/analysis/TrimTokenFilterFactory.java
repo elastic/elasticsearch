@@ -20,9 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.miscellaneous.Lucene43TrimFilter;
 import org.apache.lucene.analysis.miscellaneous.TrimFilter;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -32,26 +30,17 @@ import org.elasticsearch.index.IndexSettings;
  */
 public class TrimTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private final boolean updateOffsets;
     private static final String UPDATE_OFFSETS_KEY = "update_offsets";
 
     public TrimTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        if (version.onOrAfter(Version.LUCENE_4_4_0) && settings.get(UPDATE_OFFSETS_KEY) != null) {
-            throw new IllegalArgumentException(UPDATE_OFFSETS_KEY +  " is not supported anymore. Please fix your analysis chain or use"
-                    + " an older compatibility version (<=4.3) but beware that it might cause highlighting bugs.");
+        if (settings.get(UPDATE_OFFSETS_KEY) != null) {
+            throw new IllegalArgumentException(UPDATE_OFFSETS_KEY +  " is not supported anymore. Please fix your analysis chain");
         }
-        this.updateOffsets = settings.getAsBoolean("update_offsets", false);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        if (version.onOrAfter(Version.LUCENE_4_4_0)) {
-            return new TrimFilter(tokenStream);
-        } else {
-            @SuppressWarnings("deprecation")
-            final TokenStream filter = new Lucene43TrimFilter(tokenStream, updateOffsets);
-            return filter;
-        }
+        return new TrimFilter(tokenStream);
     }
 }

@@ -34,47 +34,47 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class ByteSizeUnitTests extends ESTestCase {
     public void testBytes() {
-        assertThat(BYTES.toBytes(1), equalTo(1l));
-        assertThat(BYTES.toKB(1024), equalTo(1l));
-        assertThat(BYTES.toMB(1024 * 1024), equalTo(1l));
-        assertThat(BYTES.toGB(1024 * 1024 * 1024), equalTo(1l));
+        assertThat(BYTES.toBytes(1), equalTo(1L));
+        assertThat(BYTES.toKB(1024), equalTo(1L));
+        assertThat(BYTES.toMB(1024 * 1024), equalTo(1L));
+        assertThat(BYTES.toGB(1024 * 1024 * 1024), equalTo(1L));
     }
 
     public void testKB() {
-        assertThat(KB.toBytes(1), equalTo(1024l));
-        assertThat(KB.toKB(1), equalTo(1l));
-        assertThat(KB.toMB(1024), equalTo(1l));
-        assertThat(KB.toGB(1024 * 1024), equalTo(1l));
+        assertThat(KB.toBytes(1), equalTo(1024L));
+        assertThat(KB.toKB(1), equalTo(1L));
+        assertThat(KB.toMB(1024), equalTo(1L));
+        assertThat(KB.toGB(1024 * 1024), equalTo(1L));
     }
 
     public void testMB() {
-        assertThat(MB.toBytes(1), equalTo(1024l * 1024));
-        assertThat(MB.toKB(1), equalTo(1024l));
-        assertThat(MB.toMB(1), equalTo(1l));
-        assertThat(MB.toGB(1024), equalTo(1l));
+        assertThat(MB.toBytes(1), equalTo(1024L * 1024));
+        assertThat(MB.toKB(1), equalTo(1024L));
+        assertThat(MB.toMB(1), equalTo(1L));
+        assertThat(MB.toGB(1024), equalTo(1L));
     }
 
     public void testGB() {
-        assertThat(GB.toBytes(1), equalTo(1024l * 1024 * 1024));
-        assertThat(GB.toKB(1), equalTo(1024l * 1024));
-        assertThat(GB.toMB(1), equalTo(1024l));
-        assertThat(GB.toGB(1), equalTo(1l));
+        assertThat(GB.toBytes(1), equalTo(1024L * 1024 * 1024));
+        assertThat(GB.toKB(1), equalTo(1024L * 1024));
+        assertThat(GB.toMB(1), equalTo(1024L));
+        assertThat(GB.toGB(1), equalTo(1L));
     }
 
     public void testTB() {
-        assertThat(TB.toBytes(1), equalTo(1024l * 1024 * 1024 * 1024));
-        assertThat(TB.toKB(1), equalTo(1024l * 1024 * 1024));
-        assertThat(TB.toMB(1), equalTo(1024l * 1024));
-        assertThat(TB.toGB(1), equalTo(1024l));
-        assertThat(TB.toTB(1), equalTo(1l));
+        assertThat(TB.toBytes(1), equalTo(1024L * 1024 * 1024 * 1024));
+        assertThat(TB.toKB(1), equalTo(1024L * 1024 * 1024));
+        assertThat(TB.toMB(1), equalTo(1024L * 1024));
+        assertThat(TB.toGB(1), equalTo(1024L));
+        assertThat(TB.toTB(1), equalTo(1L));
     }
 
     public void testPB() {
-        assertThat(PB.toBytes(1), equalTo(1024l * 1024 * 1024 * 1024 * 1024));
-        assertThat(PB.toKB(1), equalTo(1024l * 1024 * 1024 * 1024));
-        assertThat(PB.toMB(1), equalTo(1024l * 1024 * 1024));
-        assertThat(PB.toGB(1), equalTo(1024l * 1024));
-        assertThat(PB.toTB(1), equalTo(1024l));
-        assertThat(PB.toPB(1), equalTo(1l));
+        assertThat(PB.toBytes(1), equalTo(1024L * 1024 * 1024 * 1024 * 1024));
+        assertThat(PB.toKB(1), equalTo(1024L * 1024 * 1024 * 1024));
+        assertThat(PB.toMB(1), equalTo(1024L * 1024 * 1024));
+        assertThat(PB.toGB(1), equalTo(1024L * 1024));
+        assertThat(PB.toTB(1), equalTo(1024L));
+        assertThat(PB.toPB(1), equalTo(1L));
     }
 }

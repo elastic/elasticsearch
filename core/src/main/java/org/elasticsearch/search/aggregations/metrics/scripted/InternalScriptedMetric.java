@@ -33,15 +33,16 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class InternalScriptedMetric extends InternalMetricsAggregation implements ScriptedMetric {
 
-    public final static Type TYPE = new Type("scripted_metric");
+    public static final Type TYPE = new Type("scripted_metric");
 
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalScriptedMetric readResult(StreamInput in) throws IOException {
             InternalScriptedMetric result = new InternalScriptedMetric();
@@ -91,7 +92,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
                 vars.putAll(firstAggregation.reduceScript.getParams());
             }
             CompiledScript compiledScript = reduceContext.scriptService().compile(firstAggregation.reduceScript,
-                    ScriptContext.Standard.AGGS, reduceContext);
+                    ScriptContext.Standard.AGGS, Collections.emptyMap());
             ExecutableScript script = reduceContext.scriptService().executable(compiledScript, vars);
             aggregation = script.run();
         } else {
@@ -120,7 +121,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
         if (in.readBoolean()) {
-            reduceScript = Script.readScript(in);
+            reduceScript = new Script(in);
         }
         aggregation = in.readGenericValue();
     }

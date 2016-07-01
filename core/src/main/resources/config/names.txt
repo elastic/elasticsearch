@@ -1047,7 +1047,7 @@ Gosamyr
 Grand Director
 Grandmaster
 Grappler
-Grasshopper 
+Grasshopper
 Grasshopper II
 Graviton
 Gravity
@@ -1483,7 +1483,7 @@ Lightmaster
 Lightspeed
 Lila Cheney
 Lilandra Neramani
-Lilith, the Daughter of Dracula 
+Lilith, the Daughter of Dracula
 Lin Sun
 Link
 Lionheart

@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.util.Random;
 
@@ -37,7 +38,7 @@ public class RandomQueryBuilder {
      * @return a random {@link QueryBuilder}
      */
     public static QueryBuilder createQuery(Random r) {
-        switch (RandomInts.randomIntBetween(r, 0, 4)) {
+        switch (RandomInts.randomIntBetween(r, 0, 3)) {
             case 0:
                 return new MatchAllQueryBuilderTests().createTestQueryBuilder();
             case 1:
@@ -46,8 +47,6 @@ public class RandomQueryBuilder {
                 return new IdsQueryBuilderTests().createTestQueryBuilder();
             case 3:
                 return createMultiTermQuery(r);
-            case 4:
-                return EmptyQueryBuilder.PROTOTYPE;
             default:
                 throw new UnsupportedOperationException();
         }
@@ -61,8 +60,8 @@ public class RandomQueryBuilder {
     public static MultiTermQueryBuilder createMultiTermQuery(Random r) {
         // for now, only use String Rangequeries for MultiTerm test, numeric and date makes little sense
         // see issue #12123 for discussion
-        MultiTermQueryBuilder<?> multiTermQueryBuilder;
-        switch(RandomInts.randomIntBetween(r, 0, 5)) {
+        MultiTermQueryBuilder multiTermQueryBuilder;
+        switch(RandomInts.randomIntBetween(r, 0, 3)) {
             case 0:
                 RangeQueryBuilder stringRangeQuery = new RangeQueryBuilder(AbstractQueryTestCase.STRING_FIELD_NAME);
                 stringRangeQuery.from("a" + RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
@@ -70,21 +69,12 @@ public class RandomQueryBuilder {
                 multiTermQueryBuilder = stringRangeQuery;
                 break;
             case 1:
-                RangeQueryBuilder numericRangeQuery = new RangeQueryBuilder(AbstractQueryTestCase.INT_FIELD_NAME);
-                numericRangeQuery.from(RandomInts.randomIntBetween(r, 1, 100));
-                numericRangeQuery.to(RandomInts.randomIntBetween(r, 101, 200));
-                multiTermQueryBuilder = numericRangeQuery;
-                break;
-            case 2:
-                multiTermQueryBuilder = new FuzzyQueryBuilder(AbstractQueryTestCase.INT_FIELD_NAME, RandomInts.randomInt(r, 1000));
-                break;
-            case 3:
                 multiTermQueryBuilder = new FuzzyQueryBuilder(AbstractQueryTestCase.STRING_FIELD_NAME, RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
                 break;
-            case 4:
+            case 2:
                 multiTermQueryBuilder = new PrefixQueryBuilderTests().createTestQueryBuilder();
                 break;
-            case 5:
+            case 3:
                 multiTermQueryBuilder = new WildcardQueryBuilderTests().createTestQueryBuilder();
                 break;
             default:

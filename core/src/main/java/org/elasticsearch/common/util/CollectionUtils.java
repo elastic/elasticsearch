@@ -23,9 +23,22 @@ import com.carrotsearch.hppc.DoubleArrayList;
 import com.carrotsearch.hppc.FloatArrayList;
 import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.ObjectArrayList;
-import org.apache.lucene.util.*;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefArray;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.InPlaceMergeSorter;
+import org.apache.lucene.util.IntroSorter;
 
-import java.util.*;
+import java.util.AbstractList;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Objects;
+import java.util.RandomAccess;
 
 /** Collections-related utility methods. */
 public class CollectionUtils {
@@ -320,7 +333,7 @@ public class CollectionUtils {
         assert indices.length >= numValues;
         if (numValues > 1) {
             new InPlaceMergeSorter() {
-                final Comparator<BytesRef> comparator = BytesRef.getUTF8SortedAsUnicodeComparator();
+                final Comparator<BytesRef> comparator = Comparator.naturalOrder();
                 @Override
                 protected int compare(int i, int j) {
                     return comparator.compare(bytes.get(scratch, indices[i]), bytes.get(scratch1, indices[j]));

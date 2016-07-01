@@ -19,20 +19,36 @@
 
 package org.elasticsearch.mapper.attachments;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-public class AttachmentUnitTestCase extends ESTestCase {
+public abstract class AttachmentUnitTestCase extends ESTestCase {
 
     protected Settings testSettings;
-    
+
+    protected static IndicesModule getIndicesModuleWithRegisteredAttachmentMapper() {
+        return newTestIndicesModule(
+            Collections.singletonMap(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser()),
+            Collections.emptyMap()
+        );
+    }
+
     @Before
     public void createSettings() throws Exception {
       testSettings = Settings.builder()
-                             .put("path.home", createTempDir())
+                             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                              .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id)
                              .build();
     }

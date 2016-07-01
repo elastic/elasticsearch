@@ -25,6 +25,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
@@ -32,16 +34,14 @@ import java.io.IOException;
  */
 public class ClusterSearchShardsGroup implements Streamable, ToXContent {
 
-    private String index;
-    private int shardId;
+    private ShardId shardId;
     ShardRouting[] shards;
 
     ClusterSearchShardsGroup() {
 
     }
 
-    public ClusterSearchShardsGroup(String index, int shardId, ShardRouting[] shards) {
-        this.index = index;
+    public ClusterSearchShardsGroup(ShardId shardId, ShardRouting[] shards) {
         this.shardId = shardId;
         this.shards = shards;
     }
@@ -53,11 +53,11 @@ public class ClusterSearchShardsGroup implements Streamable, ToXContent {
     }
 
     public String getIndex() {
-        return index;
+        return shardId.getIndexName();
     }
 
     public int getShardId() {
-        return shardId;
+        return shardId.id();
     }
 
     public ShardRouting[] getShards() {
@@ -66,18 +66,16 @@ public class ClusterSearchShardsGroup implements Streamable, ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        index = in.readString();
-        shardId = in.readVInt();
+        shardId = ShardId.readShardId(in);
         shards = new ShardRouting[in.readVInt()];
         for (int i = 0; i < shards.length; i++) {
-            shards[i] = ShardRouting.readShardRoutingEntry(in, index, shardId);
+            shards[i] = new ShardRouting(shardId, in);
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(index);
-        out.writeVInt(shardId);
+        shardId.writeTo(out);
         out.writeVInt(shards.length);
         for (ShardRouting shardRouting : shards) {
             shardRouting.writeToThin(out);

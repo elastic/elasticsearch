@@ -21,14 +21,19 @@ package org.elasticsearch.search.suggest.completion;
 import org.apache.lucene.search.suggest.Lookup;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Suggestion response for {@link CompletionSuggester} results
@@ -93,7 +98,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             // combine suggestion entries from participating shards on the coordinating node
             // the global top <code>size</code> entries are collected from the shard results
             // using a priority queue
-            Comparator<Suggest.Suggestion.Entry.Option> optionComparator = sortComparator();
             OptionPriorityQueue priorityQueue = new OptionPriorityQueue(size, sortComparator());
             for (Suggest.Suggestion<Entry> entries : toReduce) {
                 assert entries.getEntries().size() == 1 : "CompletionSuggestion must have only one entry";
@@ -123,7 +127,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
         return new Entry();
     }
 
-    public final static class Entry extends Suggest.Suggestion.Entry<CompletionSuggestion.Entry.Option> {
+    public static final class Entry extends Suggest.Suggestion.Entry<CompletionSuggestion.Entry.Option> {
 
         public Entry(Text text, int offset, int length) {
             super(text, offset, length);

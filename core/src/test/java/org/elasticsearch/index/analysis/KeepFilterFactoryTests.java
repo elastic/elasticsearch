@@ -22,6 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.junit.Assert;
 
@@ -40,8 +41,8 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
     }
 
     public void testLoadOverConfiguredSettings() {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir().toString())
+        Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put("index.analysis.filter.broken_keep_filter.type", "keep")
                 .put("index.analysis.filter.broken_keep_filter.keep_words_path", "does/not/exists.txt")
                 .put("index.analysis.filter.broken_keep_filter.keep_words", "[\"Hello\", \"worlD\"]")
@@ -56,8 +57,8 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
     }
 
     public void testKeepWordsPathSettings() {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir().toString())
+        Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put("index.analysis.filter.non_broken_keep_filter.type", "keep")
                 .put("index.analysis.filter.non_broken_keep_filter.keep_words_path", "does/not/exists.txt")
                 .build();
@@ -70,7 +71,7 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
             fail("expected IAE");
         }
 
-        settings = Settings.settingsBuilder().put(settings)
+        settings = Settings.builder().put(settings)
                 .put("index.analysis.filter.non_broken_keep_filter.keep_words", new String[]{"test"})
                 .build();
         try {

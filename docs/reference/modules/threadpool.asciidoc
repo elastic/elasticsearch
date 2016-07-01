@@ -11,21 +11,17 @@ There are several thread pools, but the important ones include:
 
 `generic`::
     For generic operations (e.g., background node discovery).
-    Thread pool type is `cached`.
+    Thread pool type is `scaling`.
 
 `index`::
     For index/delete operations. Thread pool type is `fixed`
     with a size of `# of available processors`,
-    queue_size of `200`.
+    queue_size of `200`.  The maximum size for this pool
+    is `1 + # of available processors`.
 
 `search`::
-    For count/search operations. Thread pool type is `fixed`
+    For count/search/suggest operations. Thread pool type is `fixed`
     with a size of `int((# of available_processors * 3) / 2) + 1`,
-    queue_size of `1000`.
-
-`suggest`::
-    For suggest operations. Thread pool type is `fixed`
-    with a size of `# of available processors`,
     queue_size of `1000`.
 
 `get`::
@@ -36,7 +32,8 @@ There are several thread pools, but the important ones include:
 `bulk`::
     For bulk operations. Thread pool type is `fixed`
     with a size of `# of available processors`,
-    queue_size of `50`.
+    queue_size of `50`.  The maximum size for this pool
+    is `1 + # of available processors`.
 
 `percolate`::
     For percolate operations. Thread pool type is `fixed`
@@ -45,57 +42,35 @@ There are several thread pools, but the important ones include:
 
 `snapshot`::
     For snapshot/restore operations. Thread pool type is `scaling` with a
-    keep-alive of `5m` and a size of `min(5, (# of available processors)/2)`.
+    keep-alive of `5m` and a max of `min(5, (# of available processors)/2)`.
 
 `warmer`::
     For segment warm-up operations. Thread pool type is `scaling` with a
-    keep-alive of `5m` and a size of `min(5, (# of available processors)/2)`.
+    keep-alive of `5m` and a max of `min(5, (# of available processors)/2)`.
 
 `refresh`::
     For refresh operations. Thread pool type is `scaling` with a
-    keep-alive of `5m` and a size of `min(10, (# of available processors)/2)`.
+    keep-alive of `5m` and a max of `min(10, (# of available processors)/2)`.
 
 `listener`::
     Mainly for java client executing of action when listener threaded is set to true.
-    Thread pool type is `scaling` with a default size of `min(10, (# of available processors)/2)`.
+    Thread pool type is `scaling` with a default max of `min(10, (# of available processors)/2)`.
 
 Changing a specific thread pool can be done by setting its type-specific parameters; for example, changing the `index`
 thread pool to have more threads:
 
 [source,js]
 --------------------------------------------------
-threadpool:
+thread_pool:
     index:
         size: 30
 --------------------------------------------------
-
-NOTE: you can update thread pool settings dynamically using <<cluster-update-settings>>.
 
 [float]
 [[types]]
 === Thread pool types
 
 The following are the types of thread pools and their respective parameters:
-
-[float]
-==== `cached`
-
-The `cached` thread pool is an unbounded thread pool that will spawn a
-thread if there are pending requests. This thread pool is used to
-prevent requests submitted to this pool from blocking or being
-rejected. Unused threads in this thread pool will be terminated after
-a keep alive expires (defaults to five minutes). The `cached` thread
-pool is reserved for the <<modules-threadpool,`generic`>> thread pool.
-
-The `keep_alive` parameter determines how long a thread should be kept
-around in the thread pool without doing any work.
-
-[source,js]
---------------------------------------------------
-threadpool:
-    generic:
-        keep_alive: 2m
---------------------------------------------------
 
 [float]
 ==== `fixed`
@@ -114,7 +89,7 @@ full, it will abort the request.
 
 [source,js]
 --------------------------------------------------
-threadpool:
+thread_pool:
     index:
         size: 30
         queue_size: 1000
@@ -123,18 +98,19 @@ threadpool:
 [float]
 ==== `scaling`
 
-The `scaling` thread pool holds a dynamic number of threads. This number is
-proportional to the workload and varies between 1 and the value of the
-`size` parameter.
+The `scaling` thread pool holds a dynamic number of threads. This
+number is proportional to the workload and varies between the value of
+the `core` and `max` parameters.
 
 The `keep_alive` parameter determines how long a thread should be kept
 around in the thread pool without it doing any work.
 
 [source,js]
 --------------------------------------------------
-threadpool:
+thread_pool:
     warmer:
-        size: 8
+        core: 1
+        max: 8
         keep_alive: 2m
 --------------------------------------------------
 

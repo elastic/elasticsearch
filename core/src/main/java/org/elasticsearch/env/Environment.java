@@ -19,10 +19,11 @@
 
 package org.elasticsearch.env;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
@@ -33,6 +34,9 @@ import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.Strings.cleanPath;
 
@@ -40,9 +44,19 @@ import static org.elasticsearch.common.Strings.cleanPath;
  * The environment of where things exists.
  */
 @SuppressForbidden(reason = "configures paths for the system")
-// TODO: move PathUtils to be package-private here instead of 
+// TODO: move PathUtils to be package-private here instead of
 // public+forbidden api!
 public class Environment {
+    public static final Setting<String> PATH_HOME_SETTING = Setting.simpleString("path.home", Property.NodeScope);
+    public static final Setting<String> PATH_CONF_SETTING = Setting.simpleString("path.conf", Property.NodeScope);
+    public static final Setting<String> PATH_SCRIPTS_SETTING = Setting.simpleString("path.scripts", Property.NodeScope);
+    public static final Setting<List<String>> PATH_DATA_SETTING =
+        Setting.listSetting("path.data", Collections.emptyList(), Function.identity(), Property.NodeScope);
+    public static final Setting<String> PATH_LOGS_SETTING = Setting.simpleString("path.logs", Property.NodeScope);
+    public static final Setting<List<String>> PATH_REPO_SETTING =
+        Setting.listSetting("path.repo", Collections.emptyList(), Function.identity(), Property.NodeScope);
+    public static final Setting<String> PATH_SHARED_DATA_SETTING = Setting.simpleString("path.shared_data", Property.NodeScope);
+    public static final Setting<String> PIDFILE_SETTING = Setting.simpleString("pidfile", Property.NodeScope);
 
     private final Settings settings;
 
@@ -58,6 +72,8 @@ public class Environment {
 
     private final Path pluginsFile;
 
+    private final Path modulesFile;
+
     private final Path sharedDataFile;
 
     /** location of bin/, used by plugin manager */
@@ -70,7 +86,7 @@ public class Environment {
 
     /** Path to the PID file (can be null if no PID file is configured) **/
     private final Path pidFile;
-    
+
     /** Path to the temporary file directory used by the JDK */
     private final Path tmpFile = PathUtils.get(System.getProperty("java.io.tmpdir"));
 
@@ -93,70 +109,68 @@ public class Environment {
     public Environment(Settings settings) {
         this.settings = settings;
         final Path homeFile;
-        if (settings.get("path.home") != null) {
-            homeFile = PathUtils.get(cleanPath(settings.get("path.home")));
+        if (PATH_HOME_SETTING.exists(settings)) {
+            homeFile = PathUtils.get(cleanPath(PATH_HOME_SETTING.get(settings)));
         } else {
-            throw new IllegalStateException("path.home is not configured");
+            throw new IllegalStateException(PATH_HOME_SETTING.getKey() + " is not configured");
         }
 
-        if (settings.get("path.conf") != null) {
-            configFile = PathUtils.get(cleanPath(settings.get("path.conf")));
+        if (PATH_CONF_SETTING.exists(settings)) {
+            configFile = PathUtils.get(cleanPath(PATH_CONF_SETTING.get(settings)));
         } else {
             configFile = homeFile.resolve("config");
         }
 
-        if (settings.get("path.scripts") != null) {
-            scriptsFile = PathUtils.get(cleanPath(settings.get("path.scripts")));
+        if (PATH_SCRIPTS_SETTING.exists(settings)) {
+            scriptsFile = PathUtils.get(cleanPath(PATH_SCRIPTS_SETTING.get(settings)));
         } else {
             scriptsFile = configFile.resolve("scripts");
         }
 
-        if (settings.get("path.plugins") != null) {
-            pluginsFile = PathUtils.get(cleanPath(settings.get("path.plugins")));
-        } else {
-            pluginsFile = homeFile.resolve("plugins");
-        }
+        pluginsFile = homeFile.resolve("plugins");
 
-        String[] dataPaths = settings.getAsArray("path.data");
-        if (dataPaths.length > 0) {
-            dataFiles = new Path[dataPaths.length];
-            dataWithClusterFiles = new Path[dataPaths.length];
-            for (int i = 0; i < dataPaths.length; i++) {
-                dataFiles[i] = PathUtils.get(dataPaths[i]);
-                dataWithClusterFiles[i] = dataFiles[i].resolve(ClusterName.clusterNameFromSettings(settings).value());
+        List<String> dataPaths = PATH_DATA_SETTING.get(settings);
+        final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
+        if (dataPaths.isEmpty() == false) {
+            dataFiles = new Path[dataPaths.size()];
+            dataWithClusterFiles = new Path[dataPaths.size()];
+            for (int i = 0; i < dataPaths.size(); i++) {
+                dataFiles[i] = PathUtils.get(dataPaths.get(i));
+                dataWithClusterFiles[i] = dataFiles[i].resolve(clusterName.value());
             }
         } else {
             dataFiles = new Path[]{homeFile.resolve("data")};
-            dataWithClusterFiles = new Path[]{homeFile.resolve("data").resolve(ClusterName.clusterNameFromSettings(settings).value())};
+            dataWithClusterFiles = new Path[]{homeFile.resolve("data").resolve(clusterName.value())};
         }
-        if (settings.get("path.shared_data") != null) {
-            sharedDataFile = PathUtils.get(cleanPath(settings.get("path.shared_data")));
+        if (PATH_SHARED_DATA_SETTING.exists(settings)) {
+            sharedDataFile = PathUtils.get(cleanPath(PATH_SHARED_DATA_SETTING.get(settings)));
         } else {
             sharedDataFile = null;
         }
-        String[] repoPaths = settings.getAsArray("path.repo");
-        if (repoPaths.length > 0) {
-            repoFiles = new Path[repoPaths.length];
-            for (int i = 0; i < repoPaths.length; i++) {
-                repoFiles[i] = PathUtils.get(repoPaths[i]);
+        List<String> repoPaths = PATH_REPO_SETTING.get(settings);
+        if (repoPaths.isEmpty() == false) {
+            repoFiles = new Path[repoPaths.size()];
+            for (int i = 0; i < repoPaths.size(); i++) {
+                repoFiles[i] = PathUtils.get(repoPaths.get(i));
             }
         } else {
             repoFiles = new Path[0];
         }
-        if (settings.get("path.logs") != null) {
-            logsFile = PathUtils.get(cleanPath(settings.get("path.logs")));
+        if (PATH_LOGS_SETTING.exists(settings)) {
+            logsFile = PathUtils.get(cleanPath(PATH_LOGS_SETTING.get(settings)));
         } else {
             logsFile = homeFile.resolve("logs");
         }
 
-        if (settings.get("pidfile") != null) {
-            pidFile = PathUtils.get(cleanPath(settings.get("pidfile")));
+        if (PIDFILE_SETTING.exists(settings)) {
+            pidFile = PathUtils.get(cleanPath(PIDFILE_SETTING.get(settings)));
         } else {
             pidFile = null;
         }
 
         binFile = homeFile.resolve("bin");
         libFile = homeFile.resolve("lib");
+        modulesFile = homeFile.resolve("modules");
     }
 
     /**
@@ -182,7 +196,11 @@ public class Environment {
 
     /**
      * The data location with the cluster name as a sub directory.
+     *
+     * @deprecated Used to upgrade old data paths to new ones that do not include the cluster name, should not be used to write files to and
+     * will be removed in ES 6.0
      */
+    @Deprecated
     public Path[] dataWithClusterFiles() {
         return dataWithClusterFiles;
     }
@@ -275,6 +293,10 @@ public class Environment {
         return libFile;
     }
 
+    public Path modulesFile() {
+        return modulesFile;
+    }
+
     public Path logsFile() {
         return logsFile;
     }
@@ -285,7 +307,7 @@ public class Environment {
     public Path pidFile() {
         return pidFile;
     }
-    
+
     /** Path to the default temp directory used by the JDK */
     public Path tmpFile() {
         return tmpFile;
@@ -309,32 +331,5 @@ public class Environment {
      */
     public static FileStore getFileStore(Path path) throws IOException {
         return ESFileStore.getMatchingFileStore(path, fileStores);
-    }
-    
-    /**
-     * Returns true if the path is writable.
-     * Acts just like {@link Files#isWritable(Path)}, except won't
-     * falsely return false for paths on SUBST'd drive letters
-     * See https://bugs.openjdk.java.net/browse/JDK-8034057
-     * Note this will set the file modification time (to its already-set value)
-     * to test access.
-     */
-    @SuppressForbidden(reason = "works around https://bugs.openjdk.java.net/browse/JDK-8034057")
-    public static boolean isWritable(Path path) throws IOException {
-        boolean v = Files.isWritable(path);
-        if (v || Constants.WINDOWS == false) {
-            return v;
-        }
-
-        // isWritable returned false on windows, the hack begins!!!!!!
-        // resetting the modification time is the least destructive/simplest
-        // way to check for both files and directories, and fails early just
-        // in getting the current value if file doesn't exist, etc
-        try {
-            Files.setLastModifiedTime(path, Files.getLastModifiedTime(path));
-            return true;
-        } catch (Throwable e) {
-            return false;
-        }
     }
 }

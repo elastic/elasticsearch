@@ -20,15 +20,20 @@
 package org.elasticsearch.rest.action.admin.indices.shards;
 
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -40,14 +45,14 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestIndicesShardStoresAction extends BaseRestHandler {
 
     @Inject
-    public RestIndicesShardStoresAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestIndicesShardStoresAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/_shard_stores", this);
         controller.registerHandler(GET, "/{index}/_shard_stores", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         IndicesShardStoresRequest indicesShardStoresRequest = new IndicesShardStoresRequest(Strings.splitStringByCommaToArray(request.param("index")));
         if (request.hasParam("status")) {
             indicesShardStoresRequest.shardStatuses(Strings.splitStringByCommaToArray(request.param("status")));

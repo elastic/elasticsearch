@@ -12,7 +12,7 @@ PUT twitter <1>
     "tweet": {
       "properties": {
         "message": {
-          "type": "string"
+          "type": "text"
         }
       }
     }
@@ -23,7 +23,7 @@ PUT twitter/_mapping/user <2>
 {
   "properties": {
     "name": {
-      "type": "string"
+      "type": "text"
     }
   }
 }
@@ -32,12 +32,12 @@ PUT twitter/_mapping/tweet <3>
 {
   "properties": {
     "user_name": {
-      "type": "string"
+      "type": "text"
     }
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> <<indices-create-index,Creates an index>> called `twitter` with the `message` field in the `tweet` <<mapping-type,mapping type>>.
 <2> Uses the PUT mapping API to add a new mapping type called `user`.
 <3> Uses the PUT mapping API to add a new field called `user_name` to the `tweet` mapping type.
@@ -86,13 +86,12 @@ PUT my_index <1>
         "name": {
           "properties": {
             "first": {
-              "type": "string"
+              "type": "text"
             }
           }
         },
         "user_id": {
-          "type": "string",
-          "index": "not_analyzed"
+          "type": "keyword"
         }
       }
     }
@@ -105,19 +104,18 @@ PUT my_index/_mapping/user
     "name": {
       "properties": {
         "last": { <2>
-          "type": "string"
+          "type": "text"
         }
       }
     },
     "user_id": {
-      "type": "string",
-      "index": "not_analyzed",
+      "type": "keyword",
       "ignore_above": 100 <3>
     }
   }
 }
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> Create an index with a `first` field under the `name` <<object>> field, and a `user_id` field.
 <2> Add a `last` field under the `name` object field.
 <3> Update the `ignore_above` setting from its default of 0.
@@ -137,9 +135,9 @@ exists in more than one type will throw an exception, unless you specify the
 across all fields with the same name in the same index.
 
 TIP: The only parameters which are exempt from this rule -- they can be set to
-different values on each field -- can be found in  <<field-conflicts>>.
+different values on each field -- can be found in <<field-conflicts>>.
 
-For example:
+For example, this fails:
 
 [source,js]
 -----------------------------------
@@ -149,7 +147,7 @@ PUT my_index
     "type_one": {
       "properties": {
         "text": { <1>
-          "type": "string",
+          "type": "text",
           "analyzer": "standard"
         }
       }
@@ -157,7 +155,7 @@ PUT my_index
     "type_two": {
       "properties": {
         "text": { <1>
-          "type": "string",
+          "type": "text",
           "analyzer": "standard"
         }
       }
@@ -169,27 +167,33 @@ PUT my_index/_mapping/type_one <2>
 {
   "properties": {
     "text": {
-      "type": "string",
-      "analyzer": "standard",
-      "search_analyzer": "whitespace"
-    }
-  }
-}
-
-PUT my_index/_mapping/type_one?update_all_types <3>
-{
-  "properties": {
-    "text": {
-      "type": "string",
+      "type": "text",
       "analyzer": "standard",
       "search_analyzer": "whitespace"
     }
   }
 }
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[catch:request]
 <1> Create an index with two types, both of which contain a `text` field which have the same mapping.
 <2> Trying to update the `search_analyzer` just for `type_one` throws an exception like `"Merge failed with failures..."`.
-<3> Adding the `update_all_types` parameter updates the `text` field in `type_one` and `type_two`.
 
+But this then running this succeeds:
 
+[source,js]
+-----------------------------------
+PUT my_index/_mapping/type_one?update_all_types <1>
+{
+  "properties": {
+    "text": {
+      "type": "text",
+      "analyzer": "standard",
+      "search_analyzer": "whitespace"
+    }
+  }
+}
+-----------------------------------
+// CONSOLE
+// TEST[continued]
+<1> Adding the `update_all_types` parameter updates the `text` field in `type_one` and `type_two`.

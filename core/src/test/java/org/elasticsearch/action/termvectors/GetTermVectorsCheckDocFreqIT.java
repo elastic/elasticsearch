@@ -24,7 +24,6 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -62,7 +61,7 @@ public class GetTermVectorsCheckDocFreqIT extends ESIntegTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
                         .startObject("field")
-                            .field("type", "string")
+                            .field("type", "text")
                             .field("term_vector", "with_positions_offsets_payloads")
                             .field("analyzer", "tv_test")
                         .endObject()
@@ -100,7 +99,7 @@ public class GetTermVectorsCheckDocFreqIT extends ESIntegTestCase {
         Fields fields = response.getFields();
         assertThat(fields.size(), equalTo(1));
         Terms terms = fields.terms("field");
-        assertThat(terms.size(), equalTo(8l));
+        assertThat(terms.size(), equalTo(8L));
         assertThat(terms.getSumTotalTermFreq(), Matchers.equalTo((long) -1));
         assertThat(terms.getDocCount(), Matchers.equalTo(-1));
         assertThat(terms.getSumDocFreq(), equalTo((long) -1));
@@ -141,8 +140,7 @@ public class GetTermVectorsCheckDocFreqIT extends ESIntegTestCase {
         xBuilder.startObject();
         response.toXContent(xBuilder, null);
         xBuilder.endObject();
-        BytesStream bytesStream = xBuilder.bytesStream();
-        String utf8 = bytesStream.bytes().toUtf8().replaceFirst("\"took\":\\d+,", "");;
+        String utf8 = xBuilder.bytes().utf8ToString().replaceFirst("\"took\":\\d+,", "");;
         String expectedString = "{\"_index\":\"test\",\"_type\":\"type1\",\"_id\":\""
                 + i
                 + "\",\"_version\":1,\"found\":true,\"term_vectors\":{\"field\":{\"terms\":{\"brown\":{\"doc_freq\":15,\"ttf\":15,\"term_freq\":1,\"tokens\":[{\"position\":2,\"start_offset\":10,\"end_offset\":15,\"payload\":\"d29yZA==\"}]},\"dog\":{\"doc_freq\":15,\"ttf\":15,\"term_freq\":1,\"tokens\":[{\"position\":8,\"start_offset\":40,\"end_offset\":43,\"payload\":\"d29yZA==\"}]},\"fox\":{\"doc_freq\":15,\"ttf\":15,\"term_freq\":1,\"tokens\":[{\"position\":3,\"start_offset\":16,\"end_offset\":19,\"payload\":\"d29yZA==\"}]},\"jumps\":{\"doc_freq\":15,\"ttf\":15,\"term_freq\":1,\"tokens\":[{\"position\":4,\"start_offset\":20,\"end_offset\":25,\"payload\":\"d29yZA==\"}]},\"lazy\":{\"doc_freq\":15,\"ttf\":15,\"term_freq\":1,\"tokens\":[{\"position\":7,\"start_offset\":35,\"end_offset\":39,\"payload\":\"d29yZA==\"}]},\"over\":{\"doc_freq\":15,\"ttf\":15,\"term_freq\":1,\"tokens\":[{\"position\":5,\"start_offset\":26,\"end_offset\":30,\"payload\":\"d29yZA==\"}]},\"quick\":{\"doc_freq\":15,\"ttf\":15,\"term_freq\":1,\"tokens\":[{\"position\":1,\"start_offset\":4,\"end_offset\":9,\"payload\":\"d29yZA==\"}]},\"the\":{\"doc_freq\":15,\"ttf\":30,\"term_freq\":2,\"tokens\":[{\"position\":0,\"start_offset\":0,\"end_offset\":3,\"payload\":\"d29yZA==\"},{\"position\":6,\"start_offset\":31,\"end_offset\":34,\"payload\":\"d29yZA==\"}]}}}}}";
@@ -160,7 +158,7 @@ public class GetTermVectorsCheckDocFreqIT extends ESIntegTestCase {
         Fields fields = response.getFields();
         assertThat(fields.size(), equalTo(1));
         Terms terms = fields.terms("field");
-        assertThat(terms.size(), equalTo(8l));
+        assertThat(terms.size(), equalTo(8L));
         assertThat(terms.getSumTotalTermFreq(), Matchers.equalTo((long) (9 * numDocs)));
         assertThat(terms.getDocCount(), Matchers.equalTo(numDocs));
         assertThat(terms.getSumDocFreq(), equalTo((long) numDocs * values.length));
@@ -198,8 +196,7 @@ public class GetTermVectorsCheckDocFreqIT extends ESIntegTestCase {
         xBuilder.startObject();
         response.toXContent(xBuilder, null);
         xBuilder.endObject();
-        BytesStream bytesStream = xBuilder.bytesStream();
-        String utf8 = bytesStream.bytes().toUtf8().replaceFirst("\"took\":\\d+,", "");;
+        String utf8 = xBuilder.bytes().utf8ToString().replaceFirst("\"took\":\\d+,", "");;
         String expectedString = "{\"_index\":\"test\",\"_type\":\"type1\",\"_id\":\""
                 + i
                 + "\",\"_version\":1,\"found\":true,\"term_vectors\":{\"field\":{\"field_statistics\":{\"sum_doc_freq\":120,\"doc_count\":15,\"sum_ttf\":135},\"terms\":{\"brown\":{\"term_freq\":1,\"tokens\":[{\"position\":2,\"start_offset\":10,\"end_offset\":15,\"payload\":\"d29yZA==\"}]},\"dog\":{\"term_freq\":1,\"tokens\":[{\"position\":8,\"start_offset\":40,\"end_offset\":43,\"payload\":\"d29yZA==\"}]},\"fox\":{\"term_freq\":1,\"tokens\":[{\"position\":3,\"start_offset\":16,\"end_offset\":19,\"payload\":\"d29yZA==\"}]},\"jumps\":{\"term_freq\":1,\"tokens\":[{\"position\":4,\"start_offset\":20,\"end_offset\":25,\"payload\":\"d29yZA==\"}]},\"lazy\":{\"term_freq\":1,\"tokens\":[{\"position\":7,\"start_offset\":35,\"end_offset\":39,\"payload\":\"d29yZA==\"}]},\"over\":{\"term_freq\":1,\"tokens\":[{\"position\":5,\"start_offset\":26,\"end_offset\":30,\"payload\":\"d29yZA==\"}]},\"quick\":{\"term_freq\":1,\"tokens\":[{\"position\":1,\"start_offset\":4,\"end_offset\":9,\"payload\":\"d29yZA==\"}]},\"the\":{\"term_freq\":2,\"tokens\":[{\"position\":0,\"start_offset\":0,\"end_offset\":3,\"payload\":\"d29yZA==\"},{\"position\":6,\"start_offset\":31,\"end_offset\":34,\"payload\":\"d29yZA==\"}]}}}}}";
@@ -217,7 +214,7 @@ public class GetTermVectorsCheckDocFreqIT extends ESIntegTestCase {
         Fields fields = response.getFields();
         assertThat(fields.size(), equalTo(1));
         Terms terms = fields.terms("field");
-        assertThat(terms.size(), equalTo(8l));
+        assertThat(terms.size(), equalTo(8L));
         assertThat(terms.getSumTotalTermFreq(), Matchers.equalTo((long) (9 * numDocs)));
         assertThat(terms.getDocCount(), Matchers.equalTo(numDocs));
         assertThat(terms.getSumDocFreq(), equalTo((long) numDocs * values.length));
@@ -258,8 +255,7 @@ public class GetTermVectorsCheckDocFreqIT extends ESIntegTestCase {
         xBuilder.startObject();
         response.toXContent(xBuilder, ToXContent.EMPTY_PARAMS);
         xBuilder.endObject();
-        BytesStream bytesStream = xBuilder.bytesStream();
-        String utf8 = bytesStream.bytes().toUtf8().replaceFirst("\"took\":\\d+,", "");;
+        String utf8 = xBuilder.bytes().utf8ToString().replaceFirst("\"took\":\\d+,", "");;
         String expectedString = "{\"_index\":\"test\",\"_type\":\"type1\",\"_id\":\""
                 + i
                 + "\",\"_version\":1,\"found\":true,\"term_vectors\":{\"field\":{\"field_statistics\":{\"sum_doc_freq\":120,\"doc_count\":15,\"sum_ttf\":135},\"terms\":{\"brown\":{\"doc_freq\":15,\"ttf\":15,\"term_freq\":1,\"tokens\":[{\"position\":2,\"start_offset\":10,\"end_offset\":15,\"payload\":\"d29yZA==\"}]},\"dog\":{\"doc_freq\":15,\"ttf\":15,\"term_freq\":1,\"tokens\":[{\"position\":8,\"start_offset\":40,\"end_offset\":43,\"payload\":\"d29yZA==\"}]},\"fox\":{\"doc_freq\":15,\"ttf\":15,\"term_freq\":1,\"tokens\":[{\"position\":3,\"start_offset\":16,\"end_offset\":19,\"payload\":\"d29yZA==\"}]},\"jumps\":{\"doc_freq\":15,\"ttf\":15,\"term_freq\":1,\"tokens\":[{\"position\":4,\"start_offset\":20,\"end_offset\":25,\"payload\":\"d29yZA==\"}]},\"lazy\":{\"doc_freq\":15,\"ttf\":15,\"term_freq\":1,\"tokens\":[{\"position\":7,\"start_offset\":35,\"end_offset\":39,\"payload\":\"d29yZA==\"}]},\"over\":{\"doc_freq\":15,\"ttf\":15,\"term_freq\":1,\"tokens\":[{\"position\":5,\"start_offset\":26,\"end_offset\":30,\"payload\":\"d29yZA==\"}]},\"quick\":{\"doc_freq\":15,\"ttf\":15,\"term_freq\":1,\"tokens\":[{\"position\":1,\"start_offset\":4,\"end_offset\":9,\"payload\":\"d29yZA==\"}]},\"the\":{\"doc_freq\":15,\"ttf\":30,\"term_freq\":2,\"tokens\":[{\"position\":0,\"start_offset\":0,\"end_offset\":3,\"payload\":\"d29yZA==\"},{\"position\":6,\"start_offset\":31,\"end_offset\":34,\"payload\":\"d29yZA==\"}]}}}}}";

@@ -12,7 +12,7 @@ This plugin can be installed using the plugin manager:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin install repository-s3
+sudo bin/elasticsearch-plugin install repository-s3
 ----------------------------------------------------------------
 
 The plugin must be installed on every node in the cluster, and each node must
@@ -26,7 +26,7 @@ The plugin can be removed with the following command:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin remove repository-s3
+sudo bin/elasticsearch-plugin remove repository-s3
 ----------------------------------------------------------------
 
 The node must be stopped before removing the plugin.
@@ -39,7 +39,8 @@ http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html
 credentials for authentication. These can be overridden by, in increasing
 order of precedence, system properties `aws.accessKeyId` and `aws.secretKey`,
 environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_KEY`, or the
-elasticsearch config using `cloud.aws.access_key` and `cloud.aws.secret_key`:
+elasticsearch config using `cloud.aws.access_key` and `cloud.aws.secret_key` or
+if you wish to set credentials specifically for s3 `cloud.aws.s3.access_key` and `cloud.aws.s3.secret_key`:
 
 [source,yaml]
 ----
@@ -67,16 +68,19 @@ cloud:
             protocol: https
 ----
 
-In addition, a proxy can be configured with the `proxy_host` and `proxy_port` settings (note that protocol can be
-`http` or `https`):
+In addition, a proxy can be configured with the `proxy.host`, `proxy.port`, `proxy.username` and `proxy.password` settings
+(note that protocol can be `http` or `https`):
 
 [source,yaml]
 ----
 cloud:
     aws:
         protocol: https
-        proxy_host: proxy1.company.com
-        proxy_port: 8083
+        proxy:
+            host: proxy1.company.com
+            port: 8083
+            username: myself
+            password: theBestPasswordEver!
 ----
 
 You can also set different proxies for `ec2` and `s3`:
@@ -86,31 +90,38 @@ You can also set different proxies for `ec2` and `s3`:
 cloud:
     aws:
         s3:
-            proxy_host: proxy1.company.com
-            proxy_port: 8083
+            proxy:
+                host: proxy1.company.com
+                port: 8083
+                username: myself1
+                password: theBestPasswordEver1!
         ec2:
-            proxy_host: proxy2.company.com
-            proxy_port: 8083
+            proxy:
+                host: proxy2.company.com
+                port: 8083
+                username: myself2
+                password: theBestPasswordEver2!
 ----
 
 [[repository-s3-usage-region]]
 ===== Region
 
 The `cloud.aws.region` can be set to a region and will automatically use the relevant settings for both `ec2` and `s3`.
+You can specifically set it for s3 only using `cloud.aws.s3.region`.
 The available values are:
 
-* `us-east` (`us-east-1`)
-* `us-west` (`us-west-1`)
-* `us-west-1`
-* `us-west-2`
-* `ap-southeast` (`ap-southeast-1`)
-* `ap-southeast-1`
-* `ap-southeast-2`
-* `ap-northeast` (`ap-northeast-1`)
-* `eu-west` (`eu-west-1`)
-* `eu-central` (`eu-central-1`)
-* `sa-east` (`sa-east-1`)
-* `cn-north` (`cn-north-1`)
+* `us-east` (`us-east-1`) for US East (N. Virginia)
+* `us-west` (`us-west-1`) for US West (N. California)
+* `us-west-2` for US West (Oregon)
+* `ap-south-1` for Asia Pacific (Mumbai)
+* `ap-southeast` (`ap-southeast-1`) for Asia Pacific (Singapore)
+* `ap-southeast-2` for Asia Pacific (Sydney)
+* `ap-northeast` (`ap-northeast-1`) for Asia Pacific (Tokyo)
+* `ap-northeast-2` (`ap-northeast-2`) for Asia Pacific (Seoul)
+* `eu-west` (`eu-west-1`) for EU (Ireland)
+* `eu-central` (`eu-central-1`) for EU (Frankfurt)
+* `sa-east` (`sa-east-1`) for South America (São Paulo)
+* `cn-north` (`cn-north-1`) for China (Beijing)
 
 [[repository-s3-usage-signer]]
 ===== S3 Signer API
@@ -127,7 +138,7 @@ use `S3SignerType`, which is Signature Version 2.
 
 The S3 repository is using S3 to store snapshots. The S3 repository can be created using the following command:
 
-[source,json]
+[source,js]
 ----
 PUT _snapshot/my_s3_repository
 {
@@ -138,7 +149,8 @@ PUT _snapshot/my_s3_repository
   }
 }
 ----
-// AUTOSENSE
+// CONSOLE
+// TEST[skip:we don't have s3 set up while testing this]
 
 The following settings are supported:
 
@@ -179,7 +191,7 @@ The following settings are supported:
 
     Big files can be broken down into chunks during snapshotting if needed.
     The chunk size can be specified in bytes or by using size value notation,
-    i.e. `1g`, `10m`, `5k`. Defaults to `100m`.
+    i.e. `1gb`, `10mb`, `5kb`. Defaults to `1gb`.
 
 `compress`::
 
@@ -198,17 +210,21 @@ The following settings are supported:
     request. Beyond this threshold, the S3 repository will use the
     http://docs.aws.amazon.com/AmazonS3/latest/dev/uploadobjusingmpu.html[AWS Multipart Upload API]
     to split the chunk into several parts, each of `buffer_size` length, and
-    to upload each part in its own request. Note that positioning a buffer
+    to upload each part in its own request. Note that setting a buffer
     size lower than `5mb` is not allowed since it will prevents the use of the
-    Multipart API and may result in upload errors. Defaults to `5mb`.
+    Multipart API and may result in upload errors. Defaults to `100mb`.
 
 `max_retries`::
 
     Number of retries in case of S3 errors. Defaults to `3`.
 
+`use_throttle_retries`::
+
+    Set to `true` if you want to throttle retries. Defaults to AWS SDK default value (`false`).
+
 `read_only`::
 
-    Makes repository read-only. coming[2.1.0]  Defaults to `false`.
+    Makes repository read-only. Defaults to `false`.
 
 `canned_acl`::
 
@@ -217,6 +233,18 @@ The following settings are supported:
     `bucket-owner-read`, `bucket-owner-full-control`. Defaults to `private`.
     You could specify a canned ACL using the `canned_acl` setting. When the S3 repository
     creates buckets and objects, it adds the canned ACL into the buckets and objects.
+
+`storage_class`::
+
+    Sets the S3 storage class type for the backup files. Values may be
+    `standard`, `reduced_redundancy`, `standard_ia`. Defaults to `standard`.
+    Due to the extra complexity with the Glacier class lifecycle, it is not
+    currently supported by the plugin. For more information about the
+    different classes, see http://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS Storage Classes Guide]
+
+Note that you can define S3 repository settings for all S3 repositories in `elasticsearch.yml` configuration file.
+They are all prefixed with `repositories.s3.`. For example, you can define compression for all S3 repositories
+by setting `repositories.s3.compress: true` in `elasticsearch.yml`.
 
 The S3 repositories use the same credentials as the rest of the AWS services
 provided by this plugin (`discovery`). See <<repository-s3-usage>> for details.
@@ -335,6 +363,14 @@ to your URL provider. Note that this setting will be used for all S3 repositorie
 Different `endpoint`, `region` and `protocol` settings can be set on a per-repository basis
 See <<repository-s3-repository>> for details.
 
+[[repository-s3-aws-vpc]]
+[float]
+==== AWS VPC Bandwidth Settings
+
+AWS instances resolve S3 endpoints to a public IP. If the elasticsearch instances reside in a private subnet in an AWS VPC then all traffic to S3 will go through that VPC's NAT instance. If your VPC's NAT instance is a smaller instance size (e.g. a t1.micro) or is handling a high volume of network traffic your bandwidth to S3 may be limited by that NAT instance's networking bandwidth limitations.
+
+Instances residing in a public subnet in an AWS VPC will connect to S3 via the VPC's internet gateway and not be bandwidth limited by the VPC's NAT instance.
+
 [[repository-s3-testing]]
 ==== Testing AWS
 
@@ -379,4 +415,3 @@ To run test:
 ----
 mvn -Dtests.aws=true -Dtests.config=/path/to/config/file/elasticsearch.yml clean test
 ----
-

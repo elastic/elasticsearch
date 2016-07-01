@@ -34,7 +34,7 @@ public class DestructiveOperationsIntegrationIT extends ESIntegTestCase {
     // The cluster scope is test b/c we can't clear cluster settings.
     public void testDestructiveOperations() throws Exception {
         Settings settings = Settings.builder()
-                .put(DestructiveOperations.REQUIRES_NAME, true)
+                .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true)
                 .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
 
@@ -58,7 +58,7 @@ public class DestructiveOperationsIntegrationIT extends ESIntegTestCase {
         }
 
         settings = Settings.builder()
-                .put(DestructiveOperations.REQUIRES_NAME, false)
+                .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
                 .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
 
@@ -68,7 +68,7 @@ public class DestructiveOperationsIntegrationIT extends ESIntegTestCase {
         // end delete index:
         // close index:
         settings = Settings.builder()
-                .put(DestructiveOperations.REQUIRES_NAME, true)
+                .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true)
                 .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
 
@@ -100,7 +100,7 @@ public class DestructiveOperationsIntegrationIT extends ESIntegTestCase {
         }
 
         settings = Settings.builder()
-                .put(DestructiveOperations.REQUIRES_NAME, false)
+                .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
                 .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
         assertAcked(client().admin().indices().prepareClose("_all").get());

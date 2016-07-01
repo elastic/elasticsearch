@@ -18,17 +18,17 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.DelegatingHasContextAndHeaders;
-import org.elasticsearch.common.HasContextAndHeaders;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
@@ -43,8 +43,8 @@ import java.util.Map;
 /**
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
  */
-public abstract class InternalAggregation implements Aggregation, ToXContent, Streamable {
-
+public abstract class InternalAggregation implements Aggregation, ToXContent, Streamable, NamedWriteable {
+    // NORELEASE remove Streamable
 
     /**
      * The aggregation type that holds all the string types that are associated with an aggregation:
@@ -72,7 +72,8 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         }
 
         /**
-         * @return The name of the type (mainly used for registering the parser for the aggregator (see {@link org.elasticsearch.search.aggregations.Aggregator.Parser#type()}).
+         * @return The name of the type of aggregation.  This is the key for parsing the aggregation from XContent and is the name of the
+         * aggregation's builder when serialized.
          */
         public String name() {
             return name;
@@ -92,23 +93,28 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         }
     }
 
-    public static class ReduceContext extends DelegatingHasContextAndHeaders {
+    public static class ReduceContext {
 
         private final BigArrays bigArrays;
-        private ScriptService scriptService;
+        private final ScriptService scriptService;
+        private final ClusterState clusterState;
 
-        public ReduceContext(BigArrays bigArrays, ScriptService scriptService, HasContextAndHeaders headersContext) {
-            super(headersContext);
+        public ReduceContext(BigArrays bigArrays, ScriptService scriptService, ClusterState clusterState) {
             this.bigArrays = bigArrays;
             this.scriptService = scriptService;
+            this.clusterState = clusterState;
         }
 
         public BigArrays bigArrays() {
             return bigArrays;
         }
-        
+
         public ScriptService scriptService() {
             return scriptService;
+        }
+
+        public ClusterState clusterState() {
+            return clusterState;
         }
     }
 
@@ -133,6 +139,89 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         this.metaData = metaData;
     }
 
+    /**
+     * Read from a stream.
+     */
+    protected InternalAggregation(StreamInput in) throws IOException {
+        name = in.readString();
+        metaData = in.readMap();
+        int size = in.readVInt();
+        if (size == 0) {
+            pipelineAggregators = Collections.emptyList();
+        } else {
+            pipelineAggregators = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                if (in.readBoolean()) {
+                    pipelineAggregators.add(in.readNamedWriteable(PipelineAggregator.class));
+                } else {
+                    BytesReference type = in.readBytesReference();
+                    PipelineAggregator pipelineAggregator = PipelineAggregatorStreams.stream(type).readResult(in);
+                    pipelineAggregators.add(pipelineAggregator);
+                }
+            }
+        }
+    }
+
+    @Override
+    public final void readFrom(StreamInput in) throws IOException {
+        try {
+            getWriteableName(); // Throws UnsupportedOperationException if this aggregation should be read using old style Streams
+            assert false : "Used reading constructor instead";
+        } catch (UnsupportedOperationException e) {
+            // OK
+        }
+        name = in.readString();
+        metaData = in.readMap();
+        int size = in.readVInt();
+        if (size == 0) {
+            pipelineAggregators = Collections.emptyList();
+        } else {
+            pipelineAggregators = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                if (in.readBoolean()) {
+                    pipelineAggregators.add(in.readNamedWriteable(PipelineAggregator.class));
+                } else {
+                    BytesReference type = in.readBytesReference();
+                    PipelineAggregator pipelineAggregator = PipelineAggregatorStreams.stream(type).readResult(in);
+                    pipelineAggregators.add(pipelineAggregator);
+                }
+            }
+        }
+        doReadFrom(in);
+    }
+
+    protected void doReadFrom(StreamInput in) throws IOException {
+        throw new UnsupportedOperationException("Use reading constructor instead"); // NORELEASE remove when we remove Streamable
+    }
+
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);    // NORELEASE remote writing the name? it is automatically handled with writeNamedWriteable
+        out.writeGenericValue(metaData);
+        out.writeVInt(pipelineAggregators.size());
+        for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
+            // NORELEASE temporary hack to support old style streams and new style NamedWriteable
+            try {
+                pipelineAggregator.getWriteableName(); // Throws UnsupportedOperationException if we should use old style streams.
+                out.writeBoolean(true);
+                out.writeNamedWriteable(pipelineAggregator);
+            } catch (UnsupportedOperationException e) {
+                out.writeBoolean(false);
+                out.writeBytesReference(pipelineAggregator.type().stream());
+                pipelineAggregator.writeTo(out);
+            }
+        }
+        doWriteTo(out);
+    }
+
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
+
+    @Override
+    public String getWriteableName() {
+        // NORELEASE remove me when all InternalAggregations override it
+        throw new UnsupportedOperationException("Override on every class");
+    }
+
     @Override
     public String getName() {
         return name;
@@ -141,7 +230,10 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
     /**
      * @return The {@link Type} of this aggregation
      */
-    public abstract Type type();
+    public Type type() {
+        // NORELEASE remove this method
+        throw new UnsupportedOperationException(getClass().getName() + " used type but should Use getWriteableName instead");
+    }
 
     /**
      * Reduces the given addAggregation to a single one and returns it. In <b>most</b> cases, the assumption will be the all given
@@ -208,56 +300,23 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
 
     public abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
-    @Override
-    public final void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        out.writeGenericValue(metaData);
-        out.writeVInt(pipelineAggregators.size());
-        for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
-            out.writeBytesReference(pipelineAggregator.type().stream());
-            pipelineAggregator.writeTo(out);
-        }
-        doWriteTo(out);
-    }
-
-    protected abstract void doWriteTo(StreamOutput out) throws IOException;
-
-    @Override
-    public final void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
-        metaData = in.readMap();
-        int size = in.readVInt();
-        if (size == 0) {
-            pipelineAggregators = Collections.emptyList();
-        } else {
-            pipelineAggregators = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                BytesReference type = in.readBytesReference();
-                PipelineAggregator pipelineAggregator = PipelineAggregatorStreams.stream(type).readResult(in);
-                pipelineAggregators.add(pipelineAggregator);
-            }
-        }
-        doReadFrom(in);
-    }
-
-    protected abstract void doReadFrom(StreamInput in) throws IOException;
-
     /**
      * Common xcontent fields that are shared among addAggregation
      */
-    public static final class CommonFields {
-        public static final XContentBuilderString META = new XContentBuilderString("meta");
-        public static final XContentBuilderString BUCKETS = new XContentBuilderString("buckets");
-        public static final XContentBuilderString VALUE = new XContentBuilderString("value");
-        public static final XContentBuilderString VALUES = new XContentBuilderString("values");
-        public static final XContentBuilderString VALUE_AS_STRING = new XContentBuilderString("value_as_string");
-        public static final XContentBuilderString DOC_COUNT = new XContentBuilderString("doc_count");
-        public static final XContentBuilderString KEY = new XContentBuilderString("key");
-        public static final XContentBuilderString KEY_AS_STRING = new XContentBuilderString("key_as_string");
-        public static final XContentBuilderString FROM = new XContentBuilderString("from");
-        public static final XContentBuilderString FROM_AS_STRING = new XContentBuilderString("from_as_string");
-        public static final XContentBuilderString TO = new XContentBuilderString("to");
-        public static final XContentBuilderString TO_AS_STRING = new XContentBuilderString("to_as_string");
+    public static final class CommonFields extends ParseField.CommonFields {
+        // todo convert these to ParseField
+        public static final String META = "meta";
+        public static final String BUCKETS = "buckets";
+        public static final String VALUE = "value";
+        public static final String VALUES = "values";
+        public static final String VALUE_AS_STRING = "value_as_string";
+        public static final String DOC_COUNT = "doc_count";
+        public static final String KEY = "key";
+        public static final String KEY_AS_STRING = "key_as_string";
+        public static final String FROM = "from";
+        public static final String FROM_AS_STRING = "from_as_string";
+        public static final String TO = "to";
+        public static final String TO_AS_STRING = "to_as_string";
     }
 
 }

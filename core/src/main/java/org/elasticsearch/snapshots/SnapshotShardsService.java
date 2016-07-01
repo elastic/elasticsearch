@@ -20,17 +20,15 @@
 package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -95,7 +93,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
 
     private final Condition shutdownCondition = shutdownLock.newCondition();
 
-    private volatile Map<SnapshotId, SnapshotShards> shardSnapshots = emptyMap();
+    private volatile Map<Snapshot, SnapshotShards> shardSnapshots = emptyMap();
 
     private final BlockingQueue<UpdateIndexShardSnapshotStatusRequest> updatedSnapshotStateQueue = ConcurrentCollections.newBlockingQueue();
 
@@ -109,13 +107,13 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        if (DiscoveryNode.dataNode(settings)) {
+        if (DiscoveryNode.isDataNode(settings)) {
             // this is only useful on the nodes that can hold data
             // addLast to make sure that Repository will be created before snapshot
             clusterService.addLast(this);
         }
 
-        if (DiscoveryNode.masterNode(settings)) {
+        if (DiscoveryNode.isMasterNode(settings)) {
             // This needs to run only on nodes that can become masters
             transportService.registerRequestHandler(UPDATE_SNAPSHOT_ACTION_NAME, UpdateIndexShardSnapshotStatusRequest::new, ThreadPool.Names.SAME, new UpdateSnapshotStateRequestHandler());
         }
@@ -160,8 +158,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
             } else if (prev.equals(curr) == false) {
                     processIndexShardSnapshots(event);
             }
-            String masterNodeId = event.state().nodes().masterNodeId();
-            if (masterNodeId != null && masterNodeId.equals(event.previousState().nodes().masterNodeId()) == false) {
+            String masterNodeId = event.state().nodes().getMasterNodeId();
+            if (masterNodeId != null && masterNodeId.equals(event.previousState().nodes().getMasterNodeId()) == false) {
                 syncShardStatsOnNewMaster(event);
             }
 
@@ -177,11 +175,11 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
      * This method is executed on data node
      * </p>
      *
-     * @param snapshotId snapshot id
+     * @param snapshot  snapshot
      * @return map of shard id to snapshot status
      */
-    public Map<ShardId, IndexShardSnapshotStatus> currentSnapshotShards(SnapshotId snapshotId) {
-        SnapshotShards snapshotShards = shardSnapshots.get(snapshotId);
+    public Map<ShardId, IndexShardSnapshotStatus> currentSnapshotShards(Snapshot snapshot) {
+        SnapshotShards snapshotShards = shardSnapshots.get(snapshot);
         if (snapshotShards == null) {
             return null;
         } else {
@@ -196,24 +194,25 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
      */
     private void processIndexShardSnapshots(ClusterChangedEvent event) {
         SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
-        Map<SnapshotId, SnapshotShards> survivors = new HashMap<>();
+        Map<Snapshot, SnapshotShards> survivors = new HashMap<>();
         // First, remove snapshots that are no longer there
-        for (Map.Entry<SnapshotId, SnapshotShards> entry : shardSnapshots.entrySet()) {
-            if (snapshotsInProgress != null && snapshotsInProgress.snapshot(entry.getKey()) != null) {
+        for (Map.Entry<Snapshot, SnapshotShards> entry : shardSnapshots.entrySet()) {
+            final Snapshot snapshot = entry.getKey();
+            if (snapshotsInProgress != null && snapshotsInProgress.snapshot(snapshot) != null) {
                 survivors.put(entry.getKey(), entry.getValue());
             }
         }
 
         // For now we will be mostly dealing with a single snapshot at a time but might have multiple simultaneously running
         // snapshots in the future
-        Map<SnapshotId, Map<ShardId, IndexShardSnapshotStatus>> newSnapshots = new HashMap<>();
+        Map<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> newSnapshots = new HashMap<>();
         // Now go through all snapshots and update existing or create missing
-        final String localNodeId = clusterService.localNode().id();
+        final String localNodeId = clusterService.localNode().getId();
         if (snapshotsInProgress != null) {
             for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
                 if (entry.state() == SnapshotsInProgress.State.STARTED) {
                     Map<ShardId, IndexShardSnapshotStatus> startedShards = new HashMap<>();
-                    SnapshotShards snapshotShards = shardSnapshots.get(entry.snapshotId());
+                    SnapshotShards snapshotShards = shardSnapshots.get(entry.snapshot());
                     for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : entry.shards()) {
                         // Add all new shards to start processing on
                         if (localNodeId.equals(shard.value.nodeId())) {
@@ -224,7 +223,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
                         }
                     }
                     if (!startedShards.isEmpty()) {
-                        newSnapshots.put(entry.snapshotId(), startedShards);
+                        newSnapshots.put(entry.snapshot(), startedShards);
                         if (snapshotShards != null) {
                             // We already saw this snapshot but we need to add more started shards
                             Map<ShardId, IndexShardSnapshotStatus> shards = new HashMap<>();
@@ -232,15 +231,15 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
                             shards.putAll(snapshotShards.shards);
                             // Put all newly started shards
                             shards.putAll(startedShards);
-                            survivors.put(entry.snapshotId(), new SnapshotShards(unmodifiableMap(shards)));
+                            survivors.put(entry.snapshot(), new SnapshotShards(unmodifiableMap(shards)));
                         } else {
                             // Brand new snapshot that we haven't seen before
-                            survivors.put(entry.snapshotId(), new SnapshotShards(unmodifiableMap(startedShards)));
+                            survivors.put(entry.snapshot(), new SnapshotShards(unmodifiableMap(startedShards)));
                         }
                     }
                 } else if (entry.state() == SnapshotsInProgress.State.ABORTED) {
                     // Abort all running shards for this snapshot
-                    SnapshotShards snapshotShards = shardSnapshots.get(entry.snapshotId());
+                    SnapshotShards snapshotShards = shardSnapshots.get(entry.snapshot());
                     if (snapshotShards != null) {
                         for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : entry.shards()) {
                             IndexShardSnapshotStatus snapshotStatus = snapshotShards.shards.get(shard.key);
@@ -251,17 +250,17 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
                                         snapshotStatus.abort();
                                         break;
                                     case FINALIZE:
-                                        logger.debug("[{}] trying to cancel snapshot on shard [{}] that is finalizing, letting it finish", entry.snapshotId(), shard.key);
+                                        logger.debug("[{}] trying to cancel snapshot on shard [{}] that is finalizing, letting it finish", entry.snapshot(), shard.key);
                                         break;
                                     case DONE:
-                                        logger.debug("[{}] trying to cancel snapshot on the shard [{}] that is already done, updating status on the master", entry.snapshotId(), shard.key);
-                                        updateIndexShardSnapshotStatus(entry.snapshotId(), shard.key,
-                                                new SnapshotsInProgress.ShardSnapshotStatus(event.state().nodes().localNodeId(), SnapshotsInProgress.State.SUCCESS));
+                                        logger.debug("[{}] trying to cancel snapshot on the shard [{}] that is already done, updating status on the master", entry.snapshot(), shard.key);
+                                        updateIndexShardSnapshotStatus(entry.snapshot(), shard.key,
+                                                new SnapshotsInProgress.ShardSnapshotStatus(event.state().nodes().getLocalNodeId(), SnapshotsInProgress.State.SUCCESS));
                                         break;
                                     case FAILURE:
-                                        logger.debug("[{}] trying to cancel snapshot on the shard [{}] that has already failed, updating status on the master", entry.snapshotId(), shard.key);
-                                        updateIndexShardSnapshotStatus(entry.snapshotId(), shard.key,
-                                                new SnapshotsInProgress.ShardSnapshotStatus(event.state().nodes().localNodeId(), SnapshotsInProgress.State.FAILED, snapshotStatus.failure()));
+                                        logger.debug("[{}] trying to cancel snapshot on the shard [{}] that has already failed, updating status on the master", entry.snapshot(), shard.key);
+                                        updateIndexShardSnapshotStatus(entry.snapshot(), shard.key,
+                                                new SnapshotsInProgress.ShardSnapshotStatus(event.state().nodes().getLocalNodeId(), SnapshotsInProgress.State.FAILED, snapshotStatus.failure()));
                                         break;
                                     default:
                                         throw new IllegalStateException("Unknown snapshot shard stage " + snapshotStatus.stage());
@@ -289,7 +288,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
         // We have new shards to starts
         if (newSnapshots.isEmpty() == false) {
             Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-            for (final Map.Entry<SnapshotId, Map<ShardId, IndexShardSnapshotStatus>> entry : newSnapshots.entrySet()) {
+            for (final Map.Entry<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> entry : newSnapshots.entrySet()) {
                 for (final Map.Entry<ShardId, IndexShardSnapshotStatus> shardEntry : entry.getValue().entrySet()) {
                     final ShardId shardId = shardEntry.getKey();
                     try {
@@ -319,11 +318,11 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
     /**
      * Creates shard snapshot
      *
-     * @param snapshotId     snapshot id
+     * @param snapshot       snapshot
      * @param snapshotStatus snapshot status
      */
-    private void snapshot(final IndexShard indexShard, final SnapshotId snapshotId, final IndexShardSnapshotStatus snapshotStatus) {
-        IndexShardRepository indexShardRepository = snapshotsService.getRepositoriesService().indexShardRepository(snapshotId.getRepository());
+    private void snapshot(final IndexShard indexShard, final Snapshot snapshot, final IndexShardSnapshotStatus snapshotStatus) {
+        IndexShardRepository indexShardRepository = snapshotsService.getRepositoriesService().indexShardRepository(snapshot.getRepository());
         ShardId shardId = indexShard.shardId();
         if (!indexShard.routingEntry().primary()) {
             throw new IndexShardSnapshotFailedException(shardId, "snapshot should be performed only on primary");
@@ -341,12 +340,12 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
             // we flush first to make sure we get the latest writes snapshotted
             IndexCommit snapshotIndexCommit = indexShard.snapshotIndex(true);
             try {
-                indexShardRepository.snapshot(snapshotId, shardId, snapshotIndexCommit, snapshotStatus);
+                indexShardRepository.snapshot(snapshot.getSnapshotId(), shardId, snapshotIndexCommit, snapshotStatus);
                 if (logger.isDebugEnabled()) {
                     StringBuilder sb = new StringBuilder();
-                    sb.append("snapshot (").append(snapshotId.getSnapshot()).append(") completed to ").append(indexShardRepository).append(", took [").append(TimeValue.timeValueMillis(snapshotStatus.time())).append("]\n");
                     sb.append("    index    : version [").append(snapshotStatus.indexVersion()).append("], number_of_files [").append(snapshotStatus.numberOfFiles()).append("] with total_size [").append(new ByteSizeValue(snapshotStatus.totalSize())).append("]\n");
-                    logger.debug(sb.toString());
+                    logger.debug("snapshot ({}) completed to {}, took [{}]\n{}", snapshot, indexShardRepository,
+                        TimeValue.timeValueMillis(snapshotStatus.time()), sb);
                 }
             } finally {
                 indexShard.releaseSnapshot(snapshotIndexCommit);
@@ -370,7 +369,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
         }
         for (SnapshotsInProgress.Entry snapshot : snapshotsInProgress.entries()) {
             if (snapshot.state() == SnapshotsInProgress.State.STARTED || snapshot.state() == SnapshotsInProgress.State.ABORTED) {
-                Map<ShardId, IndexShardSnapshotStatus> localShards = currentSnapshotShards(snapshot.snapshotId());
+                Map<ShardId, IndexShardSnapshotStatus> localShards = currentSnapshotShards(snapshot.snapshot());
                 if (localShards != null) {
                     ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> masterShards = snapshot.shards();
                     for(Map.Entry<ShardId, IndexShardSnapshotStatus> localShard : localShards.entrySet()) {
@@ -381,14 +380,14 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
                             // Master knows about the shard and thinks it has not completed
                             if (localShardStatus.stage() == IndexShardSnapshotStatus.Stage.DONE) {
                                 // but we think the shard is done - we need to make new master know that the shard is done
-                                logger.debug("[{}] new master thinks the shard [{}] is not completed but the shard is done locally, updating status on the master", snapshot.snapshotId(), shardId);
-                                updateIndexShardSnapshotStatus(snapshot.snapshotId(), shardId,
-                                        new SnapshotsInProgress.ShardSnapshotStatus(event.state().nodes().localNodeId(), SnapshotsInProgress.State.SUCCESS));
+                                logger.debug("[{}] new master thinks the shard [{}] is not completed but the shard is done locally, updating status on the master", snapshot.snapshot(), shardId);
+                                updateIndexShardSnapshotStatus(snapshot.snapshot(), shardId,
+                                        new SnapshotsInProgress.ShardSnapshotStatus(event.state().nodes().getLocalNodeId(), SnapshotsInProgress.State.SUCCESS));
                             } else if (localShard.getValue().stage() == IndexShardSnapshotStatus.Stage.FAILURE) {
                                 // but we think the shard failed - we need to make new master know that the shard failed
-                                logger.debug("[{}] new master thinks the shard [{}] is not completed but the shard failed locally, updating status on master", snapshot.snapshotId(), shardId);
-                                updateIndexShardSnapshotStatus(snapshot.snapshotId(), shardId,
-                                        new SnapshotsInProgress.ShardSnapshotStatus(event.state().nodes().localNodeId(), SnapshotsInProgress.State.FAILED, localShardStatus.failure()));
+                                logger.debug("[{}] new master thinks the shard [{}] is not completed but the shard failed locally, updating status on master", snapshot.snapshot(), shardId);
+                                updateIndexShardSnapshotStatus(snapshot.snapshot(), shardId,
+                                        new SnapshotsInProgress.ShardSnapshotStatus(event.state().nodes().getLocalNodeId(), SnapshotsInProgress.State.FAILED, localShardStatus.failure()));
 
                             }
                         }
@@ -414,7 +413,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
      * Internal request that is used to send changes in snapshot status to master
      */
     public static class UpdateIndexShardSnapshotStatusRequest extends TransportRequest {
-        private SnapshotId snapshotId;
+        private Snapshot snapshot;
         private ShardId shardId;
         private SnapshotsInProgress.ShardSnapshotStatus status;
 
@@ -424,8 +423,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
 
         }
 
-        public UpdateIndexShardSnapshotStatusRequest(SnapshotId snapshotId, ShardId shardId, SnapshotsInProgress.ShardSnapshotStatus status) {
-            this.snapshotId = snapshotId;
+        public UpdateIndexShardSnapshotStatusRequest(Snapshot snapshot, ShardId shardId, SnapshotsInProgress.ShardSnapshotStatus status) {
+            this.snapshot = snapshot;
             this.shardId = shardId;
             this.status = status;
         }
@@ -433,7 +432,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            snapshotId = SnapshotId.readSnapshotId(in);
+            snapshot = new Snapshot(in);
             shardId = ShardId.readShardId(in);
             status = SnapshotsInProgress.ShardSnapshotStatus.readShardSnapshotStatus(in);
         }
@@ -441,13 +440,13 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            snapshotId.writeTo(out);
+            snapshot.writeTo(out);
             shardId.writeTo(out);
             status.writeTo(out);
         }
 
-        public SnapshotId snapshotId() {
-            return snapshotId;
+        public Snapshot snapshot() {
+            return snapshot;
         }
 
         public ShardId shardId() {
@@ -460,7 +459,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
 
         @Override
         public String toString() {
-            return "" + snapshotId + ", shardId [" + shardId + "], status [" + status.state() + "]";
+            return "" + snapshot + ", shardId [" + shardId + "], status [" + status.state() + "]";
         }
 
         public void markAsProcessed() {
@@ -475,17 +474,17 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
     /**
      * Updates the shard status
      */
-    public void updateIndexShardSnapshotStatus(SnapshotId snapshotId, ShardId shardId, SnapshotsInProgress.ShardSnapshotStatus status) {
-        UpdateIndexShardSnapshotStatusRequest request = new UpdateIndexShardSnapshotStatusRequest(snapshotId, shardId, status);
+    public void updateIndexShardSnapshotStatus(Snapshot snapshot, ShardId shardId, SnapshotsInProgress.ShardSnapshotStatus status) {
+        UpdateIndexShardSnapshotStatusRequest request = new UpdateIndexShardSnapshotStatusRequest(snapshot, shardId, status);
         try {
-            if (clusterService.state().nodes().localNodeMaster()) {
+            if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
                 innerUpdateSnapshotState(request);
             } else {
-                transportService.sendRequest(clusterService.state().nodes().masterNode(),
+                transportService.sendRequest(clusterService.state().nodes().getMasterNode(),
                         UPDATE_SNAPSHOT_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
             }
         } catch (Throwable t) {
-            logger.warn("[{}] [{}] failed to update snapshot state", t, request.snapshotId(), request.status());
+            logger.warn("[{}] [{}] failed to update snapshot state", t, request.snapshot(), request.status());
         }
     }
 
@@ -529,8 +528,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
                             final UpdateIndexShardSnapshotStatusRequest updateSnapshotState = drainedRequests.get(i);
                             updateSnapshotState.markAsProcessed();
 
-                            if (entry.snapshotId().equals(updateSnapshotState.snapshotId())) {
-                                logger.trace("[{}] Updating shard [{}] with status [{}]", updateSnapshotState.snapshotId(), updateSnapshotState.shardId(), updateSnapshotState.status().state());
+                            if (entry.snapshot().equals(updateSnapshotState.snapshot())) {
+                                logger.trace("[{}] Updating shard [{}] with status [{}]", updateSnapshotState.snapshot(), updateSnapshotState.shardId(), updateSnapshotState.status().state());
                                 if (updated == false) {
                                     shards.putAll(entry.shards());
                                     updated = true;
@@ -550,7 +549,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
                                 entries.add(updatedEntry);
                                 // Finalize snapshot in the repository
                                 snapshotsService.endSnapshot(updatedEntry);
-                                logger.info("snapshot [{}] is done", updatedEntry.snapshotId());
+                                logger.info("snapshot [{}] is done", updatedEntry.snapshot());
                             }
                         } else {
                             entries.add(entry);
@@ -569,7 +568,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
             @Override
             public void onFailure(String source, Throwable t) {
                 for (UpdateIndexShardSnapshotStatusRequest request : drainedRequests) {
-                    logger.warn("[{}][{}] failed to update snapshot status to [{}]", t, request.snapshotId(), request.shardId(), request.status());
+                    logger.warn("[{}][{}] failed to update snapshot status to [{}]", t, request.snapshot(), request.shardId(), request.status());
                 }
             }
         });

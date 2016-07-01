@@ -21,6 +21,10 @@ package org.elasticsearch.common.geo.builders;
 
 import com.vividsolutions.jts.geom.Coordinate;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+
+import java.util.List;
+
 /**
  * A collection of static methods for creating ShapeBuilders.
  */
@@ -50,16 +54,24 @@ public class ShapeBuilders {
      * Create a new set of points
      * @return new {@link MultiPointBuilder}
      */
-    public static MultiPointBuilder newMultiPoint() {
-        return new MultiPointBuilder();
+    public static MultiPointBuilder newMultiPoint(List<Coordinate> points) {
+        return new MultiPointBuilder(points);
     }
 
     /**
      * Create a new lineString
      * @return a new {@link LineStringBuilder}
      */
-    public static LineStringBuilder newLineString() {
-        return new LineStringBuilder();
+    public static LineStringBuilder newLineString(List<Coordinate> list) {
+        return new LineStringBuilder(list);
+    }
+
+    /**
+     * Create a new lineString
+     * @return a new {@link LineStringBuilder}
+     */
+    public static LineStringBuilder newLineString(CoordinatesBuilder coordinates) {
+        return new LineStringBuilder(coordinates);
     }
 
     /**
@@ -71,19 +83,19 @@ public class ShapeBuilders {
     }
 
     /**
-     * Create a new Polygon
-     * @return a new {@link PointBuilder}
+     * Create a new PolygonBuilder
+     * @return a new {@link PolygonBuilder}
      */
-    public static PolygonBuilder newPolygon() {
-        return new PolygonBuilder();
+    public static PolygonBuilder newPolygon(List<Coordinate> shell) {
+        return new PolygonBuilder(new CoordinatesBuilder().coordinates(shell));
     }
 
     /**
-     * Create a new Polygon
-     * @return a new {@link PointBuilder}
+     * Create a new PolygonBuilder
+     * @return a new {@link PolygonBuilder}
      */
-    public static PolygonBuilder newPolygon(ShapeBuilder.Orientation orientation) {
-        return new PolygonBuilder(orientation);
+    public static PolygonBuilder newPolygon(CoordinatesBuilder shell) {
+        return new PolygonBuilder(shell);
     }
 
     /**
@@ -111,15 +123,6 @@ public class ShapeBuilders {
     }
 
     /**
-     * Create a new GeometryCollection
-     *
-     * @return a new {@link GeometryCollectionBuilder}
-     */
-    public static GeometryCollectionBuilder newGeometryCollection(ShapeBuilder.Orientation orientation) {
-        return new GeometryCollectionBuilder(orientation);
-    }
-
-    /**
      * create a new Circle
      *
      * @return a new {@link CircleBuilder}
@@ -133,16 +136,19 @@ public class ShapeBuilders {
      *
      * @return a new {@link EnvelopeBuilder}
      */
-    public static EnvelopeBuilder newEnvelope() {
-        return new EnvelopeBuilder();
+    public static EnvelopeBuilder newEnvelope(Coordinate topLeft, Coordinate bottomRight) {
+        return new EnvelopeBuilder(topLeft, bottomRight);
     }
 
-    /**
-     * create a new rectangle
-     *
-     * @return a new {@link EnvelopeBuilder}
-     */
-    public static EnvelopeBuilder newEnvelope(ShapeBuilder.Orientation orientation) {
-        return new EnvelopeBuilder(orientation);
+    public static void register(NamedWriteableRegistry namedWriteableRegistry) {
+        namedWriteableRegistry.register(ShapeBuilder.class, PointBuilder.TYPE.shapeName(), PointBuilder::new);
+        namedWriteableRegistry.register(ShapeBuilder.class, CircleBuilder.TYPE.shapeName(), CircleBuilder::new);
+        namedWriteableRegistry.register(ShapeBuilder.class, EnvelopeBuilder.TYPE.shapeName(), EnvelopeBuilder::new);
+        namedWriteableRegistry.register(ShapeBuilder.class, MultiPointBuilder.TYPE.shapeName(), MultiPointBuilder::new);
+        namedWriteableRegistry.register(ShapeBuilder.class, LineStringBuilder.TYPE.shapeName(), LineStringBuilder::new);
+        namedWriteableRegistry.register(ShapeBuilder.class, MultiLineStringBuilder.TYPE.shapeName(), MultiLineStringBuilder::new);
+        namedWriteableRegistry.register(ShapeBuilder.class, PolygonBuilder.TYPE.shapeName(), PolygonBuilder::new);
+        namedWriteableRegistry.register(ShapeBuilder.class, MultiPolygonBuilder.TYPE.shapeName(), MultiPolygonBuilder::new);
+        namedWriteableRegistry.register(ShapeBuilder.class, GeometryCollectionBuilder.TYPE.shapeName(), GeometryCollectionBuilder::new);
     }
 }

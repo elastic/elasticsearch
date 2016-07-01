@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class StaticIndexBackwardCompatibilityIT extends ESIntegTestCase {
 
     public void loadIndex(String index, Object... settings) throws Exception {
-        logger.info("Checking static index " + index);
+        logger.info("Checking static index {}", index);
         Settings nodeSettings = prepareBackwardsDataDir(getDataPath(index + ".zip"), settings);
         internalCluster().startNode(nodeSettings);
         ensureGreen(index);
@@ -49,7 +49,7 @@ public class StaticIndexBackwardCompatibilityIT extends ESIntegTestCase {
         assertEquals(index, getIndexResponse.indices()[0]);
         ensureYellow(index);
         SearchResponse test = client().prepareSearch(index).get();
-        assertThat(test.getHits().getTotalHits(), greaterThanOrEqualTo(1l));
+        assertThat(test.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
     }
 
 }

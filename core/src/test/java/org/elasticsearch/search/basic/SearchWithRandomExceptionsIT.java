@@ -28,8 +28,11 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
@@ -41,18 +44,19 @@ import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(RandomExceptionDirectoryReaderWrapper.TestPlugin.class);
+        return pluginList(RandomExceptionDirectoryReaderWrapper.TestPlugin.class, MockEngineFactoryPlugin.class);
     }
 
     public void testRandomExceptions() throws IOException, InterruptedException, ExecutionException {
@@ -61,8 +65,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
                 startObject("type").
                 startObject("properties").
                 startObject("test")
-                .field("type", "string")
-                .field("index", "not_analyzed")
+                .field("type", "keyword")
                 .endObject().
                         endObject().
                         endObject()
@@ -88,11 +91,11 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
             lowLevelRate = 0d;
         }
 
-        Builder settings = settingsBuilder()
+        Builder settings = Settings.builder()
                 .put(indexSettings())
                 .put(EXCEPTION_TOP_LEVEL_RATIO_KEY, topLevelRate)
                 .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)
-            .put(MockEngineSupport.WRAP_READER_RATIO, 1.0d);
+            .put(MockEngineSupport.WRAP_READER_RATIO.getKey(), 1.0d);
         logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
@@ -151,13 +154,13 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
     public static class RandomExceptionDirectoryReaderWrapper extends MockEngineSupport.DirectoryReaderWrapper {
 
         public static class TestPlugin extends Plugin {
+            public static final Setting<Double> EXCEPTION_TOP_LEVEL_RATIO_SETTING =
+                Setting.doubleSetting(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d, 0.0d, Property.IndexScope);
+            public static final Setting<Double> EXCEPTION_LOW_LEVEL_RATIO_SETTING =
+                Setting.doubleSetting(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d, 0.0d, Property.IndexScope);
             @Override
-            public String name() {
-                return "random-exception-reader-wrapper";
-            }
-            @Override
-            public String description() {
-                return "a mock reader wrapper that throws random exceptions for testing";
+            public List<Setting<?>> getSettings() {
+                return Arrays.asList(EXCEPTION_TOP_LEVEL_RATIO_SETTING, EXCEPTION_LOW_LEVEL_RATIO_SETTING);
             }
             public void onModule(MockEngineFactoryPlugin.MockEngineReaderModule module) {
                 module.setReaderClass(RandomExceptionDirectoryReaderWrapper.class);
@@ -172,7 +175,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
             private final double lowLevelRatio;
 
             ThrowingSubReaderWrapper(Settings settings) {
-                final long seed = settings.getAsLong(SETTING_INDEX_SEED, 0l);
+                final long seed = ESIntegTestCase.INDEX_TEST_SEED_SETTING.get(settings);
                 this.topLevelRatio = settings.getAsDouble(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d);
                 this.lowLevelRatio = settings.getAsDouble(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d);
                 this.random = new Random(seed);

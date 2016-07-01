@@ -19,6 +19,10 @@
 
 package org.elasticsearch.common.unit;
 
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.closeTo;
@@ -55,6 +59,39 @@ public class DistanceUnitTests extends ESTestCase {
             assertThat("Unit can be parsed from '" + unit.toString() + "'", DistanceUnit.fromString(unit.toString()), equalTo(unit));
             assertThat("Unit can be parsed from '" + testValue + unit.toString() + "'", DistanceUnit.fromString(unit.toString()), equalTo(unit));
             assertThat("Value can be parsed from '" + testValue + unit.toString() + "'", DistanceUnit.Distance.parseDistance(unit.toString(testValue)).value, equalTo(testValue));
+        }
+    }
+
+    /**
+     * This test ensures that we are aware of accidental reordering in the distance unit ordinals,
+     * since equality in e.g. CircleShapeBuilder, hashCode and serialization rely on them
+     */
+    public void testDistanceUnitNames() {
+        assertEquals(0, DistanceUnit.INCH.ordinal());
+        assertEquals(1, DistanceUnit.YARD.ordinal());
+        assertEquals(2, DistanceUnit.FEET.ordinal());
+        assertEquals(3, DistanceUnit.KILOMETERS.ordinal());
+        assertEquals(4, DistanceUnit.NAUTICALMILES.ordinal());
+        assertEquals(5, DistanceUnit.MILLIMETERS.ordinal());
+        assertEquals(6, DistanceUnit.CENTIMETERS.ordinal());
+        assertEquals(7, DistanceUnit.MILES.ordinal());
+        assertEquals(8, DistanceUnit.METERS.ordinal());
+    }
+
+    public void testReadWrite() throws Exception {
+        for (DistanceUnit unit : DistanceUnit.values()) {
+          try (BytesStreamOutput out = new BytesStreamOutput()) {
+              unit.writeTo(out);
+              try (StreamInput in = out.bytes().streamInput()) {
+                  assertThat("Roundtrip serialisation failed.", DistanceUnit.readFromStream(in), equalTo(unit));
+              }
+          }
+        }
+    }
+
+    public void testFromString() {
+        for (DistanceUnit unit : DistanceUnit.values()) {
+            assertThat("Roundtrip string parsing failed.", DistanceUnit.fromString(unit.toString()), equalTo(unit));
         }
     }
 }

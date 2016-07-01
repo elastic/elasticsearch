@@ -19,59 +19,39 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 
+import java.util.Map;
 /**
  * <p>
  * A {@link ShardsAllocator} is the main entry point for shard allocation on nodes in the cluster.
  * The allocator makes basic decision where a shard instance will be allocated, if already allocated instances
- * need relocate to other nodes due to node failures or due to rebalancing decisions.
+ * need to relocate to other nodes due to node failures or due to rebalancing decisions.
  * </p>
  */
 public interface ShardsAllocator {
 
     /**
-     * Applies changes on started nodes based on the implemented algorithm. For example if a 
-     * shard has changed to {@link ShardRoutingState#STARTED} from {@link ShardRoutingState#RELOCATING} 
-     * this allocator might apply some cleanups on the node that used to hold the shard.
-     * @param allocation all started {@link ShardRouting shards}
-     */
-    void applyStartedShards(StartedRerouteAllocation allocation);
-
-    /**
-     * Applies changes on failed nodes based on the implemented algorithm. 
-     * @param allocation all failed {@link ShardRouting shards}
-     */
-    void applyFailedShards(FailedRerouteAllocation allocation);
-
-    /**
-     * Assign all unassigned shards to nodes 
-     * 
+     * Allocates shards to nodes in the cluster. An implementation of this method should:
+     * - assign unassigned shards
+     * - relocate shards that cannot stay on a node anymore
+     * - relocate shards to find a good shard balance in the cluster
+     *
      * @param allocation current node allocation
      * @return <code>true</code> if the allocation has changed, otherwise <code>false</code>
      */
-    boolean allocateUnassigned(RoutingAllocation allocation);
+    boolean allocate(RoutingAllocation allocation);
 
     /**
-     * Rebalancing number of shards on all nodes
-     *   
+     * Returns a map of node to a float "weight" of where the allocator would like to place the shard.
+     * Higher weights signify greater desire to place the shard on that node.
+     * Does not modify the allocation at all.
+     *
      * @param allocation current node allocation
-     * @return <code>true</code> if the allocation has changed, otherwise <code>false</code>
+     * @param shard shard to weigh
+     * @return map of nodes to float weights
      */
-    boolean rebalance(RoutingAllocation allocation);
-
-    /**
-     * Moves a shard from the given node to other node.
-     * 
-     * @param shardRouting the shard to move
-     * @param node A node containing the shard
-     * @param allocation current node allocation
-     * @return <code>true</code> if the allocation has changed, otherwise <code>false</code>
-     */
-    boolean move(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation);
+    Map<DiscoveryNode, Float> weighShard(RoutingAllocation allocation, ShardRouting shard);
 }

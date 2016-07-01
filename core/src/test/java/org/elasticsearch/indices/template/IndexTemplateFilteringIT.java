@@ -47,17 +47,17 @@ public class IndexTemplateFilteringIT extends ESIntegTestCase {
     public void testTemplateFiltering() throws Exception {
         client().admin().indices().preparePutTemplate("template1")
                 .setTemplate("test*")
-                .addMapping("type1", "field1", "type=string").get();
+                .addMapping("type1", "field1", "type=text").get();
 
         client().admin().indices().preparePutTemplate("template2")
                 .setTemplate("test*")
-                .addMapping("type2", "field2", "type=string").get();
+                .addMapping("type2", "field2", "type=text").get();
 
         client().admin().indices().preparePutTemplate("template3")
                 .setTemplate("no_match")
-                .addMapping("type3", "field3", "type=string").get();
+                .addMapping("type3", "field3", "type=text").get();
 
-        assertAcked(prepareCreate("test").putHeader("header_test", "header_value"));
+        assertAcked(prepareCreate("test"));
 
         GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
         assertThat(response, notNullValue());
@@ -70,21 +70,11 @@ public class IndexTemplateFilteringIT extends ESIntegTestCase {
         @Override
         public boolean apply(CreateIndexClusterStateUpdateRequest request, IndexTemplateMetaData template) {
             //make sure that no_match template is filtered out before the custom filters as it doesn't match the index name
-            return (template.name().equals("template2") || template.name().equals("no_match")) && request.originalMessage().getHeader("header_test").equals("header_value");
+            return (template.name().equals("template2") || template.name().equals("no_match"));
         }
     }
 
     public static class TestPlugin extends Plugin {
-        @Override
-        public String name() {
-            return "test-plugin";
-        }
-
-        @Override
-        public String description() {
-            return "";
-        }
-
         public void onModule(ClusterModule module) {
             module.registerIndexTemplateFilter(TestFilter.class);
         }

@@ -29,7 +29,7 @@ import java.io.IOException;
 public interface Diff<T> {
 
     /**
-     * Applies difference to the specified part and retunrs the resulted part
+     * Applies difference to the specified part and returns the resulted part
      */
     T apply(T part);
 

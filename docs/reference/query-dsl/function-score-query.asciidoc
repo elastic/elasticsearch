@@ -14,13 +14,20 @@ by the query.
 
 [source,js]
 --------------------------------------------------
-"function_score": {
-    "query": {},
-    "boost": "boost for the whole query",
-    "FUNCTION": {}, <1>
-    "boost_mode":"(multiply|replace|...)"
+GET /_search
+{
+    "query": {
+        "function_score": {
+            "query": {},
+            "boost": "5",
+            "random_score": {}, <1>
+            "boost_mode":"multiply"
+        }
+    }
 }
 --------------------------------------------------
+// CONSOLE
+
 <1> See <<score-functions>> for a list of supported functions.
 
 Furthermore, several functions can be combined. In this case one can
@@ -29,30 +36,35 @@ given filtering query
 
 [source,js]
 --------------------------------------------------
-"function_score": {
-    "query": {},
-    "boost": "boost for the whole query",
-    "functions": [
-        {
-            "filter": {},
-            "FUNCTION": {}, <1>
-            "weight": number
-        },
-        {
-            "FUNCTION": {} <1>
-        },
-        {
-            "filter": {},
-            "weight": number
+GET /_search
+{
+    "query": {
+        "function_score": {
+          "query": {},
+          "boost": "5", <1>
+          "functions": [
+              {
+                  "filter": {},
+                  "random_score": {}, <2>
+                  "weight": 23
+              },
+              {
+                  "filter": {},
+                  "weight": 42 
+              }
+          ],
+          "max_boost": 42,
+          "score_mode": "max",
+          "boost_mode": "multiply",
+          "min_score" : 42
         }
-    ],
-    "max_boost": number,
-    "score_mode": "(multiply|max|...)",
-    "boost_mode": "(multiply|replace|...)",
-    "min_score" : number
+    }
 }
 --------------------------------------------------
-<1> See <<score-functions>> for a list of supported functions.
+// CONSOLE
+
+<1> Boost for the whole query.
+<2> See <<score-functions>> for a list of supported functions.
 
 NOTE: The scores produced by the filtering query of each function do not matter.
 
@@ -71,8 +83,15 @@ First, each document is scored by the defined functions. The parameter
 `max`::         maximum score is used
 `min`::         minimum score is used
 
-Because scores can be on different scales (for example, between 0 and 1 for decay functions but arbitrary for `field_value_factor`) and also because sometimes a different impact of functions on the score is desirable, the score of each function can be adjusted with a user defined `weight` (). The `weight` can be defined per function in the `functions` array (example above) and is multiplied with the score computed by the respective function.
+Because scores can be on different scales (for example, between 0 and 1 for decay functions but arbitrary for `field_value_factor`) and also
+because sometimes a different impact of functions on the score is desirable, the score of each function can be adjusted with a user defined
+`weight`. The `weight` can be defined per function in the `functions` array (example above) and is multiplied with the score computed by
+the respective function.
 If weight is given without any other function declaration, `weight` acts as a function that simply returns the `weight`.
+
+In case `score_mode` is set to `avg` the individual scores will be combined by a **weighted** average.
+For example, if two functions return score 1 and 2 and their respective weights are 3 and 4, then their scores will be combined as
+`(1*3+2*4)/(3+4)` and **not** `(1*3+2*4)/2`.
 
 The new score can be restricted to not exceed a certain limit by setting
 the `max_boost` parameter. The default for `max_boost` is FLT_MAX.
@@ -112,7 +131,10 @@ simple sample:
 [source,js]
 --------------------------------------------------
 "script_score" : {
-    "script" : "_score * doc['my_numeric_field'].value"
+    "script" : {
+      "lang": "painless",
+      "inline": "_score * doc['my_numeric_field'].value"
+    }
 }
 --------------------------------------------------
 
@@ -128,12 +150,12 @@ script, and provide parameters to it:
 --------------------------------------------------
 "script_score": {
     "script": {
-        "lang": "lang",
+        "lang": "painless",
         "params": {
             "param1": value1,
             "param2": value2
         },
-        "inline": "_score * doc['my_numeric_field'].value / pow(param1, param2)"
+        "inline": "_score * doc['my_numeric_field'].value / Math.pow(params.param1, params.param2)"
     }
 }
 --------------------------------------------------
@@ -148,7 +170,7 @@ you wish to inhibit this, set `"boost_mode": "replace"`
 The `weight` score allows you to multiply the score by the provided
 `weight`. This can sometimes be desired since boost value set on
 specific queries gets normalized, while for this score function it does
-not.
+not. The number value is of type float. 
 
 [source,js]
 --------------------------------------------------
@@ -214,6 +236,22 @@ There are a number of options for the `field_value_factor` function:
     Modifier to apply to the field value, can be one of: `none`, `log`,
     `log1p`, `log2p`, `ln`, `ln1p`, `ln2p`, `square`, `sqrt`, or `reciprocal`.
     Defaults to `none`.
+
+[cols="<,<",options="header",]
+|=======================================================================
+| Modifier | Meaning
+
+| `none` | Do not apply any multiplier to the field value
+| `log` | Take the https://en.wikipedia.org/wiki/Logarithm[logarithm] of the field value
+| `log1p` | Add 1 to the field value and take the logarithm
+| `log2p` | Add 2 to the field value and take the logarithm
+| `ln` | Take the https://en.wikipedia.org/wiki/Natural_logarithm[natural logarithm] of the field value
+| `ln1p` | Add 1 to the field value and take the natural logarithm
+| `ln2p` | Add 2 to the field value and take the natural logarithm
+| `square` | Square the field value (multiply it by itself)
+| `sqrt` | Take the https://en.wikipedia.org/wiki/Square_root[square root] of the field value
+| `reciprocal` | https://en.wikipedia.org/wiki/Multiplicative_inverse[Reciprocate] the field value, same as `1/x` where `x` is the field's value
+|=======================================================================
 
 `missing`::
 
@@ -300,9 +338,9 @@ location field. You want to compute a decay function depending on how
 far the hotel is from a given location. You might not immediately see
 what scale to choose for the gauss function, but you can say something
 like: "At a distance of 2km from the desired location, the score should
-be reduced by one third."
+be reduced to one third."
 The parameter "scale" will then be adjusted automatically to assure that
-the score function computes a score of 0.5 for hotels that are 2km away
+the score function computes a score of 0.33 for hotels that are 2km away
 from the desired location.
 
 
@@ -443,39 +481,39 @@ the request would look like this:
 
 [source,js]
 --------------------------------------------------
-GET /hotels/_search/
+GET /_search
 {
-  "query": {
-    "function_score": {
-      "functions": [
-        {
-          "gauss": {
-            "price": {
-              "origin": "0",
-              "scale": "20"
+    "query": {
+        "function_score": {
+          "functions": [
+            {
+              "gauss": {
+                "price": {
+                  "origin": "0",
+                  "scale": "20"
+                }
+              }
+            },
+            {
+              "gauss": {
+                "location": {
+                  "origin": "11, 12",
+                  "scale": "2km"
+                }
+              }
             }
-          }
-        },
-        {
-          "gauss": {
-            "location": {
-              "origin": "11, 12",
-              "scale": "2km"
+          ],
+          "query": {
+            "match": {
+              "properties": "balcony"
             }
-          }
+          },
+          "score_mode": "multiply"
         }
-      ],
-      "query": {
-        "match": {
-          "properties": "balcony"
-        }
-      },
-      "score_mode": "multiply"
     }
-  }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Next, we show how the computed score looks like for each of the three
 possible decay functions.
@@ -530,4 +568,3 @@ Only numeric, date, and geo-point fields are supported.
 
 If the numeric field is missing in the document, the function will
 return 1.
-

@@ -1,7 +1,7 @@
 [[token-count]]
 === Token count datatype
 
-A field of type `token_count` is really an <<number,`integer>> field which
+A field of type `token_count` is really an <<number,`integer`>> field which
 accepts string values, analyzes them, then indexes the number of tokens in the
 string.
 
@@ -15,7 +15,7 @@ PUT my_index
     "my_type": {
       "properties": {
         "name": { <1>
-          "type": "string",
+          "type": "text",
           "fields": {
             "length": { <2>
               "type":     "token_count",
@@ -43,7 +43,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `name` field is an analyzed string field which uses the default `standard` analyzer.
 <2> The `name.length` field is a `token_count` <<multi-fields,multi-field>> which will index the number of tokens in the `name` field.
 <3> This query matches only the document containing `Rachel Alice Williams`, as it contains three tokens.
@@ -68,9 +68,9 @@ The following parameters are accepted by `token_count` fields:
     value. Required. For best performance, use an analyzer without token
     filters.
 
-<<index-boost,`boost`>>::
+<<mapping-boost,`boost`>>::
 
-    Field-level index time boosting. Accepts a floating point number, defaults
+    Mapping field-level query time boosting. Accepts a floating point number, defaults
     to `1.0`.
 
 <<doc-values,`doc_values`>>::
@@ -95,11 +95,6 @@ The following parameters are accepted by `token_count` fields:
     Accepts a numeric value of the same `type` as the field which is
     substituted for any explicit `null` values.  Defaults to `null`, which
     means the field is treated as missing.
-
-<<precision-step,`precision_step`>>::
-
-    Controls the number of extra terms that are indexed to make
-    <<query-dsl-range-query,`range` queries>> faster. Defaults to `32`.
 
 <<mapping-store,`store`>>::
 

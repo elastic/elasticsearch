@@ -24,35 +24,46 @@ package org.elasticsearch.cluster.routing;
  */
 public class ShardRoutingHelper {
 
-    public static void relocate(ShardRouting routing, String nodeId) {
-        relocate(routing, nodeId, -1);
+    public static ShardRouting relocate(ShardRouting routing, String nodeId) {
+        return relocate(routing, nodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
     }
 
-    public static void relocate(ShardRouting routing, String nodeId, long expectedByteSize) {
-        routing.relocate(nodeId, expectedByteSize);
+    public static ShardRouting relocate(ShardRouting routing, String nodeId, long expectedByteSize) {
+        return routing.relocate(nodeId, expectedByteSize);
     }
 
-    public static void moveToStarted(ShardRouting routing) {
-        routing.moveToStarted();
+    public static ShardRouting moveToStarted(ShardRouting routing) {
+        return routing.moveToStarted();
     }
 
-    public static void initialize(ShardRouting routing, String nodeId) {
-        initialize(routing, nodeId, -1);
+    public static ShardRouting initialize(ShardRouting routing, String nodeId) {
+        return initialize(routing, nodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
     }
 
-    public static void initialize(ShardRouting routing, String nodeId, long expectedSize) {
-        routing.initialize(nodeId, expectedSize);
+    public static ShardRouting initialize(ShardRouting routing, String nodeId, long expectedSize) {
+        return routing.initialize(nodeId, null, expectedSize);
     }
 
-    public static void reinit(ShardRouting routing) {
-        routing.reinitializeShard();
+    public static ShardRouting reinit(ShardRouting routing) {
+        return routing.reinitializeShard();
     }
 
-    public static void moveToUnassigned(ShardRouting routing, UnassignedInfo info) {
-        routing.moveToUnassigned(info);
+    public static ShardRouting reinit(ShardRouting routing, UnassignedInfo.Reason reason) {
+        return routing.reinitializeShard().updateUnassignedInfo(new UnassignedInfo(reason, "test_reinit"));
+    }
+
+    public static ShardRouting initWithSameId(ShardRouting copy) {
+        return new ShardRouting(copy.shardId(), copy.currentNodeId(), copy.relocatingNodeId(), copy.restoreSource(),
+            copy.primary(), ShardRoutingState.INITIALIZING, new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null),
+            copy.allocationId(), copy.getExpectedShardSize());
+    }
+
+    public static ShardRouting moveToUnassigned(ShardRouting routing, UnassignedInfo info) {
+        return routing.moveToUnassigned(info);
     }
 
     public static ShardRouting newWithRestoreSource(ShardRouting routing, RestoreSource restoreSource) {
-        return new ShardRouting(routing.index(), routing.shardId().id(), routing.currentNodeId(), routing.relocatingNodeId(), restoreSource, routing.primary(), routing.state(), routing.version(), routing.unassignedInfo(), routing.allocationId(), true, routing.getExpectedShardSize());
+        return new ShardRouting(routing.shardId(), routing.currentNodeId(), routing.relocatingNodeId(), restoreSource,
+            routing.primary(), routing.state(), routing.unassignedInfo(), routing.allocationId(), routing.getExpectedShardSize());
     }
 }

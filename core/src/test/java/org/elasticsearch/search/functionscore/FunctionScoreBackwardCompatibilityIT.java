@@ -22,7 +22,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESBackcompatTestCase;
 
@@ -56,7 +56,7 @@ public class FunctionScoreBackwardCompatibilityIT extends ESBackcompatTestCase {
                         .startObject("type1")
                         .startObject("properties")
                         .startObject("text")
-                        .field("type", "string")
+                        .field("type", "text")
                         .endObject()
                         .startObject("loc")
                         .field("type", "geo_point")
@@ -104,17 +104,17 @@ public class FunctionScoreBackwardCompatibilityIT extends ESBackcompatTestCase {
     @Override
     protected Settings commonNodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.commonNodeSettings(nodeOrdinal))
-                .put("script.inline", "on").build();
+                .put("script.inline", "true").build();
     }
 
     private void checkFunctionScoreStillWorks(String... ids) throws ExecutionException, InterruptedException, IOException {
         SearchResponse response = client().search(
                 searchRequest().source(
                         searchSource().query(
-                                functionScoreQuery(termQuery("text", "value"), new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
-                                                new FunctionScoreQueryBuilder.FilterFunctionBuilder(gaussDecayFunction("loc", new GeoPoint(10, 20), "1000km")),
-                                                new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(new Script("_index['text']['value'].tf()"))),
-                                                new FunctionScoreQueryBuilder.FilterFunctionBuilder(termQuery("text", "boosted"), weightFactorFunction(5))
+                                functionScoreQuery(termQuery("text", "value"), new FilterFunctionBuilder[] {
+                                                new FilterFunctionBuilder(gaussDecayFunction("loc", new GeoPoint(10, 20), "1000km")),
+                                                new FilterFunctionBuilder(scriptFunction(new Script("_index['text']['value'].tf()"))),
+                                                new FilterFunctionBuilder(termQuery("text", "boosted"), weightFactorFunction(5))
                                         }
                                 )))).actionGet();
         assertSearchResponse(response);

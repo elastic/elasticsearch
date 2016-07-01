@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # This file contains some utilities to test the elasticsearch scripts,
 # the .deb/.rpm packages and the SysV/Systemd scripts.
@@ -32,7 +32,7 @@ install_plugin() {
 
     assert_file_exist "$path"
 
-    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/plugin" install "file://$path"
+    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install -batch "file://$path"
 
     assert_file_exist "$ESPLUGINS/$name"
     assert_file_exist "$ESPLUGINS/$name/plugin-descriptor.properties"
@@ -60,7 +60,7 @@ remove_plugin() {
     local name=$1
 
     echo "Removing $name...."
-    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/plugin" remove $name
+    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" remove $name
 
     assert_file_not_exist "$ESPLUGINS/$name"
 
@@ -84,23 +84,16 @@ install_jvm_example() {
     bin_user=$(find "$ESHOME/bin" -maxdepth 0 -printf "%u")
     bin_owner=$(find "$ESHOME/bin" -maxdepth 0 -printf "%g")
     bin_privileges=$(find "$ESHOME/bin" -maxdepth 0 -printf "%m")
-    assert_file "$ESHOME/bin/jvm-example" d $bin_user $bin_owner $bin_privileges
-    assert_file "$ESHOME/bin/jvm-example/test" f $bin_user $bin_owner $bin_privileges
+    assert_file "$ESHOME/bin/jvm-example" d $bin_user $bin_owner 755
+    assert_file "$ESHOME/bin/jvm-example/test" f $bin_user $bin_owner 755
 
     #owner group and permissions vary depending on how es was installed
     #just make sure that everything is the same as $CONFIG_DIR, which was properly set up during install
     config_user=$(find "$ESCONFIG" -maxdepth 0 -printf "%u")
     config_owner=$(find "$ESCONFIG" -maxdepth 0 -printf "%g")
-    config_privileges=$(find "$ESCONFIG" -maxdepth 0 -printf "%m")
-    assert_file "$ESCONFIG/jvm-example" d $config_user $config_owner $config_privileges
-    #the original file has no execute permissions and that must not change, but all other permissions
-    #need to be inherited from the parent config dir. We check this by applying the 111 mask to the config dir privileges.
-    for i in `seq 0 2`; do
-        current_perm_dir=${config_privileges:$i:1}
-        final_perm=$(($current_perm_dir & ~1))
-        expected_file_privileges+=$final_perm
-    done
-    assert_file "$ESCONFIG/jvm-example/example.yaml" f $config_user $config_owner $expected_file_privileges
+    # directories should user the user file-creation mask
+    assert_file "$ESCONFIG/jvm-example" d $config_user $config_owner 755
+    assert_file "$ESCONFIG/jvm-example/example.yaml" f $config_user $config_owner 644
 
     echo "Running jvm-example's bin script...."
     "$ESHOME/bin/jvm-example/test" | grep test
@@ -136,11 +129,14 @@ install_and_check_plugin() {
     fi
 
     install_jvm_plugin $fullName "$(readlink -m $fullName-*.zip)"
+
+    assert_module_or_plugin_directory "$ESPLUGINS/$fullName"
+
     if [ $prefix == 'analysis' ]; then
-        assert_file_exist "$(readlink -m $ESPLUGINS/$fullName/lucene-analyzers-$name-*.jar)"
+        assert_module_or_plugin_file "$ESPLUGINS/$fullName/lucene-analyzers-$name-*.jar"
     fi
     for file in "$@"; do
-        assert_file_exist "$(readlink -m $ESPLUGINS/$fullName/$file)"
+        assert_module_or_plugin_file "$ESPLUGINS/$fullName/$file"
     done
 }
 

@@ -39,7 +39,7 @@ Here we configure the DFRSimilarity so it can be referenced as
 {
   "book" : {
     "properties" : {
-      "title" : { "type" : "string", "similarity" : "my_similarity" }
+      "title" : { "type" : "text", "similarity" : "my_similarity" }
     }
 }
 --------------------------------------------------
@@ -48,24 +48,10 @@ Here we configure the DFRSimilarity so it can be referenced as
 === Available similarities
 
 [float]
-[[default-similarity]]
-==== Default similarity
-
-The default similarity that is based on the TF/IDF model. This
-similarity has the following option:
-
-`discount_overlaps`::
-    Determines whether overlap tokens (Tokens with
-    0 position increment) are ignored when computing norm. By default this
-    is true, meaning overlap tokens do not count when computing norms.
-
-Type name: `default`
-
-[float]
 [[bm25]]
-==== BM25 similarity
+==== BM25 similarity (*default*)
 
-Another TF/IDF based similarity that has built-in tf normalization and
+TF/IDF based similarity that has built-in tf normalization and
 is supposed to work better for short fields (like names). See
 http://en.wikipedia.org/wiki/Okapi_BM25[Okapi_BM25] for more details.
 This similarity has the following options:
@@ -73,10 +59,11 @@ This similarity has the following options:
 [horizontal]
 `k1`::
     Controls non-linear term frequency normalization
-    (saturation).
+    (saturation). The default value is `1.2`.
 
 `b`::
     Controls to what degree document length normalizes tf values.
+    The default value is `0.75`.
 
 `discount_overlaps`::
     Determines whether overlap tokens (Tokens with
@@ -84,6 +71,20 @@ This similarity has the following options:
     is true, meaning overlap tokens do not count when computing norms.
 
 Type name: `BM25`
+
+[float]
+[[classic-similarity]]
+==== Classic similarity
+
+The classic similarity that is based on the TF/IDF model. This
+similarity has the following option:
+
+`discount_overlaps`::
+    Determines whether overlap tokens (Tokens with
+    0 position increment) are ignored when computing norm. By default this
+    is true, meaning overlap tokens do not count when computing norms.
+
+Type name: `classic`
 
 [float]
 [[drf]]
@@ -108,11 +109,27 @@ All options but the first option need a normalization value.
 Type name: `DFR`
 
 [float]
+[[dfi]]
+==== DFI similarity
+
+Similarity that implements the http://trec.nist.gov/pubs/trec21/papers/irra.web.nb.pdf[divergence from independence] 
+model.
+This similarity has the following options:
+
+[horizontal]
+`independence_measure`:: Possible values `standardized`, `saturated`, `chisquared`.
+
+Type name: `DFI`
+
+[float]
 [[ib]]
 ==== IB similarity.
 
 http://lucene.apache.org/core/5_2_1/core/org/apache/lucene/search/similarities/IBSimilarity.html[Information
-based model] . This similarity has the following options:
+based model] . The algorithm is based on the concept that the information content in any symbolic 'distribution'
+sequence is primarily determined by the repetitive usage of its basic elements.
+For written texts this challenge would correspond to comparing the writing styles of different authors.
+This similarity has the following options:
 
 [horizontal]
 `distribution`::  Possible values: `ll` and `spl`.
@@ -138,11 +155,11 @@ Type name: `LMDirichlet`
 ==== LM Jelinek Mercer similarity.
 
 http://lucene.apache.org/core/5_2_1/core/org/apache/lucene/search/similarities/LMJelinekMercerSimilarity.html[LM
-Jelinek Mercer similarity] . This similarity has the following options:
+Jelinek Mercer similarity] . The algorithm attempts to capture important patterns in the text, while leaving out noise. This similarity has the following options:
 
 [horizontal]
 `lambda`::  The optimal value depends on both the collection and the query. The optimal value is around `0.1`
-for title queries and `0.7` for long queries. Default to `0.1`.
+for title queries and `0.7` for long queries. Default to `0.1`. When value approaches `0`, documents that match more query terms will be ranked higher than those that match fewer terms.
 
 Type name: `LMJelinekMercer`
 
@@ -157,9 +174,9 @@ implementation used for these two methods, while not changing the
 `default`, it is possible to configure a similarity with the name
 `base`. This similarity will then be used for the two methods.
 
-You can change the default similarity for all fields like this:
+You can change the default similarity for all fields by putting the following setting into `elasticsearch.yml`:
 
 [source,js]
 --------------------------------------------------
-index.similarity.default.type: BM25
+index.similarity.default.type: classic
 --------------------------------------------------

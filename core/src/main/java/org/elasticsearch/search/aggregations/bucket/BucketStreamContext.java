@@ -22,27 +22,26 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
+import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.util.Map;
 
 public class BucketStreamContext implements Streamable {
 
-    private ValueFormatter formatter;
+    private DocValueFormat format;
     private boolean keyed;
     private Map<String, Object> attributes;
 
     public BucketStreamContext() {
     }
 
-    public void formatter(ValueFormatter formatter) {
-        this.formatter = formatter;
+    public void format(DocValueFormat format) {
+        this.format = format;
     }
 
-    public ValueFormatter formatter() {
-        return formatter;
+    public DocValueFormat format() {
+        return format;
     }
 
     public void keyed(boolean keyed) {
@@ -63,14 +62,14 @@ public class BucketStreamContext implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        formatter = ValueFormatterStreams.readOptional(in);
+        format = in.readNamedWriteable(DocValueFormat.class);
         keyed = in.readBoolean();
         attributes = in.readMap();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        ValueFormatterStreams.writeOptional(formatter, out);
+        out.writeNamedWriteable(format);
         out.writeBoolean(keyed);
         out.writeMap(attributes);
     }

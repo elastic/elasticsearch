@@ -57,7 +57,7 @@ public class InMemoryGeoBoundingBoxQuery extends Query {
     }
 
     public String fieldName() {
-        return indexFieldData.getFieldNames().indexName();
+        return indexFieldData.getFieldName();
     }
 
     @Override
@@ -79,12 +79,12 @@ public class InMemoryGeoBoundingBoxQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "GeoBoundingBoxFilter(" + indexFieldData.getFieldNames().indexName() + ", " + topLeft + ", " + bottomRight + ")";
+        return "GeoBoundingBoxFilter(" + indexFieldData.getFieldName() + ", " + topLeft + ", " + bottomRight + ")";
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (super.equals(obj) == false) {
+        if (sameClassAs(obj) == false) {
             return false;
         }
         InMemoryGeoBoundingBoxQuery other = (InMemoryGeoBoundingBoxQuery) obj;
@@ -95,7 +95,7 @@ public class InMemoryGeoBoundingBoxQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), fieldName(), topLeft, bottomRight);
+        return Objects.hash(classHash(), fieldName(), topLeft, bottomRight);
     }
 
     private static class Meridian180GeoBoundingBoxBits implements Bits {

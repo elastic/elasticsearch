@@ -19,17 +19,13 @@
 
 package org.elasticsearch.common.compress;
 
-import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.deflate.DeflateCompressor;
-import org.elasticsearch.common.compress.lzf.LZFCompressor;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.IOException;
 
@@ -37,78 +33,39 @@ import java.io.IOException;
  */
 public class CompressorFactory {
 
-    private static final Compressor[] compressors;
-    private static volatile Compressor defaultCompressor;
-
-    static {
-        compressors = new Compressor[] {
-                new LZFCompressor(),
-                new DeflateCompressor()
-        };
-        defaultCompressor = new DeflateCompressor();
-    }
-
-    public static void setDefaultCompressor(Compressor defaultCompressor) {
-        CompressorFactory.defaultCompressor = defaultCompressor;
-    }
-
-    public static Compressor defaultCompressor() {
-        return defaultCompressor;
-    }
+    public static final Compressor COMPRESSOR = new DeflateCompressor();
 
     public static boolean isCompressed(BytesReference bytes) {
         return compressor(bytes) != null;
     }
 
-    /**
-     * @deprecated we don't compress lucene indexes anymore and rely on lucene codecs
-     */
-    @Deprecated
-    public static boolean isCompressed(IndexInput in) throws IOException {
-        return compressor(in) != null;
-    }
-
     @Nullable
     public static Compressor compressor(BytesReference bytes) {
-        for (Compressor compressor : compressors) {
-            if (compressor.isCompressed(bytes)) {
+            if (COMPRESSOR.isCompressed(bytes)) {
                 // bytes should be either detected as compressed or as xcontent,
                 // if we have bytes that can be either detected as compressed or
                 // as a xcontent, we have a problem
                 assert XContentFactory.xContentType(bytes) == null;
-                return compressor;
+                return COMPRESSOR;
             }
-        }
 
         XContentType contentType = XContentFactory.xContentType(bytes);
         if (contentType == null) {
+            if (isAncient(bytes)) {
+                throw new IllegalStateException("unsupported compression: index was created before v2.0.0.beta1 and wasn't upgraded?");
+            }
             throw new NotXContentException("Compressor detection can only be called on some xcontent bytes or compressed xcontent bytes");
         }
 
         return null;
     }
 
-    public static Compressor compressor(ChannelBuffer buffer) {
-        for (Compressor compressor : compressors) {
-            if (compressor.isCompressed(buffer)) {
-                return compressor;
-            }
-        }
-        throw new NotCompressedException();
-    }
-
-    /**
-     * @deprecated we don't compress lucene indexes anymore and rely on lucene codecs
-     */
-    @Deprecated
-    @Nullable
-    public static Compressor compressor(IndexInput in) throws IOException {
-        for (Compressor compressor : compressors) {
-            if (compressor.isCompressed(in)) {
-                return compressor;
-            }
-        }
-        return null;
+    /** true if the bytes were compressed with LZF: only used before elasticsearch 2.0 */
+    private static boolean isAncient(BytesReference bytes) {
+        return bytes.length() >= 3 &&
+               bytes.get(0) == 'Z' &&
+               bytes.get(1) == 'V' &&
+               (bytes.get(2) == 0 || bytes.get(2) == 1);
     }
 
     /**

@@ -6,7 +6,7 @@ set of documents. In order to do so, MLT selects a set of representative terms
 of these input documents, forms a query using these terms, executes the query
 and returns the results. The user controls the input documents, how the terms
 should be selected and how the query is formed. `more_like_this` can be
-shortened to `mlt`.
+shortened to `mlt` deprecated[5.0.0,use `more_like_this` instead).
 
 The simplest use case consists of asking for documents that are similar to a
 provided piece of text. Here, we are asking for all movies that have some text
@@ -15,15 +15,19 @@ fields, limiting the number of selected terms to 12.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "more_like_this" : {
-        "fields" : ["title", "description"],
-        "like" : "Once upon a time",
-        "min_term_freq" : 1,
-        "max_query_terms" : 12
+    "query": {
+        "more_like_this" : {
+            "fields" : ["title", "description"],
+            "like" : "Once upon a time",
+            "min_term_freq" : 1,
+            "max_query_terms" : 12
+        }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 A more complicated use case consists of mixing texts with documents already
 existing in the index. In this case, the syntax to specify a document is
@@ -31,27 +35,31 @@ similar to the one used in the <<docs-multi-get,Multi GET API>>.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "more_like_this" : {
-        "fields" : ["title", "description"],
-        "like" : [
-        {
-            "_index" : "imdb",
-            "_type" : "movies",
-            "_id" : "1"
-        },
-        {
-            "_index" : "imdb",
-            "_type" : "movies",
-            "_id" : "2"
-        },
-        "and potentially some more text here as well"
-        ],
-        "min_term_freq" : 1,
-        "max_query_terms" : 12
+    "query": {
+        "more_like_this" : {
+            "fields" : ["title", "description"],
+            "like" : [
+            {
+                "_index" : "imdb",
+                "_type" : "movies",
+                "_id" : "1"
+            },
+            {
+                "_index" : "imdb",
+                "_type" : "movies",
+                "_id" : "2"
+            },
+            "and potentially some more text here as well"
+            ],
+            "min_term_freq" : 1,
+            "max_query_terms" : 12
+        }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 Finally, users can mix some texts, a chosen set of documents but also provide
 documents not necessarily present in the index. To provide documents not
@@ -59,33 +67,36 @@ present in the index, the syntax is similar to <<docs-termvectors-artificial-doc
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "more_like_this" : {
-        "fields" : ["name.first", "name.last"],
-        "like" : [
-        {
-            "_index" : "marvel",
-            "_type" : "quotes",
-            "doc" : {
-                "name": {
-                    "first": "Ben",
-                    "last": "Grimm"
-                },
-                "tweet": "You got no idea what I'd... what I'd give to be invisible."
-              }
+    "query": {
+        "more_like_this" : {
+            "fields" : ["name.first", "name.last"],
+            "like" : [
+            {
+                "_index" : "marvel",
+                "_type" : "quotes",
+                "doc" : {
+                    "name": {
+                        "first": "Ben",
+                        "last": "Grimm"
+                    },
+                    "tweet": "You got no idea what I'd... what I'd give to be invisible."
+                  }
+            },
+            {
+                "_index" : "marvel",
+                "_type" : "quotes",
+                "_id" : "2"
             }
-        },
-        {
-            "_index" : "marvel",
-            "_type" : "quotes",
-            "_id" : "2"
+            ],
+            "min_term_freq" : 1,
+            "max_query_terms" : 12
         }
-        ],
-        "min_term_freq" : 1,
-        "max_query_terms" : 12
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 ==== How it Works
 
@@ -112,32 +123,34 @@ default, but there will be no speed up on analysis for these fields.
 
 [source,js]
 --------------------------------------------------
-curl -s -XPUT 'http://localhost:9200/imdb/' -d '{
-  "mappings": {
-    "movies": {
-      "properties": {
-        "title": {
-          "type": "string",
-          "term_vector": "yes"
-         },
-         "description": {
-          "type": "string"
-        },
-        "tags": {
-          "type": "string",
-          "fields" : {
-            "raw": {
-              "type" : "string",
-              "index" : "not_analyzed",
-              "term_vector" : "yes"
+PUT /imdb
+{
+    "mappings": {
+        "movies": {
+            "properties": {
+                "title": {
+                    "type": "text",
+                    "term_vector": "yes"
+                },
+                "description": {
+                    "type": "text"
+                },
+                "tags": {
+                    "type": "text",
+                    "fields" : {
+                        "raw": {
+                            "type" : "text",
+                            "analyzer": "keyword",
+                            "term_vector" : "yes"
+                        }
+                    }
+                }
             }
-          }
         }
-      }
     }
-  }
 }
 --------------------------------------------------
+// CONSOLE
 
 ==== Parameters
 

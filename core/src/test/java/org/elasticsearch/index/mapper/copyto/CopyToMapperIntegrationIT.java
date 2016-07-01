@@ -30,6 +30,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -68,6 +69,25 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
 
     }
 
+    public void testDynamicObjectCopyTo() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("doc").startObject("properties")
+            .startObject("foo")
+                .field("type", "text")
+                .field("copy_to", "root.top.child")
+            .endObject()
+            .endObject().endObject().endObject().string();
+        assertAcked(
+            client().admin().indices().prepareCreate("test-idx")
+                .addMapping("doc", mapping)
+        );
+        client().prepareIndex("test-idx", "doc", "1")
+            .setSource("foo", "bar")
+            .get();
+        client().admin().indices().prepareRefresh("test-idx").execute().actionGet();
+        SearchResponse response = client().prepareSearch("test-idx")
+            .setQuery(QueryBuilders.termQuery("root.top.child", "bar")).get();
+        assertThat(response.getHits().totalHits(), equalTo(1L));
+    }
 
     private XContentBuilder createDynamicTemplateMapping() throws IOException {
         return XContentFactory.jsonBuilder().startObject().startObject("doc")
@@ -76,16 +96,18 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
                 .startObject().startObject("template_raw")
                 .field("match", "*_raw")
                 .field("match_mapping_type", "string")
-                .startObject("mapping").field("type", "string").field("index", "not_analyzed").endObject()
+                .startObject("mapping").field("type", "keyword").endObject()
                 .endObject().endObject()
 
                 .startObject().startObject("template_all")
                 .field("match", "*")
                 .field("match_mapping_type", "string")
-                .startObject("mapping").field("type", "string").field("copy_to", "{name}_raw").endObject()
+                .startObject("mapping").field("type", "text").field("fielddata", true)
+                .field("copy_to", "{name}_raw").endObject()
                 .endObject().endObject()
 
-                .endArray();
+                .endArray()
+                .endObject().endObject();
     }
 
 }

@@ -38,6 +38,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  *
@@ -95,10 +96,27 @@ class InternalOrder extends Terms.Order {
     public static boolean isCountDesc(Terms.Order order) {
         if (order == COUNT_DESC) {
             return true;
-        }else if (order instanceof CompoundOrder) {
+        } else if (order instanceof CompoundOrder) {
             // check if its a compound order with count desc and the tie breaker (term asc)
             CompoundOrder compoundOrder = (CompoundOrder) order;
             if (compoundOrder.orderElements.size() == 2 && compoundOrder.orderElements.get(0) == COUNT_DESC && compoundOrder.orderElements.get(1) == TERM_ASC) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean isTermOrder(Terms.Order order) {
+        if (order == TERM_ASC) {
+            return true;
+        } else if (order == TERM_DESC) {
+            return true;
+        } else if (order instanceof CompoundOrder) {
+            // check if its a compound order with only a single element ordering
+            // by term
+            CompoundOrder compoundOrder = (CompoundOrder) order;
+            if (compoundOrder.orderElements.size() == 1 && compoundOrder.orderElements.get(0) == TERM_ASC
+                    || compoundOrder.orderElements.get(0) == TERM_DESC) {
                 return true;
             }
         }
@@ -263,6 +281,23 @@ class InternalOrder extends Terms.Order {
             return new CompoundOrderComparator(orderElements, aggregator);
         }
 
+        @Override
+        public int hashCode() {
+            return Objects.hash(orderElements);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            CompoundOrder other = (CompoundOrder) obj;
+            return Objects.equals(orderElements, other.orderElements);
+        }
+
         public static class CompoundOrderComparator implements Comparator<Terms.Bucket> {
 
             private List<Terms.Order> compoundOrder;
@@ -306,7 +341,7 @@ class InternalOrder extends Terms.Order {
         }
 
         public static Terms.Order readOrder(StreamInput in) throws IOException {
-            return readOrder(in, true);
+            return readOrder(in, false);
         }
 
         public static Terms.Order readOrder(StreamInput in, boolean absoluteOrder) throws IOException {
@@ -331,5 +366,23 @@ class InternalOrder extends Terms.Order {
                     throw new RuntimeException("unknown terms order");
             }
         }
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, asc);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        InternalOrder other = (InternalOrder) obj;
+        return Objects.equals(id, other.id)
+                && Objects.equals(asc, other.asc);
     }
 }

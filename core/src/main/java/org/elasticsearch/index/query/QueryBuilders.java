@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -26,8 +27,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.index.search.MatchQuery;
-import org.elasticsearch.indices.cache.query.terms.TermsLookup;
+import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.Template;
@@ -56,7 +56,7 @@ public abstract class QueryBuilders {
      * @param text The query text (to be analyzed).
      */
     public static MatchQueryBuilder matchQuery(String name, Object text) {
-        return new MatchQueryBuilder(name, text).type(MatchQuery.Type.BOOLEAN);
+        return new MatchQueryBuilder(name, text);
     }
 
     /**
@@ -85,8 +85,8 @@ public abstract class QueryBuilders {
      * @param name The field name.
      * @param text The query text (to be analyzed).
      */
-    public static MatchQueryBuilder matchPhraseQuery(String name, Object text) {
-        return new MatchQueryBuilder(name, text).type(MatchQuery.Type.PHRASE);
+    public static MatchPhraseQueryBuilder matchPhraseQuery(String name, Object text) {
+        return new MatchPhraseQueryBuilder(name, text);
     }
 
     /**
@@ -95,8 +95,8 @@ public abstract class QueryBuilders {
      * @param name The field name.
      * @param text The query text (to be analyzed).
      */
-    public static MatchQueryBuilder matchPhrasePrefixQuery(String name, Object text) {
-        return new MatchQueryBuilder(name, text).type(MatchQuery.Type.PHRASE_PREFIX);
+    public static MatchPhrasePrefixQueryBuilder matchPhrasePrefixQuery(String name, Object text) {
+        return new MatchPhrasePrefixQueryBuilder(name, text);
     }
 
     /**
@@ -199,7 +199,14 @@ public abstract class QueryBuilders {
      *
      * @param name  The name of the field
      * @param value The value of the term
+     *
+     * @deprecated Fuzzy queries are not useful enough and will be removed with Elasticsearch 4.0. In most cases you may want to use
+     * a match query with the fuzziness parameter for strings or range queries for numeric and date fields.
+     *
+     * @see #matchQuery(String, Object)
+     * @see #rangeQuery(String)
      */
+    @Deprecated
     public static FuzzyQueryBuilder fuzzyQuery(String name, String value) {
         return new FuzzyQueryBuilder(name, value);
     }
@@ -209,7 +216,14 @@ public abstract class QueryBuilders {
      *
      * @param name  The name of the field
      * @param value The value of the term
+     *
+     * @deprecated Fuzzy queries are not useful enough and will be removed with Elasticsearch 4.0. In most cases you may want to use
+     * a match query with the fuzziness parameter for strings or range queries for numeric and date fields.
+     *
+     * @see #matchQuery(String, Object)
+     * @see #rangeQuery(String)
      */
+    @Deprecated
     public static FuzzyQueryBuilder fuzzyQuery(String name, Object value) {
         return new FuzzyQueryBuilder(name, value);
     }
@@ -469,29 +483,39 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * Constructs a new NON scoring child query, with the child type and the query to run on the child documents. The
+     * Constructs a new has_child query, with the child type and the query to run on the child documents. The
      * results of this query are the parent docs that those child docs matched.
      *
-     * @param type  The child type.
-     * @param query The query.
+     * @param type      The child type.
+     * @param query     The query.
+     * @param scoreMode How the scores from the children hits should be aggregated into the parent hit.
      */
-    public static HasChildQueryBuilder hasChildQuery(String type, QueryBuilder query) {
-        return new HasChildQueryBuilder(type, query);
+    public static HasChildQueryBuilder hasChildQuery(String type, QueryBuilder query, ScoreMode scoreMode) {
+        return new HasChildQueryBuilder(type, query, scoreMode);
     }
 
     /**
-     * Constructs a new NON scoring parent query, with the parent type and the query to run on the parent documents. The
+     * Constructs a new parent query, with the parent type and the query to run on the parent documents. The
      * results of this query are the children docs that those parent docs matched.
      *
-     * @param type  The parent type.
-     * @param query The query.
+     * @param type      The parent type.
+     * @param query     The query.
+     * @param score     Whether the score from the parent hit should propogate to the child hit
      */
-    public static HasParentQueryBuilder hasParentQuery(String type, QueryBuilder query) {
-        return new HasParentQueryBuilder(type, query);
+    public static HasParentQueryBuilder hasParentQuery(String type, QueryBuilder query, boolean score) {
+        return new HasParentQueryBuilder(type, query, score);
     }
 
-    public static NestedQueryBuilder nestedQuery(String path, QueryBuilder query) {
-        return new NestedQueryBuilder(path, query);
+    /**
+     * Constructs a new parent id query that returns all child documents of the specified type that
+     * point to the specified id.
+     */
+    public static ParentIdQueryBuilder parentId(String type, String id) {
+        return new ParentIdQueryBuilder(type, id);
+    }
+
+    public static NestedQueryBuilder nestedQuery(String path, QueryBuilder query, ScoreMode scoreMode) {
+        return new NestedQueryBuilder(path, query, scoreMode);
     }
 
     /**
@@ -565,10 +589,14 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * A query that will execute the wrapped query only for the specified indices, and "match_all" when
-     * it does not match those indices.
+     * A query that will execute the wrapped query only for the specified
+     * indices, and "match_all" when it does not match those indices.
+     *
+     * @deprecated instead search on the `_index` field
      */
+    @Deprecated
     public static IndicesQueryBuilder indicesQuery(QueryBuilder queryBuilder, String... indices) {
+        // TODO remove this method in 6.0
         return new IndicesQueryBuilder(queryBuilder, indices);
     }
 
@@ -604,14 +632,14 @@ public abstract class QueryBuilders {
      * Facilitates creating template query requests using an inline script
      */
     public static TemplateQueryBuilder templateQuery(String template, Map<String, Object> vars) {
-        return new TemplateQueryBuilder(template, vars);
+        return new TemplateQueryBuilder(new Template(template, ScriptService.ScriptType.INLINE, null, null, vars));
     }
 
     /**
      * Facilitates creating template query requests
      */
     public static TemplateQueryBuilder templateQuery(String template, ScriptService.ScriptType templateType, Map<String, Object> vars) {
-        return new TemplateQueryBuilder(template, templateType, vars);
+        return new TemplateQueryBuilder(new Template(template, templateType, null, null, vars));
     }
 
     /**
@@ -808,27 +836,6 @@ public abstract class QueryBuilders {
      */
     public static ExistsQueryBuilder existsQuery(String name) {
         return new ExistsQueryBuilder(name);
-    }
-
-    /**
-     * A filter to filter only documents where a field does not exists in them.
-     * @param name the field to query
-     */
-    public static MissingQueryBuilder missingQuery(String name) {
-        return missingQuery(name, MissingQueryBuilder.DEFAULT_NULL_VALUE, MissingQueryBuilder.DEFAULT_EXISTENCE_VALUE);
-    }
-
-    /**
-     * A filter to filter only documents where a field does not exists in them.
-     * @param name the field to query
-     * @param nullValue should the missing filter automatically include fields with null value configured in the
-     * mappings. Defaults to <tt>false</tt>.
-     * @param existence should the missing filter include documents where the field doesn't exist in the docs.
-     * Defaults to <tt>true</tt>.
-     * @throws IllegalArgumentException when both <tt>existence</tt> and <tt>nullValue</tt> are set to false
-     */
-    public static MissingQueryBuilder missingQuery(String name, boolean nullValue, boolean existence) {
-        return new MissingQueryBuilder(name, nullValue, existence);
     }
 
     private QueryBuilders() {

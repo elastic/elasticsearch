@@ -24,6 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.QueryScorer;
 import org.apache.lucene.search.highlight.WeightedSpanTerm;
 import org.apache.lucene.search.highlight.WeightedSpanTermExtractor;
+import org.apache.lucene.spatial.geopoint.search.GeoPointInBBoxQuery;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 
@@ -78,15 +79,21 @@ public final class CustomQueryScorer extends QueryScorer {
                                            Map<String, WeightedSpanTerm> terms) throws IOException {
             if (query instanceof FunctionScoreQuery) {
                 query = ((FunctionScoreQuery) query).getSubQuery();
-                extract(query, query.getBoost(), terms);
+                extract(query, 1F, terms);
             } else if (query instanceof FiltersFunctionScoreQuery) {
                 query = ((FiltersFunctionScoreQuery) query).getSubQuery();
-                extract(query, query.getBoost(), terms);
-            } else {
-                extractWeightedTerms(terms, query, query.getBoost());
+                extract(query, 1F, terms);
+            } else if (terms.isEmpty()) {
+                extractWeightedTerms(terms, query, 1F);
             }
         }
 
+        protected void extract(Query query, float boost, Map<String, WeightedSpanTerm> terms) throws IOException {
+            // skip all geo queries, see https://issues.apache.org/jira/browse/LUCENE-7293 and
+            // https://github.com/elastic/elasticsearch/issues/17537
+            if (query instanceof GeoPointInBBoxQuery == false) {
+                super.extract(query, boost, terms);
+            }
+        }
     }
-
 }

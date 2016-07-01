@@ -20,17 +20,16 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.search.SearchParseException;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativeParser;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -62,10 +61,10 @@ public class BucketHelpers {
          * @param text    GapPolicy in string format (e.g. "ignore")
          * @return        GapPolicy enum
          */
-        public static GapPolicy parse(SearchContext context, String text, XContentLocation tokenLocation) {
+        public static GapPolicy parse(QueryParseContext context, String text, XContentLocation tokenLocation) {
             GapPolicy result = null;
             for (GapPolicy policy : values()) {
-                if (context.parseFieldMatcher().match(text, policy.parseField)) {
+                if (context.getParseFieldMatcher().match(text, policy.parseField)) {
                     if (result == null) {
                         result = policy;
                     } else {
@@ -79,7 +78,7 @@ public class BucketHelpers {
                 for (GapPolicy policy : values()) {
                     validNames.add(policy.getName());
                 }
-                throw new SearchParseException(context, "Invalid gap policy: [" + text + "], accepted values: " + validNames, tokenLocation);
+                throw new ParsingException(tokenLocation, "Invalid gap policy: [" + text + "], accepted values: " + validNames);
             }
             return result;
         }
@@ -157,7 +156,7 @@ public class BucketHelpers {
         try {
             Object propertyValue = bucket.getProperty(agg.getName(), aggPathAsList);
             if (propertyValue == null) {
-                throw new AggregationExecutionException(DerivativeParser.BUCKETS_PATH.getPreferredName()
+                throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
                         + " must reference either a number value or a single value numeric metric aggregation");
             } else {
                 double value;
@@ -166,7 +165,7 @@ public class BucketHelpers {
                 } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
                     value = ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
                 } else {
-                    throw new AggregationExecutionException(DerivativeParser.BUCKETS_PATH.getPreferredName()
+                    throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
                             + " must reference either a number value or a single value numeric metric aggregation, got: "
                             + propertyValue.getClass().getCanonicalName());
                 }

@@ -15,20 +15,20 @@ Will return, for example:
 ["source","js",subs="attributes,callouts"]
 --------------------------------------------------
 {
-   "timestamp": 1439326129256,
+   "timestamp": 1459427693515,
    "cluster_name": "elasticsearch",
    "status": "green",
    "indices": {
-      "count": 3,
+      "count": 2,
       "shards": {
-         "total": 35,
-         "primaries": 15,
-         "replication": 1.333333333333333,
+         "total": 10,
+         "primaries": 10,
+         "replication": 0,
          "index": {
             "shards": {
-               "min": 10,
-               "max": 15,
-               "avg": 11.66666666666666
+               "min": 5,
+               "max": 5,
+               "avg": 5
             },
             "primaries": {
                "min": 5,
@@ -36,19 +36,19 @@ Will return, for example:
                "avg": 5
             },
             "replication": {
-               "min": 1,
-               "max": 2,
-               "avg": 1.3333333333333333
+               "min": 0,
+               "max": 0,
+               "avg": 0
             }
          }
       },
       "docs": {
-         "count": 2,
+         "count": 10,
          "deleted": 0
       },
       "store": {
-         "size": "5.6kb",
-         "size_in_bytes": 5770,
+         "size": "16.2kb",
+         "size_in_bytes": 16684,
          "throttle_time": "0s",
          "throttle_time_in_millis": 0
       },
@@ -57,135 +57,112 @@ Will return, for example:
          "memory_size_in_bytes": 0,
          "evictions": 0
       },
-      "filter_cache": {
+      "query_cache": {
          "memory_size": "0b",
          "memory_size_in_bytes": 0,
+         "total_count": 0,
+         "hit_count": 0,
+         "miss_count": 0,
+         "cache_size": 0,
+         "cache_count": 0,
          "evictions": 0
-      },
-      "id_cache": {
-         "memory_size": "0b",
-         "memory_size_in_bytes": 0
       },
       "completion": {
          "size": "0b",
          "size_in_bytes": 0
       },
       "segments": {
-         "count": 2,
-         "memory": "6.4kb",
-         "memory_in_bytes": 6596,
+         "count": 4,
+         "memory": "8.6kb",
+         "memory_in_bytes": 8898,
+         "terms_memory": "6.3kb",
+         "terms_memory_in_bytes": 6522,
+         "stored_fields_memory": "1.2kb",
+         "stored_fields_memory_in_bytes": 1248,
+         "term_vectors_memory": "0b",
+         "term_vectors_memory_in_bytes": 0,
+         "norms_memory": "384b",
+         "norms_memory_in_bytes": 384,
+         "doc_values_memory": "744b",
+         "doc_values_memory_in_bytes": 744,
          "index_writer_memory": "0b",
          "index_writer_memory_in_bytes": 0,
-         "index_writer_max_memory": "275.7mb",
-         "index_writer_max_memory_in_bytes": 289194639,
          "version_map_memory": "0b",
          "version_map_memory_in_bytes": 0,
          "fixed_bit_set": "0b",
-         "fixed_bit_set_memory_in_bytes": 0
+         "fixed_bit_set_memory_in_bytes": 0,
+         "file_sizes": {}
       },
-      "percolate": {
-         "total": 0,
-         "get_time": "0s",
-         "time_in_millis": 0,
-         "current": 0,
-         "memory_size_in_bytes": -1,
-         "memory_size": "-1b",
-         "queries": 0
+      "percolator": {
+         "num_queries": 0
       }
    },
    "nodes": {
       "count": {
-         "total": 2,
-         "master_only": 0,
-         "data_only": 0,
-         "master_data": 2,
-         "client": 0
+         "total": 1,
+         "data": 1,
+         "coordinating_only": 0,
+         "master": 1,
+         "ingest": 1
       },
       "versions": [
          "{version}"
       ],
       "os": {
-         "available_processors": 4,
-         "mem": {
-            "total": "8gb",
-            "total_in_bytes": 8589934592
-         },
+         "available_processors": 8,
+         "allocated_processors": 8,
          "names": [
             {
                "name": "Mac OS X",
-               "count": 1
-            }
-         ],
-         "cpu": [
-            {
-               "vendor": "Intel",
-               "model": "MacBookAir5,2",
-               "mhz": 2000,
-               "total_cores": 4,
-               "total_sockets": 4,
-               "cores_per_socket": 16,
-               "cache_size": "256b",
-               "cache_size_in_bytes": 256,
                "count": 1
             }
          ]
       },
       "process": {
          "cpu": {
-            "percent": 3
+            "percent": 9
          },
          "open_file_descriptors": {
-            "min": 200,
-            "max": 346,
-            "avg": 273
+            "min": 268,
+            "max": 268,
+            "avg": 268
          }
       },
       "jvm": {
-         "max_uptime": "24s",
-         "max_uptime_in_millis": 24054,
+         "max_uptime": "13.7s",
+         "max_uptime_in_millis": 13737,
          "versions": [
             {
-               "version": "1.6.0_45",
+               "version": "1.8.0_74",
                "vm_name": "Java HotSpot(TM) 64-Bit Server VM",
-               "vm_version": "20.45-b01-451",
-               "vm_vendor": "Apple Inc.",
-               "count": 2
+               "vm_version": "25.74-b02",
+               "vm_vendor": "Oracle Corporation",
+               "count": 1
             }
          ],
          "mem": {
-            "heap_used": "38.3mb",
-            "heap_used_in_bytes": 40237120,
-            "heap_max": "1.9gb",
-            "heap_max_in_bytes": 2130051072
+            "heap_used": "57.5mb",
+            "heap_used_in_bytes": 60312664,
+            "heap_max": "989.8mb",
+            "heap_max_in_bytes": 1037959168
          },
-         "threads": 89
+         "threads": 90
       },
-      "fs":
-         {
-            "total": "232.9gb",
-            "total_in_bytes": 250140434432,
-            "free": "31.3gb",
-            "free_in_bytes": 33705881600,
-            "available": "31.1gb",
-            "available_in_bytes": 33443737600,
-            "disk_reads": 21202753,
-            "disk_writes": 27028840,
-            "disk_io_op": 48231593,
-            "disk_read_size": "528gb",
-            "disk_read_size_in_bytes": 566980806656,
-            "disk_write_size": "617.9gb",
-            "disk_write_size_in_bytes": 663525366784,
-            "disk_io_size": "1145.9gb",
-            "disk_io_size_in_bytes": 1230506173440
-       },
+      "fs": {
+         "total": "200.6gb",
+         "total_in_bytes": 215429193728,
+         "free": "32.6gb",
+         "free_in_bytes": 35064553472,
+         "available": "32.4gb",
+         "available_in_bytes": 34802409472
+      },
       "plugins": [
          // all plugins installed on nodes
          {
-            "name": "inquisitor",
-            "description": "",
-            "url": "/_plugin/inquisitor/",
-            "jvm": false,
-            "site": true
+            "name": "analysis-stempel",
+            "version": "{version}",
+            "description": "The Stempel (Polish) Analysis plugin integrates Lucene stempel (polish) analysis module into elasticsearch.",
+            "classname": "org.elasticsearch.plugin.analysis.stempel.AnalysisStempelPlugin"
          }
       ]
    }

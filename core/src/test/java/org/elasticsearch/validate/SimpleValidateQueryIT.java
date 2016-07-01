@@ -59,7 +59,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         ensureGreen();
         client().admin().indices().preparePutMapping("test").setType("type1")
                 .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("foo").field("type", "string").endObject()
+                        .startObject("foo").field("type", "text").endObject()
                         .startObject("bar").field("type", "integer").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
@@ -83,16 +83,16 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         ensureGreen();
         client().admin().indices().preparePutMapping("test").setType("type1")
                 .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("foo").field("type", "string").endObject()
+                        .startObject("foo").field("type", "text").endObject()
                         .startObject("bar").field("type", "integer").endObject()
-                        .startObject("baz").field("type", "string").field("analyzer", "snowball").endObject()
+                        .startObject("baz").field("type", "text").field("analyzer", "snowball").endObject()
                         .startObject("pin").startObject("properties").startObject("location").field("type", "geo_point").endObject().endObject().endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
         refresh();
 
-        for (Client client : internalCluster()) {
+        for (Client client : internalCluster().getClients()) {
             ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
                     .setQuery(QueryBuilders.wrapperQuery("foo".getBytes(StandardCharsets.UTF_8)))
                     .setExplain(true)
@@ -104,8 +104,8 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
         }
 
-        for (Client client : internalCluster()) {
-                ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
+        for (Client client : internalCluster().getClients()) {
+            ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
                     .setQuery(QueryBuilders.queryStringQuery("foo"))
                     .setExplain(true)
                     .execute().actionGet();
@@ -118,7 +118,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
     // Issue #3629
     public void testExplainDateRangeInQueryString() {
-        assertAcked(prepareCreate("test").setSettings(Settings.settingsBuilder()
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put("index.number_of_shards", 1)));
 
@@ -164,7 +164,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
     public void testExplainFilteredAlias() {
         assertAcked(prepareCreate("test")
-                .addMapping("test", "field", "type=string")
+                .addMapping("test", "field", "type=text")
                 .addAlias(new Alias("alias").filter(QueryBuilders.termQuery("field", "value1"))));
         ensureGreen();
 
@@ -178,12 +178,12 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
     public void testExplainMatchPhrasePrefix() {
         assertAcked(prepareCreate("test").setSettings(
-                Settings.settingsBuilder().put(indexSettings())
+                Settings.builder().put(indexSettings())
                         .put("index.analysis.filter.syns.type", "synonym")
                         .putArray("index.analysis.filter.syns.synonyms", "one,two")
                         .put("index.analysis.analyzer.syns.tokenizer", "standard")
                         .putArray("index.analysis.analyzer.syns.filter", "syns")
-                    ).addMapping("test", "field","type=string,analyzer=syns"));
+                    ).addMapping("test", "field","type=text,analyzer=syns"));
         ensureGreen();
 
         ValidateQueryResponse validateQueryResponse = client().admin().indices().prepareValidateQuery("test")
@@ -214,7 +214,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
     public void testExplainWithRewriteValidateQuery() throws Exception {
         client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field", "type=string,analyzer=whitespace")
+                .addMapping("type1", "field", "type=text,analyzer=whitespace")
                 .setSettings(SETTING_NUMBER_OF_SHARDS, 1).get();
         client().prepareIndex("test", "type1", "1").setSource("field", "quick lazy huge brown pidgin").get();
         client().prepareIndex("test", "type1", "2").setSource("field", "the quick brown fox").get();
@@ -242,9 +242,9 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
         // fuzzy queries
         assertExplanation(QueryBuilders.fuzzyQuery("field", "the").fuzziness(Fuzziness.fromEdits(2)),
-                containsString("field:the field:tree^0.3333333"), true);
+                containsString("field:the (field:tree)^0.3333333"), true);
         assertExplanation(QueryBuilders.fuzzyQuery("field", "jump"),
-                containsString("field:jumps^0.75"), true);
+                containsString("(field:jumps)^0.75"), true);
 
         // more like this queries
         assertExplanation(QueryBuilders.moreLikeThisQuery(new String[] { "field" }, null, MoreLikeThisQueryBuilder.ids("1"))

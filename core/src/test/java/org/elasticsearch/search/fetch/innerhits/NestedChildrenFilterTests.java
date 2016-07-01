@@ -21,7 +21,7 @@ package org.elasticsearch.search.fetch.innerhits;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.IntField;
+import org.apache.lucene.document.LegacyIntField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -66,7 +66,7 @@ public class NestedChildrenFilterTests extends ESTestCase {
 
             Document parenDoc = new Document();
             parenDoc.add(new StringField("type", "parent", Field.Store.NO));
-            parenDoc.add(new IntField("num_child_docs", numChildDocs, Field.Store.YES));
+            parenDoc.add(new LegacyIntField("num_child_docs", numChildDocs, Field.Store.YES));
             docs.add(parenDoc);
             writer.addDocuments(docs);
         }
@@ -81,7 +81,7 @@ public class NestedChildrenFilterTests extends ESTestCase {
         int checkedParents = 0;
         final Weight parentsWeight = searcher.createNormalizedWeight(new TermQuery(new Term("type", "parent")), false);
         for (LeafReaderContext leaf : reader.leaves()) {
-            DocIdSetIterator parents = parentsWeight.scorer(leaf);
+            DocIdSetIterator parents = parentsWeight.scorer(leaf).iterator();
             for (int parentDoc = parents.nextDoc(); parentDoc != DocIdSetIterator.NO_MORE_DOCS ; parentDoc = parents.nextDoc()) {
                 int expectedChildDocs = leaf.reader().document(parentDoc).getField("num_child_docs").numericValue().intValue();
                 hitContext.reset(null, leaf, parentDoc, searcher);

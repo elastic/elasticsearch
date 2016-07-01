@@ -19,23 +19,26 @@
 
 package org.elasticsearch.index.query;
 
-import com.spatial4j.core.shape.Point;
-
-import org.apache.lucene.search.GeoPointDistanceQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.GeoUtils;
+import org.apache.lucene.spatial.geopoint.search.GeoPointDistanceQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
+import org.locationtech.spatial4j.shape.Point;
 
 import java.io.IOException;
 
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDistanceQueryBuilder> {
 
@@ -74,6 +77,10 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         if (randomBoolean()) {
             qb.geoDistance(randomFrom(GeoDistance.values()));
         }
+
+        if (randomBoolean()) {
+            qb.ignoreUnmapped(randomBoolean());
+        }
         return qb;
     }
 
@@ -82,11 +89,11 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
             if (randomBoolean()) {
                 new GeoDistanceQueryBuilder("");
             } else {
-                new GeoDistanceQueryBuilder(null);
+                new GeoDistanceQueryBuilder((String) null);
             }
             fail("must not be null or empty");
         } catch (IllegalArgumentException ex) {
-            // expected
+            assertThat(ex.getMessage(), equalTo("fieldName must not be null or empty"));
         }
 
         GeoDistanceQueryBuilder query = new GeoDistanceQueryBuilder("fieldName");
@@ -98,7 +105,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
             }
             fail("must not be null or empty");
         } catch (IllegalArgumentException ex) {
-            // expected
+            assertThat(ex.getMessage(), equalTo("distance must not be null or empty"));
         }
 
         try {
@@ -107,44 +114,52 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
             } else {
                 query.distance(null, DistanceUnit.DEFAULT);
             }
-            fail("must not be null or empty");
+            fail("distance must not be null or empty");
         } catch (IllegalArgumentException ex) {
-            // expected
+            assertThat(ex.getMessage(), equalTo("distance must not be null or empty"));
         }
 
         try {
-            query.distance("1", null);
-            fail("unit must not be null");
+            if (randomBoolean()) {
+                query.distance("1", null);
+            } else {
+                query.distance(1, null);
+            }
+            fail("distance must not be null");
         } catch (IllegalArgumentException ex) {
-            // expected
+            assertThat(ex.getMessage(), equalTo("distance unit must not be null"));
         }
 
         try {
-            query.distance(1, null);
-            fail("unit must not be null");
+            query.distance(randomIntBetween(Integer.MIN_VALUE, 0), DistanceUnit.DEFAULT);
+            fail("distance must be greater than zero");
         } catch (IllegalArgumentException ex) {
-            // expected
+            assertThat(ex.getMessage(), equalTo("distance must be greater than zero"));
         }
 
         try {
-            query.geohash(null);
+            if (randomBoolean()) {
+                query.geohash(null);
+            } else {
+                query.geohash("");
+            }
             fail("geohash must not be null");
         } catch (IllegalArgumentException ex) {
-            // expected
+            assertThat(ex.getMessage(), equalTo("geohash must not be null or empty"));
         }
 
         try {
             query.geoDistance(null);
             fail("geodistance must not be null");
         } catch (IllegalArgumentException ex) {
-            // expected
+            assertThat(ex.getMessage(), equalTo("geoDistance must not be null"));
         }
 
         try {
             query.optimizeBbox(null);
             fail("optimizeBbox must not be null");
         } catch (IllegalArgumentException ex) {
-            // expected
+            assertThat(ex.getMessage(), equalTo("optimizeBbox must not be null"));
         }
     }
 
@@ -197,6 +212,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         double distance = queryBuilder.distance();
         if (queryBuilder.geoDistance() != null) {
             distance = queryBuilder.geoDistance().normalize(distance, DistanceUnit.DEFAULT);
+            distance = org.elasticsearch.common.geo.GeoUtils.maxRadialDistance(queryBuilder.point(), distance);
             assertThat(geoQuery.getRadiusMeters(), closeTo(distance, GeoUtils.TOLERANCE));
         }
     }
@@ -368,7 +384,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     private void assertGeoDistanceRangeQuery(String query, double lat, double lon, double distance, DistanceUnit distanceUnit) throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        Version version = queryShardContext().indexVersionCreated();
+        Version version = createShardContext().indexVersionCreated();
         if (version.before(Version.V_2_2_0)) {
             GeoDistanceRangeQuery q = (GeoDistanceRangeQuery) parsedQuery;
             assertThat(q.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
@@ -383,5 +399,79 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
             assertThat(q.getCenterLon(), closeTo(lon, 1E-5D));
             assertThat(q.getRadiusMeters(), closeTo(distanceUnit.convert(distance, DistanceUnit.MILES), 1E-5D));
         }
+    }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" +
+                "  \"geo_distance\" : {\n" +
+                "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
+                "    \"distance\" : 12000.0,\n" +
+                "    \"distance_type\" : \"sloppy_arc\",\n" +
+                "    \"optimize_bbox\" : \"memory\",\n" +
+                "    \"validation_method\" : \"STRICT\",\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        GeoDistanceQueryBuilder parsed = (GeoDistanceQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+        assertEquals(json, -70.0, parsed.point().getLon(), 0.0001);
+        assertEquals(json, 40.0, parsed.point().getLat(), 0.0001);
+        assertEquals(json, 12000.0, parsed.distance(), 0.0001);
+    }
+
+    public void testFromCoerceFails() throws IOException {
+        String json =
+                "{\n" +
+                "  \"geo_distance\" : {\n" +
+                "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
+                "    \"distance\" : 12000.0,\n" +
+                "    \"distance_type\" : \"sloppy_arc\",\n" +
+                "    \"optimize_bbox\" : \"memory\",\n" +
+                "    \"coerce\" : true,\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
+        assertTrue(e.getMessage().startsWith("Deprecated field "));
+    }
+
+    public void testFromJsonIgnoreMalformedFails() throws IOException {
+        String json =
+                "{\n" +
+                "  \"geo_distance\" : {\n" +
+                "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
+                "    \"distance\" : 12000.0,\n" +
+                "    \"distance_type\" : \"sloppy_arc\",\n" +
+                "    \"optimize_bbox\" : \"memory\",\n" +
+                "    \"ignore_malformed\" : true,\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
+        assertTrue(e.getMessage().startsWith("Deprecated field "));
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        super.testMustRewrite();
+    }
+
+    public void testIgnoreUnmapped() throws IOException {
+        final GeoDistanceQueryBuilder queryBuilder = new GeoDistanceQueryBuilder("unmapped").point(0.0, 0.0).distance("20m");
+        queryBuilder.ignoreUnmapped(true);
+        QueryShardContext shardContext = createShardContext();
+        Query query = queryBuilder.toQuery(shardContext);
+        assertThat(query, notNullValue());
+        assertThat(query, instanceOf(MatchNoDocsQuery.class));
+
+        final GeoDistanceQueryBuilder failingQueryBuilder = new GeoDistanceQueryBuilder("unmapped").point(0.0, 0.0).distance("20m");
+        failingQueryBuilder.ignoreUnmapped(false);
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(shardContext));
+        assertThat(e.getMessage(), containsString("failed to find geo_point field [unmapped]"));
     }
 }

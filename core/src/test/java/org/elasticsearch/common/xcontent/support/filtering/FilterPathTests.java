@@ -21,7 +21,12 @@ package org.elasticsearch.common.xcontent.support.filtering;
 
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isEmptyString;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class FilterPathTests extends ESTestCase {
 

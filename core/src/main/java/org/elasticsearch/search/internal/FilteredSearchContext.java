@@ -20,27 +20,28 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseContext;
@@ -49,8 +50,10 @@ import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.List;
@@ -62,7 +65,7 @@ public abstract class FilteredSearchContext extends SearchContext {
 
     public FilteredSearchContext(SearchContext in) {
         //inner_hits in percolator ends up with null inner search context
-        super(in == null ? ParseFieldMatcher.EMPTY : in.parseFieldMatcher(), in);
+        super(in == null ? ParseFieldMatcher.EMPTY : in.parseFieldMatcher());
         this.in = in;
     }
 
@@ -102,11 +105,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext searchType(SearchType searchType) {
-        return in.searchType(searchType);
-    }
-
-    @Override
     public SearchShardTarget shardTarget() {
         return in.shardTarget();
     }
@@ -114,16 +112,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public int numberOfShards() {
         return in.numberOfShards();
-    }
-
-    @Override
-    public boolean hasTypes() {
-        return in.hasTypes();
-    }
-
-    @Override
-    public String[] types() {
-        return in.types();
     }
 
     @Override
@@ -174,11 +162,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public void highlight(SearchContextHighlight highlight) {
         in.highlight(highlight);
-    }
-
-    @Override
-    public void innerHits(InnerHitsContext innerHitsContext) {
-        in.innerHits(innerHitsContext);
     }
 
     @Override
@@ -267,11 +250,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public PageCacheRecycler pageCacheRecycler() {
-        return in.pageCacheRecycler();
-    }
-
-    @Override
     public BigArrays bigArrays() {
         return in.bigArrays();
     }
@@ -287,13 +265,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public long timeoutInMillis() {
-        return in.timeoutInMillis();
+    public TimeValue timeout() {
+        return in.timeout();
     }
 
     @Override
-    public void timeoutInMillis(long timeoutInMillis) {
-        in.timeoutInMillis(timeoutInMillis);
+    public void timeout(TimeValue timeout) {
+        in.timeout(timeout);
     }
 
     @Override
@@ -317,12 +295,12 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext sort(Sort sort) {
+    public SearchContext sort(SortAndFormats sort) {
         return in.sort(sort);
     }
 
     @Override
-    public Sort sort() {
+    public SortAndFormats sort() {
         return in.sort();
     }
 
@@ -334,6 +312,16 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public boolean trackScores() {
         return in.trackScores();
+    }
+
+    @Override
+    public SearchContext searchAfter(FieldDoc searchAfter) {
+        return in.searchAfter(searchAfter);
+    }
+
+    @Override
+    public FieldDoc searchAfter() {
+        return in.searchAfter();
     }
 
     @Override
@@ -492,13 +480,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public MappedFieldType smartNameFieldType(String name) {
-        return in.smartNameFieldType(name);
+    public FetchPhase fetchPhase() {
+        return in.fetchPhase();
     }
 
     @Override
-    public MappedFieldType smartNameFieldTypeFromAnyType(String name) {
-        return in.smartNameFieldTypeFromAnyType(name);
+    public MappedFieldType smartNameFieldType(String name) {
+        return in.smartNameFieldType(name);
     }
 
     @Override
@@ -517,8 +505,15 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public Profilers getProfilers() {
+        return in.getProfilers();
+    }
+
+    @Override
     public Map<Class<?>, Collector> queryCollectors() { return in.queryCollectors();}
 
     @Override
-    public QueryCache getQueryCache() { return in.getQueryCache();}
+    public QueryShardContext getQueryShardContext() {
+        return in.getQueryShardContext();
+    }
 }

@@ -29,9 +29,9 @@ import java.util.List;
 public interface GeoHashGrid extends MultiBucketsAggregation {
 
     /**
-     * A bucket that is associated with a {@code geohash_grid} cell. The key of the bucket is the {@cod geohash} of the cell
+     * A bucket that is associated with a {@code geohash_grid} cell. The key of the bucket is the {@code geohash} of the cell
      */
-    public static interface Bucket extends MultiBucketsAggregation.Bucket {
+    interface Bucket extends MultiBucketsAggregation.Bucket {
     }
 
     /**

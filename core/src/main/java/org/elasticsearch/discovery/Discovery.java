@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.node.service.NodeService;
 
 import java.io.IOException;
 
@@ -39,16 +38,7 @@ public interface Discovery extends LifecycleComponent<Discovery> {
 
     DiscoveryNode localNode();
 
-    void addListener(InitialStateDiscoveryListener listener);
-
-    void removeListener(InitialStateDiscoveryListener listener);
-
     String nodeDescription();
-
-    /**
-     * Here as a hack to solve dep injection problem...
-     */
-    void setNodeService(@Nullable NodeService nodeService);
 
     /**
      * Another hack to solve dep injection problem..., note, this will be called before
@@ -92,5 +82,17 @@ public interface Discovery extends LifecycleComponent<Discovery> {
      * @return stats about the discovery
      */
     DiscoveryStats stats();
+
+    DiscoverySettings getDiscoverySettings();
+
+    /**
+     * Triggers the first join cycle
+     */
+    void startInitialJoin();
+
+    /***
+     * @return the current value of minimum master nodes, or -1 for not set
+     */
+    int getMinimumMasterNodes();
 
 }

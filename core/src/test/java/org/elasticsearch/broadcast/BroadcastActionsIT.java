@@ -58,7 +58,7 @@ public class BroadcastActionsIT extends ESIntegTestCase {
             SearchResponse countResponse = client().prepareSearch("test").setSize(0)
                     .setQuery(termQuery("_type", "type1"))
                     .get();
-            assertThat(countResponse.getHits().totalHits(), equalTo(2l));
+            assertThat(countResponse.getHits().totalHits(), equalTo(2L));
             assertThat(countResponse.getTotalShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));

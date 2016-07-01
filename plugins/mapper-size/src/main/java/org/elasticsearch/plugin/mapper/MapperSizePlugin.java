@@ -19,29 +19,18 @@
 
 package org.elasticsearch.plugin.mapper;
 
-import org.elasticsearch.index.IndexService;
+import java.util.Collections;
+import java.util.Map;
+
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.size.SizeFieldMapper;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 
-import java.io.Closeable;
-import java.util.List;
-
-public class MapperSizePlugin extends Plugin {
+public class MapperSizePlugin extends Plugin implements MapperPlugin {
 
     @Override
-    public String name() {
-        return "mapper-size";
+    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+        return Collections.singletonMap(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser());
     }
-
-    @Override
-    public String description() {
-        return "A mapper that allows document to record their uncompressed size";
-    }
-
-    @Override
-    public void onIndexService(IndexService indexService) {
-        indexService.mapperService().documentMapperParser().putRootTypeParser(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser());
-    }
-
-
 }

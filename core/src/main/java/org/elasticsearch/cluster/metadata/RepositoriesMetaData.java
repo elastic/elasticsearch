@@ -154,7 +154,7 @@ public class RepositoriesMetaData extends AbstractDiffable<Custom> implements Me
                             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                                 throw new ElasticsearchParseException("failed to parse repository [{}], incompatible params", name);
                             }
-                            settings = Settings.settingsBuilder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())).build();
+                            settings = Settings.builder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())).build();
                         } else {
                             throw new ElasticsearchParseException("failed to parse repository [{}], unknown field [{}]", name, currentFieldName);
                         }
@@ -197,7 +197,7 @@ public class RepositoriesMetaData extends AbstractDiffable<Custom> implements Me
      * @param params     serialization parameters
      */
     public static void toXContent(RepositoryMetaData repository, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject(repository.name(), XContentBuilder.FieldCaseConversion.NONE);
+        builder.startObject(repository.name());
         builder.field("type", repository.type());
         builder.startObject("settings");
         repository.settings().toXContent(builder, params);

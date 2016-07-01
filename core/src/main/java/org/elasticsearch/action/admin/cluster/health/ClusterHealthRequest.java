@@ -33,8 +33,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
-
 /**
  *
  */
@@ -61,7 +59,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     }
 
     @Override
-    public ClusterHealthRequest indices(String[] indices) {
+    public ClusterHealthRequest indices(String... indices) {
         this.indices = indices;
         return this;
     }
@@ -160,7 +158,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
                 indices[i] = in.readString();
             }
         }
-        timeout = readTimeValue(in);
+        timeout = new TimeValue(in);
         if (in.readBoolean()) {
             waitForStatus = ClusterHealthStatus.fromValue(in.readByte());
         }

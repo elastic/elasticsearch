@@ -19,7 +19,6 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
 

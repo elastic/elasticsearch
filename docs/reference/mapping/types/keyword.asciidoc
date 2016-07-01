@@ -1,0 +1,111 @@
+[[keyword]]
+=== Keyword datatype
+
+A field to index structured content such as email addresses, hostnames, status
+codes, zip codes or tags.
+
+They are typically used for filtering (_Find me all blog posts where
+++status++ is ++published++_), for sorting, and for aggregations. Keyword
+fields are ony searchable by their exact value.
+
+If you need to index full text content such as email bodies or product
+descriptions, it is likely that you should rather use a <<text,`text`>> field.
+
+Below is an example of a mapping for a keyword field:
+
+[source,js]
+--------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "tags": {
+          "type":  "keyword"
+        }
+      }
+    }
+  }
+}
+--------------------------------
+// CONSOLE
+
+[[keyword-params]]
+==== Parameters for keyword fields
+
+The following parameters are accepted by `keyword` fields:
+
+[horizontal]
+
+<<mapping-boost,`boost`>>::
+
+    Mapping field-level query time boosting. Accepts a floating point number, defaults
+    to `1.0`.
+
+<<doc-values,`doc_values`>>::
+
+    Should the field be stored on disk in a column-stride fashion, so that it
+    can later be used for sorting, aggregations, or scripting? Accepts `true`
+    (default) or `false`.
+
+<<global-ordinals,`eager_global_ordinals`>>::
+
+    Should global ordinals be loaded eagerly on refresh? Accepts `true` or `false`
+    (default). Enabling this is a good idea on fields that are frequently used for
+    terms aggregations.
+
+<<multi-fields,`fields`>>::
+
+    Multi-fields allow the same string value to be indexed in multiple ways for
+    different purposes, such as one field for search and a multi-field for
+    sorting and aggregations.
+
+<<ignore-above,`ignore_above`>>::
+
+    Do not index any string longer than this value.  Defaults to
+    `2147483647` so that all values would be accepted.
+
+<<include-in-all,`include_in_all`>>::
+
+    Whether or not the field value should be included in the
+    <<mapping-all-field,`_all`>> field? Accepts `true` or `false`.  Defaults
+    to `false` if <<mapping-index,`index`>> is set to `no`, or if a parent
+    <<object,`object`>> field sets `include_in_all` to `false`.
+    Otherwise defaults to `true`.
+
+<<mapping-index,`index`>>::
+
+    Should the field be searchable? Accepts `true` (default) or `false`.
+
+<<index-options,`index_options`>>::
+
+    What information should be stored in the index, for scoring purposes.
+    Defaults to `docs` but can also be set to `freqs` to take term frequency into account
+    when computing scores.
+
+<<norms,`norms`>>::
+
+    Whether field-length should be taken into account when scoring queries.
+    Accepts `true` or `false` (default).
+
+<<null-value,`null_value`>>::
+
+    Accepts a string value which is substituted for any explicit `null`
+    values.  Defaults to `null`, which means the field is treated as missing.
+
+<<mapping-store,`store`>>::
+
+    Whether the field value should be stored and retrievable separately from
+    the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
+    (default).
+
+<<search-analyzer,`search_analyzer`>>::
+
+    The <<analyzer,`analyzer`>> that should be used at search time on
+    <<mapping-index,`analyzed`>> fields. Defaults to the `analyzer` setting.
+
+<<similarity,`similarity`>>::
+
+    Which scoring algorithm or _similarity_ should be used. Defaults
+    to `classic`, which uses TF/IDF.
+

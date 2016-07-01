@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,8 +28,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -156,8 +157,10 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
             builder.startObject();
             if (item.isFailure()) {
                 ElasticsearchException.renderThrowable(builder, params, item.getFailure());
+                builder.field(Fields.STATUS, ExceptionsHelper.status(item.getFailure()).getStatus());
             } else {
                 item.getResponse().toXContent(builder, params);
+                builder.field(Fields.STATUS, item.getResponse().status().getStatus());
             }
             builder.endObject();
         }
@@ -166,11 +169,12 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     }
 
     static final class Fields {
-        static final XContentBuilderString RESPONSES = new XContentBuilderString("responses");
-        static final XContentBuilderString ERROR = new XContentBuilderString("error");
-        static final XContentBuilderString ROOT_CAUSE = new XContentBuilderString("root_cause");
+        static final String RESPONSES = "responses";
+        static final String STATUS = "status";
+        static final String ERROR = "error";
+        static final String ROOT_CAUSE = "root_cause";
     }
-    
+
     @Override
     public String toString() {
         try {

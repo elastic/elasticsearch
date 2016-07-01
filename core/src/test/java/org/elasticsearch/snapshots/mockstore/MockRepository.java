@@ -20,20 +20,20 @@
 package org.elasticsearch.snapshots.mockstore;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
@@ -48,54 +48,29 @@ import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-
 public class MockRepository extends FsRepository {
 
     public static class Plugin extends org.elasticsearch.plugins.Plugin {
 
-        @Override
-        public String name() {
-            return "mock-repository";
-        }
-
-        @Override
-        public String description() {
-            return "Mock Repository";
-        }
+        public static final Setting<String> USERNAME_SETTING = Setting.simpleString("secret.mock.username", Property.NodeScope);
+        public static final Setting<String> PASSWORD_SETTING =
+            Setting.simpleString("secret.mock.password", Property.NodeScope, Property.Filtered);
 
         public void onModule(RepositoriesModule repositoriesModule) {
             repositoriesModule.registerRepository("mock", MockRepository.class, BlobStoreIndexShardRepository.class);
         }
 
         @Override
-        public Collection<Module> nodeModules() {
-            return Collections.<Module>singletonList(new SettingsFilteringModule());
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(USERNAME_SETTING, PASSWORD_SETTING);
         }
-
-        public static class SettingsFilteringModule extends AbstractModule {
-
-            @Override
-            protected void configure() {
-                bind(SettingsFilteringService.class).asEagerSingleton();
-            }
-        }
-
-        public static class SettingsFilteringService {
-            @Inject
-            public SettingsFilteringService(SettingsFilter settingsFilter) {
-                settingsFilter.addFilter("secret.mock.password");
-            }
-        }
-
     }
 
     private final AtomicLong failureCounter = new AtomicLong();
@@ -135,7 +110,7 @@ public class MockRepository extends FsRepository {
         blockOnInitialization = repositorySettings.settings().getAsBoolean("block_on_init", false);
         randomPrefix = repositorySettings.settings().get("random", "default");
         waitAfterUnblock = repositorySettings.settings().getAsLong("wait_after_unblock", 0L);
-        logger.info("starting mock repository with random prefix " + randomPrefix);
+        logger.info("starting mock repository with random prefix {}", randomPrefix);
         mockBlobStore = new MockBlobStore(super.blobStore());
     }
 
@@ -160,7 +135,7 @@ public class MockRepository extends FsRepository {
     private static Settings localizeLocation(Settings settings, ClusterService clusterService) {
         Path location = PathUtils.get(settings.get("location"));
         location = location.resolve(clusterService.localNode().getId());
-        return settingsBuilder().put(settings).put("location", location.toAbsolutePath()).build();
+        return Settings.builder().put(settings).put("location", location.toAbsolutePath()).build();
     }
 
     private long incrementAndGetFailureCount() {
@@ -190,15 +165,17 @@ public class MockRepository extends FsRepository {
         blockOnControlFiles = blocked;
     }
 
+    public boolean blockOnDataFiles() {
+        return blockOnDataFiles;
+    }
+
     public synchronized void unblockExecution() {
-        if (blocked) {
-            blocked = false;
-            // Clean blocking flags, so we wouldn't try to block again
-            blockOnDataFiles = false;
-            blockOnControlFiles = false;
-            blockOnInitialization = false;
-            this.notifyAll();
-        }
+        blocked = false;
+        // Clean blocking flags, so we wouldn't try to block again
+        blockOnDataFiles = false;
+        blockOnControlFiles = false;
+        blockOnInitialization = false;
+        this.notifyAll();
     }
 
     public boolean blocked() {
@@ -249,7 +226,7 @@ public class MockRepository extends FsRepository {
 
             private boolean shouldFail(String blobName, double probability) {
                 if (probability > 0.0) {
-                    String path = path().add(blobName).buildAsString("/") + "/" + randomPrefix;
+                    String path = path().add(blobName).buildAsString() + randomPrefix;
                     path += "/" + incrementAndGet(path);
                     logger.info("checking [{}] [{}]", path, Math.abs(hashCode(path)) < Integer.MAX_VALUE * probability);
                     return Math.abs(hashCode(path)) < Integer.MAX_VALUE * probability;

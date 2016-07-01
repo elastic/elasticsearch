@@ -23,13 +23,16 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
@@ -44,7 +47,7 @@ public class ScriptFieldIT extends ESIntegTestCase {
     }
 
     static int[] intArray = { Integer.MAX_VALUE, Integer.MIN_VALUE, 3 };
-    static long[] longArray = { Long.MAX_VALUE, Long.MIN_VALUE, 9223372036854775807l };
+    static long[] longArray = { Long.MAX_VALUE, Long.MIN_VALUE, 9223372036854775807L };
     static float[] floatArray = { Float.MAX_VALUE, Float.MIN_VALUE, 3.3f };
     static double[] doubleArray = { Double.MAX_VALUE, Double.MIN_VALUE, 3.3d };
 
@@ -85,6 +88,11 @@ public class ScriptFieldIT extends ESIntegTestCase {
         public boolean needsScores() {
             return false;
         }
+
+        @Override
+        public String getName() {
+            return "int";
+        }
     }
 
     static class IntScript extends AbstractSearchScript {
@@ -103,6 +111,11 @@ public class ScriptFieldIT extends ESIntegTestCase {
         @Override
         public boolean needsScores() {
             return false;
+        }
+
+        @Override
+        public String getName() {
+            return "long";
         }
     }
 
@@ -123,6 +136,11 @@ public class ScriptFieldIT extends ESIntegTestCase {
         public boolean needsScores() {
             return false;
         }
+
+        @Override
+        public String getName() {
+            return "float";
+        }
     }
 
     static class FloatScript extends AbstractSearchScript {
@@ -142,6 +160,11 @@ public class ScriptFieldIT extends ESIntegTestCase {
         public boolean needsScores() {
             return false;
         }
+
+        @Override
+        public String getName() {
+            return "double";
+        }
     }
 
     static class DoubleScript extends AbstractSearchScript {
@@ -151,24 +174,11 @@ public class ScriptFieldIT extends ESIntegTestCase {
         }
     }
 
-    public static class CustomScriptPlugin extends Plugin {
-
+    public static class CustomScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public String name() {
-            return "custom_script";
+        public List<NativeScriptFactory> getNativeScripts() {
+            return Arrays.asList(new IntArrayScriptFactory(), new LongArrayScriptFactory(), new FloatArrayScriptFactory(),
+                new DoubleArrayScriptFactory());
         }
-
-        @Override
-        public String description() {
-            return "script ";
-        }
-
-        public void onModule(ScriptModule scriptModule) {
-            scriptModule.registerScript("int", IntArrayScriptFactory.class);
-            scriptModule.registerScript("long", LongArrayScriptFactory.class);
-            scriptModule.registerScript("float", FloatArrayScriptFactory.class);
-            scriptModule.registerScript("double", DoubleArrayScriptFactory.class);
-        }
-
     }
 }

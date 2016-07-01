@@ -30,8 +30,7 @@ as gossip routers. It provides the following settings with the
 |=======================================================================
 |Setting |Description
 |`hosts` |Either an array setting or a comma delimited setting. Each
-value is either in the form of `host:port`, or in the form of
-`host:port1-port2`. Note that IPv6 hosts must be bracketed. Defaults to
+value should be in the form of `host:port` or `host` (where `port` defaults to `9300`). Note that IPv6 hosts must be bracketed. Defaults to
 `127.0.0.1, [::1]`
 |=======================================================================
 
@@ -53,26 +52,21 @@ with a timeout defaulting at 20 times the ping timeout.
 
 When the master node stops or has encountered a problem, the cluster nodes
 start pinging again and will elect a new master. This pinging round also
-serves as a protection against (partial) network failures where node may unjustly
+serves as a protection against (partial) network failures where a node may unjustly
 think that the master has failed. In this case the node will simply hear from
 other nodes about the currently active master.
 
-If `discovery.zen.master_election.filter_client` is `true`, pings from client nodes (nodes where `node.client` is
-`true`, or both `node.data` and `node.master` are `false`) are ignored during master election; the default value is
-`true`. If `discovery.zen.master_election.filter_data` is `true`, pings from non-master-eligible data nodes (nodes
-where `node.data` is `true` and `node.master` is `false`) are ignored during master election; the default value is
-`false`. Pings from master-eligible nodes are always observed during master election.
+If `discovery.zen.master_election.ignore_non_master_pings` is `true`, pings from nodes that are not master
+eligible (nodes where `node.master` is `false`) are ignored during master election; the default value is
+`false`.
 
-Nodes can be excluded from becoming a master by setting `node.master` to
-`false`. Note, once a node is a client node (`node.client` set to
-`true`), it will not be allowed to become a master (`node.master` is
-automatically set to `false`).
+Nodes can be excluded from becoming a master by setting `node.master` to `false`.
 
 The `discovery.zen.minimum_master_nodes` sets the minimum
 number of master eligible nodes that need to join a newly elected master in order for an election to
 complete and for the elected node to accept it's mastership. The same setting controls the minimum number of
 active master eligible nodes that should be a part of any active cluster. If this requirement is not met the
-active master node will step down and a new mastser election will be begin.
+active master node will step down and a new master election will be begin.
 
 This setting must be set to a quorum of your master eligible nodes. It is recommended to avoid
 having only two master eligible nodes, since a quorum of two is two. Therefore, a loss

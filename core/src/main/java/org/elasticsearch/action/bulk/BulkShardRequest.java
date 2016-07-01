@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -31,25 +31,17 @@ import java.util.List;
 /**
  *
  */
-public class BulkShardRequest extends ReplicationRequest<BulkShardRequest> {
+public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
 
     private BulkItemRequest[] items;
-
-    private boolean refresh;
 
     public BulkShardRequest() {
     }
 
-    BulkShardRequest(BulkRequest bulkRequest, String index, int shardId, boolean refresh, BulkItemRequest[] items) {
-        super(bulkRequest);
-        this.index = index;
-        this.setShardId(new ShardId(index, shardId));
+    BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
+        super(shardId);
         this.items = items;
-        this.refresh = refresh;
-    }
-
-    boolean refresh() {
-        return this.refresh;
+        setRefreshPolicy(refreshPolicy);
     }
 
     BulkItemRequest[] items() {
@@ -79,7 +71,6 @@ public class BulkShardRequest extends ReplicationRequest<BulkShardRequest> {
                 out.writeBoolean(false);
             }
         }
-        out.writeBoolean(refresh);
     }
 
     @Override
@@ -91,6 +82,23 @@ public class BulkShardRequest extends ReplicationRequest<BulkShardRequest> {
                 items[i] = BulkItemRequest.readBulkItem(in);
             }
         }
-        refresh = in.readBoolean();
+    }
+
+    @Override
+    public String toString() {
+        // This is included in error messages so we'll try to make it somewhat user friendly.
+        StringBuilder b = new StringBuilder("BulkShardRequest to [");
+        b.append(index).append("] containing [").append(items.length).append("] requests");
+        switch (getRefreshPolicy()) {
+        case IMMEDIATE:
+            b.append(" and a refresh");
+            break;
+        case WAIT_UNTIL:
+            b.append(" blocking until refresh");
+            break;
+        case NONE:
+            break;
+        }
+        return b.toString();
     }
 }

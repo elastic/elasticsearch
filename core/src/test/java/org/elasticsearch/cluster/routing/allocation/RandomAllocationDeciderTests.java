@@ -30,10 +30,11 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESAllocationTestCase;
@@ -45,7 +46,6 @@ import java.util.HashSet;
 import java.util.Random;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RandomAllocationDeciderTests extends ESAllocationTestCase {
@@ -55,10 +55,10 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
      * already allocated on a node and balances the cluster to gain optimal
      * balance.*/
     public void testRandomDecisions() {
-        RandomAllocationDecider randomAllocationDecider = new RandomAllocationDecider(getRandom());
-        AllocationService strategy = new AllocationService(settingsBuilder().build(), new AllocationDeciders(Settings.EMPTY,
-                new HashSet<>(Arrays.asList(new SameShardAllocationDecider(Settings.EMPTY),
-                        randomAllocationDecider))), new ShardsAllocators(NoopGatewayAllocator.INSTANCE), EmptyClusterInfoService.INSTANCE);
+        RandomAllocationDecider randomAllocationDecider = new RandomAllocationDecider(random());
+        AllocationService strategy = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
+                new HashSet<>(Arrays.asList(new SameShardAllocationDecider(Settings.EMPTY), new ReplicaAfterPrimaryActiveAllocationDecider(Settings.EMPTY),
+                        randomAllocationDecider))), NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
         int indices = scaledRandomIntBetween(1, 20);
         Builder metaBuilder = MetaData.builder();
         int maxNumReplicas = 1;
@@ -78,7 +78,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
         }
 
         RoutingTable routingTable = routingTableBuilder.build();
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
         int numIters = scaledRandomIntBetween(5, 15);
         int nodeIdCounter = 0;
         int atMostNodes = scaledRandomIntBetween(Math.max(1, maxNumReplicas), 15);
@@ -88,7 +88,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             ClusterState.Builder stateBuilder = ClusterState.builder(clusterState);
             DiscoveryNodes.Builder newNodesBuilder = DiscoveryNodes.builder(clusterState.nodes());
 
-            if (clusterState.nodes().size() <= atMostNodes &&
+            if (clusterState.nodes().getSize() <= atMostNodes &&
                     (nodeIdCounter == 0 || (frequentNodes ? frequently() : rarely()))) {
                 int numNodes = scaledRandomIntBetween(1, 3);
                 for (int j = 0; j < numNodes; j++) {
@@ -114,10 +114,10 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             }
         }
         logger.info("Fill up nodes such that every shard can be allocated");
-        if (clusterState.nodes().size() < maxNumReplicas) {
+        if (clusterState.nodes().getSize() < maxNumReplicas) {
             ClusterState.Builder stateBuilder = ClusterState.builder(clusterState);
             DiscoveryNodes.Builder newNodesBuilder = DiscoveryNodes.builder(clusterState.nodes());
-            for (int j = 0; j < (maxNumReplicas - clusterState.nodes().size()); j++) {
+            for (int j = 0; j < (maxNumReplicas - clusterState.nodes().getSize()); j++) {
                 logger.info("adding node [{}]", nodeIdCounter);
                 newNodesBuilder.put(newNode("NODE_" + (nodeIdCounter++)));
             }
@@ -148,7 +148,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(0));
         int shards = clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size();
         assertThat(shards, equalTo(totalNumShards));
-        final int numNodes = clusterState.nodes().size();
+        final int numNodes = clusterState.nodes().getSize();
         final int upperBound = (int) Math.round(((shards / numNodes) * 1.10));
         final int lowerBound = (int) Math.round(((shards / numNodes) * 0.90));
         for (int i = 0; i < nodeIdCounter; i++) {
@@ -161,7 +161,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
         }
     }
 
-    private static final class RandomAllocationDecider extends AllocationDecider {
+    public static final class RandomAllocationDecider extends AllocationDecider {
 
         private final Random random;
 

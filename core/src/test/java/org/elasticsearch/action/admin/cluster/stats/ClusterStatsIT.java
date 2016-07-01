@@ -21,33 +21,32 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.index.store.Store;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 1, numClientNodes = 0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class ClusterStatsIT extends ESIntegTestCase {
 
-    private void assertCounts(ClusterStatsNodes.Counts counts, int total, int masterOnly, int dataOnly, int masterData, int client) {
-        assertThat(counts.getTotal(), Matchers.equalTo(total));
-        assertThat(counts.getMasterOnly(), Matchers.equalTo(masterOnly));
-        assertThat(counts.getDataOnly(), Matchers.equalTo(dataOnly));
-        assertThat(counts.getMasterData(), Matchers.equalTo(masterData));
-        assertThat(counts.getClient(), Matchers.equalTo(client));
+    private void assertCounts(ClusterStatsNodes.Counts counts, int total, Map<String, Integer> roles) {
+        assertThat(counts.getTotal(), equalTo(total));
+        assertThat(counts.getRoles(), equalTo(roles));
     }
 
     private void waitForNodes(int numNodes) {
@@ -57,25 +56,55 @@ public class ClusterStatsIT extends ESIntegTestCase {
     }
 
     public void testNodeCounts() {
+        int total = 1;
+        internalCluster().startNode();
+        Map<String, Integer> expectedCounts = new HashMap<>();
+        expectedCounts.put(DiscoveryNode.Role.DATA.getRoleName(), 1);
+        expectedCounts.put(DiscoveryNode.Role.MASTER.getRoleName(), 1);
+        expectedCounts.put(DiscoveryNode.Role.INGEST.getRoleName(), 1);
+        expectedCounts.put(ClusterStatsNodes.Counts.COORDINATING_ONLY, 0);
+        int numNodes = randomIntBetween(1, 5);
+
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
-        assertCounts(response.getNodesStats().getCounts(), 1, 0, 0, 1, 0);
+        assertCounts(response.getNodesStats().getCounts(), total, expectedCounts);
 
-        internalCluster().startNode(Settings.builder().put("node.data", false));
-        waitForNodes(2);
-        response = client().admin().cluster().prepareClusterStats().get();
-        assertCounts(response.getNodesStats().getCounts(), 2, 1, 0, 1, 0);
+        for (int i = 0; i < numNodes; i++) {
+            boolean isDataNode = randomBoolean();
+            boolean isMasterNode = randomBoolean();
+            boolean isIngestNode = randomBoolean();
+            Settings settings = Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), isDataNode)
+                    .put(Node.NODE_MASTER_SETTING.getKey(), isMasterNode).put(Node.NODE_INGEST_SETTING.getKey(), isIngestNode)
+                    .build();
+            internalCluster().startNode(settings);
+            total++;
+            waitForNodes(total);
 
-        internalCluster().startNode(Settings.builder().put("node.master", false));
-        waitForNodes(3);
-        response = client().admin().cluster().prepareClusterStats().get();
-        assertCounts(response.getNodesStats().getCounts(), 3, 1, 1, 1, 0);
+            if (isDataNode) {
+                incrementCountForRole(DiscoveryNode.Role.DATA.getRoleName(), expectedCounts);
+            }
+            if (isMasterNode) {
+                incrementCountForRole(DiscoveryNode.Role.MASTER.getRoleName(), expectedCounts);
+            }
+            if (isIngestNode) {
+                incrementCountForRole(DiscoveryNode.Role.INGEST.getRoleName(), expectedCounts);
+            }
+            if (!isDataNode && !isMasterNode && !isIngestNode) {
+                incrementCountForRole(ClusterStatsNodes.Counts.COORDINATING_ONLY, expectedCounts);
+            }
 
-        internalCluster().startNode(Settings.builder().put("node.client", true));
-        waitForNodes(4);
-        response = client().admin().cluster().prepareClusterStats().get();
-        assertCounts(response.getNodesStats().getCounts(), 4, 1, 1, 1, 1);
+            response = client().admin().cluster().prepareClusterStats().get();
+            assertCounts(response.getNodesStats().getCounts(), total, expectedCounts);
+        }
     }
 
+    private static void incrementCountForRole(String role, Map<String, Integer> counts) {
+        Integer count = counts.get(role);
+        if (count == null) {
+            counts.put(role, 1);
+        } else {
+            counts.put(role, ++count);
+        }
+    }
 
     private void assertShardStats(ClusterStatsIndices.ShardStats stats, int indices, int total, int primaries, double replicationFactor) {
         assertThat(stats.getIndices(), Matchers.equalTo(indices));
@@ -84,7 +113,9 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(stats.getReplication(), Matchers.equalTo(replicationFactor));
     }
 
-    public void testIndicesShardStats() {
+    public void testIndicesShardStats() throws ExecutionException, InterruptedException {
+        internalCluster().startNode();
+        ensureGreen();
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
 
@@ -92,7 +123,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         ensureYellow();
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.YELLOW));
-        assertThat(response.indicesStats.getDocs().getCount(), Matchers.equalTo(0l));
+        assertThat(response.indicesStats.getDocs().getCount(), Matchers.equalTo(0L));
         assertThat(response.indicesStats.getIndexCount(), Matchers.equalTo(1));
         assertShardStats(response.getIndicesStats().getShards(), 1, 2, 2, 0.0);
 
@@ -103,7 +134,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         refresh(); // make the doc visible
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
-        assertThat(response.indicesStats.getDocs().getCount(), Matchers.equalTo(1l));
+        assertThat(response.indicesStats.getDocs().getCount(), Matchers.equalTo(1L));
         assertShardStats(response.getIndicesStats().getShards(), 1, 4, 2, 1.0);
 
         prepareCreate("test2").setSettings("number_of_shards", 3, "number_of_replicas", 0).get();
@@ -127,10 +158,8 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
     }
 
-    public void testValuesSmokeScreen() throws IOException {
-        internalCluster().ensureAtMostNumDataNodes(5);
-        internalCluster().ensureAtLeastNumDataNodes(1);
-        assertAcked(prepareCreate("test1").setSettings(settingsBuilder().put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, 0).build()));
+    public void testValuesSmokeScreen() throws IOException, ExecutionException, InterruptedException {
+        internalCluster().startNodesAsync(randomIntBetween(1, 3)).get();
         index("test1", "type", "1", "f", "f");
         /*
          * Ensure at least one shard is allocated otherwise the FS stats might
@@ -140,10 +169,10 @@ public class ClusterStatsIT extends ESIntegTestCase {
         ensureYellow("test1");
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         String msg = response.toString();
-        assertThat(msg, response.getTimestamp(), Matchers.greaterThan(946681200000l)); // 1 Jan 2000
-        assertThat(msg, response.indicesStats.getStore().getSizeInBytes(), Matchers.greaterThan(0l));
+        assertThat(msg, response.getTimestamp(), Matchers.greaterThan(946681200000L)); // 1 Jan 2000
+        assertThat(msg, response.indicesStats.getStore().getSizeInBytes(), Matchers.greaterThan(0L));
 
-        assertThat(msg, response.nodesStats.getFs().getTotal().bytes(), Matchers.greaterThan(0l));
+        assertThat(msg, response.nodesStats.getFs().getTotal().bytes(), Matchers.greaterThan(0L));
         assertThat(msg, response.nodesStats.getJvm().getVersions().size(), Matchers.greaterThan(0));
 
         assertThat(msg, response.nodesStats.getVersions().size(), Matchers.greaterThan(0));
@@ -160,11 +189,8 @@ public class ClusterStatsIT extends ESIntegTestCase {
     }
 
     public void testAllocatedProcessors() throws Exception {
-        // stop all other nodes
-        internalCluster().ensureAtMostNumDataNodes(0);
-
         // start one node with 7 processors.
-        internalCluster().startNodesAsync(Settings.builder().put(EsExecutors.PROCESSORS, 7).build()).get();
+        internalCluster().startNodesAsync(Settings.builder().put(EsExecutors.PROCESSORS_SETTING.getKey(), 7).build()).get();
         waitForNodes(1);
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
@@ -172,14 +198,15 @@ public class ClusterStatsIT extends ESIntegTestCase {
     }
 
     public void testClusterStatusWhenStateNotRecovered() throws Exception {
-        // stop all other nodes
-        internalCluster().ensureAtMostNumDataNodes(0);
-
-        internalCluster().startNode(Settings.builder().put("gateway.recover_after_nodes", 2).build());
+        internalCluster().startMasterOnlyNode(Settings.builder().put("gateway.recover_after_nodes", 2).build());
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
 
-        internalCluster().ensureAtLeastNumDataNodes(3);
+        if (randomBoolean()) {
+            internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        } else {
+            internalCluster().startDataOnlyNode(Settings.EMPTY);
+        }
         // wait for the cluster status to settle
         ensureGreen();
         response = client().admin().cluster().prepareClusterStats().get();

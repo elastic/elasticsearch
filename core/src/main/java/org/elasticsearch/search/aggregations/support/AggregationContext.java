@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -29,10 +28,10 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 
@@ -51,10 +50,6 @@ public class AggregationContext {
         return searchContext;
     }
 
-    public PageCacheRecycler pageCacheRecycler() {
-        return searchContext.pageCacheRecycler();
-    }
-
     public BigArrays bigArrays() {
         return searchContext.bigArrays();
     }
@@ -66,31 +61,30 @@ public class AggregationContext {
         assert config.valid() : "value source config is invalid - must have either a field context or a script or marked as unmapped";
 
         final VS vs;
-        if (config.unmapped) {
-            if (config.missing == null) {
+        if (config.unmapped()) {
+            if (config.missing() == null) {
                 // otherwise we will have values because of the missing value
                 vs = null;
-            } else if (ValuesSource.Numeric.class.isAssignableFrom(config.valueSourceType)) {
+            } else if (config.valueSourceType() == ValuesSourceType.NUMERIC) {
                 vs = (VS) ValuesSource.Numeric.EMPTY;
-            } else if (ValuesSource.GeoPoint.class.isAssignableFrom(config.valueSourceType)) {
+            } else if (config.valueSourceType() == ValuesSourceType.GEOPOINT) {
                 vs = (VS) ValuesSource.GeoPoint.EMPTY;
-            } else if (ValuesSource.class.isAssignableFrom(config.valueSourceType)
-                    || ValuesSource.Bytes.class.isAssignableFrom(config.valueSourceType)
-                    || ValuesSource.Bytes.WithOrdinals.class.isAssignableFrom(config.valueSourceType)) {
+            } else if (config.valueSourceType() == ValuesSourceType.ANY || config.valueSourceType() == ValuesSourceType.BYTES) {
                 vs = (VS) ValuesSource.Bytes.EMPTY;
             } else {
-                throw new SearchParseException(searchContext, "Can't deal with unmapped ValuesSource type " + config.valueSourceType, null);
+                throw new SearchParseException(searchContext, "Can't deal with unmapped ValuesSource type "
+                    + config.valueSourceType(), null);
             }
         } else {
             vs = originalValuesSource(config);
         }
 
-        if (config.missing == null) {
+        if (config.missing() == null) {
             return vs;
         }
 
         if (vs instanceof ValuesSource.Bytes) {
-            final BytesRef missing = new BytesRef(config.missing.toString());
+            final BytesRef missing = new BytesRef(config.missing().toString());
             if (vs instanceof ValuesSource.Bytes.WithOrdinals) {
                 return (VS) MissingValues.replaceMissing((ValuesSource.Bytes.WithOrdinals) vs, missing);
             } else {
@@ -98,28 +92,20 @@ public class AggregationContext {
             }
         } else if (vs instanceof ValuesSource.Numeric) {
             Number missing = null;
-            if (config.missing instanceof Number) {
-                missing = (Number) config.missing;
+            if (config.missing() instanceof Number) {
+                missing = (Number) config.missing();
             } else {
-                if (config.fieldContext != null && config.fieldContext.fieldType() instanceof DateFieldMapper.DateFieldType) {
-                    final DateFieldMapper.DateFieldType fieldType = (DateFieldMapper.DateFieldType) config.fieldContext.fieldType();
-                    try {
-                        missing = fieldType.dateTimeFormatter().parser().parseDateTime(config.missing.toString()).getMillis();
-                    } catch (IllegalArgumentException e) {
-                        throw new SearchParseException(context, "Expected a date value in [missing] but got [" + config.missing + "]", null, e);
-                    }
+                if (config.fieldContext() != null && config.fieldContext().fieldType() != null) {
+                    missing = config.fieldContext().fieldType().docValueFormat(null, DateTimeZone.UTC)
+                            .parseDouble(config.missing().toString(), false, context.nowCallable());
                 } else {
-                    try {
-                        missing = Double.parseDouble(config.missing.toString());
-                    } catch (NumberFormatException e) {
-                        throw new SearchParseException(context, "Expected a numeric value in [missing] but got [" + config.missing + "]", null, e);
-                    }
+                    missing = Double.parseDouble(config.missing().toString());
                 }
             }
             return (VS) MissingValues.replaceMissing((ValuesSource.Numeric) vs, missing);
         } else if (vs instanceof ValuesSource.GeoPoint) {
             // TODO: also support the structured formats of geo points
-            final GeoPoint missing = GeoUtils.parseGeoPoint(config.missing.toString(), new GeoPoint());
+            final GeoPoint missing = GeoUtils.parseGeoPoint(config.missing().toString(), new GeoPoint());
             return (VS) MissingValues.replaceMissing((ValuesSource.GeoPoint) vs, missing);
         } else {
             // Should not happen
@@ -131,20 +117,21 @@ public class AggregationContext {
      * Return the original values source, before we apply `missing`.
      */
     private <VS extends ValuesSource> VS originalValuesSource(ValuesSourceConfig<VS> config) throws IOException {
-        if (config.fieldContext == null) {
-            if (ValuesSource.Numeric.class.isAssignableFrom(config.valueSourceType)) {
+        if (config.fieldContext() == null) {
+            if (config.valueSourceType() == ValuesSourceType.NUMERIC) {
                 return (VS) numericScript(config);
             }
-            if (ValuesSource.Bytes.class.isAssignableFrom(config.valueSourceType)) {
+            if (config.valueSourceType() == ValuesSourceType.BYTES) {
                 return (VS) bytesScript(config);
             }
-            throw new AggregationExecutionException("value source of type [" + config.valueSourceType.getSimpleName() + "] is not supported by scripts");
+            throw new AggregationExecutionException("value source of type [" + config.valueSourceType().name()
+                    + "] is not supported by scripts");
         }
 
-        if (ValuesSource.Numeric.class.isAssignableFrom(config.valueSourceType)) {
+        if (config.valueSourceType() == ValuesSourceType.NUMERIC) {
             return (VS) numericField(config);
         }
-        if (ValuesSource.GeoPoint.class.isAssignableFrom(config.valueSourceType)) {
+        if (config.valueSourceType() == ValuesSourceType.GEOPOINT) {
             return (VS) geoPointField(config);
         }
         // falling back to bytes values
@@ -152,25 +139,25 @@ public class AggregationContext {
     }
 
     private ValuesSource.Numeric numericScript(ValuesSourceConfig<?> config) throws IOException {
-        return new ValuesSource.Numeric.Script(config.script, config.scriptValueType);
+        return new ValuesSource.Numeric.Script(config.script(), config.scriptValueType());
     }
 
     private ValuesSource.Numeric numericField(ValuesSourceConfig<?> config) throws IOException {
 
-        if (!(config.fieldContext.indexFieldData() instanceof IndexNumericFieldData)) {
-            throw new IllegalArgumentException("Expected numeric type on field [" + config.fieldContext.field() +
-                    "], but got [" + config.fieldContext.fieldType().typeName() + "]");
+        if (!(config.fieldContext().indexFieldData() instanceof IndexNumericFieldData)) {
+            throw new IllegalArgumentException("Expected numeric type on field [" + config.fieldContext().field() +
+                    "], but got [" + config.fieldContext().fieldType().typeName() + "]");
         }
 
-        ValuesSource.Numeric dataSource = new ValuesSource.Numeric.FieldData((IndexNumericFieldData) config.fieldContext.indexFieldData());
-        if (config.script != null) {
-            dataSource = new ValuesSource.Numeric.WithScript(dataSource, config.script);
+        ValuesSource.Numeric dataSource = new ValuesSource.Numeric.FieldData((IndexNumericFieldData)config.fieldContext().indexFieldData());
+        if (config.script() != null) {
+            dataSource = new ValuesSource.Numeric.WithScript(dataSource, config.script());
         }
         return dataSource;
     }
 
     private ValuesSource bytesField(ValuesSourceConfig<?> config) throws IOException {
-        final IndexFieldData<?> indexFieldData = config.fieldContext.indexFieldData();
+        final IndexFieldData<?> indexFieldData = config.fieldContext().indexFieldData();
         ValuesSource dataSource;
         if (indexFieldData instanceof ParentChildIndexFieldData) {
             dataSource = new ValuesSource.Bytes.WithOrdinals.ParentChild((ParentChildIndexFieldData) indexFieldData);
@@ -179,24 +166,24 @@ public class AggregationContext {
         } else {
             dataSource = new ValuesSource.Bytes.FieldData(indexFieldData);
         }
-        if (config.script != null) {
-            dataSource = new ValuesSource.WithScript(dataSource, config.script);
+        if (config.script() != null) {
+            dataSource = new ValuesSource.WithScript(dataSource, config.script());
         }
         return dataSource;
     }
 
     private ValuesSource.Bytes bytesScript(ValuesSourceConfig<?> config) throws IOException {
-        return new ValuesSource.Bytes.Script(config.script);
+        return new ValuesSource.Bytes.Script(config.script());
     }
 
     private ValuesSource.GeoPoint geoPointField(ValuesSourceConfig<?> config) throws IOException {
 
-        if (!(config.fieldContext.indexFieldData() instanceof IndexGeoPointFieldData)) {
-            throw new IllegalArgumentException("Expected geo_point type on field [" + config.fieldContext.field() +
-                    "], but got [" + config.fieldContext.fieldType().typeName() + "]");
+        if (!(config.fieldContext().indexFieldData() instanceof IndexGeoPointFieldData)) {
+            throw new IllegalArgumentException("Expected geo_point type on field [" + config.fieldContext().field() +
+                    "], but got [" + config.fieldContext().fieldType().typeName() + "]");
         }
 
-        return new ValuesSource.GeoPoint.Fielddata((IndexGeoPointFieldData) config.fieldContext.indexFieldData());
+        return new ValuesSource.GeoPoint.Fielddata((IndexGeoPointFieldData) config.fieldContext().indexFieldData());
     }
 
 }

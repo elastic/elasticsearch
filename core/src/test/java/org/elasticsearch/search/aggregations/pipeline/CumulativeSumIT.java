@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
@@ -88,8 +89,8 @@ public class CumulativeSumIT extends ESIntegTestCase {
     public void testDocCount() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                .extendedBounds((long) minRandomValue, (long) maxRandomValue)
-                                .subAggregation(cumulativeSum("cumulative_sum").setBucketsPaths("_count"))).execute().actionGet();
+                                .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue))
+                                .subAggregation(cumulativeSum("cumulative_sum", "_count"))).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -119,9 +120,9 @@ public class CumulativeSumIT extends ESIntegTestCase {
                 .prepareSearch("idx")
                 .addAggregation(
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                .extendedBounds((long) minRandomValue, (long) maxRandomValue)
+                                .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue))
                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
-                                .subAggregation(cumulativeSum("cumulative_sum").setBucketsPaths("sum"))).execute().actionGet();
+                                .subAggregation(cumulativeSum("cumulative_sum", "sum"))).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -153,7 +154,7 @@ public class CumulativeSumIT extends ESIntegTestCase {
                 .addAggregation(
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
-                                .subAggregation(cumulativeSum("cumulative_sum").setBucketsPaths("sum"))).execute().actionGet();
+                                .subAggregation(cumulativeSum("cumulative_sum", "sum"))).execute().actionGet();
 
         assertSearchResponse(response);
 

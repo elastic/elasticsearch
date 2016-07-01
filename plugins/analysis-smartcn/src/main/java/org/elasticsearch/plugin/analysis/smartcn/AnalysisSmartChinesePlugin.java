@@ -19,33 +19,40 @@
 
 package org.elasticsearch.plugin.analysis.smartcn;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.SmartChineseAnalyzerProvider;
 import org.elasticsearch.index.analysis.SmartChineseNoOpTokenFilterFactory;
 import org.elasticsearch.index.analysis.SmartChineseTokenizerTokenizerFactory;
-import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 
-/**
- *
- */
-public class AnalysisSmartChinesePlugin extends Plugin {
+import java.util.HashMap;
+import java.util.Map;
 
+import static java.util.Collections.singletonMap;
+
+public class AnalysisSmartChinesePlugin extends Plugin implements AnalysisPlugin {
     @Override
-    public String name() {
-        return "analysis-smartcn";
+    public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
+        // This is a noop token filter; it's here for backwards compat before we had "smartcn_tokenizer"
+        return singletonMap("smartcn_word", SmartChineseNoOpTokenFilterFactory::new);
     }
 
     @Override
-    public String description() {
-        return "Smart Chinese analysis support";
+    public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
+        Map<String, AnalysisProvider<TokenizerFactory>> extra = new HashMap<>();
+        extra.put("smartcn_tokenizer", SmartChineseTokenizerTokenizerFactory::new);
+        // This is an alias to "smartcn_tokenizer"; it's here for backwards compat
+        extra.put("smartcn_sentence", SmartChineseTokenizerTokenizerFactory::new);
+        return extra;
     }
 
-    public void onModule(AnalysisModule module) {
-            module.registerAnalyzer("smartcn", SmartChineseAnalyzerProvider::new);
-            module.registerTokenizer("smartcn_tokenizer", SmartChineseTokenizerTokenizerFactory::new);
-            // This is an alias to "smartcn_tokenizer"; it's here for backwards compat
-        module.registerTokenizer("smartcn_sentence", SmartChineseTokenizerTokenizerFactory::new);
-            // This is a noop token filter; it's here for backwards compat before we had "smartcn_tokenizer"
-        module.registerTokenFilter("smartcn_word", SmartChineseNoOpTokenFilterFactory::new);
+    @Override
+    public Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
+        return singletonMap("smartcn", SmartChineseAnalyzerProvider::new);
     }
 }

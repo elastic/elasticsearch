@@ -10,9 +10,9 @@ to your classpath in order to use this type:
 [source,xml]
 -----------------------------------------------
 <dependency>
-    <groupId>com.spatial4j</groupId>
+    <groupId>org.locationtech.spatial4j</groupId>
     <artifactId>spatial4j</artifactId>
-    <version>0.4.1</version>                        <1>
+    <version>0.6</version>                        <1>
 </dependency>
 
 <dependency>
@@ -27,12 +27,12 @@ to your classpath in order to use this type:
     </exclusions>
 </dependency>
 -----------------------------------------------
-<1> check for updates in http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.spatial4j%22%20AND%20a%3A%22spatial4j%22[Maven Central]
+<1> check for updates in http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.locationtech.spatial4j%22%20AND%20a%3A%22spatial4j%22[Maven Central]
 <2> check for updates in http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.vividsolutions%22%20AND%20a%3A%22jts%22[Maven Central]
 
 [source,java]
 --------------------------------------------------
-// Import ShapeRelationn and ShapeBuilder
+// Import ShapeRelation and ShapeBuilder
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 --------------------------------------------------

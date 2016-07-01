@@ -26,10 +26,17 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
-import java.lang.management.*;
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ManagementPermission;
+import java.lang.management.MemoryMXBean;
+import java.lang.management.MemoryPoolMXBean;
+import java.lang.management.PlatformManagedObject;
+import java.lang.management.RuntimeMXBean;
+import java.lang.reflect.Method;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,7 +64,7 @@ public class JvmInfo implements Streamable, ToXContent {
         JvmInfo info = new JvmInfo();
         info.pid = pid;
         info.startTime = runtimeMXBean.getStartTime();
-        info.version = runtimeMXBean.getSystemProperties().get("java.version");
+        info.version = System.getProperty("java.version");
         info.vmName = runtimeMXBean.getVmName();
         info.vmVendor = runtimeMXBean.getVmVendor();
         info.vmVersion = runtimeMXBean.getVmVersion();
@@ -84,7 +91,7 @@ public class JvmInfo implements Streamable, ToXContent {
             }
         }
         info.classPath = runtimeMXBean.getClassPath();
-        info.systemProperties = runtimeMXBean.getSystemProperties();
+        info.systemProperties = Collections.unmodifiableMap(runtimeMXBean.getSystemProperties());
 
         List<GarbageCollectorMXBean> gcMxBeans = ManagementFactory.getGarbageCollectorMXBeans();
         info.gcCollectors = new String[gcMxBeans.size()];
@@ -100,10 +107,62 @@ public class JvmInfo implements Streamable, ToXContent {
             info.memoryPools[i] = memoryPoolMXBean.getName();
         }
 
+        try {
+            @SuppressWarnings("unchecked") Class<? extends PlatformManagedObject> clazz =
+                (Class<? extends PlatformManagedObject>)Class.forName("com.sun.management.HotSpotDiagnosticMXBean");
+            Class<?> vmOptionClazz = Class.forName("com.sun.management.VMOption");
+            PlatformManagedObject hotSpotDiagnosticMXBean = ManagementFactory.getPlatformMXBean(clazz);
+            Method vmOptionMethod = clazz.getMethod("getVMOption", String.class);
+            Method valueMethod = vmOptionClazz.getMethod("getValue");
+
+            try {
+                Object onError = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "OnError");
+                info.onError = (String) valueMethod.invoke(onError);
+            } catch (Exception ignored) {
+            }
+
+            try {
+                Object onOutOfMemoryError = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "OnOutOfMemoryError");
+                info.onOutOfMemoryError = (String) valueMethod.invoke(onOutOfMemoryError);
+            } catch (Exception ignored) {
+            }
+
+            try {
+                Object useCompressedOopsVmOption = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseCompressedOops");
+                info.useCompressedOops = (String) valueMethod.invoke(useCompressedOopsVmOption);
+            } catch (Exception ignored) {
+            }
+
+            try {
+                Object useG1GCVmOption = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseG1GC");
+                info.useG1GC = (String) valueMethod.invoke(useG1GCVmOption);
+            } catch (Exception ignored) {
+            }
+
+            try {
+                Object initialHeapSizeVmOption = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "InitialHeapSize");
+                info.configuredInitialHeapSize = Long.parseLong((String) valueMethod.invoke(initialHeapSizeVmOption));
+            } catch (Exception ignored) {
+            }
+
+            try {
+                Object maxHeapSizeVmOption = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "MaxHeapSize");
+                info.configuredMaxHeapSize = Long.parseLong((String) valueMethod.invoke(maxHeapSizeVmOption));
+            } catch (Exception ignored) {
+            }
+        } catch (Exception ignored) {
+
+        }
+
         INSTANCE = info;
     }
 
     public static JvmInfo jvmInfo() {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new ManagementPermission("monitor"));
+            sm.checkPropertyAccess("*");
+        }
         return INSTANCE;
     }
 
@@ -115,6 +174,9 @@ public class JvmInfo implements Streamable, ToXContent {
     String vmVendor = "";
 
     long startTime = -1;
+
+    private long configuredInitialHeapSize;
+    private long configuredMaxHeapSize;
 
     Mem mem;
 
@@ -128,6 +190,14 @@ public class JvmInfo implements Streamable, ToXContent {
 
     String[] gcCollectors = Strings.EMPTY_ARRAY;
     String[] memoryPools = Strings.EMPTY_ARRAY;
+
+    private String onError;
+
+    private String onOutOfMemoryError;
+
+    private String useCompressedOops = "unknown";
+
+    private String useG1GC = "unknown";
 
     private JvmInfo() {
     }
@@ -252,6 +322,38 @@ public class JvmInfo implements Streamable, ToXContent {
         return this.systemProperties;
     }
 
+    public long getConfiguredInitialHeapSize() {
+        return configuredInitialHeapSize;
+    }
+
+    public long getConfiguredMaxHeapSize() {
+        return configuredMaxHeapSize;
+    }
+
+    public String onError() {
+        return onError;
+    }
+
+    public String onOutOfMemoryError() {
+        return onOutOfMemoryError;
+    }
+
+    /**
+     * The value of the JVM flag UseCompressedOops, if available otherwise
+     * "unknown". The value "unknown" indicates that an attempt was
+     * made to obtain the value of the flag on this JVM and the attempt
+     * failed.
+     *
+     * @return the value of the JVM flag UseCompressedOops or "unknown"
+     */
+    public String useCompressedOops() {
+        return this.useCompressedOops;
+    }
+
+    public String useG1GC() {
+        return this.useG1GC;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.JVM);
@@ -273,33 +375,36 @@ public class JvmInfo implements Streamable, ToXContent {
         builder.field(Fields.GC_COLLECTORS, gcCollectors);
         builder.field(Fields.MEMORY_POOLS, memoryPools);
 
+        builder.field(Fields.USING_COMPRESSED_OOPS, useCompressedOops);
+
         builder.endObject();
         return builder;
     }
 
     static final class Fields {
-        static final XContentBuilderString JVM = new XContentBuilderString("jvm");
-        static final XContentBuilderString PID = new XContentBuilderString("pid");
-        static final XContentBuilderString VERSION = new XContentBuilderString("version");
-        static final XContentBuilderString VM_NAME = new XContentBuilderString("vm_name");
-        static final XContentBuilderString VM_VERSION = new XContentBuilderString("vm_version");
-        static final XContentBuilderString VM_VENDOR = new XContentBuilderString("vm_vendor");
-        static final XContentBuilderString START_TIME = new XContentBuilderString("start_time");
-        static final XContentBuilderString START_TIME_IN_MILLIS = new XContentBuilderString("start_time_in_millis");
+        static final String JVM = "jvm";
+        static final String PID = "pid";
+        static final String VERSION = "version";
+        static final String VM_NAME = "vm_name";
+        static final String VM_VERSION = "vm_version";
+        static final String VM_VENDOR = "vm_vendor";
+        static final String START_TIME = "start_time";
+        static final String START_TIME_IN_MILLIS = "start_time_in_millis";
 
-        static final XContentBuilderString MEM = new XContentBuilderString("mem");
-        static final XContentBuilderString HEAP_INIT = new XContentBuilderString("heap_init");
-        static final XContentBuilderString HEAP_INIT_IN_BYTES = new XContentBuilderString("heap_init_in_bytes");
-        static final XContentBuilderString HEAP_MAX = new XContentBuilderString("heap_max");
-        static final XContentBuilderString HEAP_MAX_IN_BYTES = new XContentBuilderString("heap_max_in_bytes");
-        static final XContentBuilderString NON_HEAP_INIT = new XContentBuilderString("non_heap_init");
-        static final XContentBuilderString NON_HEAP_INIT_IN_BYTES = new XContentBuilderString("non_heap_init_in_bytes");
-        static final XContentBuilderString NON_HEAP_MAX = new XContentBuilderString("non_heap_max");
-        static final XContentBuilderString NON_HEAP_MAX_IN_BYTES = new XContentBuilderString("non_heap_max_in_bytes");
-        static final XContentBuilderString DIRECT_MAX = new XContentBuilderString("direct_max");
-        static final XContentBuilderString DIRECT_MAX_IN_BYTES = new XContentBuilderString("direct_max_in_bytes");
-        static final XContentBuilderString GC_COLLECTORS = new XContentBuilderString("gc_collectors");
-        static final XContentBuilderString MEMORY_POOLS = new XContentBuilderString("memory_pools");
+        static final String MEM = "mem";
+        static final String HEAP_INIT = "heap_init";
+        static final String HEAP_INIT_IN_BYTES = "heap_init_in_bytes";
+        static final String HEAP_MAX = "heap_max";
+        static final String HEAP_MAX_IN_BYTES = "heap_max_in_bytes";
+        static final String NON_HEAP_INIT = "non_heap_init";
+        static final String NON_HEAP_INIT_IN_BYTES = "non_heap_init_in_bytes";
+        static final String NON_HEAP_MAX = "non_heap_max";
+        static final String NON_HEAP_MAX_IN_BYTES = "non_heap_max_in_bytes";
+        static final String DIRECT_MAX = "direct_max";
+        static final String DIRECT_MAX_IN_BYTES = "direct_max_in_bytes";
+        static final String GC_COLLECTORS = "gc_collectors";
+        static final String MEMORY_POOLS = "memory_pools";
+        static final String USING_COMPRESSED_OOPS = "using_compressed_ordinary_object_pointers";
     }
 
     public static JvmInfo readJvmInfo(StreamInput in) throws IOException {
@@ -331,6 +436,7 @@ public class JvmInfo implements Streamable, ToXContent {
         mem.readFrom(in);
         gcCollectors = in.readStringArray();
         memoryPools = in.readStringArray();
+        useCompressedOops = in.readString();
     }
 
     @Override
@@ -355,6 +461,7 @@ public class JvmInfo implements Streamable, ToXContent {
         mem.writeTo(out);
         out.writeStringArray(gcCollectors);
         out.writeStringArray(memoryPools);
+        out.writeString(useCompressedOops);
     }
 
     public static class Mem implements Streamable {

@@ -18,11 +18,33 @@
  */
 
 task buildDeb(type: Deb) {
-  dependsOn dependencyFiles
+  dependsOn preparePackagingFiles
+  baseName 'elasticsearch' // this is what pom generation uses for artifactId
+  // Follow elasticsearch's deb file naming convention
+  archiveName "${packageName}-${project.version}.deb"
+  version = project.version
+
+  packageGroup 'web'
+  requires 'libc6'
+  requires 'adduser'
+
+  into('/usr/share/lintian/overrides') {
+    from("${project.packagingFiles}/lintian/elasticsearch")
+  }
+  into('/usr/share/doc/elasticsearch') {
+    from "${project.packagingFiles}/copyright"
+    fileMode 0644
+  }
 }
 
 artifacts {
+  'default' buildDeb
   archives buildDeb
 }
 
-integTest.dependsOn buildDeb
+integTest {
+  /* We use real deb tools to extract the deb file for testing so we have to
+    skip the test if they aren't around. */
+  enabled = new File('/usr/bin/dpkg-deb').exists() || // Standard location
+      new File('/usr/local/bin/dpkg-deb').exists()    // Homebrew location
+}

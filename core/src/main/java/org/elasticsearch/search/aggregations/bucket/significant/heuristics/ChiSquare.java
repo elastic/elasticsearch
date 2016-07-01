@@ -23,17 +23,22 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 public class ChiSquare extends NXYSignificanceHeuristic {
-
-    protected static final ParseField NAMES_FIELD = new ParseField("chi_square");
+    public static final ParseField NAMES_FIELD = new ParseField("chi_square");
 
     public ChiSquare(boolean includeNegatives, boolean backgroundIsSuperset) {
         super(includeNegatives, backgroundIsSuperset);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public ChiSquare(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override
@@ -50,18 +55,6 @@ public class ChiSquare extends NXYSignificanceHeuristic {
         result = 31 * result + super.hashCode();
         return result;
     }
-
-    public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {
-        @Override
-        public SignificanceHeuristic readResult(StreamInput in) throws IOException {
-            return new ChiSquare(in.readBoolean(), in.readBoolean());
-        }
-
-        @Override
-        public String getName() {
-            return NAMES_FIELD.getPreferredName();
-        }
-    };
 
     /**
      * Calculates Chi^2
@@ -80,23 +73,24 @@ public class ChiSquare extends NXYSignificanceHeuristic {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(STREAM.getName());
-        super.writeTo(out);
+    public String getWriteableName() {
+        return NAMES_FIELD.getPreferredName();
     }
 
-    public static class ChiSquareParser extends NXYParser {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(NAMES_FIELD.getPreferredName());
+        super.build(builder);
+        builder.endObject();
+        return builder;
+    }
 
+    public static final SignificanceHeuristicParser PARSER = new NXYParser() {
         @Override
         protected SignificanceHeuristic newHeuristic(boolean includeNegatives, boolean backgroundIsSuperset) {
             return new ChiSquare(includeNegatives, backgroundIsSuperset);
         }
-
-        @Override
-        public String[] getNames() {
-            return NAMES_FIELD.getAllNamesIncludedDeprecated();
-        }
-    }
+    };
 
     public static class ChiSquareBuilder extends NXYSignificanceHeuristic.NXYBuilder {
 
@@ -106,7 +100,7 @@ public class ChiSquare extends NXYSignificanceHeuristic {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(STREAM.getName());
+            builder.startObject(NAMES_FIELD.getPreferredName());
             super.build(builder);
             builder.endObject();
             return builder;

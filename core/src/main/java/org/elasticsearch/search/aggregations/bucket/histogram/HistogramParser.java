@@ -19,125 +19,131 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
-import org.elasticsearch.search.aggregations.support.format.ValueParser;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Parses the histogram request
  */
-public class HistogramParser implements Aggregator.Parser {
+public class HistogramParser extends NumericValuesSourceParser {
 
-    static final ParseField EXTENDED_BOUNDS = new ParseField("extended_bounds");
+    public HistogramParser() {
+        super(true, true, false);
+    }
 
-    @Override
-    public String type() {
-        return InternalHistogram.TYPE.name();
+    protected HistogramParser(boolean timezoneAware) {
+        super(true, true, timezoneAware);
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
+    protected AbstractHistogramBuilder<?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        HistogramAggregationBuilder factory = new HistogramAggregationBuilder(aggregationName);
+        Long interval = (Long) otherOptions.get(Rounding.Interval.INTERVAL_FIELD);
+        if (interval == null) {
+            throw new ParsingException(null, "Missing required field [interval] for histogram aggregation [" + aggregationName + "]");
+        } else {
+            factory.interval(interval);
+        }
+        Long offset = (Long) otherOptions.get(Rounding.OffsetRounding.OFFSET_FIELD);
+        if (offset != null) {
+            factory.offset(offset);
+        }
 
-        ValuesSourceParser vsParser = ValuesSourceParser.numeric(aggregationName, InternalHistogram.TYPE, context)
-                .targetValueType(ValueType.NUMERIC)
-                .formattable(true)
-                .build();
+        ExtendedBounds extendedBounds = (ExtendedBounds) otherOptions.get(ExtendedBounds.EXTENDED_BOUNDS_FIELD);
+        if (extendedBounds != null) {
+            factory.extendedBounds(extendedBounds);
+        }
+        Boolean keyed = (Boolean) otherOptions.get(HistogramAggregator.KEYED_FIELD);
+        if (keyed != null) {
+            factory.keyed(keyed);
+        }
+        Long minDocCount = (Long) otherOptions.get(HistogramAggregator.MIN_DOC_COUNT_FIELD);
+        if (minDocCount != null) {
+            factory.minDocCount(minDocCount);
+        }
+        InternalOrder order = (InternalOrder) otherOptions.get(HistogramAggregator.ORDER_FIELD);
+        if (order != null) {
+            factory.order(order);
+        }
+        return factory;
+    }
 
-        boolean keyed = false;
-        long minDocCount = 0;
-        InternalOrder order = (InternalOrder) InternalOrder.KEY_ASC;
-        long interval = -1;
-        ExtendedBounds extendedBounds = null;
-        long offset = 0;
-
-        XContentParser.Token token;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (vsParser.token(currentFieldName, token, parser)) {
-                continue;
-            } else if (token.isValue()) {
-                if ("interval".equals(currentFieldName)) {
-                    interval = parser.longValue();
-                } else if ("min_doc_count".equals(currentFieldName) || "minDocCount".equals(currentFieldName)) {
-                    minDocCount = parser.longValue();
-                } else if ("keyed".equals(currentFieldName)) {
-                    keyed = parser.booleanValue();
-                } else if ("offset".equals(currentFieldName)) {
-                    offset = parser.longValue();
+    @Override
+    protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
+            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+        if (token.isValue()) {
+            if (parseFieldMatcher.match(currentFieldName, Rounding.Interval.INTERVAL_FIELD)) {
+                if (token == XContentParser.Token.VALUE_STRING) {
+                    otherOptions.put(Rounding.Interval.INTERVAL_FIELD, parseStringInterval(parser.text()));
+                    return true;
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
+                    otherOptions.put(Rounding.Interval.INTERVAL_FIELD, parser.longValue());
+                    return true;
                 }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("order".equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token == XContentParser.Token.VALUE_STRING) {
-                            String dir = parser.text();
-                            boolean asc = "asc".equals(dir);
-                            if (!asc && !"desc".equals(dir)) {
-                                throw new SearchParseException(context, "Unknown order direction [" + dir + "] in aggregation ["
-                                        + aggregationName + "]. Should be either [asc] or [desc]", parser.getTokenLocation());
-                            }
-                            order = resolveOrder(currentFieldName, asc);
-                        }
-                    }
-                } else if (context.parseFieldMatcher().match(currentFieldName, EXTENDED_BOUNDS)) {
-                    extendedBounds = new ExtendedBounds();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token.isValue()) {
-                            if ("min".equals(currentFieldName)) {
-                                extendedBounds.min = parser.longValue(true);
-                            } else if ("max".equals(currentFieldName)) {
-                                extendedBounds.max = parser.longValue(true);
-                            } else {
-                                throw new SearchParseException(context, "Unknown extended_bounds key for a " + token + " in aggregation ["
-                                        + aggregationName + "]: [" + currentFieldName + "].", parser.getTokenLocation());
-                            }
-                        }
-                    }
-
+            } else if (parseFieldMatcher.match(currentFieldName, HistogramAggregator.MIN_DOC_COUNT_FIELD)) {
+                otherOptions.put(HistogramAggregator.MIN_DOC_COUNT_FIELD, parser.longValue());
+                return true;
+            } else if (parseFieldMatcher.match(currentFieldName, HistogramAggregator.KEYED_FIELD)) {
+                otherOptions.put(HistogramAggregator.KEYED_FIELD, parser.booleanValue());
+                return true;
+            } else if (parseFieldMatcher.match(currentFieldName, Rounding.OffsetRounding.OFFSET_FIELD)) {
+                if (token == XContentParser.Token.VALUE_STRING) {
+                    otherOptions.put(Rounding.OffsetRounding.OFFSET_FIELD, parseStringOffset(parser.text()));
+                    return true;
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
+                    otherOptions.put(Rounding.OffsetRounding.OFFSET_FIELD, parser.longValue());
+                    return true;
                 }
             } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in aggregation [" + aggregationName + "].",
-                        parser.getTokenLocation());
+                return false;
             }
+        } else if (token == XContentParser.Token.START_OBJECT) {
+            if (parseFieldMatcher.match(currentFieldName, HistogramAggregator.ORDER_FIELD)) {
+                InternalOrder order = null;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                    } else if (token == XContentParser.Token.VALUE_STRING) {
+                        String dir = parser.text();
+                        boolean asc = "asc".equals(dir);
+                        if (!asc && !"desc".equals(dir)) {
+                            throw new ParsingException(parser.getTokenLocation(), "Unknown order direction in aggregation ["
+                                    + aggregationName + "]: [" + dir
+                                    + "]. Should be either [asc] or [desc]");
+                        }
+                        order = resolveOrder(currentFieldName, asc);
+                    }
+                }
+                otherOptions.put(HistogramAggregator.ORDER_FIELD, order);
+                return true;
+            } else if (parseFieldMatcher.match(currentFieldName, ExtendedBounds.EXTENDED_BOUNDS_FIELD)) {
+                ExtendedBounds extendedBounds = ExtendedBounds.fromXContent(parser, parseFieldMatcher, aggregationName);
+                otherOptions.put(ExtendedBounds.EXTENDED_BOUNDS_FIELD, extendedBounds);
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            return false;
         }
+    }
 
-        if (interval < 1) {
-            throw new SearchParseException(context,
-                    "Missing required field [interval] for histogram aggregation [" + aggregationName + "]", parser.getTokenLocation());
-        }
+    protected Object parseStringInterval(String interval) {
+        return Long.valueOf(interval);
+    }
 
-        Rounding rounding = new Rounding.Interval(interval);
-        if (offset != 0) {
-            rounding = new Rounding.OffsetRounding((Rounding.Interval) rounding, offset);
-        }
-
-        if (extendedBounds != null) {
-            // with numeric histogram, we can process here and fail fast if the bounds are invalid
-            extendedBounds.processAndValidate(aggregationName, context, ValueParser.RAW);
-        }
-
-        return new HistogramAggregator.Factory(aggregationName, vsParser.config(), rounding, order, keyed, minDocCount, extendedBounds,
-                new InternalHistogram.Factory());
-
+    protected long parseStringOffset(String offset) throws IOException {
+        return Long.valueOf(offset);
     }
 
     static InternalOrder resolveOrder(String key, boolean asc) {

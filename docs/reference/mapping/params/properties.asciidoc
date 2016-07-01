@@ -7,7 +7,7 @@ contain sub-fields, called `properties`. These properties may be of any
 be added:
 
 * explicitly by defining them when <<indices-create-index,creating an index>>.
-* explicitily by defining them when adding or updating a mapping type with the <<indices-put-mapping,PUT mapping>> API.
+* explicitly by defining them when adding or updating a mapping type with the <<indices-put-mapping,PUT mapping>> API.
 * <<dynamic-mapping,dynamically>> just by indexing documents containing new fields.
 
 Below is an example of adding `properties` to a mapping type, an `object`
@@ -23,14 +23,14 @@ PUT my_index
         "manager": { <2>
           "properties": {
             "age":  { "type": "integer" },
-            "name": { "type": "string"  }
+            "name": { "type": "text"  }
           }
         },
         "employees": { <3>
           "type": "nested",
           "properties": {
             "age":  { "type": "integer" },
-            "name": { "type": "string"  }
+            "name": { "type": "text"  }
           }
         }
       }
@@ -57,7 +57,7 @@ PUT my_index/my_type/1 <4>
   ]
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> Properties under the `my_type` mapping type.
 <2> Properties under the `manager` object field.
 <3> Properties under the `employees` nested field.
@@ -98,8 +98,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[continued]
 
 IMPORTANT: The full path to the inner field must be specified.
-
-

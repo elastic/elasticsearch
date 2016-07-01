@@ -19,19 +19,33 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.startsWith;
 
 public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilder> {
     @Override
@@ -96,7 +110,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 }
                 assertThat(booleanQuery.clauses().size(), equalTo(clauses.size()));
                 Iterator<BooleanClause> clauseIterator = clauses.iterator();
-                for (BooleanClause booleanClause : booleanQuery.getClauses()) {
+                for (BooleanClause booleanClause : booleanQuery.clauses()) {
                     assertThat(booleanClause, instanceOf(clauseIterator.next().getClass()));
                 }
             }
@@ -123,22 +137,22 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 "    \"bool\" : {\n";
         if (tempQueryBuilder.must().size() > 0) {
             QueryBuilder must = tempQueryBuilder.must().get(0);
-            contentString += "must: " + must.toString() + ",";
+            contentString += "\"must\": " + must.toString() + ",";
             expectedQuery.must(must);
         }
         if (tempQueryBuilder.mustNot().size() > 0) {
             QueryBuilder mustNot = tempQueryBuilder.mustNot().get(0);
-            contentString += (randomBoolean() ? "must_not: " : "mustNot: ") + mustNot.toString() + ",";
+            contentString += (randomBoolean() ? "\"must_not\": " : "\"mustNot\": ") + mustNot.toString() + ",";
             expectedQuery.mustNot(mustNot);
         }
         if (tempQueryBuilder.should().size() > 0) {
             QueryBuilder should = tempQueryBuilder.should().get(0);
-            contentString += "should: " + should.toString() + ",";
+            contentString += "\"should\": " + should.toString() + ",";
             expectedQuery.should(should);
         }
         if (tempQueryBuilder.filter().size() > 0) {
             QueryBuilder filter = tempQueryBuilder.filter().get(0);
-            contentString += "filter: " + filter.toString() + ",";
+            contentString += "\"filter\": " + filter.toString() + ",";
             expectedQuery.filter(filter);
         }
         contentString = contentString.substring(0, contentString.length() - 1);
@@ -175,7 +189,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         }
     }
 
-    // https://github.com/elasticsearch/elasticsearch/issues/7240
+    // https://github.com/elastic/elasticsearch/issues/7240
     public void testEmptyBooleanQuery() throws Exception {
         XContentBuilder contentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         BytesReference query = contentBuilder.startObject().startObject("bool").endObject().endObject().bytes();
@@ -242,5 +256,206 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         BooleanClause innerBooleanClause2 = innerBooleanQuery.clauses().get(1);
         assertThat(innerBooleanClause2.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
         assertThat(innerBooleanClause2.getQuery(), instanceOf(MatchAllDocsQuery.class));
+    }
+
+    public void testMinShouldMatchBiggerThanNumberOfShouldClauses() throws Exception {
+        BooleanQuery bq = (BooleanQuery) parseQuery(
+            boolQuery()
+                .should(termQuery("foo", "bar"))
+                .should(termQuery("foo2", "bar2"))
+                .minimumNumberShouldMatch("3")
+                .buildAsBytes()).toQuery(createShardContext());
+        assertEquals(3, bq.getMinimumNumberShouldMatch());
+
+        bq = (BooleanQuery) parseQuery(
+            boolQuery()
+                .should(termQuery("foo", "bar"))
+                .should(termQuery("foo2", "bar2"))
+                .minimumNumberShouldMatch(3)
+                .buildAsBytes()).toQuery(createShardContext());
+        assertEquals(3, bq.getMinimumNumberShouldMatch());
+    }
+
+    public void testMinShouldMatchDisableCoord() throws Exception {
+        BooleanQuery bq = (BooleanQuery) parseQuery(
+                boolQuery()
+                        .should(termQuery("foo", "bar"))
+                        .should(termQuery("foo2", "bar2"))
+                        .minimumNumberShouldMatch("3")
+                        .disableCoord(true)
+                        .buildAsBytes()).toQuery(createShardContext());
+        assertEquals(3, bq.getMinimumNumberShouldMatch());
+    }
+
+    public void testFromJson() throws IOException {
+        String query =
+                "{" +
+                "\"bool\" : {" +
+                "  \"must\" : [ {" +
+                "    \"term\" : {" +
+                "      \"user\" : {" +
+                "        \"value\" : \"kimchy\"," +
+                "        \"boost\" : 1.0" +
+                "      }" +
+                "    }" +
+                "  } ]," +
+                "  \"filter\" : [ {" +
+                "    \"term\" : {" +
+                "      \"tag\" : {" +
+                "        \"value\" : \"tech\"," +
+                "        \"boost\" : 1.0" +
+                "      }" +
+                "    }" +
+                "  } ]," +
+                "  \"must_not\" : [ {" +
+                "    \"range\" : {" +
+                "      \"age\" : {" +
+                "        \"from\" : 10," +
+                "        \"to\" : 20," +
+                "        \"include_lower\" : true," +
+                "        \"include_upper\" : true," +
+                "        \"boost\" : 1.0" +
+                "      }" +
+                "    }" +
+                "  } ]," +
+                "  \"should\" : [ {" +
+                "    \"term\" : {" +
+                "      \"tag\" : {" +
+                "        \"value\" : \"wow\"," +
+                "        \"boost\" : 1.0" +
+                "      }" +
+                "    }" +
+                "  }, {" +
+                "    \"term\" : {" +
+                "      \"tag\" : {" +
+                "        \"value\" : \"elasticsearch\"," +
+                "        \"boost\" : 1.0" +
+                "      }" +
+                "    }" +
+                "  } ]," +
+                "  \"disable_coord\" : false," +
+                "  \"adjust_pure_negative\" : true," +
+                "  \"minimum_should_match\" : \"23\"," +
+                "  \"boost\" : 42.0" +
+                "}" +
+              "}";
+
+        BoolQueryBuilder queryBuilder = (BoolQueryBuilder) parseQuery(query);
+        checkGeneratedJson(query, queryBuilder);
+
+        assertEquals(query, 42, queryBuilder.boost, 0.00001);
+        assertEquals(query, "23", queryBuilder.minimumShouldMatch());
+        assertEquals(query, "kimchy", ((TermQueryBuilder)queryBuilder.must().get(0)).value());
+    }
+
+    /**
+     * we ignore empty query bodies if we are not in strict mode
+     */
+    public void testFromJsonEmptyQueryBody() throws IOException {
+        String query =
+                "{" +
+                "\"bool\" : {" +
+                "  \"must\" : [ { } ]," +
+                "  \"filter\" : { }," +
+                "  \"must_not\" : [ { \"constant_score\" : {\"filter\" : { } } } ]" +
+                "}" +
+              "}";
+
+        BoolQueryBuilder queryBuilder = (BoolQueryBuilder) parseQuery(query, ParseFieldMatcher.EMPTY);
+        assertEquals(query, 0, queryBuilder.must().size());
+        assertEquals(query, 0, queryBuilder.filter().size());
+        assertEquals(query, 0, queryBuilder.mustNot().size());
+        assertEquals(query, 0, queryBuilder.should().size());
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseQuery(query, ParseFieldMatcher.STRICT));
+        assertThat(ex.getMessage(), startsWith("query malformed, empty clause found at"));
+    }
+
+    /**
+     * test that unknown query names in the clauses throw an error
+     */
+    public void testUnknownQueryName() throws IOException {
+        String query = "{\"bool\" : {\"must\" : { \"unknown_query\" : { } } } }";
+
+        ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query, ParseFieldMatcher.EMPTY));
+        assertEquals("no [query] registered for [unknown_query]", ex.getMessage());
+    }
+
+    /**
+     * test that two queries in object throws error
+     */
+    public void testTooManyQueriesInObject() throws IOException {
+        String clauseType = randomFrom(new String[] {"must", "should", "must_not", "filter"});
+        // should also throw error if invalid query is preceded by a valid one
+        String query = "{\"bool\" : {\"" + clauseType
+                + "\" : { \"match\" : { \"foo\" : \"bar\" } , \"match\" : { \"baz\" : \"buzz\" } } } }";
+        ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query, ParseFieldMatcher.EMPTY));
+        assertEquals("expected [END_OBJECT] but got [FIELD_NAME], possibly too many query clauses", ex.getMessage());
+    }
+
+    public void testRewrite() throws IOException {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolean mustRewrite = false;
+        if (randomBoolean()) {
+            mustRewrite = true;
+            boolQueryBuilder.must(new WrapperQueryBuilder(new TermsQueryBuilder("foo", "must").toString()));
+        }
+        if (randomBoolean()) {
+            mustRewrite = true;
+            boolQueryBuilder.should(new WrapperQueryBuilder(new TermsQueryBuilder("foo", "should").toString()));
+        }
+        if (randomBoolean()) {
+            mustRewrite = true;
+            boolQueryBuilder.filter(new WrapperQueryBuilder(new TermsQueryBuilder("foo", "filter").toString()));
+        }
+        if (randomBoolean()) {
+            mustRewrite = true;
+            boolQueryBuilder.mustNot(new WrapperQueryBuilder(new TermsQueryBuilder("foo", "must_not").toString()));
+        }
+        if (mustRewrite == false && randomBoolean()) {
+            boolQueryBuilder.must(new TermsQueryBuilder("foo", "no_rewrite"));
+        }
+        QueryBuilder rewritten = boolQueryBuilder.rewrite(createShardContext());
+        if (mustRewrite == false && boolQueryBuilder.must().isEmpty()) {
+            // if it's empty we rewrite to match all
+            assertEquals(rewritten, new MatchAllQueryBuilder());
+        } else {
+            BoolQueryBuilder rewrite = (BoolQueryBuilder) rewritten;
+            if (mustRewrite) {
+                assertNotSame(rewrite, boolQueryBuilder);
+                if (boolQueryBuilder.must().isEmpty() == false) {
+                    assertEquals(new TermsQueryBuilder("foo", "must"), rewrite.must().get(0));
+                }
+                if (boolQueryBuilder.should().isEmpty() == false) {
+                    assertEquals(new TermsQueryBuilder("foo", "should"), rewrite.should().get(0));
+                }
+                if (boolQueryBuilder.mustNot().isEmpty() == false) {
+                    assertEquals(new TermsQueryBuilder("foo", "must_not"), rewrite.mustNot().get(0));
+                }
+                if (boolQueryBuilder.filter().isEmpty() == false) {
+                    assertEquals(new TermsQueryBuilder("foo", "filter"), rewrite.filter().get(0));
+                }
+            } else {
+                assertSame(rewrite, boolQueryBuilder);
+                if (boolQueryBuilder.must().isEmpty() == false) {
+                    assertSame(boolQueryBuilder.must().get(0), rewrite.must().get(0));
+                }
+            }
+        }
+    }
+
+    public void testRewriteMultipleTimes() throws IOException {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.must(new WrapperQueryBuilder(new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()).toString()));
+        QueryBuilder rewritten = boolQueryBuilder.rewrite(createShardContext());
+        BoolQueryBuilder expected = new BoolQueryBuilder();
+        expected.must(new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()));
+        assertEquals(expected, rewritten);
+
+        expected = new BoolQueryBuilder();
+        expected.must(new MatchAllQueryBuilder());
+        QueryBuilder rewrittenAgain = rewritten.rewrite(createShardContext());
+        assertEquals(rewrittenAgain, expected);
+        assertEquals(QueryBuilder.rewriteQuery(boolQueryBuilder, createShardContext()), expected);
     }
 }

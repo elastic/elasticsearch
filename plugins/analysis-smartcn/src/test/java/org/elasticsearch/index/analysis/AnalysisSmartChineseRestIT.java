@@ -21,21 +21,13 @@ package org.elasticsearch.index.analysis;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.plugin.analysis.smartcn.AnalysisSmartChinesePlugin;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
-import java.util.Collection;
 
 public class AnalysisSmartChineseRestIT extends ESRestTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(AnalysisSmartChinesePlugin.class);
-    }
 
     public AnalysisSmartChineseRestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);

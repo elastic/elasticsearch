@@ -37,7 +37,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.search.similarities.DefaultSimilarity;
+import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.TestUtil;
@@ -82,7 +82,7 @@ public class BlendedTermQueryTests extends ESTestCase {
             w.addDocument(d);
         }
         w.commit();
-        DirectoryReader reader = DirectoryReader.open(w, true);
+        DirectoryReader reader = DirectoryReader.open(w);
         IndexSearcher searcher = setSimilarity(newSearcher(reader));
 
         {
@@ -143,7 +143,7 @@ public class BlendedTermQueryTests extends ESTestCase {
             w.addDocument(d);
         }
         w.commit();
-        DirectoryReader reader = DirectoryReader.open(w, true);
+        DirectoryReader reader = DirectoryReader.open(w);
         IndexSearcher searcher = setSimilarity(newSearcher(reader));
         {
             String[] fields = new String[]{"username", "song"};
@@ -159,16 +159,13 @@ public class BlendedTermQueryTests extends ESTestCase {
         {
             BooleanQuery.Builder query = new BooleanQuery.Builder();
             query.setDisableCoord(true);
-            DisjunctionMaxQuery uname = new DisjunctionMaxQuery(0.0f);
-            uname.add(new TermQuery(new Term("username", "foo")));
-            uname.add(new TermQuery(new Term("song", "foo")));
+            DisjunctionMaxQuery uname = new DisjunctionMaxQuery(
+                    Arrays.asList(new TermQuery(new Term("username", "foo")), new TermQuery(new Term("song", "foo"))), 0.0f);
 
-            DisjunctionMaxQuery s = new DisjunctionMaxQuery(0.0f);
-            s.add(new TermQuery(new Term("username", "fighers")));
-            s.add(new TermQuery(new Term("song", "fighers")));
-            DisjunctionMaxQuery gen = new DisjunctionMaxQuery(0f);
-            gen.add(new TermQuery(new Term("username", "generator")));
-            gen.add(new TermQuery(new Term("song", "generator")));
+            DisjunctionMaxQuery s = new DisjunctionMaxQuery(
+                    Arrays.asList(new TermQuery(new Term("username", "fighers")), new TermQuery(new Term("song", "fighers"))), 0.0f);
+            DisjunctionMaxQuery gen = new DisjunctionMaxQuery(
+                    Arrays.asList(new TermQuery(new Term("username", "generator")), new TermQuery(new Term("song", "generator"))), 0f);
             query.add(uname, BooleanClause.Occur.SHOULD);
             query.add(s, BooleanClause.Occur.SHOULD);
             query.add(gen, BooleanClause.Occur.SHOULD);
@@ -214,7 +211,7 @@ public class BlendedTermQueryTests extends ESTestCase {
     }
 
     public IndexSearcher setSimilarity(IndexSearcher searcher) {
-        Similarity similarity = random().nextBoolean() ? new BM25Similarity() : new DefaultSimilarity();
+        Similarity similarity = random().nextBoolean() ? new BM25Similarity() : new ClassicSimilarity();
         searcher.setSimilarity(similarity);
         return searcher;
     }

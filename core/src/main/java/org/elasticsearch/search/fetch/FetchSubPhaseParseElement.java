@@ -29,7 +29,7 @@ import org.elasticsearch.search.internal.SearchContext;
 public abstract class FetchSubPhaseParseElement<SubPhaseContext extends FetchSubPhaseContext> implements SearchParseElement {
 
     @Override
-    final public void parse(XContentParser parser, SearchContext context) throws Exception {
+    public final void parse(XContentParser parser, SearchContext context) throws Exception {
         SubPhaseContext fetchSubPhaseContext = context.getFetchSubPhaseContext(getContextFactory());
         // this is to make sure that the SubFetchPhase knows it should execute
         fetchSubPhaseContext.setHitExecutionNeeded(true);

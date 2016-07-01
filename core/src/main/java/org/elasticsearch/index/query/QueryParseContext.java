@@ -21,60 +21,53 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 
 import java.io.IOException;
+import java.util.Objects;
+import java.util.Optional;
 
-public class QueryParseContext {
+public class QueryParseContext implements ParseFieldMatcherSupplier {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(QueryParseContext.class));
 
     private static final ParseField CACHE = new ParseField("_cache").withAllDeprecated("Elasticsearch makes its own caching decisions");
     private static final ParseField CACHE_KEY = new ParseField("_cache_key").withAllDeprecated("Filters are always used as cache keys");
 
-    private XContentParser parser;
-    private ParseFieldMatcher parseFieldMatcher = ParseFieldMatcher.EMPTY;
+    private final XContentParser parser;
+    private final IndicesQueriesRegistry indicesQueriesRegistry;
+    private final ParseFieldMatcher parseFieldMatcher;
 
-    private IndicesQueriesRegistry indicesQueriesRegistry;
-
-    public QueryParseContext(IndicesQueriesRegistry registry) {
-        this.indicesQueriesRegistry = registry;
-    }
-
-    public void reset(XContentParser jp) {
-        this.parseFieldMatcher = ParseFieldMatcher.EMPTY;
-        this.parser = jp;
-        if (parser != null) {
-            this.parser.setParseFieldMatcher(parseFieldMatcher);
-        }
+    public QueryParseContext(IndicesQueriesRegistry registry, XContentParser parser, ParseFieldMatcher parseFieldMatcher) {
+        this.indicesQueriesRegistry = Objects.requireNonNull(registry, "indices queries registry cannot be null");
+        this.parser = Objects.requireNonNull(parser, "parser cannot be null");
+        this.parseFieldMatcher = Objects.requireNonNull(parseFieldMatcher, "parse field matcher cannot be null");
     }
 
     public XContentParser parser() {
         return this.parser;
     }
 
-    public void parseFieldMatcher(ParseFieldMatcher parseFieldMatcher) {
-        if (parseFieldMatcher == null) {
-            throw new IllegalArgumentException("parseFieldMatcher must not be null");
-        }
-        this.parseFieldMatcher = parseFieldMatcher;
-    }
-
     public boolean isDeprecatedSetting(String setting) {
-        return parseFieldMatcher.match(setting, CACHE) || parseFieldMatcher.match(setting, CACHE_KEY);
+        return this.parseFieldMatcher.match(setting, CACHE) || this.parseFieldMatcher.match(setting, CACHE_KEY);
     }
 
     /**
      * Parses a top level query including the query element that wraps it
      */
-    public QueryBuilder<?> parseTopLevelQueryBuilder() {
+    public QueryBuilder parseTopLevelQueryBuilder() {
         try {
-            QueryBuilder<?> queryBuilder = null;
+            QueryBuilder queryBuilder = null;
             for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String fieldName = parser.currentName();
                     if ("query".equals(fieldName)) {
-                        queryBuilder = parseInnerQueryBuilder();
+                        queryBuilder = parseInnerQueryBuilder().orElse(null);
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "request does not support [" + parser.currentName() + "]");
                     }
@@ -94,7 +87,7 @@ public class QueryParseContext {
     /**
      * Parses a query excluding the query element that wraps it
      */
-    public QueryBuilder<?> parseInnerQueryBuilder() throws IOException {
+    public Optional<QueryBuilder> parseInnerQueryBuilder() throws IOException {
         // move to START object
         XContentParser.Token token;
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
@@ -105,8 +98,13 @@ public class QueryParseContext {
         }
         token = parser.nextToken();
         if (token == XContentParser.Token.END_OBJECT) {
-            // empty query
-            return EmptyQueryBuilder.PROTOTYPE;
+            // we encountered '{}' for a query clause
+            String msg = "query malformed, empty clause found at [" + parser.getTokenLocation() +"]";
+            DEPRECATION_LOGGER.deprecated(msg);
+            if (parseFieldMatcher.isStrict()) {
+                throw new IllegalArgumentException(msg);
+            }
+            return Optional.empty();
         }
         if (token != XContentParser.Token.FIELD_NAME) {
             throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, no field after start_object");
@@ -117,13 +115,9 @@ public class QueryParseContext {
         if (token != XContentParser.Token.START_OBJECT && token != XContentParser.Token.START_ARRAY) {
             throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, no field after start_object");
         }
-
-        QueryParser queryParser = queryParser(queryName);
-        if (queryParser == null) {
-            throw new ParsingException(parser.getTokenLocation(), "No query registered for [" + queryName + "]");
-        }
-
-        QueryBuilder result = queryParser.fromXContent(this);
+        @SuppressWarnings("unchecked")
+        Optional<QueryBuilder> result = (Optional<QueryBuilder>) indicesQueriesRegistry.lookup(queryName, parseFieldMatcher,
+                parser.getTokenLocation()).fromXContent(this);
         if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
             // if we are at END_OBJECT, move to the next one...
             parser.nextToken();
@@ -131,20 +125,8 @@ public class QueryParseContext {
         return result;
     }
 
-    public ParseFieldMatcher parseFieldMatcher() {
+    @Override
+    public ParseFieldMatcher getParseFieldMatcher() {
         return parseFieldMatcher;
-    }
-
-    public void parser(XContentParser innerParser) {
-        this.parser = innerParser;
-    }
-
-    /**
-     * Get the query parser for a specific type of query registered under its name
-     * @param name the name of the parser to retrieve
-     * @return the query parser
-     */
-    private QueryParser queryParser(String name) {
-        return indicesQueriesRegistry.queryParsers().get(name);
     }
 }

@@ -25,7 +25,6 @@ import org.elasticsearch.action.PrimaryMissingActionException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -35,12 +34,14 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -75,7 +76,7 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
         Map<String, Tuple<Version, org.apache.lucene.util.Version>> versions = new HashMap<>();
         for (ShardUpgradeResult result : shardUpgradeResults) {
             successfulShards++;
-            String index = result.getShardId().getIndex();
+            String index = result.getShardId().getIndex().getName();
             if (result.primary()) {
                 Integer count = successfulPrimaryShards.get(index);
                 successfulPrimaryShards.put(index, count == null ? 1 : count + 1);
@@ -179,7 +180,7 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
     }
 
     @Override
-    protected void doExecute(UpgradeRequest request, final ActionListener<UpgradeResponse> listener) {
+    protected void doExecute(Task task, UpgradeRequest request, final ActionListener<UpgradeResponse> listener) {
         ActionListener<UpgradeResponse> settingsUpdateListener = new ActionListener<UpgradeResponse>() {
             @Override
             public void onResponse(UpgradeResponse upgradeResponse) {
@@ -199,7 +200,7 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
                 listener.onFailure(e);
             }
         };
-        super.doExecute(request, settingsUpdateListener);
+        super.doExecute(task, request, settingsUpdateListener);
     }
 
     private void updateSettings(final UpgradeResponse upgradeResponse, final ActionListener<UpgradeResponse> listener) {

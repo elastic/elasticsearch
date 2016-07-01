@@ -18,25 +18,17 @@
  */
 package org.elasticsearch.cloud.aws;
 
+import com.amazonaws.Protocol;
 import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.IdentityHashMap;
 
 public class TestAwsS3Service extends InternalAwsS3Service {
     public static class TestPlugin extends Plugin {
-        @Override
-        public String name() {
-            return "mock-s3-service";
-        }
-        @Override
-        public String description() {
-            return "plugs in mock s3 service";
-        }
         public void onModule(S3Module s3Module) {
             S3Module.s3ServiceImpl = TestAwsS3Service.class;
         }
@@ -45,24 +37,15 @@ public class TestAwsS3Service extends InternalAwsS3Service {
     IdentityHashMap<AmazonS3, TestAmazonS3> clients = new IdentityHashMap<AmazonS3, TestAmazonS3>();
 
     @Inject
-    public TestAwsS3Service(Settings settings, SettingsFilter settingsFilter) {
-        super(settings, settingsFilter);
+    public TestAwsS3Service(Settings settings) {
+        super(settings);
     }
 
 
     @Override
-    public synchronized AmazonS3 client() {
-        return cachedWrapper(super.client());
-    }
-
-    @Override
-    public synchronized AmazonS3 client(String endpoint, String protocol, String region, String account, String key) {
-        return cachedWrapper(super.client(endpoint, protocol, region, account, key));
-    }
-
-    @Override
-    public synchronized AmazonS3 client(String endpoint, String protocol, String region, String account, String key, Integer maxRetries) {
-        return cachedWrapper(super.client(endpoint, protocol, region, account, key, maxRetries));
+    public synchronized AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries,
+                                        boolean useThrottleRetries) {
+        return cachedWrapper(super.client(endpoint, protocol, region, account, key, maxRetries, useThrottleRetries));
     }
 
     private AmazonS3 cachedWrapper(AmazonS3 client) {

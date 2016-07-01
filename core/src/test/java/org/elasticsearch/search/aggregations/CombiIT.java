@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations;
 
 import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.IntIntMap;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -118,7 +117,7 @@ public class CombiIT extends ESIntegTestCase {
         prepareCreate("idx").addMapping("type", jsonBuilder()
                 .startObject()
                 .startObject("type").startObject("properties")
-                    .startObject("name").field("type", "string").endObject()
+                    .startObject("name").field("type", "keyword").endObject()
                     .startObject("value").field("type", "integer").endObject()
                 .endObject().endObject()
                 .endObject()).execute().actionGet();
@@ -132,7 +131,7 @@ public class CombiIT extends ESIntegTestCase {
                                 .collectMode(aggCollectionMode )))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(0l));
+        assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(0L));
         Histogram values = searchResponse.getAggregations().get("values");
         assertThat(values, notNullValue());
         assertThat(values.getBuckets().isEmpty(), is(true));

@@ -1,0 +1,117 @@
+---
+"Test basic pipeline crud":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value": "_value"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { pipelines.0.id: "my_pipeline" }
+  - match: { pipelines.0.config.description: "_description" }
+
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      ingest.get_pipeline:
+        id: "my_pipeline"
+
+---
+"Test invalid config":
+  - do:
+      catch: /parse_exception/
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                }
+              }
+            ]
+          }
+
+---
+"Test invalid processor config":
+  - do:
+      catch: request
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "tag" : "fritag"
+                }
+              }
+            ]
+          }
+  - match: { error.root_cause.0.type: "parse_exception" }
+  - match: { error.root_cause.0.reason: "[field] required property is missing" }
+  - match: { error.root_cause.0.header.processor_tag: "fritag" }
+  - match: { error.root_cause.0.header.processor_type: "set" }
+  - match: { error.root_cause.0.header.property_name: "field" }
+
+---
+"Test basic pipeline with on_failure in processor":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value": "_value",
+                  "on_failure": [
+                    {
+                      "set" : {
+                        "field" : "field2",
+                        "value" : "_failed_value"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { pipelines.0.id: "my_pipeline" }
+  - match: { pipelines.0.config.description: "_description" }
+
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      ingest.get_pipeline:
+        id: "my_pipeline"

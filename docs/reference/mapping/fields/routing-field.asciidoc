@@ -21,15 +21,15 @@ PUT my_index/my_type/1?routing=user1 <1>
 
 GET my_index/my_type/1?routing=user1 <2>
 ------------------------------
-// AUTOSENSE
+// CONSOLE
+// TESTSETUP
 
 <1> This document uses `user1` as its routing value, instead of its ID.
-<2> The the same `routing` value needs to be provided when
+<2> The same `routing` value needs to be provided when
     <<docs-get,getting>>, <<docs-delete,deleting>>, or <<docs-update,updating>>
     the document.
 
-The value of the `_routing` field is accessible in queries, aggregations, scripts,
-and when sorting:
+The value of the `_routing` field is accessible in queries and scripts:
 
 [source,js]
 --------------------------
@@ -40,34 +40,20 @@ GET my_index/_search
       "_routing": [ "user1" ] <1>
     }
   },
-  "aggs": {
-    "Routing values": {
-      "terms": {
-        "field": "_routing", <2>
-        "size": 10
-      }
-    }
-  },
-  "sort": [
-    {
-      "_routing": { <3>
-        "order": "desc"
-      }
-    }
-  ],
   "script_fields": {
     "Routing value": {
-      "script": "doc['_routing']" <4>
+      "script": {
+        "lang": "painless",
+        "inline": "doc['_routing']" <2>
+      }
     }
   }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Querying on the `_routing` field (also see the <<query-dsl-ids-query,`ids` query>>)
-<2> Aggregating on the `_routing` field
-<3> Sorting on the `_routing` field
-<4> Accessing the `_routing` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)
+<2> Accessing the `_routing` field in scripts
 
 
 ==== Searching with custom routing
@@ -87,7 +73,7 @@ GET my_index/_search?routing=user1,user2 <1>
   }
 }
 ------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> This search request will only be executed on the shards associated with the `user1` and `user2` routing values.
 
@@ -104,7 +90,7 @@ custom `routing` value required for all CRUD operations:
 
 [source,js]
 ------------------------------
-PUT my_index
+PUT my_index2
 {
   "mappings": {
     "my_type": {
@@ -115,12 +101,13 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1 <2>
+PUT my_index2/my_type/1 <2>
 {
   "text": "No routing value provided"
 }
 ------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[catch:request]
 <1> Routing is required for `my_type` documents.
 <2> This index request throws a `routing_missing_exception`.
 

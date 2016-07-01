@@ -10,9 +10,10 @@ trigger flush operations as required in order to clear memory.
 
 [source,js]
 --------------------------------------------------
-POST /twitter/_flush
+POST twitter/_flush
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[setup:twitter]
 
 [float]
 [[flush-parameters]]
@@ -23,7 +24,7 @@ The flush API accepts the following request parameters:
 [horizontal]
 `wait_if_ongoing`::  If set to `true` the flush operation will block until the
 flush can be executed if another flush operation is already executing.
-The default is `false` and will cause an exception to be thrown on 
+The default is `false` and will cause an exception to be thrown on
 the shard level if another flush operation is already running.
 
 `force`:: Whether a flush should be forced even if it is not necessarily needed ie.
@@ -40,11 +41,12 @@ or even on `_all` the indices.
 
 [source,js]
 --------------------------------------------------
-POST /kimchy,elasticsearch/_flush
+POST kimchy,elasticsearch/_flush
 
-POST /_flush
+POST _flush
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
 
 [[indices-synced-flush]]
 === Synced Flush
@@ -72,9 +74,10 @@ the <<indices-stats,indices stats>> API:
 
 [source,sh]
 --------------------------------------------------
-GET /twitter/_stats/commit?level=shards
+GET twitter/_stats/commit?level=shards
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[s/^/PUT twitter\n/]
 
 
 which returns something similar to:
@@ -136,9 +139,10 @@ NOTE: It is harmless to request a synced flush while there is ongoing indexing. 
 
 [source,sh]
 --------------------------------------------------
-POST /twitter/_flush/synced
+POST twitter/_flush/synced
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[setup:twitter]
 
 The response contains details about how many shards were successfully sync-flushed and information about any failure.
 
@@ -149,18 +153,18 @@ sync-flushed:
 --------------------------------------------------
 {
    "_shards": {
-      "total": 4,
-      "successful": 4,
+      "total": 10,
+      "successful": 10,
       "failed": 0
    },
    "twitter": {
-      "total": 4,
-      "successful": 4,
+      "total": 10,
+      "successful": 10,
       "failed": 0
    }
 }
 --------------------------------------------------
-
+// TESTRESPONSE[s/"successful": 10/"successful": 5/]
 
 Here is what it looks like when one shard group failed due to pending operations:
 
@@ -186,7 +190,7 @@ Here is what it looks like when one shard group failed due to pending operations
 }
 --------------------------------------------------
 
-NOTE: The above error is shown when the synced flush failes due to concurrent indexing operations. The HTTP
+NOTE: The above error is shown when the synced flush fails due to concurrent indexing operations. The HTTP
 status code in that case will be `409 CONFLICT`.
 
 Sometimes the failures are specific to a shard copy. The copies that failed will not be eligible for
@@ -230,8 +234,8 @@ or even on `_all` the indices.
 
 [source,js]
 --------------------------------------------------
-POST /kimchy,elasticsearch/_flush/synced
+POST kimchy,elasticsearch/_flush/synced
 
-POST /_flush/synced
+POST _flush/synced
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE

@@ -1,0 +1,226 @@
+---
+"no body fails":
+  - do:
+      catch: param
+      reindex: {}
+
+---
+"junk in body fails":
+  - do:
+      catch: /unknown field \[junk\]/
+      reindex:
+        body:
+          junk:
+            more_junk:
+
+---
+"junk in source fails":
+  - do:
+      catch: /Unknown key for a START_OBJECT in \[junk\]./
+      reindex:
+        body:
+          source:
+            junk: {}
+
+---
+"junk in dest fails":
+  - do:
+      catch: /unknown field \[junk\]/
+      reindex:
+        body:
+          dest:
+            junk: {}
+
+---
+"no index on destination fails":
+  - do:
+      catch: /index must be specified/
+      reindex:
+        body:
+          dest: {}
+
+---
+"source size is accepted":
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      reindex:
+        body:
+          source:
+            index: source
+            size:  1000
+          dest:
+            index: dest
+
+---
+"search size fails if not a number":
+  - do:
+      catch: '/number_format_exception.*For input string: \"cat\"/'
+      reindex:
+        body:
+          source:
+            size: cat
+          dest:
+            index: dest
+
+---
+"search from is not supported":
+  - do:
+      catch: /from is not supported in this context/
+      reindex:
+        body:
+          source:
+            from: 1
+          dest:
+            index: dest
+
+---
+"overwriting version is not supported":
+  - do:
+      catch: /.*\[dest\] unknown field \[version\].*/
+      reindex:
+        body:
+          dest:
+            version: 10
+
+---
+"bad conflicts is error":
+  - do:
+      catch: /.*conflicts may only be "proceed" or "abort" but was \[cat\]/
+      reindex:
+        body:
+          conflicts: cat
+
+---
+"invalid size fails":
+  - do:
+      index:
+        index:   test
+        type:    test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /size should be greater than 0 if the request is limited to some number of documents or -1 if it isn't but it was \[-4\]/
+      reindex:
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+          size: -4
+
+---
+"can't set ttl":
+  - do:
+      index:
+        index:   test
+        type:    test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /setting ttl on destination isn't supported. use scripts instead./
+      reindex:
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+            ttl: 3m
+
+---
+"can't set timestamp":
+  - do:
+      index:
+        index:   test
+        type:    test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /setting timestamp on destination isn't supported. use scripts instead./
+      reindex:
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+            timestamp: "123"
+
+---
+"requests_per_second cannot be an empty string":
+  - do:
+      catch: /\[requests_per_second\] must be a float greater than 0. Use "unlimited" to disable throttling./
+      reindex:
+        requests_per_second: ""
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"requests_per_second cannot be negative":
+  - do:
+      catch: /\[requests_per_second\] must be a float greater than 0. Use "unlimited" to disable throttling./
+      reindex:
+        requests_per_second: -12
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"requests_per_second cannot be zero":
+  - do:
+      catch: /\[requests_per_second\] must be a float greater than 0. Use "unlimited" to disable throttling./
+      reindex:
+        requests_per_second: 0
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"reindex without source gives useful error message":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            test:
+              _source:
+                enabled: false
+  - do:
+      index:
+        index:  test
+        type:   test
+        id:     1
+        body:   { age: 23 }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: /\[test\]\[test\]\[1\] didn't store _source/
+      reindex:
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"source fields may not be modified":
+  - do:
+      catch: /fields is not supported in this context/
+      reindex:
+        body:
+          source:
+            index: test
+            fields: [_id]
+          dest:
+            index: dest

@@ -81,6 +81,4 @@ public final class ConfigurationException extends RuntimeException {
     public String getMessage() {
         return Errors.format("Guice configuration errors", messages);
     }
-
-    private static final long serialVersionUID = 0;
 }

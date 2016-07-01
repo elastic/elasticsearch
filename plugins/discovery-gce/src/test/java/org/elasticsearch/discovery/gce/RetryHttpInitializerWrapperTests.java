@@ -34,7 +34,7 @@ import com.google.api.client.testing.http.MockLowLevelHttpRequest;
 import com.google.api.client.testing.http.MockLowLevelHttpResponse;
 import com.google.api.client.testing.util.MockSleeper;
 import com.google.api.services.compute.Compute;
-
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.lessThan;
 
 public class RetryHttpInitializerWrapperTests extends ESTestCase {
 
-    static private class FailThenSuccessBackoffTransport extends MockHttpTransport {
+    private static class FailThenSuccessBackoffTransport extends MockHttpTransport {
 
         public int lowLevelExecCalls;
         int errorStatusCode;
@@ -97,11 +97,12 @@ public class RetryHttpInitializerWrapperTests extends ESTestCase {
         FailThenSuccessBackoffTransport fakeTransport =
                 new FailThenSuccessBackoffTransport(HttpStatusCodes.STATUS_CODE_SERVER_ERROR, 3);
 
-        MockGoogleCredential credential = new MockGoogleCredential.Builder()
+        MockGoogleCredential credential = RetryHttpInitializerWrapper.newMockCredentialBuilder()
                 .build();
         MockSleeper mockSleeper = new MockSleeper();
 
-        RetryHttpInitializerWrapper retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(credential, mockSleeper, 5000);
+        RetryHttpInitializerWrapper retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(credential, mockSleeper,
+            TimeValue.timeValueSeconds(5));
 
         Compute client = new Compute.Builder(fakeTransport, new JacksonFactory(), null)
                 .setHttpRequestInitializer(retryHttpInitializerWrapper)
@@ -116,19 +117,19 @@ public class RetryHttpInitializerWrapperTests extends ESTestCase {
     }
 
     public void testRetryWaitTooLong() throws Exception {
-        int maxWaitTime = 10;
+        TimeValue maxWaitTime = TimeValue.timeValueMillis(10);
         int maxRetryTimes = 50;
 
         FailThenSuccessBackoffTransport fakeTransport =
                 new FailThenSuccessBackoffTransport(HttpStatusCodes.STATUS_CODE_SERVER_ERROR, maxRetryTimes);
         JsonFactory jsonFactory = new JacksonFactory();
-        MockGoogleCredential credential = new MockGoogleCredential.Builder()
+        MockGoogleCredential credential = RetryHttpInitializerWrapper.newMockCredentialBuilder()
                 .build();
 
         MockSleeper oneTimeSleeper = new MockSleeper() {
             @Override
             public void sleep(long millis) throws InterruptedException {
-                Thread.sleep(maxWaitTime);
+                Thread.sleep(maxWaitTime.getMillis());
                 super.sleep(0); // important number, use this to get count
             }
         };
@@ -155,10 +156,11 @@ public class RetryHttpInitializerWrapperTests extends ESTestCase {
         FailThenSuccessBackoffTransport fakeTransport =
                 new FailThenSuccessBackoffTransport(HttpStatusCodes.STATUS_CODE_SERVER_ERROR, 1, true);
 
-        MockGoogleCredential credential = new MockGoogleCredential.Builder()
+        MockGoogleCredential credential = RetryHttpInitializerWrapper.newMockCredentialBuilder()
                 .build();
         MockSleeper mockSleeper = new MockSleeper();
-        RetryHttpInitializerWrapper retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(credential, mockSleeper, 500);
+        RetryHttpInitializerWrapper retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(credential, mockSleeper,
+            TimeValue.timeValueMillis(500));
 
         Compute client = new Compute.Builder(fakeTransport, new JacksonFactory(), null)
                 .setHttpRequestInitializer(retryHttpInitializerWrapper)

@@ -19,7 +19,12 @@
 
 package org.elasticsearch.common.util.iterable;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -49,6 +54,8 @@ public class Iterables {
         }
     }
 
+    /** Flattens the two level {@code Iterable} into a single {@code Iterable}.  Note that this pre-caches the values from the outer {@code
+     *  Iterable}, but not the values from the inner one. */
     public static <T> Iterable<T> flatten(Iterable<? extends Iterable<T>> inputs) {
         Objects.requireNonNull(inputs);
         return new FlattenedIterables<>(inputs);

@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,14 +58,14 @@ public class UpgradeStatusResponse extends BroadcastResponse implements ToXConte
             indices.add(shard.getIndex());
         }
 
-        for (String index : indices) {
+        for (String indexName : indices) {
             List<ShardUpgradeStatus> shards = new ArrayList<>();
             for (ShardUpgradeStatus shard : this.shards) {
-                if (shard.getShardRouting().index().equals(index)) {
+                if (shard.getShardRouting().getIndexName().equals(indexName)) {
                     shards.add(shard);
                 }
             }
-            indicesUpgradeStats.put(index, new IndexUpgradeStatus(index, shards.toArray(new ShardUpgradeStatus[shards.size()])));
+            indicesUpgradeStats.put(indexName, new IndexUpgradeStatus(indexName, shards.toArray(new ShardUpgradeStatus[shards.size()])));
         }
         this.indicesUpgradeStatus = indicesUpgradeStats;
         return indicesUpgradeStats;
@@ -126,7 +125,7 @@ public class UpgradeStatusResponse extends BroadcastResponse implements ToXConte
         if (outputIndices) {
             builder.startObject(Fields.INDICES);
             for (IndexUpgradeStatus indexUpgradeStatus : getIndices().values()) {
-                builder.startObject(indexUpgradeStatus.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(indexUpgradeStatus.getIndex());
 
                 builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, indexUpgradeStatus.getTotalBytes());
                 builder.byteSizeField(Fields.SIZE_TO_UPGRADE_IN_BYTES, Fields.SIZE_TO_UPGRADE, indexUpgradeStatus.getToUpgradeBytes());
@@ -165,18 +164,18 @@ public class UpgradeStatusResponse extends BroadcastResponse implements ToXConte
     }
 
     static final class Fields {
-        static final XContentBuilderString INDICES = new XContentBuilderString("indices");
-        static final XContentBuilderString SHARDS = new XContentBuilderString("shards");
-        static final XContentBuilderString ROUTING = new XContentBuilderString("routing");
-        static final XContentBuilderString STATE = new XContentBuilderString("state");
-        static final XContentBuilderString PRIMARY = new XContentBuilderString("primary");
-        static final XContentBuilderString NODE = new XContentBuilderString("node");
-        static final XContentBuilderString RELOCATING_NODE = new XContentBuilderString("relocating_node");
-        static final XContentBuilderString SIZE = new XContentBuilderString("size");
-        static final XContentBuilderString SIZE_IN_BYTES = new XContentBuilderString("size_in_bytes");
-        static final XContentBuilderString SIZE_TO_UPGRADE = new XContentBuilderString("size_to_upgrade");
-        static final XContentBuilderString SIZE_TO_UPGRADE_ANCIENT = new XContentBuilderString("size_to_upgrade_ancient");
-        static final XContentBuilderString SIZE_TO_UPGRADE_IN_BYTES = new XContentBuilderString("size_to_upgrade_in_bytes");
-        static final XContentBuilderString SIZE_TO_UPGRADE_ANCIENT_IN_BYTES = new XContentBuilderString("size_to_upgrade_ancient_in_bytes");
+        static final String INDICES = "indices";
+        static final String SHARDS = "shards";
+        static final String ROUTING = "routing";
+        static final String STATE = "state";
+        static final String PRIMARY = "primary";
+        static final String NODE = "node";
+        static final String RELOCATING_NODE = "relocating_node";
+        static final String SIZE = "size";
+        static final String SIZE_IN_BYTES = "size_in_bytes";
+        static final String SIZE_TO_UPGRADE = "size_to_upgrade";
+        static final String SIZE_TO_UPGRADE_ANCIENT = "size_to_upgrade_ancient";
+        static final String SIZE_TO_UPGRADE_IN_BYTES = "size_to_upgrade_in_bytes";
+        static final String SIZE_TO_UPGRADE_ANCIENT_IN_BYTES = "size_to_upgrade_ancient_in_bytes";
     }
 }

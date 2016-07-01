@@ -18,57 +18,50 @@
  */
 package org.elasticsearch.common;
 
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 
-import java.util.EnumSet;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Holds a field that can be found in a request while parsing and its different variants, which may be deprecated.
  */
 public class ParseField {
-    private final String camelCaseName;
-    private final String underscoreName;
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(ParseField.class));
+
+    private final String name;
     private final String[] deprecatedNames;
     private String allReplacedWith = null;
+    private final String[] allNames;
 
-    static final EnumSet<Flag> EMPTY_FLAGS = EnumSet.noneOf(Flag.class);
-    static final EnumSet<Flag> STRICT_FLAGS = EnumSet.of(Flag.STRICT);
-
-    enum Flag {
-        STRICT
-    }
-
-    public ParseField(String value, String... deprecatedNames) {
-        camelCaseName = Strings.toCamelCase(value);
-        underscoreName = Strings.toUnderscoreCase(value);
+    public ParseField(String name, String... deprecatedNames) {
+        this.name = name;
         if (deprecatedNames == null || deprecatedNames.length == 0) {
             this.deprecatedNames = Strings.EMPTY_ARRAY;
         } else {
             final HashSet<String> set = new HashSet<>();
-            for (String depName : deprecatedNames) {
-                set.add(Strings.toCamelCase(depName));
-                set.add(Strings.toUnderscoreCase(depName));
-            }
+            Collections.addAll(set, deprecatedNames);
             this.deprecatedNames = set.toArray(new String[set.size()]);
         }
+        Set<String> allNames = new HashSet<>();
+        allNames.add(name);
+        Collections.addAll(allNames, this.deprecatedNames);
+        this.allNames = allNames.toArray(new String[allNames.size()]);
     }
 
     public String getPreferredName(){
-        return underscoreName;
+        return name;
     }
 
     public String[] getAllNamesIncludedDeprecated() {
-        String[] allNames = new String[2 + deprecatedNames.length];
-        allNames[0] = camelCaseName;
-        allNames[1] = underscoreName;
-        for (int i = 0; i < deprecatedNames.length; i++) {
-            allNames[i + 2] = deprecatedNames[i];
-        }
         return allNames;
     }
 
     public ParseField withDeprecation(String... deprecatedNames) {
-        return new ParseField(this.underscoreName, deprecatedNames);
+        return new ParseField(this.name, deprecatedNames);
     }
 
     /**
@@ -80,19 +73,21 @@ public class ParseField {
         return parseField;
     }
 
-    boolean match(String currentFieldName, EnumSet<Flag> flags) {
-        if (allReplacedWith == null && (currentFieldName.equals(camelCaseName) || currentFieldName.equals(underscoreName))) {
+    boolean match(String currentFieldName, boolean strict) {
+        if (allReplacedWith == null && currentFieldName.equals(name)) {
             return true;
         }
         String msg;
         for (String depName : deprecatedNames) {
             if (currentFieldName.equals(depName)) {
-                if (flags.contains(Flag.STRICT)) {
-                    msg = "Deprecated field [" + currentFieldName + "] used, expected [" + underscoreName + "] instead";
-                    if (allReplacedWith != null) {
-                        msg = "Deprecated field [" + currentFieldName + "] used, replaced by [" + allReplacedWith + "]";
-                    }
+                msg = "Deprecated field [" + currentFieldName + "] used, expected [" + name + "] instead";
+                if (allReplacedWith != null) {
+                    msg = "Deprecated field [" + currentFieldName + "] used, replaced by [" + allReplacedWith + "]";
+                }
+                if (strict) {
                     throw new IllegalArgumentException(msg);
+                } else {
+                    DEPRECATION_LOGGER.deprecated(msg);
                 }
                 return true;
             }
@@ -109,11 +104,15 @@ public class ParseField {
         return allReplacedWith;
     }
 
-    public String getCamelCaseName() {
-        return camelCaseName;
-    }
-
     public String[] getDeprecatedNames() {
         return deprecatedNames;
+    }
+
+    public static class CommonFields {
+        public static final ParseField FIELD = new ParseField("field");
+        public static final ParseField FIELDS = new ParseField("fields");
+        public static final ParseField FORMAT = new ParseField("format");
+        public static final ParseField MISSING = new ParseField("missing");
+        public static final ParseField TIME_ZONE = new ParseField("time_zone");
     }
 }

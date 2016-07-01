@@ -19,10 +19,9 @@
 
 package org.elasticsearch.action.delete;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocumentRequest;
-import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,13 +43,14 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Client#delete(DeleteRequest)
  * @see org.elasticsearch.client.Requests#deleteRequest(String)
  */
-public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements DocumentRequest<DeleteRequest> {
+public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> implements DocumentRequest<DeleteRequest> {
 
     private String type;
     private String id;
     @Nullable
     private String routing;
-    private boolean refresh;
+    @Nullable
+    private String parent;
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
 
@@ -76,35 +76,6 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
         this.index = index;
         this.type = type;
         this.id = id;
-    }
-
-    /**
-     * Copy constructor that creates a new delete request that is a copy of the one provided as an argument.
-     */
-    public DeleteRequest(DeleteRequest request) {
-        this(request, request);
-    }
-
-    /**
-     * Copy constructor that creates a new delete request that is a copy of the one provided as an argument.
-     * The new request will inherit though headers and context from the original request that caused it.
-     */
-    public DeleteRequest(DeleteRequest request, ActionRequest originalRequest) {
-        super(request, originalRequest);
-        this.type = request.type();
-        this.id = request.id();
-        this.routing = request.routing();
-        this.refresh = request.refresh();
-        this.version = request.version();
-        this.versionType = request.versionType();
-    }
-
-    /**
-     * Creates a delete request caused by some other request, which is provided as an
-     * argument so that its headers and context can be copied to the new request
-     */
-    public DeleteRequest(ActionRequest request) {
-        super(request);
     }
 
     @Override
@@ -155,13 +126,18 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
     }
 
     /**
-     * Sets the parent id of this document. Will simply set the routing to this value, as it is only
-     * used for routing with delete requests.
+     * @return The parent for this request.
+     */
+    @Override
+    public String parent() {
+        return parent;
+    }
+
+    /**
+     * Sets the parent id of this document.
      */
     public DeleteRequest parent(String parent) {
-        if (routing == null) {
-            routing = parent;
-        }
+        this.parent = parent;
         return this;
     }
 
@@ -186,20 +162,6 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
     @Override
     public String routing() {
         return this.routing;
-    }
-
-    /**
-     * Should a refresh be executed post this index operation causing the operation to
-     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
-     * to <tt>false</tt>.
-     */
-    public DeleteRequest refresh(boolean refresh) {
-        this.refresh = refresh;
-        return this;
-    }
-
-    public boolean refresh() {
-        return this.refresh;
     }
 
     /**
@@ -230,7 +192,7 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
-        refresh = in.readBoolean();
+        parent = in.readOptionalString();
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
     }
@@ -241,7 +203,7 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing());
-        out.writeBoolean(refresh);
+        out.writeOptionalString(parent());
         out.writeLong(version);
         out.writeByte(versionType.getValue());
     }

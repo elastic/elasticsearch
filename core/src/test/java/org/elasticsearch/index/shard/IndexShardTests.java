@@ -20,7 +20,10 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -28,28 +31,42 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterInfoService;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.RestoreSource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingHelper;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -59,97 +76,106 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.NodeServicesProvider;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.flush.FlushStats;
-import org.elasticsearch.index.indexing.IndexingOperationListener;
-import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.FieldMaskingReader;
+import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
+import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Simple unit-test IndexShard related operations.
  */
 public class IndexShardTests extends ESSingleNodeTestCase {
 
-    public void testFlushOnDeleteSetting() throws Exception {
-        boolean initValue = randomBoolean();
-        createIndex("test", settingsBuilder().put(IndexShard.INDEX_FLUSH_ON_CLOSE, initValue).build());
-        ensureGreen();
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService test = indicesService.indexService("test");
-        IndexShard shard = test.getShardOrNull(0);
-        assertEquals(initValue, shard.isFlushOnClose());
-        final boolean newValue = !initValue;
-        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put(IndexShard.INDEX_FLUSH_ON_CLOSE, newValue).build()));
-        assertEquals(newValue, shard.isFlushOnClose());
-
-        try {
-            assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put(IndexShard.INDEX_FLUSH_ON_CLOSE, "FOOBAR").build()));
-            fail("exception expected");
-        } catch (IllegalArgumentException ex) {
-
-        }
-        assertEquals(newValue, shard.isFlushOnClose());
-
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
     }
 
     public void testWriteShardState() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
-            ShardId id = new ShardId("foo", 1);
+            ShardId id = new ShardId("foo", "fooUUID", 1);
             long version = between(1, Integer.MAX_VALUE / 2);
             boolean primary = randomBoolean();
-            ShardStateMetaData state1 = new ShardStateMetaData(version, primary, "foo");
+            AllocationId allocationId = randomBoolean() ? null : randomAllocationId();
+            ShardStateMetaData state1 = new ShardStateMetaData(version, primary, "fooUUID", allocationId);
             write(state1, env.availableShardPaths(id));
             ShardStateMetaData shardStateMetaData = load(logger, env.availableShardPaths(id));
             assertEquals(shardStateMetaData, state1);
 
-            ShardStateMetaData state2 = new ShardStateMetaData(version, primary, "foo");
+            ShardStateMetaData state2 = new ShardStateMetaData(version, primary, "fooUUID", allocationId);
             write(state2, env.availableShardPaths(id));
             shardStateMetaData = load(logger, env.availableShardPaths(id));
             assertEquals(shardStateMetaData, state1);
 
-            ShardStateMetaData state3 = new ShardStateMetaData(version + 1, primary, "foo");
+            ShardStateMetaData state3 = new ShardStateMetaData(version + 1, primary, "fooUUID", allocationId);
             write(state3, env.availableShardPaths(id));
             shardStateMetaData = load(logger, env.availableShardPaths(id));
             assertEquals(shardStateMetaData, state3);
-            assertEquals("foo", state3.indexUUID);
+            assertEquals("fooUUID", state3.indexUUID);
         }
     }
 
@@ -157,7 +183,10 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         createIndex("test");
         ensureGreen();
         NodeEnvironment env = getInstanceFromNode(NodeEnvironment.class);
-        Path[] shardPaths = env.availableShardPaths(new ShardId("test", 0));
+
+        ClusterService cs = getInstanceFromNode(ClusterService.class);
+        final Index index = cs.state().metaData().index("test").getIndex();
+        Path[] shardPaths = env.availableShardPaths(new ShardId(index, 0));
         logger.info("--> paths: [{}]", (Object)shardPaths);
         // Should not be able to acquire the lock because it's already open
         try {
@@ -169,7 +198,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         // Test without the regular shard lock to assume we can acquire it
         // (worst case, meaning that the shard lock could be acquired and
         // we're green to delete the shard's directory)
-        ShardLock sLock = new DummyShardLock(new ShardId("test", 0));
+        ShardLock sLock = new DummyShardLock(new ShardId(index, 0));
         try {
             env.deleteShardDirectoryUnderLock(sLock, IndexSettingsModule.newIndexSettings("test", Settings.EMPTY));
             fail("should not have been able to delete the directory");
@@ -183,75 +212,22 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         NodeEnvironment env = getInstanceFromNode(NodeEnvironment.class);
-        IndexService test = indicesService.indexService("test");
+        IndexService test = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
         ShardStateMetaData shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
         assertEquals(getShardStateMetadata(shard), shardStateMetaData);
-        ShardRouting routing = new ShardRouting(shard.shardRouting, shard.shardRouting.version() + 1);
-        shard.updateRoutingEntry(routing, true);
+        ShardRouting routing = shard.shardRouting;
+        shard.updateRoutingEntry(routing);
 
         shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
         assertEquals(shardStateMetaData, getShardStateMetadata(shard));
-        assertEquals(shardStateMetaData, new ShardStateMetaData(routing.version(), routing.primary(), shard.indexSettings().getUUID()));
+        assertEquals(shardStateMetaData, new ShardStateMetaData(routing.primary(), shard.indexSettings().getUUID(), routing.allocationId()));
 
-        routing = new ShardRouting(shard.shardRouting, shard.shardRouting.version() + 1);
-        shard.updateRoutingEntry(routing, true);
+        routing = TestShardRouting.relocate(shard.shardRouting, "some node", 42L);
+        shard.updateRoutingEntry(routing);
         shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
         assertEquals(shardStateMetaData, getShardStateMetadata(shard));
-        assertEquals(shardStateMetaData, new ShardStateMetaData(routing.version(), routing.primary(), shard.indexSettings().getUUID()));
-
-        routing = new ShardRouting(shard.shardRouting, shard.shardRouting.version() + 1);
-        shard.updateRoutingEntry(routing, true);
-        shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
-        assertEquals(shardStateMetaData, getShardStateMetadata(shard));
-        assertEquals(shardStateMetaData, new ShardStateMetaData(routing.version(), routing.primary(), shard.indexSettings().getUUID()));
-
-        // test if we still write it even if the shard is not active
-        ShardRouting inactiveRouting = TestShardRouting.newShardRouting(shard.shardRouting.index(), shard.shardRouting.shardId().id(), shard.shardRouting.currentNodeId(), null, null, true, ShardRoutingState.INITIALIZING, shard.shardRouting.version() + 1);
-        shard.persistMetadata(inactiveRouting, shard.shardRouting);
-        shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
-        assertEquals("inactive shard state shouldn't be persisted", shardStateMetaData, getShardStateMetadata(shard));
-        assertEquals("inactive shard state shouldn't be persisted", shardStateMetaData, new ShardStateMetaData(routing.version(), routing.primary(), shard.indexSettings().getUUID()));
-
-
-        shard.updateRoutingEntry(new ShardRouting(shard.shardRouting, shard.shardRouting.version() + 1), false);
-        shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
-        assertFalse("shard state persisted despite of persist=false", shardStateMetaData.equals(getShardStateMetadata(shard)));
-        assertEquals("shard state persisted despite of persist=false", shardStateMetaData, new ShardStateMetaData(routing.version(), routing.primary(), shard.indexSettings().getUUID()));
-
-
-        routing = new ShardRouting(shard.shardRouting, shard.shardRouting.version() + 1);
-        shard.updateRoutingEntry(routing, true);
-        shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
-        assertEquals(shardStateMetaData, getShardStateMetadata(shard));
-        assertEquals(shardStateMetaData, new ShardStateMetaData(routing.version(), routing.primary(), shard.indexSettings().getUUID()));
-    }
-
-    public void testDeleteShardState() throws IOException {
-        createIndex("test");
-        ensureGreen();
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        NodeEnvironment env = getInstanceFromNode(NodeEnvironment.class);
-        IndexService test = indicesService.indexService("test");
-        IndexShard shard = test.getShardOrNull(0);
-        try {
-            shard.deleteShardState();
-            fail("shard is active metadata delete must fail");
-        } catch (IllegalStateException ex) {
-            // fine - only delete if non-active
-        }
-
-        ShardRouting routing = shard.routingEntry();
-        ShardStateMetaData shardStateMetaData = load(logger, env.availableShardPaths(shard.shardId));
-        assertEquals(shardStateMetaData, getShardStateMetadata(shard));
-
-        routing = TestShardRouting.newShardRouting(shard.shardId.index().getName(), shard.shardId.id(), routing.currentNodeId(), null, routing.primary(), ShardRoutingState.INITIALIZING, shard.shardRouting.allocationId(), shard.shardRouting.version() + 1);
-        shard.updateRoutingEntry(routing, true);
-        shard.deleteShardState();
-
-        assertNull("no shard state expected after delete on initializing", load(logger, env.availableShardPaths(shard.shardId)));
-
-
+        assertEquals(shardStateMetaData, new ShardStateMetaData(routing.primary(), shard.indexSettings().getUUID(), routing.allocationId()));
     }
 
     public void testFailShard() throws Exception {
@@ -259,7 +235,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         NodeEnvironment env = getInstanceFromNode(NodeEnvironment.class);
-        IndexService test = indicesService.indexService("test");
+        IndexService test = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
         // fail shard
         shard.failShard("test shard fail", new CorruptIndexException("", ""));
@@ -269,7 +245,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         ShardPath shardPath = ShardPath.loadShardPath(logger, env, shard.shardId(), test.getIndexSettings());
         assertNotNull(shardPath);
         // but index can't be opened for a failed shard
-        assertThat("store index should be corrupted", Store.canOpenIndex(logger, shardPath.resolveIndex()), equalTo(false));
+        assertThat("store index should be corrupted", Store.canOpenIndex(logger, shardPath.resolveIndex(), shard.shardId()), equalTo(false));
     }
 
     ShardStateMetaData getShardStateMetadata(IndexShard shard) {
@@ -277,72 +253,191 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         if (shardRouting == null) {
             return null;
         } else {
-            return new ShardStateMetaData(shardRouting.version(), shardRouting.primary(), shard.indexSettings().getUUID());
+            return new ShardStateMetaData(shardRouting.primary(), shard.indexSettings().getUUID(), shardRouting.allocationId());
         }
     }
 
+    private AllocationId randomAllocationId() {
+        AllocationId allocationId = AllocationId.newInitializing();
+        if (randomBoolean()) {
+            allocationId = AllocationId.newRelocation(allocationId);
+        }
+        return allocationId;
+    }
+
     public void testShardStateMetaHashCodeEquals() {
-        ShardStateMetaData meta = new ShardStateMetaData(randomLong(), randomBoolean(), randomRealisticUnicodeOfCodepointLengthBetween(1, 10));
+        AllocationId allocationId = randomBoolean() ? null : randomAllocationId();
+        ShardStateMetaData meta = new ShardStateMetaData(randomLong(), randomBoolean(), randomRealisticUnicodeOfCodepointLengthBetween(1, 10), allocationId);
 
-        assertEquals(meta, new ShardStateMetaData(meta.version, meta.primary, meta.indexUUID));
-        assertEquals(meta.hashCode(), new ShardStateMetaData(meta.version, meta.primary, meta.indexUUID).hashCode());
+        assertEquals(meta, new ShardStateMetaData(meta.legacyVersion, meta.primary, meta.indexUUID, meta.allocationId));
+        assertEquals(meta.hashCode(), new ShardStateMetaData(meta.legacyVersion, meta.primary, meta.indexUUID, meta.allocationId).hashCode());
 
-        assertFalse(meta.equals(new ShardStateMetaData(meta.version, !meta.primary, meta.indexUUID)));
-        assertFalse(meta.equals(new ShardStateMetaData(meta.version + 1, meta.primary, meta.indexUUID)));
-        assertFalse(meta.equals(new ShardStateMetaData(meta.version, !meta.primary, meta.indexUUID + "foo")));
+        assertFalse(meta.equals(new ShardStateMetaData(meta.legacyVersion, !meta.primary, meta.indexUUID, meta.allocationId)));
+        assertFalse(meta.equals(new ShardStateMetaData(meta.legacyVersion + 1, meta.primary, meta.indexUUID, meta.allocationId)));
+        assertFalse(meta.equals(new ShardStateMetaData(meta.legacyVersion, !meta.primary, meta.indexUUID + "foo", meta.allocationId)));
+        assertFalse(meta.equals(new ShardStateMetaData(meta.legacyVersion, !meta.primary, meta.indexUUID + "foo", randomAllocationId())));
         Set<Integer> hashCodes = new HashSet<>();
         for (int i = 0; i < 30; i++) { // just a sanity check that we impl hashcode
-            meta = new ShardStateMetaData(randomLong(), randomBoolean(), randomRealisticUnicodeOfCodepointLengthBetween(1, 10));
+            allocationId = randomBoolean() ? null : randomAllocationId();
+            meta = new ShardStateMetaData(randomLong(), randomBoolean(), randomRealisticUnicodeOfCodepointLengthBetween(1, 10), allocationId);
             hashCodes.add(meta.hashCode());
         }
         assertTrue("more than one unique hashcode expected but got: " + hashCodes.size(), hashCodes.size() > 1);
 
     }
 
-    public void testDeleteIndexDecreasesCounter() throws InterruptedException, ExecutionException, IOException {
+    public void testDeleteIndexPreventsNewOperations() throws InterruptedException, ExecutionException, IOException {
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get());
         ensureGreen("test");
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService indexService = indicesService.indexServiceSafe("test");
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("test"));
         IndexShard indexShard = indexService.getShardOrNull(0);
         client().admin().indices().prepareDelete("test").get();
-        assertThat(indexShard.getOperationsCount(), equalTo(0));
+        assertThat(indexShard.getActiveOperationsCount(), equalTo(0));
         try {
-            indexShard.incrementOperationCounter();
+            indexShard.acquirePrimaryOperationLock();
+            fail("we should not be able to increment anymore");
+        } catch (IndexShardClosedException e) {
+            // expected
+        }
+        try {
+            indexShard.acquireReplicaOperationLock(indexShard.getPrimaryTerm());
             fail("we should not be able to increment anymore");
         } catch (IndexShardClosedException e) {
             // expected
         }
     }
 
-    public void testIndexShardCounter() throws InterruptedException, ExecutionException, IOException {
+    public void testOperationLocksOnPrimaryShards() throws InterruptedException, ExecutionException, IOException {
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get());
         ensureGreen("test");
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService indexService = indicesService.indexServiceSafe("test");
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("test"));
         IndexShard indexShard = indexService.getShardOrNull(0);
-        assertEquals(0, indexShard.getOperationsCount());
-        indexShard.incrementOperationCounter();
-        assertEquals(1, indexShard.getOperationsCount());
-        indexShard.incrementOperationCounter();
-        assertEquals(2, indexShard.getOperationsCount());
-        indexShard.decrementOperationCounter();
-        indexShard.decrementOperationCounter();
-        assertEquals(0, indexShard.getOperationsCount());
+        long primaryTerm = indexShard.getPrimaryTerm();
+
+        ShardRouting temp = indexShard.routingEntry();
+        final ShardRouting newPrimaryShardRouting;
+        if (randomBoolean()) {
+            // relocation target
+            newPrimaryShardRouting = TestShardRouting.newShardRouting(temp.shardId(), temp.currentNodeId(), "other node",
+                true, ShardRoutingState.INITIALIZING, AllocationId.newRelocation(temp.allocationId()));
+        } else if (randomBoolean()) {
+            // simulate promotion
+            ShardRouting newReplicaShardRouting = TestShardRouting.newShardRouting(temp.shardId(), temp.currentNodeId(), null,
+                false, ShardRoutingState.STARTED, temp.allocationId());
+            indexShard.updateRoutingEntry(newReplicaShardRouting);
+            primaryTerm = primaryTerm + 1;
+            indexShard.updatePrimaryTerm(primaryTerm);
+            newPrimaryShardRouting = TestShardRouting.newShardRouting(temp.shardId(), temp.currentNodeId(), null,
+                true, ShardRoutingState.STARTED, temp.allocationId());
+        } else {
+            newPrimaryShardRouting = temp;
+        }
+        indexShard.updateRoutingEntry(newPrimaryShardRouting);
+
+        assertEquals(0, indexShard.getActiveOperationsCount());
+        if (newPrimaryShardRouting.isRelocationTarget() == false) {
+            try {
+                indexShard.acquireReplicaOperationLock(primaryTerm);
+                fail("shard shouldn't accept operations as replica");
+            } catch (IllegalStateException ignored) {
+
+            }
+        }
+        Releasable operation1 = indexShard.acquirePrimaryOperationLock();
+        assertEquals(1, indexShard.getActiveOperationsCount());
+        Releasable operation2 = indexShard.acquirePrimaryOperationLock();
+        assertEquals(2, indexShard.getActiveOperationsCount());
+
+        Releasables.close(operation1, operation2);
+        assertEquals(0, indexShard.getActiveOperationsCount());
+    }
+
+    public void testOperationLocksOnReplicaShards() throws InterruptedException, ExecutionException, IOException {
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get());
+        ensureGreen("test");
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("test"));
+        IndexShard indexShard = indexService.getShardOrNull(0);
+        long primaryTerm = indexShard.getPrimaryTerm();
+
+        // ugly hack to allow the shard to operated as a replica
+        final ShardRouting temp = indexShard.routingEntry();
+        final ShardRouting newShardRouting;
+        switch (randomInt(2)) {
+            case 0:
+                // started replica
+                newShardRouting = TestShardRouting.newShardRouting(temp.shardId(), temp.currentNodeId(), null,
+                    false, ShardRoutingState.STARTED, AllocationId.newRelocation(temp.allocationId()));
+
+                indexShard.updateRoutingEntry(newShardRouting);
+                break;
+            case 1:
+                // initializing replica / primary
+                final boolean relocating = randomBoolean();
+                newShardRouting = TestShardRouting.newShardRouting(temp.shardId(), temp.currentNodeId(),
+                    relocating ? "sourceNode" : null,
+                    relocating ? randomBoolean() : false,
+                    ShardRoutingState.INITIALIZING,
+                    relocating ? AllocationId.newRelocation(temp.allocationId()) : temp.allocationId());
+                indexShard.updateRoutingEntry(newShardRouting);
+                break;
+            case 2:
+                // relocation source
+                newShardRouting = TestShardRouting.newShardRouting(temp.shardId(), temp.currentNodeId(), "otherNode",
+                    false, ShardRoutingState.RELOCATING, AllocationId.newRelocation(temp.allocationId()));
+                indexShard.updateRoutingEntry(newShardRouting);
+                indexShard.relocated("test");
+                break;
+            default:
+                throw new UnsupportedOperationException("get your numbers straight");
+
+        }
+        logger.info("updated shard routing to {}", newShardRouting);
+
+        assertEquals(0, indexShard.getActiveOperationsCount());
+        if (newShardRouting.primary() == false) {
+            try {
+                indexShard.acquirePrimaryOperationLock();
+                fail("shard shouldn't accept primary ops");
+            } catch (IllegalStateException ignored) {
+
+            }
+        }
+
+        Releasable operation1 = indexShard.acquireReplicaOperationLock(primaryTerm);
+        assertEquals(1, indexShard.getActiveOperationsCount());
+        Releasable operation2 = indexShard.acquireReplicaOperationLock(primaryTerm);
+        assertEquals(2, indexShard.getActiveOperationsCount());
+
+        try {
+            indexShard.acquireReplicaOperationLock(primaryTerm - 1);
+            fail("you can not increment the operation counter with an older primary term");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("operation term"));
+            assertThat(e.getMessage(), containsString("too old"));
+        }
+
+        // but you can increment with a newer one..
+        indexShard.acquireReplicaOperationLock(primaryTerm + 1 + randomInt(20)).close();
+        Releasables.close(operation1, operation2);
+        assertEquals(0, indexShard.getActiveOperationsCount());
     }
 
     public void testMarkAsInactiveTriggersSyncedFlush() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0));
+            .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0));
         client().prepareIndex("test", "test").setSource("{}").get();
         ensureGreen("test");
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        Boolean result = indicesService.indexService("test").getShardOrNull(0).checkIdle(0);
-        assertEquals(Boolean.TRUE, result);
+        indicesService.indexService(resolveIndex("test")).getShardOrNull(0).checkIdle(0);
         assertBusy(() -> {
             IndexStats indexStats = client().admin().indices().prepareStats("test").clear().get().getIndex("test");
             assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
-        });
+            indicesService.indexService(resolveIndex("test")).getShardOrNull(0).checkIdle(0);
+            }
+        );
         IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
         assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
     }
@@ -353,7 +448,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
     public static void write(ShardStateMetaData shardStateMetaData,
                              Path... shardPaths) throws IOException {
-        ShardStateMetaData.FORMAT.write(shardStateMetaData, shardStateMetaData.version, shardPaths);
+        ShardStateMetaData.FORMAT.write(shardStateMetaData, shardStateMetaData.legacyVersion, shardPaths);
     }
 
     public void testDurableFlagHasEffect() {
@@ -361,47 +456,47 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         ensureGreen();
         client().prepareIndex("test", "bar", "1").setSource("{}").get();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService test = indicesService.indexService("test");
+        IndexService test = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
-        setDurability(shard, Translog.Durabilty.REQUEST);
+        setDurability(shard, Translog.Durability.REQUEST);
         assertFalse(shard.getEngine().getTranslog().syncNeeded());
-        setDurability(shard, Translog.Durabilty.ASYNC);
+        setDurability(shard, Translog.Durability.ASYNC);
         client().prepareIndex("test", "bar", "2").setSource("{}").get();
         assertTrue(shard.getEngine().getTranslog().syncNeeded());
-        setDurability(shard, Translog.Durabilty.REQUEST);
+        setDurability(shard, Translog.Durability.REQUEST);
         client().prepareDelete("test", "bar", "1").get();
         assertFalse(shard.getEngine().getTranslog().syncNeeded());
 
-        setDurability(shard, Translog.Durabilty.ASYNC);
+        setDurability(shard, Translog.Durability.ASYNC);
         client().prepareDelete("test", "bar", "2").get();
         assertTrue(shard.getEngine().getTranslog().syncNeeded());
-        setDurability(shard, Translog.Durabilty.REQUEST);
+        setDurability(shard, Translog.Durability.REQUEST);
         assertNoFailures(client().prepareBulk()
-                .add(client().prepareIndex("test", "bar", "3").setSource("{}"))
-                .add(client().prepareDelete("test", "bar", "1")).get());
+            .add(client().prepareIndex("test", "bar", "3").setSource("{}"))
+            .add(client().prepareDelete("test", "bar", "1")).get());
         assertFalse(shard.getEngine().getTranslog().syncNeeded());
 
-        setDurability(shard, Translog.Durabilty.ASYNC);
+        setDurability(shard, Translog.Durability.ASYNC);
         assertNoFailures(client().prepareBulk()
-                .add(client().prepareIndex("test", "bar", "4").setSource("{}"))
-                .add(client().prepareDelete("test", "bar", "3")).get());
-        setDurability(shard, Translog.Durabilty.REQUEST);
+            .add(client().prepareIndex("test", "bar", "4").setSource("{}"))
+            .add(client().prepareDelete("test", "bar", "3")).get());
+        setDurability(shard, Translog.Durability.REQUEST);
         assertTrue(shard.getEngine().getTranslog().syncNeeded());
     }
 
-    private void setDurability(IndexShard shard, Translog.Durabilty durabilty) {
-        client().admin().indices().prepareUpdateSettings(shard.shardId.getIndex()).setSettings(settingsBuilder().put(TranslogConfig.INDEX_TRANSLOG_DURABILITY, durabilty.name()).build()).get();
-        assertEquals(durabilty, shard.getTranslogDurability());
+    private void setDurability(IndexShard shard, Translog.Durability durability) {
+        client().admin().indices().prepareUpdateSettings(shard.shardId.getIndexName()).setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), durability.name()).build()).get();
+        assertEquals(durability, shard.getTranslogDurability());
     }
 
     public void testMinimumCompatVersion() {
         Version versionCreated = VersionUtils.randomVersion(random());
         assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0, SETTING_VERSION_CREATED, versionCreated.id));
+            .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0, SETTING_VERSION_CREATED, versionCreated.id));
         client().prepareIndex("test", "test").setSource("{}").get();
         ensureGreen("test");
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexShard test = indicesService.indexService("test").getShardOrNull(0);
+        IndexShard test = indicesService.indexService(resolveIndex("test")).getShardOrNull(0);
         assertEquals(versionCreated.luceneVersion, test.minimumCompatibleVersion());
         client().prepareIndex("test", "test").setSource("{}").get();
         assertEquals(versionCreated.luceneVersion, test.minimumCompatibleVersion());
@@ -411,8 +506,8 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
     public void testUpdatePriority() {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(IndexMetaData.SETTING_PRIORITY, 200));
-        IndexService indexService = getInstanceFromNode(IndicesService.class).indexService("test");
+            .setSettings(IndexMetaData.SETTING_PRIORITY, 200));
+        IndexService indexService = getInstanceFromNode(IndicesService.class).indexService(resolveIndex("test"));
         assertEquals(200, indexService.getIndexSettings().getSettings().getAsInt(IndexMetaData.SETTING_PRIORITY, 0).intValue());
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_PRIORITY, 400).build()).get();
         assertEquals(400, indexService.getIndexSettings().getSettings().getAsInt(IndexMetaData.SETTING_PRIORITY, 0).intValue());
@@ -421,12 +516,12 @@ public class IndexShardTests extends ESSingleNodeTestCase {
     public void testRecoverIntoLeftover() throws IOException {
         createIndex("test");
         ensureGreen("test");
-        client().prepareIndex("test", "bar", "1").setSource("{}").setRefresh(true).get();
+        client().prepareIndex("test", "bar", "1").setSource("{}").setRefreshPolicy(IMMEDIATE).get();
         client().admin().indices().prepareFlush("test").get();
         SearchResponse response = client().prepareSearch("test").get();
-        assertHitCount(response, 1l);
+        assertHitCount(response, 1L);
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService test = indicesService.indexService("test");
+        IndexService test = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
         ShardPath shardPath = shard.shardPath();
         Path dataPath = shardPath.getDataPath();
@@ -439,7 +534,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         createIndex("test");
         ensureGreen("test");
         response = client().prepareSearch("test").get();
-        assertHitCount(response, 0l);
+        assertHitCount(response, 0L);
     }
 
     public void testIndexDirIsDeletedWhenShardRemoved() throws Exception {
@@ -447,20 +542,21 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         Path idxPath = env.sharedDataFile().resolve(randomAsciiOfLength(10));
         logger.info("--> idxPath: [{}]", idxPath);
         Settings idxSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_DATA_PATH, idxPath)
-                .build();
+            .put(IndexMetaData.SETTING_DATA_PATH, idxPath)
+            .build();
         createIndex("test", idxSettings);
         ensureGreen("test");
-        client().prepareIndex("test", "bar", "1").setSource("{}").setRefresh(true).get();
+        client().prepareIndex("test", "bar", "1").setSource("{}").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse response = client().prepareSearch("test").get();
-        assertHitCount(response, 1l);
+        assertHitCount(response, 1L);
         client().admin().indices().prepareDelete("test").get();
+        assertAllIndicesRemovedAndDeletionCompleted(Collections.singleton(getInstanceFromNode(IndicesService.class)));
         assertPathHasBeenCleared(idxPath);
     }
 
     public void testExpectedShardSizeIsPresent() throws InterruptedException {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0));
+            .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0));
         for (int i = 0; i < 50; i++) {
             client().prepareIndex("test", "test").setSource("{}").get();
         }
@@ -488,16 +584,16 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         IOUtils.rm(endDir);
 
         Settings sb = Settings.builder()
-                .put(IndexMetaData.SETTING_DATA_PATH, startDir.toAbsolutePath().toString())
-                .build();
+            .put(IndexMetaData.SETTING_DATA_PATH, startDir.toAbsolutePath().toString())
+            .build();
         Settings sb2 = Settings.builder()
-                .put(IndexMetaData.SETTING_DATA_PATH, endDir.toAbsolutePath().toString())
-                .build();
+            .put(IndexMetaData.SETTING_DATA_PATH, endDir.toAbsolutePath().toString())
+            .build();
 
         logger.info("--> creating an index with data_path [{}]", startDir.toAbsolutePath().toString());
         createIndex(INDEX, sb);
         ensureGreen(INDEX);
-        client().prepareIndex(INDEX, "bar", "1").setSource("{}").setRefresh(true).get();
+        client().prepareIndex(INDEX, "bar", "1").setSource("{}").setRefreshPolicy(IMMEDIATE).get();
 
         SearchResponse resp = client().prepareSearch(INDEX).setQuery(matchAllQuery()).get();
         assertThat("found the hit", resp.getHits().getTotalHits(), equalTo(1L));
@@ -523,9 +619,9 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
         logger.info("--> updating settings...");
         client().admin().indices().prepareUpdateSettings(INDEX)
-                .setSettings(sb2)
-                .setIndicesOptions(IndicesOptions.fromOptions(true, false, true, true))
-                .get();
+            .setSettings(sb2)
+            .setIndicesOptions(IndicesOptions.fromOptions(true, false, true, true))
+            .get();
 
         assert Files.exists(startDir) == false : "start dir shouldn't exist";
 
@@ -538,17 +634,18 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertThat("found the hit", resp.getHits().getTotalHits(), equalTo(1L));
 
         assertAcked(client().admin().indices().prepareDelete(INDEX));
-        assertPathHasBeenCleared(startDir.toAbsolutePath().toString());
-        assertPathHasBeenCleared(endDir.toAbsolutePath().toString());
+        assertAllIndicesRemovedAndDeletionCompleted(Collections.singleton(getInstanceFromNode(IndicesService.class)));
+        assertPathHasBeenCleared(startDir.toAbsolutePath());
+        assertPathHasBeenCleared(endDir.toAbsolutePath());
     }
 
     public void testShardStats() throws IOException {
         createIndex("test");
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService test = indicesService.indexService("test");
+        IndexService test = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
-        ShardStats stats = new ShardStats(shard.routingEntry(), shard.shardPath(), new CommonStats(shard, new CommonStatsFlags()), shard.commitStats());
+        ShardStats stats = new ShardStats(shard.routingEntry(), shard.shardPath(), new CommonStats(indicesService.getIndicesQueryCache(), shard, new CommonStatsFlags()), shard.commitStats());
         assertEquals(shard.shardPath().getRootDataPath().toString(), stats.getDataPath());
         assertEquals(shard.shardPath().getRootStatePath().toString(), stats.getStatePath());
         assertEquals(shard.shardPath().isCustomDataPath(), stats.isCustomDataPath());
@@ -556,7 +653,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         if (randomBoolean() || true) { // try to serialize it to ensure values survive the serialization
             BytesStreamOutput out = new BytesStreamOutput();
             stats.writeTo(out);
-            StreamInput in = StreamInput.wrap(out.bytes());
+            StreamInput in = out.bytes().streamInput();
             stats = ShardStats.readShardStats(in);
         }
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -578,106 +675,143 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         Field versionField = new NumericDocValuesField("_version", 0);
         document.add(uidField);
         document.add(versionField);
-        return new ParsedDocument(uidField, versionField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingUpdate);
+        return new ParsedDocument(versionField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingUpdate);
     }
 
-    public void testPreIndex() throws IOException {
-        createIndex("testpreindex");
+    public void testIndexingOperationsListeners() throws IOException {
+        createIndex("test_iol");
         ensureGreen();
+        client().prepareIndex("test_iol", "test", "0").setSource("{\"foo\" : \"bar\"}").setRefreshPolicy(IMMEDIATE).get();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService test = indicesService.indexService("testpreindex");
+        IndexService test = indicesService.indexService(resolveIndex("test_iol"));
         IndexShard shard = test.getShardOrNull(0);
-        ShardIndexingService shardIndexingService = shard.indexingService();
-        final AtomicBoolean preIndexCalled = new AtomicBoolean(false);
-
-        shardIndexingService.addListener(new IndexingOperationListener() {
+        AtomicInteger preIndex = new AtomicInteger();
+        AtomicInteger postIndexCreate = new AtomicInteger();
+        AtomicInteger postIndexUpdate = new AtomicInteger();
+        AtomicInteger postIndexException = new AtomicInteger();
+        AtomicInteger preDelete = new AtomicInteger();
+        AtomicInteger postDelete = new AtomicInteger();
+        AtomicInteger postDeleteException = new AtomicInteger();
+        shard.close("simon says", true);
+        shard = reinitWithWrapper(test, shard, null, new IndexingOperationListener() {
             @Override
             public Engine.Index preIndex(Engine.Index operation) {
-                preIndexCalled.set(true);
-                return super.preIndex(operation);
+                preIndex.incrementAndGet();
+                return operation;
             }
-        });
 
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{1}), null);
-        Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
-        shard.index(index);
-        assertTrue(preIndexCalled.get());
-    }
-
-    public void testPostIndex() throws IOException {
-        createIndex("testpostindex");
-        ensureGreen();
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService test = indicesService.indexService("testpostindex");
-        IndexShard shard = test.getShardOrNull(0);
-        ShardIndexingService shardIndexingService = shard.indexingService();
-        final AtomicBoolean postIndexCalled = new AtomicBoolean(false);
-
-        shardIndexingService.addListener(new IndexingOperationListener() {
             @Override
-            public void postIndex(Engine.Index index) {
-                postIndexCalled.set(true);
-                super.postIndex(index);
+            public void postIndex(Engine.Index index, boolean created) {
+                if(created) {
+                    postIndexCreate.incrementAndGet();
+                } else {
+                    postIndexUpdate.incrementAndGet();
+                }
+            }
+
+            @Override
+            public void postIndex(Engine.Index index, Throwable ex) {
+                postIndexException.incrementAndGet();
+            }
+
+            @Override
+            public Engine.Delete preDelete(Engine.Delete delete) {
+                preDelete.incrementAndGet();
+                return delete;
+            }
+
+            @Override
+            public void postDelete(Engine.Delete delete) {
+                postDelete.incrementAndGet();
+            }
+
+            @Override
+            public void postDelete(Engine.Delete delete, Throwable ex) {
+                postDeleteException.incrementAndGet();
+
             }
         });
 
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{1}), null);
         Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
         shard.index(index);
-        assertTrue(postIndexCalled.get());
-    }
+        assertEquals(1, preIndex.get());
+        assertEquals(1, postIndexCreate.get());
+        assertEquals(0, postIndexUpdate.get());
+        assertEquals(0, postIndexException.get());
+        assertEquals(0, preDelete.get());
+        assertEquals(0, postDelete.get());
+        assertEquals(0, postDeleteException.get());
 
-    public void testPostIndexWithException() throws IOException {
-        createIndex("testpostindexwithexception");
-        ensureGreen();
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService test = indicesService.indexService("testpostindexwithexception");
-        IndexShard shard = test.getShardOrNull(0);
-        ShardIndexingService shardIndexingService = shard.indexingService();
+        shard.index(index);
+        assertEquals(2, preIndex.get());
+        assertEquals(1, postIndexCreate.get());
+        assertEquals(1, postIndexUpdate.get());
+        assertEquals(0, postIndexException.get());
+        assertEquals(0, preDelete.get());
+        assertEquals(0, postDelete.get());
+        assertEquals(0, postDeleteException.get());
+
+        Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", "1"));
+        shard.delete(delete);
+
+        assertEquals(2, preIndex.get());
+        assertEquals(1, postIndexCreate.get());
+        assertEquals(1, postIndexUpdate.get());
+        assertEquals(0, postIndexException.get());
+        assertEquals(1, preDelete.get());
+        assertEquals(1, postDelete.get());
+        assertEquals(0, postDeleteException.get());
 
         shard.close("Unexpected close", true);
         shard.state = IndexShardState.STARTED; // It will generate exception
 
-        final AtomicBoolean postIndexWithExceptionCalled = new AtomicBoolean(false);
-
-        shardIndexingService.addListener(new IndexingOperationListener() {
-            @Override
-            public void postIndex(Engine.Index index, Throwable ex) {
-                assertNotNull(ex);
-                postIndexWithExceptionCalled.set(true);
-                super.postIndex(index, ex);
-            }
-        });
-
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{1}), null);
-        Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
-
         try {
             shard.index(index);
             fail();
-        }catch (IllegalIndexShardStateException e){
+        } catch (IllegalIndexShardStateException e) {
 
         }
 
-        assertTrue(postIndexWithExceptionCalled.get());
+        assertEquals(2, preIndex.get());
+        assertEquals(1, postIndexCreate.get());
+        assertEquals(1, postIndexUpdate.get());
+        assertEquals(0, postIndexException.get());
+        assertEquals(1, preDelete.get());
+        assertEquals(1, postDelete.get());
+        assertEquals(0, postDeleteException.get());
+        try {
+            shard.delete(delete);
+            fail();
+        } catch (IllegalIndexShardStateException e) {
+
+        }
+
+        assertEquals(2, preIndex.get());
+        assertEquals(1, postIndexCreate.get());
+        assertEquals(1, postIndexUpdate.get());
+        assertEquals(0, postIndexException.get());
+        assertEquals(1, preDelete.get());
+        assertEquals(1, postDelete.get());
+        assertEquals(0, postDeleteException.get());
     }
 
     public void testMaybeFlush() throws Exception {
-        createIndex("test", settingsBuilder().put(TranslogConfig.INDEX_TRANSLOG_DURABILITY, Translog.Durabilty.REQUEST).build());
+        createIndex("test", Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST).build());
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService test = indicesService.indexService("test");
+        IndexService test = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
         assertFalse(shard.shouldFlush());
-        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, 1).build()).get();
-        client().prepareIndex("test", "test", "0").setSource("{}").setRefresh(randomBoolean()).get();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(133 /* size of the operation + header&footer*/, ByteSizeUnit.BYTES)).build()).get();
+        client().prepareIndex("test", "test", "0").setSource("{}").setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertFalse(shard.shouldFlush());
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{1}), null);
         Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
         shard.index(index);
         assertTrue(shard.shouldFlush());
         assertEquals(2, shard.getEngine().getTranslog().totalOperations());
-        client().prepareIndex("test", "test", "2").setSource("{}").setRefresh(randomBoolean()).get();
+        client().prepareIndex("test", "test", "2").setSource("{}").setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertBusy(() -> { // this is async
             assertFalse(shard.shouldFlush());
         });
@@ -685,9 +819,8 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         shard.getEngine().getTranslog().sync();
         long size = shard.getEngine().getTranslog().sizeInBytes();
         logger.info("--> current translog size: [{}] num_ops [{}] generation [{}]", shard.getEngine().getTranslog().sizeInBytes(), shard.getEngine().getTranslog().totalOperations(), shard.getEngine().getTranslog().getGeneration());
-        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, 1000)
-                .put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(size, ByteSizeUnit.BYTES))
-                .build()).get();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(size, ByteSizeUnit.BYTES))
+            .build()).get();
         client().prepareDelete("test", "test", "2").get();
         logger.info("--> translog size after delete: [{}] num_ops [{}] generation [{}]", shard.getEngine().getTranslog().sizeInBytes(), shard.getEngine().getTranslog().totalOperations(), shard.getEngine().getTranslog().getGeneration());
         assertBusy(() -> { // this is async
@@ -701,11 +834,11 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         createIndex("test");
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService test = indicesService.indexService("test");
+        IndexService test = indicesService.indexService(resolveIndex("test"));
         final IndexShard shard = test.getShardOrNull(0);
         assertFalse(shard.shouldFlush());
-        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put(IndexShard.INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, 1).build()).get();
-        client().prepareIndex("test", "test", "0").setSource("{}").setRefresh(randomBoolean()).get();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(133/* size of the operation + header&footer*/, ByteSizeUnit.BYTES)).build()).get();
+        client().prepareIndex("test", "test", "0").setSource("{}").setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertFalse(shard.shouldFlush());
         final AtomicBoolean running = new AtomicBoolean(true);
         final int numThreads = randomIntBetween(2, 4);
@@ -741,64 +874,178 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertEquals(total + 1, shard.flushStats().getTotal());
     }
 
+    public void testLockingBeforeAndAfterRelocated() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(
+            Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
+        ).get());
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService(resolveIndex("test"));
+        final IndexShard shard = test.getShardOrNull(0);
+        CountDownLatch latch = new CountDownLatch(1);
+        Thread recoveryThread = new Thread(() -> {
+            latch.countDown();
+            shard.relocated("simulated recovery");
+        });
+
+        try (Releasable ignored = shard.acquirePrimaryOperationLock()) {
+            // start finalization of recovery
+            recoveryThread.start();
+            latch.await();
+            // recovery can only be finalized after we release the current primaryOperationLock
+            assertThat(shard.state(), equalTo(IndexShardState.STARTED));
+        }
+        // recovery can be now finalized
+        recoveryThread.join();
+        assertThat(shard.state(), equalTo(IndexShardState.RELOCATED));
+        try (Releasable ignored = shard.acquirePrimaryOperationLock()) {
+            // lock can again be acquired
+            assertThat(shard.state(), equalTo(IndexShardState.RELOCATED));
+        }
+    }
+
+    public void testStressRelocated() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(
+            Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
+        ).get());
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService(resolveIndex("test"));
+        final IndexShard shard = test.getShardOrNull(0);
+        final int numThreads = randomIntBetween(2, 4);
+        Thread[] indexThreads = new Thread[numThreads];
+        CountDownLatch allPrimaryOperationLocksAcquired = new CountDownLatch(numThreads);
+        CyclicBarrier barrier = new CyclicBarrier(numThreads + 1);
+        for (int i = 0; i < indexThreads.length; i++) {
+            indexThreads[i] = new Thread() {
+                @Override
+                public void run() {
+                    try (Releasable operationLock = shard.acquirePrimaryOperationLock()) {
+                        allPrimaryOperationLocksAcquired.countDown();
+                        barrier.await();
+                    } catch (InterruptedException | BrokenBarrierException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            };
+            indexThreads[i].start();
+        }
+        AtomicBoolean relocated = new AtomicBoolean();
+        final Thread recoveryThread = new Thread(() -> {
+            shard.relocated("simulated recovery");
+            relocated.set(true);
+        });
+        // ensure we wait for all primary operation locks to be acquired
+        allPrimaryOperationLocksAcquired.await();
+        // start recovery thread
+        recoveryThread.start();
+        assertThat(relocated.get(), equalTo(false));
+        assertThat(shard.getActiveOperationsCount(), greaterThan(0));
+        // ensure we only transition to RELOCATED state after pending operations completed
+        assertThat(shard.state(), equalTo(IndexShardState.STARTED));
+        // complete pending operations
+        barrier.await();
+        // complete recovery/relocation
+        recoveryThread.join();
+        // ensure relocated successfully once pending operations are done
+        assertThat(relocated.get(), equalTo(true));
+        assertThat(shard.state(), equalTo(IndexShardState.RELOCATED));
+        assertThat(shard.getActiveOperationsCount(), equalTo(0));
+
+        for (Thread indexThread : indexThreads) {
+            indexThread.join();
+        }
+    }
+
     public void testRecoverFromStore() throws IOException {
         createIndex("test");
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService test = indicesService.indexService("test");
+        IndexService test = indicesService.indexService(resolveIndex("test"));
         final IndexShard shard = test.getShardOrNull(0);
-
-        client().prepareIndex("test", "test", "0").setSource("{}").setRefresh(randomBoolean()).get();
+        int translogOps = 1;
+        client().prepareIndex("test", "test", "0").setSource("{}").setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         if (randomBoolean()) {
             client().admin().indices().prepareFlush().get();
+            translogOps = 0;
         }
-        ShardRouting routing = new ShardRouting(shard.routingEntry());
+        ShardRouting routing = shard.routingEntry();
         test.removeShard(0, "b/c simon says so");
-        ShardRoutingHelper.reinit(routing);
-        IndexShard newShard = test.createShard(0, routing);
-        newShard.updateRoutingEntry(routing, false);
-        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
+        routing = ShardRoutingHelper.reinit(routing);
+        IndexShard newShard = test.createShard(routing);
+        newShard.updateRoutingEntry(routing);
+        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
         newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
-        assertTrue(newShard.recoverFromStore(localNode));
-        routing = new ShardRouting(routing);
-        ShardRoutingHelper.moveToStarted(routing);
-        newShard.updateRoutingEntry(routing, true);
+        assertTrue(newShard.recoverFromStore());
+        assertEquals(translogOps, newShard.recoveryState().getTranslog().recoveredOperations());
+        assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperations());
+        assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperationsOnStart());
+        assertEquals(100.0f, newShard.recoveryState().getTranslog().recoveredPercent(), 0.01f);
+        newShard.updateRoutingEntry(routing.moveToStarted());
         SearchResponse response = client().prepareSearch().get();
         assertHitCount(response, 1);
     }
 
-    public void testFailIfIndexNotPresentInRecoverFromStore() throws IOException {
+    public void testRecoverFromCleanStore() throws IOException {
         createIndex("test");
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
-        IndexService test = indicesService.indexService("test");
+        IndexService test = indicesService.indexService(resolveIndex("test"));
+        final IndexShard shard = test.getShardOrNull(0);
+        client().prepareIndex("test", "test", "0").setSource("{}").setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
+        if (randomBoolean()) {
+            client().admin().indices().prepareFlush().get();
+        }
+        ShardRouting routing = shard.routingEntry();
+        test.removeShard(0, "b/c simon says so");
+        routing = ShardRoutingHelper.reinit(routing, UnassignedInfo.Reason.INDEX_CREATED);
+        IndexShard newShard = test.createShard(routing);
+        newShard.updateRoutingEntry(routing);
+        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
+        newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode,
+            localNode));
+        assertTrue(newShard.recoverFromStore());
+        assertEquals(0, newShard.recoveryState().getTranslog().recoveredOperations());
+        assertEquals(0, newShard.recoveryState().getTranslog().totalOperations());
+        assertEquals(0, newShard.recoveryState().getTranslog().totalOperationsOnStart());
+        assertEquals(100.0f, newShard.recoveryState().getTranslog().recoveredPercent(), 0.01f);
+        newShard.updateRoutingEntry(getInitializingShardRouting(routing).moveToStarted());
+        SearchResponse response = client().prepareSearch().get();
+        assertHitCount(response, 0);
+    }
+
+    public void testFailIfIndexNotPresentInRecoverFromStore() throws Exception {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
+        IndexService test = indicesService.indexService(resolveIndex("test"));
         final IndexShard shard = test.getShardOrNull(0);
 
-        client().prepareIndex("test", "test", "0").setSource("{}").setRefresh(randomBoolean()).get();
+        client().prepareIndex("test", "test", "0").setSource("{}").setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         if (randomBoolean()) {
             client().admin().indices().prepareFlush().get();
         }
         final ShardRouting origRouting = shard.routingEntry();
-        ShardRouting routing = new ShardRouting(origRouting);
+        ShardRouting routing = origRouting;
         Store store = shard.store();
         store.incRef();
         test.removeShard(0, "b/c simon says so");
-        Lucene.cleanLuceneIndex(store.directory());
+        cleanLuceneIndex(store.directory());
         store.decRef();
-        ShardRoutingHelper.reinit(routing);
-        IndexShard newShard = test.createShard(0, routing);
-        newShard.updateRoutingEntry(routing, false);
+        routing = ShardRoutingHelper.reinit(routing);
+        IndexShard newShard = test.createShard(routing);
+        newShard.updateRoutingEntry(routing);
         newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
         try {
-            newShard.recoverFromStore(localNode);
+            newShard.recoverFromStore();
             fail("index not there!");
         } catch (IndexShardRecoveryException ex) {
             assertTrue(ex.getMessage().contains("failed to fetch index version after copying it over"));
         }
 
-        ShardRoutingHelper.moveToUnassigned(routing, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "because I say so"));
-        ShardRoutingHelper.initialize(routing, origRouting.currentNodeId());
+        routing = ShardRoutingHelper.moveToUnassigned(routing, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "because I say so"));
+        routing = ShardRoutingHelper.initialize(routing, origRouting.currentNodeId());
         assertTrue("it's already recovering, we should ignore new ones", newShard.ignoreRecoveryAttempt());
         try {
             newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
@@ -807,18 +1054,40 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             // OK!
         }
         test.removeShard(0, "I broken it");
-        newShard = test.createShard(0, routing);
-        newShard.updateRoutingEntry(routing, false);
+        newShard = test.createShard(routing);
+        newShard.updateRoutingEntry(routing);
         newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
-        assertTrue("recover even if there is nothing to recover", newShard.recoverFromStore(localNode));
+        assertTrue("recover even if there is nothing to recover", newShard.recoverFromStore());
 
-        routing = new ShardRouting(routing);
-        ShardRoutingHelper.moveToStarted(routing);
-        newShard.updateRoutingEntry(routing, true);
+        newShard.updateRoutingEntry(getInitializingShardRouting(routing).moveToStarted());
         SearchResponse response = client().prepareSearch().get();
         assertHitCount(response, 0);
-        client().prepareIndex("test", "test", "0").setSource("{}").setRefresh(true).get();
+        // we can't issue this request through a client because of the inconsistencies we created with the cluster state
+        // doing it directly instead
+        IndexRequest request = client().prepareIndex("test", "test", "0").setSource("{}").request();
+        request.process(null, false, "test");
+        TransportIndexAction.executeIndexRequestOnPrimary(request, newShard, null);
+        newShard.refresh("test");
         assertHitCount(client().prepareSearch().get(), 1);
+    }
+
+    public void testRecoveryFailsAfterMovingToRelocatedState() throws InterruptedException, IOException {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService(resolveIndex("test"));
+        final IndexShard shard = test.getShardOrNull(0);
+        ShardRouting origRouting = shard.routingEntry();
+        assertThat(shard.state(), equalTo(IndexShardState.STARTED));
+        ShardRouting inRecoveryRouting = ShardRoutingHelper.relocate(origRouting, "some_node");
+        shard.updateRoutingEntry(inRecoveryRouting);
+        shard.relocated("simulate mark as relocated");
+        assertThat(shard.state(), equalTo(IndexShardState.RELOCATED));
+        try {
+            shard.updateRoutingEntry(origRouting);
+            fail("Expected IndexShardRelocatedException");
+        } catch (IndexShardRelocatedException expected) {
+        }
     }
 
     public void testRestoreShard() throws IOException {
@@ -826,26 +1095,26 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         createIndex("test_target");
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService test = indicesService.indexService("test");
-        IndexService test_target = indicesService.indexService("test_target");
+        IndexService test = indicesService.indexService(resolveIndex("test"));
+        IndexService test_target = indicesService.indexService(resolveIndex("test_target"));
         final IndexShard test_shard = test.getShardOrNull(0);
 
-        client().prepareIndex("test", "test", "0").setSource("{}").setRefresh(randomBoolean()).get();
-        client().prepareIndex("test_target", "test", "1").setSource("{}").setRefresh(true).get();
+        client().prepareIndex("test", "test", "0").setSource("{}").setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
+        client().prepareIndex("test_target", "test", "1").setSource("{}").setRefreshPolicy(IMMEDIATE).get();
         assertHitCount(client().prepareSearch("test_target").get(), 1);
         assertSearchHits(client().prepareSearch("test_target").get(), "1");
         client().admin().indices().prepareFlush("test").get(); // only flush test
         final ShardRouting origRouting = test_target.getShardOrNull(0).routingEntry();
-        ShardRouting routing = new ShardRouting(origRouting);
-        ShardRoutingHelper.reinit(routing);
-        routing = ShardRoutingHelper.newWithRestoreSource(routing, new RestoreSource(new SnapshotId("foo", "bar"), Version.CURRENT, "test"));
+        ShardRouting routing = ShardRoutingHelper.reinit(origRouting);
+        final Snapshot snapshot = new Snapshot("foo", new SnapshotId("bar", UUIDs.randomBase64UUID()));
+        routing = ShardRoutingHelper.newWithRestoreSource(routing, new RestoreSource(snapshot, Version.CURRENT, "test"));
         test_target.removeShard(0, "just do it man!");
-        final IndexShard test_target_shard = test_target.createShard(0, routing);
+        final IndexShard test_target_shard = test_target.createShard(routing);
         Store sourceStore = test_shard.store();
         Store targetStore = test_target_shard.store();
 
-        test_target_shard.updateRoutingEntry(routing, false);
-        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
+        test_target_shard.updateRoutingEntry(routing);
+        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
         test_target_shard.markAsRecovering("store", new RecoveryState(routing.shardId(), routing.primary(), RecoveryState.Type.SNAPSHOT, routing.restoreSource(), localNode));
         assertTrue(test_target_shard.restoreFromRepository(new IndexShardRepository() {
             @Override
@@ -855,7 +1124,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             @Override
             public void restore(SnapshotId snapshotId, Version version, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState) {
                 try {
-                    Lucene.cleanLuceneIndex(targetStore.directory());
+                    cleanLuceneIndex(targetStore.directory());
                     for (String file : sourceStore.directory().listAll()) {
                         if (file.equals("write.lock") || file.startsWith("extra")) {
                             continue;
@@ -875,11 +1144,9 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             @Override
             public void verify(String verificationToken) {
             }
-        }, localNode));
+        }));
 
-        routing = new ShardRouting(routing);
-        ShardRoutingHelper.moveToStarted(routing);
-        test_target_shard.updateRoutingEntry(routing, true);
+        test_target_shard.updateRoutingEntry(routing.moveToStarted());
         assertHitCount(client().prepareSearch("test_target").get(), 1);
         assertSearchHits(client().prepareSearch("test_target").get(), "0");
     }
@@ -888,10 +1155,10 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         createIndex("test");
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService indexService = indicesService.indexService("test");
+        IndexService indexService = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = indexService.getShardOrNull(0);
-        client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}").setRefresh(true).get();
-        client().prepareIndex("test", "test", "1").setSource("{\"foobar\" : \"bar\"}").setRefresh(true).get();
+        client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test", "test", "1").setSource("{\"foobar\" : \"bar\"}").setRefreshPolicy(IMMEDIATE).get();
 
         Engine.GetResult getResult = shard.get(new Engine.Get(false, new Term(UidFieldMapper.NAME, Uid.createUid("test", "1"))));
         assertTrue(getResult.exists());
@@ -914,7 +1181,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
                 return searcher;
             }
         };
-
+        shard.close("simon says", true);
         IndexShard newShard = reinitWithWrapper(indexService, shard, wrapper);
         try {
             try (Engine.Searcher searcher = newShard.acquireSearcher("test")) {
@@ -937,10 +1204,11 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         createIndex("test");
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService indexService = indicesService.indexService("test");
+        IndexService indexService = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = indexService.getShardOrNull(0);
-        client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}").setRefresh(true).get();
-        client().prepareIndex("test", "test", "1").setSource("{\"foobar\" : \"bar\"}").setRefresh(true).get();
+        client().admin().indices().preparePutMapping("test").setType("test").setSource("foo", "type=text,fielddata=true").get();
+        client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test", "test", "1").setSource("{\"foobar\" : \"bar\"}").setRefreshPolicy(IMMEDIATE).get();
 
         IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {
             @Override
@@ -954,21 +1222,22 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             }
         };
 
+        shard.close("simon says", true);
         IndexShard newShard = reinitWithWrapper(indexService, shard, wrapper);
         try {
             // test global ordinals are evicted
-            MappedFieldType foo = newShard.mapperService().indexName("foo");
+            MappedFieldType foo = newShard.mapperService().fullName("foo");
             IndexFieldData.Global ifd = shard.indexFieldDataService().getForField(foo);
             FieldDataStats before = shard.fieldData().stats("foo");
-            assertThat(before.getMemorySizeInBytes(), equalTo(0l));
+            assertThat(before.getMemorySizeInBytes(), equalTo(0L));
             FieldDataStats after = null;
             try (Engine.Searcher searcher = newShard.acquireSearcher("test")) {
                 assumeTrue("we have to have more than one segment", searcher.getDirectoryReader().leaves().size() > 1);
-                IndexFieldData indexFieldData = ifd.loadGlobal(searcher.getDirectoryReader());
+                ifd.loadGlobal(searcher.getDirectoryReader());
                 after = shard.fieldData().stats("foo");
                 assertEquals(after.getEvictions(), before.getEvictions());
                 // If a field doesn't exist an empty IndexFieldData is returned and that isn't cached:
-                assertThat(after.getMemorySizeInBytes(), equalTo(0l));
+                assertThat(after.getMemorySizeInBytes(), equalTo(0L));
             }
             assertEquals(shard.fieldData().stats("foo").getEvictions(), before.getEvictions());
             assertEquals(shard.fieldData().stats("foo").getMemorySizeInBytes(), after.getMemorySizeInBytes());
@@ -981,13 +1250,125 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testIndexingOperationListnenersIsInvokedOnRecovery() throws IOException {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexService(resolveIndex("test"));
+        IndexShard shard = indexService.getShardOrNull(0);
+        client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}").get();
+        client().prepareDelete("test", "test", "0").get();
+        client().prepareIndex("test", "test", "1").setSource("{\"foo\" : \"bar\"}").setRefreshPolicy(IMMEDIATE).get();
+
+        IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {};
+        shard.close("simon says", false);
+        final AtomicInteger preIndex = new AtomicInteger();
+        final AtomicInteger postIndex = new AtomicInteger();
+        final AtomicInteger preDelete = new AtomicInteger();
+        final AtomicInteger postDelete = new AtomicInteger();
+        IndexingOperationListener listener = new IndexingOperationListener() {
+            @Override
+            public Engine.Index preIndex(Engine.Index operation) {
+                preIndex.incrementAndGet();
+                return operation;
+            }
+
+            @Override
+            public void postIndex(Engine.Index index, boolean created) {
+                postIndex.incrementAndGet();
+            }
+
+            @Override
+            public Engine.Delete preDelete(Engine.Delete delete) {
+                preDelete.incrementAndGet();
+                return delete;
+            }
+
+            @Override
+            public void postDelete(Engine.Delete delete) {
+                postDelete.incrementAndGet();
+
+            }
+        };
+        final IndexShard newShard = reinitWithWrapper(indexService, shard, wrapper, listener);
+        try {
+            IndexingStats indexingStats = newShard.indexingStats();
+            // ensure we are not influencing the indexing stats
+            assertEquals(0, indexingStats.getTotal().getDeleteCount());
+            assertEquals(0, indexingStats.getTotal().getDeleteCurrent());
+            assertEquals(0, indexingStats.getTotal().getIndexCount());
+            assertEquals(0, indexingStats.getTotal().getIndexCurrent());
+            assertEquals(0, indexingStats.getTotal().getIndexFailedCount());
+            assertEquals(2, preIndex.get());
+            assertEquals(2, postIndex.get());
+            assertEquals(1, preDelete.get());
+            assertEquals(1, postDelete.get());
+        } finally {
+            newShard.close("just do it", randomBoolean());
+        }
+    }
+
+    public void testShardHasMemoryBufferOnTranslogRecover() throws Throwable {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexService(resolveIndex("test"));
+        IndexShard shard = indexService.getShardOrNull(0);
+        client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}").get();
+        client().prepareDelete("test", "test", "0").get();
+        client().prepareIndex("test", "test", "1").setSource("{\"foo\" : \"bar\"}").setRefreshPolicy(IMMEDIATE).get();
+
+        IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {};
+        shard.close("simon says", false);
+        AtomicReference<IndexShard> shardRef = new AtomicReference<>();
+        List<Throwable> failures = new ArrayList<>();
+        IndexingOperationListener listener = new IndexingOperationListener() {
+
+            @Override
+            public void postIndex(Engine.Index index, boolean created) {
+                try {
+                    assertNotNull(shardRef.get());
+                    // this is all IMC needs to do - check current memory and refresh
+                    assertTrue(shardRef.get().getIndexBufferRAMBytesUsed() > 0);
+                    shardRef.get().refresh("test");
+                } catch (Throwable t) {
+                    failures.add(t);
+                    throw t;
+                }
+            }
+
+
+            @Override
+            public void postDelete(Engine.Delete delete) {
+                try {
+                    assertNotNull(shardRef.get());
+                    // this is all IMC needs to do - check current memory and refresh
+                    assertTrue(shardRef.get().getIndexBufferRAMBytesUsed() > 0);
+                    shardRef.get().refresh("test");
+                } catch (Throwable t) {
+                    failures.add(t);
+                    throw t;
+                }
+            }
+        };
+        final IndexShard newShard = newIndexShard(indexService, shard, wrapper, listener);
+        shardRef.set(newShard);
+        recoverShard(newShard);
+
+        try {
+            ExceptionsHelper.rethrowAndSuppress(failures);
+        } finally {
+            newShard.close("just do it", randomBoolean());
+        }
+    }
+
     public void testSearchIsReleaseIfWrapperFails() throws IOException {
         createIndex("test");
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService indexService = indicesService.indexService("test");
+        IndexService indexService = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = indexService.getShardOrNull(0);
-        client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}").setRefresh(true).get();
+        client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}").setRefreshPolicy(IMMEDIATE).get();
         IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {
             @Override
             public DirectoryReader wrap(DirectoryReader reader) throws IOException {
@@ -999,6 +1380,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             }
         };
 
+        shard.close("simon says", true);
         IndexShard newShard = reinitWithWrapper(indexService, shard, wrapper);
         try {
             newShard.acquireSearcher("test");
@@ -1008,23 +1390,202 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         } finally {
             newShard.close("just do it", randomBoolean());
         }
-        // test will fail due to unclosed searchers if the searcher is not released
     }
 
-    private final IndexShard reinitWithWrapper(IndexService indexService, IndexShard shard, IndexSearcherWrapper wrapper) throws IOException {
-        ShardRouting routing = new ShardRouting(shard.routingEntry());
-        shard.close("simon says", true);
-        NodeServicesProvider indexServices = indexService.getIndexServices();
-        IndexShard newShard = new IndexShard(shard.shardId(), indexService.getIndexSettings(), shard.shardPath(), shard.store(), indexService.cache(), indexService.mapperService(), indexService.similarityService(), indexService.fieldData(), shard.getEngineFactory(), indexService.getIndexEventListener(), wrapper, indexServices);
-        ShardRoutingHelper.reinit(routing);
-        newShard.updateRoutingEntry(routing, false);
-        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
-        newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
-        assertTrue(newShard.recoverFromStore(localNode));
-        routing = new ShardRouting(routing);
-        ShardRoutingHelper.moveToStarted(routing);
-        newShard.updateRoutingEntry(routing, true);
+    public static final IndexShard reinitWithWrapper(IndexService indexService, IndexShard shard, IndexSearcherWrapper wrapper, IndexingOperationListener... listeners) throws IOException {
+        IndexShard newShard = newIndexShard(indexService, shard, wrapper, listeners);
+        return recoverShard(newShard);
+    }
+
+    public  static final IndexShard recoverShard(IndexShard newShard) throws IOException {
+        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
+        newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), newShard.routingEntry().primary(), RecoveryState.Type.STORE, localNode, localNode));
+        assertTrue(newShard.recoverFromStore());
+        newShard.updateRoutingEntry(newShard.routingEntry().moveToStarted());
         return newShard;
     }
 
+    public  static final IndexShard newIndexShard(IndexService indexService, IndexShard shard, IndexSearcherWrapper wrapper, IndexingOperationListener... listeners) throws IOException {
+        ShardRouting initializingShardRouting = getInitializingShardRouting(shard.routingEntry());
+        IndexShard newShard = new IndexShard(initializingShardRouting, indexService.getIndexSettings(), shard.shardPath(),
+            shard.store(), indexService.cache(), indexService.mapperService(), indexService.similarityService(),
+            indexService.fieldData(), shard.getEngineFactory(), indexService.getIndexEventListener(), wrapper,
+            indexService.getThreadPool(), indexService.getBigArrays(), null, Collections.emptyList(), Arrays.asList(listeners)
+        );
+        return newShard;
+    }
+
+    private static ShardRouting getInitializingShardRouting(ShardRouting existingShardRouting) {
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(existingShardRouting.shardId(),
+            existingShardRouting.currentNodeId(), null, existingShardRouting.primary(), ShardRoutingState.INITIALIZING,
+            existingShardRouting.allocationId());
+        shardRouting = shardRouting.updateUnassignedInfo(new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "fake recovery"));
+        return shardRouting;
+    }
+
+    public void testTranslogRecoverySyncsTranslog() throws IOException {
+        createIndex("testindexfortranslogsync");
+        client().admin().indices().preparePutMapping("testindexfortranslogsync").setType("testtype").setSource(jsonBuilder().startObject()
+            .startObject("testtype")
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "text")
+            .endObject()
+            .endObject().endObject().endObject()).get();
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService(resolveIndex("testindexfortranslogsync"));
+        IndexShard shard = test.getShardOrNull(0);
+        ShardRouting routing = getInitializingShardRouting(shard.routingEntry());
+        test.removeShard(0, "b/c britta says so");
+        IndexShard newShard = test.createShard(routing);
+        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
+        newShard.markAsRecovering("for testing", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.REPLICA, localNode, localNode));
+        List<Translog.Operation> operations = new ArrayList<>();
+        operations.add(new Translog.Index("testtype", "1", BytesReference.toBytes(jsonBuilder().startObject().field("foo", "bar").endObject().bytes())));
+        newShard.prepareForIndexRecovery();
+        newShard.recoveryState().getTranslog().totalOperations(operations.size());
+        newShard.skipTranslogRecovery();
+        newShard.performBatchRecovery(operations);
+        assertFalse(newShard.getTranslog().syncNeeded());
+    }
+
+    public void testIndexingBufferDuringInternalRecovery() throws IOException {
+        createIndex("index");
+        client().admin().indices().preparePutMapping("index").setType("testtype").setSource(jsonBuilder().startObject()
+            .startObject("testtype")
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "text")
+            .endObject()
+            .endObject().endObject().endObject()).get();
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService(resolveIndex("index"));
+        IndexShard shard = test.getShardOrNull(0);
+        ShardRouting routing = getInitializingShardRouting(shard.routingEntry());
+        test.removeShard(0, "b/c britta says so");
+        IndexShard newShard = test.createShard(routing);
+        newShard.shardRouting = routing;
+        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
+        newShard.markAsRecovering("for testing", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.REPLICA, localNode, localNode));
+        // Shard is still inactive since we haven't started recovering yet
+        assertFalse(newShard.isActive());
+        newShard.prepareForIndexRecovery();
+        // Shard is still inactive since we haven't started recovering yet
+        assertFalse(newShard.isActive());
+        newShard.performTranslogRecovery(true);
+        // Shard should now be active since we did recover:
+        assertTrue(newShard.isActive());
+    }
+
+    public void testIndexingBufferDuringPeerRecovery() throws IOException {
+        createIndex("index");
+        client().admin().indices().preparePutMapping("index").setType("testtype").setSource(jsonBuilder().startObject()
+            .startObject("testtype")
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "text")
+            .endObject()
+            .endObject().endObject().endObject()).get();
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService(resolveIndex("index"));
+        IndexShard shard = test.getShardOrNull(0);
+        ShardRouting routing = getInitializingShardRouting(shard.routingEntry());
+        test.removeShard(0, "b/c britta says so");
+        IndexShard newShard = test.createShard(routing);
+        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
+        newShard.markAsRecovering("for testing", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.REPLICA, localNode, localNode));
+        // Shard is still inactive since we haven't started recovering yet
+        assertFalse(newShard.isActive());
+        List<Translog.Operation> operations = new ArrayList<>();
+        operations.add(new Translog.Index("testtype", "1", BytesReference.toBytes(jsonBuilder().startObject().field("foo", "bar").endObject().bytes())));
+        newShard.prepareForIndexRecovery();
+        newShard.skipTranslogRecovery();
+        // Shard is still inactive since we haven't started recovering yet
+        assertFalse(newShard.isActive());
+        newShard.performBatchRecovery(operations);
+        // Shard should now be active since we did recover:
+        assertTrue(newShard.isActive());
+    }
+
+    public void testRecoverFromLocalShard() throws IOException {
+        createIndex("index");
+        createIndex("index_1");
+        createIndex("index_2");
+        client().admin().indices().preparePutMapping("index").setType("test").setSource(jsonBuilder().startObject()
+            .startObject("test")
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "text")
+            .endObject()
+            .endObject().endObject().endObject()).get();
+        client().prepareIndex("index", "test", "0").setSource("{\"foo\" : \"bar\"}").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("index", "test", "1").setSource("{\"foo\" : \"bar\"}").setRefreshPolicy(IMMEDIATE).get();
+
+
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService(resolveIndex("index_1"));
+        IndexShard shard = test.getShardOrNull(0);
+        ShardRouting routing = ShardRoutingHelper.initWithSameId(shard.routingEntry());
+        test.removeShard(0, "b/c simon says so");
+        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
+        {
+            final IndexShard newShard = test.createShard(routing);
+            newShard.updateRoutingEntry(routing);
+            newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.LOCAL_SHARDS, localNode, localNode));
+
+            BiConsumer<String, MappingMetaData> mappingConsumer = (type, mapping) -> {
+                try {
+                    client().admin().indices().preparePutMapping().setConcreteIndex(newShard.indexSettings().getIndex())
+                        .setType(type)
+                        .setSource(mapping.source().string())
+                        .get();
+                } catch (IOException ex) {
+                    throw new ElasticsearchException("failed to stringify mapping source", ex);
+                }
+            };
+            expectThrows(IllegalArgumentException.class, () -> {
+                IndexService index = indicesService.indexService(resolveIndex("index"));
+                IndexService index_2 = indicesService.indexService(resolveIndex("index_2"));
+                newShard.recoverFromLocalShards(mappingConsumer, Arrays.asList(index.getShard(0), index_2.getShard(0)));
+            });
+
+            IndexService indexService = indicesService.indexService(resolveIndex("index"));
+            assertTrue(newShard.recoverFromLocalShards(mappingConsumer, Arrays.asList(indexService.getShard(0))));
+            RecoveryState recoveryState = newShard.recoveryState();
+            assertEquals(RecoveryState.Stage.DONE, recoveryState.getStage());
+            assertTrue(recoveryState.getIndex().fileDetails().size() > 0);
+            for (RecoveryState.File file : recoveryState.getIndex().fileDetails()) {
+                if (file.reused()) {
+                    assertEquals(file.recovered(), 0);
+                } else {
+                    assertEquals(file.recovered(), file.length());
+                }
+            }
+            routing = ShardRoutingHelper.moveToStarted(routing);
+            newShard.updateRoutingEntry(routing);
+            assertHitCount(client().prepareSearch("index_1").get(), 2);
+        }
+        // now check that it's persistent ie. that the added shards are committed
+        {
+            routing = shard.routingEntry();
+            test.removeShard(0, "b/c simon says so");
+            routing = ShardRoutingHelper.reinit(routing);
+            final IndexShard newShard = test.createShard(routing);
+            newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.LOCAL_SHARDS, localNode, localNode));
+            assertTrue(newShard.recoverFromStore());
+            routing = ShardRoutingHelper.moveToStarted(routing);
+            newShard.updateRoutingEntry(routing);
+            assertHitCount(client().prepareSearch("index_1").get(), 2);
+        }
+
+        GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings("index_1").get();
+        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = mappingsResponse.getMappings();
+        assertNotNull(mappings.get("index_1"));
+        assertNotNull(mappings.get("index_1").get("test"));
+        assertEquals(mappings.get("index_1").get("test").get().source().string(), "{\"test\":{\"properties\":{\"foo\":{\"type\":\"text\"}}}}");
+
+    }
 }

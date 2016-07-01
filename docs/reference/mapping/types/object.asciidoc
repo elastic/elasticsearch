@@ -18,7 +18,7 @@ PUT my_index/my_type/1
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The outer document is also a JSON object.
 <2> It contains an inner object called `manager`.
 <3> Which in turn contains an inner object called `name`.
@@ -46,16 +46,15 @@ PUT my_index
     "my_type": { <1>
       "properties": {
         "region": {
-          "type": "string",
-          "index": "not_analyzed"
+          "type": "keyword"
         },
         "manager": { <2>
           "properties": {
             "age":  { "type": "integer" },
             "name": { <3>
               "properties": {
-                "first": { "type": "string" },
-                "last":  { "type": "string" }
+                "first": { "type": "text" },
+                "last":  { "type": "text" }
               }
             }
           }
@@ -65,7 +64,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The mapping type is a type of object, and has a `properties` field.
 <2> The `manager` field is an inner `object` field.
 <3> The `manager.name` field is an inner `object` field within the `manager` field.

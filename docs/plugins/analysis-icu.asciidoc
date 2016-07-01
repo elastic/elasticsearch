@@ -15,7 +15,7 @@ This plugin can be installed using the plugin manager:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin install analysis-icu
+sudo bin/elasticsearch-plugin install analysis-icu
 ----------------------------------------------------------------
 
 The plugin must be installed on every node in the cluster, and each node must
@@ -29,7 +29,7 @@ The plugin can be removed with the following command:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin remove analysis-icu
+sudo bin/elasticsearch-plugin remove analysis-icu
 ----------------------------------------------------------------
 
 The node must be stopped before removing the plugin.
@@ -48,7 +48,7 @@ convert `nfc` to `nfd` or `nfkc` to `nfkd` respectively:
 Here are two examples, the default usage and a customised character filter:
 
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT icu_sample
 {
@@ -81,7 +81,7 @@ PUT icu_sample
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Uses the default `nfkc_cf` normalization.
 <2> Uses the customized `nfd_normalizer` token filter, which is set to use `nfc` normalization with decomposition.
@@ -96,7 +96,7 @@ but adds better support for some Asian languages by using a dictionary-based
 approach to identify words in Thai, Lao, Chinese, Japanese, and Korean, and
 using custom rules to break Myanmar and Khmer text into syllables.
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT icu_sample
 {
@@ -113,8 +113,77 @@ PUT icu_sample
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
+===== Rules customization
+
+experimental[]
+
+You can customize the `icu-tokenizer` behavior by specifying per-script rule files, see the
+http://userguide.icu-project.org/boundaryanalysis#TOC-RBBI-Rules[RBBI rules syntax reference]
+for a more detailed explanation.
+
+To add icu tokenizer rules, set the `rule_files` settings, which should contain a comma-separated list of
+`code:rulefile` pairs in the following format:
+http://unicode.org/iso15924/iso15924-codes.html[four-letter ISO 15924 script code],
+followed by a colon, then a rule file name. Rule files are placed `ES_HOME/config` directory.
+
+As a demonstration of how the rule files can be used, save the following user file to `$ES_HOME/config/KeywordTokenizer.rbbi`:
+
+[source,text]
+-----------------------
+.+ {200};
+-----------------------
+
+Then create an analyzer to use this rule file as follows:
+
+[source,js]
+--------------------------------------------------
+PUT icu_sample
+{
+    "settings": {
+        "index":{
+            "analysis":{
+                "tokenizer" : {
+                    "icu_user_file" : {
+                       "type" : "icu_tokenizer",
+                       "rule_files" : "Latn:KeywordTokenizer.rbbi"
+                    }
+                },
+                "analyzer" : {
+                    "my_analyzer" : {
+                        "type" : "custom",
+                        "tokenizer" : "icu_user_file"
+                    }
+                }
+            }
+        }
+    }
+}
+
+GET _cluster/health?wait_for_status=yellow
+
+POST icu_sample/_analyze?analyzer=my_analyzer&text=Elasticsearch. Wow!
+--------------------------------------------------
+// CONSOLE
+
+The above `analyze` request returns the following:
+
+[source,js]
+--------------------------------------------------
+{
+   "tokens": [
+      {
+         "token": "Elasticsearch. Wow!",
+         "start_offset": 0,
+         "end_offset": 19,
+         "type": "<ALPHANUM>",
+         "position": 0
+      }
+   ]
+}
+--------------------------------------------------
+// TESTRESPONSE
 
 [[analysis-icu-normalization]]
 ==== ICU Normalization Token Filter
@@ -130,7 +199,7 @@ You should probably prefer the <<analysis-icu-normalization-charfilter,Normaliza
 
 Here are two examples, the default usage and a customised token filter:
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT icu_sample
 {
@@ -162,7 +231,7 @@ PUT icu_sample
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Uses the default `nfkc_cf` normalization.
 <2> Uses the customized `nfc_normalizer` token filter, which is set to use `nfc` normalization.
@@ -176,7 +245,7 @@ Case folding of Unicode characters based on `UTR#30`, like the
 on steroids. It registers itself as the `icu_folding` token filter and is
 available to all indices:
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT icu_sample
 {
@@ -185,7 +254,7 @@ PUT icu_sample
       "analysis": {
         "analyzer": {
           "folded": {
-            "tokenizer": "icu",
+            "tokenizer": "icu_tokenizer",
             "filter": [
               "icu_folding"
             ]
@@ -196,7 +265,7 @@ PUT icu_sample
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The ICU folding token filter already does Unicode normalization, so there is
 no need to use Normalize character or token filter as well.
@@ -210,7 +279,7 @@ to note that both upper and lowercase forms should be specified, and that
 these filtered character are not lowercased which is why we add the
 `lowercase` filter as well:
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT icu_sample
 {
@@ -237,7 +306,7 @@ PUT icu_sample
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 [[analysis-icu-collation]]
 ==== ICU Collation Token Filter
@@ -251,7 +320,7 @@ which is a best-effort attempt at language-neutral sorting.
 Below is an example of how to set up a field for sorting German names in
 ``phonebook'' order:
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT /my_index
 {
@@ -277,11 +346,12 @@ PUT /my_index
     "user": {
       "properties": {
         "name": { <1>
-          "type": "string",
+          "type": "text",
           "fields": {
             "sort": { <2>
-              "type":     "string",
-              "analyzer": "german_phonebook"
+              "type":      "text",
+              "fielddata": true,
+              "analyzer":  "german_phonebook"
             }
           }
         }
@@ -289,6 +359,8 @@ PUT /my_index
     }
   }
 }
+
+GET _cluster/health?wait_for_status=yellow
 
 GET _search <3>
 {
@@ -301,7 +373,7 @@ GET _search <3>
 }
 
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> The `name` field uses the `standard` analyzer, and so support full text queries.
 <2> The `name.sort` field uses the `keyword` analyzer to preserve the name as
@@ -383,7 +455,7 @@ rulesets are not yet supported.
 
 For example:
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT icu_sample
 {
@@ -409,6 +481,8 @@ PUT icu_sample
   }
 }
 
+GET _cluster/health?wait_for_status=yellow
+
 GET icu_sample/_analyze?analyzer=latin
 {
   "text": "你好" <2>
@@ -425,7 +499,7 @@ GET icu_sample/_analyze?analyzer=latin
 }
 
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> This transforms transliterates characters to Latin, and separates accents
     from their base characters, removes the accents, and then puts the

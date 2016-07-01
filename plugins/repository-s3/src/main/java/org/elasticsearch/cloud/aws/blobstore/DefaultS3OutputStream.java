@@ -20,7 +20,16 @@
 package org.elasticsearch.cloud.aws.blobstore;
 
 import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.s3.model.*;
+import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
+import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
+import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
+import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.PartETag;
+import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.amazonaws.services.s3.model.PutObjectResult;
+import com.amazonaws.services.s3.model.UploadPartRequest;
+import com.amazonaws.services.s3.model.UploadPartResult;
 import com.amazonaws.util.Base64;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -134,7 +143,9 @@ public class DefaultS3OutputStream extends S3OutputStream {
             throw new RuntimeException(impossible);
         }
 
-        PutObjectRequest putRequest = new PutObjectRequest(bucketName, blobName, inputStream, md).withCannedAcl(blobStore.getCannedACL());
+        PutObjectRequest putRequest = new PutObjectRequest(bucketName, blobName, inputStream, md)
+                .withStorageClass(blobStore.getStorageClass())
+                .withCannedAcl(blobStore.getCannedACL());
         PutObjectResult putObjectResult = blobStore.client().putObject(putRequest);
 
         String localMd5 = Base64.encodeAsString(messageDigest.digest());
@@ -167,7 +178,10 @@ public class DefaultS3OutputStream extends S3OutputStream {
     }
 
     protected String doInitialize(S3BlobStore blobStore, String bucketName, String blobName, boolean serverSideEncryption) {
-        InitiateMultipartUploadRequest request = new InitiateMultipartUploadRequest(bucketName, blobName).withCannedACL(blobStore.getCannedACL());
+        InitiateMultipartUploadRequest request = new InitiateMultipartUploadRequest(bucketName, blobName)
+                .withCannedACL(blobStore.getCannedACL())
+                .withStorageClass(blobStore.getStorageClass());
+
         if (serverSideEncryption) {
             ObjectMetadata md = new ObjectMetadata();
             md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);

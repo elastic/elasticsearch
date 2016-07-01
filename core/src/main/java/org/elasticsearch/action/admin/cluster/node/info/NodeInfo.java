@@ -27,7 +27,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
@@ -72,14 +74,21 @@ public class NodeInfo extends BaseNodeResponse {
     private HttpInfo http;
 
     @Nullable
-    private PluginsInfo plugins;
+    private PluginsAndModules plugins;
 
-    NodeInfo() {
+    @Nullable
+    private IngestInfo ingest;
+
+    @Nullable
+    private ByteSizeValue totalIndexingBuffer;
+
+    public NodeInfo() {
     }
 
     public NodeInfo(Version version, Build build, DiscoveryNode node, @Nullable Map<String, String> serviceAttributes, @Nullable Settings settings,
                     @Nullable OsInfo os, @Nullable ProcessInfo process, @Nullable JvmInfo jvm, @Nullable ThreadPoolInfo threadPool,
-                    @Nullable TransportInfo transport, @Nullable HttpInfo http, @Nullable PluginsInfo plugins) {
+                    @Nullable TransportInfo transport, @Nullable HttpInfo http, @Nullable PluginsAndModules plugins, @Nullable IngestInfo ingest,
+                    @Nullable ByteSizeValue totalIndexingBuffer) {
         super(node);
         this.version = version;
         this.build = build;
@@ -92,6 +101,8 @@ public class NodeInfo extends BaseNodeResponse {
         this.transport = transport;
         this.http = http;
         this.plugins = plugins;
+        this.ingest = ingest;
+        this.totalIndexingBuffer = totalIndexingBuffer;
     }
 
     /**
@@ -172,8 +183,18 @@ public class NodeInfo extends BaseNodeResponse {
     }
 
     @Nullable
-    public PluginsInfo getPlugins() {
+    public PluginsAndModules getPlugins() {
         return this.plugins;
+    }
+
+    @Nullable
+    public IngestInfo getIngest() {
+        return ingest;
+    }
+
+    @Nullable
+    public ByteSizeValue getTotalIndexingBuffer() {
+        return totalIndexingBuffer;
     }
 
     public static NodeInfo readNodeInfo(StreamInput in) throws IOException {
@@ -187,6 +208,11 @@ public class NodeInfo extends BaseNodeResponse {
         super.readFrom(in);
         version = Version.readVersion(in);
         build = Build.readBuild(in);
+        if (in.readBoolean()) {
+            totalIndexingBuffer = new ByteSizeValue(in.readLong());
+        } else {
+            totalIndexingBuffer = null;
+        }
         if (in.readBoolean()) {
             Map<String, String> builder = new HashMap<>();
             int size = in.readVInt();
@@ -217,7 +243,11 @@ public class NodeInfo extends BaseNodeResponse {
             http = HttpInfo.readHttpInfo(in);
         }
         if (in.readBoolean()) {
-            plugins = PluginsInfo.readPluginsInfo(in);
+            plugins = new PluginsAndModules();
+            plugins.readFrom(in);
+        }
+        if (in.readBoolean()) {
+            ingest = new IngestInfo(in);
         }
     }
 
@@ -226,6 +256,12 @@ public class NodeInfo extends BaseNodeResponse {
         super.writeTo(out);
         out.writeVInt(version.id);
         Build.writeBuild(build, out);
+        if (totalIndexingBuffer == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeLong(totalIndexingBuffer.bytes());
+        }
         if (getServiceAttributes() == null) {
             out.writeBoolean(false);
         } else {
@@ -283,6 +319,12 @@ public class NodeInfo extends BaseNodeResponse {
         } else {
             out.writeBoolean(true);
             plugins.writeTo(out);
+        }
+        if (ingest == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            ingest.writeTo(out);
         }
     }
 }

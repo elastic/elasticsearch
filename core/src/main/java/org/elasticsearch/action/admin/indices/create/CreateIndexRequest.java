@@ -19,10 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import java.nio.charset.StandardCharsets;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -43,15 +41,16 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * A request to create an index. Best created with {@link org.elasticsearch.client.Requests#createIndexRequest(String)}.
@@ -79,14 +78,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     private boolean updateAllTypes = false;
 
     public CreateIndexRequest() {
-    }
-
-    /**
-     * Constructs a new request to create an index that was triggered by a different request,
-     * provided as an argument so that its headers and context can be copied to the new request.
-     */
-    public CreateIndexRequest(ActionRequest request) {
-        super(request);
     }
 
     /**
@@ -177,7 +168,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * The settings to create the index with (either json/yaml/properties format)
      */
     public CreateIndexRequest settings(String source) {
-        this.settings = Settings.settingsBuilder().loadFromSource(source).build();
+        this.settings = Settings.builder().loadFromSource(source).build();
         return this;
     }
 
@@ -313,8 +304,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Sets the aliases that will be associated with the index when it gets created
      */
     public CreateIndexRequest aliases(BytesReference source) {
-        try {
-            XContentParser parser = XContentHelper.createParser(source);
+        try (XContentParser parser = XContentHelper.createParser(source)) {
             //move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -374,7 +364,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                 throw new ElasticsearchParseException("failed to parse source for create index", e);
             }
         } else {
-            settings(new String(source.toBytes(), StandardCharsets.UTF_8));
+            settings(source.utf8ToString());
         }
         return this;
     }

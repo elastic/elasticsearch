@@ -21,10 +21,13 @@ package org.elasticsearch.rest.action.admin.indices.create;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 /**
@@ -33,15 +36,15 @@ import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 public class RestCreateIndexAction extends BaseRestHandler {
 
     @Inject
-    public RestCreateIndexAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestCreateIndexAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.PUT, "/{index}", this);
         controller.registerHandler(RestRequest.Method.POST, "/{index}", this);
     }
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
         if (request.hasContent()) {
             createIndexRequest.source(request.content());

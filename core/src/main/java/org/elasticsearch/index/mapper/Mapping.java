@@ -29,7 +29,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -41,25 +40,20 @@ import static java.util.Collections.unmodifiableMap;
  */
 public final class Mapping implements ToXContent {
 
-    public static final List<String> LEGACY_INCLUDE_IN_OBJECT = Arrays.asList("_all", "_id", "_parent", "_routing", "_timestamp", "_ttl");
-
     final Version indexCreated;
     final RootObjectMapper root;
     final MetadataFieldMapper[] metadataMappers;
-    final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> rootMappersMap;
-    volatile Map<String, Object> meta;
+    final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
+    final Map<String, Object> meta;
 
     public Mapping(Version indexCreated, RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, Map<String, Object> meta) {
         this.indexCreated = indexCreated;
-        this.root = rootObjectMapper;
         this.metadataMappers = metadataMappers;
-        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> rootMappersMap = new HashMap<>();
+        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap = new HashMap<>();
         for (MetadataFieldMapper metadataMapper : metadataMappers) {
-            if (indexCreated.before(Version.V_2_0_0_beta1) && LEGACY_INCLUDE_IN_OBJECT.contains(metadataMapper.name())) {
-                root.putMapper(metadataMapper);
-            }
-            rootMappersMap.put(metadataMapper.getClass(), metadataMapper);
+            metadataMappersMap.put(metadataMapper.getClass(), metadataMapper);
         }
+        this.root = rootObjectMapper;
         // keep root mappers sorted for consistent serialization
         Arrays.sort(metadataMappers, new Comparator<Mapper>() {
             @Override
@@ -67,7 +61,7 @@ public final class Mapping implements ToXContent {
                 return o1.name().compareTo(o2.name());
             }
         });
-        this.rootMappersMap = unmodifiableMap(rootMappersMap);
+        this.metadataMappersMap = unmodifiableMap(metadataMappersMap);
         this.meta = meta;
     }
 
@@ -85,26 +79,37 @@ public final class Mapping implements ToXContent {
 
     /** Get the root mapper with the given class. */
     @SuppressWarnings("unchecked")
-    public <T extends MetadataFieldMapper> T rootMapper(Class<T> clazz) {
-        return (T) rootMappersMap.get(clazz);
+    public <T extends MetadataFieldMapper> T metadataMapper(Class<T> clazz) {
+        return (T) metadataMappersMap.get(clazz);
     }
 
-    /** @see DocumentMapper#merge(Mapping, boolean, boolean) */
-    public void merge(Mapping mergeWith, MergeResult mergeResult) {
-        assert metadataMappers.length == mergeWith.metadataMappers.length;
-
-        root.merge(mergeWith.root, mergeResult);
-        for (MetadataFieldMapper metadataMapper : metadataMappers) {
-            MetadataFieldMapper mergeWithMetadataMapper = mergeWith.rootMapper(metadataMapper.getClass());
-            if (mergeWithMetadataMapper != null) {
-                metadataMapper.merge(mergeWithMetadataMapper, mergeResult);
+    /** @see DocumentMapper#merge(Mapping, boolean) */
+    public Mapping merge(Mapping mergeWith, boolean updateAllTypes) {
+        RootObjectMapper mergedRoot = root.merge(mergeWith.root, updateAllTypes);
+        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> mergedMetaDataMappers = new HashMap<>(metadataMappersMap);
+        for (MetadataFieldMapper metaMergeWith : mergeWith.metadataMappers) {
+            MetadataFieldMapper mergeInto = mergedMetaDataMappers.get(metaMergeWith.getClass());
+            MetadataFieldMapper merged;
+            if (mergeInto == null) {
+                merged = metaMergeWith;
+            } else {
+                merged = mergeInto.merge(metaMergeWith, updateAllTypes);
             }
+            mergedMetaDataMappers.put(merged.getClass(), merged);
         }
+        return new Mapping(indexCreated, mergedRoot, mergedMetaDataMappers.values().toArray(new MetadataFieldMapper[0]), mergeWith.meta);
+    }
 
-        if (mergeResult.simulate() == false) {
-            // let the merge with attributes to override the attributes
-            meta = mergeWith.meta;
+    /**
+     * Recursively update sub field types.
+     */
+    public Mapping updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
+        final MetadataFieldMapper[] updatedMeta = Arrays.copyOf(metadataMappers, metadataMappers.length);
+        for (int i = 0; i < updatedMeta.length; ++i) {
+            updatedMeta[i] = (MetadataFieldMapper) updatedMeta[i].updateFieldType(fullNameToFieldType);
         }
+        RootObjectMapper updatedRoot = root.updateFieldType(fullNameToFieldType);
+        return new Mapping(indexCreated, updatedRoot, updatedMeta, meta);
     }
 
     @Override

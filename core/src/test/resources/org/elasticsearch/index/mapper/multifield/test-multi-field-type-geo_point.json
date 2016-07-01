@@ -5,8 +5,8 @@
         "type":"multi_field",
         "fields":{
           "a":{
-            "type":"string",
-            "index":"not_analyzed"
+            "type":"text",
+            "index":false
           },
           "b":{
             "type":"geo_point"
@@ -17,8 +17,7 @@
         "type":"multi_field",
         "fields":{
           "a":{
-            "type":"string",
-            "index":"not_analyzed"
+            "type":"keyword"
           },
           "b":{
             "type":"geo_point"

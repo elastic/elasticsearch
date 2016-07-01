@@ -9,18 +9,18 @@ on the list, the alternative `no_match_query` is executed.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "indices" : {
-        "indices" : ["index1", "index2"],
-        "query" : {
-            "term" : { "tag" : "wow" }
-        },
-        "no_match_query" : {
-            "term" : { "tag" : "kow" }
+    "query": {
+        "indices" : {
+            "indices" : ["index1", "index2"],
+            "query" : { "term" : { "tag" : "wow" } },
+            "no_match_query" : { "term" : { "tag" : "kow" } }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE 
 
 You can use the `index` field to provide a single index.
 

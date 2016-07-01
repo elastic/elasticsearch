@@ -20,7 +20,7 @@ curl -XPOST 'localhost:9200/_cluster/reroute' -d '{
             }
         },
         {
-          "allocate" : {
+          "allocate_replica" : {
               "index" : "test", "shard" : 1, "node" : "node3"
           }
         }
@@ -64,14 +64,55 @@ The commands supported are:
     from the primary shard by cancelling them and allowing them to be
     reinitialized through the standard reallocation process.
 
-`allocate`::
-    Allocate an unassigned shard to a node. Accepts the
+`allocate_replica`::
+    Allocate an unassigned replica shard to a node. Accepts the
     `index` and `shard` for index name and shard number, and `node` to
-    allocate the shard to. It also accepts `allow_primary` flag to
-    explicitly specify that it is allowed to explicitly allocate a primary
-    shard (might result in data loss).
+    allocate the shard to. Takes <<modules-cluster,allocation deciders>> into account.
 
-WARNING: The `allow_primary` parameter will force a new _empty_ primary shard
-to be allocated *without any data*. If a node which has a copy of the original
-primary shard (including data) rejoins the cluster later on, that data will be
-deleted: the old shard copy will be replaced by the new live shard copy.
+Two more commands are available that allow the allocation of a primary shard
+to a node. These commands should however be used with extreme care, as primary
+shard allocation is usually fully automatically handled by Elasticsearch.
+Reasons why a primary shard cannot be automatically allocated include the following:
+
+- A new index was created but there is no node which satisfies the allocation deciders.
+- An up-to-date shard copy of the data cannot be found on the current data nodes in
+the cluster. To prevent data loss, the system does not automatically promote a stale
+shard copy to primary.
+
+As a manual override, two commands to forcefully allocate primary shards
+are available:
+
+`allocate_stale_primary`::
+    Allocate a primary shard to a node that holds a stale copy. Accepts the
+    `index` and `shard` for index name and shard number, and `node` to
+    allocate the shard to. Using this command may lead to data loss
+    for the provided shard id. If a node which has the good copy of the
+    data rejoins the cluster later on, that data will be overwritten with
+    the data of the stale copy that was forcefully allocated with this
+    command. To ensure that these implications are well-understood,
+    this command requires the special field `accept_data_loss` to be
+    explicitly set to `true` for it to work.
+
+`allocate_empty_primary`::
+    Allocate an empty primary shard to a node. Accepts the
+    `index` and `shard` for index name and shard number, and `node` to
+    allocate the shard to. Using this command leads to a complete loss
+    of all data that was indexed into this shard, if it was previously
+    started. If a node which has a copy of the
+    data rejoins the cluster later on, that data will be deleted!
+    To ensure that these implications are well-understood,
+    this command requires the special field `accept_data_loss` to be
+    explicitly set to `true` for it to work.
+
+[float]
+=== Retry failed shards
+
+The cluster will attempt to allocate a shard a maximum of
+`index.allocation.max_retries` times in a row (defaults to `5`), before giving
+up and leaving the shard unallocated. This scenario can be caused by
+structural problems such as having an analyzer which refers to a stopwords
+file which doesn't exist on all nodes.
+
+Once the problem has been corrected, allocation can be manually retried by
+calling the <<cluster-reroute,`_reroute`>> API with `?retry_failed`, which
+will attempt a single retry round for these shards.

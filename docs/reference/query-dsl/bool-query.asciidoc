@@ -16,7 +16,7 @@ contribute to the score.
 `must` the score of the query will be ignored.
 
 |`should` |The clause (query) should appear in the matching document. In
-a boolean query with no `must` clauses, one or more `should` clauses
+a boolean query with no `must` or `filter` clauses, one or more `should` clauses
 must match a document. The minimum number of should clauses to match can
 be set using the
 <<query-dsl-minimum-should-match,`minimum_should_match`>>
@@ -39,34 +39,112 @@ on the fraction of all query terms that a document contains. See Lucene
 `BooleanQuery` for more details.
 
 The `bool` query takes a _more-matches-is-better_ approach, so the score from
-each matching `must` or `should` clause will be added together to provide the 
+each matching `must` or `should` clause will be added together to provide the
 final `_score` for each document.
 
 [source,js]
 --------------------------------------------------
+POST _search
 {
+  "query": {
     "bool" : {
-        "must" : {
-            "term" : { "user" : "kimchy" }
-        },
-        "filter": {
-            "term" : { "tag" : "tech" }
-        },
-        "must_not" : {
-            "range" : {
-                "age" : { "from" : 10, "to" : 20 }
-            }
-        },
-        "should" : [
-            {
-                "term" : { "tag" : "wow" }
-            },
-            {
-                "term" : { "tag" : "elasticsearch" }
-            }
-        ],
-        "minimum_should_match" : 1,
-        "boost" : 1.0
+      "must" : {
+        "term" : { "user" : "kimchy" }
+      },
+      "filter": {
+        "term" : { "tag" : "tech" }
+      },
+      "must_not" : {
+        "range" : {
+          "age" : { "from" : 10, "to" : 20 }
+        }
+      },
+      "should" : [
+        { "term" : { "tag" : "wow" } },
+        { "term" : { "tag" : "elasticsearch" } }
+      ],
+      "minimum_should_match" : 1,
+      "boost" : 1.0
     }
+  }
 }
 --------------------------------------------------
+// CONSOLE
+
+==== Scoring with `bool.filter`
+
+Queries specified under the `filter` element have no effect on scoring --
+scores are returned as `0`.  Scores are only affected by the query that has
+been specified.  For instance, all three of the following queries return
+all documents where the `status` field contains the term `active`.
+
+This first query assigns a score of `0` to all documents, as no scoring
+query has been specified:
+
+[source,js]
+---------------------------------
+GET _search
+{
+  "query": {
+    "bool": {
+      "filter": {
+        "term": {
+          "status": "active"
+        }
+      }
+    }
+  }
+}
+---------------------------------
+// CONSOLE
+
+This `bool` query has a `match_all` query, which assigns a score of `1.0` to
+all documents.
+
+[source,js]
+---------------------------------
+GET _search
+{
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "term": {
+          "status": "active"
+        }
+      }
+    }
+  }
+}
+---------------------------------
+// CONSOLE
+
+This `constant_score` query behaves in exactly the same way as the second example above.
+The `constant_score` query assigns a score of `1.0` to all documents matched
+by the filter.
+
+[source,js]
+---------------------------------
+GET _search
+{
+  "query": {
+    "constant_score": {
+      "filter": {
+        "term": {
+          "status": "active"
+        }
+      }
+    }
+  }
+}
+---------------------------------
+// CONSOLE
+
+==== Using named queries to see which clauses matched
+
+If you need to know which of the clauses in the bool query matched the documents
+returned from the query, you can use
+<<search-request-named-queries-and-filters,named queries>> to assign a name to
+each clause.

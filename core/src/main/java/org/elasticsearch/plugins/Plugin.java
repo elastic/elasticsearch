@@ -19,13 +19,17 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.threadpool.ExecutorBuilder;
 
-import java.io.Closeable;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -37,16 +41,6 @@ import java.util.List;
  * and registering the extension with the given module.
  */
 public abstract class Plugin {
-
-    /**
-     * The name of the plugin.
-     */
-    public abstract String name();
-
-    /**
-     * The description of the plugin.
-     */
-    public abstract String description();
 
     /**
      * Node level modules.
@@ -71,16 +65,20 @@ public abstract class Plugin {
     }
 
     /**
-     * Called once the given {@link IndexService} is fully constructed but not yet published.
-     * This is used to initialize plugin services that require acess to index level resources
-     */
-    public void onIndexService(IndexService indexService) {}
-
-    /**
-     * Called before a new index is created on a node. The given module can be used to regsiter index-leve
+     * Called before a new index is created on a node. The given module can be used to register index-level
      * extensions.
      */
     public void onIndexModule(IndexModule indexModule) {}
+
+    /**
+     * Returns a list of additional {@link Setting} definitions for this plugin.
+     */
+    public List<Setting<?>> getSettings() { return Collections.emptyList(); }
+
+    /**
+     * Returns a list of additional settings filter for this plugin
+     */
+    public List<String> getSettingsFilter() { return Collections.emptyList(); }
 
     /**
      * Old-style guice index level extension point.
@@ -89,4 +87,48 @@ public abstract class Plugin {
      */
     @Deprecated
     public final void onModule(IndexModule indexModule) {}
+
+
+    /**
+     * Old-style guice settings extension point.
+     *
+     * @deprecated use #getSettings and #getSettingsFilter instead
+     */
+    @Deprecated
+    public final void onModule(SettingsModule settingsModule) {}
+
+    /**
+     * Old-style guice scripting extension point.
+     *
+     * @deprecated implement {@link ScriptPlugin} instead
+     */
+    @Deprecated
+    public final void onModule(ScriptModule module) {}
+
+    /**
+     * Old-style analysis extension point.
+     *
+     * @deprecated implement {@link AnalysisPlugin} instead
+     */
+    @Deprecated
+    public final void onModule(AnalysisModule module) {}
+
+    /**
+     * Old-style action extension point.
+     *
+     * @deprecated implement {@link ActionPlugin} instead
+     */
+    @Deprecated
+    public final void onModule(ActionModule module) {}
+
+    /**
+     * Provides the list of this plugin's custom thread pools, empty if
+     * none.
+     *
+     * @param settings the current settings
+     * @return executors builders for this plugin's custom thread pools
+     */
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        return Collections.emptyList();
+    }
 }

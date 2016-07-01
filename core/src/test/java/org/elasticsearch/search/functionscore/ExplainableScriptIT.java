@@ -56,7 +56,7 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
+@ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
 public class ExplainableScriptIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -80,12 +80,13 @@ public class ExplainableScriptIT extends ESIntegTestCase {
 
         ElasticsearchAssertions.assertNoFailures(response);
         SearchHits hits = response.getHits();
-        assertThat(hits.getTotalHits(), equalTo(20l));
+        assertThat(hits.getTotalHits(), equalTo(20L));
         int idCounter = 19;
         for (SearchHit hit : hits.getHits()) {
             assertThat(hit.getId(), equalTo(Integer.toString(idCounter)));
-            assertThat(hit.explanation().toString(), containsString(Double.toString(idCounter) + " = This script returned " + Double.toString(idCounter)));
-            assertThat(hit.explanation().toString(), containsString("1.0 = tf(freq=1.0), with freq of"));
+            assertThat(hit.explanation().toString(),
+                    containsString(Double.toString(idCounter) + " = This script returned " + Double.toString(idCounter)));
+            assertThat(hit.explanation().toString(), containsString("freq=1.0 = termFreq=1.0"));
             assertThat(hit.explanation().getDetails().length, equalTo(2));
             idCounter--;
         }
@@ -99,6 +100,11 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         @Override
         public boolean needsScores() {
             return true;
+        }
+
+        @Override
+        public String getName() {
+            return "native_explainable_script";
         }
     }
 

@@ -18,12 +18,10 @@
  */
 package org.elasticsearch.index.shard;
 
-import java.io.IOException;
-
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -33,7 +31,14 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.threadpool.ThreadPool;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * ShadowIndexShard extends {@link IndexShard} to add file synchronization
@@ -43,23 +48,27 @@ import org.elasticsearch.index.translog.TranslogStats;
  */
 public final class ShadowIndexShard extends IndexShard {
 
-    public ShadowIndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexCache indexCache, MapperService mapperService, SimilarityService similarityService, IndexFieldDataService indexFieldDataService, @Nullable EngineFactory engineFactory,
-                            IndexEventListener indexEventListener, IndexSearcherWrapper wrapper, NodeServicesProvider provider) throws IOException {
-        super(shardId, indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldDataService, engineFactory, indexEventListener, wrapper, provider);
+    public ShadowIndexShard(ShardRouting shardRouting, IndexSettings indexSettings, ShardPath path, Store store, IndexCache indexCache,
+                            MapperService mapperService, SimilarityService similarityService, IndexFieldDataService indexFieldDataService,
+                            @Nullable EngineFactory engineFactory, IndexEventListener indexEventListener, IndexSearcherWrapper wrapper,
+                            ThreadPool threadPool, BigArrays bigArrays, Engine.Warmer engineWarmer,
+                            List<SearchOperationListener> searchOperationListeners) throws IOException {
+        super(shardRouting, indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldDataService, engineFactory,
+            indexEventListener, wrapper, threadPool, bigArrays, engineWarmer, searchOperationListeners, Collections.emptyList());
     }
 
     /**
      * In addition to the regular accounting done in
-     * {@link IndexShard#updateRoutingEntry(org.elasticsearch.cluster.routing.ShardRouting, boolean)},
+     * {@link IndexShard#updateRoutingEntry(ShardRouting)},
      * if this shadow replica needs to be promoted to a primary, the shard is
      * failed in order to allow a new primary to be re-allocated.
      */
     @Override
-    public void updateRoutingEntry(ShardRouting newRouting, boolean persistState) {
+    public void updateRoutingEntry(ShardRouting newRouting) throws IOException {
         if (newRouting.primary() == true) {// becoming a primary
             throw new IllegalStateException("can't promote shard to primary");
         }
-        super.updateRoutingEntry(newRouting, persistState);
+        super.updateRoutingEntry(newRouting);
     }
 
     @Override
@@ -73,11 +82,16 @@ public final class ShadowIndexShard extends IndexShard {
     }
 
     @Override
-    protected Engine newEngine(boolean skipInitialTranslogRecovery, EngineConfig config) {
+    protected Engine newEngine(EngineConfig config) {
         assert this.shardRouting.primary() == false;
-        assert skipInitialTranslogRecovery : "can not recover from gateway";
-        config.setCreate(false); // hardcoded - we always expect an index to be present
+        assert config.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG;
         return engineFactory.newReadOnlyEngine(config);
+    }
+
+    @Override
+    protected RefreshListeners buildRefreshListeners() {
+        // ShadowEngine doesn't have a translog so it shouldn't try to support RefreshListeners.
+        return null;
     }
 
     @Override
@@ -86,12 +100,13 @@ public final class ShadowIndexShard extends IndexShard {
         return false;
     }
 
-    public boolean allowsPrimaryPromotion() {
-        return false;
-    }
-
     @Override
     public TranslogStats translogStats() {
         return null; // shadow engine has no translog
+    }
+
+    @Override
+    public void addRefreshListener(Translog.Location location, Consumer<Boolean> listener) {
+        throw new UnsupportedOperationException("Can't listen for a refresh on a shadow engine because it doesn't have a translog");
     }
 }

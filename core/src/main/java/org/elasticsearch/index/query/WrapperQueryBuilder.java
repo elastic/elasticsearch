@@ -20,6 +20,9 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Optional;
 
 /**
  * A Query builder which allows building a query given JSON string or binary data provided as input. This is useful when you want
@@ -49,8 +53,11 @@ import java.util.Arrays;
 public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilder> {
 
     public static final String NAME = "wrapper";
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
+
+    private static final ParseField QUERY_FIELD = new ParseField("query");
+
     private final byte[] source;
-    static final WrapperQueryBuilder PROTOTYPE = new WrapperQueryBuilder((byte[]) new byte[]{0});
 
     /**
      * Creates a query builder given a query provided as a bytes array
@@ -79,7 +86,20 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
         if (source == null || source.length() == 0) {
             throw new IllegalArgumentException("query source text cannot be null or empty");
         }
-        this.source = source.array();
+        this.source = BytesRef.deepCopyOf(source.toBytesRef()).bytes;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public WrapperQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        source = in.readByteArray();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeByteArray(this.source);
     }
 
     public byte[] source() {
@@ -94,8 +114,31 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("query", source);
+        builder.field(QUERY_FIELD.getPreferredName(), source);
         builder.endObject();
+    }
+
+    public static Optional<WrapperQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+
+        XContentParser.Token token = parser.nextToken();
+        if (token != XContentParser.Token.FIELD_NAME) {
+            throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed");
+        }
+        String fieldName = parser.currentName();
+        if (! parseContext.getParseFieldMatcher().match(fieldName, QUERY_FIELD)) {
+            throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed, expected `query` but was " + fieldName);
+        }
+        parser.nextToken();
+
+        byte[] source = parser.binaryValue();
+
+        parser.nextToken();
+
+        if (source == null) {
+            throw new ParsingException(parser.getTokenLocation(), "wrapper query has no [query] specified");
+        }
+        return Optional.of(new WrapperQueryBuilder(source));
     }
 
     @Override
@@ -105,24 +148,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(source)) {
-            final QueryShardContext contextCopy = new QueryShardContext(context);
-            contextCopy.reset(qSourceParser);
-            contextCopy.parseFieldMatcher(context.parseFieldMatcher());
-            QueryBuilder<?> result = contextCopy.parseContext().parseInnerQueryBuilder();
-            context.combineNamedQueries(contextCopy);
-            return result.toQuery(context);
-        }
-    }
-
-    @Override
-    protected WrapperQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        return new WrapperQueryBuilder(in.readByteArray());
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeByteArray(this.source);
+        throw new UnsupportedOperationException("this query must be rewritten first");
     }
 
     @Override
@@ -134,4 +160,22 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     protected boolean doEquals(WrapperQueryBuilder other) {
         return Arrays.equals(source, other.source);   // otherwise we compare pointers
     }
+
+    @Override
+    protected QueryBuilder doRewrite(QueryRewriteContext context) throws IOException {
+        try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(source)) {
+            QueryParseContext parseContext = context.newParseContext(qSourceParser);
+
+            final QueryBuilder queryBuilder = parseContext.parseInnerQueryBuilder().orElseThrow(
+                    () -> new ParsingException(qSourceParser.getTokenLocation(), "inner query cannot be empty"));
+            if (boost() != DEFAULT_BOOST || queryName() != null) {
+                final BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+                boolQueryBuilder.must(queryBuilder);
+                return boolQueryBuilder;
+            }
+            return queryBuilder;
+        }
+    }
+
+
 }

@@ -20,18 +20,28 @@
 package org.elasticsearch.discovery.gce;
 
 import com.google.api.client.auth.oauth2.Credential;
-import com.google.api.client.http.*;
+import com.google.api.client.googleapis.testing.auth.oauth2.MockGoogleCredential;
+import com.google.api.client.http.HttpBackOffIOExceptionHandler;
+import com.google.api.client.http.HttpBackOffUnsuccessfulResponseHandler;
+import com.google.api.client.http.HttpRequest;
+import com.google.api.client.http.HttpRequestInitializer;
+import com.google.api.client.http.HttpResponse;
+import com.google.api.client.http.HttpUnsuccessfulResponseHandler;
 import com.google.api.client.util.ExponentialBackOff;
 import com.google.api.client.util.Sleeper;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Objects;
 
 public class RetryHttpInitializerWrapper implements HttpRequestInitializer {
 
-    private int maxWait;
+    private TimeValue maxWait;
 
     private static final ESLogger logger =
             ESLoggerFactory.getLogger(RetryHttpInitializerWrapper.class.getName());
@@ -46,19 +56,29 @@ public class RetryHttpInitializerWrapper implements HttpRequestInitializer {
     private final Sleeper sleeper;
 
     public RetryHttpInitializerWrapper(Credential wrappedCredential) {
-        this(wrappedCredential, Sleeper.DEFAULT, ExponentialBackOff.DEFAULT_MAX_ELAPSED_TIME_MILLIS);
+        this(wrappedCredential, Sleeper.DEFAULT, TimeValue.timeValueMillis(ExponentialBackOff.DEFAULT_MAX_ELAPSED_TIME_MILLIS));
     }
 
-    public RetryHttpInitializerWrapper(Credential wrappedCredential, int maxWait) {
+    public RetryHttpInitializerWrapper(Credential wrappedCredential, TimeValue maxWait) {
         this(wrappedCredential, Sleeper.DEFAULT, maxWait);
     }
 
     // Use only for testing.
     RetryHttpInitializerWrapper(
-            Credential wrappedCredential, Sleeper sleeper, int maxWait) {
+            Credential wrappedCredential, Sleeper sleeper, TimeValue maxWait) {
         this.wrappedCredential = Objects.requireNonNull(wrappedCredential);
         this.sleeper = sleeper;
         this.maxWait = maxWait;
+    }
+
+    // Use only for testing
+    static MockGoogleCredential.Builder newMockCredentialBuilder() {
+        // TODO: figure out why GCE is so bad like this
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
+        return AccessController.doPrivileged((PrivilegedAction<MockGoogleCredential.Builder>) () -> new MockGoogleCredential.Builder());
     }
 
     @Override
@@ -66,7 +86,7 @@ public class RetryHttpInitializerWrapper implements HttpRequestInitializer {
         final HttpUnsuccessfulResponseHandler backoffHandler =
                 new HttpBackOffUnsuccessfulResponseHandler(
                         new ExponentialBackOff.Builder()
-                                .setMaxElapsedTimeMillis(maxWait)
+                                .setMaxElapsedTimeMillis(((int) maxWait.getMillis()))
                                 .build())
                         .setSleeper(sleeper);
 
@@ -98,7 +118,7 @@ public class RetryHttpInitializerWrapper implements HttpRequestInitializer {
         httpRequest.setIOExceptionHandler(
                 new HttpBackOffIOExceptionHandler(
                         new ExponentialBackOff.Builder()
-                                .setMaxElapsedTimeMillis(maxWait)
+                                .setMaxElapsedTimeMillis(((int) maxWait.getMillis()))
                                 .build())
                         .setSleeper(sleeper)
         );

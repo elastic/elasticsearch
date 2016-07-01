@@ -24,6 +24,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.metrics.cardinality.Cardinality;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroid;
@@ -53,7 +54,7 @@ public class MissingValueIT extends ESIntegTestCase {
 
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
-        assertAcked(prepareCreate("idx").addMapping("type", "date", "type=date", "location", "type=geo_point").get());
+        assertAcked(prepareCreate("idx").addMapping("type", "date", "type=date", "location", "type=geo_point", "str", "type=keyword").get());
         indexRandom(true,
                 client().prepareIndex("idx", "type", "1").setSource(),
                 client().prepareIndex("idx", "type", "2").setSource("str", "foo", "long", 3L, "double", 5.5, "date", "2015-05-07", "location", "1,2"));
@@ -68,18 +69,24 @@ public class MissingValueIT extends ESIntegTestCase {
     }
 
     public void testStringTerms() {
-        SearchResponse response = client().prepareSearch("idx").addAggregation(terms("my_terms").field("str").missing("bar")).get();
-        assertSearchResponse(response);
-        Terms terms = response.getAggregations().get("my_terms");
-        assertEquals(2, terms.getBuckets().size());
-        assertEquals(1, terms.getBucketByKey("foo").getDocCount());
-        assertEquals(1, terms.getBucketByKey("bar").getDocCount());
+        for (ExecutionMode mode : ExecutionMode.values()) {
+            SearchResponse response = client().prepareSearch("idx").addAggregation(
+                    terms("my_terms")
+                        .field("str")
+                        .executionHint(mode.toString())
+                        .missing("bar")).get();
+            assertSearchResponse(response);
+            Terms terms = response.getAggregations().get("my_terms");
+            assertEquals(2, terms.getBuckets().size());
+            assertEquals(1, terms.getBucketByKey("foo").getDocCount());
+            assertEquals(1, terms.getBucketByKey("bar").getDocCount());
 
-        response = client().prepareSearch("idx").addAggregation(terms("my_terms").field("str").missing("foo")).get();
-        assertSearchResponse(response);
-        terms = response.getAggregations().get("my_terms");
-        assertEquals(1, terms.getBuckets().size());
-        assertEquals(2, terms.getBucketByKey("foo").getDocCount());
+            response = client().prepareSearch("idx").addAggregation(terms("my_terms").field("str").missing("foo")).get();
+            assertSearchResponse(response);
+            terms = response.getAggregations().get("my_terms");
+            assertEquals(1, terms.getBuckets().size());
+            assertEquals(2, terms.getBucketByKey("foo").getDocCount());
+        }
     }
 
     public void testLongTerms() {
@@ -140,7 +147,10 @@ public class MissingValueIT extends ESIntegTestCase {
     }
 
     public void testDateHistogram() {
-        SearchResponse response = client().prepareSearch("idx").addAggregation(dateHistogram("my_histogram").field("date").interval(DateHistogramInterval.YEAR).missing("2014-05-07")).get();
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(
+                        dateHistogram("my_histogram").field("date").dateHistogramInterval(DateHistogramInterval.YEAR).missing("2014-05-07"))
+                .get();
         assertSearchResponse(response);
         Histogram histogram = response.getAggregations().get("my_histogram");
         assertEquals(2, histogram.getBuckets().size());
@@ -149,7 +159,10 @@ public class MissingValueIT extends ESIntegTestCase {
         assertEquals("2015-01-01T00:00:00.000Z", histogram.getBuckets().get(1).getKeyAsString());
         assertEquals(1, histogram.getBuckets().get(1).getDocCount());
 
-        response = client().prepareSearch("idx").addAggregation(dateHistogram("my_histogram").field("date").interval(DateHistogramInterval.YEAR).missing("2015-05-07")).get();
+        response = client().prepareSearch("idx")
+                .addAggregation(
+                        dateHistogram("my_histogram").field("date").dateHistogramInterval(DateHistogramInterval.YEAR).missing("2015-05-07"))
+                .get();
         assertSearchResponse(response);
         histogram = response.getAggregations().get("my_histogram");
         assertEquals(1, histogram.getBuckets().size());

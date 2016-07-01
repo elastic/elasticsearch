@@ -163,7 +163,7 @@ As mentioned previously, we can override either the cluster or node name. This c
 
 [source,sh]
 --------------------------------------------------
-./elasticsearch --cluster.name my_cluster_name --node.name my_node_name
+./elasticsearch -Ecluster.name=my_cluster_name -Enode.name=my_node_name
 --------------------------------------------------
 
 Also note the line marked http with information about the HTTP address (`192.168.8.112`) and port (`9200`) that our node is reachable from. By default, Elasticsearch uses port `9200` to provide access to its REST API. This port is configurable if necessary.
@@ -326,7 +326,8 @@ curl -XGET 'localhost:9200/customer/external/1?pretty'
   "_type" : "external",
   "_id" : "1",
   "_version" : 1,
-  "found" : true, "_source" : { "name": "John Doe" }
+  "found" : true,
+  "_source" : { "name": "John Doe" }
 }
 --------------------------------------------------
 
@@ -904,7 +905,7 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
   "aggs": {
     "group_by_state": {
       "terms": {
-        "field": "state"
+        "field": "state.keyword"
       }
     }
   }
@@ -979,7 +980,7 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
   "aggs": {
     "group_by_state": {
       "terms": {
-        "field": "state"
+        "field": "state.keyword"
       },
       "aggs": {
         "average_balance": {
@@ -1005,7 +1006,7 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
   "aggs": {
     "group_by_state": {
       "terms": {
-        "field": "state",
+        "field": "state.keyword",
         "order": {
           "average_balance": "desc"
         }

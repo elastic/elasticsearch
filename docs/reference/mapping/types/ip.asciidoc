@@ -1,9 +1,8 @@
 [[ip]]
-=== IPv4 datatype
+=== IP datatype
 
-An `ip` field is really a <<number,`long`>> field which accepts
-https://en.wikipedia.org/wiki/IPv4[IPv4] addresses and indexes them as long
-values:
+An `ip` field can index/store either https://en.wikipedia.org/wiki/IPv4[IPv4] or
+https://en.wikipedia.org/wiki/IPv6[IPv6] addresses.
 
 [source,js]
 --------------------------------------------------
@@ -28,16 +27,13 @@ PUT my_index/my_type/1
 GET my_index/_search
 {
   "query": {
-    "range": {
-      "ip_addr": {
-        "gte": "192.168.1.0",
-        "lt":  "192.168.2.0"
-      }
+    "term": {
+      "ip_addr": "192.168.0.0/16"
     }
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 
 [[ip-params]]
@@ -47,9 +43,9 @@ The following parameters are accepted by `ip` fields:
 
 [horizontal]
 
-<<index-boost,`boost`>>::
+<<mapping-boost,`boost`>>::
 
-    Field-level index time boosting. Accepts a floating point number, defaults
+    Mapping field-level query time boosting. Accepts a floating point number, defaults
     to `1.0`.
 
 <<doc-values,`doc_values`>>::
@@ -62,23 +58,18 @@ The following parameters are accepted by `ip` fields:
 
     Whether or not the field value should be included in the
     <<mapping-all-field,`_all`>> field? Accepts `true` or `false`.  Defaults
-    to `false` if <<mapping-index,`index`>> is set to `no`, or if a parent
+    to `false` if <<mapping-index,`index`>> is set to `false`, or if a parent
     <<object,`object`>> field sets `include_in_all` to `false`.
     Otherwise defaults to `true`.
 
 <<mapping-index,`index`>>::
 
-    Should the field be searchable? Accepts `not_analyzed` (default) and `no`.
+    Should the field be searchable? Accepts `true` (default) and `false`.
 
 <<null-value,`null_value`>>::
 
     Accepts an IPv4 value which is substituted for any explicit `null` values.
     Defaults to `null`, which means the field is treated as missing.
-
-<<precision-step,`precision_step`>>::
-
-    Controls the number of extra terms that are indexed to make
-    <<query-dsl-range-query,`range` queries>> faster. Defaults to `16`.
 
 <<mapping-store,`store`>>::
 
@@ -86,5 +77,51 @@ The following parameters are accepted by `ip` fields:
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
 
+==== Querying `ip` fields
 
-NOTE: IPv6 addresses are not supported yet.
+The most common way to query ip addresses is to use the
+https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing#CIDR_notation[CIDR]
+notation: `[ip_address]/[prefix_length]`. For instance:
+
+[source,js]
+--------------------------------------------------
+GET my_index/_search
+{
+  "query": {
+    "term": {
+      "ip_addr": "192.168.0.0/16"
+    }
+  }
+}
+--------------------------------------------------
+
+or
+
+[source,js]
+--------------------------------------------------
+GET my_index/_search
+{
+  "query": {
+    "term": {
+      "ip_addr": "2001:db8::/48"
+    }
+  }
+}
+--------------------------------------------------
+
+Also beware that colons are special characters to the
+<<query-dsl-query-string-query,`query_string`>> query, so ipv6 addresses will
+need to be escaped. The easiest way to do so is to put quotes around the
+searched value:
+
+[source,js]
+--------------------------------------------------
+GET t/_search
+{
+  "query": {
+    "query_string" : {
+      "query": "ip_addr:\"2001:db8::/48\""
+    }
+  }
+}
+--------------------------------------------------

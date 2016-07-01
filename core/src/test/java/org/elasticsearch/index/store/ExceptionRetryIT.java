@@ -27,7 +27,6 @@ import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -70,7 +69,7 @@ public class ExceptionRetryIT extends ESIntegTestCase {
     /**
      * Tests retry mechanism when indexing. If an exception occurs when indexing then the indexing request is tried again before finally failing.
      * If auto generated ids are used this must not lead to duplicate ids
-     * see https://github.com/elasticsearch/elasticsearch/issues/8788
+     * see https://github.com/elastic/elasticsearch/issues/8788
      */
     public void testRetryDueToExceptionOnNetworkLayer() throws ExecutionException, InterruptedException, IOException {
         final AtomicBoolean exceptionThrown = new AtomicBoolean(false);
@@ -82,8 +81,8 @@ public class ExceptionRetryIT extends ESIntegTestCase {
 
         //create a transport service that throws a ConnectTransportException for one bulk request and therefore triggers a retry.
         for (NodeStats dataNode : nodeStats.getNodes()) {
-            MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().name()));
-            mockTransportService.addDelegate(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().name()), new MockTransportService.DelegateTransport(mockTransportService.original()) {
+            MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().getName()));
+            mockTransportService.addDelegate(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()), new MockTransportService.DelegateTransport(mockTransportService.original()) {
 
                 @Override
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
@@ -123,7 +122,7 @@ public class ExceptionRetryIT extends ESIntegTestCase {
             if (!uniqueIds.add(searchResponse.getHits().getHits()[i].getId())) {
                 if (!found_duplicate_already) {
                     SearchResponse dupIdResponse = client().prepareSearch("index").setQuery(termQuery("_id", searchResponse.getHits().getHits()[i].getId())).setExplain(true).get();
-                    assertThat(dupIdResponse.getHits().totalHits(), greaterThan(1l));
+                    assertThat(dupIdResponse.getHits().totalHits(), greaterThan(1L));
                     logger.info("found a duplicate id:");
                     for (SearchHit hit : dupIdResponse.getHits()) {
                         logger.info("Doc {} was found on shard {}", hit.getId(), hit.getShard().getShardId());
@@ -135,7 +134,7 @@ public class ExceptionRetryIT extends ESIntegTestCase {
             }
         }
         assertSearchResponse(searchResponse);
-        assertThat(dupCounter, equalTo(0l));
+        assertThat(dupCounter, equalTo(0L));
         assertHitCount(searchResponse, numDocs);
     }
 }

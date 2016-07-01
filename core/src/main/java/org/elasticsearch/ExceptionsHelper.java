@@ -26,6 +26,7 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -88,15 +89,14 @@ public final class ExceptionsHelper {
         return result;
     }
 
+    /**
+     * @deprecated Don't swallow exceptions, allow them to propagate.
+     */
+    @Deprecated
     public static String detailedMessage(Throwable t) {
-        return detailedMessage(t, false, 0);
-    }
-
-    public static String detailedMessage(Throwable t, boolean newLines, int initialCounter) {
         if (t == null) {
             return "Unknown";
         }
-        int counter = initialCounter + 1;
         if (t.getCause() != null) {
             StringBuilder sb = new StringBuilder();
             while (t != null) {
@@ -106,21 +106,11 @@ public final class ExceptionsHelper {
                     sb.append(t.getMessage());
                     sb.append("]");
                 }
-                if (!newLines) {
-                    sb.append("; ");
-                }
+                sb.append("; ");
                 t = t.getCause();
                 if (t != null) {
-                    if (newLines) {
-                        sb.append("\n");
-                        for (int i = 0; i < counter; i++) {
-                            sb.append("\t");
-                        }
-                    } else {
-                        sb.append("nested: ");
-                    }
+                    sb.append("nested: ");
                 }
-                counter++;
             }
             return sb.toString();
         } else {
@@ -243,7 +233,12 @@ public final class ExceptionsHelper {
 
         public GroupBy(Throwable t) {
             if (t instanceof ElasticsearchException) {
-                index = ((ElasticsearchException) t).getIndex();
+                final Index index = ((ElasticsearchException) t).getIndex();
+                if (index != null) {
+                    this.index = index.getName();
+                } else {
+                    this.index = null;
+                }
             } else {
                 index = null;
             }

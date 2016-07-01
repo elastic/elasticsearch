@@ -21,8 +21,8 @@ package org.elasticsearch.http.netty;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ChannelBufferBytesReference;
-import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.transport.netty.NettyUtils;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.support.RestUtils;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.handler.codec.http.HttpMethod;
@@ -34,7 +34,7 @@ import java.util.Map;
 /**
  *
  */
-public class NettyHttpRequest extends HttpRequest {
+public class NettyHttpRequest extends RestRequest {
 
     private final org.jboss.netty.handler.codec.http.HttpRequest request;
     private final Channel channel;
@@ -47,7 +47,7 @@ public class NettyHttpRequest extends HttpRequest {
         this.channel = channel;
         this.params = new HashMap<>();
         if (request.getContent().readable()) {
-            this.content = new ChannelBufferBytesReference(request.getContent());
+            this.content = NettyUtils.toBytesReference(request.getContent());
         } else {
             this.content = BytesArray.EMPTY;
         }

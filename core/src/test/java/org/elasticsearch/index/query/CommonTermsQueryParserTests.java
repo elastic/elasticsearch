@@ -32,7 +32,7 @@ public class CommonTermsQueryParserTests extends ESSingleNodeTestCase {
                 .admin()
                 .indices()
                 .prepareCreate(index)
-                .addMapping(type, "name", "type=string,analyzer=stop")
+                .addMapping(type, "name", "type=text,analyzer=stop")
                 .execute()
                 .actionGet();
         ensureGreen();

@@ -19,127 +19,173 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.action.admin.indices.rollover.Condition;
+import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.util.ExtensionPoint;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.NodeServicesProvider;
-import org.elasticsearch.index.query.*;
-import org.elasticsearch.index.query.functionscore.FunctionScoreQueryParser;
-import org.elasticsearch.index.termvectors.TermVectorsService;
-import org.elasticsearch.indices.cache.query.IndicesQueryCache;
-import org.elasticsearch.indices.cache.request.IndicesRequestCache;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
+import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
+import org.elasticsearch.index.mapper.core.TokenCountFieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.internal.IdFieldMapper;
+import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
+import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
+import org.elasticsearch.index.mapper.ip.IpFieldMapper;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
 import org.elasticsearch.indices.flush.SyncedFlushService;
-import org.elasticsearch.indices.memory.IndexingMemoryController;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoverySource;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.indices.recovery.RecoveryTargetService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
+import org.elasticsearch.plugins.MapperPlugin;
+
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Configures classes and services that are shared by indices on each node.
  */
 public class IndicesModule extends AbstractModule {
 
+    private final Map<String, Mapper.TypeParser> mapperParsers;
+    private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
+    private final MapperRegistry mapperRegistry;
+    private final NamedWriteableRegistry namedWritableRegistry;
 
-    private final ExtensionPoint.ClassSet<QueryParser> queryParsers
-        = new ExtensionPoint.ClassSet<>("query_parser", QueryParser.class);
-
-    public IndicesModule() {
-        registerBuiltinQueryParsers();
+    public IndicesModule(NamedWriteableRegistry namedWriteableRegistry, List<MapperPlugin> mapperPlugins) {
+        this.namedWritableRegistry = namedWriteableRegistry;
+        this.mapperParsers = getMappers(mapperPlugins);
+        this.metadataMapperParsers = getMetadataMappers(mapperPlugins);
+        this.mapperRegistry = new MapperRegistry(mapperParsers, metadataMapperParsers);
+        registerBuildInWritables();
     }
 
-    private void registerBuiltinQueryParsers() {
-        registerQueryParser(MatchQueryParser.class);
-        registerQueryParser(MultiMatchQueryParser.class);
-        registerQueryParser(NestedQueryParser.class);
-        registerQueryParser(HasChildQueryParser.class);
-        registerQueryParser(HasParentQueryParser.class);
-        registerQueryParser(DisMaxQueryParser.class);
-        registerQueryParser(IdsQueryParser.class);
-        registerQueryParser(MatchAllQueryParser.class);
-        registerQueryParser(QueryStringQueryParser.class);
-        registerQueryParser(BoostingQueryParser.class);
-        registerQueryParser(BoolQueryParser.class);
-        registerQueryParser(TermQueryParser.class);
-        registerQueryParser(TermsQueryParser.class);
-        registerQueryParser(FuzzyQueryParser.class);
-        registerQueryParser(RegexpQueryParser.class);
-        registerQueryParser(RangeQueryParser.class);
-        registerQueryParser(PrefixQueryParser.class);
-        registerQueryParser(WildcardQueryParser.class);
-        registerQueryParser(ConstantScoreQueryParser.class);
-        registerQueryParser(SpanTermQueryParser.class);
-        registerQueryParser(SpanNotQueryParser.class);
-        registerQueryParser(SpanWithinQueryParser.class);
-        registerQueryParser(SpanContainingQueryParser.class);
-        registerQueryParser(FieldMaskingSpanQueryParser.class);
-        registerQueryParser(SpanFirstQueryParser.class);
-        registerQueryParser(SpanNearQueryParser.class);
-        registerQueryParser(SpanOrQueryParser.class);
-        registerQueryParser(MoreLikeThisQueryParser.class);
-        registerQueryParser(WrapperQueryParser.class);
-        registerQueryParser(IndicesQueryParser.class);
-        registerQueryParser(CommonTermsQueryParser.class);
-        registerQueryParser(SpanMultiTermQueryParser.class);
-        registerQueryParser(FunctionScoreQueryParser.class);
-        registerQueryParser(SimpleQueryStringParser.class);
-        registerQueryParser(TemplateQueryParser.class);
-        registerQueryParser(TypeQueryParser.class);
-        registerQueryParser(ScriptQueryParser.class);
-        registerQueryParser(GeoDistanceQueryParser.class);
-        registerQueryParser(GeoDistanceRangeQueryParser.class);
-        registerQueryParser(GeoBoundingBoxQueryParser.class);
-        registerQueryParser(GeohashCellQuery.Parser.class);
-        registerQueryParser(GeoPolygonQueryParser.class);
-        registerQueryParser(ExistsQueryParser.class);
-        registerQueryParser(MissingQueryParser.class);
-        registerQueryParser(MatchNoneQueryParser.class);
+    private void registerBuildInWritables() {
+        namedWritableRegistry.register(Condition.class, MaxAgeCondition.NAME, MaxAgeCondition::new);
+        namedWritableRegistry.register(Condition.class, MaxDocsCondition.NAME, MaxDocsCondition::new);
+    }
 
-        if (ShapesAvailability.JTS_AVAILABLE) {
-            registerQueryParser(GeoShapeQueryParser.class);
+    private Map<String, Mapper.TypeParser> getMappers(List<MapperPlugin> mapperPlugins) {
+        Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
+
+        // builtin mappers
+        for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
+            mappers.put(type.typeName(), new NumberFieldMapper.TypeParser(type));
         }
+        mappers.put(BooleanFieldMapper.CONTENT_TYPE, new BooleanFieldMapper.TypeParser());
+        mappers.put(BinaryFieldMapper.CONTENT_TYPE, new BinaryFieldMapper.TypeParser());
+        mappers.put(DateFieldMapper.CONTENT_TYPE, new DateFieldMapper.TypeParser());
+        mappers.put(IpFieldMapper.CONTENT_TYPE, new IpFieldMapper.TypeParser());
+        mappers.put(StringFieldMapper.CONTENT_TYPE, new StringFieldMapper.TypeParser());
+        mappers.put(TextFieldMapper.CONTENT_TYPE, new TextFieldMapper.TypeParser());
+        mappers.put(KeywordFieldMapper.CONTENT_TYPE, new KeywordFieldMapper.TypeParser());
+        mappers.put(TokenCountFieldMapper.CONTENT_TYPE, new TokenCountFieldMapper.TypeParser());
+        mappers.put(ObjectMapper.CONTENT_TYPE, new ObjectMapper.TypeParser());
+        mappers.put(ObjectMapper.NESTED_CONTENT_TYPE, new ObjectMapper.TypeParser());
+        mappers.put(CompletionFieldMapper.CONTENT_TYPE, new CompletionFieldMapper.TypeParser());
+        mappers.put(GeoPointFieldMapper.CONTENT_TYPE, new GeoPointFieldMapper.TypeParser());
+        if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
+            mappers.put(GeoShapeFieldMapper.CONTENT_TYPE, new GeoShapeFieldMapper.TypeParser());
+        }
+
+        for (MapperPlugin mapperPlugin : mapperPlugins) {
+            for (Map.Entry<String, Mapper.TypeParser> entry : mapperPlugin.getMappers().entrySet()) {
+                if (mappers.put(entry.getKey(), entry.getValue()) != null) {
+                    throw new IllegalArgumentException("Mapper [" + entry.getKey() + "] is already registered");
+                }
+            }
+        }
+        return Collections.unmodifiableMap(mappers);
     }
 
-    public void registerQueryParser(Class<? extends QueryParser> queryParser) {
-        queryParsers.registerExtension(queryParser);
-    }
+    private Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers(List<MapperPlugin> mapperPlugins) {
+        // Use a LinkedHashMap for metadataMappers because iteration order matters
+        Map<String, MetadataFieldMapper.TypeParser> metadataMappers = new LinkedHashMap<>();
 
+        // builtin metadata mappers
+        // UID first so it will be the first stored field to load (so will benefit from "fields: []" early termination
+        metadataMappers.put(UidFieldMapper.NAME, new UidFieldMapper.TypeParser());
+        metadataMappers.put(IdFieldMapper.NAME, new IdFieldMapper.TypeParser());
+        metadataMappers.put(RoutingFieldMapper.NAME, new RoutingFieldMapper.TypeParser());
+        metadataMappers.put(IndexFieldMapper.NAME, new IndexFieldMapper.TypeParser());
+        metadataMappers.put(SourceFieldMapper.NAME, new SourceFieldMapper.TypeParser());
+        metadataMappers.put(TypeFieldMapper.NAME, new TypeFieldMapper.TypeParser());
+        metadataMappers.put(AllFieldMapper.NAME, new AllFieldMapper.TypeParser());
+        metadataMappers.put(TimestampFieldMapper.NAME, new TimestampFieldMapper.TypeParser());
+        metadataMappers.put(TTLFieldMapper.NAME, new TTLFieldMapper.TypeParser());
+        metadataMappers.put(VersionFieldMapper.NAME, new VersionFieldMapper.TypeParser());
+        metadataMappers.put(ParentFieldMapper.NAME, new ParentFieldMapper.TypeParser());
+        // _field_names is not registered here, see below
+
+        for (MapperPlugin mapperPlugin : mapperPlugins) {
+            for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : mapperPlugin.getMetadataMappers().entrySet()) {
+                if (entry.getKey().equals(FieldNamesFieldMapper.NAME)) {
+                    throw new IllegalArgumentException("Plugin cannot contain metadata mapper [" + FieldNamesFieldMapper.NAME + "]");
+                }
+                if (metadataMappers.put(entry.getKey(), entry.getValue()) != null) {
+                    throw new IllegalArgumentException("MetadataFieldMapper [" + entry.getKey() + "] is already registered");
+                }
+            }
+        }
+
+        // we register _field_names here so that it has a chance to see all other mappers, including from plugins
+        metadataMappers.put(FieldNamesFieldMapper.NAME, new FieldNamesFieldMapper.TypeParser());
+        return Collections.unmodifiableMap(metadataMappers);
+    }
 
     @Override
     protected void configure() {
-        bindQueryParsersExtension();
+        bindMapperExtension();
 
         bind(IndicesService.class).asEagerSingleton();
         bind(RecoverySettings.class).asEagerSingleton();
-        bind(RecoveryTarget.class).asEagerSingleton();
+        bind(RecoveryTargetService.class).asEagerSingleton();
         bind(RecoverySource.class).asEagerSingleton();
         bind(IndicesStore.class).asEagerSingleton();
         bind(IndicesClusterStateService.class).asEagerSingleton();
-        bind(IndexingMemoryController.class).asEagerSingleton();
         bind(SyncedFlushService.class).asEagerSingleton();
-        bind(IndicesQueryCache.class).asEagerSingleton();
-        bind(IndicesRequestCache.class).asEagerSingleton();
-        bind(IndicesFieldDataCache.class).asEagerSingleton();
         bind(TransportNodesListShardStoreMetaData.class).asEagerSingleton();
         bind(IndicesTTLService.class).asEagerSingleton();
-        bind(IndicesWarmer.class).asEagerSingleton();
         bind(UpdateHelper.class).asEagerSingleton();
         bind(MetaDataIndexUpgradeService.class).asEagerSingleton();
-        bind(IndicesFieldDataCacheListener.class).asEagerSingleton();
-        bind(TermVectorsService.class).asEagerSingleton();
         bind(NodeServicesProvider.class).asEagerSingleton();
     }
 
-    protected void bindQueryParsersExtension() {
-        queryParsers.bind(binder());
-        bind(IndicesQueriesRegistry.class).asEagerSingleton();
+    // public for testing
+    public MapperRegistry getMapperRegistry() {
+        return mapperRegistry;
+    }
+
+    protected void bindMapperExtension() {
+        bind(MapperRegistry.class).toInstance(getMapperRegistry());
     }
 }

@@ -28,7 +28,7 @@ GET my_index/_search
   }
 }
 --------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `_all` field will contain the terms: [ `"john"`, `"smith"`, `"1970"`, `"10"`, `"24"` ]
 
 [NOTE]
@@ -45,7 +45,7 @@ from each field as a string. It does not combine the _terms_ from each field.
 
 =============================================================================
 
-The `_all` field is just a <<string,`string`>> field, and accepts the same
+The `_all` field is just a <<text,`text`>> field, and accepts the same
 parameters that  other string fields accept, including `analyzer`,
 `term_vectors`, `index_options`, and `store`.
 
@@ -77,7 +77,7 @@ GET _search
   }
 }
 --------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The same goes for the `?q=` parameter in <<search-uri-request, URI search
 requests>> (which is rewritten to a `query_string` query internally):
@@ -115,7 +115,8 @@ PUT my_index
   }
 }
 --------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[s/\.\.\.//]
 
 <1> The `_all` field in `type_1` is enabled.
 <2> The `_all` field in `type_2` is completely disabled.
@@ -136,17 +137,17 @@ PUT my_index
       },
       "properties": {
         "content": {
-          "type": "string"
+          "type": "text"
         }
       }
     }
   },
   "settings": {
     "index.query.default_field": "content" <2>
-  },
+  }
 }
 --------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> The `_all` field is disabled for the `my_type` type.
 <2> The `query_string` query will default to querying the `content` field in this index.
@@ -161,7 +162,7 @@ Individual fields can be included or excluded from the `_all` field with the
 [[all-field-and-boosting]]
 ==== Index boosting and the `_all` field
 
-Individual fields can be _boosted_ at index time, with the <<index-boost,`boost`>>
+Individual fields can be _boosted_ at index time, with the <<mapping-boost,`boost`>>
 parameter. The `_all` field takes these boosts into account:
 
 [source,js]
@@ -172,18 +173,18 @@ PUT myindex
     "mytype": {
       "properties": {
         "title": { <1>
-          "type": "string",
+          "type": "text",
           "boost": 2
         },
         "content": { <1>
-          "type": "string"
+          "type": "text"
         }
       }
     }
   }
 }
 --------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> When querying the `_all` field, words that originated in the
     `title` field are twice as relevant as words that originated in
@@ -210,15 +211,15 @@ PUT myindex
     "mytype": {
       "properties": {
         "first_name": {
-          "type":    "string",
+          "type":    "text",
           "copy_to": "full_name" <1>
         },
         "last_name": {
-          "type":    "string",
+          "type":    "text",
           "copy_to": "full_name" <1>
         },
         "full_name": {
-          "type":    "string"
+          "type":    "text"
         }
       }
     }
@@ -240,7 +241,7 @@ GET myindex/_search
   }
 }
 --------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> The `first_name` and `last_name` values are copied to the `full_name` field.
 
@@ -295,7 +296,7 @@ GET _search
   }
 }
 --------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Of course, storing the `_all` field will use significantly more disk space
 and, because it is a combination of other fields, it may result in odd
@@ -337,16 +338,14 @@ GET _search
   "highlight": {
     "fields": {
       "*_name": { <2>
-        "require_field_match": "false"  <3>
+        "require_field_match": false  <3>
       }
     }
   }
 }
 --------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> The query inspects the `_all` field to find matching documents.
 <2> Highlighting is performed on the two name fields, which are available from the `_source`.
 <3> The query wasn't run against the name fields, so set `require_field_match` to `false`.
-
-

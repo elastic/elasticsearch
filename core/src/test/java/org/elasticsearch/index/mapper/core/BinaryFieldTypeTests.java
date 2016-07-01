@@ -20,7 +20,6 @@ package org.elasticsearch.index.mapper.core;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.junit.Before;
 
 public class BinaryFieldTypeTests extends FieldTypeTestCase {
 

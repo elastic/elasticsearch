@@ -1,98 +1,277 @@
 [[analysis-pattern-analyzer]]
 === Pattern Analyzer
 
-An analyzer of type `pattern` that can flexibly separate text into terms
-via a regular expression. Accepts the following settings:
+The `pattern` analyzer uses a regular expression to split the text into terms.
+The regular expression should match the *token separators*  not the tokens
+themselves. The regular expression defaults to `\W+` (or all non-word characters).
 
-The following are settings that can be set for a `pattern` analyzer
-type:
+[float]
+=== Definition
+
+It consists of:
+
+Tokenizer::
+* <<analysis-pattern-tokenizer,Pattern Tokenizer>>
+
+Token Filters::
+*  <<analysis-lowercase-tokenfilter,Lower Case Token Filter>>
+*  <<analysis-stop-tokenfilter,Stop Token Filter>> (disabled by default)
+
+[float]
+=== Example output
+
+[source,js]
+---------------------------
+POST _analyze
+{
+  "analyzer": "pattern",
+  "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
+}
+---------------------------
+// CONSOLE
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "the",
+      "start_offset": 0,
+      "end_offset": 3,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "2",
+      "start_offset": 4,
+      "end_offset": 5,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "quick",
+      "start_offset": 6,
+      "end_offset": 11,
+      "type": "word",
+      "position": 2
+    },
+    {
+      "token": "brown",
+      "start_offset": 12,
+      "end_offset": 17,
+      "type": "word",
+      "position": 3
+    },
+    {
+      "token": "foxes",
+      "start_offset": 18,
+      "end_offset": 23,
+      "type": "word",
+      "position": 4
+    },
+    {
+      "token": "jumped",
+      "start_offset": 24,
+      "end_offset": 30,
+      "type": "word",
+      "position": 5
+    },
+    {
+      "token": "over",
+      "start_offset": 31,
+      "end_offset": 35,
+      "type": "word",
+      "position": 6
+    },
+    {
+      "token": "the",
+      "start_offset": 36,
+      "end_offset": 39,
+      "type": "word",
+      "position": 7
+    },
+    {
+      "token": "lazy",
+      "start_offset": 40,
+      "end_offset": 44,
+      "type": "word",
+      "position": 8
+    },
+    {
+      "token": "dog",
+      "start_offset": 45,
+      "end_offset": 48,
+      "type": "word",
+      "position": 9
+    },
+    {
+      "token": "s",
+      "start_offset": 49,
+      "end_offset": 50,
+      "type": "word",
+      "position": 10
+    },
+    {
+      "token": "bone",
+      "start_offset": 51,
+      "end_offset": 55,
+      "type": "word",
+      "position": 11
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
+The above sentence would produce the following terms:
+
+[source,text]
+---------------------------
+[ the, 2, quick, brown, foxes, jumped, over, the, lazy, dog, s, bone ]
+---------------------------
+
+[float]
+=== Configuration
+
+The `pattern` analyzer accepts the following parameters:
 
 [horizontal]
-`lowercase`::   Should terms be lowercased or not. Defaults to `true`.
-`pattern`::     The regular expression pattern, defaults to `\W+`.
-`flags`::       The regular expression flags.
-`stopwords`::   A list of stopwords to initialize the stop filter with.
-                Defaults to an 'empty' stopword list Check
-                <<analysis-stop-analyzer,Stop Analyzer>> for more details.
+`pattern`::
 
-*IMPORTANT*: The regular expression should match the *token separators*,
-not the tokens themselves.
+    A http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java regular expression], defaults to `\W+`.
 
-Flags should be pipe-separated, eg `"CASE_INSENSITIVE|COMMENTS"`. Check
-http://download.oracle.com/javase/6/docs/api/java/util/regex/Pattern.html#field_summary[Java
-Pattern API] for more details about `flags` options.
+`flags`::
+
+    Java regular expression http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html#field.summary[flags].
+    Flags should be pipe-separated, eg `"CASE_INSENSITIVE|COMMENTS"`.
+
+`lowercase`::
+
+    Should terms be lowercased or not. Defaults to `true`.
+
+`max_token_length`::
+
+    The maximum token length. If a token is seen that exceeds this length then
+    it is split at `max_token_length` intervals. Defaults to `255`.
+
+`stopwords`::
+
+    A pre-defined stop words list like `_english_` or an array  containing a
+    list of stop words.  Defaults to `_none_`.
+
+`stopwords_path`::
+
+    The path to a file containing stop words.
+
+See the <<analysis-stop-tokenfilter,Stop Token Filter>> for more information
+about stop word configuration.
+
 
 [float]
-==== Pattern Analyzer Examples
+=== Example configuration
 
-In order to try out these examples, you should delete the `test` index
-before running each example.
-
-[float]
-===== Whitespace tokenizer
+In this example, we configure the `pattern` analyzer to split email addresses
+on non-word characters or on underscores (`\W|_`), and to lower-case the result:
 
 [source,js]
---------------------------------------------------
-DELETE test
-
-PUT /test
+----------------------------
+PUT my_index
 {
   "settings": {
     "analysis": {
       "analyzer": {
-        "whitespace": {
-          "type": "pattern",
-          "pattern": "\\s+"
+        "my_email_analyzer": {
+          "type":      "pattern",
+          "pattern":   "\\W|_", <1>
+          "lowercase": true
         }
       }
     }
   }
 }
 
-GET /test/_analyze?analyzer=whitespace&text=foo,bar baz
+GET _cluster/health?wait_for_status=yellow
 
-# "foo,bar", "baz"
---------------------------------------------------
-// AUTOSENSE
-
-[float]
-===== Non-word character tokenizer
-
-[source,js]
---------------------------------------------------
-DELETE test
-
-PUT /test
+POST my_index/_analyze
 {
-  "settings": {
-    "analysis": {
-      "analyzer": {
-        "nonword": {
-          "type": "pattern",
-          "pattern": "[^\\w]+" <1>
-        }
-      }
-    }
-  }
+  "analyzer": "my_email_analyzer",
+  "text": "John_Smith@foo-bar.com"
 }
+----------------------------
+// CONSOLE
 
-GET /test/_analyze?analyzer=nonword&text=foo,bar baz
-# "foo,bar baz" becomes "foo", "bar", "baz"
+<1> The backslashes in the pattern need to be escaped when specifying the
+    pattern as a JSON string.
 
-GET /test/_analyze?analyzer=nonword&text=type_1-type_4
-# "type_1","type_4"
---------------------------------------------------
-// AUTOSENSE
+/////////////////////
 
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "john",
+      "start_offset": 0,
+      "end_offset": 4,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "smith",
+      "start_offset": 5,
+      "end_offset": 10,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "foo",
+      "start_offset": 11,
+      "end_offset": 14,
+      "type": "word",
+      "position": 2
+    },
+    {
+      "token": "bar",
+      "start_offset": 15,
+      "end_offset": 18,
+      "type": "word",
+      "position": 3
+    },
+    {
+      "token": "com",
+      "start_offset": 19,
+      "end_offset": 22,
+      "type": "word",
+      "position": 4
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
+The above example produces the following terms:
+
+[source,text]
+---------------------------
+[ john, smith, foo, bar, com ]
+---------------------------
 
 [float]
-===== CamelCase tokenizer
+==== CamelCase tokenizer
+
+The following more complicated example splits CamelCase text into tokens:
 
 [source,js]
 --------------------------------------------------
-DELETE test
-
-PUT /test?pretty=1
+PUT my_index
 {
   "settings": {
     "analysis": {
@@ -106,10 +285,78 @@ PUT /test?pretty=1
   }
 }
 
-GET /test/_analyze?analyzer=camel&text=MooseX::FTPClass2_beta
-# "moose","x","ftp","class","2","beta"
+GET _cluster/health?wait_for_status=yellow
+
+GET my_index/_analyze
+{
+  "analyzer": "camel",
+  "text": "MooseX::FTPClass2_beta"
+}
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "moose",
+      "start_offset": 0,
+      "end_offset": 5,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "x",
+      "start_offset": 5,
+      "end_offset": 6,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "ftp",
+      "start_offset": 8,
+      "end_offset": 11,
+      "type": "word",
+      "position": 2
+    },
+    {
+      "token": "class",
+      "start_offset": 11,
+      "end_offset": 16,
+      "type": "word",
+      "position": 3
+    },
+    {
+      "token": "2",
+      "start_offset": 16,
+      "end_offset": 17,
+      "type": "word",
+      "position": 4
+    },
+    {
+      "token": "beta",
+      "start_offset": 18,
+      "end_offset": 22,
+      "type": "word",
+      "position": 5
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
+The above example produces the following terms:
+
+[source,text]
+---------------------------
+[ moose, x, ftp, class, 2, beta ]
+---------------------------
 
 The regex above is easier to understand as:
 

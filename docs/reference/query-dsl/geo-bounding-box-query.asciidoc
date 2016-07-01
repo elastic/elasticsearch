@@ -6,6 +6,24 @@ bounding box. Assuming the following indexed document:
 
 [source,js]
 --------------------------------------------------
+PUT /my_locations
+{
+    "mappings": {
+        "location": {
+            "properties": {
+                "pin": {
+                    "properties": {
+                        "location": {
+                            "type": "geo_point"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+PUT /my_locations/location/1
 {
     "pin" : {
         "location" : {
@@ -15,27 +33,32 @@ bounding box. Assuming the following indexed document:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TESTSETUP
 
 Then the following simple query can be executed with a
 `geo_bounding_box` filter:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "bool" : {
-        "must" : {
-            "match_all" : {}
-        },
-        "filter" : {
-            "geo_bounding_box" : {
-                "pin.location" : {
-                    "top_left" : {
-                        "lat" : 40.73,
-                        "lon" : -74.1
-                    },
-                    "bottom_right" : {
-                        "lat" : 40.01,
-                        "lon" : -71.12
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_bounding_box" : {
+                    "pin.location" : {
+                        "top_left" : {
+                            "lat" : 40.73,
+                            "lon" : -74.1
+                        },
+                        "bottom_right" : {
+                            "lat" : 40.01,
+                            "lon" : -71.12
+                        }
                     }
                 }
             }
@@ -43,6 +66,7 @@ Then the following simple query can be executed with a
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ==== Query Options
@@ -52,11 +76,12 @@ Then the following simple query can be executed with a
 |Option |Description
 |`_name` |Optional name field to identify the filter
 
-|`coerce` |Set to `true` to normalize longitude and latitude values to a
-standard -180:180 / -90:90 coordinate system. (default is `false`).
-
-|`ignore_malformed` |Set to `true` to
+|`ignore_malformed` |deprecated[5.0.0,Use `validation_method` instead] Set to `true` to
 accept geo points with invalid latitude or longitude (default is `false`).
+
+|`validation_method` |Set to `IGNORE_MALFORMED` to
+accept geo points with invalid latitude or longitude, set to
+`COERCE` to also try to infer correct latitude or longitude. (default is `STRICT`).
 
 |`type` |Set to one of `indexed` or `memory` to defines whether this filter will
 be executed in memory or indexed. See <<geo-bbox-type,Type>> below for further details
@@ -74,21 +99,24 @@ representation of the geo point, the filter can accept it as well:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "bool" : {
-        "must" : {
-            "match_all" : {}
-        },
-        "filter" : {
-            "geo_bounding_box" : {
-                "pin.location" : {
-                    "top_left" : {
-                        "lat" : 40.73,
-                        "lon" : -74.1
-                    },
-                    "bottom_right" : {
-                        "lat" : 40.01,
-                        "lon" : -71.12
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_bounding_box" : {
+                    "pin.location" : {
+                        "top_left" : {
+                            "lat" : 40.73,
+                            "lon" : -74.1
+                        },
+                        "bottom_right" : {
+                            "lat" : 40.01,
+                            "lon" : -71.12
+                        }
                     }
                 }
             }
@@ -96,6 +124,7 @@ representation of the geo point, the filter can accept it as well:
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ===== Lat Lon As Array
@@ -105,22 +134,26 @@ conform with http://geojson.org/[GeoJSON].
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "bool" : {
-        "must" : {
-            "match_all" : {}
-        },
-        "filter" : {
-            "geo_bounding_box" : {
-                "pin.location" : {
-                    "top_left" : [-74.1, 40.73],
-                    "bottom_right" : [-71.12, 40.01]
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_bounding_box" : {
+                    "pin.location" : {
+                        "top_left" : [-74.1, 40.73],
+                        "bottom_right" : [-71.12, 40.01]
+                    }
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ===== Lat Lon As String
@@ -129,44 +162,52 @@ Format in `lat,lon`.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "bool" : {
-        "must" : {
-            "match_all" : {}
-        },
-        "filter" : {
-            "geo_bounding_box" : {
-                "pin.location" : {
-                    "top_left" : "40.73, -74.1",
-                    "bottom_right" : "40.01, -71.12"
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_bounding_box" : {
+                    "pin.location" : {
+                        "top_left" : "40.73, -74.1",
+                        "bottom_right" : "40.01, -71.12"
+                    }
                 }
             }
-        }
     }
 }
+}
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ===== Geohash
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "bool" : {
-        "must" : {
-            "match_all" : {}
-        },
-        "filter" : {
-            "geo_bounding_box" : {
-                "pin.location" : {
-                    "top_left" : "dr5r9ydj2y73",
-                    "bottom_right" : "drj7teegpus6"
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_bounding_box" : {
+                    "pin.location" : {
+                        "top_left" : "dr5r9ydj2y73",
+                        "bottom_right" : "drj7teegpus6"
+                    }
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ==== Vertices
@@ -180,24 +221,28 @@ values separately.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "bool" : {
-        "must" : {
-            "match_all" : {}
-        },
-        "filter" : {
-            "geo_bounding_box" : {
-                "pin.location" : {
-                    "top" : -74.1,
-                    "left" : 40.73,
-                    "bottom" : -71.12,
-                    "right" : 40.01
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_bounding_box" : {
+                    "pin.location" : {
+                        "top" : 40.73,
+                        "left" : -74.1,
+                        "bottom" : 40.01,
+                        "right" : -71.12
+                    }
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 
 [float]
@@ -226,27 +271,39 @@ are not supported. Here is an example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "bool" : {
-        "must" : {
-            "match_all" : {}
-        },
-        "filter" : {
-            "geo_bounding_box" : {
-                "pin.location" : {
-                    "top_left" : {
-                        "lat" : 40.73,
-                        "lon" : -74.1
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_bounding_box" : {
+                    "pin.location" : {
+                        "top_left" : {
+                            "lat" : 40.73,
+                            "lon" : -74.1
+                        },
+                        "bottom_right" : {
+                            "lat" : 40.10,
+                            "lon" : -71.12
+                        }
                     },
-                    "bottom_right" : {
-                        "lat" : 40.10,
-                        "lon" : -71.12
-                    }
-                },
-                "type" : "indexed"
+                    "type" : "indexed"
+                }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
+[float]
+==== Ignore Unmapped
+
+When set to `true` the `ignore_unmapped` option will ignore an unmapped field
+and will not match any documents for this query. This can be useful when
+querying multiple indexes which might have different mappings. When set to
+`false` (the default value) the query will throw an exception if the field
+is not mapped.

@@ -22,10 +22,21 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermContext;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCache;
+import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.search.profile.query.ProfileWeight;
+import org.elasticsearch.search.profile.query.QueryProfileBreakdown;
+import org.elasticsearch.search.profile.query.QueryProfiler;
+import org.elasticsearch.search.profile.query.QueryTimingType;
 
 import java.io.IOException;
 
@@ -43,17 +54,25 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private final Engine.Searcher engineSearcher;
 
-    public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
+    // TODO revisit moving the profiler to inheritance or wrapping model in the future
+    private QueryProfiler profiler;
+
+    public ContextIndexSearcher(Engine.Searcher searcher,
+            QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) {
         super(searcher.reader());
         in = searcher.searcher();
         engineSearcher = searcher;
         setSimilarity(searcher.searcher().getSimilarity(true));
-        setQueryCache(searchContext.getQueryCache());
-        setQueryCachingPolicy(searchContext.indexShard().getQueryCachingPolicy());
+        setQueryCache(queryCache);
+        setQueryCachingPolicy(queryCachingPolicy);
     }
 
     @Override
     public void close() {
+    }
+
+    public void setProfiler(QueryProfiler profiler) {
+        this.profiler = profiler;
     }
 
     public void setAggregatedDfs(AggregatedDfs aggregatedDfs) {
@@ -62,7 +81,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Query rewrite(Query original) throws IOException {
-        return in.rewrite(original);
+        if (profiler != null) {
+            profiler.startRewriteTime();
+        }
+
+        try {
+            return in.rewrite(original);
+        } finally {
+            if (profiler != null) {
+                profiler.stopAndAddRewriteTime();
+            }
+        }
     }
 
     @Override
@@ -72,8 +101,34 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (aggregatedDfs != null && needsScores) {
             // if scores are needed and we have dfs data then use it
             return super.createNormalizedWeight(query, needsScores);
+        } else if (profiler != null) {
+            // we need to use the createWeight method to insert the wrappers
+            return super.createNormalizedWeight(query, needsScores);
+        } else {
+            return in.createNormalizedWeight(query, needsScores);
         }
-        return in.createNormalizedWeight(query, needsScores);
+    }
+
+    @Override
+    public Weight createWeight(Query query, boolean needsScores) throws IOException {
+        if (profiler != null) {
+            // createWeight() is called for each query in the tree, so we tell the queryProfiler
+            // each invocation so that it can build an internal representation of the query
+            // tree
+            QueryProfileBreakdown profile = profiler.getQueryBreakdown(query);
+            profile.startTime(QueryTimingType.CREATE_WEIGHT);
+            final Weight weight;
+            try {
+                weight = super.createWeight(query, needsScores);
+            } finally {
+                profile.stopAndRecordTime();
+                profiler.pollLastElement();
+            }
+            return new ProfileWeight(query, weight, profile);
+        } else {
+            // needs to be 'super', not 'in' in order to use aggregated DFS
+            return super.createWeight(query, needsScores);
+        }
     }
 
     @Override

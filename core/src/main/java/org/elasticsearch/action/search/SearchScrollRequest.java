@@ -46,14 +46,6 @@ public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
         this.scrollId = scrollId;
     }
 
-    /**
-     * Creates a scroll request caused by some other request, which is provided as an
-     * argument so that its headers and context can be copied to the new request
-     */
-    public SearchScrollRequest(ActionRequest request) {
-        super(request);
-    }
-
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;

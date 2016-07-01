@@ -33,13 +33,13 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESAllocationTestCase;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -55,9 +55,9 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
             sizes[i] = randomIntBetween(0, Integer.MAX_VALUE);
         }
 
-        AllocationService strategy = createAllocationService(settingsBuilder()
-                        .put("cluster.routing.allocation.concurrent_recoveries", 10)
-                        .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
+        AllocationService strategy = createAllocationService(Settings.builder()
+                        .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                        .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                         .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                         .build(),
                 new ClusterInfoService() {
@@ -66,7 +66,7 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
                         return new ClusterInfo() {
                             @Override
                             public Long getShardSize(ShardRouting shardRouting) {
-                                if (shardRouting.index().equals("test")) {
+                                if (shardRouting.getIndexName().equals("test")) {
                                     return sizes[shardRouting.getId()];
                                 }
                                 return null;                    }
@@ -87,7 +87,7 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
         assertThat(routingTable.index("test").shards().size(), equalTo(5));
         for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
@@ -181,7 +181,7 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
         }
 
 
-        logger.info("complete relocation, thats it!");
+        logger.info("complete relocation, that's it!");
         routingNodes = clusterState.getRoutingNodes();
         prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();

@@ -19,11 +19,12 @@
 
 package org.elasticsearch.mapper.attachments;
 
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.mapper.attachments.AttachmentMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.junit.Before;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
@@ -38,15 +39,14 @@ public class DateAttachmentMapperTests extends AttachmentUnitTestCase {
 
     @Before
     public void setupMapperParser() throws Exception {
-        mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY).documentMapperParser();
-        mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
+        mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
     }
 
     public void testSimpleMappings() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/date/date-mapping.json");
-        DocumentMapper docMapper = mapperParser.parse(mapping);
+        DocumentMapper docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
 
         // Our mapping should be kept as a String
-        assertThat(docMapper.mappers().getMapper("file.date"), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("file.date"), instanceOf(TextFieldMapper.class));
     }
 }

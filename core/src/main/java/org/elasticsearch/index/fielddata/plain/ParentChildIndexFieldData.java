@@ -19,8 +19,14 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.MultiDocValues;
 import org.apache.lucene.index.MultiDocValues.OrdinalMap;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
@@ -33,19 +39,29 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -57,10 +73,10 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     private final Set<String> parentTypes;
     private final CircuitBreakerService breakerService;
 
-    public ParentChildIndexFieldData(IndexSettings indexSettings, MappedFieldType.Names fieldNames,
-                                     FieldDataType fieldDataType, IndexFieldDataCache cache, MapperService mapperService,
+    public ParentChildIndexFieldData(IndexSettings indexSettings, String fieldName,
+                                     IndexFieldDataCache cache, MapperService mapperService,
                                      CircuitBreakerService breakerService) {
-        super(indexSettings, fieldNames, fieldDataType, cache);
+        super(indexSettings, fieldName, cache);
         this.breakerService = breakerService;
         Set<String> parentTypes = new HashSet<>();
         for (DocumentMapper mapper : mapperService.docMappers(false)) {
@@ -129,7 +145,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
                                        MappedFieldType fieldType,
                                        IndexFieldDataCache cache, CircuitBreakerService breakerService,
                                        MapperService mapperService) {
-            return new ParentChildIndexFieldData(indexSettings, fieldType.names(), fieldType.fieldDataType(), cache,
+            return new ParentChildIndexFieldData(indexSettings, fieldType.name(), cache,
                     mapperService, breakerService);
         }
     }
@@ -193,7 +209,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         breakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(ramBytesUsed);
         if (logger.isDebugEnabled()) {
             logger.debug(
-                    "Global-ordinals[_parent] took {}",
+                    "global-ordinals [_parent] took [{}]",
                     new TimeValue(System.nanoTime() - startTime, TimeUnit.NANOSECONDS)
             );
         }
@@ -288,31 +304,28 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
 
     public class GlobalFieldData implements IndexParentChildFieldData, Accountable {
 
+        private final Object coreCacheKey;
+        private final List<LeafReaderContext> leaves;
         private final AtomicParentChildFieldData[] fielddata;
-        private final IndexReader reader;
         private final long ramBytesUsed;
         private final Map<String, OrdinalMapAndAtomicFieldData> ordinalMapPerType;
 
         GlobalFieldData(IndexReader reader, AtomicParentChildFieldData[] fielddata, long ramBytesUsed, Map<String, OrdinalMapAndAtomicFieldData> ordinalMapPerType) {
-            this.reader = reader;
+            this.coreCacheKey = reader.getCoreCacheKey();
+            this.leaves = reader.leaves();
             this.ramBytesUsed = ramBytesUsed;
             this.fielddata = fielddata;
             this.ordinalMapPerType = ordinalMapPerType;
         }
 
         @Override
-        public Names getFieldNames() {
-            return ParentChildIndexFieldData.this.getFieldNames();
-        }
-
-        @Override
-        public FieldDataType getFieldDataType() {
-            return ParentChildIndexFieldData.this.getFieldDataType();
+        public String getFieldName() {
+            return ParentChildIndexFieldData.this.getFieldName();
         }
 
         @Override
         public AtomicParentChildFieldData load(LeafReaderContext context) {
-            assert context.reader().getCoreCacheKey() == reader.leaves().get(context.ord).reader().getCoreCacheKey();
+            assert context.reader().getCoreCacheKey() == leaves.get(context.ord).reader().getCoreCacheKey();
             return fielddata[context.ord];
         }
 
@@ -348,7 +361,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
 
         @Override
         public IndexParentChildFieldData loadGlobal(DirectoryReader indexReader) {
-            if (indexReader.getCoreCacheKey() == reader.getCoreCacheKey()) {
+            if (indexReader.getCoreCacheKey() == coreCacheKey) {
                 return this;
             }
             throw new IllegalStateException();

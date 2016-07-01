@@ -1,0 +1,23 @@
+apply plugin: 'elasticsearch.rest-test'
+
+/* This project runs the core REST tests against a 2 node cluster where one of the nodes has a different minor.
+ * Since we don't have a version to test against we currently use the hardcoded snapshot for to bascially run
+ * against ourself. To test that useing a different version works got into distribution/zip and execute:
+ *   gradle clean install -Dbuild.snapshot=false
+ *
+ * This installs the release-build into a local .m2 repository, then change this version here to:
+ *   bwcVersion = "5.0.0"
+ *
+ * now you can run the bwc tests with:
+ *   gradle check -Drepos.mavenlocal=true
+ *
+ * (-Drepos.mavenlocal=true will force gradle to look for the zip distribuiton in the local .m2 repository)
+ */
+integTest {
+  includePackaged = true
+  cluster {
+    numNodes = 2
+    numBwcNodes = 1
+    bwcVersion = "5.0.0-alpha4-SNAPSHOT" // this is the same as the current version until we released the first RC
+  }
+}

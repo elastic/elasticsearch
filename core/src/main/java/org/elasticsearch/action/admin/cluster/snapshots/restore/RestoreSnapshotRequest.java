@@ -43,7 +43,7 @@ import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 
 /**
  * Restore snapshot request
@@ -57,7 +57,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private String renamePattern;
     private String renameReplacement;
     private boolean waitForCompletion;
-    private boolean includeGlobalState = true;
+    private boolean includeGlobalState = false;
     private boolean partial = false;
     private boolean includeAliases = true;
     private Settings settings = EMPTY_SETTINGS;
@@ -324,7 +324,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      * @return this request
      */
     public RestoreSnapshotRequest settings(String source) {
-        this.settings = Settings.settingsBuilder().loadFromSource(source).build();
+        this.settings = Settings.builder().loadFromSource(source).build();
         return this;
     }
 
@@ -441,7 +441,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      * Sets settings that should be added/changed in all restored indices
      */
     public RestoreSnapshotRequest indexSettings(String source) {
-        this.indexSettings = Settings.settingsBuilder().loadFromSource(source).build();
+        this.indexSettings = Settings.builder().loadFromSource(source).build();
         return this;
     }
 
@@ -498,16 +498,16 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                     throw new IllegalArgumentException("malformed indices section, should be an array of strings");
                 }
             } else if (name.equals("partial")) {
-                partial(nodeBooleanValue(entry.getValue()));
+                partial(lenientNodeBooleanValue(entry.getValue()));
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
                     throw new IllegalArgumentException("malformed settings section");
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
-                includeGlobalState = nodeBooleanValue(entry.getValue());
+                includeGlobalState = lenientNodeBooleanValue(entry.getValue());
             } else if (name.equals("include_aliases")) {
-                includeAliases = nodeBooleanValue(entry.getValue());
+                includeAliases = lenientNodeBooleanValue(entry.getValue());
             } else if (name.equals("rename_pattern")) {
                 if (entry.getValue() instanceof String) {
                     renamePattern((String) entry.getValue());

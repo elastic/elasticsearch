@@ -22,10 +22,9 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -37,8 +36,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
 
     @Override
     protected FuzzyQueryBuilder doCreateTestQueryBuilder() {
-        Tuple<String, Object> fieldAndValue = getRandomFieldNameAndValue();
-        FuzzyQueryBuilder query = new FuzzyQueryBuilder(fieldAndValue.v1(), fieldAndValue.v2());
+        FuzzyQueryBuilder query = new FuzzyQueryBuilder(STRING_FIELD_NAME, getRandomValueForFieldName(STRING_FIELD_NAME));
         if (randomBoolean()) {
             query.fuzziness(randomFuzziness(query.fieldName()));
         }
@@ -59,11 +57,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
 
     @Override
     protected void doAssertLuceneQuery(FuzzyQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        if (isNumericFieldName(queryBuilder.fieldName()) || queryBuilder.fieldName().equals(DATE_FIELD_NAME)) {
-            assertThat(query, instanceOf(NumericRangeQuery.class));
-        } else {
-            assertThat(query, instanceOf(FuzzyQuery.class));
-        }
+        assertThat(query, instanceOf(FuzzyQuery.class));
     }
 
     public void testIllegalArguments() {
@@ -138,10 +132,29 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                 "        }\n" +
                 "    }\n" +
                 "}\n";
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
-        NumericRangeQuery fuzzyQuery = (NumericRangeQuery) parsedQuery;
-        assertThat(fuzzyQuery.getMin().longValue(), equalTo(7l));
-        assertThat(fuzzyQuery.getMax().longValue(), equalTo(17l));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> parseQuery(query).toQuery(createShardContext()));
+        assertEquals("Can only use fuzzy queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
+                e.getMessage());
+    }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" +
+                "  \"fuzzy\" : {\n" +
+                "    \"user\" : {\n" +
+                "      \"value\" : \"ki\",\n" +
+                "      \"fuzziness\" : \"2\",\n" +
+                "      \"prefix_length\" : 0,\n" +
+                "      \"max_expansions\" : 100,\n" +
+                "      \"transpositions\" : false,\n" +
+                "      \"boost\" : 42.0\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+        FuzzyQueryBuilder parsed = (FuzzyQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+        assertEquals(json, 42.0, parsed.boost(), 0.00001);
+        assertEquals(json, 2, parsed.fuzziness().asFloat(), 0f);
     }
 }

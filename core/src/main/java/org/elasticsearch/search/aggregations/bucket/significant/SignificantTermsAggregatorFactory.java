@@ -16,23 +16,37 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.search.aggregations.bucket.significant;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
 import org.elasticsearch.common.lucene.index.FreqTermsEnum;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.NonCollectingAggregator;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
+import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -45,13 +59,190 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
-public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> implements Releasable {
+public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, SignificantTermsAggregatorFactory>
+        implements Releasable {
 
-    public SignificanceHeuristic getSignificanceHeuristic() {
-        return significanceHeuristic;
+    private final IncludeExclude includeExclude;
+    private final String executionHint;
+    private String indexedFieldName;
+    private MappedFieldType fieldType;
+    private FilterableTermsEnum termsEnum;
+    private int numberOfAggregatorsCreated;
+    private final Query filter;
+    private final int supersetNumDocs;
+    private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
+    private final SignificanceHeuristic significanceHeuristic;
+
+    public SignificantTermsAggregatorFactory(String name, Type type, ValuesSourceConfig<ValuesSource> config, IncludeExclude includeExclude,
+            String executionHint, QueryBuilder filterBuilder, TermsAggregator.BucketCountThresholds bucketCountThresholds,
+            SignificanceHeuristic significanceHeuristic, AggregationContext context, AggregatorFactory<?> parent,
+            AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+        super(name, type, config, context, parent, subFactoriesBuilder, metaData);
+        this.includeExclude = includeExclude;
+        this.executionHint = executionHint;
+        this.filter = filterBuilder == null
+                ? null
+                : filterBuilder.toQuery(context.searchContext().getQueryShardContext());
+        IndexSearcher searcher = context.searchContext().searcher();
+        this.supersetNumDocs = filter == null
+                // Important - need to use the doc count that includes deleted docs
+                // or we have this issue: https://github.com/elastic/elasticsearch/issues/7951
+                ? searcher.getIndexReader().maxDoc()
+                : searcher.count(filter);
+        this.bucketCountThresholds = bucketCountThresholds;
+        this.significanceHeuristic = significanceHeuristic;
+        this.significanceHeuristic.initialize(context.searchContext());
+        setFieldInfo();
+
+    }
+
+    private void setFieldInfo() {
+        if (!config.unmapped()) {
+            this.indexedFieldName = config.fieldContext().field();
+            fieldType = SearchContext.current().smartNameFieldType(indexedFieldName);
+        }
+    }
+
+    /**
+     * Get the number of docs in the superset.
+     */
+    public long getSupersetNumDocs() {
+        return supersetNumDocs;
+    }
+
+    private FilterableTermsEnum getTermsEnum(String field) throws IOException {
+        if (termsEnum != null) {
+            return termsEnum;
+        }
+        IndexReader reader = context.searchContext().searcher().getIndexReader();
+        if (numberOfAggregatorsCreated > 1) {
+            termsEnum = new FreqTermsEnum(reader, field, true, false, filter, context.bigArrays());
+        } else {
+            termsEnum = new FilterableTermsEnum(reader, indexedFieldName, PostingsEnum.NONE, filter);
+        }
+        return termsEnum;
+    }
+
+    private long getBackgroundFrequency(String value) throws IOException {
+        Query query = fieldType.termQuery(value, context.searchContext().getQueryShardContext());
+        if (query instanceof TermQuery) {
+            // for types that use the inverted index, we prefer using a caching terms
+            // enum that will do a better job at reusing index inputs
+            Term term = ((TermQuery) query).getTerm();
+            FilterableTermsEnum termsEnum = getTermsEnum(term.field());
+            if (termsEnum.seekExact(term.bytes())) {
+                return termsEnum.docFreq();
+            } else {
+                return 0;
+            }
+        }
+        // otherwise do it the naive way
+        if (filter != null) {
+            query = new BooleanQuery.Builder()
+                    .add(query, Occur.FILTER)
+                    .add(filter, Occur.FILTER)
+                    .build();
+        }
+        return context.searchContext().searcher().count(query);
+    }
+
+    public long getBackgroundFrequency(BytesRef termBytes) throws IOException {
+        String value = config.format().format(termBytes);
+        return getBackgroundFrequency(value);
+    }
+
+    public long getBackgroundFrequency(long termNum) throws IOException {
+        String value = config.format().format(termNum);
+        return getBackgroundFrequency(value);
+    }
+
+    @Override
+    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+            throws IOException {
+        final InternalAggregation aggregation = new UnmappedSignificantTerms(name, bucketCountThresholds.getRequiredSize(),
+                bucketCountThresholds.getMinDocCount(), pipelineAggregators, metaData);
+        return new NonCollectingAggregator(name, context, parent, pipelineAggregators, metaData) {
+            @Override
+            public InternalAggregation buildEmptyAggregation() {
+                return aggregation;
+            }
+        };
+    }
+
+    @Override
+    protected Aggregator doCreateInternal(ValuesSource valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        if (collectsFromSingleBucket == false) {
+            return asMultiBucketAggregator(this, context, parent);
+        }
+
+        numberOfAggregatorsCreated++;
+        BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
+        if (bucketCountThresholds.getShardSize() == SignificantTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
+            // The user has not made a shardSize selection .
+            // Use default heuristic to avoid any wrong-ranking caused by
+            // distributed counting
+            // but request double the usual amount.
+            // We typically need more than the number of "top" terms requested
+            // by other aggregations
+            // as the significance algorithm is in less of a position to
+            // down-select at shard-level -
+            // some of the things we want to find have only one occurrence on
+            // each shard and as
+            // such are impossible to differentiate from non-significant terms
+            // at that early stage.
+            bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize(),
+                    context.searchContext().numberOfShards()));
+        }
+
+        if (valuesSource instanceof ValuesSource.Bytes) {
+            ExecutionMode execution = null;
+            if (executionHint != null) {
+                execution = ExecutionMode.fromString(executionHint, context.searchContext().parseFieldMatcher());
+            }
+            if (!(valuesSource instanceof ValuesSource.Bytes.WithOrdinals)) {
+                execution = ExecutionMode.MAP;
+            }
+            if (execution == null) {
+                if (Aggregator.descendsFromBucketAggregator(parent)) {
+                    execution = ExecutionMode.GLOBAL_ORDINALS_HASH;
+                } else {
+                    execution = ExecutionMode.GLOBAL_ORDINALS;
+                }
+            }
+            assert execution != null;
+            
+            DocValueFormat format = config.format();
+            if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {
+                throw new AggregationExecutionException("Aggregation [" + name + "] cannot support regular expression style include/exclude "
+                        + "settings as they can only be applied to string fields. Use an array of values for include/exclude clauses");
+            }
+            
+            return execution.create(name, factories, valuesSource, format, bucketCountThresholds, includeExclude, context, parent,
+                    significanceHeuristic, this, pipelineAggregators, metaData);
+        }
+
+        if ((includeExclude != null) && (includeExclude.isRegexBased())) {
+            throw new AggregationExecutionException("Aggregation [" + name + "] cannot support regular expression style include/exclude "
+                    + "settings as they can only be applied to string fields. Use an array of numeric values for include/exclude clauses used to filter numeric fields");
+        }
+
+        if (valuesSource instanceof ValuesSource.Numeric) {
+
+            if (((ValuesSource.Numeric) valuesSource).isFloatingPoint()) {
+                throw new UnsupportedOperationException("No support for examining floating point numerics");
+            }
+            IncludeExclude.LongFilter longFilter = null;
+            if (includeExclude != null) {
+                longFilter = includeExclude.convertToLongFilter(config.format());
+            }
+            return new SignificantLongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(),
+                    bucketCountThresholds, context, parent, significanceHeuristic, this, longFilter, pipelineAggregators,
+                    metaData);
+        }
+
+        throw new AggregationExecutionException("significant_terms aggregation cannot be applied to field ["
+                + config.fieldContext().field() + "]. It can only be applied to numeric or string fields.");
     }
 
     public enum ExecutionMode {
@@ -59,44 +250,44 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         MAP(new ParseField("map")) {
 
             @Override
-            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource,
+            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, DocValueFormat format,
                     TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                    AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory,
-                    List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-                final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter();
-                return new SignificantStringTermsAggregator(name, factories, valuesSource, bucketCountThresholds, filter,
-                        aggregationContext, parent, termsAggregatorFactory, pipelineAggregators, metaData);
+                    AggregationContext aggregationContext, Aggregator parent, SignificanceHeuristic significanceHeuristic,
+                    SignificantTermsAggregatorFactory termsAggregatorFactory, List<PipelineAggregator> pipelineAggregators,
+                    Map<String, Object> metaData) throws IOException {
+                final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
+                return new SignificantStringTermsAggregator(name, factories, valuesSource, format, bucketCountThresholds, filter,
+                        aggregationContext, parent, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
             }
 
         },
         GLOBAL_ORDINALS(new ParseField("global_ordinals")) {
 
             @Override
-            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource,
-                              TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                    AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory,
-                    List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-                ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) valuesSource;
-                IndexSearcher indexSearcher = aggregationContext.searchContext().searcher();
-                final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter();
+            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, DocValueFormat format,
+                    TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
+                    AggregationContext aggregationContext, Aggregator parent, SignificanceHeuristic significanceHeuristic,
+                    SignificantTermsAggregatorFactory termsAggregatorFactory, List<PipelineAggregator> pipelineAggregators,
+                    Map<String, Object> metaData) throws IOException {
+                final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
                 return new GlobalOrdinalsSignificantTermsAggregator(name, factories,
-                        (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, bucketCountThresholds, filter, aggregationContext,
-                        parent, termsAggregatorFactory, pipelineAggregators, metaData);
+                        (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, format, bucketCountThresholds, filter,
+                        aggregationContext, parent, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
             }
 
         },
         GLOBAL_ORDINALS_HASH(new ParseField("global_ordinals_hash")) {
 
             @Override
-            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource,
-                              TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                    AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory,
-                    List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-                final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter();
+            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, DocValueFormat format,
+                    TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
+                    AggregationContext aggregationContext, Aggregator parent, SignificanceHeuristic significanceHeuristic,
+                    SignificantTermsAggregatorFactory termsAggregatorFactory, List<PipelineAggregator> pipelineAggregators,
+                    Map<String, Object> metaData) throws IOException {
+                final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
                 return new GlobalOrdinalsSignificantTermsAggregator.WithHash(name, factories,
-                        (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, bucketCountThresholds, filter,
- aggregationContext,
-                        parent, termsAggregatorFactory, pipelineAggregators, metaData);
+                        (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, format, bucketCountThresholds, filter,
+                        aggregationContext, parent, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
             }
         };
 
@@ -115,156 +306,16 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             this.parseField = parseField;
         }
 
-        abstract Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource,
-                                   TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException;
+        abstract Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource,  DocValueFormat format,
+                TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
+                AggregationContext aggregationContext, Aggregator parent, SignificanceHeuristic significanceHeuristic,
+                SignificantTermsAggregatorFactory termsAggregatorFactory, List<PipelineAggregator> pipelineAggregators,
+                Map<String, Object> metaData) throws IOException;
 
         @Override
         public String toString() {
             return parseField.getPreferredName();
         }
-    }
-    private final IncludeExclude includeExclude;
-    private final String executionHint;
-    private String indexedFieldName;
-    private MappedFieldType fieldType;
-    private FilterableTermsEnum termsEnum;
-    private int numberOfAggregatorsCreated = 0;
-    private final Query filter;
-    private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
-    private final SignificanceHeuristic significanceHeuristic;
-
-    protected TermsAggregator.BucketCountThresholds getBucketCountThresholds() {
-        return new TermsAggregator.BucketCountThresholds(bucketCountThresholds);
-    }
-
-    public SignificantTermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                                             String executionHint, Query filter, SignificanceHeuristic significanceHeuristic) {
-
-        super(name, SignificantStringTerms.TYPE.name(), valueSourceConfig);
-        this.bucketCountThresholds = bucketCountThresholds;
-        this.includeExclude = includeExclude;
-        this.executionHint = executionHint;
-        this.significanceHeuristic = significanceHeuristic;
-        if (!valueSourceConfig.unmapped()) {
-            this.indexedFieldName = config.fieldContext().field();
-            fieldType = SearchContext.current().smartNameFieldType(indexedFieldName);
-        }
-        this.filter = filter;
-    }
-
-    @Override
-    protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) throws IOException {
-        final InternalAggregation aggregation = new UnmappedSignificantTerms(name, bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(), pipelineAggregators, metaData);
-        return new NonCollectingAggregator(name, aggregationContext, parent, pipelineAggregators, metaData) {
-            @Override
-            public InternalAggregation buildEmptyAggregation() {
-                return aggregation;
-            }
-        };
-    }
-
-    @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent,
-            boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
-        if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, aggregationContext, parent);
-        }
-
-        numberOfAggregatorsCreated++;
-
-        if (valuesSource instanceof ValuesSource.Bytes) {
-            ExecutionMode execution = null;
-            if (executionHint != null) {
-                execution = ExecutionMode.fromString(executionHint, aggregationContext.searchContext().parseFieldMatcher());
-            }
-            if (!(valuesSource instanceof ValuesSource.Bytes.WithOrdinals)) {
-                execution = ExecutionMode.MAP;
-            }
-            if (execution == null) {
-                if (Aggregator.descendsFromBucketAggregator(parent)) {
-                    execution = ExecutionMode.GLOBAL_ORDINALS_HASH;
-                } else {
-                    execution = ExecutionMode.GLOBAL_ORDINALS;
-                }
-            }
-            assert execution != null;
-            return execution.create(name, factories, valuesSource, bucketCountThresholds, includeExclude, aggregationContext, parent, this,
-                    pipelineAggregators, metaData);
-        }
-
-        
-        if ((includeExclude != null) && (includeExclude.isRegexBased())) {
-            throw new AggregationExecutionException("Aggregation [" + name + "] cannot support regular expression style include/exclude " +
-                    "settings as they can only be applied to string fields. Use an array of numeric values for include/exclude clauses used to filter numeric fields");
-        }
-
-        if (valuesSource instanceof ValuesSource.Numeric) {
-
-            if (((ValuesSource.Numeric) valuesSource).isFloatingPoint()) {
-                throw new UnsupportedOperationException("No support for examining floating point numerics");
-            }
-            IncludeExclude.LongFilter longFilter = null;
-            if (includeExclude != null) {
-                longFilter = includeExclude.convertToLongFilter();
-            }
-            return new SignificantLongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(),
-                    bucketCountThresholds, aggregationContext, parent, this, longFilter, pipelineAggregators, metaData);
-        }
-
-        throw new AggregationExecutionException("sigfnificant_terms aggregation cannot be applied to field [" + config.fieldContext().field() +
-                "]. It can only be applied to numeric or string fields.");
-    }
-
-    /**
-     * Creates the TermsEnum (if not already created) and must be called before any calls to getBackgroundFrequency
-     * @param context The aggregation context 
-     * @return The number of documents in the index (after an optional filter might have been applied)
-     */
-    public long prepareBackground(AggregationContext context) {
-        if (termsEnum != null) {
-            // already prepared - return 
-            return termsEnum.getNumDocs();
-        }
-        SearchContext searchContext = context.searchContext();
-        IndexReader reader = searchContext.searcher().getIndexReader();
-        try {
-            if (numberOfAggregatorsCreated == 1) {
-                // Setup a termsEnum for sole use by one aggregator
-                termsEnum = new FilterableTermsEnum(reader, indexedFieldName, PostingsEnum.NONE, filter);
-            } else {
-                // When we have > 1 agg we have possibility of duplicate term frequency lookups 
-                // and so use a TermsEnum that caches results of all term lookups
-                termsEnum = new FreqTermsEnum(reader, indexedFieldName, true, false, filter, searchContext.bigArrays());
-            }
-        } catch (IOException e) {
-            throw new ElasticsearchException("failed to build terms enumeration", e);
-        }
-        return termsEnum.getNumDocs();
-    }
-
-    public long getBackgroundFrequency(BytesRef termBytes) {
-        assert termsEnum != null; // having failed to find a field in the index we don't expect any calls for frequencies
-        long result = 0;
-        try {
-            if (termsEnum.seekExact(termBytes)) {
-                result = termsEnum.docFreq();
-            }
-        } catch (IOException e) {
-            throw new ElasticsearchException("IOException loading background document frequency info", e);
-        }
-        return result;
-    }
-
-
-    public long getBackgroundFrequency(long term) {
-        BytesRef indexedVal = fieldType.indexedValueForSearch(term);
-        return getBackgroundFrequency(indexedVal);
     }
 
     @Override

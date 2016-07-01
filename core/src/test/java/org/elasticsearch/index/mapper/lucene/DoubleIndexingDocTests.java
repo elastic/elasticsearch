@@ -59,11 +59,12 @@ public class DoubleIndexingDocTests extends ESSingleNodeTestCase {
                 .bytes());
         assertNotNull(doc.dynamicMappingsUpdate());
         client().admin().indices().preparePutMapping("test").setType("type").setSource(doc.dynamicMappingsUpdate().toString()).get();
+        mapper = index.mapperService().documentMapper("type");
 
         writer.addDocument(doc.rootDoc());
         writer.addDocument(doc.rootDoc());
 
-        IndexReader reader = DirectoryReader.open(writer, true);
+        IndexReader reader = DirectoryReader.open(writer);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs topDocs = searcher.search(mapper.mappers().smartNameFieldMapper("field1").fieldType().termQuery("value1", null), 10);

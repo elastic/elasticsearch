@@ -13,8 +13,8 @@ setup:
                       "type": "attachment"
                       "fields":
                         "content" :
-                          "type": "string"
-                          "store" : "yes"
+                          "type": "text"
+                          "store" : true
                           "term_vector": "with_positions_offsets"
 
     - do:

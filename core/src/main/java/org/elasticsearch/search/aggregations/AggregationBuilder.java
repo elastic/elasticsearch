@@ -16,132 +16,77 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+
+import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 /**
- * A base class for all bucket aggregation builders.
+ * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
-public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extends AbstractAggregationBuilder {
+public abstract class AggregationBuilder
+    extends ToXContentToBytes
+    implements NamedWriteable, ToXContent {
 
-    private List<AbstractAggregationBuilder> aggregations;
-    private BytesReference aggregationsBinary;
-    private Map<String, Object> metaData;
-
-    /**
-     * Sole constructor, typically used by sub-classes.
-     */
-    protected AggregationBuilder(String name, String type) {
-        super(name, type);
-    }
+    protected final String name;
+    protected final Type type;
+    protected AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder();
 
     /**
-     * Add a sub get to this bucket get.
+     * Constructs a new aggregation builder.
+     *
+     * @param name  The aggregation name
+     * @param type  The aggregation type
      */
-    @SuppressWarnings("unchecked")
-    public B subAggregation(AbstractAggregationBuilder aggregation) {
-        if (aggregations == null) {
-            aggregations = new ArrayList<>();
+    protected AggregationBuilder(String name, Type type) {
+        if (name == null) {
+            throw new IllegalArgumentException("[name] must not be null: [" + name + "]");
         }
-        aggregations.add(aggregation);
-        return (B) this;
-    }
-
-    /**
-     * Sets a raw (xcontent / json) sub addAggregation.
-     */
-    public B subAggregation(byte[] aggregationsBinary) {
-        return subAggregation(aggregationsBinary, 0, aggregationsBinary.length);
-    }
-
-    /**
-     * Sets a raw (xcontent / json) sub addAggregation.
-     */
-    public B subAggregation(byte[] aggregationsBinary, int aggregationsBinaryOffset, int aggregationsBinaryLength) {
-        return subAggregation(new BytesArray(aggregationsBinary, aggregationsBinaryOffset, aggregationsBinaryLength));
-    }
-
-    /**
-     * Sets a raw (xcontent / json) sub addAggregation.
-     */
-    @SuppressWarnings("unchecked")
-    public B subAggregation(BytesReference aggregationsBinary) {
-        this.aggregationsBinary = aggregationsBinary;
-        return (B) this;
-    }
-
-    /**
-     * Sets a raw (xcontent / json) sub addAggregation.
-     */
-    public B subAggregation(XContentBuilder aggs) {
-        return subAggregation(aggs.bytes());
-    }
-
-    /**
-     * Sets a raw (xcontent / json) sub addAggregation.
-     */
-    public B subAggregation(Map<String, Object> aggs) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
-            builder.map(aggs);
-            return subAggregation(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + aggs + "]", e);
+        if (type == null) {
+            throw new IllegalArgumentException("[type] must not be null: [" + name + "]");
         }
+        this.name = name;
+        this.type = type;
     }
+
+    /** Return this aggregation's name. */
+    public String getName() {
+        return name;
+    }
+
+    /** Internal: build an {@link AggregatorFactory} based on the configuration of this builder. */
+    protected abstract AggregatorFactory<?> build(AggregationContext context, AggregatorFactory<?> parent) throws IOException;
+
+    /** Associate metadata with this {@link AggregationBuilder}. */
+    public abstract AggregationBuilder setMetaData(Map<String, Object> metaData);
+
+    /** Add a sub aggregation to this builder. */
+    public abstract AggregationBuilder subAggregation(AggregationBuilder aggregation);
+
+    /** Add a sub aggregation to this builder. */
+    public abstract AggregationBuilder subAggregation(PipelineAggregationBuilder aggregation);
 
     /**
-     * Sets the meta data to be included in the aggregation response
+     * Internal: Registers sub-factories with this factory. The sub-factory will be
+     * responsible for the creation of sub-aggregators under the aggregator
+     * created by this factory. This is only for use by {@link AggregatorParsers}.
+     *
+     * @param subFactories
+     *            The sub-factories
+     * @return this factory (fluent interface)
      */
-    public B setMetaData(Map<String, Object> metaData) {
-        this.metaData = metaData;
-        return (B)this;
+    protected abstract AggregationBuilder subAggregations(AggregatorFactories.Builder subFactories);
+
+    /** Common xcontent fields shared among aggregator builders */
+    public static final class CommonFields extends ParseField.CommonFields {
+        public static final ParseField VALUE_TYPE = new ParseField("value_type");
     }
-
-    @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(getName());
-
-        if (this.metaData != null) {
-            builder.field("meta", this.metaData);
-        }
-        builder.field(type);
-        internalXContent(builder, params);
-
-        if (aggregations != null || aggregationsBinary != null) {
-
-            if (aggregations != null) {
-                builder.startObject("aggregations");
-                for (AbstractAggregationBuilder subAgg : aggregations) {
-                    subAgg.toXContent(builder, params);
-                }
-                builder.endObject();
-            }
-
-            if (aggregationsBinary != null) {
-                if (XContentFactory.xContentType(aggregationsBinary) == builder.contentType()) {
-                    builder.rawField("aggregations", aggregationsBinary);
-                } else {
-                    builder.field("aggregations_binary", aggregationsBinary);
-                }
-            }
-
-        }
-
-        return builder.endObject();
-    }
-
-    protected abstract XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException;
 }

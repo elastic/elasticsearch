@@ -60,6 +60,9 @@ of `indices`, `os`, `process`, `jvm`, `transport`, `http`,
 `discovery`::
 	Statistics about the discovery
 
+`ingest`::
+    Statistics about ingest preprocessing
+
 [source,js]
 --------------------------------------------------
 # return indices and os
@@ -118,6 +121,55 @@ information that concern the file system:
 	`null` means we could not determine it, `true` means the device possibly spins
 	 and `false` means it does not (ex: solid-state disks).
 
+`fs.io_stats.devices` (Linux only)::
+    Array of disk metrics for each device that is backing an
+    Elasticsearch data path. These disk metrics are probed periodically
+    and averages between the last probe and the current probe are
+    computed.
+
+`fs.io_stats.devices.device_name` (Linux only)::
+    The Linux device name.
+
+`fs.io_stats.devices.operations` (Linux only)::
+    The total number of read and write operations for the device
+    completed since starting Elasticsearch.
+
+`fs.io_stats.devices.read_operations` (Linux only)::
+    The total number of read operations for the device completed since
+    starting Elasticsearch.
+
+`fs.io_stats.devices.write_operations` (Linux only)::
+    The total number of write operations for the device completed since
+    starting Elasticsearch.
+
+`fs.io_stats.devices.read_kilobytes` (Linux only)::
+    The total number of kilobytes read for the device since starting
+    Elasticsearch.
+
+`fs.io_stats.devices.write_kilobytes` (Linux only)::
+    The total number of kilobytes written for the device since
+    starting Elasticsearch.
+
+`fs.io_stats.operations` (Linux only)::
+    The total number of read and write operations across all devices
+    used by Elasticsearch completed since starting Elasticsearch.
+
+`fs.io_stats.read_operations` (Linux only)::
+    The total number of read operations for across all devices used by
+    Elasticsearch completed since starting Elasticsearch.
+
+`fs.io_stats.write_operations` (Linux only)::
+    The total number of write operations across all devices used by
+    Elasticsearch completed since starting Elasticsearch.
+
+`fs.io_stats.read_kilobytes` (Linux only)::
+    The total number of kilobytes read across all devices used by
+    Elasticsearch since starting Elasticsearch.
+
+`fs.io_stats.write_kilobytes` (Linux only)::
+    The total number of kilobytes written across all devices used by
+    Elasticsearch since starting Elasticsearch.
+
 [float]
 [[os-stats]]
 ==== Operating System statistics
@@ -131,8 +183,15 @@ the operating system:
 `os.cpu.percent`::
     Recent CPU usage for the whole system, or -1 if not supported
 
-`os.cpu.load_average`::
-	System load average for the last minute, or -1 if not supported
+`os.cpu.load_average.1m`::
+    One-minute load average on the system (field is not present if
+    one-minute load average is not available)
+`os.cpu.load_average.5m`::
+    Five-minute load average on the system (field is not present if
+    five-minute load average is not available)
+`os.cpu.load_average.15m`::
+    Fifteen-minute load average on the system (field is not present if
+    fifteen-minute load average is not available)
 
 `os.mem.total_in_bytes`::
 	Total amount of physical memory in bytes
@@ -220,3 +279,23 @@ curl -XGET 'http://localhost:9200/_nodes/stats?pretty&groups=_all'
 # Some groups from just the indices stats
 curl -XGET 'http://localhost:9200/_nodes/stats/indices?pretty&groups=foo,bar'
 --------------------------------------------------
+
+[float]
+[[ingest-stats]]
+=== Ingest statistics
+
+The `ingest` flag can be set to retrieve statistics that concern ingest:
+
+`ingest.total.count`::
+    The total number of document ingested during the lifetime of this node
+
+`ingest.total.time_in_millis`::
+    The total time spent on ingest preprocessing documents during the lifetime of this node
+
+`ingest.total.current`::
+    The total number of documents currently being ingested.
+
+`ingest.total.failed`::
+    The total number ingest preprocessing operations failed during the lifetime of this node
+
+On top of these overall ingest statistics, these statistics are also provided on a per pipeline basis.

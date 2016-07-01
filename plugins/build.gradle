@@ -17,9 +17,8 @@
  * under the License.
  */
 
-import org.elasticsearch.gradle.precommit.DependencyLicensesTask
-
-subprojects {
+// only configure immediate children of plugins dir
+configure(subprojects.findAll { it.parent.path == project.path }) {
   group = 'org.elasticsearch.plugin'
 
   apply plugin: 'elasticsearch.esplugin'
@@ -29,9 +28,4 @@ subprojects {
     // for local ES plugins, the name of the plugin is the same as the directory
     name project.name
   }
-
-  Task dependencyLicensesTask = DependencyLicensesTask.configure(project) {
-    dependencies = project.configurations.runtime - project.configurations.provided
-  }
-  project.precommit.dependsOn(dependencyLicensesTask)
 }

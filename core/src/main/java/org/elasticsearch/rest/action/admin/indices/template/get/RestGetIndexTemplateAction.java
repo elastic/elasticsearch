@@ -20,7 +20,7 @@ package org.elasticsearch.rest.action.admin.indices.template.get;
 
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -49,15 +49,15 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetIndexTemplateAction extends BaseRestHandler {
 
     @Inject
-    public RestGetIndexTemplateAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestGetIndexTemplateAction(Settings settings, RestController controller) {
+        super(settings);
 
         controller.registerHandler(GET, "/_template", this);
         controller.registerHandler(GET, "/_template/{name}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final String[] names = Strings.splitStringByCommaToArray(request.param("name"));
 
         GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);

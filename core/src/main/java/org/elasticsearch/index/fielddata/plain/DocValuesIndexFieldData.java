@@ -25,12 +25,10 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -46,24 +44,18 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
 public abstract class DocValuesIndexFieldData {
 
     protected final Index index;
-    protected final Names fieldNames;
-    protected final FieldDataType fieldDataType;
+    protected final String fieldName;
     protected final ESLogger logger;
 
-    public DocValuesIndexFieldData(Index index, Names fieldNames, FieldDataType fieldDataType) {
+    public DocValuesIndexFieldData(Index index, String fieldName) {
         super();
         this.index = index;
-        this.fieldNames = fieldNames;
-        this.fieldDataType = fieldDataType;
+        this.fieldName = fieldName;
         this.logger = Loggers.getLogger(getClass());
     }
 
-    public final Names getFieldNames() {
-        return fieldNames;
-    }
-
-    public final FieldDataType getFieldDataType() {
-        return fieldDataType;
+    public final String getFieldName() {
+        return fieldName;
     }
 
     public final void clear() {
@@ -92,20 +84,14 @@ public abstract class DocValuesIndexFieldData {
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             // Ignore Circuit Breaker
-            final Names fieldNames = fieldType.names();
-            final Settings fdSettings = fieldType.fieldDataType().getSettings();
-            final Map<String, Settings> filter = fdSettings.getGroups("filter");
-            if (filter != null && !filter.isEmpty()) {
-                throw new IllegalArgumentException("Doc values field data doesn't support filters [" + fieldNames.fullName() + "]");
-            }
-
-            if (BINARY_INDEX_FIELD_NAMES.contains(fieldNames.indexName())) {
+            final String fieldName = fieldType.name();
+            if (BINARY_INDEX_FIELD_NAMES.contains(fieldName)) {
                 assert numericType == null;
-                return new BinaryDVIndexFieldData(indexSettings.getIndex(), fieldNames, fieldType.fieldDataType());
+                return new BinaryDVIndexFieldData(indexSettings.getIndex(), fieldName);
             } else if (numericType != null) {
-                return new SortedNumericDVIndexFieldData(indexSettings.getIndex(), fieldNames, numericType, fieldType.fieldDataType());
+                return new SortedNumericDVIndexFieldData(indexSettings.getIndex(), fieldName, numericType);
             } else {
-                return new SortedSetDVOrdinalsIndexFieldData(indexSettings, cache, fieldNames, breakerService, fieldType.fieldDataType());
+                return new SortedSetDVOrdinalsIndexFieldData(indexSettings, cache, fieldName, breakerService);
             }
         }
 

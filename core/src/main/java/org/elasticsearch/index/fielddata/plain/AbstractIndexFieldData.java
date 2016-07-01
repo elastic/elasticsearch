@@ -26,8 +26,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.*;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
 
 import java.io.IOException;
 
@@ -35,35 +37,28 @@ import java.io.IOException;
  */
 public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends AbstractIndexComponent implements IndexFieldData<FD> {
 
-    private final MappedFieldType.Names fieldNames;
-    protected final FieldDataType fieldDataType;
+    private final String fieldName;
     protected final IndexFieldDataCache cache;
 
-    public AbstractIndexFieldData(IndexSettings indexSettings, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
+    public AbstractIndexFieldData(IndexSettings indexSettings, String fieldName, IndexFieldDataCache cache) {
         super(indexSettings);
-        this.fieldNames = fieldNames;
-        this.fieldDataType = fieldDataType;
+        this.fieldName = fieldName;
         this.cache = cache;
     }
 
     @Override
-    public MappedFieldType.Names getFieldNames() {
-        return this.fieldNames;
-    }
-
-    @Override
-    public FieldDataType getFieldDataType() {
-        return fieldDataType;
+    public String getFieldName() {
+        return this.fieldName;
     }
 
     @Override
     public void clear() {
-        cache.clear(fieldNames.indexName());
+        cache.clear(fieldName);
     }
 
     @Override
     public FD load(LeafReaderContext context) {
-        if (context.reader().getFieldInfos().fieldInfo(fieldNames.indexName()) == null) {
+        if (context.reader().getFieldInfos().fieldInfo(fieldName) == null) {
             // Some leaf readers may be wrapped and report different set of fields and use the same cache key.
             // If a field can't be found then it doesn't mean it isn't there,
             // so if a field doesn't exist then we don't cache it and just return an empty field data instance.

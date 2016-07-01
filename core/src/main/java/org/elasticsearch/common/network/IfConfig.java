@@ -31,14 +31,14 @@ import java.net.SocketException;
 import java.util.List;
 import java.util.Locale;
 
-/** 
+/**
  * Simple class to log {@code ifconfig}-style output at DEBUG logging.
  */
 final class IfConfig {
 
-    private static final ESLogger logger = Loggers.getLogger(IfConfig.class);    
+    private static final ESLogger logger = Loggers.getLogger(IfConfig.class);
     private static final String INDENT = "        ";
-    
+
     /** log interface configuration at debug level, if its enabled */
     static void logIfNecessary() {
         if (logger.isDebugEnabled()) {
@@ -49,7 +49,7 @@ final class IfConfig {
             }
         }
     }
-    
+
     /** perform actual logging: might throw exception if things go wrong */
     private static void doLogging() throws IOException {
         StringBuilder msg = new StringBuilder();
@@ -59,14 +59,14 @@ final class IfConfig {
             // ordinary name
             msg.append(nic.getName());
             msg.append(System.lineSeparator());
-            
+
             // display name (e.g. on windows)
             if (!nic.getName().equals(nic.getDisplayName())) {
                 msg.append(INDENT);
                 msg.append(nic.getDisplayName());
                 msg.append(System.lineSeparator());
             }
-            
+
             // addresses: v4 first, then v6
             List<InterfaceAddress> addresses = nic.getInterfaceAddresses();
             for (InterfaceAddress address : addresses) {
@@ -76,7 +76,7 @@ final class IfConfig {
                     msg.append(System.lineSeparator());
                 }
             }
-            
+
             for (InterfaceAddress address : addresses) {
                 if (address.getAddress() instanceof Inet6Address) {
                     msg.append(INDENT);
@@ -84,7 +84,7 @@ final class IfConfig {
                     msg.append(System.lineSeparator());
                 }
             }
-            
+
             // hardware address
             byte hardware[] = nic.getHardwareAddress();
             if (hardware != null) {
@@ -98,38 +98,38 @@ final class IfConfig {
                 }
                 msg.append(System.lineSeparator());
             }
-             
+
             // attributes
             msg.append(INDENT);
             msg.append(formatFlags(nic));
             msg.append(System.lineSeparator());
         }
-        logger.debug("configuration:" + System.lineSeparator() + "{}", msg.toString());
+        logger.debug("configuration:{}{}", System.lineSeparator(), msg);
     }
-    
+
     /** format internet address: java's default doesn't include everything useful */
     private static String formatAddress(InterfaceAddress interfaceAddress) throws IOException {
         StringBuilder sb = new StringBuilder();
-        
+
         InetAddress address = interfaceAddress.getAddress();
         if (address instanceof Inet6Address) {
             sb.append("inet6 ");
-            sb.append(NetworkAddress.formatAddress(address));
+            sb.append(NetworkAddress.format(address));
             sb.append(" prefixlen:");
             sb.append(interfaceAddress.getNetworkPrefixLength());
         } else {
             sb.append("inet ");
-            sb.append(NetworkAddress.formatAddress(address));
+            sb.append(NetworkAddress.format(address));
             int netmask = 0xFFFFFFFF << (32 - interfaceAddress.getNetworkPrefixLength());
-            sb.append(" netmask:" + NetworkAddress.formatAddress(InetAddress.getByAddress(new byte[] {
-                    (byte)(netmask >>> 24), 
-                    (byte)(netmask >>> 16 & 0xFF), 
-                    (byte)(netmask >>> 8 & 0xFF), 
-                    (byte)(netmask & 0xFF) 
+            sb.append(" netmask:" + NetworkAddress.format(InetAddress.getByAddress(new byte[] {
+                    (byte)(netmask >>> 24),
+                    (byte)(netmask >>> 16 & 0xFF),
+                    (byte)(netmask >>> 8 & 0xFF),
+                    (byte)(netmask & 0xFF)
             })));
             InetAddress broadcast = interfaceAddress.getBroadcast();
             if (broadcast != null) {
-                sb.append(" broadcast:" + NetworkAddress.formatAddress(broadcast));
+                sb.append(" broadcast:" + NetworkAddress.format(broadcast));
             }
         }
         if (address.isLoopbackAddress()) {
@@ -141,7 +141,7 @@ final class IfConfig {
         }
         return sb.toString();
     }
-    
+
     /** format network interface flags */
     private static String formatFlags(NetworkInterface nic) throws SocketException {
         StringBuilder flags = new StringBuilder();

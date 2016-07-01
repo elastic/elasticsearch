@@ -23,16 +23,20 @@ import org.elasticsearch.action.admin.indices.validate.query.QueryExplanation;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
@@ -51,8 +55,8 @@ public class RestValidateQueryAction extends BaseRestHandler {
     private final IndicesQueriesRegistry indicesQueriesRegistry;
 
     @Inject
-    public RestValidateQueryAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry indicesQueriesRegistry) {
-        super(settings, controller, client);
+    public RestValidateQueryAction(Settings settings, RestController controller, IndicesQueriesRegistry indicesQueriesRegistry) {
+        super(settings);
         controller.registerHandler(GET, "/_validate/query", this);
         controller.registerHandler(POST, "/_validate/query", this);
         controller.registerHandler(GET, "/{index}/_validate/query", this);
@@ -63,7 +67,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         validateQueryRequest.indicesOptions(IndicesOptions.fromRequest(request, validateQueryRequest.indicesOptions()));
         validateQueryRequest.explain(request.paramAsBoolean("explain", false));
@@ -78,7 +82,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
                 return;
             }
         } else {
-            QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
+            QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
             if (queryBuilder != null) {
                 validateQueryRequest.query(queryBuilder);
             }
@@ -97,7 +101,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
                     for (QueryExplanation explanation : response.getQueryExplanation()) {
                         builder.startObject();
                         if (explanation.getIndex() != null) {
-                            builder.field(INDEX_FIELD, explanation.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
+                            builder.field(INDEX_FIELD, explanation.getIndex());
                         }
                         builder.field(VALID_FIELD, explanation.isValid());
                         if (explanation.getError() != null) {
@@ -126,9 +130,9 @@ public class RestValidateQueryAction extends BaseRestHandler {
         return new BytesRestResponse(OK, builder);
     }
 
-    private static final XContentBuilderString INDEX_FIELD = new XContentBuilderString("index");
-    private static final XContentBuilderString VALID_FIELD = new XContentBuilderString("valid");
-    private static final XContentBuilderString EXPLANATIONS_FIELD = new XContentBuilderString("explanations");
-    private static final XContentBuilderString ERROR_FIELD = new XContentBuilderString("error");
-    private static final XContentBuilderString EXPLANATION_FIELD = new XContentBuilderString("explanation");
+    private static final String INDEX_FIELD = "index";
+    private static final String VALID_FIELD = "valid";
+    private static final String EXPLANATIONS_FIELD = "explanations";
+    private static final String ERROR_FIELD = "error";
+    private static final String EXPLANATION_FIELD = "explanation";
 }

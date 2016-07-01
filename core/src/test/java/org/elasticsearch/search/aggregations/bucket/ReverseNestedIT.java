@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -66,9 +67,9 @@ public class ReverseNestedIT extends ESIntegTestCase {
                 .addMapping(
                         "type1",
                         jsonBuilder().startObject().startObject("properties")
-                                .startObject("field1").field("type", "string").endObject()
+                                .startObject("field1").field("type", "keyword").endObject()
                                 .startObject("nested1").field("type", "nested").startObject("properties")
-                                    .startObject("field2").field("type", "string").endObject()
+                                    .startObject("field2").field("type", "keyword").endObject()
                                 .endObject().endObject()
                                 .endObject().endObject()
                 )
@@ -76,9 +77,9 @@ public class ReverseNestedIT extends ESIntegTestCase {
                         "type2",
                         jsonBuilder().startObject().startObject("properties")
                                 .startObject("nested1").field("type", "nested").startObject("properties")
-                                    .startObject("field1").field("type", "string").endObject()
+                                    .startObject("field1").field("type", "keyword").endObject()
                                         .startObject("nested2").field("type", "nested").startObject("properties")
-                                            .startObject("field2").field("type", "string").endObject()
+                                            .startObject("field2").field("type", "keyword").endObject()
                                         .endObject().endObject()
                                     .endObject().endObject()
                                 .endObject().endObject()
@@ -138,7 +139,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
 
     public void testSimpleReverseNestedToRoot() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type1")
-                .addAggregation(nested("nested1").path("nested1")
+                .addAggregation(nested("nested1", "nested1")
                         .subAggregation(
                                 terms("field2").field("nested1.field2")
                                         .subAggregation(
@@ -156,7 +157,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
         Nested nested = response.getAggregations().get("nested1");
         assertThat(nested, notNullValue());
         assertThat(nested.getName(), equalTo("nested1"));
-        assertThat(nested.getDocCount(), equalTo(25l));
+        assertThat(nested.getDocCount(), equalTo(25L));
         assertThat(nested.getAggregations().asList().isEmpty(), is(false));
 
         Terms usernames = nested.getAggregations().get("field2");
@@ -167,169 +168,169 @@ public class ReverseNestedIT extends ESIntegTestCase {
         // nested.field2: 1
         Terms.Bucket bucket = usernameBuckets.get(0);
         assertThat(bucket.getKeyAsString(), equalTo("1"));
-        assertThat(bucket.getDocCount(), equalTo(6l));
+        assertThat(bucket.getDocCount(), equalTo(6L));
         ReverseNested reverseNested = bucket.getAggregations().get("nested1_to_field1");
-        assertThat((long) reverseNested.getProperty("_count"), equalTo(5l));
+        assertThat((long) reverseNested.getProperty("_count"), equalTo(5L));
         Terms tags = reverseNested.getAggregations().get("field1");
         assertThat((Terms) reverseNested.getProperty("field1"), sameInstance(tags));
         List<Terms.Bucket> tagsBuckets = new ArrayList<>(tags.getBuckets());
         assertThat(tagsBuckets.size(), equalTo(6));
         assertThat(tagsBuckets.get(0).getKeyAsString(), equalTo("c"));
-        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(4l));
+        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(4L));
         assertThat(tagsBuckets.get(1).getKeyAsString(), equalTo("a"));
-        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(3l));
+        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(3L));
         assertThat(tagsBuckets.get(2).getKeyAsString(), equalTo("e"));
-        assertThat(tagsBuckets.get(2).getDocCount(), equalTo(2l));
+        assertThat(tagsBuckets.get(2).getDocCount(), equalTo(2L));
         assertThat(tagsBuckets.get(3).getKeyAsString(), equalTo("b"));
-        assertThat(tagsBuckets.get(3).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(3).getDocCount(), equalTo(1L));
         assertThat(tagsBuckets.get(4).getKeyAsString(), equalTo("d"));
-        assertThat(tagsBuckets.get(4).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(4).getDocCount(), equalTo(1L));
         assertThat(tagsBuckets.get(5).getKeyAsString(), equalTo("x"));
-        assertThat(tagsBuckets.get(5).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(5).getDocCount(), equalTo(1L));
 
         // nested.field2: 4
         bucket = usernameBuckets.get(1);
         assertThat(bucket.getKeyAsString(), equalTo("4"));
-        assertThat(bucket.getDocCount(), equalTo(4l));
+        assertThat(bucket.getDocCount(), equalTo(4L));
         reverseNested = bucket.getAggregations().get("nested1_to_field1");
         tags = reverseNested.getAggregations().get("field1");
         tagsBuckets = new ArrayList<>(tags.getBuckets());
         assertThat(tagsBuckets.size(), equalTo(5));
         assertThat(tagsBuckets.get(0).getKeyAsString(), equalTo("a"));
-        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(3l));
+        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(3L));
         assertThat(tagsBuckets.get(1).getKeyAsString(), equalTo("b"));
-        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(2l));
+        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(2L));
         assertThat(tagsBuckets.get(2).getKeyAsString(), equalTo("c"));
-        assertThat(tagsBuckets.get(2).getDocCount(), equalTo(2l));
+        assertThat(tagsBuckets.get(2).getDocCount(), equalTo(2L));
         assertThat(tagsBuckets.get(3).getKeyAsString(), equalTo("d"));
-        assertThat(tagsBuckets.get(3).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(3).getDocCount(), equalTo(1L));
         assertThat(tagsBuckets.get(4).getKeyAsString(), equalTo("e"));
-        assertThat(tagsBuckets.get(4).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(4).getDocCount(), equalTo(1L));
 
         // nested.field2: 7
         bucket = usernameBuckets.get(2);
         assertThat(bucket.getKeyAsString(), equalTo("7"));
-        assertThat(bucket.getDocCount(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(3L));
         reverseNested = bucket.getAggregations().get("nested1_to_field1");
         tags = reverseNested.getAggregations().get("field1");
         tagsBuckets = new ArrayList<>(tags.getBuckets());
         assertThat(tagsBuckets.size(), equalTo(5));
         assertThat(tagsBuckets.get(0).getKeyAsString(), equalTo("c"));
-        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(2l));
+        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(2L));
         assertThat(tagsBuckets.get(1).getKeyAsString(), equalTo("d"));
-        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(2l));
+        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(2L));
         assertThat(tagsBuckets.get(2).getKeyAsString(), equalTo("e"));
-        assertThat(tagsBuckets.get(2).getDocCount(), equalTo(2l));
+        assertThat(tagsBuckets.get(2).getDocCount(), equalTo(2L));
         assertThat(tagsBuckets.get(3).getKeyAsString(), equalTo("a"));
-        assertThat(tagsBuckets.get(3).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(3).getDocCount(), equalTo(1L));
         assertThat(tagsBuckets.get(4).getKeyAsString(), equalTo("b"));
-        assertThat(tagsBuckets.get(4).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(4).getDocCount(), equalTo(1L));
 
         // nested.field2: 2
         bucket = usernameBuckets.get(3);
         assertThat(bucket.getKeyAsString(), equalTo("2"));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
         reverseNested = bucket.getAggregations().get("nested1_to_field1");
         tags = reverseNested.getAggregations().get("field1");
         tagsBuckets = new ArrayList<>(tags.getBuckets());
         assertThat(tagsBuckets.size(), equalTo(3));
         assertThat(tagsBuckets.get(0).getKeyAsString(), equalTo("a"));
-        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(2l));
+        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(2L));
         assertThat(tagsBuckets.get(1).getKeyAsString(), equalTo("c"));
-        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(2l));
+        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(2L));
         assertThat(tagsBuckets.get(2).getKeyAsString(), equalTo("b"));
-        assertThat(tagsBuckets.get(2).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(2).getDocCount(), equalTo(1L));
 
         // nested.field2: 3
         bucket = usernameBuckets.get(4);
         assertThat(bucket.getKeyAsString(), equalTo("3"));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
         reverseNested = bucket.getAggregations().get("nested1_to_field1");
         tags = reverseNested.getAggregations().get("field1");
         tagsBuckets = new ArrayList<>(tags.getBuckets());
         assertThat(tagsBuckets.size(), equalTo(3));
         assertThat(tagsBuckets.get(0).getKeyAsString(), equalTo("a"));
-        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(2l));
+        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(2L));
         assertThat(tagsBuckets.get(1).getKeyAsString(), equalTo("b"));
-        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(1L));
         assertThat(tagsBuckets.get(2).getKeyAsString(), equalTo("c"));
-        assertThat(tagsBuckets.get(2).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(2).getDocCount(), equalTo(1L));
 
         // nested.field2: 5
         bucket = usernameBuckets.get(5);
         assertThat(bucket.getKeyAsString(), equalTo("5"));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
         reverseNested = bucket.getAggregations().get("nested1_to_field1");
         tags = reverseNested.getAggregations().get("field1");
         tagsBuckets = new ArrayList<>(tags.getBuckets());
         assertThat(tagsBuckets.size(), equalTo(4));
         assertThat(tagsBuckets.get(0).getKeyAsString(), equalTo("b"));
-        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(1L));
         assertThat(tagsBuckets.get(1).getKeyAsString(), equalTo("c"));
-        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(1L));
         assertThat(tagsBuckets.get(2).getKeyAsString(), equalTo("d"));
-        assertThat(tagsBuckets.get(2).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(2).getDocCount(), equalTo(1L));
         assertThat(tagsBuckets.get(3).getKeyAsString(), equalTo("z"));
-        assertThat(tagsBuckets.get(3).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(3).getDocCount(), equalTo(1L));
 
         // nested.field2: 6
         bucket = usernameBuckets.get(6);
         assertThat(bucket.getKeyAsString(), equalTo("6"));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
         reverseNested = bucket.getAggregations().get("nested1_to_field1");
         tags = reverseNested.getAggregations().get("field1");
         tagsBuckets = new ArrayList<>(tags.getBuckets());
         assertThat(tagsBuckets.size(), equalTo(4));
         assertThat(tagsBuckets.get(0).getKeyAsString(), equalTo("c"));
-        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(2l));
+        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(2L));
         assertThat(tagsBuckets.get(1).getKeyAsString(), equalTo("b"));
-        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(1L));
         assertThat(tagsBuckets.get(2).getKeyAsString(), equalTo("d"));
-        assertThat(tagsBuckets.get(2).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(2).getDocCount(), equalTo(1L));
         assertThat(tagsBuckets.get(3).getKeyAsString(), equalTo("y"));
-        assertThat(tagsBuckets.get(3).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(3).getDocCount(), equalTo(1L));
 
         // nested.field2: 8
         bucket = usernameBuckets.get(7);
         assertThat(bucket.getKeyAsString(), equalTo("8"));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
         reverseNested = bucket.getAggregations().get("nested1_to_field1");
         tags = reverseNested.getAggregations().get("field1");
         tagsBuckets = new ArrayList<>(tags.getBuckets());
         assertThat(tagsBuckets.size(), equalTo(4));
         assertThat(tagsBuckets.get(0).getKeyAsString(), equalTo("c"));
-        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(2l));
+        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(2L));
         assertThat(tagsBuckets.get(1).getKeyAsString(), equalTo("d"));
-        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(1L));
         assertThat(tagsBuckets.get(2).getKeyAsString(), equalTo("e"));
-        assertThat(tagsBuckets.get(2).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(2).getDocCount(), equalTo(1L));
         assertThat(tagsBuckets.get(3).getKeyAsString(), equalTo("x"));
-        assertThat(tagsBuckets.get(3).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(3).getDocCount(), equalTo(1L));
 
         // nested.field2: 9
         bucket = usernameBuckets.get(8);
         assertThat(bucket.getKeyAsString(), equalTo("9"));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
         reverseNested = bucket.getAggregations().get("nested1_to_field1");
         tags = reverseNested.getAggregations().get("field1");
         tagsBuckets = new ArrayList<>(tags.getBuckets());
         assertThat(tagsBuckets.size(), equalTo(4));
         assertThat(tagsBuckets.get(0).getKeyAsString(), equalTo("c"));
-        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(1L));
         assertThat(tagsBuckets.get(1).getKeyAsString(), equalTo("d"));
-        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(1L));
         assertThat(tagsBuckets.get(2).getKeyAsString(), equalTo("e"));
-        assertThat(tagsBuckets.get(2).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(2).getDocCount(), equalTo(1L));
         assertThat(tagsBuckets.get(3).getKeyAsString(), equalTo("z"));
-        assertThat(tagsBuckets.get(3).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(3).getDocCount(), equalTo(1L));
     }
 
     public void testSimpleNested1ToRootToNested2() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type2")
-                .addAggregation(nested("nested1").path("nested1")
+                .addAggregation(nested("nested1", "nested1")
                                 .subAggregation(
                                         reverseNested("nested1_to_root")
-                                                .subAggregation(nested("root_to_nested2").path("nested1.nested2"))
+                                                .subAggregation(nested("root_to_nested2", "nested1.nested2"))
                                         )
                                 )
                 .get();
@@ -337,22 +338,22 @@ public class ReverseNestedIT extends ESIntegTestCase {
         assertSearchResponse(response);
         Nested nested = response.getAggregations().get("nested1");
         assertThat(nested.getName(), equalTo("nested1"));
-        assertThat(nested.getDocCount(), equalTo(9l));
+        assertThat(nested.getDocCount(), equalTo(9L));
         ReverseNested reverseNested = nested.getAggregations().get("nested1_to_root");
         assertThat(reverseNested.getName(), equalTo("nested1_to_root"));
-        assertThat(reverseNested.getDocCount(), equalTo(4l));
+        assertThat(reverseNested.getDocCount(), equalTo(4L));
         nested = reverseNested.getAggregations().get("root_to_nested2");
         assertThat(nested.getName(), equalTo("root_to_nested2"));
-        assertThat(nested.getDocCount(), equalTo(27l));
+        assertThat(nested.getDocCount(), equalTo(27L));
     }
 
     public void testSimpleReverseNestedToNested1() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type2")
-                .addAggregation(nested("nested1").path("nested1.nested2")
+                .addAggregation(nested("nested1", "nested1.nested2")
                                 .subAggregation(
                                         terms("field2").field("nested1.nested2.field2").order(Terms.Order.term(true))
                                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                                .size(0)
+                                                .size(10000)
                                                 .subAggregation(
                                                         reverseNested("nested1_to_field1").path("nested1")
                                                                 .subAggregation(
@@ -368,7 +369,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
         Nested nested = response.getAggregations().get("nested1");
         assertThat(nested, notNullValue());
         assertThat(nested.getName(), equalTo("nested1"));
-        assertThat(nested.getDocCount(), equalTo(27l));
+        assertThat(nested.getDocCount(), equalTo(27L));
         assertThat(nested.getAggregations().asList().isEmpty(), is(false));
 
         Terms usernames = nested.getAggregations().get("field2");
@@ -378,73 +379,73 @@ public class ReverseNestedIT extends ESIntegTestCase {
 
         Terms.Bucket bucket = usernameBuckets.get(0);
         assertThat(bucket.getKeyAsString(), equalTo("0"));
-        assertThat(bucket.getDocCount(), equalTo(12l));
+        assertThat(bucket.getDocCount(), equalTo(12L));
         ReverseNested reverseNested = bucket.getAggregations().get("nested1_to_field1");
-        assertThat(reverseNested.getDocCount(), equalTo(5l));
+        assertThat(reverseNested.getDocCount(), equalTo(5L));
         Terms tags = reverseNested.getAggregations().get("field1");
         List<Terms.Bucket> tagsBuckets = new ArrayList<>(tags.getBuckets());
         assertThat(tagsBuckets.size(), equalTo(2));
         assertThat(tagsBuckets.get(0).getKeyAsString(), equalTo("a"));
-        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(3l));
+        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(3L));
         assertThat(tagsBuckets.get(1).getKeyAsString(), equalTo("b"));
-        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(2l));
+        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(2L));
 
         bucket = usernameBuckets.get(1);
         assertThat(bucket.getKeyAsString(), equalTo("1"));
-        assertThat(bucket.getDocCount(), equalTo(6l));
+        assertThat(bucket.getDocCount(), equalTo(6L));
         reverseNested = bucket.getAggregations().get("nested1_to_field1");
-        assertThat(reverseNested.getDocCount(), equalTo(4l));
+        assertThat(reverseNested.getDocCount(), equalTo(4L));
         tags = reverseNested.getAggregations().get("field1");
         tagsBuckets = new ArrayList<>(tags.getBuckets());
         assertThat(tagsBuckets.size(), equalTo(4));
         assertThat(tagsBuckets.get(0).getKeyAsString(), equalTo("a"));
-        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(1L));
         assertThat(tagsBuckets.get(1).getKeyAsString(), equalTo("b"));
-        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(1L));
         assertThat(tagsBuckets.get(2).getKeyAsString(), equalTo("c"));
-        assertThat(tagsBuckets.get(2).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(2).getDocCount(), equalTo(1L));
         assertThat(tagsBuckets.get(3).getKeyAsString(), equalTo("e"));
-        assertThat(tagsBuckets.get(3).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(3).getDocCount(), equalTo(1L));
 
         bucket = usernameBuckets.get(2);
         assertThat(bucket.getKeyAsString(), equalTo("2"));
-        assertThat(bucket.getDocCount(), equalTo(5l));
+        assertThat(bucket.getDocCount(), equalTo(5L));
         reverseNested = bucket.getAggregations().get("nested1_to_field1");
-        assertThat(reverseNested.getDocCount(), equalTo(4l));
+        assertThat(reverseNested.getDocCount(), equalTo(4L));
         tags = reverseNested.getAggregations().get("field1");
         tagsBuckets = new ArrayList<>(tags.getBuckets());
         assertThat(tagsBuckets.size(), equalTo(4));
         assertThat(tagsBuckets.get(0).getKeyAsString(), equalTo("a"));
-        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(1L));
         assertThat(tagsBuckets.get(1).getKeyAsString(), equalTo("b"));
-        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(1).getDocCount(), equalTo(1L));
         assertThat(tagsBuckets.get(2).getKeyAsString(), equalTo("c"));
-        assertThat(tagsBuckets.get(2).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(2).getDocCount(), equalTo(1L));
         assertThat(tagsBuckets.get(3).getKeyAsString(), equalTo("e"));
-        assertThat(tagsBuckets.get(3).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(3).getDocCount(), equalTo(1L));
 
         bucket = usernameBuckets.get(3);
         assertThat(bucket.getKeyAsString(), equalTo("3"));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
         reverseNested = bucket.getAggregations().get("nested1_to_field1");
-        assertThat(reverseNested.getDocCount(), equalTo(2l));
+        assertThat(reverseNested.getDocCount(), equalTo(2L));
         tags = reverseNested.getAggregations().get("field1");
         tagsBuckets = new ArrayList<>(tags.getBuckets());
         assertThat(tagsBuckets.size(), equalTo(2));
         assertThat(tagsBuckets.get(0).getKeyAsString(), equalTo("d"));
-        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(1L));
         assertThat(tagsBuckets.get(1).getKeyAsString(), equalTo("f"));
 
         bucket = usernameBuckets.get(4);
         assertThat(bucket.getKeyAsString(), equalTo("4"));
-        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getDocCount(), equalTo(2L));
         reverseNested = bucket.getAggregations().get("nested1_to_field1");
-        assertThat(reverseNested.getDocCount(), equalTo(2l));
+        assertThat(reverseNested.getDocCount(), equalTo(2L));
         tags = reverseNested.getAggregations().get("field1");
         tagsBuckets = new ArrayList<>(tags.getBuckets());
         assertThat(tagsBuckets.size(), equalTo(2));
         assertThat(tagsBuckets.get(0).getKeyAsString(), equalTo("d"));
-        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(1l));
+        assertThat(tagsBuckets.get(0).getDocCount(), equalTo(1L));
         assertThat(tagsBuckets.get(1).getKeyAsString(), equalTo("f"));
     }
 
@@ -470,7 +471,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
     public void testNonExistingNestedField() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(nested("nested2").path("nested1.nested2").subAggregation(reverseNested("incorrect").path("nested3")))
+                .addAggregation(nested("nested2", "nested1.nested2").subAggregation(reverseNested("incorrect").path("nested3")))
                 .execute().actionGet();
 
         Nested nested = searchResponse.getAggregations().get("nested2");
@@ -478,7 +479,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
         assertThat(nested.getName(), equalTo("nested2"));
 
         ReverseNested reverseNested = nested.getAggregations().get("incorrect");
-        assertThat(reverseNested.getDocCount(), is(0l));
+        assertThat(reverseNested.getDocCount(), is(0L));
     }
 
     public void testSameParentDocHavingMultipleBuckets() throws Exception {
@@ -487,17 +488,17 @@ public class ReverseNestedIT extends ESIntegTestCase {
                 .startObject("category")
                     .field("type", "nested")
                     .startObject("properties")
-                        .startObject("name").field("type", "string").endObject()
+                        .startObject("name").field("type", "keyword").endObject()
                     .endObject()
                 .endObject()
                 .startObject("sku")
                     .field("type", "nested")
                     .startObject("properties")
-                        .startObject("sku_type").field("type", "string").endObject()
+                        .startObject("sku_type").field("type", "keyword").endObject()
                             .startObject("colors")
                                 .field("type", "nested")
                                 .startObject("properties")
-                                    .startObject("name").field("type", "string").endObject()
+                                    .startObject("name").field("type", "keyword").endObject()
                                 .endObject()
                             .endObject()
                     .endObject()
@@ -509,7 +510,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
                         .addMapping("product", mapping)
         );
 
-        client().prepareIndex("idx3", "product", "1").setRefresh(true).setSource(
+        client().prepareIndex("idx3", "product", "1").setRefreshPolicy(IMMEDIATE).setSource(
                 jsonBuilder().startObject()
                         .startArray("sku")
                             .startObject()
@@ -558,11 +559,11 @@ public class ReverseNestedIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("idx3")
                 .addAggregation(
-                        nested("nested_0").path("category").subAggregation(
+                        nested("nested_0", "category").subAggregation(
                                 terms("group_by_category").field("category.name").subAggregation(
                                         reverseNested("to_root").subAggregation(
-                                                nested("nested_1").path("sku").subAggregation(
-                                                        filter("filter_by_sku").filter(termQuery("sku.sku_type", "bar1")).subAggregation(
+                                                nested("nested_1", "sku").subAggregation(
+                                                        filter("filter_by_sku", termQuery("sku.sku_type", "bar1")).subAggregation(
                                                                 count("sku_count").field("sku.sku_type")
                                                         )
                                                 )
@@ -574,32 +575,32 @@ public class ReverseNestedIT extends ESIntegTestCase {
         assertHitCount(response, 1);
 
         Nested nested0 = response.getAggregations().get("nested_0");
-        assertThat(nested0.getDocCount(), equalTo(3l));
+        assertThat(nested0.getDocCount(), equalTo(3L));
         Terms terms = nested0.getAggregations().get("group_by_category");
         assertThat(terms.getBuckets().size(), equalTo(3));
         for (String bucketName : new String[]{"abc", "klm", "xyz"}) {
             logger.info("Checking results for bucket {}", bucketName);
             Terms.Bucket bucket = terms.getBucketByKey(bucketName);
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
             ReverseNested toRoot = bucket.getAggregations().get("to_root");
-            assertThat(toRoot.getDocCount(), equalTo(1l));
+            assertThat(toRoot.getDocCount(), equalTo(1L));
             Nested nested1 = toRoot.getAggregations().get("nested_1");
-            assertThat(nested1.getDocCount(), equalTo(5l));
+            assertThat(nested1.getDocCount(), equalTo(5L));
             Filter filterByBar = nested1.getAggregations().get("filter_by_sku");
-            assertThat(filterByBar.getDocCount(), equalTo(3l));
+            assertThat(filterByBar.getDocCount(), equalTo(3L));
             ValueCount barCount = filterByBar.getAggregations().get("sku_count");
-            assertThat(barCount.getValue(), equalTo(3l));
+            assertThat(barCount.getValue(), equalTo(3L));
         }
 
         response = client().prepareSearch("idx3")
                 .addAggregation(
-                        nested("nested_0").path("category").subAggregation(
+                        nested("nested_0", "category").subAggregation(
                                 terms("group_by_category").field("category.name").subAggregation(
                                         reverseNested("to_root").subAggregation(
-                                                nested("nested_1").path("sku").subAggregation(
-                                                        filter("filter_by_sku").filter(termQuery("sku.sku_type", "bar1")).subAggregation(
-                                                                nested("nested_2").path("sku.colors").subAggregation(
-                                                                        filter("filter_sku_color").filter(termQuery("sku.colors.name", "red")).subAggregation(
+                                                nested("nested_1", "sku").subAggregation(
+                                                        filter("filter_by_sku", termQuery("sku.sku_type", "bar1")).subAggregation(
+                                                                nested("nested_2", "sku.colors").subAggregation(
+                                                                        filter("filter_sku_color", termQuery("sku.colors.name", "red")).subAggregation(
                                                                                 reverseNested("reverse_to_sku").path("sku").subAggregation(
                                                                                         count("sku_count").field("sku.sku_type")
                                                                                 )
@@ -615,27 +616,27 @@ public class ReverseNestedIT extends ESIntegTestCase {
         assertHitCount(response, 1);
 
         nested0 = response.getAggregations().get("nested_0");
-        assertThat(nested0.getDocCount(), equalTo(3l));
+        assertThat(nested0.getDocCount(), equalTo(3L));
         terms = nested0.getAggregations().get("group_by_category");
         assertThat(terms.getBuckets().size(), equalTo(3));
         for (String bucketName : new String[]{"abc", "klm", "xyz"}) {
             logger.info("Checking results for bucket {}", bucketName);
             Terms.Bucket bucket = terms.getBucketByKey(bucketName);
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat(bucket.getDocCount(), equalTo(1L));
             ReverseNested toRoot = bucket.getAggregations().get("to_root");
-            assertThat(toRoot.getDocCount(), equalTo(1l));
+            assertThat(toRoot.getDocCount(), equalTo(1L));
             Nested nested1 = toRoot.getAggregations().get("nested_1");
-            assertThat(nested1.getDocCount(), equalTo(5l));
+            assertThat(nested1.getDocCount(), equalTo(5L));
             Filter filterByBar = nested1.getAggregations().get("filter_by_sku");
-            assertThat(filterByBar.getDocCount(), equalTo(3l));
+            assertThat(filterByBar.getDocCount(), equalTo(3L));
             Nested nested2 = filterByBar.getAggregations().get("nested_2");
-            assertThat(nested2.getDocCount(), equalTo(8l));
+            assertThat(nested2.getDocCount(), equalTo(8L));
             Filter filterBarColor = nested2.getAggregations().get("filter_sku_color");
-            assertThat(filterBarColor.getDocCount(), equalTo(2l));
+            assertThat(filterBarColor.getDocCount(), equalTo(2L));
             ReverseNested reverseToBar = filterBarColor.getAggregations().get("reverse_to_sku");
-            assertThat(reverseToBar.getDocCount(), equalTo(2l));
+            assertThat(reverseToBar.getDocCount(), equalTo(2L));
             ValueCount barCount = reverseToBar.getAggregations().get("sku_count");
-            assertThat(barCount.getValue(), equalTo(2l));
+            assertThat(barCount.getValue(), equalTo(2L));
         }
     }
 }

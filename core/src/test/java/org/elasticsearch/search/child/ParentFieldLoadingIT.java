@@ -26,16 +26,19 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.MergePolicyConfig;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
+import java.util.Collection;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -44,10 +47,15 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class ParentFieldLoadingIT extends ESIntegTestCase {
 
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(InternalSettingsPlugin.class); // uses index.merge.enabled
+    }
+
     private final Settings indexSettings = Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexShard.INDEX_REFRESH_INTERVAL, -1)
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                     // We never want merges in this test to ensure we have two segments for the last validation
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
             .build();
@@ -57,7 +65,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
                 .addMapping("parent")
-                .addMapping("child", childMapping(MappedFieldType.Loading.LAZY)));
+                .addMapping("child", childMapping(false)));
         ensureGreen();
 
         client().prepareIndex("test", "parent", "1").setSource("{}").get();
@@ -65,7 +73,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         refresh();
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0L));
 
         logger.info("testing default loading...");
         assertAcked(client().admin().indices().prepareDelete("test").get());
@@ -80,29 +88,14 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         refresh();
 
         response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0l));
-
-        logger.info("testing eager loading...");
-        assertAcked(client().admin().indices().prepareDelete("test").get());
-        assertAcked(prepareCreate("test")
-                .setSettings(indexSettings)
-                .addMapping("parent")
-                .addMapping("child", childMapping(MappedFieldType.Loading.EAGER)));
-        ensureGreen();
-
-        client().prepareIndex("test", "parent", "1").setSource("{}").get();
-        client().prepareIndex("test", "child", "1").setParent("1").setSource("{}").get();
-        refresh();
-
-        response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0L));
 
         logger.info("testing eager global ordinals loading...");
         assertAcked(client().admin().indices().prepareDelete("test").get());
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
                 .addMapping("parent")
-                .addMapping("child", childMapping(MappedFieldType.Loading.EAGER_GLOBAL_ORDINALS)));
+                .addMapping("child", childMapping(true)));
         ensureGreen();
 
         // Need to do 2 separate refreshes, otherwise we have 1 segment and then we can't measure if global ordinals
@@ -113,7 +106,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         refresh();
 
         response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0L));
     }
 
     public void testChangingEagerParentFieldLoadingAtRuntime() throws Exception {
@@ -128,13 +121,14 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         refresh();
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0L));
 
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("child")
-                .setSource(childMapping(MappedFieldType.Loading.EAGER_GLOBAL_ORDINALS))
+                .setSource(childMapping(true))
                 .setUpdateAllTypes(true)
                 .get();
         assertAcked(putMappingResponse);
+        Index test = resolveIndex("test");
         assertBusy(new Runnable() {
             @Override
             public void run() {
@@ -144,12 +138,12 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
 
                 boolean verified = false;
                 IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
-                IndexService indexService = indicesService.indexService("test");
+                IndexService indexService = indicesService.indexService(test);
                 if (indexService != null) {
                     MapperService mapperService = indexService.mapperService();
                     DocumentMapper documentMapper = mapperService.documentMapper("child");
                     if (documentMapper != null) {
-                        verified = documentMapper.parentFieldMapper().getChildJoinFieldType().fieldDataType().getLoading() == MappedFieldType.Loading.EAGER_GLOBAL_ORDINALS;
+                        verified = documentMapper.parentFieldMapper().fieldType().eagerGlobalOrdinals();
                     }
                 }
                 assertTrue(verified);
@@ -161,13 +155,13 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         client().prepareIndex("test", "dummy", "dummy").setSource("{}").get();
         refresh();
         response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0L));
     }
 
-    private XContentBuilder childMapping(MappedFieldType.Loading loading) throws IOException {
+    private XContentBuilder childMapping(boolean eagerGlobalOrds) throws IOException {
         return jsonBuilder().startObject().startObject("child").startObject("_parent")
                 .field("type", "parent")
-                .startObject("fielddata").field(MappedFieldType.Loading.KEY, loading).endObject()
+                .startObject("fielddata").field("eager_global_ordinals", eagerGlobalOrds).endObject()
                 .endObject().endObject().endObject();
     }
 

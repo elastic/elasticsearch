@@ -12,7 +12,7 @@ This plugin can be installed using the plugin manager:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin install lang-python
+sudo bin/elasticsearch-plugin install lang-python
 ----------------------------------------------------------------
 
 The plugin must be installed on every node in the cluster, and each node must
@@ -26,7 +26,7 @@ The plugin can be removed with the following command:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin remove lang-python
+sudo bin/elasticsearch-plugin remove lang-python
 ----------------------------------------------------------------
 
 The node must be stopped before removing the plugin.
@@ -47,13 +47,11 @@ Scripting is available in many APIs, but we will use an example with the
 WARNING: Enabling inline scripting on an unprotected Elasticsearch cluster is dangerous.
 See <<lang-python-file>> for a safer option.
 
-If you have enabled {ref}/modules-scripting.html#enable-dynamic-scripting[inline scripts],
+If you have enabled {ref}/modules-scripting-security.html#enable-dynamic-scripting[inline scripts],
 you can use Python as follows:
 
-[source,json]
+[source,js]
 ----
-DELETE test
-
 PUT test/doc/1
 {
   "num": 1.0
@@ -81,22 +79,20 @@ GET test/_search
   }
 }
 ----
-// AUTOSENSE
+// CONSOLE
 
-[[lang-python-indexed]]
+[[lang-python-stored]]
 [float]
-=== Indexed scripts
+=== Stored scripts
 
-WARNING: Enabling indexed scripting on an unprotected Elasticsearch cluster is dangerous.
+WARNING: Enabling stored scripts on an unprotected Elasticsearch cluster is dangerous.
 See <<lang-python-file>> for a safer option.
 
-If you have enabled {ref}/modules-scripting.html#enable-dynamic-scripting[indexed scripts],
+If you have enabled {ref}/modules-scripting-security.html#enable-dynamic-scripting[stored scripts],
 you can use Python as follows:
 
-[source,json]
+[source,js]
 ----
-DELETE test
-
 PUT test/doc/1
 {
   "num": 1.0
@@ -130,9 +126,9 @@ GET test/_search
 }
 
 ----
-// AUTOSENSE
+// CONSOLE
 
-<1> We index the script under the id `my_script`.
+<1> We store the script under the id `my_script`.
 <2> The function score query retrieves the script with id `my_script`.
 
 
@@ -141,10 +137,10 @@ GET test/_search
 === File scripts
 
 You can save your scripts to a file in the `config/scripts/` directory on
-every node. The `.python` file suffix identifies the script as containing
+every node. The `.py` file suffix identifies the script as containing
 Python:
 
-First, save this file as `config/scripts/my_script.python` on every node
+First, save this file as `config/scripts/my_script.py` on every node
 in the cluster:
 
 [source,python]
@@ -154,10 +150,8 @@ doc["num"].value * factor
 
 then use the script as follows:
 
-[source,json]
+[source,js]
 ----
-DELETE test
-
 PUT test/doc/1
 {
   "num": 1.0
@@ -184,9 +178,7 @@ GET test/_search
     }
   }
 }
-
 ----
-// AUTOSENSE
+// CONSOLE
 
-<1> The function score query retrieves the script with filename `my_script.python`.
-
+<1> The function score query retrieves the script with filename `my_script.py`.

@@ -24,53 +24,33 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.health.ClusterShardHealth.readClusterShardHealth;
+public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Writeable, ToXContent {
 
-public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streamable, ToXContent {
-
-    private String index;
-
-    private int numberOfShards;
-
-    private int numberOfReplicas;
-
-    private int activeShards = 0;
-
-    private int relocatingShards = 0;
-
-    private int initializingShards = 0;
-
-    private int unassignedShards = 0;
-
-    private int activePrimaryShards = 0;
-
-    private ClusterHealthStatus status = ClusterHealthStatus.RED;
-
+    private final String index;
+    private final int numberOfShards;
+    private final int numberOfReplicas;
+    private final int activeShards;
+    private final int relocatingShards;
+    private final int initializingShards;
+    private final int unassignedShards;
+    private final int activePrimaryShards;
+    private final ClusterHealthStatus status;
     private final Map<Integer, ClusterShardHealth> shards = new HashMap<>();
 
-    private List<String> validationFailures;
-
-    private ClusterIndexHealth() {
-    }
-
-    public ClusterIndexHealth(IndexMetaData indexMetaData, IndexRoutingTable indexRoutingTable) {
-        this.index = indexMetaData.getIndex();
+    public ClusterIndexHealth(final IndexMetaData indexMetaData, final IndexRoutingTable indexRoutingTable) {
+        this.index = indexMetaData.getIndex().getName();
         this.numberOfShards = indexMetaData.getNumberOfShards();
         this.numberOfReplicas = indexMetaData.getNumberOfReplicas();
-        this.validationFailures = indexRoutingTable.validate(indexMetaData);
 
         for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
             int shardId = shardRoutingTable.shardId().id();
@@ -78,37 +58,60 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, S
         }
 
         // update the index status
-        status = ClusterHealthStatus.GREEN;
-
+        ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
+        int computeActivePrimaryShards = 0;
+        int computeActiveShards = 0;
+        int computeRelocatingShards = 0;
+        int computeInitializingShards = 0;
+        int computeUnassignedShards = 0;
         for (ClusterShardHealth shardHealth : shards.values()) {
             if (shardHealth.isPrimaryActive()) {
-                activePrimaryShards++;
+                computeActivePrimaryShards++;
             }
-            activeShards += shardHealth.getActiveShards();
-            relocatingShards += shardHealth.getRelocatingShards();
-            initializingShards += shardHealth.getInitializingShards();
-            unassignedShards += shardHealth.getUnassignedShards();
+            computeActiveShards += shardHealth.getActiveShards();
+            computeRelocatingShards += shardHealth.getRelocatingShards();
+            computeInitializingShards += shardHealth.getInitializingShards();
+            computeUnassignedShards += shardHealth.getUnassignedShards();
 
             if (shardHealth.getStatus() == ClusterHealthStatus.RED) {
-                status = ClusterHealthStatus.RED;
-            } else if (shardHealth.getStatus() == ClusterHealthStatus.YELLOW && status != ClusterHealthStatus.RED) {
+                computeStatus = ClusterHealthStatus.RED;
+            } else if (shardHealth.getStatus() == ClusterHealthStatus.YELLOW && computeStatus != ClusterHealthStatus.RED) {
                 // do not override an existing red
-                status = ClusterHealthStatus.YELLOW;
+                computeStatus = ClusterHealthStatus.YELLOW;
             }
         }
-        if (!validationFailures.isEmpty()) {
-            status = ClusterHealthStatus.RED;
-        } else if (shards.isEmpty()) { // might be since none has been created yet (two phase index creation)
-            status = ClusterHealthStatus.RED;
+        if (shards.isEmpty()) { // might be since none has been created yet (two phase index creation)
+            computeStatus = ClusterHealthStatus.RED;
+        }
+
+        this.status = computeStatus;
+        this.activePrimaryShards = computeActivePrimaryShards;
+        this.activeShards = computeActiveShards;
+        this.relocatingShards = computeRelocatingShards;
+        this.initializingShards = computeInitializingShards;
+        this.unassignedShards = computeUnassignedShards;
+    }
+
+    public ClusterIndexHealth(final StreamInput in) throws IOException {
+        index = in.readString();
+        numberOfShards = in.readVInt();
+        numberOfReplicas = in.readVInt();
+        activePrimaryShards = in.readVInt();
+        activeShards = in.readVInt();
+        relocatingShards = in.readVInt();
+        initializingShards = in.readVInt();
+        unassignedShards = in.readVInt();
+        status = ClusterHealthStatus.fromValue(in.readByte());
+
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            ClusterShardHealth shardHealth = new ClusterShardHealth(in);
+            shards.put(shardHealth.getId(), shardHealth);
         }
     }
 
     public String getIndex() {
         return index;
-    }
-
-    public List<String> getValidationFailures() {
-        return this.validationFailures;
     }
 
     public int getNumberOfShards() {
@@ -152,34 +155,8 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, S
         return shards.values().iterator();
     }
 
-    public static ClusterIndexHealth readClusterIndexHealth(StreamInput in) throws IOException {
-        ClusterIndexHealth indexHealth = new ClusterIndexHealth();
-        indexHealth.readFrom(in);
-        return indexHealth;
-    }
-
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        index = in.readString();
-        numberOfShards = in.readVInt();
-        numberOfReplicas = in.readVInt();
-        activePrimaryShards = in.readVInt();
-        activeShards = in.readVInt();
-        relocatingShards = in.readVInt();
-        initializingShards = in.readVInt();
-        unassignedShards = in.readVInt();
-        status = ClusterHealthStatus.fromValue(in.readByte());
-
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            ClusterShardHealth shardHealth = readClusterShardHealth(in);
-            shards.put(shardHealth.getId(), shardHealth);
-        }
-        validationFailures = Arrays.asList(in.readStringArray());
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public void writeTo(final StreamOutput out) throws IOException {
         out.writeString(index);
         out.writeVInt(numberOfShards);
         out.writeVInt(numberOfReplicas);
@@ -194,58 +171,42 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, S
         for (ClusterShardHealth shardHealth : this) {
             shardHealth.writeTo(out);
         }
-
-        out.writeVInt(validationFailures.size());
-        for (String failure : validationFailures) {
-            out.writeString(failure);
-        }
     }
 
-    static final class Fields {
-        static final XContentBuilderString STATUS = new XContentBuilderString("status");
-        static final XContentBuilderString NUMBER_OF_SHARDS = new XContentBuilderString("number_of_shards");
-        static final XContentBuilderString NUMBER_OF_REPLICAS = new XContentBuilderString("number_of_replicas");
-        static final XContentBuilderString ACTIVE_PRIMARY_SHARDS = new XContentBuilderString("active_primary_shards");
-        static final XContentBuilderString ACTIVE_SHARDS = new XContentBuilderString("active_shards");
-        static final XContentBuilderString RELOCATING_SHARDS = new XContentBuilderString("relocating_shards");
-        static final XContentBuilderString INITIALIZING_SHARDS = new XContentBuilderString("initializing_shards");
-        static final XContentBuilderString UNASSIGNED_SHARDS = new XContentBuilderString("unassigned_shards");
-        static final XContentBuilderString VALIDATION_FAILURES = new XContentBuilderString("validation_failures");
-        static final XContentBuilderString SHARDS = new XContentBuilderString("shards");
-        static final XContentBuilderString PRIMARY_ACTIVE = new XContentBuilderString("primary_active");
-    }
+    private static final String STATUS = "status";
+    private static final String NUMBER_OF_SHARDS = "number_of_shards";
+    private static final String NUMBER_OF_REPLICAS = "number_of_replicas";
+    private static final String ACTIVE_PRIMARY_SHARDS = "active_primary_shards";
+    private static final String ACTIVE_SHARDS = "active_shards";
+    private static final String RELOCATING_SHARDS = "relocating_shards";
+    private static final String INITIALIZING_SHARDS = "initializing_shards";
+    private static final String UNASSIGNED_SHARDS = "unassigned_shards";
+    private static final String SHARDS = "shards";
+    private static final String PRIMARY_ACTIVE = "primary_active";
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(Fields.STATUS, getStatus().name().toLowerCase(Locale.ROOT));
-        builder.field(Fields.NUMBER_OF_SHARDS, getNumberOfShards());
-        builder.field(Fields.NUMBER_OF_REPLICAS, getNumberOfReplicas());
-        builder.field(Fields.ACTIVE_PRIMARY_SHARDS, getActivePrimaryShards());
-        builder.field(Fields.ACTIVE_SHARDS, getActiveShards());
-        builder.field(Fields.RELOCATING_SHARDS, getRelocatingShards());
-        builder.field(Fields.INITIALIZING_SHARDS, getInitializingShards());
-        builder.field(Fields.UNASSIGNED_SHARDS, getUnassignedShards());
-
-        if (!getValidationFailures().isEmpty()) {
-            builder.startArray(Fields.VALIDATION_FAILURES);
-            for (String validationFailure : getValidationFailures()) {
-                builder.value(validationFailure);
-            }
-            builder.endArray();
-        }
+    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+        builder.field(STATUS, getStatus().name().toLowerCase(Locale.ROOT));
+        builder.field(NUMBER_OF_SHARDS, getNumberOfShards());
+        builder.field(NUMBER_OF_REPLICAS, getNumberOfReplicas());
+        builder.field(ACTIVE_PRIMARY_SHARDS, getActivePrimaryShards());
+        builder.field(ACTIVE_SHARDS, getActiveShards());
+        builder.field(RELOCATING_SHARDS, getRelocatingShards());
+        builder.field(INITIALIZING_SHARDS, getInitializingShards());
+        builder.field(UNASSIGNED_SHARDS, getUnassignedShards());
 
         if ("shards".equals(params.param("level", "indices"))) {
-            builder.startObject(Fields.SHARDS);
+            builder.startObject(SHARDS);
 
             for (ClusterShardHealth shardHealth : shards.values()) {
                 builder.startObject(Integer.toString(shardHealth.getId()));
 
-                builder.field(Fields.STATUS, shardHealth.getStatus().name().toLowerCase(Locale.ROOT));
-                builder.field(Fields.PRIMARY_ACTIVE, shardHealth.isPrimaryActive());
-                builder.field(Fields.ACTIVE_SHARDS, shardHealth.getActiveShards());
-                builder.field(Fields.RELOCATING_SHARDS, shardHealth.getRelocatingShards());
-                builder.field(Fields.INITIALIZING_SHARDS, shardHealth.getInitializingShards());
-                builder.field(Fields.UNASSIGNED_SHARDS, shardHealth.getUnassignedShards());
+                builder.field(STATUS, shardHealth.getStatus().name().toLowerCase(Locale.ROOT));
+                builder.field(PRIMARY_ACTIVE, shardHealth.isPrimaryActive());
+                builder.field(ACTIVE_SHARDS, shardHealth.getActiveShards());
+                builder.field(RELOCATING_SHARDS, shardHealth.getRelocatingShards());
+                builder.field(INITIALIZING_SHARDS, shardHealth.getInitializingShards());
+                builder.field(UNASSIGNED_SHARDS, shardHealth.getUnassignedShards());
 
                 builder.endObject();
             }

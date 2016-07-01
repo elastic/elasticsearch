@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
@@ -58,13 +57,13 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        snapshotInfo = SnapshotInfo.readOptionalSnapshotInfo(in);
+        snapshotInfo = in.readOptionalWriteable(SnapshotInfo::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalStreamable(snapshotInfo);
+        out.writeOptionalWriteable(snapshotInfo);
     }
 
     /**
@@ -82,18 +81,13 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
         return snapshotInfo.status();
     }
 
-    static final class Fields {
-        static final XContentBuilderString SNAPSHOT = new XContentBuilderString("snapshot");
-        static final XContentBuilderString ACCEPTED = new XContentBuilderString("accepted");
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (snapshotInfo != null) {
-            builder.field(Fields.SNAPSHOT);
+            builder.field("snapshot");
             snapshotInfo.toXContent(builder, params);
         } else {
-            builder.field(Fields.ACCEPTED, true);
+            builder.field("accepted", true);
         }
         return builder;
     }

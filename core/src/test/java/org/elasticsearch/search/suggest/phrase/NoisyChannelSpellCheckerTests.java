@@ -59,7 +59,7 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
     private final BytesRef preTag = new BytesRef("<em>");
     private final BytesRef postTag = new BytesRef("</em>");
 
-    public void testMarvelHeros() throws IOException {
+    public void testNgram() throws IOException {
         RAMDirectory dir = new RAMDirectory();
         Map<String, Analyzer> mapping = new HashMap<>();
         mapping.put("body_ngram", new Analyzer() {
@@ -87,16 +87,30 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
 
         IndexWriterConfig conf = new IndexWriterConfig(wrapper);
         IndexWriter writer = new IndexWriter(dir, conf);
-        BufferedReader reader = new BufferedReader(new InputStreamReader(NoisyChannelSpellCheckerTests.class.getResourceAsStream("/config/names.txt"), StandardCharsets.UTF_8));
-        String line = null;
-        while ((line = reader.readLine()) != null) {
+        String[] strings = new String[]{
+            "Xorr the God-Jewel",
+            "Grog the God-Crusher",
+            "Xorn",
+            "Walter Newell",
+            "Wanda Maximoff",
+            "Captain America",
+            "American Ace",
+            "USA Hero",
+            "Wundarr the Aquarian",
+            "Will o' the Wisp",
+            "Xemnu the Titan",
+            "Fantastic Four",
+            "Quasar",
+            "Quasar II"
+        };
+        for (String line : strings) {
             Document doc = new Document();
             doc.add(new Field("body", line, TextField.TYPE_NOT_STORED));
             doc.add(new Field("body_ngram", line, TextField.TYPE_NOT_STORED));
             writer.addDocument(doc);
         }
 
-        DirectoryReader ir = DirectoryReader.open(writer, false);
+        DirectoryReader ir = DirectoryReader.open(writer);
         WordScorer wordScorer = new LaplaceScorer(ir, MultiFields.getTerms(ir, "body_ngram"), "body_ngram", 0.95d, new BytesRef(" "), 0.5f);
 
         NoisyChannelSpellChecker suggester = new NoisyChannelSpellChecker();
@@ -161,7 +175,7 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
                 TokenFilter filter = new LowerCaseFilter(t);
                 try {
                     SolrSynonymParser parser = new SolrSynonymParser(true, false, new WhitespaceAnalyzer());
-                    parser.parse(new StringReader("usa => usa, america, american\nursa => usa, america, american"));
+                    parser.parse(new StringReader("usa => usa, america, american"));
                     filter = new SynonymFilter(filter, parser.build(), true);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
@@ -191,7 +205,7 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
         assertThat(corrections[0].join(space, preTag, postTag).utf8ToString(), equalTo("captain <em>america</em>"));
     }
 
-    public void testMarvelHerosMultiGenerator() throws IOException {
+    public void testMultiGenerator() throws IOException {
         RAMDirectory dir = new RAMDirectory();
         Map<String, Analyzer> mapping = new HashMap<>();
         mapping.put("body_ngram", new Analyzer() {
@@ -228,9 +242,22 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
 
         IndexWriterConfig conf = new IndexWriterConfig(wrapper);
         IndexWriter writer = new IndexWriter(dir, conf);
-        BufferedReader reader = new BufferedReader(new InputStreamReader(NoisyChannelSpellCheckerTests.class.getResourceAsStream("/config/names.txt"), StandardCharsets.UTF_8));
-        String line = null;
-        while ((line = reader.readLine()) != null) {
+        String[] strings = new String[]{
+            "Xorr the God-Jewel",
+            "Grog the God-Crusher",
+            "Xorn",
+            "Walter Newell",
+            "Wanda Maximoff",
+            "Captain America",
+            "American Ace",
+            "Wundarr the Aquarian",
+            "Will o' the Wisp",
+            "Xemnu the Titan",
+            "Fantastic Four",
+            "Quasar",
+            "Quasar II"
+        };
+        for (String line : strings) {
             Document doc = new Document();
             doc.add(new Field("body", line, TextField.TYPE_NOT_STORED));
             doc.add(new Field("body_reverse", line, TextField.TYPE_NOT_STORED));
@@ -238,7 +265,7 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
             writer.addDocument(doc);
         }
 
-        DirectoryReader ir = DirectoryReader.open(writer, false);
+        DirectoryReader ir = DirectoryReader.open(writer);
         LaplaceScorer wordScorer = new LaplaceScorer(ir, MultiFields.getTerms(ir, "body_ngram"), "body_ngram", 0.95d, new BytesRef(" "), 0.5f);
         NoisyChannelSpellChecker suggester = new NoisyChannelSpellChecker();
         DirectSpellChecker spellchecker = new DirectSpellChecker();
@@ -284,7 +311,7 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
         assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("quasar ii"));
     }
 
-    public void testMarvelHerosTrigram() throws IOException {
+    public void testTrigram() throws IOException {
         RAMDirectory dir = new RAMDirectory();
         Map<String, Analyzer> mapping = new HashMap<>();
         mapping.put("body_ngram", new Analyzer() {
@@ -312,17 +339,31 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
 
         IndexWriterConfig conf = new IndexWriterConfig(wrapper);
         IndexWriter writer = new IndexWriter(dir, conf);
-        BufferedReader reader = new BufferedReader(new InputStreamReader(NoisyChannelSpellCheckerTests.class.getResourceAsStream("/config/names.txt"), StandardCharsets.UTF_8));
-        String line = null;
-        while ((line = reader.readLine()) != null) {
+        String[] strings = new String[]{
+            "Xorr the God-Jewel",
+            "Grog the God-Crusher",
+            "Xorn",
+            "Walter Newell",
+            "Wanda Maximoff",
+            "Captain America",
+            "American Ace",
+            "USA Hero",
+            "Wundarr the Aquarian",
+            "Will o' the Wisp",
+            "Xemnu the Titan",
+            "Fantastic Four",
+            "Quasar",
+            "Quasar II"
+        };
+        for (String line : strings) {
             Document doc = new Document();
             doc.add(new Field("body", line, TextField.TYPE_NOT_STORED));
             doc.add(new Field("body_ngram", line, TextField.TYPE_NOT_STORED));
             writer.addDocument(doc);
         }
 
-        DirectoryReader ir = DirectoryReader.open(writer, false);
-        WordScorer wordScorer = new LinearInterpoatingScorer(ir, MultiFields.getTerms(ir, "body_ngram"), "body_ngram", 0.85d, new BytesRef(" "), 0.5, 0.4, 0.1);
+        DirectoryReader ir = DirectoryReader.open(writer);
+        WordScorer wordScorer = new LinearInterpolatingScorer(ir, MultiFields.getTerms(ir, "body_ngram"), "body_ngram", 0.85d, new BytesRef(" "), 0.5, 0.4, 0.1);
 
         NoisyChannelSpellChecker suggester = new NoisyChannelSpellChecker();
         DirectSpellChecker spellchecker = new DirectSpellChecker();
@@ -336,7 +377,7 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
         assertThat(corrections.length, equalTo(0));
 //        assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("american ape"));
 
-        wordScorer = new LinearInterpoatingScorer(ir, MultiFields.getTerms(ir, "body_ngram"), "body_ngram", 0.85d, new BytesRef(" "), 0.5, 0.4, 0.1);
+        wordScorer = new LinearInterpolatingScorer(ir, MultiFields.getTerms(ir, "body_ngram"), "body_ngram", 0.85d, new BytesRef(" "), 0.5, 0.4, 0.1);
         corrections = suggester.getCorrections(wrapper, new BytesRef("Xor the Got-Jewel"), generator, 0.5f, 4, ir, "body", wordScorer, 0, 3).corrections;
         assertThat(corrections.length, equalTo(4));
         assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the god jewel"));
@@ -370,7 +411,7 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
                 TokenFilter filter = new LowerCaseFilter(t);
                 try {
                     SolrSynonymParser parser = new SolrSynonymParser(true, false, new WhitespaceAnalyzer());
-                    parser.parse(new StringReader("usa => usa, america, american\nursa => usa, america, american"));
+                    parser.parse(new StringReader("usa => usa, america, american"));
                     filter = new SynonymFilter(filter, parser.build(), true);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
@@ -383,7 +424,7 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
         spellchecker.setMinPrefix(1);
         spellchecker.setMinQueryLength(1);
         suggester = new NoisyChannelSpellChecker(0.95);
-        wordScorer = new LinearInterpoatingScorer(ir, MultiFields.getTerms(ir, "body_ngram"), "body_ngram", 0.95d, new BytesRef(" "),  0.5, 0.4, 0.1);
+        wordScorer = new LinearInterpolatingScorer(ir, MultiFields.getTerms(ir, "body_ngram"), "body_ngram", 0.95d, new BytesRef(" "),  0.5, 0.4, 0.1);
         corrections = suggester.getCorrections(analyzer, new BytesRef("captian usa"), generator, 2, 4, ir, "body", wordScorer, 1, 3).corrections;
         assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("captain america"));
 

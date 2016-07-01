@@ -23,12 +23,13 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class SimilarityIT  extends ESIntegTestCase {
+public class SimilarityIT extends ESIntegTestCase {
     public void testCustomBM25Similarity() throws Exception {
         try {
             client().admin().indices().prepareDelete("test").execute().actionGet();
@@ -42,32 +43,33 @@ public class SimilarityIT  extends ESIntegTestCase {
                             .startObject("properties")
                                 .startObject("field1")
                                     .field("similarity", "custom")
-                                    .field("type", "string")
+                                    .field("type", "text")
                                 .endObject()
                                 .startObject("field2")
-                                    .field("similarity", "default")
-                                    .field("type", "string")
+                                    .field("similarity", "classic")
+                                    .field("type", "text")
+                                .endObject()
                             .endObject()
                         .endObject()
                     .endObject())
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
                         .put("similarity.custom.type", "BM25")
                         .put("similarity.custom.k1", 2.0f)
-                        .put("similarity.custom.b", 1.5f)
+                        .put("similarity.custom.b", 0.5f)
                 ).execute().actionGet();
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumped over the lazy dog",
                                                             "field2", "the quick brown fox jumped over the lazy dog")
-                .setRefresh(true).execute().actionGet();
+                .setRefreshPolicy(IMMEDIATE).execute().actionGet();
 
         SearchResponse bm25SearchResponse = client().prepareSearch().setQuery(matchQuery("field1", "quick brown fox")).execute().actionGet();
-        assertThat(bm25SearchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(bm25SearchResponse.getHits().totalHits(), equalTo(1L));
         float bm25Score = bm25SearchResponse.getHits().hits()[0].score();
 
         SearchResponse defaultSearchResponse = client().prepareSearch().setQuery(matchQuery("field2", "quick brown fox")).execute().actionGet();
-        assertThat(defaultSearchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(defaultSearchResponse.getHits().totalHits(), equalTo(1L));
         float defaultScore = defaultSearchResponse.getHits().hits()[0].score();
 
         assertThat(bm25Score, not(equalTo(defaultScore)));

@@ -22,7 +22,6 @@ package org.elasticsearch.script;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -40,34 +39,28 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
 
     private final Map<String, NativeScriptFactory> scripts;
 
-    @Inject
     public NativeScriptEngineService(Settings settings, Map<String, NativeScriptFactory> scripts) {
         super(settings);
         this.scripts = unmodifiableMap(scripts);
     }
 
     @Override
-    public String[] types() {
-        return new String[]{NAME};
+    public String getType() {
+        return NAME;
     }
 
     @Override
-    public String[] extensions() {
-        return new String[0];
+    public String getExtension() {
+        return ""; // Native scripts have no extensions
     }
 
     @Override
-    public boolean sandboxed() {
-        return false;
-    }
-
-    @Override
-    public Object compile(String script) {
-        NativeScriptFactory scriptFactory = scripts.get(script);
+    public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
+        NativeScriptFactory scriptFactory = scripts.get(scriptSource);
         if (scriptFactory != null) {
             return scriptFactory;
         }
-        throw new IllegalArgumentException("Native script [" + script + "] not found");
+        throw new IllegalArgumentException("Native script [" + scriptSource + "] not found");
     }
 
     @Override
@@ -98,7 +91,7 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public void scriptRemoved(CompiledScript script) {
-        // Nothing to do here
+    public boolean isInlineScriptEnabled() {
+        return true;
     }
 }

@@ -23,7 +23,7 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.10.33'
+  'aws': '1.10.69'
 ]
 
 dependencies {
@@ -42,9 +42,16 @@ dependencyLicenses {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
-compileJava.options.compilerArgs << '-Xlint:-rawtypes'
-
 test {
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name 
 }
+
+thirdPartyAudit.excludes = [
+  // classes are missing
+  'javax.servlet.ServletContextEvent', 
+  'javax.servlet.ServletContextListener', 
+  'org.apache.avalon.framework.logger.Logger', 
+  'org.apache.log.Hierarchy', 
+  'org.apache.log.Logger',
+]

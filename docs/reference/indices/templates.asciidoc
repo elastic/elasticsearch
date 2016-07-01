@@ -2,26 +2,42 @@
 == Index Templates
 
 Index templates allow you to define templates that will automatically be
-applied to new indices created. The templates include both settings and
-mappings, and a simple pattern template that controls if the template
-will be applied to the index created. For example:
+applied when new indices are created. The templates include both settings and
+mappings, and a simple pattern template that controls whether the template
+should be applied to the new index.
+
+NOTE: Templates are only applied at index creation time.  Changing a template
+will have no impact on existing indices.
+
+For example:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/_template/template_1 -d '
+PUT _template/template_1
 {
-    "template" : "te*",
-    "settings" : {
-        "number_of_shards" : 1
-    },
-    "mappings" : {
-        "type1" : {
-            "_source" : { "enabled" : false }
+  "template": "te*",
+  "settings": {
+    "number_of_shards": 1
+  },
+  "mappings": {
+    "type1": {
+      "_source": {
+        "enabled": false
+      },
+      "properties": {
+        "host_name": {
+          "type": "keyword"
+        },
+        "created_at": {
+          "type": "date",
+          "format": "EEE MMM dd HH:mm:ss Z YYYY"
         }
+      }
     }
+  }
 }
-'
 --------------------------------------------------
+// CONSOLE
 
 Defines a template named template_1, with a template pattern of `te*`.
 The settings and mappings will be applied to any index name that matches

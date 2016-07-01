@@ -22,28 +22,26 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.test.ESTestCase.createAnalysisService;
 
 /**
  */
 public class CharFilterTests extends ESTokenStreamTestCase {
     public void testMappingCharFilter() throws Exception {
-        Index index = new Index("test");
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("index.analysis.char_filter.my_mapping.type", "mapping")
                 .putArray("index.analysis.char_filter.my_mapping.mappings", "ph=>f", "qu=>q")
                 .put("index.analysis.analyzer.custom_with_char_filter.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.custom_with_char_filter.char_filter", "my_mapping")
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
-        AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
+        AnalysisService analysisService = createAnalysisService(idxSettings, settings);
         NamedAnalyzer analyzer1 = analysisService.analyzer("custom_with_char_filter");
 
         assertTokenStreamContents(analyzer1.tokenStream("test", "jeff quit phish"), new String[]{"jeff", "qit", "fish"});
@@ -53,15 +51,14 @@ public class CharFilterTests extends ESTokenStreamTestCase {
     }
 
     public void testHtmlStripCharFilter() throws Exception {
-        Index index = new Index("test");
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("index.analysis.analyzer.custom_with_char_filter.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.custom_with_char_filter.char_filter", "html_strip")
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
-        AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
+        AnalysisService analysisService = createAnalysisService(idxSettings, settings);
 
         NamedAnalyzer analyzer1 = analysisService.analyzer("custom_with_char_filter");
 
@@ -69,5 +66,23 @@ public class CharFilterTests extends ESTokenStreamTestCase {
 
         // Repeat one more time to make sure that char filter is reinitialized correctly
         assertTokenStreamContents(analyzer1.tokenStream("test", "<b>hello</b>!"), new String[]{"hello"});
+    }
+
+    public void testPatternReplaceCharFilter() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("index.analysis.char_filter.my_mapping.type", "pattern_replace")
+            .put("index.analysis.char_filter.my_mapping.pattern", "ab*")
+            .put("index.analysis.char_filter.my_mapping.replacement", "oo")
+            .put("index.analysis.char_filter.my_mapping.flags", "CASE_INSENSITIVE")
+            .put("index.analysis.analyzer.custom_with_char_filter.tokenizer", "standard")
+            .putArray("index.analysis.analyzer.custom_with_char_filter.char_filter", "my_mapping")
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
+        AnalysisService analysisService = createAnalysisService(idxSettings, settings);
+        NamedAnalyzer analyzer1 = analysisService.analyzer("custom_with_char_filter");
+
+        assertTokenStreamContents(analyzer1.tokenStream("test", "faBBbBB aBbbbBf"), new String[]{"foo", "oof"});
     }
 }

@@ -7,12 +7,14 @@ into the "twitter" index, under a type called "tweet" with an id of 1:
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'http://localhost:9200/twitter/tweet/1' -d '{
+PUT twitter/tweet/1
+{
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
     "message" : "trying out Elasticsearch"
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 The result of the above index operation is:
 
@@ -20,19 +22,22 @@ The result of the above index operation is:
 --------------------------------------------------
 {
     "_shards" : {
-        "total" : 10,
+        "total" : 2,
         "failed" : 0,
-        "successful" : 10
+        "successful" : 2
     },
     "_index" : "twitter",
     "_type" : "tweet",
     "_id" : "1",
     "_version" : 1,
-    "created" : true
+    "created" : true,
+    "forced_refresh": false
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"successful" : 2/"successful" : 1/]
 
 The `_shards` header provides information about the replication process of the index operation.
+
 * `total` - Indicates to how many shard copies (primary and replica shards) the index operation should be executed on.
 * `successful`- Indicates the number of shard copies the index operation succeeded on.
 * `failures` - An array that contains replication related errors in the case an index operation failed on a replica shard.
@@ -89,10 +94,13 @@ meantime (when reading in order to update, it is recommended to set
 
 [source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/twitter/tweet/1?version=2' -d '{
+PUT twitter/tweet/1?version=2
+{
     "message" : "elasticsearch now has versioning support, double cool!"
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[catch: conflict]
 
 *NOTE:* versioning is completely real time, and is not affected by the
 near real time aspects of search operations. If no version is provided,
@@ -110,6 +118,14 @@ version of the currently stored document. If true, the document will be
 indexed and the new version number used. If the value provided is less
 than or equal to the stored document's version number, a version
 conflict will occur and the index operation will fail.
+
+WARNING: External versioning supports the value 0 as a valid version number.
+This allows the version to be in sync with an external versioning system
+where version numbers start from zero instead of one. It has the side effect
+that documents with version number equal to zero cannot neither be updated
+using the <<docs-update-by-query,Update-By-Query API>> nor be deleted
+using the <<docs-delete-by-query,Delete By Query API>> as long as their
+version number is equal to zero.
 
 A nice side effect is that there is no need to maintain strict ordering
 of async indexing operations executed as a result of changes to a source
@@ -159,23 +175,27 @@ Here is an example of using the `op_type` parameter:
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'http://localhost:9200/twitter/tweet/1?op_type=create' -d '{
+PUT twitter/tweet/1?op_type=create
+{
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
     "message" : "trying out Elasticsearch"
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 Another option to specify `create` is to use the following uri:
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'http://localhost:9200/twitter/tweet/1/_create' -d '{
+PUT twitter/tweet/1/_create
+{
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
     "message" : "trying out Elasticsearch"
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 [float]
 === Automatic ID Generation
@@ -187,25 +207,34 @@ will automatically be set to `create`. Here is an example (note the
 
 [source,js]
 --------------------------------------------------
-$ curl -XPOST 'http://localhost:9200/twitter/tweet/' -d '{
+POST twitter/tweet/
+{
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
     "message" : "trying out Elasticsearch"
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 The result of the above index operation is:
 
 [source,js]
 --------------------------------------------------
 {
+    "_shards" : {
+        "total" : 2,
+        "failed" : 0,
+        "successful" : 2
+    },
     "_index" : "twitter",
     "_type" : "tweet",
     "_id" : "6a8ca01c-7896-48e9-81cc-9f70661fcb32",
     "_version" : 1,
-    "created" : true
+    "created" : true,
+    "forced_refresh": false
 }
 --------------------------------------------------
+// TESTRESPONSE[s/6a8ca01c-7896-48e9-81cc-9f70661fcb32/$body._id/ s/"successful" : 2/"successful" : 1/]
 
 [float]
 [[index-routing]]
@@ -218,12 +247,14 @@ on a per-operation basis using the `routing` parameter. For example:
 
 [source,js]
 --------------------------------------------------
-$ curl -XPOST 'http://localhost:9200/twitter/tweet?routing=kimchy' -d '{
+POST twitter/tweet?routing=kimchy
+{
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
     "message" : "trying out Elasticsearch"
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 In the example above, the "tweet" document is routed to a shard based on
 the `routing` parameter provided: "kimchy".
@@ -244,77 +275,28 @@ For example:
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT localhost:9200/blogs/blog_tag/1122?parent=1111 -d '{
+PUT blogs
+{
+  "mappings": {
+    "tag_parent": {},
+    "blog_tag": {
+      "_parent": {
+        "type": "tag_parent"
+      }
+    }
+  }
+}
+
+PUT blogs/blog_tag/1122?parent=1111
+{
     "tag" : "something"
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 When indexing a child document, the routing value is automatically set
 to be the same as its parent, unless the routing value is explicitly
 specified using the `routing` parameter.
-
-[float]
-[[index-timestamp]]
-=== Timestamp
-
-A document can be indexed with a `timestamp` associated with it. The
-`timestamp` value of a document can be set using the `timestamp`
-parameter. For example:
-
-[source,js]
---------------------------------------------------
-$ curl -XPUT localhost:9200/twitter/tweet/1?timestamp=2009-11-15T14%3A12%3A12 -d '{
-    "user" : "kimchy",
-    "message" : "trying out Elasticsearch"
-}'
---------------------------------------------------
-
-If the `timestamp` value is not provided externally or in the `_source`,
-the `timestamp` will be automatically set to the date the document was
-processed by the indexing chain. More information can be found on the
-<<mapping-timestamp-field,_timestamp mapping
-page>>.
-
-[float]
-[[index-ttl]]
-=== TTL
-
-
-A document can be indexed with a `ttl` (time to live) associated with
-it. Expired documents will be expunged automatically. The expiration
-date that will be set for a document with a provided `ttl` is relative
-to the `timestamp` of the document, meaning it can be based on the time
-of indexing or on any time provided. The provided `ttl` must be strictly
-positive and can be a number (in milliseconds) or any valid time value
-as shown in the following examples:
-
-[source,js]
---------------------------------------------------
-curl -XPUT 'http://localhost:9200/twitter/tweet/1?ttl=86400000' -d '{
-    "user": "kimchy",
-    "message": "Trying out elasticsearch, so far so good?"
-}'
---------------------------------------------------
-
-[source,js]
---------------------------------------------------
-curl -XPUT 'http://localhost:9200/twitter/tweet/1?ttl=1d' -d '{
-    "user": "kimchy",
-    "message": "Trying out elasticsearch, so far so good?"
-}'
---------------------------------------------------
-
-[source,js]
---------------------------------------------------
-curl -XPUT 'http://localhost:9200/twitter/tweet/1' -d '{
-    "_ttl": "1d",
-    "user": "kimchy",
-    "message": "Trying out elasticsearch, so far so good?"
-}'
---------------------------------------------------
-
-More information can be found on the
-<<mapping-ttl-field,_ttl mapping page>>.
 
 [float]
 [[index-distributed]]
@@ -349,13 +331,8 @@ replication group have indexed the document (sync replication).
 [[index-refresh]]
 === Refresh
 
-To refresh the shard (not the whole index) immediately after the operation
-occurs, so that the document appears in search results immediately, the
-`refresh` parameter can be set to `true`. Setting this option to `true` should
-*ONLY* be done after careful thought and verification that it does not lead to
-poor performance, both from an indexing and a search standpoint. Note, getting
-a document using the get API is completely realtime and doesn't require a
-refresh.
+Control when the changes made by this request are visible to search. See
+<<docs-refresh>>.
 
 [float]
 [[index-noop]]
@@ -387,9 +364,11 @@ to 5 minutes:
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'http://localhost:9200/twitter/tweet/1?timeout=5m' -d '{
+PUT twitter/tweet/1?timeout=5m
+{
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",
     "message" : "trying out Elasticsearch"
-}'
+}
 --------------------------------------------------
+// CONSOLE

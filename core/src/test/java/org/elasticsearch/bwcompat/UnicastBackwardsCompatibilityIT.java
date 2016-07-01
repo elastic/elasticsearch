@@ -22,6 +22,7 @@ package org.elasticsearch.bwcompat;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESBackcompatTestCase;
+import org.elasticsearch.transport.TransportSettings;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -30,16 +31,16 @@ public class UnicastBackwardsCompatibilityIT extends ESBackcompatTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("transport.tcp.port", 9380 + nodeOrdinal)
+                .put(TransportSettings.PORT.getKey(), 9380 + nodeOrdinal)
                 .put("discovery.zen.ping.unicast.hosts", "localhost:9380,localhost:9381,localhost:9390,localhost:9391")
                 .build();
     }
 
     @Override
     protected Settings externalNodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder()
+        return Settings.builder()
                 .put(super.externalNodeSettings(nodeOrdinal))
-                .put("transport.tcp.port", 9390 + nodeOrdinal)
+                .put(TransportSettings.PORT.getKey(), 9390 + nodeOrdinal)
                 .put("discovery.zen.ping.unicast.hosts", "localhost:9380,localhost:9381,localhost:9390,localhost:9391")
                 .build();
     }

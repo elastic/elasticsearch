@@ -23,37 +23,32 @@ package org.elasticsearch.gradle.test
 import com.carrotsearch.gradle.junit4.RandomizedTestingPlugin
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.plugins.JavaBasePlugin
 
 /** Configures the build to have a rest integration test.  */
-class StandaloneTestBasePlugin implements Plugin<Project> {
+public class StandaloneTestBasePlugin implements Plugin<Project> {
 
     @Override
-    void apply(Project project) {
+    public void apply(Project project) {
         project.pluginManager.apply(JavaBasePlugin)
         project.pluginManager.apply(RandomizedTestingPlugin)
 
         BuildPlugin.globalBuildInfo(project)
         BuildPlugin.configureRepositories(project)
 
-        // remove some unnecessary tasks for a qa test
-        project.tasks.removeAll { it.name in ['assemble', 'buildDependents'] }
-
         // only setup tests to build
-        project.sourceSets {
-            test
-        }
-        project.dependencies {
-            testCompile "org.elasticsearch:test-framework:${VersionProperties.elasticsearch}"
-        }
+        project.sourceSets.create('test')
+        project.dependencies.add('testCompile', "org.elasticsearch.test:framework:${VersionProperties.elasticsearch}")
 
-        project.eclipse {
-            classpath {
-                sourceSets = [project.sourceSets.test]
-                plusConfigurations = [project.configurations.testRuntime]
-            }
-        }
+        project.eclipse.classpath.sourceSets = [project.sourceSets.test]
+        project.eclipse.classpath.plusConfigurations = [project.configurations.testRuntime]
+        project.idea.module.testSourceDirs += project.sourceSets.test.java.srcDirs
+        project.idea.module.scopes['TEST'] = [plus: [project.configurations.testRuntime]]
+
+        PrecommitTasks.create(project, false)
+        project.check.dependsOn(project.precommit)
     }
 }

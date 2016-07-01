@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  *
@@ -37,35 +39,25 @@ public class NodesStatsResponse extends BaseNodesResponse<NodeStats> implements 
     NodesStatsResponse() {
     }
 
-    public NodesStatsResponse(ClusterName clusterName, NodeStats[] nodes) {
-        super(clusterName, nodes);
+    public NodesStatsResponse(ClusterName clusterName, List<NodeStats> nodes, List<FailedNodeException> failures) {
+        super(clusterName, nodes, failures);
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        nodes = new NodeStats[in.readVInt()];
-        for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = NodeStats.readNodeStats(in);
-        }
+    protected List<NodeStats> readNodesFrom(StreamInput in) throws IOException {
+        return in.readList(NodeStats::readNodeStats);
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVInt(nodes.length);
-        for (NodeStats node : nodes) {
-            node.writeTo(out);
-        }
+    protected void writeNodesTo(StreamOutput out, List<NodeStats> nodes) throws IOException {
+        out.writeStreamableList(nodes);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("cluster_name", getClusterName().value());
-
         builder.startObject("nodes");
-        for (NodeStats nodeStats : this) {
-            builder.startObject(nodeStats.getNode().id(), XContentBuilder.FieldCaseConversion.NONE);
+        for (NodeStats nodeStats : getNodes()) {
+            builder.startObject(nodeStats.getNode().getId());
             builder.field("timestamp", nodeStats.getTimestamp());
             nodeStats.toXContent(builder, params);
 

@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.IntObjectHashMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
@@ -34,7 +33,6 @@ import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.Map;
 
-import static org.elasticsearch.search.SearchShardTarget.readSearchShardTarget;
 import static org.elasticsearch.search.internal.InternalSearchHit.readSearchHit;
 
 /**
@@ -164,9 +162,9 @@ public class InternalSearchHits implements SearchHits {
     }
 
     static final class Fields {
-        static final XContentBuilderString HITS = new XContentBuilderString("hits");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString MAX_SCORE = new XContentBuilderString("max_score");
+        static final String HITS = "hits";
+        static final String TOTAL = "total";
+        static final String MAX_SCORE = "max_score";
     }
 
     @Override
@@ -216,7 +214,7 @@ public class InternalSearchHits implements SearchHits {
                 // read the lookup table first
                 int lookupSize = in.readVInt();
                 for (int i = 0; i < lookupSize; i++) {
-                    context.handleShardLookup().put(in.readVInt(), readSearchShardTarget(in));
+                    context.handleShardLookup().put(in.readVInt(), new SearchShardTarget(in));
                 }
             }
 

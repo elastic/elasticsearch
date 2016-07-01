@@ -18,62 +18,148 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.BucketUtils;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsParametersParser.OrderElement;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
  */
-public class TermsParser implements Aggregator.Parser {
-
+public class TermsParser extends AbstractTermsParser {
     @Override
-    public String type() {
-        return StringTerms.TYPE.name();
+    protected TermsAggregationBuilder doCreateFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                      ValueType targetValueType, BucketCountThresholds bucketCountThresholds,
+                                                      SubAggCollectionMode collectMode, String executionHint,
+                                                      IncludeExclude incExc, Map<ParseField, Object> otherOptions) {
+        TermsAggregationBuilder factory = new TermsAggregationBuilder(aggregationName, targetValueType);
+        @SuppressWarnings("unchecked")
+        List<OrderElement> orderElements = (List<OrderElement>) otherOptions.get(TermsAggregationBuilder.ORDER_FIELD);
+        if (orderElements != null) {
+            List<Terms.Order> orders = new ArrayList<>(orderElements.size());
+            for (OrderElement orderElement : orderElements) {
+                orders.add(resolveOrder(orderElement.key(), orderElement.asc()));
+            }
+            factory.order(orders);
+        }
+        if (bucketCountThresholds != null) {
+            factory.bucketCountThresholds(bucketCountThresholds);
+        }
+        if (collectMode != null) {
+            factory.collectMode(collectMode);
+        }
+        if (executionHint != null) {
+            factory.executionHint(executionHint);
+        }
+        if (incExc != null) {
+            factory.includeExclude(incExc);
+        }
+        Boolean showTermDocCountError = (Boolean) otherOptions.get(TermsAggregationBuilder.SHOW_TERM_DOC_COUNT_ERROR);
+        if (showTermDocCountError != null) {
+            factory.showTermDocCountError(showTermDocCountError);
+        }
+        return factory;
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
-        TermsParametersParser aggParser = new TermsParametersParser();
-        ValuesSourceParser vsParser = ValuesSourceParser.any(aggregationName, StringTerms.TYPE, context).scriptable(true).formattable(true).build();
-        IncludeExclude.Parser incExcParser = new IncludeExclude.Parser();
-        aggParser.parse(aggregationName, parser, context, vsParser, incExcParser);
+    public boolean parseSpecial(String aggregationName, XContentParser parser, ParseFieldMatcher parseFieldMatcher, Token token,
+            String currentFieldName, Map<ParseField, Object> otherOptions) throws IOException {
+        if (token == XContentParser.Token.START_OBJECT) {
+            if (parseFieldMatcher.match(currentFieldName, TermsAggregationBuilder.ORDER_FIELD)) {
+                otherOptions.put(TermsAggregationBuilder.ORDER_FIELD, Collections.singletonList(parseOrderParam(aggregationName, parser)));
+                return true;
+            }
+        } else if (token == XContentParser.Token.START_ARRAY) {
+            if (parseFieldMatcher.match(currentFieldName, TermsAggregationBuilder.ORDER_FIELD)) {
+                List<OrderElement> orderElements = new ArrayList<>();
+                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    if (token == XContentParser.Token.START_OBJECT) {
+                        OrderElement orderParam = parseOrderParam(aggregationName, parser);
+                        orderElements.add(orderParam);
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(),
+                                "Order elements must be of type object in [" + aggregationName + "] found token of type [" + token + "].");
+                    }
+                }
+                otherOptions.put(TermsAggregationBuilder.ORDER_FIELD, orderElements);
+                return true;
+            }
+        } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+            if (parseFieldMatcher.match(currentFieldName, TermsAggregationBuilder.SHOW_TERM_DOC_COUNT_ERROR)) {
+                otherOptions.put(TermsAggregationBuilder.SHOW_TERM_DOC_COUNT_ERROR, parser.booleanValue());
+                return true;
+            }
+        }
+        return false;
+    }
 
-        List<OrderElement> orderElements = aggParser.getOrderElements();
-        List<Terms.Order> orders = new ArrayList<>(orderElements.size());
-        for (OrderElement orderElement : orderElements) {
-            orders.add(resolveOrder(orderElement.key(), orderElement.asc()));
+    private OrderElement parseOrderParam(String aggregationName, XContentParser parser) throws IOException {
+        XContentParser.Token token;
+        OrderElement orderParam = null;
+        String orderKey = null;
+        boolean orderAsc = false;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                orderKey = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                String dir = parser.text();
+                if ("asc".equalsIgnoreCase(dir)) {
+                    orderAsc = true;
+                } else if ("desc".equalsIgnoreCase(dir)) {
+                    orderAsc = false;
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown terms order direction [" + dir + "] in terms aggregation [" + aggregationName + "]");
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(),
+                        "Unexpected token " + token + " for [order] in [" + aggregationName + "].");
+            }
         }
-        Terms.Order order;
-        if (orders.size() == 1 && (orders.get(0) == InternalOrder.TERM_ASC || orders.get(0) == InternalOrder.TERM_DESC))
-        {
-            // If order is only terms order then we don't need compound ordering
-            order = orders.get(0);
+        if (orderKey == null) {
+            throw new ParsingException(parser.getTokenLocation(),
+                    "Must specify at least one field for [order] in [" + aggregationName + "].");
+        } else {
+            orderParam = new OrderElement(orderKey, orderAsc);
         }
-        else
-        {
-            // for all other cases we need compound order so term order asc can be added to make the order deterministic
-            order = Order.compound(orders);
+        return orderParam;
+    }
+
+    static class OrderElement {
+        private final String key;
+        private final boolean asc;
+
+        public OrderElement(String key, boolean asc) {
+            this.key = key;
+            this.asc = asc;
         }
-        TermsAggregator.BucketCountThresholds bucketCountThresholds = aggParser.getBucketCountThresholds();
-        if (!(order == InternalOrder.TERM_ASC || order == InternalOrder.TERM_DESC)
-                && bucketCountThresholds.getShardSize() == aggParser.getDefaultBucketCountThresholds().getShardSize()) {
-            // The user has not made a shardSize selection. Use default heuristic to avoid any wrong-ranking caused by distributed counting
-            bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize(),
-                    context.numberOfShards()));
+
+        public String key() {
+            return key;
         }
-        bucketCountThresholds.ensureValidity();
-        return new TermsAggregatorFactory(aggregationName, vsParser.config(), order, bucketCountThresholds, aggParser.getIncludeExclude(), aggParser.getExecutionHint(), aggParser.getCollectionMode(), aggParser.showTermDocCountError());
+
+        public boolean asc() {
+            return asc;
+        }
+
+    }
+
+    @Override
+    public TermsAggregator.BucketCountThresholds getDefaultBucketCountThresholds() {
+        return new TermsAggregator.BucketCountThresholds(TermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS);
     }
 
     static Terms.Order resolveOrder(String key, boolean asc) {
@@ -85,5 +171,4 @@ public class TermsParser implements Aggregator.Parser {
         }
         return Order.aggregation(key, asc);
     }
-
 }

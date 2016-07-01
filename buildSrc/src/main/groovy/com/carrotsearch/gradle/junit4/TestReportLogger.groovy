@@ -5,8 +5,21 @@ import com.carrotsearch.ant.tasks.junit4.Pluralize
 import com.carrotsearch.ant.tasks.junit4.TestsSummaryEventListener
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.base.Strings
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.eventbus.Subscribe
-import com.carrotsearch.ant.tasks.junit4.events.*
-import com.carrotsearch.ant.tasks.junit4.events.aggregated.*
+import com.carrotsearch.ant.tasks.junit4.events.EventType
+import com.carrotsearch.ant.tasks.junit4.events.IEvent
+import com.carrotsearch.ant.tasks.junit4.events.IStreamEvent
+import com.carrotsearch.ant.tasks.junit4.events.SuiteStartedEvent
+import com.carrotsearch.ant.tasks.junit4.events.TestFinishedEvent
+import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedQuitEvent
+import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedResultEvent
+import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedStartEvent
+import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedSuiteResultEvent
+import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedSuiteStartedEvent
+import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedTestResultEvent
+import com.carrotsearch.ant.tasks.junit4.events.aggregated.ChildBootstrap
+import com.carrotsearch.ant.tasks.junit4.events.aggregated.HeartBeatEvent
+import com.carrotsearch.ant.tasks.junit4.events.aggregated.PartialOutputEvent
+import com.carrotsearch.ant.tasks.junit4.events.aggregated.TestStatus
 import com.carrotsearch.ant.tasks.junit4.events.mirrors.FailureMirror
 import com.carrotsearch.ant.tasks.junit4.listeners.AggregatedEventListener
 import com.carrotsearch.ant.tasks.junit4.listeners.StackTraceFilter
@@ -17,7 +30,9 @@ import org.junit.runner.Description
 
 import java.util.concurrent.atomic.AtomicInteger
 
-import static com.carrotsearch.ant.tasks.junit4.FormattingUtils.*
+import static com.carrotsearch.ant.tasks.junit4.FormattingUtils.formatDescription
+import static com.carrotsearch.ant.tasks.junit4.FormattingUtils.formatDurationInSeconds
+import static com.carrotsearch.ant.tasks.junit4.FormattingUtils.formatTime
 import static com.carrotsearch.gradle.junit4.TestLoggingConfiguration.OutputMode
 
 class TestReportLogger extends TestsSummaryEventListener implements AggregatedEventListener {
@@ -48,9 +63,6 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
     /** Format line for JVM ID string. */
     String jvmIdFormat
 
-    /** Summarize the first N failures at the end. */
-    int showNumFailuresAtEnd = 3
-
     /** Output stream that logs messages to the given logger */
     LoggingOutputStream outStream
     LoggingOutputStream errStream
@@ -79,7 +91,7 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
         forkedJvmCount = e.getSlaveCount();
         jvmIdFormat = " J%-" + (1 + (int) Math.floor(Math.log10(forkedJvmCount))) + "d";
 
-        outStream = new LoggingOutputStream(logger: logger, level: LogLevel.ERROR, prefix: "  1> ")
+        outStream = new LoggingOutputStream(logger: logger, level: LogLevel.LIFECYCLE, prefix: "  1> ")
         errStream = new LoggingOutputStream(logger: logger, level: LogLevel.ERROR, prefix: "  2> ")
 
         for (String contains : config.stackTraceFilters.contains) {
@@ -110,13 +122,13 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
 
     @Subscribe
     void onQuit(AggregatedQuitEvent e) throws IOException {
-        if (showNumFailuresAtEnd > 0 && !failedTests.isEmpty()) {
+        if (config.showNumFailuresAtEnd > 0 && !failedTests.isEmpty()) {
             List<Description> sublist = this.failedTests
             StringBuilder b = new StringBuilder()
             b.append('Tests with failures')
-            if (sublist.size() > showNumFailuresAtEnd) {
-                sublist = sublist.subList(0, showNumFailuresAtEnd)
-                b.append(" (first " + showNumFailuresAtEnd + " out of " + failedTests.size() + ")")
+            if (sublist.size() > config.showNumFailuresAtEnd) {
+                sublist = sublist.subList(0, config.showNumFailuresAtEnd)
+                b.append(" (first " + config.showNumFailuresAtEnd + " out of " + failedTests.size() + ")")
             }
             b.append(':\n')
             for (Description description : sublist) {
@@ -152,13 +164,13 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
     void onSuiteStart(AggregatedSuiteStartedEvent e) throws IOException {
         if (isPassthrough()) {
             SuiteStartedEvent evt = e.getSuiteStartedEvent();
-            emitSuiteStart(LogLevel.INFO, evt.getDescription());
+            emitSuiteStart(LogLevel.LIFECYCLE, evt.getDescription());
         }
     }
 
     @Subscribe
     void onOutput(PartialOutputEvent e) throws IOException {
-        if (isPassthrough() && logger.isInfoEnabled()) {
+        if (isPassthrough()) {
             // We only allow passthrough output if there is one JVM.
             switch (e.getEvent().getType()) {
                 case EventType.APPEND_STDERR:
@@ -187,7 +199,6 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
 
     @Subscribe
     void onSuiteResult(AggregatedSuiteResultEvent e) throws IOException {
-        try {
         final int completed = suitesCompleted.incrementAndGet();
 
         if (e.isSuccessful() && e.getTests().isEmpty()) {
@@ -197,7 +208,8 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
             suiteTimes.put(e.getDescription().getDisplayName(), e.getExecutionTime())
         }
 
-        LogLevel level = e.isSuccessful() ? LogLevel.INFO : LogLevel.ERROR
+        LogLevel level = e.isSuccessful() && config.outputMode != OutputMode.ALWAYS ? LogLevel.INFO : LogLevel.LIFECYCLE
+
         // We must emit buffered test and stream events (in case of failures).
         if (!isPassthrough()) {
             emitSuiteStart(level, e.getDescription())
@@ -214,9 +226,6 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
         }
 
         emitSuiteEnd(level, e, completed)
-    } catch (Exception exc) {
-            logger.lifecycle('EXCEPTION: ', exc)
-        }
     }
 
     /** Suite prologue. */
@@ -348,9 +357,9 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
         errStream.flush()
     }
 
-    /** Returns true if output should be logged immediately. Only relevant when running with INFO log level. */
+    /** Returns true if output should be logged immediately. */
     boolean isPassthrough() {
-        return forkedJvmCount == 1 && config.outputMode == OutputMode.ALWAYS && logger.isInfoEnabled()
+        return forkedJvmCount == 1 && config.outputMode == OutputMode.ALWAYS
     }
 
     @Override

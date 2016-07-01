@@ -31,8 +31,6 @@ import java.util.Map;
  *
  */
 public class NativeMap implements Scriptable, Wrapper {
-    private static final long serialVersionUID = 3664761893203964569L;
-
     private Map<Object, Object> map;
     private Scriptable parentScope;
     private Scriptable prototype;
@@ -55,26 +53,17 @@ public class NativeMap implements Scriptable, Wrapper {
         this.map = map;
     }
 
-    /* (non-Javadoc)
-     * @see org.mozilla.javascript.Wrapper#unwrap()
-     */
-
+    @Override
     public Object unwrap() {
         return map;
     }
 
-    /* (non-Javadoc)
-     * @see org.mozilla.javascript.Scriptable#getClassName()
-     */
-
+    @Override
     public String getClassName() {
         return "NativeMap";
     }
 
-    /* (non-Javadoc)
-     * @see org.mozilla.javascript.Scriptable#get(java.lang.String, org.mozilla.javascript.Scriptable)
-     */
-
+    @Override
     public Object get(String name, Scriptable start) {
         // get the property from the underlying QName map
         if ("length".equals(name)) {
@@ -84,69 +73,47 @@ public class NativeMap implements Scriptable, Wrapper {
         }
     }
 
-    /* (non-Javadoc)
-     * @see org.mozilla.javascript.Scriptable#get(int, org.mozilla.javascript.Scriptable)
-     */
-
+    @Override
     public Object get(int index, Scriptable start) {
         Object value = null;
         int i = 0;
-        Iterator itrValues = map.values().iterator();
+        Iterator<Object> itrValues = map.values().iterator();
         while (i++ <= index && itrValues.hasNext()) {
             value = itrValues.next();
         }
         return value;
     }
 
-    /* (non-Javadoc)
-     * @see org.mozilla.javascript.Scriptable#has(java.lang.String, org.mozilla.javascript.Scriptable)
-     */
-
+    @Override
     public boolean has(String name, Scriptable start) {
         // locate the property in the underlying map
         return map.containsKey(name);
     }
 
-    /* (non-Javadoc)
-     * @see org.mozilla.javascript.Scriptable#has(int, org.mozilla.javascript.Scriptable)
-     */
-
+    @Override
     public boolean has(int index, Scriptable start) {
         return (index >= 0 && map.values().size() > index);
     }
 
-    /* (non-Javadoc)
-     * @see org.mozilla.javascript.Scriptable#put(java.lang.String, org.mozilla.javascript.Scriptable, java.lang.Object)
-     */
-
-    @SuppressWarnings("unchecked")
+    @Override
     public void put(String name, Scriptable start, Object value) {
         map.put(name, value);
     }
 
-    /* (non-Javadoc)
-     * @see org.mozilla.javascript.Scriptable#put(int, org.mozilla.javascript.Scriptable, java.lang.Object)
-     */
-
+    @Override
     public void put(int index, Scriptable start, Object value) {
         // TODO: implement?
     }
 
-    /* (non-Javadoc)
-     * @see org.mozilla.javascript.Scriptable#delete(java.lang.String)
-     */
-
+    @Override
     public void delete(String name) {
         map.remove(name);
     }
 
-    /* (non-Javadoc)
-     * @see org.mozilla.javascript.Scriptable#delete(int)
-     */
-
+    @Override
     public void delete(int index) {
         int i = 0;
-        Iterator itrKeys = map.keySet().iterator();
+        Iterator<Object> itrKeys = map.keySet().iterator();
         while (i <= index && itrKeys.hasNext()) {
             Object key = itrKeys.next();
             if (i == index) {
@@ -156,58 +123,37 @@ public class NativeMap implements Scriptable, Wrapper {
         }
     }
 
-    /* (non-Javadoc)
-     * @see org.mozilla.javascript.Scriptable#getPrototype()
-     */
-
+    @Override
     public Scriptable getPrototype() {
         return this.prototype;
     }
 
-    /* (non-Javadoc)
-     * @see org.mozilla.javascript.Scriptable#setPrototype(org.mozilla.javascript.Scriptable)
-     */
-
+    @Override
     public void setPrototype(Scriptable prototype) {
         this.prototype = prototype;
     }
 
-    /* (non-Javadoc)
-     * @see org.mozilla.javascript.Scriptable#getParentScope()
-     */
-
+    @Override
     public Scriptable getParentScope() {
         return this.parentScope;
     }
 
-    /* (non-Javadoc)
-     * @see org.mozilla.javascript.Scriptable#setParentScope(org.mozilla.javascript.Scriptable)
-     */
-
+    @Override
     public void setParentScope(Scriptable parent) {
         this.parentScope = parent;
     }
 
-    /* (non-Javadoc)
-     * @see org.mozilla.javascript.Scriptable#getIds()
-     */
-
+    @Override
     public Object[] getIds() {
         return map.keySet().toArray();
     }
 
-    /* (non-Javadoc)
-     * @see org.mozilla.javascript.Scriptable#getDefaultValue(java.lang.Class)
-     */
-
-    public Object getDefaultValue(Class hint) {
+    @Override
+    public Object getDefaultValue(Class<?> hint) {
         return null;
     }
 
-    /* (non-Javadoc)
-     * @see org.mozilla.javascript.Scriptable#hasInstance(org.mozilla.javascript.Scriptable)
-     */
-
+    @Override
     public boolean hasInstance(Scriptable value) {
         if (!(value instanceof Wrapper))
             return false;

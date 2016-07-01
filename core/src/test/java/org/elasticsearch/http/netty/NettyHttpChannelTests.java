@@ -19,16 +19,18 @@
 
 package org.elasticsearch.http.netty;
 
-import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.http.netty.cors.CorsHandler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
@@ -50,11 +52,17 @@ import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class NettyHttpChannelTests extends ESTestCase {
+
     private NetworkService networkService;
     private ThreadPool threadPool;
     private MockBigArrays bigArrays;
@@ -63,9 +71,8 @@ public class NettyHttpChannelTests extends ESTestCase {
     @Before
     public void setup() throws Exception {
         networkService = new NetworkService(Settings.EMPTY);
-        threadPool = new ThreadPool("test");
-        MockPageCacheRecycler mockPageCacheRecycler = new MockPageCacheRecycler(Settings.EMPTY, threadPool);
-        bigArrays = new MockBigArrays(mockPageCacheRecycler, new NoneCircuitBreakerService());
+        threadPool = new TestThreadPool("test");
+        bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
     }
 
     @After
@@ -81,49 +88,132 @@ public class NettyHttpChannelTests extends ESTestCase {
     public void testCorsEnabledWithoutAllowOrigins() {
         // Set up a HTTP transport with only the CORS enabled setting
         Settings settings = Settings.builder()
-                .put(NettyHttpServerTransport.SETTING_CORS_ENABLED, true)
+                .put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true)
                 .build();
-        httpServerTransport = new NettyHttpServerTransport(settings, networkService, bigArrays);
+        HttpResponse response = execRequestWithCors(settings, "remote-host", "request-host");
+        // inspect response and validate
+        assertThat(response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN), nullValue());
+    }
+
+    public void testCorsEnabledWithAllowOrigins() {
+        final String originValue = "remote-host";
+        // create a http transport with CORS enabled and allow origin configured
+        Settings settings = Settings.builder()
+                .put(SETTING_CORS_ENABLED.getKey(), true)
+                .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), originValue)
+                .build();
+        HttpResponse response = execRequestWithCors(settings, originValue, "request-host");
+        // inspect response and validate
+        assertThat(response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
+        String allowedOrigins = response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN);
+        assertThat(allowedOrigins, is(originValue));
+    }
+
+    public void testCorsAllowOriginWithSameHost() {
+        String originValue = "remote-host";
+        String host = "remote-host";
+        // create a http transport with CORS enabled
+        Settings settings = Settings.builder()
+                                .put(SETTING_CORS_ENABLED.getKey(), true)
+                                .build();
+        HttpResponse response = execRequestWithCors(settings, originValue, host);
+        // inspect response and validate
+        assertThat(response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
+        String allowedOrigins = response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN);
+        assertThat(allowedOrigins, is(originValue));
+
+        originValue = "http://" + originValue;
+        response = execRequestWithCors(settings, originValue, host);
+        assertThat(response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
+        allowedOrigins = response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN);
+        assertThat(allowedOrigins, is(originValue));
+
+        originValue = originValue + ":5555";
+        host = host + ":5555";
+        response = execRequestWithCors(settings, originValue, host);
+        assertThat(response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
+        allowedOrigins = response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN);
+        assertThat(allowedOrigins, is(originValue));
+
+        originValue = originValue.replace("http", "https");
+        response = execRequestWithCors(settings, originValue, host);
+        assertThat(response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
+        allowedOrigins = response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN);
+        assertThat(allowedOrigins, is(originValue));
+    }
+
+    public void testThatStringLiteralWorksOnMatch() {
+        final String originValue = "remote-host";
+        Settings settings = Settings.builder()
+                                .put(SETTING_CORS_ENABLED.getKey(), true)
+                                .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), originValue)
+                                .put(SETTING_CORS_ALLOW_METHODS.getKey(), "get, options, post")
+                                .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
+                                .build();
+        HttpResponse response = execRequestWithCors(settings, originValue, "request-host");
+        // inspect response and validate
+        assertThat(response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
+        String allowedOrigins = response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN);
+        assertThat(allowedOrigins, is(originValue));
+        assertThat(response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_CREDENTIALS), equalTo("true"));
+    }
+
+    public void testThatAnyOriginWorks() {
+        final String originValue = CorsHandler.ANY_ORIGIN;
+        Settings settings = Settings.builder()
+                                .put(SETTING_CORS_ENABLED.getKey(), true)
+                                .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), originValue)
+                                .build();
+        HttpResponse response = execRequestWithCors(settings, originValue, "request-host");
+        // inspect response and validate
+        assertThat(response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
+        String allowedOrigins = response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN);
+        assertThat(allowedOrigins, is(originValue));
+        assertThat(response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_CREDENTIALS), nullValue());
+    }
+
+    public void testHeadersSet() {
+        Settings settings = Settings.builder().build();
+        httpServerTransport = new NettyHttpServerTransport(settings, networkService, bigArrays, threadPool);
         HttpRequest httpRequest = new TestHttpRequest();
         httpRequest.headers().add(HttpHeaders.Names.ORIGIN, "remote");
-        httpRequest.headers().add(HttpHeaders.Names.USER_AGENT, "Mozilla fake");
         WriteCapturingChannel writeCapturingChannel = new WriteCapturingChannel();
         NettyHttpRequest request = new NettyHttpRequest(httpRequest, writeCapturingChannel);
 
         // send a response
         NettyHttpChannel channel = new NettyHttpChannel(httpServerTransport, request, null, randomBoolean());
-        channel.sendResponse(new TestReponse());
+        TestReponse resp = new TestReponse();
+        final String customHeader = "custom-header";
+        final String customHeaderValue = "xyz";
+        resp.addHeader(customHeader, customHeaderValue);
+        channel.sendResponse(resp);
 
         // inspect what was written
         List<Object> writtenObjects = writeCapturingChannel.getWrittenObjects();
         assertThat(writtenObjects.size(), is(1));
         HttpResponse response = (HttpResponse) writtenObjects.get(0);
-        assertThat(response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN), nullValue());
+        assertThat(response.headers().get("non-existent-header"), nullValue());
+        assertThat(response.headers().get(customHeader), equalTo(customHeaderValue));
+        assertThat(response.headers().get(HttpHeaders.Names.CONTENT_LENGTH), equalTo(Integer.toString(resp.content().length())));
+        assertThat(response.headers().get(HttpHeaders.Names.CONTENT_TYPE), equalTo(resp.contentType()));
     }
 
-    public void testCorsEnabledWithAllowOrigins() {
-        // create a http transport with CORS enabled and allow origin configured
-        Settings settings = Settings.builder()
-                .put(NettyHttpServerTransport.SETTING_CORS_ENABLED, true)
-                .put(NettyHttpServerTransport.SETTING_CORS_ALLOW_ORIGIN, "remote-host")
-                .build();
-        httpServerTransport = new NettyHttpServerTransport(settings, networkService, bigArrays);
+    private HttpResponse execRequestWithCors(final Settings settings, final String originValue, final String host) {
+        // construct request and send it over the transport layer
+        httpServerTransport = new NettyHttpServerTransport(settings, networkService, bigArrays, threadPool);
         HttpRequest httpRequest = new TestHttpRequest();
-        httpRequest.headers().add(HttpHeaders.Names.ORIGIN, "remote");
-        httpRequest.headers().add(HttpHeaders.Names.USER_AGENT, "Mozilla fake");
+        httpRequest.headers().add(HttpHeaders.Names.ORIGIN, originValue);
+        httpRequest.headers().add(HttpHeaders.Names.HOST, host);
         WriteCapturingChannel writeCapturingChannel = new WriteCapturingChannel();
         NettyHttpRequest request = new NettyHttpRequest(httpRequest, writeCapturingChannel);
 
         NettyHttpChannel channel = new NettyHttpChannel(httpServerTransport, request, null, randomBoolean());
         channel.sendResponse(new TestReponse());
 
-        // inspect what was written
+        // get the response
         List<Object> writtenObjects = writeCapturingChannel.getWrittenObjects();
         assertThat(writtenObjects.size(), is(1));
-        HttpResponse response = (HttpResponse) writtenObjects.get(0);
-        assertThat(response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN), notNullValue());
-        String allowedOrigins = response.headers().get(HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN);
-        assertThat(allowedOrigins, is("remote-host"));
+        return (HttpResponse) writtenObjects.get(0);
     }
 
     private static class WriteCapturingChannel implements Channel {
@@ -281,6 +371,8 @@ public class NettyHttpChannelTests extends ESTestCase {
 
         private HttpHeaders headers = new DefaultHttpHeaders();
 
+        private ChannelBuffer content = ChannelBuffers.EMPTY_BUFFER;
+
         @Override
         public HttpMethod getMethod() {
             return null;
@@ -318,12 +410,12 @@ public class NettyHttpChannelTests extends ESTestCase {
 
         @Override
         public ChannelBuffer getContent() {
-            return ChannelBuffers.EMPTY_BUFFER;
+            return content;
         }
 
         @Override
         public void setContent(ChannelBuffer content) {
-
+            this.content = content;
         }
 
         @Override

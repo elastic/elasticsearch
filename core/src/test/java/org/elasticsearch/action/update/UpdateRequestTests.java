@@ -19,13 +19,17 @@
 
 package org.elasticsearch.action.update;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ESTestCase;
@@ -33,6 +37,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -127,7 +132,7 @@ public class UpdateRequestTests extends ESTestCase {
 
     // Related to issue 3256
     public void testUpdateRequestWithTTL() throws Exception {
-        long providedTTLValue = randomIntBetween(500, 1000);
+        TimeValue providedTTLValue = TimeValue.parseTimeValue(randomTimeValue(), null, "ttl");
         Settings settings = settings(Version.CURRENT).build();
 
         UpdateHelper updateHelper = new UpdateHelper(settings, null);
@@ -142,7 +147,7 @@ public class UpdateRequestTests extends ESTestCase {
 
         // We simulate that the document is not existing yet
         GetResult getResult = new GetResult("test", "type1", "1", 0, false, null, null);
-        UpdateHelper.Result result = updateHelper.prepare(updateRequest, getResult);
+        UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0),updateRequest, getResult);
         Streamable action = result.action();
         assertThat(action, instanceOf(IndexRequest.class));
         IndexRequest indexAction = (IndexRequest) action;
@@ -159,10 +164,34 @@ public class UpdateRequestTests extends ESTestCase {
 
         // We simulate that the document is not existing yet
         getResult = new GetResult("test", "type1", "2", 0, false, null, null);
-        result = updateHelper.prepare(updateRequest, getResult);
+        result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult);
         action = result.action();
         assertThat(action, instanceOf(IndexRequest.class));
         indexAction = (IndexRequest) action;
         assertThat(indexAction.ttl(), is(providedTTLValue));
+    }
+
+    // Related to issue #15822
+    public void testInvalidBodyThrowsParseException() throws Exception {
+        UpdateRequest request = new UpdateRequest("test", "type", "1");
+        try {
+            request.source(new byte[] { (byte) '"' });
+            fail("Should have thrown a ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), equalTo("Failed to derive xcontent"));
+        }
+    }
+
+    // Related to issue 15338
+    public void testFieldsParsing() throws Exception {
+        UpdateRequest request = new UpdateRequest("test", "type1", "1")
+                .source(new BytesArray("{\"doc\": {\"field1\": \"value1\"}, \"fields\": \"_source\"}"));
+        assertThat(request.doc().sourceAsMap().get("field1").toString(), equalTo("value1"));
+        assertThat(request.fields(), arrayContaining("_source"));
+
+        request = new UpdateRequest("test", "type2", "2")
+                .source(new BytesArray("{\"doc\": {\"field2\": \"value2\"}, \"fields\": [\"field1\", \"field2\"]}"));
+        assertThat(request.doc().sourceAsMap().get("field2").toString(), equalTo("value2"));
+        assertThat(request.fields(), arrayContaining("field1", "field2"));
     }
 }

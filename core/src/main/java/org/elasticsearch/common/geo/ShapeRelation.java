@@ -30,11 +30,12 @@ import java.util.Locale;
  * Enum representing the relationship between a Query / Filter Shape and indexed Shapes
  * that will be used to determine if a Document should be matched or not
  */
-public enum ShapeRelation implements Writeable<ShapeRelation>{
+public enum ShapeRelation implements Writeable {
 
     INTERSECTS("intersects"),
     DISJOINT("disjoint"),
-    WITHIN("within");
+    WITHIN("within"),
+    CONTAINS("contains");
 
     private final String relationName;
 
@@ -42,8 +43,7 @@ public enum ShapeRelation implements Writeable<ShapeRelation>{
         this.relationName = relationName;
     }
 
-    @Override
-    public ShapeRelation readFrom(StreamInput in) throws IOException {
+    public static ShapeRelation readFromStream(StreamInput in) throws IOException {
         int ordinal = in.readVInt();
         if (ordinal < 0 || ordinal >= values().length) {
             throw new IOException("Unknown ShapeRelation ordinal [" + ordinal + "]");

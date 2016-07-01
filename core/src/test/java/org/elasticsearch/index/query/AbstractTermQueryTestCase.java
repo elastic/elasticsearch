@@ -20,55 +20,12 @@
 package org.elasticsearch.index.query;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<QB>> extends AbstractQueryTestCase<QB> {
-    @Override
-    protected final QB doCreateTestQueryBuilder() {
-        String fieldName = null;
-        Object value;
-        switch (randomIntBetween(0, 3)) {
-            case 0:
-                if (randomBoolean()) {
-                    fieldName = BOOLEAN_FIELD_NAME;
-                }
-                value = randomBoolean();
-                break;
-            case 1:
-                if (randomBoolean()) {
-                    fieldName = STRING_FIELD_NAME;
-                }
-                if (frequently()) {
-                    value = randomAsciiOfLengthBetween(1, 10);
-                } else {
-                    // generate unicode string in 10% of cases
-                    JsonStringEncoder encoder = JsonStringEncoder.getInstance();
-                    value = new String(encoder.quoteAsString(randomUnicodeOfLength(10)));
-                }
-                break;
-            case 2:
-                if (randomBoolean()) {
-                    fieldName = INT_FIELD_NAME;
-                }
-                value = randomInt(10000);
-                break;
-            case 3:
-                if (randomBoolean()) {
-                    fieldName = DOUBLE_FIELD_NAME;
-                }
-                value = randomDouble();
-                break;
-            default:
-                throw new UnsupportedOperationException();
-        }
-
-        if (fieldName == null) {
-            fieldName = randomAsciiOfLengthBetween(1, 10);
-        }
-        return createQueryBuilder(fieldName, value);
-    }
 
     protected abstract QB createQueryBuilder(String fieldName, Object value);
 

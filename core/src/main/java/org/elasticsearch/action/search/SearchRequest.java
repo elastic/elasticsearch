@@ -29,7 +29,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -71,36 +70,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
-    private Template template;
-
     public SearchRequest() {
-    }
-
-    /**
-     * Copy constructor that creates a new search request that is a copy of the one provided as an argument.
-     * The new request will inherit though headers and context from the original request that caused it.
-     */
-    public SearchRequest(SearchRequest searchRequest, ActionRequest originalRequest) {
-        super(originalRequest);
-        this.searchType = searchRequest.searchType;
-        this.indices = searchRequest.indices;
-        this.routing = searchRequest.routing;
-        this.preference = searchRequest.preference;
-        this.template = searchRequest.template;
-        this.source = searchRequest.source;
-        this.requestCache = searchRequest.requestCache;
-        this.scroll = searchRequest.scroll;
-        this.types = searchRequest.types;
-        this.indicesOptions = searchRequest.indicesOptions;
-    }
-
-    /**
-     * Constructs a new search request starting from the provided request, meaning that it will
-     * inherit its headers and context
-     */
-    public SearchRequest(ActionRequest request) {
-        super(request);
-        this.source = new SearchSourceBuilder();
     }
 
     /**
@@ -249,21 +219,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         return source;
     }
 
-
-    /**
-     * The stored template
-     */
-    public void template(Template template) {
-        this.template = template;
-    }
-
-    /**
-     * The stored template
-     */
-    public Template template() {
-        return template;
-    }
-
     /**
      * The tye of search to execute.
      */
@@ -322,6 +277,13 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         return this.requestCache;
     }
 
+    /**
+     * @return true if the request only has suggest
+     */
+    public boolean isSuggestOnly() {
+        return source != null && source.isSuggestOnly();
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -339,14 +301,13 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             scroll = readScroll(in);
         }
         if (in.readBoolean()) {
-            source = SearchSourceBuilder.readSearchSourceFrom(in);
+            source = new SearchSourceBuilder(in);
         }
 
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
 
         requestCache = in.readOptionalBoolean();
-        template = in.readOptionalStreamable(Template::new);
     }
 
     @Override
@@ -377,6 +338,5 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalBoolean(requestCache);
-        out.writeOptionalStreamable(template);
     }
 }

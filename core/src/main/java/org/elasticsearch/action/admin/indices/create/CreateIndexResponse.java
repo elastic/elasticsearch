@@ -30,10 +30,10 @@ import java.io.IOException;
  */
 public class CreateIndexResponse extends AcknowledgedResponse {
 
-    CreateIndexResponse() {
+    protected CreateIndexResponse() {
     }
 
-    CreateIndexResponse(boolean acknowledged) {
+    protected CreateIndexResponse(boolean acknowledged) {
         super(acknowledged);
     }
 

@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.admin.indices.alias.put;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -44,8 +44,8 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestIndexPutAliasAction extends BaseRestHandler {
 
     @Inject
-    public RestIndexPutAliasAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestIndexPutAliasAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(PUT, "/{index}/_alias/{name}", this);
         controller.registerHandler(PUT, "/_alias/{name}", this);
         controller.registerHandler(PUT, "/{index}/_aliases/{name}", this);
@@ -62,7 +62,7 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String alias = request.param("name");
         Map<String, Object> filter = null;

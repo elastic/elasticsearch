@@ -32,7 +32,6 @@ import org.elasticsearch.common.inject.spi.Message;
 import org.elasticsearch.common.inject.spi.TypeListenerBinding;
 
 import java.io.PrintWriter;
-import java.io.Serializable;
 import java.io.StringWriter;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
@@ -66,7 +65,7 @@ import static java.util.Collections.unmodifiableList;
  *
  * @author jessewilson@google.com (Jesse Wilson)
  */
-public final class Errors implements Serializable {
+public final class Errors {
 
     /**
      * The root errors object. Used to access the list of error messages.
@@ -552,7 +551,7 @@ public final class Errors implements Serializable {
         return root.errors == null ? 0 : root.errors.size();
     }
 
-    private static abstract class Converter<T> {
+    private abstract static class Converter<T> {
 
         final Class<T> type;
 

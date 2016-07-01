@@ -26,13 +26,9 @@ dependencies {
   compile 'org.mozilla:rhino:1.7.7'
 }
 
-compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
-
 integTest {
   cluster {
-    systemProperty 'es.script.inline', 'on'
-    systemProperty 'es.script.indexed', 'on'
+    setting 'script.inline', 'true'
+    setting 'script.stored', 'true'
   }
 }
-

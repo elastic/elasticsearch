@@ -112,7 +112,7 @@ abstract class AbstractPagedHashMap implements Releasable {
             }
         }
         // The only entries which have not been put in their final position in the previous loop are those that were stored in a slot that
-        // is < slot(key, mask). This only happens when slot(key, mask) returned a slot that was close to the end of the array and colision
+        // is < slot(key, mask). This only happens when slot(key, mask) returned a slot that was close to the end of the array and collision
         // resolution has put it back in the first slots. This time, collision resolution will have put them at the beginning of the newly
         // allocated slots. Let's re-add them to make sure they are in the right slot. This 2nd loop will typically exit very early.
         for (long i = buckets; i < newBuckets; ++i) {

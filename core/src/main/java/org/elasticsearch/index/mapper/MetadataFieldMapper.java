@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.io.IOException;
+import java.util.Map;
 
 
 /**
@@ -30,9 +31,28 @@ import java.io.IOException;
  */
 public abstract class MetadataFieldMapper extends FieldMapper {
 
+    public static interface TypeParser extends Mapper.TypeParser {
+
+        @Override
+        MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException;
+
+        /**
+         * Get the default {@link MetadataFieldMapper} to use, if nothing had to be parsed.
+         * @param fieldType null if this is the first root mapper on this index, the existing
+         *                  fieldType for this index otherwise
+         * @param indexSettings  the index-level settings
+         * @param fieldType      the existing field type for this meta mapper on the current index
+         *                       or null if this is the first type being introduced
+         * @param typeName       the name of the type that this mapper will be used on
+         */
+        // TODO: remove the fieldType parameter which is only used for bw compat with pre-2.0
+        // since settings could be modified
+        MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName);
+    }
+
     public abstract static class Builder<T extends Builder, Y extends MetadataFieldMapper> extends FieldMapper.Builder<T, Y> {
-        public Builder(String name, MappedFieldType fieldType) {
-            super(name, fieldType);
+        public Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
+            super(name, fieldType, defaultFieldType);
         }
     }
 
@@ -50,4 +70,8 @@ public abstract class MetadataFieldMapper extends FieldMapper {
      */
     public abstract void postParse(ParseContext context) throws IOException;
 
+    @Override
+    public MetadataFieldMapper merge(Mapper mergeWith, boolean updateAllTypes) {
+        return (MetadataFieldMapper) super.merge(mergeWith, updateAllTypes);
+    }
 }

@@ -39,10 +39,12 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
     protected int count;
 
     /**
-     * Create a non recycling {@link BytesStreamOutput} with 1 initial page acquired.
+     * Create a non recycling {@link BytesStreamOutput} with an initial capacity of 0.
      */
     public BytesStreamOutput() {
-        this(BigArrays.PAGE_SIZE_IN_BYTES);
+        // since this impl is not recycling anyway, don't bother aligning to
+        // the page size, this will even save memory
+        this(0);
     }
 
     /**

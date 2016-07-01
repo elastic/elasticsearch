@@ -30,11 +30,15 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.SortOrder;
@@ -45,10 +49,10 @@ import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -58,7 +62,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(RandomExceptionDirectoryReaderWrapper.TestPlugin.class);
+        return pluginList(RandomExceptionDirectoryReaderWrapper.TestPlugin.class, MockEngineFactoryPlugin.class);
     }
 
     public void testBreakerWithRandomExceptions() throws IOException, InterruptedException, ExecutionException {
@@ -72,15 +76,12 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
                 .startObject("type")
                 .startObject("properties")
                 .startObject("test-str")
-                .field("type", "string")
-                .field("index", "not_analyzed")
+                .field("type", "keyword")
                 .field("doc_values", randomBoolean())
                 .endObject() // test-str
                 .startObject("test-num")
                         // I don't use randomNumericType() here because I don't want "byte", and I want "float" and "double"
                 .field("type", randomFrom(Arrays.asList("float", "long", "double", "short", "integer")))
-                .startObject("fielddata")
-                .endObject() // fielddata
                 .endObject() // test-num
                 .endObject() // properties
                 .endObject() // type
@@ -107,11 +108,11 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
             lowLevelRate = 0d;
         }
 
-        Settings.Builder settings = settingsBuilder()
+        Settings.Builder settings = Settings.builder()
                 .put(indexSettings())
                 .put(EXCEPTION_TOP_LEVEL_RATIO_KEY, topLevelRate)
                 .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)
-                .put(MockEngineSupport.WRAP_READER_RATIO, 1.0d);
+                .put(MockEngineSupport.WRAP_READER_RATIO.getKey(), 1.0d);
         logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
         client().admin().indices().prepareCreate("test")
                 .setSettings(settings)
@@ -151,18 +152,10 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
 
         for (int i = 0; i < numSearches; i++) {
             SearchRequestBuilder searchRequestBuilder = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery());
-            switch (randomIntBetween(0, 5)) {
-                case 5:
-                case 4:
-                case 3:
-                    searchRequestBuilder.addSort("test-str", SortOrder.ASC);
-                    // fall through - sometimes get both fields
-                case 2:
-                case 1:
-                default:
-                    searchRequestBuilder.addSort("test-num", SortOrder.ASC);
-
+            if (random().nextBoolean()) {
+                searchRequestBuilder.addSort("test-str", SortOrder.ASC);
             }
+            searchRequestBuilder.addSort("test-num", SortOrder.ASC);
             boolean success = false;
             try {
                 // Sort by the string and numeric fields, to load them into field data
@@ -182,7 +175,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
 
                 // Since .cleanUp() is no longer called on cache clear, we need to call it on each node manually
                 for (String node : internalCluster().getNodeNames()) {
-                    final IndicesFieldDataCache fdCache = internalCluster().getInstance(IndicesFieldDataCache.class, node);
+                    final IndicesFieldDataCache fdCache = internalCluster().getInstance(IndicesService.class, node).getIndicesFieldDataCache();
                     // Clean up the cache, ensuring that entries' listeners have been called
                     fdCache.getCache().refresh();
                 }
@@ -203,14 +196,14 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
     // TODO: Generalize this class and add it as a utility
     public static class RandomExceptionDirectoryReaderWrapper extends MockEngineSupport.DirectoryReaderWrapper {
 
+        public static final Setting<Double> EXCEPTION_TOP_LEVEL_RATIO_SETTING =
+            Setting.doubleSetting(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d, 0.0d, Property.IndexScope);
+        public static final Setting<Double> EXCEPTION_LOW_LEVEL_RATIO_SETTING =
+            Setting.doubleSetting(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d, 0.0d, Property.IndexScope);
         public static class TestPlugin extends Plugin {
             @Override
-            public String name() {
-                return "random-exception-reader-wrapper";
-            }
-            @Override
-            public String description() {
-                return "a mock reader wrapper that throws random exceptions for testing";
+            public List<Setting<?>> getSettings() {
+                return Arrays.asList(EXCEPTION_TOP_LEVEL_RATIO_SETTING, EXCEPTION_LOW_LEVEL_RATIO_SETTING);
             }
 
             public void onModule(MockEngineFactoryPlugin.MockEngineReaderModule module) {
@@ -226,9 +219,9 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
             private final double lowLevelRatio;
 
             ThrowingSubReaderWrapper(Settings settings) {
-                final long seed = settings.getAsLong(SETTING_INDEX_SEED, 0l);
-                this.topLevelRatio = settings.getAsDouble(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d);
-                this.lowLevelRatio = settings.getAsDouble(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d);
+                final long seed = ESIntegTestCase.INDEX_TEST_SEED_SETTING.get(settings);
+                this.topLevelRatio = EXCEPTION_TOP_LEVEL_RATIO_SETTING.get(settings);
+                this.lowLevelRatio = EXCEPTION_LOW_LEVEL_RATIO_SETTING.get(settings);
                 this.random = new Random(seed);
             }
 
@@ -249,6 +242,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
                         if (random.nextDouble() < topLevelRatio) {
                             throw new IOException("Forced top level Exception on [" + flag.name() + "]");
                         }
+                        break;
                     case Intersect:
                         break;
                     case Norms:

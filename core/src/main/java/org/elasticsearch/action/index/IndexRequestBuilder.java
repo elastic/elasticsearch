@@ -19,10 +19,12 @@
 
 package org.elasticsearch.action.index;
 
+import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -32,7 +34,8 @@ import java.util.Map;
 /**
  * An index document action request builder.
  */
-public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest, IndexResponse, IndexRequestBuilder> {
+public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest, IndexResponse, IndexRequestBuilder>
+        implements WriteRequestBuilder<IndexRequestBuilder> {
 
     public IndexRequestBuilder(ElasticsearchClient client, IndexAction action) {
         super(client, action, new IndexRequest());
@@ -220,16 +223,6 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     }
 
     /**
-     * Should a refresh be executed post this index operation causing the operation to
-     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
-     * to <tt>false</tt>.
-     */
-    public IndexRequestBuilder setRefresh(boolean refresh) {
-        request.refresh(refresh);
-        return this;
-    }
-
-    /**
      * Sets the version, which will cause the index operation to only be performed if a matching
      * version exists and no changes happened on the doc since then.
      */
@@ -254,9 +247,35 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
         return this;
     }
 
-    // Sets the relative ttl value. It musts be > 0 as it makes little sense otherwise.
+    /**
+     * Sets the ttl value as a time value expression.
+     */
+    public IndexRequestBuilder setTTL(String ttl) {
+        request.ttl(ttl);
+        return this;
+    }
+
+    /**
+     * Sets the relative ttl value in milliseconds. It musts be greater than 0 as it makes little sense otherwise.
+     */
     public IndexRequestBuilder setTTL(long ttl) {
         request.ttl(ttl);
+        return this;
+    }
+
+    /**
+     * Sets the ttl as a {@link TimeValue} instance.
+     */
+    public IndexRequestBuilder setTTL(TimeValue ttl) {
+        request.ttl(ttl);
+        return this;
+    }
+
+    /**
+     * Sets the ingest pipeline to be executed before indexing the document
+     */
+    public IndexRequestBuilder setPipeline(String pipeline) {
+        request.setPipeline(pipeline);
         return this;
     }
 }

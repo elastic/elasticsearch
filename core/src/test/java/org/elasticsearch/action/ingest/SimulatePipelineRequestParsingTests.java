@@ -19,18 +19,6 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.ingest.PipelineStore;
-import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.TestProcessor;
-import org.elasticsearch.ingest.CompoundProcessor;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.test.ESTestCase;
-import org.junit.Before;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -38,6 +26,15 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+
+import org.elasticsearch.ingest.CompoundProcessor;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.ingest.PipelineStore;
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.TestProcessor;
+import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import static org.elasticsearch.action.ingest.SimulatePipelineRequest.Fields;
 import static org.elasticsearch.action.ingest.SimulatePipelineRequest.SIMULATED_PIPELINE_ID;
@@ -59,7 +56,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         CompoundProcessor pipelineCompoundProcessor = new CompoundProcessor(processor);
         Pipeline pipeline = new Pipeline(SIMULATED_PIPELINE_ID, null, pipelineCompoundProcessor);
         Map<String, Processor.Factory> registry =
-            Collections.singletonMap("mock_processor", (factories, config) -> processor);
+            Collections.singletonMap("mock_processor", (factories, tag, config) -> processor);
         store = mock(PipelineStore.class);
         when(store.get(SIMULATED_PIPELINE_ID)).thenReturn(pipeline);
         when(store.getProcessorFactories()).thenReturn(registry);

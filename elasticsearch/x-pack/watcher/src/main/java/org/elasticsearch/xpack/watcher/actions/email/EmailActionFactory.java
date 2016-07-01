@@ -28,12 +28,12 @@ public class EmailActionFactory extends ActionFactory<EmailAction, ExecutableEma
     private final EmailAttachmentsParser emailAttachmentsParser;
 
     @Inject
-    public EmailActionFactory(Settings settings, EmailService emailService, TextTemplateEngine templateEngine, HtmlSanitizer htmlSanitizer,
+    public EmailActionFactory(Settings settings, EmailService emailService, TextTemplateEngine templateEngine,
                               EmailAttachmentsParser emailAttachmentsParser) {
         super(Loggers.getLogger(ExecutableEmailAction.class, settings));
         this.emailService = emailService;
         this.templateEngine = templateEngine;
-        this.htmlSanitizer = htmlSanitizer;
+        this.htmlSanitizer = new HtmlSanitizer(settings);
         this.emailAttachmentsParser = emailAttachmentsParser;
     }
 

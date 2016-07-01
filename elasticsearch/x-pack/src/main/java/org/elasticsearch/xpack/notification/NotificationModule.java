@@ -41,7 +41,6 @@ public class NotificationModule extends AbstractModule {
     @Override
     protected void configure() {
         // email
-        bind(HtmlSanitizer.class).asEagerSingleton();
         bind(InternalEmailService.class).asEagerSingleton();
         bind(EmailService.class).to(InternalEmailService.class).asEagerSingleton();
 

@@ -58,6 +58,9 @@ public abstract class RankedListQualityMetric implements NamedWriteable {
         case PrecisionAtN.NAME:
             rc = PrecisionAtN.fromXContent(parser, context);
             break;
+        case ReciprocalRank.NAME:
+            rc = ReciprocalRank.fromXContent(parser, context);
+            break;
         default:
             throw new ParsingException(parser.getTokenLocation(), "[_na] unknown query metric name [{}]", metricName);
         }

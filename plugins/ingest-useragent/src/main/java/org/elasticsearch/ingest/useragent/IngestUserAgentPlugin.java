@@ -46,11 +46,6 @@ public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
             Setting.Property.NodeScope);
 
     static final String DEFAULT_PARSER_NAME = "_default_";
-    private final Settings settings;
-
-    IngestUserAgentPlugin(Settings settings) {
-        this.settings = settings;
-    }
 
     @Override
     public Map<String, Processor.Factory> getProcessors(
@@ -62,7 +57,7 @@ public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
                 "the user agent directory [" + userAgentConfigDirectory + "] containing the regex file doesn't exist");
         }
 
-        long cacheSize = CACHE_SIZE_SETTING.get(settings);
+        long cacheSize = CACHE_SIZE_SETTING.get(env.settings());
         Map<String, UserAgentParser> userAgentParsers;
         try {
             userAgentParsers = createUserAgentParsers(userAgentConfigDirectory, new UserAgentCache(cacheSize));

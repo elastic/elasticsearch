@@ -1,10 +1,18 @@
 ---
-"Getting started - Monitor cluster health":
+setup:
   - do:
       cluster.health:
-          wait_for_status: yellow
+        wait_for_status: yellow
 
+---
+teardown:
+  - do:
+      xpack.watcher.delete_watch:
+        id: "cluster_health_watch"
+        ignore: 404
 
+---
+"Getting started - Monitor cluster health":
   - do:
       xpack.watcher.stats: {}
   - match: { "watcher_state": "started" }

@@ -1,15 +1,24 @@
 ---
-"Test put inactive watch":
+setup:
   - do:
       cluster.health:
           wait_for_status: yellow
 
+---
+teardown:
+  - do:
+      xpack.watcher.delete_watch:
+        id: "my_watch"
+        ignore: 404
+
+---
+"Test put inactive watch":
   - do:
       xpack.watcher.put_watch:
         id: "my_watch"
         master_timeout: "40s"
         active: false
-        body:  > 
+        body:  >
           {
             "trigger": {
               "schedule": {

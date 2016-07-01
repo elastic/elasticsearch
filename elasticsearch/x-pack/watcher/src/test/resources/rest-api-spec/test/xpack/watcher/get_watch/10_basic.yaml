@@ -1,9 +1,18 @@
 ---
-"Test get watch api":
+setup:
   - do:
       cluster.health:
           wait_for_status: yellow
 
+---
+teardown:
+  - do:
+      xpack.watcher.delete_watch:
+        id: "my_watch"
+        ignore: 404
+
+---
+"Test get watch api":
   - do:
       xpack.watcher.put_watch:
         id: "my_watch"

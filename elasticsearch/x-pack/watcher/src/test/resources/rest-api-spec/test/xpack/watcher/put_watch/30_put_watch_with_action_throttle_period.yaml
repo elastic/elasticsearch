@@ -1,9 +1,18 @@
 ---
-"Test put watch api with action level throttle period":
+setup:
   - do:
       cluster.health:
-          wait_for_status: yellow
+        wait_for_status: yellow
 
+---
+teardown:
+  - do:
+      xpack.watcher.delete_watch:
+        id: "my_watch1"
+        ignore: 404
+
+---
+"Test put watch api with action level throttle period":
   - do:
       xpack.watcher.put_watch:
         id: "my_watch1"

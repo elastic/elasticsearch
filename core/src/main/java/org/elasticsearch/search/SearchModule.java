@@ -429,7 +429,7 @@ public class SearchModule extends AbstractModule {
             namedWriteableRegistry.register(AggregationBuilder.class, spec.aggregationName.getPreferredName(), spec.builderReader);
             aggregationParserRegistry.register(spec.aggregationParser, spec.aggregationName);
         }
-        for (Map.Entry<String, Writeable.Reader<? extends InternalAggregation>> t : spec.internalReaders.entrySet()) {
+        for (Map.Entry<String, Writeable.Reader<? extends InternalAggregation>> t : spec.resultReaders.entrySet()) {
             String writeableName = t.getKey();
             Writeable.Reader<? extends InternalAggregation> internalReader = t.getValue();
             namedWriteableRegistry.register(InternalAggregation.class, writeableName, internalReader);
@@ -437,7 +437,7 @@ public class SearchModule extends AbstractModule {
     }
 
     public static class AggregationSpec {
-        private final Map<String, Writeable.Reader<? extends InternalAggregation>> internalReaders = new TreeMap<>();
+        private final Map<String, Writeable.Reader<? extends InternalAggregation>> resultReaders = new TreeMap<>();
         private final Writeable.Reader<? extends AggregationBuilder> builderReader;
         private final Aggregator.Parser aggregationParser;
         private final ParseField aggregationName;
@@ -468,7 +468,7 @@ public class SearchModule extends AbstractModule {
          * Add a reader for the shard level results of the aggregation.
          */
         public AggregationSpec addResultReader(String writeableName, Writeable.Reader<? extends InternalAggregation> resultReader) {
-            internalReaders.put(writeableName, resultReader);
+            resultReaders.put(writeableName, resultReader);
             return this;
         }
     }
@@ -547,8 +547,8 @@ public class SearchModule extends AbstractModule {
                 PercentileRanksAggregationBuilder.AGGREGATION_NAME_FIELD)
                     .addResultReader(InternalTDigestPercentileRanks.NAME, InternalTDigestPercentileRanks::new)
                     .addResultReader(InternalHDRPercentileRanks.NAME, InternalHDRPercentileRanks::new));
-        registerAggregation(CardinalityAggregationBuilder::new, new CardinalityParser(),
-                CardinalityAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(new AggregationSpec(CardinalityAggregationBuilder::new, new CardinalityParser(),
+                CardinalityAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalCardinality::new));
         registerAggregation(GlobalAggregationBuilder::new, GlobalAggregationBuilder::parse,
                 GlobalAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(MissingAggregationBuilder::new, new MissingParser(), MissingAggregationBuilder.AGGREGATION_NAME_FIELD);
@@ -580,10 +580,10 @@ public class SearchModule extends AbstractModule {
         registerAggregation(TopHitsAggregationBuilder::new, TopHitsAggregationBuilder::parse,
                 TopHitsAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(GeoBoundsAggregationBuilder::new, new GeoBoundsParser(), GeoBoundsAggregationBuilder.AGGREGATION_NAME_FIED);
-        registerAggregation(GeoCentroidAggregationBuilder::new, new GeoCentroidParser(),
-                GeoCentroidAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(ScriptedMetricAggregationBuilder::new, ScriptedMetricAggregationBuilder::parse,
-                ScriptedMetricAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(new AggregationSpec(GeoCentroidAggregationBuilder::new, new GeoCentroidParser(),
+                GeoCentroidAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalGeoCentroid::new));
+        registerAggregation(new AggregationSpec(ScriptedMetricAggregationBuilder::new, ScriptedMetricAggregationBuilder::parse,
+                ScriptedMetricAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalScriptedMetric::new));
         registerAggregation(ChildrenAggregationBuilder::new, ChildrenAggregationBuilder::parse,
                 ChildrenAggregationBuilder.AGGREGATION_NAME_FIELD);
 
@@ -766,11 +766,6 @@ public class SearchModule extends AbstractModule {
     }
 
     static {
-        // calcs
-        InternalCardinality.registerStreams();
-        InternalScriptedMetric.registerStreams();
-        InternalGeoCentroid.registerStreams();
-
         // buckets
         InternalGlobal.registerStreams();
         InternalFilter.registerStreams();

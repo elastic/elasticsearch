@@ -47,7 +47,7 @@ import java.util.function.Predicate;
  * with possible list of failures</li>
  * </ul>
  */
-public interface Repository extends LifecycleComponent<Repository> {
+public interface Repository extends LifecycleComponent {
 
     /**
      * Reads snapshot description from repository.

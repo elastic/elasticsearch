@@ -56,7 +56,8 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
     public AzureBlobStore(RepositoryName name, Settings settings, RepositorySettings repositorySettings,
                           AzureStorageService client) throws URISyntaxException, StorageException {
         super(settings);
-        this.client = client.start();
+        this.client = client;
+        client.start();
         this.container = getValue(repositorySettings, Repository.CONTAINER_SETTING, Storage.CONTAINER_SETTING);
         this.repositoryName = name.getName();
         this.accountName = getValue(repositorySettings, Repository.ACCOUNT_SETTING, Storage.ACCOUNT_SETTING);

@@ -105,7 +105,7 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 
 /**
  */
-public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent<Transport> implements Transport {
+public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent implements Transport {
 
     public static final String HTTP_SERVER_WORKER_THREAD_NAME_PREFIX = "http_server_worker";
     public static final String HTTP_SERVER_BOSS_THREAD_NAME_PREFIX = "http_server_boss";

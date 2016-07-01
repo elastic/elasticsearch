@@ -591,7 +591,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
     }
 
     @Singleton
-    public static class MasterAwareService extends AbstractLifecycleComponent<MasterAwareService> implements LocalNodeMasterListener {
+    public static class MasterAwareService extends AbstractLifecycleComponent implements LocalNodeMasterListener {
 
         private final ClusterService clusterService;
         private volatile boolean master;

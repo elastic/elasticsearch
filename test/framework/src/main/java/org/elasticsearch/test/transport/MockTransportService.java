@@ -558,15 +558,13 @@ public class MockTransportService extends TransportService {
         }
 
         @Override
-        public Transport start() {
+        public void start() {
             transport.start();
-            return this;
         }
 
         @Override
-        public Transport stop() {
+        public void stop() {
             transport.stop();
-            return this;
         }
 
         @Override

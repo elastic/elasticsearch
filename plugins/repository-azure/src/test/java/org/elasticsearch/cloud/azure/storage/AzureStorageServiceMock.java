@@ -41,7 +41,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * In memory storage for unit tests
  */
-public class AzureStorageServiceMock extends AbstractLifecycleComponent<AzureStorageServiceMock>
+public class AzureStorageServiceMock extends AbstractLifecycleComponent
         implements AzureStorageService {
 
     protected Map<String, ByteArrayOutputStream> blobs = new ConcurrentHashMap<>();

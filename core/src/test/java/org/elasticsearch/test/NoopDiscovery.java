@@ -86,17 +86,11 @@ public class NoopDiscovery implements Discovery {
     }
 
     @Override
-    public Discovery start() {
-        return null;
-    }
+    public void start() {}
 
     @Override
-    public Discovery stop() {
-        return null;
-    }
+    public void stop() {}
 
     @Override
-    public void close() {
-
-    }
+    public void close() {}
 }

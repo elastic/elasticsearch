@@ -73,7 +73,7 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 /**
  *
  */
-public class LocalTransport extends AbstractLifecycleComponent<Transport> implements Transport {
+public class LocalTransport extends AbstractLifecycleComponent implements Transport {
 
     public static final String LOCAL_TRANSPORT_THREAD_NAME_PREFIX = "local_transport";
     final ThreadPool threadPool;

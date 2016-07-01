@@ -66,7 +66,7 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * A node level service that delete expired docs on node primary shards.
  */
-public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLService> {
+public class IndicesTTLService extends AbstractLifecycleComponent {
 
     public static final Setting<TimeValue> INDICES_TTL_INTERVAL_SETTING =
         Setting.positiveTimeSetting("indices.ttl.interval", TimeValue.timeValueSeconds(60),

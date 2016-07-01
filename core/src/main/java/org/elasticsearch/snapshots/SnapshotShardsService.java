@@ -75,7 +75,7 @@ import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
  * This service runs on data and master nodes and controls currently snapshotted shards on these nodes. It is responsible for
  * starting and stopping shard level snapshots
  */
-public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotShardsService> implements ClusterStateListener {
+public class SnapshotShardsService extends AbstractLifecycleComponent implements ClusterStateListener {
 
     public static final String UPDATE_SNAPSHOT_ACTION_NAME = "internal:cluster/snapshot/update_snapshot";
 

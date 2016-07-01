@@ -52,7 +52,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  *
  */
-public class GatewayService extends AbstractLifecycleComponent<GatewayService> implements ClusterStateListener {
+public class GatewayService extends AbstractLifecycleComponent implements ClusterStateListener {
 
     public static final Setting<Integer> EXPECTED_NODES_SETTING =
         Setting.intSetting("gateway.expected_nodes", -1, -1, Property.NodeScope);

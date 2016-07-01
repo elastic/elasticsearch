@@ -105,7 +105,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 /**
  *
  */
-public class SearchService extends AbstractLifecycleComponent<SearchService> implements IndexEventListener {
+public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
 
     // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
     public static final Setting<TimeValue> DEFAULT_KEEPALIVE_SETTING =

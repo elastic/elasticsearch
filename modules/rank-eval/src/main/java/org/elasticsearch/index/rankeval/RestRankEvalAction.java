@@ -19,14 +19,12 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
@@ -43,10 +41,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  * Accepted input format:
- * 
+ *
  * General Format:
- * 
- * 
+ *
+ *
   { "requests": [{
         "id": "human_readable_id",
         "request": { ... request to check ... },
@@ -56,17 +54,17 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
         "... metric_name... ": {
             "... metric_parameter_key ...": ...metric_parameter_value...
         }}}
- * 
- * Example: 
- * 
- * 
+ *
+ * Example:
+ *
+ *
    {"requests": [{
         "id": "amsterdam_query",
         "request": {
                 "query": {
                     "bool": {
                         "must": [
-                            {"match": {"beverage": "coffee"}}, 
+                            {"match": {"beverage": "coffee"}},
                             {"term": {"browser": {"value": "safari"}}},
                             {"term": {"time_of_day": {"value": "morning","boost": 2}}},
                             {"term": {"ip_location": {"value": "ams","boost": 10}}}]}
@@ -86,7 +84,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
                 "query": {
                     "bool": {
                         "must": [
-                            {"match": {"beverage": "club mate"}}, 
+                            {"match": {"beverage": "club mate"}},
                             {"term": {"browser": {"value": "chromium"}}},
                             {"term": {"time_of_day": {"value": "evening","boost": 2}}},
                             {"term": {"ip_location": {"value": "ber","boost": 10}}}]}
@@ -103,14 +101,14 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
     "metric": {
         "precisionAtN": {
             "size": 10}}
-  } 
- 
- * 
+  }
+
+ *
  * Output format:
- * 
+ *
  * General format:
- * 
- * 
+ *
+ *
  {
     "took": 59,
     "timed_out": false,
@@ -121,13 +119,13 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
     },
     "quality_level": ... quality level ...,
     "unknown_docs": [{"user_request_id": [... list of unknown docs ...]}]
-} 
+}
 
- * 
+ *
  * Example:
- * 
- * 
- * 
+ *
+ *
+ *
   {
     "took": 59,
     "timed_out": false,
@@ -146,15 +144,15 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
         }]
     }]
   }
-  
-  
+
+
  * */
 public class RestRankEvalAction extends BaseRestHandler {
 
     @Inject
-    public RestRankEvalAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry queryRegistry,
+    public RestRankEvalAction(Settings settings, RestController controller, IndicesQueriesRegistry queryRegistry,
             AggregatorParsers aggParsers, Suggesters suggesters) {
-        super(settings, client);
+        super(settings);
         controller.registerHandler(GET, "/_rank_eval", this);
         controller.registerHandler(POST, "/_rank_eval", this);
         controller.registerHandler(GET, "/{index}/_rank_eval", this);
@@ -164,7 +162,7 @@ public class RestRankEvalAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws IOException {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws IOException {
         RankEvalRequest rankEvalRequest = new RankEvalRequest();
         //parseRankEvalRequest(rankEvalRequest, request, parseFieldMatcher);
         //client.rankEval(rankEvalRequest, new RestStatusToXContentListener<>(channel));

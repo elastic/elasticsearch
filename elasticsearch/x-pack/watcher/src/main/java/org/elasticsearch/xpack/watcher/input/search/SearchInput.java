@@ -38,9 +38,9 @@ public class SearchInput implements Input {
     public static final String TYPE = "search";
 
     private final WatcherSearchTemplateRequest request;
-    private final @Nullable Set<String> extractKeys;
-    private final @Nullable TimeValue timeout;
-    private final @Nullable DateTimeZone dynamicNameTimeZone;
+    @Nullable private final Set<String> extractKeys;
+    @Nullable private final TimeValue timeout;
+    @Nullable private final DateTimeZone dynamicNameTimeZone;
 
     public SearchInput(WatcherSearchTemplateRequest request, @Nullable Set<String> extractKeys,
                        @Nullable TimeValue timeout, @Nullable DateTimeZone dynamicNameTimeZone) {
@@ -176,7 +176,7 @@ public class SearchInput implements Input {
 
     public static class Result extends Input.Result {
 
-        private final @Nullable SearchRequest request;
+        @Nullable private final SearchRequest request;
 
         public Result(SearchRequest request, Payload payload) {
             super(TYPE, payload);

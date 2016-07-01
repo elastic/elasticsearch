@@ -30,9 +30,9 @@ import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.dateT
 public class ActionStatus implements ToXContent {
 
     private AckStatus ackStatus;
-    private @Nullable Execution lastExecution;
-    private @Nullable Execution lastSuccessfulExecution;
-    private @Nullable Throttle lastThrottle;
+    @Nullable private Execution lastExecution;
+    @Nullable private Execution lastSuccessfulExecution;
+    @Nullable private Throttle lastThrottle;
 
     public ActionStatus(DateTime now) {
         this(new AckStatus(now, AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION), null, null, null);

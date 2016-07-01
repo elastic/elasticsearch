@@ -129,9 +129,9 @@ public class IntegrationAccount extends HipChatAccount {
 
     static class Defaults {
 
-        final @Nullable Format format;
-        final @Nullable Color color;
-        final @Nullable Boolean notify;
+        @Nullable final Format format;
+        @Nullable final Color color;
+        @Nullable final Boolean notify;
 
         public Defaults(Settings settings) {
             this.format = Format.resolve(settings, DEFAULT_FORMAT_SETTING, null);

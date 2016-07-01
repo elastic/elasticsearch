@@ -46,9 +46,9 @@ public class HttpRequestTemplate implements ToXContent {
     private final Map<String, TextTemplate> headers;
     private final HttpAuth auth;
     private final TextTemplate body;
-    private final @Nullable TimeValue connectionTimeout;
-    private final @Nullable TimeValue readTimeout;
-    private final @Nullable HttpProxy proxy;
+    @Nullable private final TimeValue connectionTimeout;
+    @Nullable private final TimeValue readTimeout;
+    @Nullable private final HttpProxy proxy;
 
     public HttpRequestTemplate(String host, int port, @Nullable Scheme scheme, @Nullable HttpMethod method, @Nullable TextTemplate path,
                                Map<String, TextTemplate> params, Map<String, TextTemplate> headers, HttpAuth auth,

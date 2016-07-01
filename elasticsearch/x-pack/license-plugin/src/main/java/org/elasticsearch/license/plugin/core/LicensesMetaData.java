@@ -239,7 +239,7 @@ public class LicensesMetaData extends AbstractDiffable<MetaData.Custom> implemen
         return new LicensesMetaData(license);
     }
 
-    private final static class Fields {
+    private static final class Fields {
         private static final String SIGNED_LICENCES = "signed_licenses";
         private static final String TRIAL_LICENSES = "trial_licenses";
         private static final String LICENSE = "license";

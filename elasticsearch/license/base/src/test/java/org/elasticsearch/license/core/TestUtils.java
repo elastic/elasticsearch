@@ -25,9 +25,9 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 public class TestUtils {
 
-    private final static FormatDateTimeFormatter formatDateTimeFormatter = Joda.forPattern("yyyy-MM-dd");
-    private final static DateMathParser dateMathParser = new DateMathParser(formatDateTimeFormatter);
-    private final static DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.printer();
+    private static final FormatDateTimeFormatter formatDateTimeFormatter = Joda.forPattern("yyyy-MM-dd");
+    private static final DateMathParser dateMathParser = new DateMathParser(formatDateTimeFormatter);
+    private static final DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.printer();
 
     public static String dateMathString(String time, final long now) {
         return dateTimeFormatter.print(dateMathParser.parse(time, new Callable<Long>() {

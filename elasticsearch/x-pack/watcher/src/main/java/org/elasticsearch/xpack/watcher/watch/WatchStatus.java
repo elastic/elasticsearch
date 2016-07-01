@@ -47,8 +47,8 @@ public class WatchStatus implements ToXContent, Streamable {
 
     private State state;
 
-    private @Nullable DateTime lastChecked;
-    private @Nullable DateTime lastMetCondition;
+    @Nullable private DateTime lastChecked;
+    @Nullable private DateTime lastMetCondition;
     private Map<String, ActionStatus> actions;
 
     private volatile boolean dirty = false;

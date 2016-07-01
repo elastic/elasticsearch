@@ -33,12 +33,12 @@ public class WatchRecord implements ToXContent {
     // only emitted to xcontent in "debug" mode
     private final Map<String, Object> vars;
 
-    private final @Nullable ExecutableInput input;
-    private final @Nullable Condition condition;
-    private final @Nullable Map<String,Object> metadata;
+    @Nullable private final ExecutableInput input;
+    @Nullable private final Condition condition;
+    @Nullable private final Map<String,Object> metadata;
 
-    private final @Nullable String[] messages;
-    private final @Nullable WatchExecutionResult executionResult;
+    @Nullable private final String[] messages;
+    @Nullable private final WatchExecutionResult executionResult;
 
     /**
      * Called when the execution was aborted before it started

@@ -41,14 +41,14 @@ public class HttpRequest implements ToXContent {
     final int port;
     final Scheme scheme;
     final HttpMethod method;
-    final @Nullable String path;
+    @Nullable final String path;
     final Map<String, String> params;
     final Map<String, String> headers;
-    final @Nullable HttpAuth auth;
-    final @Nullable String body;
-    final @Nullable TimeValue connectionTimeout;
-    final @Nullable TimeValue readTimeout;
-    final @Nullable HttpProxy proxy;
+    @Nullable final HttpAuth auth;
+    @Nullable final String body;
+    @Nullable final TimeValue connectionTimeout;
+    @Nullable final TimeValue readTimeout;
+    @Nullable final HttpProxy proxy;
 
     public HttpRequest(String host, int port, @Nullable Scheme scheme, @Nullable HttpMethod method, @Nullable String path,
                        @Nullable Map<String, String> params, @Nullable Map<String, String> headers,

@@ -35,8 +35,8 @@ public class User implements ToXContent {
     private final User runAs;
     private final Map<String, Object> metadata;
 
-    private final @Nullable String fullName;
-    private final @Nullable String email;
+    @Nullable private final String fullName;
+    @Nullable private final String email;
 
     public User(String username, String... roles) {
         this(username, roles, null, null, null);

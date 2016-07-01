@@ -337,13 +337,13 @@ public class BCrypt {
     // bcrypt IV: "OrpheanBeholderScryDoubt". The C implementation calls
     // this "ciphertext", but it is really plaintext or an IV. We keep
     // the name to make code comparison easier.
-    static private final int bf_crypt_ciphertext[] = {
+    private static final int bf_crypt_ciphertext[] = {
         0x4f727068, 0x65616e42, 0x65686f6c,
         0x64657253, 0x63727944, 0x6f756274
     };
 
     // Table for Base64 encoding
-    static private final char base64_code[] = {
+    private static final char base64_code[] = {
         '.', '/', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
         'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V',
         'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h',
@@ -353,7 +353,7 @@ public class BCrypt {
     };
 
     // Table for Base64 decoding
-    static private final byte index_64[] = {
+    private static final byte index_64[] = {
         -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
         -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
         -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,

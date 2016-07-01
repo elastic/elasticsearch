@@ -33,7 +33,7 @@ import java.util.Collections;
  */
 public class LicenseSigner {
 
-    private final static int MAGIC_LENGTH = 13;
+    private static final int MAGIC_LENGTH = 13;
 
     private final Path publicKeyPath;
 

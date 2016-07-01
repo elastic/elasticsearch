@@ -64,10 +64,10 @@ public class Watch implements TriggerEngine.Job, ToXContent {
     private final Trigger trigger;
     private final ExecutableInput input;
     private final ExecutableCondition condition;
-    private final @Nullable ExecutableTransform transform;
+    @Nullable private final ExecutableTransform transform;
     private final ExecutableActions actions;
-    private final @Nullable TimeValue throttlePeriod;
-    private final @Nullable Map<String, Object> metadata;
+    @Nullable private final TimeValue throttlePeriod;
+    @Nullable private final Map<String, Object> metadata;
     private final WatchStatus status;
 
     private final transient AtomicLong nonceCounter = new AtomicLong();

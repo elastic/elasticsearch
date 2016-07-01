@@ -36,7 +36,7 @@ import java.util.Objects;
 public class WatcherSearchTemplateRequest implements ToXContent {
 
     private final SearchRequest request;
-    private final @Nullable Script template;
+    @Nullable private final Script template;
 
     public WatcherSearchTemplateRequest(SearchRequest searchRequest, @Nullable Script template) {
         this.request = Objects.requireNonNull(searchRequest);
@@ -250,5 +250,5 @@ public class WatcherSearchTemplateRequest implements ToXContent {
     static final ParseField ALLOW_NO_INDICES_FIELD = new ParseField("allow_no_indices");
     static final ParseField TEMPLATE_FIELD = new ParseField("template");
 
-    public final static IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.lenientExpandOpen();
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.lenientExpandOpen();
 }

@@ -10,7 +10,7 @@ import org.elasticsearch.rest.RestStatus;
 
 public class LicenseUtils {
 
-    public final static String EXPIRED_FEATURE_HEADER = "es.license.expired.feature";
+    public static final String EXPIRED_FEATURE_HEADER = "es.license.expired.feature";
 
     /**
      * Exception to be thrown when a feature action requires a valid license, but license

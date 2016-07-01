@@ -25,8 +25,8 @@ public class LoggingAction implements Action {
     public static final String TYPE = "logging";
 
     final TextTemplate text;
-    final @Nullable LoggingLevel level;
-    final @Nullable String category;
+    @Nullable final LoggingLevel level;
+    @Nullable final String category;
 
     public LoggingAction(TextTemplate text, @Nullable LoggingLevel level, @Nullable String category) {
         this.text = text;

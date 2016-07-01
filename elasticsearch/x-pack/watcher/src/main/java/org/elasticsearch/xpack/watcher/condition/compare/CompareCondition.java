@@ -131,7 +131,7 @@ public class CompareCondition implements Condition {
 
     public static class Result extends Condition.Result {
 
-        private final @Nullable Map<String, Object> resolveValues;
+        @Nullable private final Map<String, Object> resolveValues;
 
         Result(Map<String, Object> resolveValues, boolean met) {
             super(TYPE, met);

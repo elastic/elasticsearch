@@ -202,7 +202,7 @@ public class ArrayCompareCondition implements Condition {
     }
 
     public static class Result extends Condition.Result {
-        private final @Nullable Map<String, Object> resolvedValues;
+        @Nullable private final Map<String, Object> resolvedValues;
 
         Result(Map<String, Object> resolvedValues, boolean met) {
             super(TYPE, met);

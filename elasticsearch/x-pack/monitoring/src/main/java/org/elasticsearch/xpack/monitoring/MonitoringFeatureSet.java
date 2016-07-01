@@ -82,7 +82,7 @@ public class MonitoringFeatureSet implements XPackFeatureSet {
 
         private static final String ENABLED_EXPORTERS_XFIELD = "enabled_exporters";
 
-        private @Nullable Map<String, Object> exporters;
+        @Nullable private Map<String, Object> exporters;
 
         public Usage(StreamInput in) throws IOException {
             super(in);

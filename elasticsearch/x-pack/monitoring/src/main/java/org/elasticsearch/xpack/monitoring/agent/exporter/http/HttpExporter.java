@@ -535,7 +535,7 @@ public class HttpExporter extends Exporter {
         }
     }
 
-    static private void validateHosts(String[] hosts) {
+    private static void validateHosts(String[] hosts) {
         for (String host : hosts) {
             try {
                 HttpExporterUtils.parseHostWithPath(host, "");

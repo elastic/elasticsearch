@@ -79,7 +79,7 @@ public class SecurityNettyTransport extends NettyTransport {
 
     private final ServerSSLService serverSslService;
     private final ClientSSLService clientSSLService;
-    private final @Nullable IPFilter authenticator;
+    @Nullable private final IPFilter authenticator;
     private final boolean ssl;
 
     @Inject

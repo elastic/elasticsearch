@@ -26,7 +26,7 @@ public class HipChatAction implements Action {
 
     public static final String TYPE = "hipchat";
 
-    final @Nullable String account;
+    @Nullable final String account;
     final HipChatMessage.Template message;
 
     public HipChatAction(@Nullable String account, HipChatMessage.Template message) {

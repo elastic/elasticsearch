@@ -126,7 +126,7 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
      * Data index name resolvers are used used to index documents in
      * the monitoring data index (.monitoring-data-{VERSION})
      */
-    public static abstract class Data<T extends MonitoringDoc> extends MonitoringIndexNameResolver<T> {
+    public abstract static class Data<T extends MonitoringDoc> extends MonitoringIndexNameResolver<T> {
 
         public static final String DATA = "data";
 
@@ -166,7 +166,7 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
      * Timestamped index name resolvers are used used to index documents in
      * a timestamped index (.monitoring-{ID}-{VERSION}-YYYY.MM.dd)
      */
-    public static abstract class Timestamped<T extends MonitoringDoc> extends MonitoringIndexNameResolver<T> {
+    public abstract static class Timestamped<T extends MonitoringDoc> extends MonitoringIndexNameResolver<T> {
 
         public static final Setting<String> INDEX_NAME_TIME_FORMAT_SETTING = new Setting<>("index.name.time_format", "YYYY.MM.dd",
                 Function.identity(), Setting.Property.NodeScope);

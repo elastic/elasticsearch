@@ -27,8 +27,8 @@ import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordTok
 
 public class WatcherWithSecurityIT extends ESRestTestCase {
 
-    private final static String TEST_ADMIN_USERNAME = "test_admin";
-    private final static String TEST_ADMIN_PASSWORD = "changeme";
+    private static final String TEST_ADMIN_USERNAME = "test_admin";
+    private static final String TEST_ADMIN_PASSWORD = "changeme";
 
     public WatcherWithSecurityIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);

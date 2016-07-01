@@ -39,6 +39,23 @@
 
     <module name="EqualsHashCode" />
 
+    <!-- Checks that the order of modifiers conforms to the suggestions in the
+    Java Language specification, sections 8.1.1, 8.3.1 and 8.4.3.
+    The correct order is:
+            public
+            protected
+            private
+            abstract
+            static
+            final
+            transient
+            volatile
+            synchronized
+            native
+            strictfp
+    -->
+    <module name="ModifierOrder" />
+
     <!-- We don't use Java's builtin serialization and we suppress all warning
       about it. The flip side of that coin is that we shouldn't _try_ to use
       it. We can't outright ban it with ForbiddenApis because it complain about

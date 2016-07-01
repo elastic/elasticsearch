@@ -549,13 +549,13 @@ public class SearchModule extends AbstractModule {
                     .addResultReader(InternalHDRPercentileRanks.NAME, InternalHDRPercentileRanks::new));
         registerAggregation(new AggregationSpec(CardinalityAggregationBuilder::new, new CardinalityParser(),
                 CardinalityAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalCardinality::new));
-        registerAggregation(GlobalAggregationBuilder::new, GlobalAggregationBuilder::parse,
-                GlobalAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(new AggregationSpec(GlobalAggregationBuilder::new, GlobalAggregationBuilder::parse,
+                GlobalAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalGlobal::new));
         registerAggregation(MissingAggregationBuilder::new, new MissingParser(), MissingAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(FilterAggregationBuilder::new, FilterAggregationBuilder::parse,
-                FilterAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(FiltersAggregationBuilder::new, FiltersAggregationBuilder::parse,
-                FiltersAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(new AggregationSpec(FilterAggregationBuilder::new, FilterAggregationBuilder::parse,
+                FilterAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalFilter::new));
+        registerAggregation(new AggregationSpec(FiltersAggregationBuilder::new, FiltersAggregationBuilder::parse,
+                FiltersAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalFilters::new));
         registerAggregation(SamplerAggregationBuilder::new, SamplerAggregationBuilder::parse,
                 SamplerAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(DiversifiedAggregationBuilder::new, new DiversifiedSamplerParser(),
@@ -767,9 +767,6 @@ public class SearchModule extends AbstractModule {
 
     static {
         // buckets
-        InternalGlobal.registerStreams();
-        InternalFilter.registerStreams();
-        InternalFilters.registerStream();
         InternalSampler.registerStreams();
         UnmappedSampler.registerStreams();
         InternalMissing.registerStreams();

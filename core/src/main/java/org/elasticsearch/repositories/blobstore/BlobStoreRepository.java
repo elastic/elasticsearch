@@ -361,14 +361,42 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final String snapshotName = snapshotId.getName();
             // Delete snapshot file first so we wouldn't end up with partially deleted snapshot that looks OK
             if (snapshot != null) {
-                snapshotFormat(snapshot.version()).delete(snapshotsBlobContainer, blobId(snapshotId));
-                globalMetaDataFormat(snapshot.version()).delete(snapshotsBlobContainer, snapshotName);
+                try {
+                    snapshotFormat(snapshot.version()).delete(snapshotsBlobContainer, blobId(snapshotId));
+                } catch (IOException e) {
+                    logger.debug("snapshotFormat failed to delete snapshot [{}]", snapshotId);
+                }
+
+                try {
+                    globalMetaDataFormat(snapshot.version()).delete(snapshotsBlobContainer, snapshotName);
+                } catch (IOException e) {
+                    logger.debug("gloalMetaDataFormat failed to delete snapshot [{}]");
+                }
             } else {
                 // We don't know which version was the snapshot created with - try deleting both current and legacy formats
-                snapshotFormat.delete(snapshotsBlobContainer, blobId(snapshotId));
-                snapshotLegacyFormat.delete(snapshotsBlobContainer, snapshotName);
-                globalMetaDataLegacyFormat.delete(snapshotsBlobContainer, snapshotName);
-                globalMetaDataFormat.delete(snapshotsBlobContainer, snapshotName);
+                try {
+                    snapshotFormat.delete(snapshotsBlobContainer, blobId(snapshotId));
+                } catch (IOException e) {
+                    logger.debug("snapshotFormat failed to delete snapshot [{}]");
+                }
+
+                try {
+                    snapshotLegacyFormat.delete(snapshotsBlobContainer, snapshotName);
+                } catch (IOException e) {
+                    logger.debug("snapshotLegacyFormat failed to delete snapshot [{}]");
+                }
+
+                try {
+                    globalMetaDataLegacyFormat.delete(snapshotsBlobContainer, snapshotName);
+                } catch (IOException e) {
+                    logger.debug("globalMetaDataLegacyFormat failed to delete snapshot [{}]");
+                }
+
+                try {
+                    globalMetaDataFormat.delete(snapshotsBlobContainer, snapshotName);
+                } catch (IOException e) {
+                    logger.debug("globalMetaDataFormat failed to delete snapshot [{}]");
+                }
             }
             // Delete snapshot from the snapshot list
             List<SnapshotId> snapshotIds = getSnapshots().stream().filter(id -> snapshotId.equals(id) == false).collect(Collectors.toList());

@@ -20,7 +20,6 @@
 package org.elasticsearch.ingest.useragent;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
@@ -81,9 +80,8 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
 
         String processorTag = randomAsciiOfLength(10);
-        config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
 
-        UserAgentProcessor processor = factory.create(config);
+        UserAgentProcessor processor = factory.create(processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("useragent"));
@@ -100,7 +98,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("target_field", "_target_field");
 
-        UserAgentProcessor processor = factory.create(config);
+        UserAgentProcessor processor = factory.create(null, config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("_target_field"));
     }
@@ -112,7 +110,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("regex_file", regexWithoutDevicesFilename);
 
-        UserAgentProcessor processor = factory.create(config);
+        UserAgentProcessor processor = factory.create(null, config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getUaParser().getUaPatterns().size(), greaterThan(0));
         assertThat(processor.getUaParser().getOsPatterns().size(), greaterThan(0));
@@ -126,7 +124,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("regex_file", "does-not-exist.yaml");
 
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(config));
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, config));
         assertThat(e.getMessage(), equalTo("[regex_file] regex file [does-not-exist.yaml] doesn't exist (has to exist at node startup)"));
     }
 
@@ -146,7 +144,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("properties", fieldNames);
 
-        UserAgentProcessor processor = factory.create(config);
+        UserAgentProcessor processor = factory.create(null, config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getProperties(), equalTo(properties));
     }
@@ -158,7 +156,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("properties", Collections.singletonList("invalid"));
 
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(config));
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, config));
         assertThat(e.getMessage(), equalTo("[properties] illegal property value [invalid]. valid values are [NAME, MAJOR, MINOR, "
                 + "PATCH, OS, OS_NAME, OS_MAJOR, OS_MINOR, DEVICE, BUILD]"));
     }
@@ -170,7 +168,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("properties", "invalid");
 
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(config));
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, config));
         assertThat(e.getMessage(), equalTo("[properties] property isn't a list, but of type [java.lang.String]"));
     }
 }

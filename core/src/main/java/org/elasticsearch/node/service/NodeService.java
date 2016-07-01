@@ -74,7 +74,7 @@ public class NodeService extends AbstractComponent implements Closeable {
     @Inject
     public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService,
                        Discovery discovery, TransportService transportService, IndicesService indicesService,
-                       PluginsService pluginService, CircuitBreakerService circuitBreakerService,
+                       PluginsService pluginService, CircuitBreakerService circuitBreakerService, ScriptService scriptService,
                        IngestService ingestService, ClusterService clusterService, SettingsFilter settingsFilter) {
         super(settings);
         this.threadPool = threadPool;
@@ -87,15 +87,9 @@ public class NodeService extends AbstractComponent implements Closeable {
         this.clusterService = clusterService;
         this.ingestService = ingestService;
         this.settingsFilter = settingsFilter;
+        this.scriptService = scriptService;
         clusterService.add(ingestService.getPipelineStore());
         clusterService.add(ingestService.getPipelineExecutionService());
-    }
-
-    // can not use constructor injection or there will be a circular dependency
-    // nocommit: try removing this...
-    @Inject(optional = true)
-    public void setScriptService(ScriptService scriptService) {
-        this.scriptService = scriptService;
     }
 
     public void setHttpServer(@Nullable HttpServer httpServer) {

@@ -41,8 +41,7 @@ public class HtmlSanitizer {
     private final boolean enabled;
     @SuppressForbidden( reason = "PolicyFactory uses guava Function")
     private final PolicyFactory policy;
-
-    @Inject
+    
     public HtmlSanitizer(Settings settings) {
         enabled = settings.getAsBoolean("xpack.notification.email.html.sanitization.enabled", true);
         String[] allow = settings.getAsArray("xpack.notification.email.html.sanitization.allow", DEFAULT_ALLOWED);

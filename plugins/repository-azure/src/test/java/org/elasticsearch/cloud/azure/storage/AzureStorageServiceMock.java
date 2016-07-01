@@ -95,13 +95,13 @@ public class AzureStorageServiceMock extends AbstractLifecycleComponent<AzureSto
         MapBuilder<String, BlobMetaData> blobsBuilder = MapBuilder.newMapBuilder();
         for (String blobName : blobs.keySet()) {
             final String checkBlob;
-            if (keyPath != null && !keyPath.isEmpty()) {
+            if (keyPath != null) {
                 // strip off key path from the beginning of the blob name
                 checkBlob = blobName.replace(keyPath, "");
             } else {
                 checkBlob = blobName;
             }
-            if (prefix == null || startsWithIgnoreCase(checkBlob, prefix)) {
+            if (startsWithIgnoreCase(checkBlob, prefix)) {
                 blobsBuilder.put(blobName, new PlainBlobMetaData(checkBlob, blobs.get(blobName).size()));
             }
         }

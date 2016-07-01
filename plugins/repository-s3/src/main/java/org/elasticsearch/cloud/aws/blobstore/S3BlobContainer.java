@@ -108,6 +108,10 @@ public class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public void deleteBlob(String blobName) throws IOException {
+        if (!blobExists(blobName)) {
+            throw new IOException("Blob [" + blobName + "] does not exist");
+        }
+
         try {
             blobStore.client().deleteObject(blobStore.bucket(), buildKey(blobName));
         } catch (AmazonClientException e) {

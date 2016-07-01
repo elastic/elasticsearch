@@ -9,8 +9,8 @@ Example:
 --------------------------------------------------
 {
     "aggs" : {
-        "genders" : {
-            "terms" : { "field" : "gender" }
+        "genres" : {
+            "terms" : { "field" : "genre" }
         }
     }
 }
@@ -24,16 +24,20 @@ Response:
     ...
 
     "aggregations" : {
-        "genders" : {
+        "genres" : {
             "doc_count_error_upper_bound": 0, <1>
             "sum_other_doc_count": 0, <2>
             "buckets" : [ <3>
                 {
-                    "key" : "male",
+                    "key" : "jazz",
                     "doc_count" : 10
                 },
                 {
-                    "key" : "female",
+                    "key" : "rock",
+                    "doc_count" : 10
+                },
+                {
+                    "key" : "electronic",
                     "doc_count" : 10
                 },
             ]
@@ -249,9 +253,9 @@ Ordering the buckets by their `doc_count` in an ascending manner:
 --------------------------------------------------
 {
     "aggs" : {
-        "genders" : {
+        "genres" : {
             "terms" : {
-                "field" : "gender",
+                "field" : "genre",
                 "order" : { "_count" : "asc" }
             }
         }
@@ -265,9 +269,9 @@ Ordering the buckets alphabetically by their terms in an ascending manner:
 --------------------------------------------------
 {
     "aggs" : {
-        "genders" : {
+        "genres" : {
             "terms" : {
-                "field" : "gender",
+                "field" : "genre",
                 "order" : { "_term" : "asc" }
             }
         }
@@ -282,13 +286,13 @@ Ordering the buckets by single value metrics sub-aggregation (identified by the 
 --------------------------------------------------
 {
     "aggs" : {
-        "genders" : {
+        "genres" : {
             "terms" : {
-                "field" : "gender",
-                "order" : { "avg_height" : "desc" }
+                "field" : "genre",
+                "order" : { "avg_play_count" : "desc" }
             },
             "aggs" : {
-                "avg_height" : { "avg" : { "field" : "height" } }
+                "avg_play_count" : { "avg" : { "field" : "play_count" } }
             }
         }
     }
@@ -301,13 +305,13 @@ Ordering the buckets by multi value metrics sub-aggregation (identified by the a
 --------------------------------------------------
 {
     "aggs" : {
-        "genders" : {
+        "genres" : {
             "terms" : {
-                "field" : "gender",
-                "order" : { "height_stats.avg" : "desc" }
+                "field" : "genre",
+                "order" : { "playback_stats.avg" : "desc" }
             },
             "aggs" : {
-                "height_stats" : { "stats" : { "field" : "height" } }
+                "playback_stats" : { "stats" : { "field" : "play_count" } }
             }
         }
     }
@@ -345,14 +349,14 @@ PATH                :=  <AGG_NAME>[<AGG_SEPARATOR><AGG_NAME>]*[<METRIC_SEPARATOR
     "aggs" : {
         "countries" : {
             "terms" : {
-                "field" : "address.country",
-                "order" : { "females>height_stats.avg" : "desc" }
+                "field" : "artist.country",
+                "order" : { "rock>playback_stats.avg" : "desc" }
             },
             "aggs" : {
-                "females" : {
-                    "filter" : { "term" : { "gender" :  "female" }},
+                "rock" : {
+                    "filter" : { "term" : { "genre" :  "rock" }},
                     "aggs" : {
-                        "height_stats" : { "stats" : { "field" : "height" }}
+                        "playback_stats" : { "stats" : { "field" : "play_count" }}
                     }
                 }
             }
@@ -361,7 +365,7 @@ PATH                :=  <AGG_NAME>[<AGG_SEPARATOR><AGG_NAME>]*[<METRIC_SEPARATOR
 }
 --------------------------------------------------
 
-The above will sort the countries buckets based on the average height among the female population.
+The above will sort the artist's countries buckets based on the average play count among the rock songs.
 
 Multiple criteria can be used to order the buckets by providing an array of order criteria such as the following:
 
@@ -371,14 +375,14 @@ Multiple criteria can be used to order the buckets by providing an array of orde
     "aggs" : {
         "countries" : {
             "terms" : {
-                "field" : "address.country",
-                "order" : [ { "females>height_stats.avg" : "desc" }, { "_count" : "desc" } ]
+                "field" : "artist.country",
+                "order" : [ { "rock>playback_stats.avg" : "desc" }, { "_count" : "desc" } ]
             },
             "aggs" : {
-                "females" : {
-                    "filter" : { "term" : { "gender" : { "female" }}},
+                "rock" : {
+                    "filter" : { "term" : { "genre" : { "rock" }}},
                     "aggs" : {
-                        "height_stats" : { "stats" : { "field" : "height" }}
+                        "playback_stats" : { "stats" : { "field" : "play_count" }}
                     }
                 }
             }
@@ -387,7 +391,7 @@ Multiple criteria can be used to order the buckets by providing an array of orde
 }
 --------------------------------------------------
 
-The above will sort the countries buckets based on the average height among the female population and then by
+The above will sort the artist's countries buckets based on the average play count among the rock songs and then by
 their `doc_count` in descending order.
 
 NOTE: In the event that two buckets share the same values for all order criteria the bucket's term value is used as a
@@ -441,9 +445,9 @@ Generating the terms using a script:
 --------------------------------------------------
 {
     "aggs" : {
-        "genders" : {
+        "genres" : {
             "terms" : {
-                "script" : "doc['gender'].value"
+                "script" : "doc['genre'].value"
             }
         }
     }
@@ -456,12 +460,12 @@ This will interpret the `script` parameter as an `inline` script with the defaul
 --------------------------------------------------
 {
     "aggs" : {
-        "genders" : {
+        "genres" : {
             "terms" : {
                 "script" : {
                     "file": "my_script",
                     "params": {
-                        "field": "gender"
+                        "field": "genre"
                     }
                 }
             }
@@ -479,10 +483,10 @@ TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
 --------------------------------------------------
 {
     "aggs" : {
-        "genders" : {
+        "genres" : {
             "terms" : {
-                "field" : "gender",
-                "script" : "'Gender: ' +_value"
+                "field" : "genre",
+                "script" : "'Genre: ' +_value"
             }
         }
     }

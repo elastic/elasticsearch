@@ -47,15 +47,9 @@ public final class UTF8SortedAsUnicodeComparator implements Comparator<BytesRefe
                     for (int i = 0; i < lengthToCompare;) {
                         if (aRef.length == 0) {
                             aRef = aIter.next();
-                            if (aRef == null) {
-                                break;
-                            }
                         }
                         if (bRef.length == 0) {
                             bRef = bIter.next();
-                            if (bRef == null) {
-                                break;
-                            }
                         }
                         final int aLength = aRef.length;
                         final int bLength = bRef.length;

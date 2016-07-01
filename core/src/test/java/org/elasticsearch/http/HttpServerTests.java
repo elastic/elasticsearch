@@ -120,7 +120,7 @@ public class HttpServerTests extends ESTestCase {
         assertEquals(0, inFlightRequestsBreaker.getUsed());
     }
 
-    private static final class TestHttpServerTransport extends AbstractLifecycleComponent<HttpServerTransport> implements
+    private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements
         HttpServerTransport {
 
         public TestHttpServerTransport() {

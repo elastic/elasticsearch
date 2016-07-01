@@ -56,7 +56,7 @@ import static org.elasticsearch.cluster.ClusterState.Builder;
 /**
  *
  */
-public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery {
+public class LocalDiscovery extends AbstractLifecycleComponent implements Discovery {
 
     private static final LocalDiscovery[] NO_MEMBERS = new LocalDiscovery[0];
 

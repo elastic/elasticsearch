@@ -135,7 +135,7 @@ import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 /**
  *
  */
-public class IndicesService extends AbstractLifecycleComponent<IndicesService>
+public class IndicesService extends AbstractLifecycleComponent
     implements IndicesClusterStateService.AllocatedIndices<IndexShard, IndexService>, IndexService.ShardStoreDeleter {
 
     public static final String INDICES_SHARDS_CLOSED_TIMEOUT = "indices.shards_closed_timeout";

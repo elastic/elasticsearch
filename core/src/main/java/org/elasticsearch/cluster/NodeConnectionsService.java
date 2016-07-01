@@ -46,7 +46,7 @@ import static org.elasticsearch.common.settings.Setting.positiveTimeSetting;
  * to pings. This is done by {@link org.elasticsearch.discovery.zen.fd.NodesFaultDetection}. Master fault detection
  * is done by {@link org.elasticsearch.discovery.zen.fd.MasterFaultDetection}.
  */
-public class NodeConnectionsService extends AbstractLifecycleComponent<NodeConnectionsService> {
+public class NodeConnectionsService extends AbstractLifecycleComponent {
 
     public static final Setting<TimeValue> CLUSTER_NODE_RECONNECT_INTERVAL_SETTING =
             positiveTimeSetting("cluster.nodes.reconnect_interval", TimeValue.timeValueSeconds(10), Property.NodeScope);

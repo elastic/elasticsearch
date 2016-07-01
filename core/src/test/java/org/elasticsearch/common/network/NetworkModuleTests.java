@@ -59,7 +59,7 @@ public class NetworkModuleTests extends ModuleTestCase {
         }
     }
 
-    static class FakeHttpTransport extends AbstractLifecycleComponent<HttpServerTransport> implements HttpServerTransport {
+    static class FakeHttpTransport extends AbstractLifecycleComponent implements HttpServerTransport {
         public FakeHttpTransport() {
             super(null);
         }

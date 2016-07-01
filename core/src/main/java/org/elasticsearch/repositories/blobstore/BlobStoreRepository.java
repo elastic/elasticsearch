@@ -116,7 +116,7 @@ import java.util.stream.Collectors;
  * }
  * </pre>
  */
-public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Repository> implements Repository, RateLimiterListener {
+public abstract class BlobStoreRepository extends AbstractLifecycleComponent implements Repository, RateLimiterListener {
 
     private BlobContainer snapshotsBlobContainer;
 

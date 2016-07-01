@@ -82,7 +82,7 @@ import java.util.concurrent.TimeUnit;
 /**
  *
  */
-public class IndicesClusterStateService extends AbstractLifecycleComponent<IndicesClusterStateService> implements ClusterStateListener {
+public class IndicesClusterStateService extends AbstractLifecycleComponent implements ClusterStateListener {
 
     final AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>> indicesService;
     private final ClusterService clusterService;

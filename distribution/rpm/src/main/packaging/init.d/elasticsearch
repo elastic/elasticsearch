@@ -105,7 +105,7 @@ start() {
 
     # Ensure that the PID_DIR exists (it is cleaned at OS startup time)
     if [ -n "$PID_DIR" ] && [ ! -e "$PID_DIR" ]; then
-        mkdir -p "$PID_DIR" && chown "$ES_USER":"$ES_GROUP" "$PID_DIR"
+        mkdir -p "$PID_DIR" && chown -R "$ES_USER":"$ES_GROUP" "$PID_DIR"
     fi
     if [ -n "$pidfile" ] && [ ! -e "$pidfile" ]; then
         touch "$pidfile" && chown "$ES_USER":"$ES_GROUP" "$pidfile"

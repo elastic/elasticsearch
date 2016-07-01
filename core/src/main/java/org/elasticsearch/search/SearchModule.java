@@ -94,6 +94,7 @@ import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.children.ChildrenAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.children.InternalChildren;
@@ -264,6 +265,7 @@ import java.util.Set;
  */
 public class SearchModule extends AbstractModule {
 
+    private final boolean transportClient;
     private final Highlighters highlighters;
     private final Suggesters suggesters;
     private final ParseFieldRegistry<ScoreFunctionParser<?>> scoreFunctionParserRegistry = new ParseFieldRegistry<>("score_function");
@@ -287,9 +289,10 @@ public class SearchModule extends AbstractModule {
     // pkg private so tests can mock
     Class<? extends SearchService> searchServiceImpl = SearchService.class;
 
-    public SearchModule(Settings settings, NamedWriteableRegistry namedWriteableRegistry) {
+    public SearchModule(Settings settings, NamedWriteableRegistry namedWriteableRegistry, boolean transportClient) {
         this.settings = settings;
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.transportClient = transportClient;
         suggesters = new Suggesters(namedWriteableRegistry);
         highlighters = new Highlighters(settings);
         registerBuiltinScoreFunctionParsers();
@@ -300,6 +303,7 @@ public class SearchModule extends AbstractModule {
         registerBuiltinSignificanceHeuristics();
         registerBuiltinMovingAverageModels();
         registerBuiltinSubFetchPhases();
+        registerBuiltinAggregations();
     }
 
     public void registerHighlighter(String key, Highlighter highligher) {
@@ -414,15 +418,27 @@ public class SearchModule extends AbstractModule {
     /**
      * Register an aggregation.
      *
-     * @param reader reads the aggregation builder from a stream
+     * @param builderReader reads the {@link AggregationBuilder} from a stream
+     * @param internalReader reads the {@link InternalAggregation} from a stream
      * @param aggregationParser reads the aggregation builder from XContent
      * @param aggregationName names by which the aggregation may be parsed. The first name is special because it is the name that the reader
      *        is registered under.
      */
-    public void registerAggregation(Writeable.Reader<? extends AggregationBuilder> reader, Aggregator.Parser aggregationParser,
-                                                                        ParseField aggregationName) {
+    public void registerAggregation(Writeable.Reader<? extends AggregationBuilder> builderReader,
+            Writeable.Reader<? extends InternalAggregation> internalReader, Aggregator.Parser aggregationParser,
+            ParseField aggregationName) {
+        if (false == transportClient) {
+            namedWriteableRegistry.register(AggregationBuilder.class, aggregationName.getPreferredName(), builderReader);
+            aggregationParserRegistry.register(aggregationParser, aggregationName);
+        }
+        namedWriteableRegistry.register(InternalAggregation.class, aggregationName.getPreferredName(), internalReader);
+    }
+
+    public void registerAggregation(Writeable.Reader<? extends AggregationBuilder> builderReader, Aggregator.Parser aggregationParser,
+            ParseField aggregationName) {
+        // NORELEASE remove me in favor of the above method
+        namedWriteableRegistry.register(AggregationBuilder.class, aggregationName.getPreferredName(), builderReader);
         aggregationParserRegistry.register(aggregationParser, aggregationName);
-        namedWriteableRegistry.register(AggregationBuilder.class, aggregationName.getPreferredName(), reader);
     }
 
     /**
@@ -441,15 +457,21 @@ public class SearchModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(IndicesQueriesRegistry.class).toInstance(queryParserRegistry);
-        bind(Suggesters.class).toInstance(suggesters);
-        configureSearch();
-        configureAggs();
-        configureShapes();
+        if (false == transportClient) {
+            /*
+             * Nothing is bound for transport client *but* SearchModule is still responsible for settings up the things like the
+             * NamedWriteableRegistry.
+             */
+            bind(IndicesQueriesRegistry.class).toInstance(queryParserRegistry);
+            bind(Suggesters.class).toInstance(suggesters);
+            configureSearch();
+            configureShapes();
+            bind(AggregatorParsers.class).toInstance(aggregatorParsers);
+        }
     }
 
-    protected void configureAggs() {
-        registerAggregation(AvgAggregationBuilder::new, new AvgParser(), AvgAggregationBuilder.AGGREGATION_NAME_FIELD);
+    private void registerBuiltinAggregations() {
+        registerAggregation(AvgAggregationBuilder::new, InternalAvg::new, new AvgParser(), AvgAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(SumAggregationBuilder::new, new SumParser(), SumAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(MinAggregationBuilder::new, new MinParser(), MinAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(MaxAggregationBuilder::new, new MaxParser(), MaxAggregationBuilder.AGGREGATION_NAME_FIELD);
@@ -527,7 +549,6 @@ public class SearchModule extends AbstractModule {
                 BucketSelectorPipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerPipelineAggregation(SerialDiffPipelineAggregationBuilder::new, SerialDiffPipelineAggregationBuilder::parse,
                 SerialDiffPipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
-        bind(AggregatorParsers.class).toInstance(aggregatorParsers);
     }
 
     protected void configureSearch() {
@@ -679,7 +700,6 @@ public class SearchModule extends AbstractModule {
 
     static {
         // calcs
-        InternalAvg.registerStreams();
         InternalSum.registerStreams();
         InternalMin.registerStreams();
         InternalMax.registerStreams();

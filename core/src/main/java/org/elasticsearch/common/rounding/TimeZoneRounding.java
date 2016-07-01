@@ -222,6 +222,11 @@ public abstract class TimeZoneRounding extends Rounding {
             long roundedUTC;
             if (isInDSTGap(rounded) == false) {
                 roundedUTC  = timeZone.convertLocalToUTC(rounded, true, utcMillis);
+                // check if we crossed DST transition, in this case we want the last rounded value before the transition
+                long transition = timeZone.previousTransition(utcMillis);
+                if (transition != utcMillis && transition > roundedUTC) {
+                    roundedUTC = roundKey(transition - 1);
+                }
             } else {
                 /*
                  * Edge case where the rounded local time is illegal and landed

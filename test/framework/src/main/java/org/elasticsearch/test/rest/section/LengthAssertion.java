@@ -44,7 +44,8 @@ public class LengthAssertion extends Assertion {
     @Override
     protected void doAssert(Object actualValue, Object expectedValue) {
         logger.trace("assert that [{}] has length [{}] (field: [{}])", actualValue, expectedValue, getField());
-        assertThat("expected value of [" + getField() + "] is not numeric (got [" + expectedValue.getClass() + "]", expectedValue, instanceOf(Number.class));
+        assertThat("expected value of [" + getField() + "] is not numeric (got [" + expectedValue.getClass() + "]",
+                expectedValue, instanceOf(Number.class));
         int length = ((Number) expectedValue).intValue();
         if (actualValue instanceof String) {
             assertThat(errorMessage(), ((String) actualValue).length(), equalTo(length));

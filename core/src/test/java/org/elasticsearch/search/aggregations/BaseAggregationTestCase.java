@@ -151,7 +151,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
                     bindMapperExtension();
                 }
             },
-            new SearchModule(settings, namedWriteableRegistry) {
+            new SearchModule(settings, namedWriteableRegistry, false) {
                 @Override
                 protected void configureSearch() {
                     // Skip me

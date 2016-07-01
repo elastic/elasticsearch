@@ -267,7 +267,7 @@ public class Node implements Closeable {
             ClusterModule clusterModule = new ClusterModule(settings, clusterService);
             modules.add(clusterModule);
             modules.add(new IndicesModule(namedWriteableRegistry, pluginsService.filterPlugins(MapperPlugin.class)));
-            modules.add(new SearchModule(settings, namedWriteableRegistry));
+            modules.add(new SearchModule(settings, namedWriteableRegistry, false));
             modules.add(new ActionModule(DiscoveryNode.isIngestNode(settings), false, settings,
                     clusterModule.getIndexNameExpressionResolver(), settingsModule.getClusterSettings(),
                     pluginsService.filterPlugins(ActionPlugin.class)));
@@ -284,6 +284,7 @@ public class Node implements Closeable {
             modules.add(b -> {
                     b.bind(PluginsService.class).toInstance(pluginsService);
                     b.bind(Client.class).toInstance(client);
+                    b.bind(NodeClient.class).toInstance(client);
                     b.bind(Environment.class).toInstance(environment);
                     b.bind(ThreadPool.class).toInstance(threadPool);
                     b.bind(NodeEnvironment.class).toInstance(nodeEnvironment);

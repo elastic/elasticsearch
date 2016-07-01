@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.admin.cluster.settings;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.inject.Inject;
@@ -50,15 +50,15 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
     private final SettingsFilter settingsFilter;
 
     @Inject
-    public RestClusterGetSettingsAction(Settings settings, RestController controller, Client client, ClusterSettings clusterSettings, SettingsFilter settingsFilter) {
-        super(settings, client);
+    public RestClusterGetSettingsAction(Settings settings, RestController controller, ClusterSettings clusterSettings, SettingsFilter settingsFilter) {
+        super(settings);
         this.clusterSettings = clusterSettings;
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/settings", this);
         this.settingsFilter = settingsFilter;
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
                 .routingTable(false)
                 .nodes(false);

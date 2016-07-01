@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.io.UTF8StreamWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -38,18 +38,18 @@ import static org.elasticsearch.rest.action.support.RestTable.pad;
  */
 public abstract class AbstractCatAction extends BaseRestHandler {
 
-    public AbstractCatAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public AbstractCatAction(Settings settings, RestController controller) {
+        super(settings);
     }
 
-    protected abstract void doRequest(final RestRequest request, final RestChannel channel, final Client client);
+    protected abstract void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client);
 
     protected abstract void documentation(StringBuilder sb);
 
     protected abstract Table getTableWithHeader(final RestRequest request);
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         boolean helpWanted = request.paramAsBoolean("help", false);
         if (helpWanted) {
             Table table = getTableWithHeader(request);

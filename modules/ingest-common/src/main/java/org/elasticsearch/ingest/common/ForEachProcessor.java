@@ -20,7 +20,6 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -83,7 +82,7 @@ public final class ForEachProcessor extends AbstractProcessor {
         return processors;
     }
 
-    public static final class Factory extends AbstractProcessorFactory<ForEachProcessor> {
+    public static final class Factory implements Processor.Factory {
 
         private final ProcessorsRegistry processorRegistry;
 
@@ -92,7 +91,7 @@ public final class ForEachProcessor extends AbstractProcessor {
         }
 
         @Override
-        protected ForEachProcessor doCreate(String tag, Map<String, Object> config) throws Exception {
+        public ForEachProcessor create(String tag, Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, tag, config, "field");
             List<Map<String, Map<String, Object>>> processorConfigs = readList(TYPE, tag, config, "processors");
             List<Processor> processors = ConfigurationUtils.readProcessorConfigs(processorConfigs, processorRegistry);

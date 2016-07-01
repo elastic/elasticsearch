@@ -20,7 +20,7 @@
 package org.elasticsearch.rest.action.admin.cluster.repositories.verify;
 
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -35,13 +35,13 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestVerifyRepositoryAction extends BaseRestHandler {
 
     @Inject
-    public RestVerifyRepositoryAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestVerifyRepositoryAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(POST, "/_snapshot/{repository}/_verify", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         VerifyRepositoryRequest verifyRepositoryRequest = verifyRepositoryRequest(request.param("repository"));
         verifyRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", verifyRepositoryRequest.masterNodeTimeout()));
         verifyRepositoryRequest.timeout(request.paramAsTime("timeout", verifyRepositoryRequest.timeout()));

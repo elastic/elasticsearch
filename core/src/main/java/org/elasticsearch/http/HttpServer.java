@@ -19,6 +19,12 @@
 
 package org.elasticsearch.http;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -39,11 +45,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import static org.elasticsearch.rest.RestStatus.FORBIDDEN;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 
@@ -57,15 +58,18 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> implement
 
     private final NodeService nodeService;
 
+    private final NodeClient client;
+
     private final CircuitBreakerService circuitBreakerService;
 
     @Inject
     public HttpServer(Settings settings, HttpServerTransport transport, RestController restController, NodeService nodeService,
-                      CircuitBreakerService circuitBreakerService) {
+                      NodeClient client, CircuitBreakerService circuitBreakerService) {
         super(settings);
         this.transport = transport;
         this.restController = restController;
         this.nodeService = nodeService;
+        this.client = client;
         this.circuitBreakerService = circuitBreakerService;
         nodeService.setHttpServer(this);
         transport.httpServerAdapter(this);
@@ -115,7 +119,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> implement
             }
             // iff we could reserve bytes for the request we need to send the response also over this channel
             responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
-            restController.dispatchRequest(request, responseChannel, threadContext);
+            restController.dispatchRequest(request, responseChannel, client, threadContext);
         } catch (Throwable t) {
             restController.sendErrorResponse(request, responseChannel, t);
         }

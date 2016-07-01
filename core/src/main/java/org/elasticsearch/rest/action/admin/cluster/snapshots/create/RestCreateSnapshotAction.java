@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -40,14 +40,14 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestCreateSnapshotAction extends BaseRestHandler {
 
     @Inject
-    public RestCreateSnapshotAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestCreateSnapshotAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(PUT, "/_snapshot/{repository}/{snapshot}", this);
         controller.registerHandler(POST, "/_snapshot/{repository}/{snapshot}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         CreateSnapshotRequest createSnapshotRequest = createSnapshotRequest(request.param("repository"), request.param("snapshot"));
         createSnapshotRequest.source(request.content().toUtf8());
         createSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", createSnapshotRequest.masterNodeTimeout()));

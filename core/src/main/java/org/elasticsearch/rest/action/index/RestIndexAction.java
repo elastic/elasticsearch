@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.index;
 
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -46,30 +46,30 @@ import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 public class RestIndexAction extends BaseRestHandler {
 
     @Inject
-    public RestIndexAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestIndexAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(POST, "/{index}/{type}", this); // auto id creation
         controller.registerHandler(PUT, "/{index}/{type}/{id}", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}", this);
-        CreateHandler createHandler = new CreateHandler(settings, controller, client);
+        CreateHandler createHandler = new CreateHandler(settings, controller);
         controller.registerHandler(PUT, "/{index}/{type}/{id}/_create", createHandler);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_create", createHandler);
     }
 
     final class CreateHandler extends BaseRestHandler {
-        protected CreateHandler(Settings settings, RestController controller, Client client) {
-            super(settings, client);
+        protected CreateHandler(Settings settings, RestController controller) {
+            super(settings);
         }
 
         @Override
-        public void handleRequest(RestRequest request, RestChannel channel, final Client client) {
+        public void handleRequest(RestRequest request, RestChannel channel, final NodeClient client) {
             request.params().put("op_type", "create");
             RestIndexAction.this.handleRequest(request, channel, client);
         }
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"));
         indexRequest.routing(request.param("routing"));
         indexRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing

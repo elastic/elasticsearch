@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.indices.flush;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -44,8 +44,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestSyncedFlushAction extends BaseRestHandler {
 
     @Inject
-    public RestSyncedFlushAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestSyncedFlushAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(POST, "/_flush/synced", this);
         controller.registerHandler(POST, "/{index}/_flush/synced", this);
 
@@ -54,7 +54,7 @@ public class RestSyncedFlushAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.lenientExpandOpen());
         SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(Strings.splitStringByCommaToArray(request.param("index")));
         syncedFlushRequest.indicesOptions(indicesOptions);

@@ -200,13 +200,17 @@ public abstract class ESTestCase extends LuceneTestCase {
         Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
     }
 
+    public static boolean checkFieldCache = true;
+
     @After
     public final void ensureCleanedUp() throws Exception {
         MockPageCacheRecycler.ensureAllPagesAreReleased();
         MockBigArrays.ensureAllArraysAreReleased();
-        // field cache should NEVER get loaded.
-        String[] entries = UninvertingReader.getUninvertedStats();
-        assertEquals("fieldcache must never be used, got=" + Arrays.toString(entries), 0, entries.length);
+        if (checkFieldCache) {
+            // field cache should NEVER get loaded.
+            String[] entries = UninvertingReader.getUninvertedStats();
+            assertEquals("fieldcache must never be used, got=" + Arrays.toString(entries), 0, entries.length);
+        }
     }
 
     // this must be a separate method from other ensure checks above so suite scoped integ tests can call...TODO: fix that

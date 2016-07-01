@@ -117,7 +117,7 @@ public class LegacyIntegerFieldMapper extends LegacyNumberFieldMapper {
         }
     }
 
-    public static final class IntegerFieldType extends NumberFieldType {
+    public static class IntegerFieldType extends NumberFieldType {
 
         public IntegerFieldType() {
             super(LegacyNumericType.INT);

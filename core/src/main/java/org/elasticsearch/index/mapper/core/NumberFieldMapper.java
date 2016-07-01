@@ -775,7 +775,7 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         }
     }
 
-    public static final class NumberFieldType extends MappedFieldType {
+    public static class NumberFieldType extends MappedFieldType {
 
         NumberType type;
 
@@ -787,7 +787,7 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             setOmitNorms(true);
         }
 
-        NumberFieldType(NumberFieldType other) {
+        public NumberFieldType(NumberFieldType other) {
             super(other);
             this.type = other.type;
         }

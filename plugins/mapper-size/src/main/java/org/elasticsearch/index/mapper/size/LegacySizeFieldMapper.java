@@ -20,28 +20,26 @@
 package org.elasticsearch.index.mapper.size;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.uninverting.UninvertingReader;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyIntegerFieldMapper;
 import org.elasticsearch.index.mapper.internal.EnabledAttributeMapper;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-final class SizeFieldMapper extends AbstractSizeFieldMapper {
-    public static class Defaults {
-        public static final SizeFieldType FIELD_TYPE = new SizeFieldType();
-
+final class LegacySizeFieldMapper extends AbstractSizeFieldMapper {
+    public static class Defaults  {
+        public static final MappedFieldType FIELD_TYPE = new LegacySizeFieldType();
         static {
             FIELD_TYPE.setStored(true);
-            FIELD_TYPE.setName(AbstractSizeFieldMapper.NAME);
+            FIELD_TYPE.setNumericPrecisionStep(LegacyIntegerFieldMapper.Defaults.PRECISION_STEP_32_BIT);
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.freeze();
@@ -60,61 +58,54 @@ final class SizeFieldMapper extends AbstractSizeFieldMapper {
         }
 
         @Override
-        public SizeFieldMapper build(BuilderContext context) {
+        public LegacySizeFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            return new SizeFieldMapper(enabledState, fieldType, context.indexSettings());
+            fieldType.freeze();
+            return new LegacySizeFieldMapper(enabledState, fieldType, context.indexSettings());
         }
 
         @Override
         protected void setupFieldType(BuilderContext context) {
             super.setupFieldType(context);
-            if (context.indexCreatedVersion().onOrAfter(Version.V_5_0_0_alpha4)) {
-                fieldType.setHasDocValues(true);
-                ((SizeFieldType) fieldType).setFielddata(false);
-            } else {
-                // enables fielddata loading, doc values was disabled on _size until V_5_0_0_alpha4
-                fieldType.setHasDocValues(false);
-                ((SizeFieldType) fieldType).setFielddata(true);
-            }
+            fieldType.setHasDocValues(false);
+            // enables fielddata loading, doc values was disabled on _size until V_5_0_0_alpha4
+            ((LegacySizeFieldType) fieldType).setFielddata(true);
         }
     }
 
-    SizeFieldMapper(Settings indexSettings, MappedFieldType fieldType) {
+    LegacySizeFieldMapper(Settings indexSettings, MappedFieldType fieldType) {
         this(AbstractSizeFieldMapper.Defaults.ENABLED_STATE,
             fieldType == null ? Defaults.FIELD_TYPE.clone() : fieldType.clone(), indexSettings);
     }
 
-    SizeFieldMapper(EnabledAttributeMapper enabled, MappedFieldType fieldType, Settings indexSettings) {
+    LegacySizeFieldMapper(EnabledAttributeMapper enabled, MappedFieldType fieldType, Settings indexSettings) {
         super(enabled, fieldType, Defaults.FIELD_TYPE.clone(), indexSettings);
     }
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        if (enabled() == false) {
-            return ;
+        if (!enabledState.enabled) {
+            return;
         }
-        boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;
-        boolean docValued = fieldType().hasDocValues();
-        boolean stored = fieldType().stored();
         final int value = context.sourceToParse().source().length();
-        fields.addAll(NumberFieldMapper.NumberType.INTEGER.createFields(name(), value, indexed, docValued, stored));
+        fields.add(new LegacyIntegerFieldMapper.CustomIntegerNumericField(value, fieldType()));
     }
 
-    static class SizeFieldType extends NumberFieldMapper.NumberFieldType {
+    static final class LegacySizeFieldType extends LegacyIntegerFieldMapper.IntegerFieldType {
         private boolean fielddata;
 
-        public SizeFieldType() {
-            super(NumberFieldMapper.NumberType.INTEGER);
+        public LegacySizeFieldType() {
+            super();
         }
 
-        protected SizeFieldType(SizeFieldType ref) {
+        protected LegacySizeFieldType(LegacySizeFieldType ref) {
             super(ref);
             this.fielddata = ref.fielddata;
         }
 
         @Override
-        public SizeFieldType clone() {
-            return new SizeFieldType(this);
+        public LegacySizeFieldType clone() {
+            return new LegacySizeFieldType(this);
         }
 
         @Override
@@ -122,7 +113,7 @@ final class SizeFieldMapper extends AbstractSizeFieldMapper {
             if (super.equals(o) == false) {
                 return false;
             }
-            SizeFieldType that = (SizeFieldType) o;
+            LegacySizeFieldType that = (LegacySizeFieldType) o;
             return fielddata == that.fielddata;
         }
 
@@ -152,7 +143,7 @@ final class SizeFieldMapper extends AbstractSizeFieldMapper {
             }
             if (fielddata) {
                 failIfNotIndexed();
-                return new LongUninvertingIndexFieldData.Builder(UninvertingReader.Type.INTEGER_POINT);
+                return new LongUninvertingIndexFieldData.Builder(UninvertingReader.Type.LEGACY_INTEGER);
             }
             return super.fielddataBuilder();
         }
@@ -161,7 +152,7 @@ final class SizeFieldMapper extends AbstractSizeFieldMapper {
         public void checkCompatibility(MappedFieldType other,
                                        List<String> conflicts, boolean strict) {
             super.checkCompatibility(other, conflicts, strict);
-            SizeFieldType otherType = (SizeFieldType) other;
+            LegacySizeFieldType otherType = (LegacySizeFieldType) other;
             if (strict) {
                 if (fielddata() != otherType.fielddata()) {
                     conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [fielddata] "

@@ -23,14 +23,13 @@ import java.util.Collections;
 import java.util.Map;
 
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.size.SizeFieldMapper;
+import org.elasticsearch.index.mapper.size.MapperSizeTypeParser;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 
 public class MapperSizePlugin extends Plugin implements MapperPlugin {
-
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-        return Collections.singletonMap(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser());
+        return Collections.singletonMap("_size", new MapperSizeTypeParser());
     }
 }

@@ -79,7 +79,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Registered listeners are notified using {@link #notifyAndSchedule(LicensesMetaData)}
  */
 @Singleton
-public class LicensesService extends AbstractLifecycleComponent<LicensesService> implements ClusterStateListener, LicensesManagerService,
+public class LicensesService extends AbstractLifecycleComponent implements ClusterStateListener, LicensesManagerService,
         LicenseeRegistry {
 
     public static final String REGISTER_TRIAL_LICENSE_ACTION_NAME = "internal:plugin/license/cluster/register_trial_license";

@@ -49,7 +49,7 @@ import static org.elasticsearch.xpack.security.Security.setting;
 /**
  *
  */
-public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> implements RolesStore {
+public class FileRolesStore extends AbstractLifecycleComponent implements RolesStore {
 
     public static final Setting<String> ROLES_FILE_SETTING =
             Setting.simpleString(setting("authz.store.files.roles"), Property.NodeScope);

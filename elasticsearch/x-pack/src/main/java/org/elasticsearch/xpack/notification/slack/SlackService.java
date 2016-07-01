@@ -10,7 +10,7 @@ import org.elasticsearch.common.component.LifecycleComponent;
 /**
  *
  */
-public interface SlackService extends LifecycleComponent<SlackService> {
+public interface SlackService extends LifecycleComponent {
 
 
     /**

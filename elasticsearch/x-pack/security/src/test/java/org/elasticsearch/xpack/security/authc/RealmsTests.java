@@ -346,7 +346,8 @@ public class RealmsTests extends ESTestCase {
                 .put("xpack.security.authc.realms.realm_1.order", 0)
                 .build();
         Environment env = new Environment(settings);
-        Realms realms = new Realms(settings, env, factories, securityLicenseState, reservedRealm).start();
+        Realms realms = new Realms(settings, env, factories, securityLicenseState, reservedRealm);
+        realms.start();
 
         assertThat(realms.iterator().hasNext(), is(true));
 

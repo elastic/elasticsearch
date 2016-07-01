@@ -58,7 +58,6 @@ public class NodeService extends AbstractComponent implements Closeable {
     private final CircuitBreakerService circuitBreakerService;
     private final IngestService ingestService;
     private final SettingsFilter settingsFilter;
-    private ClusterService clusterService;
     private ScriptService scriptService;
 
     @Nullable
@@ -80,7 +79,6 @@ public class NodeService extends AbstractComponent implements Closeable {
         this.pluginService = pluginService;
         this.circuitBreakerService = circuitBreakerService;
         this.httpServer = httpServer;
-        this.clusterService = clusterService;
         this.ingestService = ingestService;
         this.settingsFilter = settingsFilter;
         this.scriptService = scriptService;

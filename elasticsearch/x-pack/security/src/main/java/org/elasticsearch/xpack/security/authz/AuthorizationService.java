@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.authz;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +36,6 @@ import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
-import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authz.accesscontrol.IndicesAccessControl;
@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.security.authz.permission.DefaultRole;
 import org.elasticsearch.xpack.security.authz.permission.GlobalPermission;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.permission.RunAsPermission;
+import org.elasticsearch.xpack.security.authz.permission.SuperuserRole;
 import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -54,7 +55,6 @@ import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackUser;
-import org.elasticsearch.xpack.security.authz.store.RolesStore;
 
 import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.support.Exceptions.authorizationError;
@@ -251,10 +251,10 @@ public class AuthorizationService extends AbstractComponent {
         } else if (indicesAccessControl.getIndexPermissions(SecurityTemplateService.SECURITY_INDEX_NAME) != null
                 && indicesAccessControl.getIndexPermissions(SecurityTemplateService.SECURITY_INDEX_NAME).isGranted()
                 && XPackUser.is(authentication.getRunAsUser()) == false
-                && MONITOR_INDEX_PREDICATE.test(action) == false) {
+                && MONITOR_INDEX_PREDICATE.test(action) == false
+                && Arrays.binarySearch(authentication.getRunAsUser().roles(), SuperuserRole.NAME) < 0) {
             // only the XPackUser is allowed to work with this index, but we should allow indices monitoring actions through for debugging
             // purposes. These monitor requests also sometimes resolve indices concretely and then requests them
-            // FIXME its not just the XPackUser. We said the elastic user and superusers could access this!
             logger.debug("user [{}] attempted to directly perform [{}] against the security index [{}]",
                     authentication.getRunAsUser().principal(), action, SecurityTemplateService.SECURITY_INDEX_NAME);
             throw denial(authentication, action, request);

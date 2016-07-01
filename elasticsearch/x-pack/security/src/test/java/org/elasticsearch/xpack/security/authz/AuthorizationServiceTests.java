@@ -84,7 +84,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -583,7 +582,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
     }
 
-    public void testXPackUserCanExecuteOperationAgainstSecurityIndex() {
+    public void testXPackUserAndSuperusersCanExecuteOperationAgainstSecurityIndex() {
+        final User superuser = new User("custom_admin", SuperuserRole.NAME);
         when(rolesStore.role(SuperuserRole.NAME)).thenReturn(Role.builder(SuperuserRole.DESCRIPTOR).build());
         ClusterState state = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(state);
@@ -614,6 +614,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             TransportRequest request = requestTuple.v2();
             authorizationService.authorize(createAuthentication(XPackUser.INSTANCE), action, request);
             verify(auditTrail).accessGranted(XPackUser.INSTANCE, action, request);
+            authorizationService.authorize(createAuthentication(superuser), action, request);
+            verify(auditTrail).accessGranted(superuser, action, request);
         }
     }
 

@@ -20,8 +20,8 @@
 package org.elasticsearch.ingest.useragent;
 
 import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.useragent.UserAgentParser.Details;
 import org.elasticsearch.ingest.useragent.UserAgentParser.VersionedName;
 
@@ -36,7 +36,6 @@ import java.util.Set;
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
-import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalStringProperty;
 
 public class UserAgentProcessor extends AbstractProcessor {
 
@@ -186,7 +185,7 @@ public class UserAgentProcessor extends AbstractProcessor {
         return parser;
     }
 
-    public static final class Factory extends AbstractProcessorFactory<UserAgentProcessor> {
+    public static final class Factory implements Processor.Factory {
 
         private final Map<String, UserAgentParser> userAgentParsers;
         
@@ -195,7 +194,7 @@ public class UserAgentProcessor extends AbstractProcessor {
         }
 
         @Override
-        public UserAgentProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
+        public UserAgentProcessor create(String processorTag, Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "useragent");
             String regexFilename = readStringProperty(TYPE, processorTag, config, "regex_file", IngestUserAgentPlugin.DEFAULT_PARSER_NAME);

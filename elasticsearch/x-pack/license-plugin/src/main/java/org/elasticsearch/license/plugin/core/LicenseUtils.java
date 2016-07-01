@@ -21,7 +21,7 @@ public class LicenseUtils {
      */
     public static ElasticsearchSecurityException newComplianceException(String feature) {
         ElasticsearchSecurityException e = new ElasticsearchSecurityException("current license is non-compliant for [{}]",
-                RestStatus.UNAUTHORIZED, feature);
+                RestStatus.FORBIDDEN, feature);
         e.addHeader(EXPIRED_FEATURE_HEADER, feature);
         return e;
     }

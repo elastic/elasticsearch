@@ -38,18 +38,18 @@ public final class UTF8SortedAsUnicodeComparator implements Comparator<BytesRefe
             final BytesRefIterator aIter = a.iterator();
             final BytesRefIterator bIter = b.iterator();
             final long lengthToCompare = Math.min(a.length(), b.length());
-            BytesRef aRef = aIter.next();
-            BytesRef bRef = bIter.next();
+            BytesRef aRef = aIter.next().clone(); // we clone since we modify the offsets and length in the iteration below
+            BytesRef bRef = bIter.next().clone();
             if (aRef != null && bRef != null) { // do we have any data?
                 if (aRef.length == a.length() && bRef.length == b.length()) { // is it only one array slice we are comparing?
                     return aRef.compareTo(bRef);
                 } else {
                     for (int i = 0; i < lengthToCompare;) {
                         if (aRef.length == 0) {
-                            aRef = aIter.next();
+                            aRef = aIter.next().clone();
                         }
                         if (bRef.length == 0) {
-                            bRef = bIter.next();
+                            bRef = bIter.next().clone();
                         }
                         final int aLength = aRef.length;
                         final int bLength = bRef.length;

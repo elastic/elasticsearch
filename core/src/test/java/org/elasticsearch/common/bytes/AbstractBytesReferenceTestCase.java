@@ -42,11 +42,20 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
     public void testGet() throws IOException {
         int length = randomIntBetween(1, PAGE_SIZE * 3);
         BytesReference pbr = newBytesReference(length);
+
         int sliceOffset = randomIntBetween(0, length / 2);
         int sliceLength = Math.max(1, length - sliceOffset - 1);
         BytesReference slice = pbr.slice(sliceOffset, sliceLength);
         assertEquals(pbr.get(sliceOffset), slice.get(0));
         assertEquals(pbr.get(sliceOffset + sliceLength - 1), slice.get(sliceLength - 1));
+        final int probes = randomIntBetween(20, 100);
+        BytesReference copy = new BytesArray(pbr.toBytesRef(), true);
+        for (int i = 0; i < probes; i++) {
+            int index = randomIntBetween(0, copy.length());
+            assertEquals(pbr.get(index), copy.get(index));
+            index = randomIntBetween(sliceOffset, sliceOffset + sliceLength);
+            assertEquals(pbr.get(index), slice.get(index-sliceOffset));
+        }
     }
 
     public void testLength() throws IOException {
@@ -252,6 +261,9 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
             BytesReference pbr = newBytesReference(sizes[i]);
             byte[] bytes = BytesReference.toBytes(pbr);
             assertEquals(sizes[i], bytes.length);
+            for (int j = 0; j  < bytes.length; j++) {
+                assertEquals(bytes[j], pbr.get(j));
+            }
         }
     }
 
@@ -577,5 +589,9 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
             array1[offset1 + randomInt(len - 1)] += 13;
             assertNotEquals(b1, b2);
         }
+    }
+
+    public boolean materializesBytesRef(BytesReference reference) {
+        return false;
     }
 }

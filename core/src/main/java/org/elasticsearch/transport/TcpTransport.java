@@ -29,6 +29,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.Compressor;
@@ -869,7 +871,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     protected void stopInternal() {}
 
     public boolean canCompress(TransportRequest request) {
-        return compress;
+        return compress && (!(request instanceof BytesTransportRequest));
     }
 
     @Override
@@ -885,9 +887,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         status = TransportStatus.setRequest(status);
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
         boolean addedReleaseListener = false;
+        StreamOutput stream = bStream;
         try {
-            bStream.skip(TcpHeader.HEADER_SIZE);
-            StreamOutput stream = bStream;
             // only compress if asked, and, the request is not bytes, since then only
             // the header part is compressed, and the "body" can't be extracted as compressed
             if (options.compress() && canCompress(request)) {
@@ -903,12 +904,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             stream.setVersion(version);
             threadPool.getThreadContext().writeTo(stream);
             stream.writeString(action);
-
-            Message<Channel> writeable = prepareSend(node.getVersion(), request, stream, bStream);
-            try (StreamOutput headerOutput = writeable.getHeaderOutput()) {
-                TcpHeader.writeHeader(headerOutput, requestId, status, version,
-                    writeable.size());
-            }
+            BytesReference message = buildMessage(node.getVersion(), request, stream, bStream);
             final TransportRequestOptions finalOptions = options;
             Runnable onRequestSent = () -> {
                 try {
@@ -917,10 +913,11 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions);
                 }
             };
-            writeable.send(targetChannel, onRequestSent);
+            final BytesReference header = getHeader(requestId, status, version, message.length());
+            sendMessage(targetChannel, new CompositeBytesReference(header, message), onRequestSent, false);
             addedReleaseListener = true;
-
         } finally {
+            IOUtils.close(stream);
             if (!addedReleaseListener) {
                 Releasables.close(bStream.bytes());
             }
@@ -937,26 +934,19 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      */
     public void sendErrorResponse(Version nodeVersion, Channel channel, final Exception error, final long requestId,
                                   final String action) throws IOException {
-        BytesStreamOutput stream = new BytesStreamOutput();
-        stream.setVersion(nodeVersion);
-        stream.skip(TcpHeader.HEADER_SIZE);
-        RemoteTransportException tx = new RemoteTransportException(
-            nodeName(), new InetSocketTransportAddress(getLocalAddress(channel)), action, error);
-        stream.writeThrowable(tx);
-        byte status = 0;
-        status = TransportStatus.setResponse(status);
-        status = TransportStatus.setError(status);
-
-        final BytesReference bytes = stream.bytes();
-        Message<Channel> writeable = prepareSend(nodeVersion, bytes);
-        try (StreamOutput headerOutput = writeable.getHeaderOutput()) {
-            TcpHeader.writeHeader(headerOutput, requestId, status, nodeVersion,
-                writeable.size());
+        try(BytesStreamOutput stream = new BytesStreamOutput()) {
+            stream.setVersion(nodeVersion);
+            RemoteTransportException tx = new RemoteTransportException(
+                nodeName(), new InetSocketTransportAddress(getLocalAddress(channel)), action, error);
+            stream.writeThrowable(tx);
+            byte status = 0;
+            status = TransportStatus.setResponse(status);
+            status = TransportStatus.setError(status);
+            final BytesReference bytes = stream.bytes();
+            final BytesReference header = getHeader(requestId, status, nodeVersion, bytes.length());
+            Runnable onRequestSent = () -> transportServiceAdapter.onResponseSent(requestId, action, error);
+            sendMessage(channel, new CompositeBytesReference(header, bytes), onRequestSent, false);
         }
-        Runnable onRequestSent = () -> {
-            transportServiceAdapter.onResponseSent(requestId, action, error);
-        };
-        writeable.send(channel, onRequestSent);
     }
 
     /**
@@ -974,19 +964,15 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         status = TransportStatus.setResponse(status); // TODO share some code with sendRequest
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
         boolean addedReleaseListener = false;
+        StreamOutput stream = bStream;
         try {
-            bStream.skip(TcpHeader.HEADER_SIZE);
-            StreamOutput stream = bStream;
             if (options.compress()) {
                 status = TransportStatus.setCompress(status);
                 stream = CompressorFactory.COMPRESSOR.streamOutput(stream);
             }
             stream.setVersion(nodeVersion);
-            Message<Channel> writeable = prepareSend(nodeVersion, response, stream, bStream);
-            try (StreamOutput headerOutput = writeable.getHeaderOutput()) {
-                TcpHeader.writeHeader(headerOutput, requestId, status, nodeVersion,
-                    writeable.size());
-            }
+            BytesReference reference = buildMessage(nodeVersion, response, stream, bStream);
+
             final TransportResponseOptions finalOptions = options;
             Runnable onRequestSent = () -> {
                 try {
@@ -995,54 +981,45 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     transportServiceAdapter.onResponseSent(requestId, action, response, finalOptions);
                 }
             };
-            writeable.send(channel, onRequestSent);
+            final BytesReference header = getHeader(requestId, status, nodeVersion, reference.length());
+            sendMessage(channel, new CompositeBytesReference(header, reference), onRequestSent, false);
             addedReleaseListener = true;
 
         } finally {
+            IOUtils.close(stream);
             if (!addedReleaseListener) {
                 Releasables.close(bStream.bytes());
             }
         }
     }
 
-    /**
-     * Serializes the given message into a bytes representation and forwards to {@link #prepareSend(Version, TransportMessage,
-     * StreamOutput, ReleasableBytesStream)}
-     */
-    protected Message<Channel> prepareSend(Version nodeVersion, TransportMessage message, StreamOutput stream,
-                                                    ReleasableBytesStream writtenBytes) throws IOException {
-        message.writeTo(stream);
-        stream.close();
-        return prepareSend(nodeVersion, writtenBytes.bytes());
+    private BytesReference getHeader(long requestId, byte status, Version nodeVersion, int length) throws IOException {
+        try (BytesStreamOutput headerOutput = new BytesStreamOutput(TcpHeader.HEADER_SIZE)) {
+            headerOutput.setVersion(nodeVersion);
+            TcpHeader.writeHeader(headerOutput, requestId, status, nodeVersion,
+                length);
+            return headerOutput.bytes();
+        }
     }
 
     /**
-     * prepares a implementation specific message to send across the network
+     * Serializes the given message into a bytes representation
      */
-    protected abstract Message<Channel> prepareSend(Version nodeVersion, BytesReference bytesReference) throws IOException;
-
-    /**
-     * Allows implementations to transform TransportMessages into implementation specific messages
-     */
-    protected interface Message<Channel> {
-        /**
-         * Creates an output to write the message header to.
-         */
-        StreamOutput getHeaderOutput();
-
-        /**
-         * Returns the size of the message in bytes
-         */
-        int size();
-
-        /**
-         * sends the message to the channel
-         * @param channel the channe to send the message to
-         * @param onRequestSent a callback executed once the message has been fully send
-         */
-        void send(Channel channel, Runnable onRequestSent);
+    private BytesReference buildMessage(Version nodeVersion, TransportMessage message, StreamOutput stream,
+                                        ReleasableBytesStream writtenBytes) throws IOException {
+        if (message instanceof BytesTransportRequest) {
+            BytesTransportRequest bRequest = (BytesTransportRequest) message;
+            assert nodeVersion.equals(bRequest.version());
+            bRequest.writeThin(stream);
+            stream.flush();
+            ReleasablePagedBytesReference bytes = writtenBytes.bytes();
+            return new CompositeBytesReference(bytes, bRequest.bytes);
+        } else {
+            message.writeTo(stream);
+            stream.flush();
+        }
+        return writtenBytes.bytes();
     }
-
 
     /**
      * Validates the first N bytes of the message header and returns <code>true</code> if the message is

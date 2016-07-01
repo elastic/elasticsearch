@@ -42,7 +42,6 @@ public class PagedBytesReference extends BytesReference {
     protected final ByteArray bytearray;
     private final int offset;
     private final int length;
-    private int hash = 0;
 
     public PagedBytesReference(BigArrays bigarrays, ByteArray bytearray, int length) {
         this(bigarrays, bytearray, 0, length);

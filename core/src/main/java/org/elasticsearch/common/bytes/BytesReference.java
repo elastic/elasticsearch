@@ -32,7 +32,7 @@ import java.util.function.ToIntBiFunction;
  */
 public abstract class BytesReference implements Accountable, Comparable<BytesReference> {
 
-    private Integer hash = null;
+    private Integer hash = null; // we cache the hash of this reference since it can be quite costly to re-calculated it
 
     /**
      * Returns the byte at the specified index. Need to be between 0 and length.

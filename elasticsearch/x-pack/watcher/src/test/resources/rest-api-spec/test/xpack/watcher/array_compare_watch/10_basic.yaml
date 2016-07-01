@@ -10,7 +10,8 @@
           wait_for_status: yellow
 
 
-  - do: {xpack.watcher.stats:{}}
+  - do:
+      xpack.watcher.stats: {}
   - match: { "watcher_state": "started" }
   - match: { "watch_count": 0 }
 
@@ -93,7 +94,8 @@
   - do:
       indices.refresh: {}
 
-  - do: {xpack.watcher.stats:{}}
+  - do:
+      xpack.watcher.stats: {}
   - match: { "watch_count": 1 }
 
   # Simulate a Thread.sleep()
@@ -142,5 +144,6 @@
   - match: { found: true }
 
 
-  - do: {xpack.watcher.stats:{}}
+  - do:
+      xpack.watcher.stats: {}
   - match: { "watch_count": 0 }

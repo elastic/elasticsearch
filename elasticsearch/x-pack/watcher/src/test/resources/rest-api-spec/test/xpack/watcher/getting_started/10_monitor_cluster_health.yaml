@@ -5,14 +5,15 @@
           wait_for_status: yellow
 
 
-  - do: {xpack.watcher.stats:{}}
+  - do:
+      xpack.watcher.stats: {}
   - match: { "watcher_state": "started" }
   - match: { "watch_count": 0 }
 
   - do:
       xpack.watcher.put_watch:
         id: "cluster_health_watch"
-        body:  > 
+        body:  >
           {
             "trigger": {
               "schedule": {
@@ -52,7 +53,8 @@
   - match: { _id: "cluster_health_watch" }
   - match: { created: true }
 
-  - do: {xpack.watcher.stats:{}}
+  - do:
+      xpack.watcher.stats: {}
   - match: { "watch_count": 1 }
 
   # Simulate a Thread.sleep()
@@ -101,5 +103,6 @@
   - match: { found: true }
 
 
-  - do: {xpack.watcher.stats:{}}
+  - do:
+      xpack.watcher.stats: {}
   - match: { "watch_count": 0 }

@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -58,14 +59,16 @@ public class NodeService extends AbstractComponent implements Closeable {
     private final SettingsFilter settingsFilter;
     private ClusterService clusterService;
     private ScriptService scriptService;
-    private final HttpServer httpServer;
+
+    @Nullable
+    private HttpServer httpServer;
 
     private final Discovery discovery;
 
     @Inject
     public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService,
                        Discovery discovery, TransportService transportService, IndicesService indicesService,
-                       PluginsService pluginService, CircuitBreakerService circuitBreakerService, HttpServer httpServer,
+                       PluginsService pluginService, CircuitBreakerService circuitBreakerService, @Nullable HttpServer httpServer,
                        ProcessorsRegistry.Builder processorsRegistryBuilder, ClusterService clusterService, SettingsFilter settingsFilter) {
         super(settings);
         this.threadPool = threadPool;
@@ -98,7 +101,7 @@ public class NodeService extends AbstractComponent implements Closeable {
                 monitorService.jvmService().info(),
                 threadPool.info(),
                 transportService.info(),
-                httpServer.info(),
+                httpServer == null ? null : httpServer.info(),
                 pluginService == null ? null : pluginService.info(),
                 ingestService == null ? null : ingestService.info(),
                 indicesService.getTotalIndexingBufferBytes()
@@ -114,7 +117,7 @@ public class NodeService extends AbstractComponent implements Closeable {
                 jvm ? monitorService.jvmService().info() : null,
                 threadPool ? this.threadPool.info() : null,
                 transport ? transportService.info() : null,
-                http ? httpServer.info() : null,
+                http ? (httpServer == null ? null : httpServer.info()) : null,
                 plugin ? (pluginService == null ? null : pluginService.info()) : null,
                 ingest ? (ingestService == null ? null : ingestService.info()) : null,
                 indices ? indicesService.getTotalIndexingBufferBytes() : null
@@ -132,7 +135,7 @@ public class NodeService extends AbstractComponent implements Closeable {
                 threadPool.stats(),
                 monitorService.fsService().stats(),
                 transportService.stats(),
-                httpServer.stats(),
+                httpServer == null ? null : httpServer.stats(),
                 circuitBreakerService.stats(),
                 scriptService.stats(),
                 discovery.stats(),

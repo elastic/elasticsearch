@@ -18,7 +18,8 @@
  */
 package org.elasticsearch.http;
 
-import org.elasticsearch.cluster.service.ClusterService;
+import java.util.Map;
+
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -32,7 +33,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
@@ -41,10 +41,6 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
-
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.Map;
 
 public class HttpServerTests extends ESTestCase {
     private static final ByteSizeValue BREAKER_LIMIT = new ByteSizeValue(20);
@@ -71,11 +67,7 @@ public class HttpServerTests extends ESTestCase {
                 throw new IllegalArgumentException("test error");
             });
 
-        ClusterService clusterService = new ClusterService(Settings.EMPTY,
-            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null);
-        NodeService nodeService = new NodeService(Settings.EMPTY, null, null, null, null, null, null, null, null,
-            clusterService, null);
-        httpServer = new HttpServer(settings, httpServerTransport, restController, nodeService, null, circuitBreakerService);
+        httpServer = new HttpServer(settings, httpServerTransport, restController, null, circuitBreakerService);
         httpServer.start();
     }
 

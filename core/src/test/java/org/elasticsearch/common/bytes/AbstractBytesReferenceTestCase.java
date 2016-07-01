@@ -298,7 +298,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(2, 8));
         BytesReference pbr = newBytesReference(length);
         int sliceOffset = randomIntBetween(0, pbr.length());
-        int sliceLength = randomIntBetween(pbr.length() - sliceOffset, pbr.length() - sliceOffset);
+        int sliceLength = randomIntBetween(0, pbr.length() - sliceOffset);
         BytesReference slice = pbr.slice(sliceOffset, sliceLength);
 
         BytesArray ba1 = new BytesArray(slice.toBytesRef(), true);
@@ -332,7 +332,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(2, 8));
         BytesReference pbr = newBytesReference(length);
         int sliceOffset = randomIntBetween(0, pbr.length());
-        int sliceLength = randomIntBetween(pbr.length() - sliceOffset, pbr.length() - sliceOffset);
+        int sliceLength = randomIntBetween(0, pbr.length() - sliceOffset);
         BytesReference slice = pbr.slice(sliceOffset, sliceLength);
         BytesRefIterator iterator = slice.iterator();
         BytesRef ref = null;
@@ -348,7 +348,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         BytesReference pbr = newBytesReference(length);
         if (randomBoolean()) {
             int sliceOffset = randomIntBetween(0, pbr.length());
-            int sliceLength = randomIntBetween(pbr.length() - sliceOffset, pbr.length() - sliceOffset);
+            int sliceLength = randomIntBetween(0, pbr.length() - sliceOffset);
             pbr = pbr.slice(sliceOffset, sliceLength);
         }
 
@@ -377,7 +377,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         int length = randomInt(PAGE_SIZE * randomIntBetween(2, 5));
         BytesReference pbr = newBytesReference(length);
         int sliceOffset = randomIntBetween(0, pbr.length() - 1); // an offset to the end would be len 0
-        int sliceLength = randomIntBetween(pbr.length() - sliceOffset, pbr.length() - sliceOffset);
+        int sliceLength = randomIntBetween(0, pbr.length() - sliceOffset);
         BytesReference slice = pbr.slice(sliceOffset, sliceLength);
         BytesRef singlePageOrNull = getSinglePageOrNull(slice);
         if (singlePageOrNull != null) {
@@ -411,7 +411,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         BytesReference pbr = newBytesReference(length);
         // get a BytesRef from a slice
         int sliceOffset = randomIntBetween(0, pbr.length());
-        int sliceLength = randomIntBetween(pbr.length() - sliceOffset, pbr.length() - sliceOffset);
+        int sliceLength = randomIntBetween(0, pbr.length() - sliceOffset);
         BytesRef sliceRef = pbr.slice(sliceOffset, sliceLength).toBytesRef();
         // note that these are only true if we have <= than a page, otherwise offset/length are shifted
         assertEquals(sliceOffset, sliceRef.offset);
@@ -431,7 +431,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
 
         // test hashes of slices
         int sliceFrom = randomIntBetween(0, pbr.length());
-        int sliceLength = randomIntBetween(pbr.length() - sliceFrom, pbr.length() - sliceFrom);
+        int sliceLength = randomIntBetween(0, pbr.length() - sliceFrom);
         BytesReference slice = pbr.slice(sliceFrom, sliceLength);
         int sliceJdkHash = Arrays.hashCode(BytesReference.toBytes(slice));
         int sliceHash = slice.hashCode();
@@ -445,7 +445,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         // get refs & compare
         assertEquals(copy, bytesReference);
         int sliceFrom = randomIntBetween(0, bytesReference.length());
-        int sliceLength = randomIntBetween(bytesReference.length() - sliceFrom, bytesReference.length() - sliceFrom);
+        int sliceLength = randomIntBetween(0, bytesReference.length() - sliceFrom);
         assertEquals(copy.slice(sliceFrom, sliceLength), bytesReference.slice(sliceFrom, sliceLength));
 
         BytesRef bytesRef = BytesRef.deepCopyOf(copy.toBytesRef());
@@ -464,7 +464,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
 
         // test equality of slices
         int sliceFrom = randomIntBetween(0, pbr.length());
-        int sliceLength = randomIntBetween(pbr.length() - sliceFrom, pbr.length() - sliceFrom);
+        int sliceLength = randomIntBetween(0, pbr.length() - sliceFrom);
         BytesReference slice1 = pbr.slice(sliceFrom, sliceLength);
         BytesReference slice2 = pbr.slice(sliceFrom, sliceLength);
         assertArrayEquals(BytesReference.toBytes(slice1), BytesReference.toBytes(slice2));
@@ -485,7 +485,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
 
         assertEquals(0, UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder.compare(bytesReference, bytesReference));
         int sliceFrom = randomIntBetween(0, bytesReference.length());
-        int sliceLength = randomIntBetween(bytesReference.length() - sliceFrom, bytesReference.length() - sliceFrom);
+        int sliceLength = randomIntBetween(0, bytesReference.length() - sliceFrom);
         BytesReference slice = bytesReference.slice(sliceFrom, sliceLength);
 
         assertEquals(bytesReference.toBytesRef().compareTo(slice.toBytesRef()),

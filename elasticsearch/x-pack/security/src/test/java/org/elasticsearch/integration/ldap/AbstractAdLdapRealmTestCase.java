@@ -55,9 +55,9 @@ public abstract  class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase
                     "Gods: [ \"cn=Gods,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\" ] \n" +
                     "Philanthropists: [ \"cn=Philanthropists,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\" ] \n";
 
-    static protected RealmConfig realmConfig;
-    static protected boolean useGlobalSSL;
-    static protected boolean sslEnabled;
+    protected static RealmConfig realmConfig;
+    protected static boolean useGlobalSSL;
+    protected static boolean sslEnabled;
 
     @BeforeClass
     public static void setupRealm() {

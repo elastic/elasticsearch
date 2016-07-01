@@ -143,6 +143,10 @@ public class PipelineExecutionService implements ClusterStateListener {
     }
 
     private void innerExecute(IndexRequest indexRequest, Pipeline pipeline) throws Exception {
+        if (pipeline.getProcessors().isEmpty()) {
+            return;
+        }
+
         long startTimeInNanos = System.nanoTime();
         // the pipeline specific stat holder may not exist and that is fine:
         // (e.g. the pipeline may have been removed while we're ingesting a document

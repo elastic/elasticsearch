@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationComm
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
@@ -166,6 +167,8 @@ public class NetworkModule extends AbstractModule {
             if (HTTP_ENABLED.get(settings)) {
                 bind(HttpServer.class).asEagerSingleton();
                 httpTransportTypes.bindType(binder(), settings, HTTP_TYPE_SETTING.getKey(), NETTY_TRANSPORT);
+            } else {
+                bind(HttpServer.class).toProvider(Providers.of(null));
             }
             // Bind the AllocationCommandRegistry so RestClusterRerouteAction can get it.
             bind(AllocationCommandRegistry.class).toInstance(allocationCommandRegistry);

@@ -52,7 +52,8 @@ PUT my_index
 --------------------------
 // CONSOLE
 
-The value of the `_size` field is accessible in queries:
+The value of the `_size` field is accessible in queries, aggregations, scripts,
+and when sorting:
 
 [source,js]
 --------------------------
@@ -74,6 +75,26 @@ GET my_index/_search
       "_size": { <1>
         "gt": 10
       }
+    }
+  },
+  "aggs": {
+    "sizes": {
+      "terms": {
+        "field": "_size", <2>
+        "size": 10
+      }
+    }
+  },
+  "sort": [
+    {
+      "_size": { <3>
+        "order": "desc"
+      }
+    }
+  ],
+  "script_fields": {
+    "size": {
+      "script": "doc['_size']"  <4>
     }
   }
 }

@@ -20,8 +20,14 @@
 package org.elasticsearch.ingest.useragent;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.TemplateService;
 import org.elasticsearch.node.NodeModule;
+import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,28 +40,36 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
-public class IngestUserAgentPlugin extends Plugin {
+public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
 
     private final Setting<Long> CACHE_SIZE_SETTING = Setting.longSetting("ingest.useragent.cache_size", 1000, 0,
             Setting.Property.NodeScope);
 
     static final String DEFAULT_PARSER_NAME = "_default_";
+    private final Settings settings;
 
-    public void onModule(NodeModule nodeModule) throws IOException {
-        Path userAgentConfigDirectory = nodeModule.getNode().getEnvironment().configFile().resolve("ingest-useragent");
+    IngestUserAgentPlugin(Settings settings) {
+        this.settings = settings;
+    }
+
+    @Override
+    public Map<String, Processor.Factory> getProcessors(
+        Environment env, ScriptService scriptService, TemplateService templateService) {
+        Path userAgentConfigDirectory = env.configFile().resolve("ingest-useragent");
 
         if (Files.exists(userAgentConfigDirectory) == false && Files.isDirectory(userAgentConfigDirectory)) {
             throw new IllegalStateException(
-                    "the user agent directory [" + userAgentConfigDirectory + "] containing the regex file doesn't exist");
+                "the user agent directory [" + userAgentConfigDirectory + "] containing the regex file doesn't exist");
         }
 
-        long cacheSize = CACHE_SIZE_SETTING.get(nodeModule.getNode().settings());
-
-        UserAgentCache cache = new UserAgentCache(cacheSize);
-
-        Map<String, UserAgentParser> userAgentParsers = createUserAgentParsers(userAgentConfigDirectory, cache);
-
-        nodeModule.registerProcessor(UserAgentProcessor.TYPE, (registry) -> new UserAgentProcessor.Factory(userAgentParsers));
+        long cacheSize = CACHE_SIZE_SETTING.get(settings);
+        Map<String, UserAgentParser> userAgentParsers;
+        try {
+            userAgentParsers = createUserAgentParsers(userAgentConfigDirectory, new UserAgentCache(cacheSize));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return Collections.singletonMap(UserAgentProcessor.TYPE, new UserAgentProcessor.Factory(userAgentParsers));
     }
 
     static Map<String, UserAgentParser> createUserAgentParsers(Path userAgentConfigDirectory, UserAgentCache cache) throws IOException {

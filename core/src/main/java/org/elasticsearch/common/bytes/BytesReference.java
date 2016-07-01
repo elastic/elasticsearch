@@ -101,11 +101,13 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
             return true;
         }
         if (other instanceof BytesReference) {
-            BytesReference otherRef = (BytesReference) other;
+            final BytesReference otherRef = (BytesReference) other;
             if (length() != otherRef.length()) {
                 return false;
             }
-            return compareIterators(this, otherRef, (a, b) -> a.equals(b) ? 0 : 1) == 0;
+            return compareIterators(this, otherRef, (a, b) ->
+                a.bytesEquals(b) ? 0 : 1 // this is a call to BytesRef#bytesEquals - this method is the hot one in the comparison
+            ) == 0;
         }
         return false;
     }

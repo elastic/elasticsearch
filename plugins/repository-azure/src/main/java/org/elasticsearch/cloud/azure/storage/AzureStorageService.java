@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
@@ -75,7 +76,7 @@ public interface AzureStorageService {
     void deleteBlob(String account, LocationMode mode, String container, String blob) throws URISyntaxException, StorageException;
 
     InputStream getInputStream(String account, LocationMode mode, String container, String blob)
-        throws URISyntaxException, StorageException;
+        throws URISyntaxException, StorageException, IOException;
 
     OutputStream getOutputStream(String account, LocationMode mode, String container, String blob)
         throws URISyntaxException, StorageException;

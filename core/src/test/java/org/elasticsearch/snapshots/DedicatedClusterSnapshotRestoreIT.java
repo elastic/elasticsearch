@@ -284,8 +284,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         countDownLatch.await();
     }
 
-    private static interface ClusterStateUpdater {
-        public ClusterState execute(ClusterState currentState) throws Exception;
+    private interface ClusterStateUpdater {
+        ClusterState execute(ClusterState currentState) throws Exception;
     }
 
     public void testSnapshotDuringNodeShutdown() throws Exception {
@@ -392,8 +392,11 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> making sure that snapshot no longer exists");
         assertThrows(client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute(), SnapshotMissingException.class);
-        // Subtract index file from the count
-        assertThat("not all files were deleted during snapshot cancellation", numberOfFilesBeforeSnapshot, equalTo(numberOfFiles(repo) - 1));
+        // Subtract three files that will remain in the repository:
+        //   (1) index-1
+        //   (2) index-0 (because we keep the previous version) and
+        //   (3) index-latest
+        assertThat("not all files were deleted during snapshot cancellation", numberOfFilesBeforeSnapshot, equalTo(numberOfFiles(repo) - 3));
         logger.info("--> done");
     }
 

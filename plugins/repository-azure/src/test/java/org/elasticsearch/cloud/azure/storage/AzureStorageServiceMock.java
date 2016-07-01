@@ -31,6 +31,8 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
@@ -79,7 +81,10 @@ public class AzureStorageServiceMock extends AbstractLifecycleComponent<AzureSto
     }
 
     @Override
-    public InputStream getInputStream(String account, LocationMode mode, String container, String blob) {
+    public InputStream getInputStream(String account, LocationMode mode, String container, String blob) throws IOException {
+        if (!blobExists(account, mode, container, blob)) {
+            throw new FileNotFoundException("missing blob [" + blob + "]");
+        }
         return new ByteArrayInputStream(blobs.get(blob).toByteArray());
     }
 

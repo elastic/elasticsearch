@@ -25,11 +25,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.function.ToIntBiFunction;
 
 /**
  * A reference to bytes.
  */
-public abstract class BytesReference implements Accountable {
+public abstract class BytesReference implements Accountable, Comparable<BytesReference> {
 
     /**
      * Returns the byte at the specified index. Need to be between 0 and length.
@@ -95,21 +96,16 @@ public abstract class BytesReference implements Accountable {
     }
 
     @Override
-    public boolean equals(Object b) {
-        if (this == b) {
+    public boolean equals(Object other) {
+        if (this == other) {
             return true;
         }
-        if (b instanceof BytesReference) {
-            BytesReference other = (BytesReference) b;
-            if (this.length() != other.length()) {
+        if (other instanceof BytesReference) {
+            BytesReference otherRef = (BytesReference) other;
+            if (length() != otherRef.length()) {
                 return false;
             }
-            for (int i = 0; i < length(); ++i) {
-                if (get(i) != other.get(i)) {
-                    return false;
-                }
-            }
-            return true;
+            return compareIterators(this, otherRef, (a, b) -> a.equals(b) ? 0 : 1) == 0;
         }
         return false;
     }
@@ -143,4 +139,63 @@ public abstract class BytesReference implements Accountable {
         return BytesRef.deepCopyOf(bytesRef).bytes;
     }
 
+    @Override
+    public int compareTo(final BytesReference other) {
+        return compareIterators(this, other, (a, b) -> a.compareTo(b));
+    }
+
+    /**
+     * Compares the two references using the given int function.
+     */
+    private static final int compareIterators(final BytesReference a, final BytesReference b, final ToIntBiFunction<BytesRef, BytesRef> f) {
+        try {
+            // we use the iterators since it's a 0-copy comparison where possible!
+            final long lengthToCompare = Math.min(a.length(), b.length());
+            final BytesRefIterator aIter = a.iterator();
+            final BytesRefIterator bIter = b.iterator();
+            BytesRef aRef = aIter.next().clone(); // we clone since we modify the offsets and length in the iteration below
+            BytesRef bRef = bIter.next().clone();
+            if (aRef != null && bRef != null) { // do we have any data?
+                if (aRef.length == a.length() && bRef.length == b.length()) { // is it only one array slice we are comparing?
+                    return f.applyAsInt(aRef, bRef);
+                } else {
+                    for (int i = 0; i < lengthToCompare;) {
+                        if (aRef.length == 0) {
+                            aRef = aIter.next().clone();
+                        }
+                        if (bRef.length == 0) {
+                            bRef = bIter.next().clone();
+                        }
+                        final int aLength = aRef.length;
+                        final int bLength = bRef.length;
+                        final int length = Math.min(aLength, bLength); // shrink to the same length and use the fast compare in lucene
+                        aRef.length = bRef.length = length;
+                        // now we move to the fast comparison - this is the hot part of the loop
+                        int diff = f.applyAsInt(aRef, bRef);
+                        aRef.length = aLength;
+                        bRef.length = bLength;
+
+                        if (diff != 0) {
+                            return diff;
+                        }
+                        advance(aRef, length);
+                        advance(bRef, length);
+                        i += length;
+                    }
+                }
+            }
+            // One is a prefix of the other, or, they are equal:
+            return a.length() - b.length();
+        } catch (IOException ex) {
+            throw new AssertionError("can not happen", ex);
+        }
+    }
+
+    private static final void advance(final BytesRef ref, final int length) {
+        assert ref.length >= length : " ref.length: " + ref.length + " length: " + length;
+        assert ref.offset+length < ref.bytes.length || (ref.offset+length == ref.bytes.length && ref.length-length == 0)
+            : "offset: " + ref.offset + " ref.bytes.length: " + ref.bytes.length + " length: " + length + " ref.length: " + ref.length;
+        ref.length -= length;
+        ref.offset += length;
+    }
 }

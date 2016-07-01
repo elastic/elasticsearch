@@ -108,6 +108,6 @@ public final class Text implements Comparable<Text> {
 
     @Override
     public int compareTo(Text text) {
-        return UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder.compare(bytes(), text.bytes());
+        return bytes().compareTo(text.bytes());
     }
 }

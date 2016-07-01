@@ -25,7 +25,6 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.text.UTF8SortedAsUnicodeComparator;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -486,22 +485,21 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
             int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(2, 8));
             BytesReference bytesReference = newBytesReference(length);
 
-            assertEquals(0, UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder.compare(bytesReference, bytesReference));
+            assertEquals(0, bytesReference.compareTo(bytesReference));
             int sliceFrom = randomIntBetween(0, bytesReference.length());
             int sliceLength = randomIntBetween(0, bytesReference.length() - sliceFrom);
             BytesReference slice = bytesReference.slice(sliceFrom, sliceLength);
 
             assertEquals(bytesReference.toBytesRef().compareTo(slice.toBytesRef()),
-                UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder.compare(new BytesArray(bytesReference.toBytesRef(), true),
-                    new BytesArray(slice.toBytesRef(), true)));
+                new BytesArray(bytesReference.toBytesRef(), true).compareTo(new BytesArray(slice.toBytesRef(), true)));
 
             assertEquals(bytesReference.toBytesRef().compareTo(slice.toBytesRef()),
-                UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder.compare(bytesReference, slice));
+                bytesReference.compareTo(slice));
             assertEquals(slice.toBytesRef().compareTo(bytesReference.toBytesRef()),
-                UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder.compare(slice, bytesReference));
+                slice.compareTo(bytesReference));
 
-            assertEquals(0, UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder.compare(slice, new BytesArray(slice.toBytesRef())));
-            assertEquals(0, UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder.compare(new BytesArray(slice.toBytesRef()), slice));
+            assertEquals(0, slice.compareTo(new BytesArray(slice.toBytesRef())));
+            assertEquals(0, new BytesArray(slice.toBytesRef()).compareTo(slice));
 
             final int crazyLength = length + randomIntBetween(10, PAGE_SIZE * randomIntBetween(2, 8));
             ReleasableBytesStreamOutput crazyStream = new ReleasableBytesStreamOutput(length, bigarrays);
@@ -515,10 +513,10 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
             }
             PagedBytesReference crazyReference = crazyStream.bytes();
 
-            assertFalse(UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder.compare(crazyReference, bytesReference) == 0);
-            assertEquals(0, UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder.compare(crazyReference.slice(offset, length),
+            assertFalse(crazyReference.compareTo(bytesReference) == 0);
+            assertEquals(0, crazyReference.slice(offset, length).compareTo(
                 bytesReference));
-            assertEquals(0, UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder.compare(bytesReference,
+            assertEquals(0, bytesReference.compareTo(
                 crazyReference.slice(offset, length)));
         }
     }

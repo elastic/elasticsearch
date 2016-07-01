@@ -69,7 +69,7 @@ import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 /**
  *
  */
-public class TransportService extends AbstractLifecycleComponent<TransportService> {
+public class TransportService extends AbstractLifecycleComponent {
 
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
     private static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";

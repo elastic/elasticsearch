@@ -56,7 +56,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceComputeService>
+public class GceComputeServiceImpl extends AbstractLifecycleComponent
     implements GceComputeService {
 
     // all settings just used for testing - not registered by default

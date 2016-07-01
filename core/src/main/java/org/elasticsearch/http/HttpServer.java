@@ -51,7 +51,7 @@ import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 /**
  * A component to serve http requests, backed by rest handlers.
  */
-public class HttpServer extends AbstractLifecycleComponent<HttpServer> implements HttpServerAdapter {
+public class HttpServer extends AbstractLifecycleComponent implements HttpServerAdapter {
     private final HttpServerTransport transport;
 
     private final RestController restController;

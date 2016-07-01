@@ -88,7 +88,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 /**
  *
  */
-public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
+public class ClusterService extends AbstractLifecycleComponent {
 
     public static final Setting<TimeValue> CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING =
             Setting.positiveTimeSetting("cluster.service.slow_task_logging_threshold", TimeValue.timeValueSeconds(30),

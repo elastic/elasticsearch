@@ -31,7 +31,7 @@ import java.util.function.Function;
 /**
  *
  */
-public interface AwsS3Service extends LifecycleComponent<AwsS3Service> {
+public interface AwsS3Service extends LifecycleComponent {
 
     // Global AWS settings (shared between discovery-ec2 and repository-s3)
     // Each setting starting with `cloud.aws` also exists in discovery-ec2 project. Don't forget to update

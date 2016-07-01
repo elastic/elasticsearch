@@ -40,7 +40,7 @@ import java.util.function.BiFunction;
 
 import static java.util.Collections.unmodifiableMap;
 
-public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitorService> {
+public class JvmGcMonitorService extends AbstractLifecycleComponent {
 
     private final ThreadPool threadPool;
     private final boolean enabled;

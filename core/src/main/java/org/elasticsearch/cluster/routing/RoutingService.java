@@ -44,7 +44,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * actions.
  * </p>
  */
-public class RoutingService extends AbstractLifecycleComponent<RoutingService> {
+public class RoutingService extends AbstractLifecycleComponent {
 
     private static final String CLUSTER_UPDATE_TASK_SOURCE = "cluster_reroute";
 

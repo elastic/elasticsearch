@@ -44,7 +44,7 @@ import java.util.Map;
 /**
  *
  */
-public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Service> implements AwsS3Service {
+public class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Service {
 
     /**
      * (acceskey, endpoint) -&gt; client

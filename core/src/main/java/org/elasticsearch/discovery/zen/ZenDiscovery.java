@@ -86,7 +86,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 /**
  *
  */
-public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery, PingContextProvider {
+public class ZenDiscovery extends AbstractLifecycleComponent implements Discovery, PingContextProvider {
 
     public static final Setting<TimeValue> PING_TIMEOUT_SETTING =
         Setting.positiveTimeSetting("discovery.zen.ping_timeout", timeValueSeconds(3), Property.NodeScope);

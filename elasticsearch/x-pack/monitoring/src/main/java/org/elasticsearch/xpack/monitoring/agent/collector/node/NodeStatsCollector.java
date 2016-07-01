@@ -32,7 +32,7 @@ import java.util.Collections;
  * This collector runs on every non-client node and collect
  * a {@link NodeStatsMonitoringDoc} document for each node of the cluster.
  */
-public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
+public class NodeStatsCollector extends AbstractCollector {
 
     public static final String NAME = "node-stats-collector";
 

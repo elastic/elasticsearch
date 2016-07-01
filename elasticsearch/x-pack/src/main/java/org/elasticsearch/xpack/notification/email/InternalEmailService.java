@@ -19,7 +19,7 @@ import javax.mail.MessagingException;
 /**
  *
  */
-public class InternalEmailService extends AbstractLifecycleComponent<EmailService> implements EmailService {
+public class InternalEmailService extends AbstractLifecycleComponent implements EmailService {
 
     private final SecretService secretService;
     public static final Setting<Settings> EMAIL_ACCOUNT_SETTING =

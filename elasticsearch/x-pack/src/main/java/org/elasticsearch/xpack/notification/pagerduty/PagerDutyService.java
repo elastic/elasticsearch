@@ -10,7 +10,7 @@ import org.elasticsearch.common.component.LifecycleComponent;
 /**
  *
  */
-public interface PagerDutyService extends LifecycleComponent<PagerDutyService> {
+public interface PagerDutyService extends LifecycleComponent {
 
     PagerDutyAccount getDefaultAccount();
 

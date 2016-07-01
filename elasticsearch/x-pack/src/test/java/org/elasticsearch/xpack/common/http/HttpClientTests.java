@@ -60,7 +60,8 @@ public class HttpClientTests extends ESTestCase {
         authRegistry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(secretService)));
         webServer = startWebServer();
         webPort = webServer.getPort();
-        httpClient = new HttpClient(Settings.EMPTY, authRegistry, environment).start();
+        httpClient = new HttpClient(Settings.EMPTY, authRegistry, environment);
+        httpClient.start();
     }
 
     @After
@@ -173,15 +174,16 @@ public class HttpClientTests extends ESTestCase {
                     .put(HttpClient.SETTINGS_SSL_SECURITY_TRUSTSTORE_PASSWORD, "truststore-testnode-only")
                     .build();
         }
-        HttpClient httpClient = new HttpClient(settings, authRegistry, environment).start();
+        HttpClient httpClient = new HttpClient(settings, authRegistry, environment);
+        httpClient.start();
 
         // We can't use the client created above for the server since it is only a truststore
-        webServer.useHttps(new HttpClient(Settings.builder()
-                .put(HttpClient.SETTINGS_SSL_KEYSTORE, getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks"))
-                .put(HttpClient.SETTINGS_SSL_KEYSTORE_PASSWORD, "testnode")
-                .build(), authRegistry, environment)
-                .start()
-                .getSslSocketFactory(), false);
+        HttpClient httpClient2 = new HttpClient(Settings.builder()
+            .put(HttpClient.SETTINGS_SSL_KEYSTORE, getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks"))
+            .put(HttpClient.SETTINGS_SSL_KEYSTORE_PASSWORD, "testnode")
+            .build(), authRegistry, environment);
+        httpClient2.start();
+        webServer.useHttps(httpClient2.getSslSocketFactory(), false);
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequest.Builder request = HttpRequest.builder("localhost", webPort)
@@ -211,7 +213,8 @@ public class HttpClientTests extends ESTestCase {
                     .build();
         }
 
-        HttpClient httpClient = new HttpClient(settings, authRegistry, environment).start();
+        HttpClient httpClient = new HttpClient(settings, authRegistry, environment);
+        httpClient.start();
         webServer.useHttps(new ClientAuthRequiringSSLSocketFactory(httpClient.getSslSocketFactory()), false);
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
@@ -247,7 +250,8 @@ public class HttpClientTests extends ESTestCase {
                     .build();
         }
 
-        HttpClient httpClient = new HttpClient(settings, authRegistry, environment).start();
+        HttpClient httpClient = new HttpClient(settings, authRegistry, environment);
+        httpClient.start();
         assertThat(httpClient.getSslSocketFactory(), notNullValue());
 
         Settings.Builder badSettings = Settings.builder().put(settings);
@@ -293,7 +297,8 @@ public class HttpClientTests extends ESTestCase {
 
     @Network
     public void testHttpsWithoutTruststore() throws Exception {
-        HttpClient httpClient = new HttpClient(Settings.EMPTY, authRegistry, environment).start();
+        HttpClient httpClient = new HttpClient(Settings.EMPTY, authRegistry, environment);
+        httpClient.start();
         assertThat(httpClient.getSslSocketFactory(), nullValue());
 
         // Known server with a valid cert from a commercial CA
@@ -312,7 +317,8 @@ public class HttpClientTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put(setting, randomBoolean())
                 .build();
-        HttpClient httpClient = new HttpClient(settings, authRegistry, environment).start();
+        HttpClient httpClient = new HttpClient(settings, authRegistry, environment);
+        httpClient.start();
         assertThat(httpClient.getSslSocketFactory(), notNullValue());
 
         // Known server with a valid cert from a commercial CA
@@ -333,7 +339,8 @@ public class HttpClientTests extends ESTestCase {
                     .put(HttpClient.SETTINGS_PROXY_HOST, "localhost")
                     .put(HttpClient.SETTINGS_PROXY_PORT, proxyServer.getPort())
                     .build();
-            HttpClient httpClient = new HttpClient(settings, authRegistry, environment).start();
+            HttpClient httpClient = new HttpClient(settings, authRegistry, environment);
+            httpClient.start();
 
             HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webPort)
                     .method(HttpMethod.GET)
@@ -361,7 +368,8 @@ public class HttpClientTests extends ESTestCase {
                     .put(HttpClient.SETTINGS_PROXY_HOST, "localhost")
                     .put(HttpClient.SETTINGS_PROXY_PORT, proxyServer.getPort() + 1)
                     .build();
-            HttpClient httpClient = new HttpClient(settings, authRegistry, environment).start();
+            HttpClient httpClient = new HttpClient(settings, authRegistry, environment);
+            httpClient.start();
 
             HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webPort)
                     .method(HttpMethod.GET)

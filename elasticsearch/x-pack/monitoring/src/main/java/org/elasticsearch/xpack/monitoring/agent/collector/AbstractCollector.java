@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
 
 import java.util.Collection;
 
-public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T> implements Collector<T> {
+public abstract class AbstractCollector extends AbstractLifecycleComponent implements Collector {
 
     private final String name;
 
@@ -48,9 +48,9 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
     }
 
     @Override
-    public T start() {
+    public void start() {
         logger.debug("starting collector [{}]", name());
-        return super.start();
+        super.start();
     }
 
     @Override
@@ -90,9 +90,9 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
     protected abstract Collection<MonitoringDoc> doCollect() throws Exception;
 
     @Override
-    public T stop() {
+    public void stop() {
         logger.debug("stopping collector [{}]", name());
-        return super.stop();
+        super.stop();
     }
 
     @Override

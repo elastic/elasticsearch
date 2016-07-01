@@ -26,7 +26,7 @@ import java.util.concurrent.ScheduledFuture;
 /**
  * {@code CleanerService} takes care of deleting old monitoring indices.
  */
-public class CleanerService extends AbstractLifecycleComponent<CleanerService> {
+public class CleanerService extends AbstractLifecycleComponent {
 
     private final MonitoringLicensee licensee;
     private final ThreadPool threadPool;

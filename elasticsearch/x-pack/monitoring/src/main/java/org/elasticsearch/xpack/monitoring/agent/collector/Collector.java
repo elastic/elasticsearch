@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
 
 import java.util.Collection;
 
-public interface Collector<T> extends LifecycleComponent<T> {
+public interface Collector extends LifecycleComponent {
 
     String name();
 

@@ -594,7 +594,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         assertThat("watcher should only run on the elected master node, but it is running on [" + running + "] nodes", running, equalTo(1));
     }
 
-    public static class NoopEmailService extends AbstractLifecycleComponent<EmailService> implements EmailService {
+    public static class NoopEmailService extends AbstractLifecycleComponent implements EmailService {
 
         public NoopEmailService() {
             super(Settings.EMPTY);

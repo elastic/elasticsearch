@@ -33,8 +33,6 @@ import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
 
 import java.io.IOException;
 
-/**
- */
 public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends AbstractIndexComponent implements IndexFieldData<FD> {
 
     private final String fieldName;
@@ -69,7 +67,7 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
         try {
             FD fd = cache.load(context, this);
             return fd;
-        } catch (Throwable e) {
+        } catch (Exception e) {
             if (e instanceof ElasticsearchException) {
                 throw (ElasticsearchException) e;
             } else {

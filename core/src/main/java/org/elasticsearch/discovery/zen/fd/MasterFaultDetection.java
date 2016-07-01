@@ -369,14 +369,15 @@ public class MasterFaultDetection extends FaultDetection {
                     }
 
                     @Override
-                    public void onFailure(String source, @Nullable Throwable t) {
-                        if (t == null) {
-                            t = new ElasticsearchException("unknown error while processing ping");
+                    public void onFailure(String source, @Nullable Exception e) {
+                        if (e == null) {
+                            e = new ElasticsearchException("unknown error while processing ping");
                         }
                         try {
-                            channel.sendResponse(t);
-                        } catch (IOException e) {
-                            logger.warn("error while sending ping response", e);
+                            channel.sendResponse(e);
+                        } catch (IOException inner) {
+                            inner.addSuppressed(e);
+                            logger.warn("error while sending ping response", inner);
                         }
                     }
 

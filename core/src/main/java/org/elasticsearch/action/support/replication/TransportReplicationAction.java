@@ -196,7 +196,7 @@ public abstract class TransportReplicationAction<
         return TransportRequestOptions.EMPTY;
     }
 
-    protected boolean retryPrimaryException(Throwable e) {
+    protected boolean retryPrimaryException(final Throwable e) {
         return e.getClass() == ReplicationOperation.RetryOnPrimaryException.class
             || TransportActions.isShardNotAvailableException(e);
     }
@@ -209,17 +209,18 @@ public abstract class TransportReplicationAction<
                 public void onResponse(Response result) {
                     try {
                         channel.sendResponse(result);
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         onFailure(e);
                     }
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     try {
                         channel.sendResponse(e);
-                    } catch (Throwable e1) {
-                        logger.warn("Failed to send response for {}", e1, actionName);
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        logger.warn("Failed to send response for {}", inner, actionName);
                     }
                 }
             });
@@ -300,25 +301,25 @@ public abstract class TransportReplicationAction<
                         }
 
                         @Override
-                        public void onFailure(Throwable e) {
+                        public void onFailure(Exception e) {
                             listener.onFailure(e);
                         }
                     }, primaryShardReference, executeOnReplicas).execute();
                 }
-            } catch (Throwable t) {
+            } catch (Exception e) {
                 Releasables.closeWhileHandlingException(primaryShardReference); // release shard operation lock before responding to caller
-                onFailure(t);
+                onFailure(e);
             }
         }
 
         @Override
-        public void onFailure(Throwable t) {
+        public void onFailure(Exception e) {
             setPhase(replicationTask, "finished");
             try {
-                channel.sendResponse(t);
-            } catch (IOException e) {
-                e.addSuppressed(t);
-                logger.warn("failed to send response", e);
+                channel.sendResponse(e);
+            } catch (IOException inner) {
+                inner.addSuppressed(e);
+                logger.warn("failed to send response", inner);
             }
         }
 
@@ -336,7 +337,7 @@ public abstract class TransportReplicationAction<
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     primaryShardReference.close(); // release shard operation lock before responding to caller
                     setPhase(replicationTask, "finished");
                     try {
@@ -439,16 +440,16 @@ public abstract class TransportReplicationAction<
                 ReplicaResult replicaResult = shardOperationOnReplica(request);
                 releasable.close(); // release shard operation lock before responding to caller
                 replicaResult.respond(new ResponseListener());
-            } catch (Throwable t) {
+            } catch (Exception e) {
                 Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
-                AsyncReplicaAction.this.onFailure(t);
+                AsyncReplicaAction.this.onFailure(e);
             }
         }
 
         @Override
-        public void onFailure(Throwable t) {
-            if (t instanceof RetryOnReplicaException) {
-                logger.trace("Retrying operation on replica, action [{}], request [{}]", t, transportReplicaAction, request);
+        public void onFailure(Exception e) {
+            if (e instanceof RetryOnReplicaException) {
+                logger.trace("Retrying operation on replica, action [{}], request [{}]", e, transportReplicaAction, request);
                 final ThreadContext.StoredContext context = threadPool.getThreadContext().newStoredContext();
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
@@ -473,17 +474,17 @@ public abstract class TransportReplicationAction<
                     }
                 });
             } else {
-                responseWithFailure(t);
+                responseWithFailure(e);
             }
         }
 
-        protected void responseWithFailure(Throwable t) {
+        protected void responseWithFailure(Exception e) {
             try {
                 setPhase(task, "finished");
-                channel.sendResponse(t);
+                channel.sendResponse(e);
             } catch (IOException responseException) {
+                responseException.addSuppressed(e);
                 logger.warn("failed to send error message back to client for action [{}]", responseException, transportReplicaAction);
-                logger.warn("actual Exception", t);
             }
         }
 
@@ -513,7 +514,7 @@ public abstract class TransportReplicationAction<
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 responseWithFailure(e);
             }
         }
@@ -544,7 +545,7 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
-        public void onFailure(Throwable e) {
+        public void onFailure(Exception e) {
             finishWithUnexpectedFailure(e);
         }
 
@@ -694,14 +695,15 @@ public abstract class TransportReplicationAction<
                         } else {
                             finishAsFailed(exp);
                         }
-                    } catch (Throwable t) {
-                        finishWithUnexpectedFailure(t);
+                    } catch (Exception e) {
+                        e.addSuppressed(exp);
+                        finishWithUnexpectedFailure(e);
                     }
                 }
             });
         }
 
-        void retry(Throwable failure) {
+        void retry(Exception failure) {
             assert failure != null;
             if (observer.isTimedOut()) {
                 // we running as a last attempt after a timeout has happened. don't retry
@@ -731,7 +733,7 @@ public abstract class TransportReplicationAction<
             });
         }
 
-        void finishAsFailed(Throwable failure) {
+        void finishAsFailed(Exception failure) {
             if (finished.compareAndSet(false, true)) {
                 setPhase(task, "failed");
                 logger.trace("operation failed. action [{}], request [{}]", failure, actionName, request);
@@ -741,7 +743,7 @@ public abstract class TransportReplicationAction<
             }
         }
 
-        void finishWithUnexpectedFailure(Throwable failure) {
+        void finishWithUnexpectedFailure(Exception failure) {
             logger.warn("unexpected error during the primary phase for action [{}], request [{}]", failure, actionName, request);
             if (finished.compareAndSet(false, true)) {
                 setPhase(task, "failed");
@@ -790,7 +792,7 @@ public abstract class TransportReplicationAction<
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 onReferenceAcquired.onFailure(e);
             }
         };
@@ -835,11 +837,11 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
-        public void failShard(String reason, Throwable e) {
+        public void failShard(String reason, Exception e) {
             try {
                 indexShard.failShard(reason, e);
-            } catch (Throwable suppressed) {
-                e.addSuppressed(suppressed);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
             }
         }
 
@@ -871,10 +873,10 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
-        public void failShard(ShardRouting replica, ShardRouting primary, String message, Throwable throwable,
-                              Runnable onSuccess, Consumer<Throwable> onFailure, Consumer<Throwable> onIgnoredFailure) {
+        public void failShard(ShardRouting replica, ShardRouting primary, String message, Exception exception,
+                              Runnable onSuccess, Consumer<Exception> onFailure, Consumer<Exception> onIgnoredFailure) {
             shardStateAction.shardFailed(
-                replica, primary, message, throwable,
+                replica, primary, message, exception,
                 new ShardStateAction.Listener() {
                     @Override
                     public void onSuccess() {
@@ -882,7 +884,7 @@ public abstract class TransportReplicationAction<
                     }
 
                     @Override
-                    public void onFailure(Throwable shardFailedError) {
+                    public void onFailure(Exception shardFailedError) {
                         if (shardFailedError instanceof ShardStateAction.NoLongerPrimaryShardException) {
                             onFailure.accept(shardFailedError);
                         } else {

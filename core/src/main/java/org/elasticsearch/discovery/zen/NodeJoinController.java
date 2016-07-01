@@ -130,10 +130,10 @@ public class NodeJoinController extends AbstractComponent {
                 logger.trace("timed out waiting to be elected. waited [{}]. pending master node joins [{}]", timeValue, pendingNodes);
             }
             failContextIfNeeded(myElectionContext, "timed out waiting to be elected");
-        } catch (Throwable t) {
-            logger.error("unexpected failure while waiting for incoming joins", t);
+        } catch (Exception e) {
+            logger.error("unexpected failure while waiting for incoming joins", e);
             if (myElectionContext != null) {
-                failContextIfNeeded(myElectionContext, "unexpected failure while waiting for pending joins [" + t.getMessage() + "]");
+                failContextIfNeeded(myElectionContext, "unexpected failure while waiting for pending joins [" + e.getMessage() + "]");
             }
         }
     }
@@ -335,8 +335,8 @@ public class NodeJoinController extends AbstractComponent {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                ElectionContext.this.onFailure(t);
+            public void onFailure(String source, Exception e) {
+                ElectionContext.this.onFailure(e);
             }
         };
 
@@ -356,12 +356,12 @@ public class NodeJoinController extends AbstractComponent {
         }
 
         @Override
-        public void onFailure(String source, Throwable t) {
+        public void onFailure(String source, Exception e) {
             for (MembershipAction.JoinCallback callback : callbacks) {
                 try {
-                    callback.onFailure(t);
-                } catch (Exception e) {
-                    logger.error("error during task failure", e);
+                    callback.onFailure(e);
+                } catch (Exception inner) {
+                    logger.error("error handling task failure [{}]", inner, e);
                 }
             }
         }

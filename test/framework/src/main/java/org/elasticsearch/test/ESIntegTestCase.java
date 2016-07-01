@@ -955,7 +955,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         client().admin().indices().prepareRefresh().get();
                     }
                     lastKnownCount.set(count);
-                } catch (Throwable e) { // count now acts like search and barfs if all shards failed...
+                } catch (Exception e) { // count now acts like search and barfs if all shards failed...
                     logger.debug("failed to executed count", e);
                     return false;
                 }
@@ -1333,7 +1333,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         final String[] indices = indicesSet.toArray(new String[indicesSet.size()]);
         Collections.shuffle(builders, random());
-        final CopyOnWriteArrayList<Tuple<IndexRequestBuilder, Throwable>> errors = new CopyOnWriteArrayList<>();
+        final CopyOnWriteArrayList<Tuple<IndexRequestBuilder, Exception>> errors = new CopyOnWriteArrayList<>();
         List<CountDownLatch> inFlightAsyncOperations = new ArrayList<>();
         // If you are indexing just a few documents then frequently do it one at a time.  If many then frequently in bulk.
         if (builders.size() < FREQUENT_BULK_THRESHOLD ? frequently() : builders.size() < ALWAYS_BULK_THRESHOLD ? rarely() : false) {
@@ -1366,8 +1366,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
         for (CountDownLatch operation : inFlightAsyncOperations) {
             operation.await();
         }
-        final List<Throwable> actualErrors = new ArrayList<>();
-        for (Tuple<IndexRequestBuilder, Throwable> tuple : errors) {
+        final List<Exception> actualErrors = new ArrayList<>();
+        for (Tuple<IndexRequestBuilder, Exception> tuple : errors) {
             if (ExceptionsHelper.unwrapCause(tuple.v2()) instanceof EsRejectedExecutionException) {
                 tuple.v1().execute().actionGet(); // re-index if rejected
             } else {
@@ -1525,7 +1525,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
 
         @Override
-        public final void onFailure(Throwable t) {
+        public final void onFailure(Exception t) {
             try {
                 logger.info("Action Failed", t);
                 addError(t);
@@ -1534,24 +1534,24 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         }
 
-        protected void addError(Throwable t) {
+        protected void addError(Exception e) {
         }
 
     }
 
     private class PayloadLatchedActionListener<Response, T> extends LatchedActionListener<Response> {
-        private final CopyOnWriteArrayList<Tuple<T, Throwable>> errors;
+        private final CopyOnWriteArrayList<Tuple<T, Exception>> errors;
         private final T builder;
 
-        public PayloadLatchedActionListener(T builder, CountDownLatch latch, CopyOnWriteArrayList<Tuple<T, Throwable>> errors) {
+        public PayloadLatchedActionListener(T builder, CountDownLatch latch, CopyOnWriteArrayList<Tuple<T, Exception>> errors) {
             super(latch);
             this.errors = errors;
             this.builder = builder;
         }
 
         @Override
-        protected void addError(Throwable t) {
-            errors.add(new Tuple<>(builder, t));
+        protected void addError(Exception e) {
+            errors.add(new Tuple<>(builder, e));
         }
 
     }

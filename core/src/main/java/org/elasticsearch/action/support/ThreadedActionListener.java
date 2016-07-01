@@ -97,14 +97,14 @@ public final class ThreadedActionListener<Response> implements ActionListener<Re
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                listener.onFailure(t);
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
             }
         });
     }
 
     @Override
-    public void onFailure(final Throwable e) {
+    public void onFailure(final Exception e) {
         threadPool.executor(executor).execute(new AbstractRunnable() {
             @Override
             public boolean isForceExecution() {
@@ -117,8 +117,8 @@ public final class ThreadedActionListener<Response> implements ActionListener<Re
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                logger.warn("failed to execute failure callback on [{}], failure [{}]", t, listener, e);
+            public void onFailure(Exception e) {
+                logger.warn("failed to execute failure callback on [{}], failure [{}]", e, listener, e);
             }
         });
     }

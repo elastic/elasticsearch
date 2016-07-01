@@ -302,7 +302,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 try {
                     directory.deleteFile(origFile);
                 } catch (FileNotFoundException | NoSuchFileException e) {
-                } catch (Throwable ex) {
+                } catch (Exception ex) {
                     logger.debug("failed to delete file [{}]", ex, origFile);
                 }
                 // now, rename the files... and fail it it won't work
@@ -569,7 +569,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                         final byte[] buffer = new byte[size];
                         input.readBytes(buffer, 0, buffer.length);
                         StreamInput in = StreamInput.wrap(buffer);
-                        Throwable t = in.readThrowable();
+                        Exception t = in.readException();
                         if (t instanceof CorruptIndexException) {
                             ex.add((CorruptIndexException) t);
                         } else {
@@ -838,7 +838,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             } catch (CorruptIndexException | IndexNotFoundException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                 // we either know the index is corrupted or it's just not there
                 throw ex;
-            } catch (Throwable ex) {
+            } catch (Exception ex) {
                 try {
                     // Lucene checks the checksum after it tries to lookup the codec etc.
                     // in that case we might get only IAE or similar exceptions while we are really corrupt...
@@ -846,14 +846,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     logger.warn("failed to build store metadata. checking segment info integrity (with commit [{}])",
                             ex, commit == null ? "no" : "yes");
                     Lucene.checkSegmentInfoIntegrity(directory);
+                    throw ex;
                 } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException cex) {
                     cex.addSuppressed(ex);
                     throw cex;
-                } catch (Throwable e) {
-                    // ignore...
+                } catch (Exception inner) {
+                    ex.addSuppressed(inner);
+                    throw ex;
                 }
-
-                throw ex;
             }
             return new LoadedMetadata(unmodifiableMap(builder), unmodifiableMap(commitUserDataBuilder), numDocs);
         }
@@ -878,7 +878,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                         checksum = digestToString(CodecUtil.retrieveChecksum(in));
                     }
 
-                } catch (Throwable ex) {
+                } catch (Exception ex) {
                     logger.debug("Can retrieve checksum from file [{}]", ex, file);
                     throw ex;
                 }
@@ -1320,8 +1320,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         for (String file : files) {
             try {
                 directory().deleteFile(file);
-            } catch (Throwable ex) {
-                // ignore
+            } catch (Exception ex) {
+                // ignore :(
             }
         }
     }

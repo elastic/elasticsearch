@@ -206,11 +206,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
             }
             // now that we know which files are there, create a new current one.
-        } catch (Throwable t) {
+        } catch (Exception e) {
             // close the opened translog files if we fail to create a new translog...
             IOUtils.closeWhileHandlingException(current);
             IOUtils.closeWhileHandlingException(readers);
-            throw t;
+            throw e;
         }
     }
 
@@ -437,10 +437,18 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 return location;
             }
         } catch (AlreadyClosedException | IOException ex) {
-            closeOnTragicEvent(ex);
+            try {
+                closeOnTragicEvent(ex);
+            } catch (Exception inner) {
+                ex.addSuppressed(inner);
+            }
             throw ex;
-        } catch (Throwable e) {
-            closeOnTragicEvent(e);
+        } catch (Exception e) {
+            try {
+                closeOnTragicEvent(e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
         } finally {
             Releasables.close(out.bytes());
@@ -508,8 +516,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (closed.get() == false) {
                 current.sync();
             }
-        } catch (Throwable ex) {
-            closeOnTragicEvent(ex);
+        } catch (Exception ex) {
+            try {
+                closeOnTragicEvent(ex);
+            } catch (Exception inner) {
+                ex.addSuppressed(inner);
+            }
             throw ex;
         }
     }
@@ -541,14 +553,18 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 ensureOpen();
                 return current.syncUpTo(location.translogLocation + location.size);
             }
-        } catch (Throwable ex) {
-            closeOnTragicEvent(ex);
+        } catch (Exception ex) {
+            try {
+                closeOnTragicEvent(ex);
+            } catch (Exception inner) {
+                ex.addSuppressed(inner);
+            }
             throw ex;
         }
         return false;
     }
 
-    private void closeOnTragicEvent(Throwable ex) {
+    private void closeOnTragicEvent(Exception ex) {
         if (current.getTragicException() != null) {
             try {
                 close();
@@ -1193,9 +1209,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             current = createWriter(current.getGeneration() + 1);
             logger.trace("current translog set to [{}]", current.getGeneration());
 
-        } catch (Throwable t) {
+        } catch (Exception e) {
             IOUtils.closeWhileHandlingException(this); // tragic event
-            throw t;
+            throw e;
         }
     }
 
@@ -1318,7 +1334,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * e.g. disk full while flushing a new segment, this returns the root cause exception.
      * Otherwise (no tragic exception has occurred) it returns null.
      */
-    public Throwable getTragicException() {
+    public Exception getTragicException() {
         return current.getTragicException();
     }
 

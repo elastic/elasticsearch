@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.netty;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
@@ -321,7 +322,10 @@ public class NettyTransport extends TcpTransport<Channel> {
     }
 
     protected final void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
-       onException(ctx.getChannel(), e.getCause());
+        onException(
+                ctx.getChannel(),
+                e.getCause() == null || e.getCause() instanceof Exception ?
+                        (Exception)e.getCause() : new ElasticsearchException(e.getCause()));
     }
 
     @Override
@@ -602,8 +606,8 @@ public class NettyTransport extends TcpTransport<Channel> {
                 ServerBootstrap serverBootstrap = entry.getValue();
                 try {
                     serverBootstrap.releaseExternalResources();
-                } catch (Throwable t) {
-                    logger.debug("Error closing serverBootstrap for profile [{}]", t, name);
+                } catch (Exception e) {
+                    logger.debug("Error closing serverBootstrap for profile [{}]", e, name);
                 }
             }
             serverBootstraps.clear();

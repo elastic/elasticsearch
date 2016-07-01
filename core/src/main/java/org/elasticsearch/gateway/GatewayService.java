@@ -216,11 +216,11 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
             if (recovered.compareAndSet(false, true)) {
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
-                    public void onFailure(Throwable t) {
-                        logger.warn("Recovery failed", t);
+                    public void onFailure(Exception e) {
+                        logger.warn("Recovery failed", e);
                         // we reset `recovered` in the listener don't reset it here otherwise there might be a race
                         // that resets it to false while a new recover is already running?
-                        recoveryListener.onFailure("state recovery failed: " + t.getMessage());
+                        recoveryListener.onFailure("state recovery failed: " + e.getMessage());
                     }
 
                     @Override
@@ -288,8 +288,8 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.error("unexpected failure during [{}]", t, source);
+                public void onFailure(String source, Exception e) {
+                    logger.error("unexpected failure during [{}]", e, source);
                     GatewayRecoveryListener.this.onFailure("failed to updated cluster state");
                 }
 

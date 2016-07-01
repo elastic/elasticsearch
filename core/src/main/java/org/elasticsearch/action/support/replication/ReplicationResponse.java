@@ -175,11 +175,11 @@ public class ReplicationResponse extends ActionResponse {
 
             private ShardId shardId;
             private String nodeId;
-            private Throwable cause;
+            private Exception cause;
             private RestStatus status;
             private boolean primary;
 
-            public Failure(ShardId  shardId, @Nullable String nodeId, Throwable cause, RestStatus status, boolean primary) {
+            public Failure(ShardId  shardId, @Nullable String nodeId, Exception cause, RestStatus status, boolean primary) {
                 this.shardId = shardId;
                 this.nodeId = nodeId;
                 this.cause = cause;
@@ -251,7 +251,7 @@ public class ReplicationResponse extends ActionResponse {
             public void readFrom(StreamInput in) throws IOException {
                 shardId = ShardId.readShardId(in);
                 nodeId = in.readOptionalString();
-                cause = in.readThrowable();
+                cause = in.readException();
                 status = RestStatus.readFrom(in);
                 primary = in.readBoolean();
             }

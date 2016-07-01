@@ -725,7 +725,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            public void postIndex(Engine.Index index, Throwable ex) {
+            public void postIndex(Engine.Index index, Exception ex) {
                 postIndexException.incrementAndGet();
             }
 
@@ -741,7 +741,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            public void postDelete(Engine.Delete delete, Throwable ex) {
+            public void postDelete(Engine.Delete delete, Exception ex) {
                 postDeleteException.incrementAndGet();
 
             }
@@ -1383,7 +1383,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {};
         shard.close("simon says", false);
         AtomicReference<IndexShard> shardRef = new AtomicReference<>();
-        List<Throwable> failures = new ArrayList<>();
+        List<Exception> failures = new ArrayList<>();
         IndexingOperationListener listener = new IndexingOperationListener() {
 
             @Override
@@ -1393,9 +1393,9 @@ public class IndexShardTests extends ESSingleNodeTestCase {
                     // this is all IMC needs to do - check current memory and refresh
                     assertTrue(shardRef.get().getIndexBufferRAMBytesUsed() > 0);
                     shardRef.get().refresh("test");
-                } catch (Throwable t) {
-                    failures.add(t);
-                    throw t;
+                } catch (Exception e) {
+                    failures.add(e);
+                    throw e;
                 }
             }
 
@@ -1407,9 +1407,9 @@ public class IndexShardTests extends ESSingleNodeTestCase {
                     // this is all IMC needs to do - check current memory and refresh
                     assertTrue(shardRef.get().getIndexBufferRAMBytesUsed() > 0);
                     shardRef.get().refresh("test");
-                } catch (Throwable t) {
-                    failures.add(t);
-                    throw t;
+                } catch (Exception e) {
+                    failures.add(e);
+                    throw e;
                 }
             }
         };

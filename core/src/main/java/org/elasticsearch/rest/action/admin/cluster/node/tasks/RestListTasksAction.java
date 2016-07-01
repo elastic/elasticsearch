@@ -86,7 +86,7 @@ public class RestListTasksAction extends BaseRestHandler {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 channelListener.onFailure(e);
             }
         };

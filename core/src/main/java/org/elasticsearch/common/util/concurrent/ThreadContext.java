@@ -433,13 +433,13 @@ public final class ThreadContext implements Closeable, Writeable {
         }
 
         @Override
-        public void onFailure(Throwable t) {
-            in.onFailure(t);
+        public void onFailure(Exception e) {
+            in.onFailure(e);
         }
 
         @Override
-        public void onRejection(Throwable t) {
-            in.onRejection(t);
+        public void onRejection(Exception e) {
+            in.onRejection(e);
         }
 
         @Override

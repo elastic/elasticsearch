@@ -95,9 +95,6 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-/**
- *
- */
 public class ElasticsearchAssertions {
 
     public static void assertAcked(AcknowledgedRequestBuilder<?, ?, ?> builder) {
@@ -555,7 +552,6 @@ public class ElasticsearchAssertions {
             extraInfo += " with status [" + status + "]";
         }
 
-
         try {
             future.actionGet();
             fail = true;
@@ -565,7 +561,7 @@ public class ElasticsearchAssertions {
             if (status != null) {
                 assertThat(extraInfo, ExceptionsHelper.status(esException), equalTo(status));
             }
-        } catch (Throwable e) {
+        } catch (Exception e) {
             assertThat(extraInfo, e, instanceOf(exceptionClass));
             if (status != null) {
                 assertThat(extraInfo, ExceptionsHelper.status(e), equalTo(status));
@@ -597,7 +593,7 @@ public class ElasticsearchAssertions {
         try {
             future.actionGet();
             fail = true;
-        } catch (Throwable e) {
+        } catch (Exception e) {
             assertThat(extraInfo, ExceptionsHelper.status(e), equalTo(status));
         }
         // has to be outside catch clause to get a proper message
@@ -657,35 +653,38 @@ public class ElasticsearchAssertions {
                     equalTo(0));
             assertThat("Serialization failed with version [" + version + "] bytes should be equal for streamable [" + streamable + "]",
                     serialize(version, streamable), equalTo(orig));
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             throw new RuntimeException("failed to check serialization - version [" + version + "] for streamable [" + streamable + "]", ex);
         }
 
     }
 
-    public static void assertVersionSerializable(Version version, final Throwable t) {
-        ElasticsearchAssertions.assertVersionSerializable(version, new ThrowableWrapper(t));
+    public static void assertVersionSerializable(Version version, final Exception e) {
+        ElasticsearchAssertions.assertVersionSerializable(version, new ExceptionWrapper(e));
     }
 
-    public static final class ThrowableWrapper implements Streamable {
-        Throwable throwable;
-        public ThrowableWrapper(Throwable t) {
-            throwable = t;
+    public static final class ExceptionWrapper implements Streamable {
+
+        private Exception exception;
+
+        public ExceptionWrapper(Exception e) {
+            exception = e;
         }
 
-        public ThrowableWrapper() {
-            throwable = null;
+        public ExceptionWrapper() {
+            exception = null;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            throwable = in.readThrowable();
+            exception = in.readException();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeThrowable(throwable);
+            out.writeThrowable(exception);
         }
+
     }
 
 
@@ -697,7 +696,7 @@ public class ElasticsearchAssertions {
             assertThat(constructor, Matchers.notNullValue());
             Streamable newInstance = constructor.newInstance();
             return newInstance;
-        } catch (Throwable e) {
+        } catch (Exception e) {
             return null;
         }
     }

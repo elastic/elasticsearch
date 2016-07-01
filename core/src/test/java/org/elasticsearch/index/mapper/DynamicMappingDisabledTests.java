@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -116,7 +115,7 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 onFailureCalled.set(true);
                 assertThat(e, instanceOf(IndexNotFoundException.class));
                 assertEquals(e.getMessage(), "no such index");

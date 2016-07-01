@@ -60,7 +60,7 @@ public class OsProbe {
         }
         try {
             return (long) getFreePhysicalMemorySize.invoke(osMxBean);
-        } catch (Throwable t) {
+        } catch (Exception e) {
             return -1;
         }
     }
@@ -74,7 +74,7 @@ public class OsProbe {
         }
         try {
             return (long) getTotalPhysicalMemorySize.invoke(osMxBean);
-        } catch (Throwable t) {
+        } catch (Exception e) {
             return -1;
         }
     }
@@ -88,7 +88,7 @@ public class OsProbe {
         }
         try {
             return (long) getFreeSwapSpaceSize.invoke(osMxBean);
-        } catch (Throwable t) {
+        } catch (Exception e) {
             return -1;
         }
     }
@@ -102,7 +102,7 @@ public class OsProbe {
         }
         try {
             return (long) getTotalSwapSpaceSize.invoke(osMxBean);
-        } catch (Throwable t) {
+        } catch (Exception e) {
             return -1;
         }
     }
@@ -128,7 +128,7 @@ public class OsProbe {
         try {
             double oneMinuteLoadAverage = (double) getSystemLoadAverage.invoke(osMxBean);
             return new double[] { oneMinuteLoadAverage >= 0 ? oneMinuteLoadAverage : -1, -1, -1 };
-        } catch (Throwable t) {
+        } catch (Exception e) {
             return null;
         }
     }
@@ -199,7 +199,7 @@ public class OsProbe {
     private static Method getMethod(String methodName) {
         try {
             return Class.forName("com.sun.management.OperatingSystemMXBean").getMethod(methodName);
-        } catch (Throwable t) {
+        } catch (Exception e) {
             // not available
             return null;
         }

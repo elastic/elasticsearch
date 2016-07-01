@@ -61,7 +61,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
             prepareTargetForTranslog(0);
             finalizeRecovery();
             return response;
-        } catch (Throwable t) {
+        } catch (Exception e) {
             if (engineClosed) {
                 // If the relocation fails then the primary is closed and can't be
                 // used anymore... (because it's closed) that's a problem, so in
@@ -69,11 +69,11 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
                 // create a new IndexWriter
                 logger.info("recovery failed for primary shadow shard, failing shard");
                 // pass the failure as null, as we want to ensure the store is not marked as corrupted
-                shard.failShard("primary relocation failed on shared filesystem", t);
+                shard.failShard("primary relocation failed on shared filesystem", e);
             } else {
-                logger.info("recovery failed on shared filesystem", t);
+                logger.info("recovery failed on shared filesystem", e);
             }
-            throw t;
+            throw e;
         }
     }
 

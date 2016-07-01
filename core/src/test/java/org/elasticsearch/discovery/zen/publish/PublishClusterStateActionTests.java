@@ -797,9 +797,9 @@ public class PublishClusterStateActionTests extends ESTestCase {
         }
 
         @Override
-        public void onNodeAck(DiscoveryNode node, @Nullable Throwable t) {
-            if (t != null) {
-                errors.add(new Tuple<>(node, t));
+        public void onNodeAck(DiscoveryNode node, @Nullable Exception e) {
+            if (e != null) {
+                errors.add(new Tuple<>(node, e));
             }
             countDown.countDown();
         }
@@ -910,8 +910,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
         }
 
         @Override
-        public void sendResponse(Throwable error) throws IOException {
-            this.error.set(error);
+        public void sendResponse(Exception exception) throws IOException {
+            this.error.set(exception);
             assertThat(response.get(), nullValue());
         }
 

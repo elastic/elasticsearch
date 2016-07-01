@@ -145,7 +145,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
+            public void onFailure(String source, Exception e) {
 
             }
         });
@@ -165,7 +165,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
+            public void onFailure(String source, Exception e) {
 
             }
         });
@@ -260,7 +260,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 putMappingResponse.set(e);
             }
         });
@@ -292,7 +292,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 docIndexResponse.set(e);
             }
         });
@@ -376,7 +376,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 putMappingResponse.set(e);
             }
         });
@@ -403,7 +403,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 docIndexResponse.set(e);
             }
         });

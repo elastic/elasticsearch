@@ -22,7 +22,6 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
@@ -48,8 +47,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -269,9 +266,9 @@ public class NodeEnvironmentTests extends ESTestCase {
         if (randomBoolean()) {
             Thread t = new Thread(new AbstractRunnable() {
                 @Override
-                public void onFailure(Throwable t) {
-                    logger.error("unexpected error", t);
-                    threadException.set(t);
+                public void onFailure(Exception e) {
+                    logger.error("unexpected error", e);
+                    threadException.set(e);
                     latch.countDown();
                     blockLatch.countDown();
                 }

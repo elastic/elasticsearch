@@ -41,6 +41,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -102,8 +104,8 @@ public class TransportActionFilterChainTests extends ESTestCase {
         try {
             assertThat(future.get(), notNullValue());
             assertThat("shouldn't get here if an error is expected", errorExpected, equalTo(false));
-        } catch(Throwable t) {
-            assertThat("shouldn't get here if an error is not expected " + t.getMessage(), errorExpected, equalTo(true));
+        } catch (ExecutionException e) {
+            assertThat("shouldn't get here if an error is not expected " + e.getMessage(), errorExpected, equalTo(true));
         }
 
         List<RequestTestFilter> testFiltersByLastExecution = new ArrayList<>();
@@ -182,8 +184,8 @@ public class TransportActionFilterChainTests extends ESTestCase {
         try {
             assertThat(future.get(), notNullValue());
             assertThat("shouldn't get here if an error is expected", errorExpected, equalTo(false));
-        } catch(Throwable t) {
-            assertThat("shouldn't get here if an error is not expected " + t.getMessage(), errorExpected, equalTo(true));
+        } catch(ExecutionException e) {
+            assertThat("shouldn't get here if an error is not expected " + e.getMessage(), errorExpected, equalTo(true));
         }
 
         List<ResponseTestFilter> testFiltersByLastExecution = new ArrayList<>();
@@ -252,7 +254,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 failures.add(e);
                 latch.countDown();
             }
@@ -309,7 +311,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 failures.add(e);
                 latch.countDown();
             }

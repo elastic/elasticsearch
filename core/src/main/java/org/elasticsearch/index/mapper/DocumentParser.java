@@ -77,8 +77,8 @@ final class DocumentParser {
             validateStart(parser);
             internalParseDocument(mapping, context, parser);
             validateEnd(parser);
-        } catch (Throwable t) {
-            throw wrapInMapperParsingException(source, t);
+        } catch (Exception e) {
+            throw wrapInMapperParsingException(source, e);
         }
         String remainingPath = context.path().pathAsText("");
         if (remainingPath.isEmpty() == false) {
@@ -173,7 +173,7 @@ final class DocumentParser {
     }
 
 
-    private static MapperParsingException wrapInMapperParsingException(SourceToParse source, Throwable e) {
+    private static MapperParsingException wrapInMapperParsingException(SourceToParse source, Exception e) {
         // if its already a mapper parsing exception, no need to wrap it...
         if (e instanceof MapperParsingException) {
             return (MapperParsingException) e;

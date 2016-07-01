@@ -261,8 +261,8 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                holder.set((IllegalStateException) t);
+            public void onFailure(Exception e) {
+                holder.set((IllegalStateException) e);
             }
         });
 
@@ -309,8 +309,8 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                holder.set((IllegalStateException) t);
+            public void onFailure(Exception e) {
+                holder.set((IllegalStateException) e);
             }
         });
 

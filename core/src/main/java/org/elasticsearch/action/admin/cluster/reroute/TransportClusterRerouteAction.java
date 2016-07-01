@@ -102,9 +102,9 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         }
 
         @Override
-        public void onFailure(String source, Throwable t) {
-            logger.debug("failed to perform [{}]", t, source);
-            super.onFailure(source, t);
+        public void onFailure(String source, Exception e) {
+            logger.debug("failed to perform [{}]", e, source);
+            super.onFailure(source, e);
         }
 
         @Override

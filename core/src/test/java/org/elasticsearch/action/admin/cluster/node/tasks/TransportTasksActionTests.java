@@ -338,7 +338,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 logger.warn("Couldn't get list of tasks", e);
                 responseLatch.countDown();
             }
@@ -526,7 +526,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 responseLatch.countDown();
             }
         });

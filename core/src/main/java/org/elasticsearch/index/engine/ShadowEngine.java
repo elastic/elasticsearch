@@ -89,7 +89,7 @@ public class ShadowEngine extends Engine {
                             nonexistentRetryTime + "ms, " +
                             "directory is not an index");
                 }
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 logger.warn("failed to create new reader", e);
                 throw e;
             } finally {
@@ -140,7 +140,7 @@ public class ShadowEngine extends Engine {
         try (ReleasableLock lock = readLock.acquire()) {
             // reread the last committed segment infos
             lastCommittedSegmentInfos = readLastCommittedSegmentInfos(searcherManager, store);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             if (isClosed.get() == false) {
                 logger.warn("failed to read latest segment infos on flush", e);
                 if (Lucene.isCorruptionException(e)) {
@@ -194,9 +194,13 @@ public class ShadowEngine extends Engine {
             ensureOpen();
         } catch (EngineClosedException e) {
             throw e;
-        } catch (Throwable t) {
-            failEngine("refresh failed", t);
-            throw new RefreshFailedEngineException(shardId, t);
+        } catch (Exception e) {
+            try {
+                failEngine("refresh failed", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw new RefreshFailedEngineException(shardId, e);
         }
     }
 
@@ -216,8 +220,8 @@ public class ShadowEngine extends Engine {
             try {
                 logger.debug("shadow replica close searcher manager refCount: {}", store.refCount());
                 IOUtils.close(searcherManager);
-            } catch (Throwable t) {
-                logger.warn("shadow replica failed to close searcher manager", t);
+            } catch (Exception e) {
+                logger.warn("shadow replica failed to close searcher manager", e);
             } finally {
                 store.decRef();
             }

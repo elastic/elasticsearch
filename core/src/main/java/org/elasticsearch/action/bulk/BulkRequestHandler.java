@@ -80,10 +80,10 @@ abstract class BulkRequestHandler {
                 if (!afterCalled) {
                     listener.afterBulk(executionId, bulkRequest, e);
                 }
-            } catch (Throwable t) {
-                logger.warn("Failed to execute bulk request {}.", t, executionId);
+            } catch (Exception e) {
+                logger.warn("Failed to execute bulk request {}.", e, executionId);
                 if (!afterCalled) {
-                    listener.afterBulk(executionId, bulkRequest, t);
+                    listener.afterBulk(executionId, bulkRequest, e);
                 }
             }
         }
@@ -131,7 +131,7 @@ abstract class BulkRequestHandler {
                             }
 
                             @Override
-                            public void onFailure(Throwable e) {
+                            public void onFailure(Exception e) {
                                 try {
                                     listener.afterBulk(executionId, bulkRequest, e);
                                 } finally {
@@ -144,9 +144,9 @@ abstract class BulkRequestHandler {
                 Thread.currentThread().interrupt();
                 logger.info("Bulk request {} has been cancelled.", e, executionId);
                 listener.afterBulk(executionId, bulkRequest, e);
-            } catch (Throwable t) {
-                logger.warn("Failed to execute bulk request {}.", t, executionId);
-                listener.afterBulk(executionId, bulkRequest, t);
+            } catch (Exception e) {
+                logger.warn("Failed to execute bulk request {}.", e, executionId);
+                listener.afterBulk(executionId, bulkRequest, e);
             } finally {
                 if (!bulkRequestSetupSuccessful && acquired) {  // if we fail on client.bulk() release the semaphore
                     semaphore.release();

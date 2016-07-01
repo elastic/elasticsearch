@@ -127,7 +127,7 @@ public class MetaStateService extends AbstractComponent {
         try {
             IndexMetaData.FORMAT.write(indexMetaData, indexMetaData.getVersion(),
                 nodeEnv.indexPaths(indexMetaData.getIndex()));
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             logger.warn("[{}]: failed to write index state", ex, index);
             throw new IOException("failed to write state for [" + index + "]", ex);
         }
@@ -140,7 +140,7 @@ public class MetaStateService extends AbstractComponent {
         logger.trace("[_global] writing state, reason [{}]",  reason);
         try {
             MetaData.FORMAT.write(metaData, metaData.version(), nodeEnv.nodeDataPaths());
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             logger.warn("[_global]: failed to write global state", ex);
             throw new IOException("failed to write global state", ex);
         }

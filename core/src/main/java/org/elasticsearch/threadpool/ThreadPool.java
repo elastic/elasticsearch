@@ -405,9 +405,9 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         public void run() {
             try {
                 runnable.run();
-            } catch (Throwable t) {
-                logger.warn("failed to run {}", t, runnable.toString());
-                throw t;
+            } catch (Exception e) {
+                logger.warn("failed to run {}", e, runnable.toString());
+                throw e;
             }
         }
 

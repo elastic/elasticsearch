@@ -467,7 +467,8 @@ public class HttpExporterTests extends MonitoringIntegTestCase {
 
     private void enqueueGetClusterVersionResponse(MockWebServer mockWebServer, Version v) throws IOException {
         mockWebServer.enqueue(new MockResponse().setResponseCode(200).setBody(
-                jsonBuilder().startObject().startObject("version").field("number", v.toString()).endObject().endObject().bytes().toUtf8()));
+                jsonBuilder().startObject().startObject("version").field("number", v.toString()).endObject().endObject().bytes()
+                        .utf8ToString()));
     }
 
     private void enqueueResponse(int responseCode, String body) throws IOException {

@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.security.authc.support.CharArrays;
@@ -80,7 +81,7 @@ public class ChangePasswordRequest extends ActionRequest<ChangePasswordRequest>
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         username = in.readString();
-        passwordHash = CharArrays.utf8BytesToChars(in.readBytesReference().array());
+        passwordHash = CharArrays.utf8BytesToChars(BytesReference.toBytes(in.readBytesReference()));
         refreshPolicy = RefreshPolicy.readFrom(in);
     }
 

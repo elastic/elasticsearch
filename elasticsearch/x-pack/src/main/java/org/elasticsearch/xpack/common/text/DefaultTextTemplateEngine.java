@@ -43,7 +43,7 @@ public class DefaultTextTemplateEngine extends AbstractComponent implements Text
         ExecutableScript executable = service.executable(compiledScript, model);
         Object result = executable.run();
         if (result instanceof BytesReference) {
-            return ((BytesReference) result).toUtf8();
+            return ((BytesReference) result).utf8ToString();
         }
         return result.toString();
     }

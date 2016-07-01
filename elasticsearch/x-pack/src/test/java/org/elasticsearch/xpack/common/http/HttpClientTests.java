@@ -96,7 +96,7 @@ public class HttpClientTests extends ESTestCase {
 
 
         assertThat(response.status(), equalTo(responseCode));
-        assertThat(response.body().toUtf8(), equalTo(body));
+        assertThat(response.body().utf8ToString(), equalTo(body));
         assertThat(webServer.getRequestCount(), equalTo(1));
         assertThat(recordedRequest.getBody().readString(StandardCharsets.UTF_8), equalTo(request.body()));
         assertThat(recordedRequest.getPath().split("\\?")[0], equalTo(request.path()));
@@ -112,7 +112,7 @@ public class HttpClientTests extends ESTestCase {
 
         HttpResponse response = httpClient.execute(requestBuilder.build());
         assertThat(response.status(), equalTo(200));
-        assertThat(response.body().toUtf8(), equalTo("body"));
+        assertThat(response.body().utf8ToString(), equalTo("body"));
 
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getPath(), equalTo("/test"));
@@ -128,7 +128,7 @@ public class HttpClientTests extends ESTestCase {
 
         HttpResponse response = httpClient.execute(requestBuilder.build());
         assertThat(response.status(), equalTo(200));
-        assertThat(response.body().toUtf8(), equalTo("body"));
+        assertThat(response.body().utf8ToString(), equalTo("body"));
 
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getPath(), equalTo("/test?key=value+123%3A123"));
@@ -144,7 +144,7 @@ public class HttpClientTests extends ESTestCase {
                 .body("body");
         HttpResponse response = httpClient.execute(request.build());
         assertThat(response.status(), equalTo(200));
-        assertThat(response.body().toUtf8(), equalTo("body"));
+        assertThat(response.body().utf8ToString(), equalTo("body"));
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getPath(), equalTo("/test"));
         assertThat(recordedRequest.getHeader("Authorization"), equalTo("Basic dXNlcjpwYXNz"));
@@ -190,7 +190,7 @@ public class HttpClientTests extends ESTestCase {
                 .body("body");
         HttpResponse response = httpClient.execute(request.build());
         assertThat(response.status(), equalTo(200));
-        assertThat(response.body().toUtf8(), equalTo("body"));
+        assertThat(response.body().utf8ToString(), equalTo("body"));
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getPath(), equalTo("/test"));
         assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("body"));
@@ -221,7 +221,7 @@ public class HttpClientTests extends ESTestCase {
                 .body("body");
         HttpResponse response = httpClient.execute(request.build());
         assertThat(response.status(), equalTo(200));
-        assertThat(response.body().toUtf8(), equalTo("body"));
+        assertThat(response.body().utf8ToString(), equalTo("body"));
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getPath(), equalTo("/test"));
         assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("body"));
@@ -287,7 +287,7 @@ public class HttpClientTests extends ESTestCase {
         assertThat(response.status(), equalTo(statusCode));
         assertThat(response.hasContent(), is(hasBody));
         if (hasBody) {
-            assertThat(response.body().toUtf8(), is(body));
+            assertThat(response.body().utf8ToString(), is(body));
         }
     }
 
@@ -341,7 +341,7 @@ public class HttpClientTests extends ESTestCase {
 
             HttpResponse response = httpClient.execute(requestBuilder.build());
             assertThat(response.status(), equalTo(200));
-            assertThat(response.body().toUtf8(), equalTo("fullProxiedContent"));
+            assertThat(response.body().utf8ToString(), equalTo("fullProxiedContent"));
 
             // ensure we hit the proxyServer and not the webserver
             assertThat(webServer.getRequestCount(), equalTo(0));
@@ -370,7 +370,7 @@ public class HttpClientTests extends ESTestCase {
 
             HttpResponse response = httpClient.execute(requestBuilder.build());
             assertThat(response.status(), equalTo(200));
-            assertThat(response.body().toUtf8(), equalTo("fullProxiedContent"));
+            assertThat(response.body().utf8ToString(), equalTo("fullProxiedContent"));
 
             // ensure we hit the proxyServer and not the webserver
             assertThat(webServer.getRequestCount(), equalTo(0));

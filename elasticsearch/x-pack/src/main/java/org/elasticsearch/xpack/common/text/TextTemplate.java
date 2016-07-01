@@ -134,7 +134,7 @@ public class TextTemplate implements ToXContent {
                 } else {
                     contentType = parser.contentType();
                     XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-                    template = builder.copyCurrentStructure(parser).bytes().toUtf8();
+                    template = builder.copyCurrentStructure(parser).bytes().utf8ToString();
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.FILE)) {
                 type = ScriptType.FILE;
@@ -171,7 +171,7 @@ public class TextTemplate implements ToXContent {
     }
 
     public static Builder inline(XContentBuilder template) {
-        return new Builder.Inline(template.bytes().toUtf8()).contentType(template.contentType());
+        return new Builder.Inline(template.bytes().utf8ToString()).contentType(template.contentType());
     }
 
     public static Builder<Builder.Inline> inline(String text) {

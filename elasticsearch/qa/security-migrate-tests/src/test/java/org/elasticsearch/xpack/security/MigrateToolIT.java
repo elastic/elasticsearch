@@ -105,7 +105,7 @@ public class MigrateToolIT extends MigrateToolTestCase {
                 assertArrayEquals(ip.getPrivileges(), new String[]{"read", "write", "create_index", "indices:admin/refresh"});
                 assertArrayEquals(ip.getFields(), new String[]{"foo", "bar"});
                 assertNotNull(ip.getQuery());
-                assertThat(ip.getQuery().toUtf8(), containsString("{\"bool\":{\"must_not\":{\"match\":{\"hidden\":true}}}}"));
+                assertThat(ip.getQuery().utf8ToString(), containsString("{\"bool\":{\"must_not\":{\"match\":{\"hidden\":true}}}}"));
             } else {
                 assertArrayEquals(ip.getIndices(), new String[]{"*"});
                 assertArrayEquals(ip.getPrivileges(), new String[]{"read"});

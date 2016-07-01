@@ -34,7 +34,7 @@ public class TriggeredWatchTests extends AbstractWatcherIntegrationTestCase {
         XContentBuilder jsonBuilder2 = XContentFactory.jsonBuilder();
         parsedTriggeredWatch.toXContent(jsonBuilder2, ToXContent.EMPTY_PARAMS);
 
-        assertThat(jsonBuilder.bytes().toUtf8(), equalTo(jsonBuilder2.bytes().toUtf8()));
+        assertThat(jsonBuilder.bytes().utf8ToString(), equalTo(jsonBuilder2.bytes().utf8ToString()));
     }
 
     private TriggeredWatch.Parser triggeredWatchParser() {

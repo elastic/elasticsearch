@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.agent.exporter.http;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.SpecialPermission;
@@ -216,7 +217,8 @@ public class HttpExporter extends Exporter {
                 out.write(CONTENT_TYPE.xContent().streamSeparator());
 
                 // Render the monitoring document
-                out.write(resolver.source(doc, CONTENT_TYPE).toBytes());
+                BytesRef bytesRef = resolver.source(doc, CONTENT_TYPE).toBytesRef();
+                out.write(bytesRef.bytes, bytesRef.offset, bytesRef.length);
 
                 // Adds final bulk separator
                 out.write(CONTENT_TYPE.xContent().streamSeparator());
@@ -718,8 +720,9 @@ public class HttpExporter extends Exporter {
                         for (MonitoringDoc monitoringDoc : docs) {
                             try {
                                 render(monitoringDoc, buffer);
+                                BytesRef bytesRef = buffer.bytes().toBytesRef();
                                 // write the result to the connection
-                                out.write(buffer.bytes().toBytes());
+                                out.write(bytesRef.bytes, bytesRef.offset, bytesRef.length);
                             } finally {
                                 buffer.reset();
                             }

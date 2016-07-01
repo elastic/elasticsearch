@@ -297,7 +297,7 @@ public class EmailActionTests extends ESTestCase {
         builder.endObject();
 
         BytesReference bytes = builder.bytes();
-        logger.info("email action json [{}]", bytes.toUtf8());
+        logger.info("email action json [{}]", bytes.utf8ToString());
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
 
@@ -392,7 +392,7 @@ public class EmailActionTests extends ESTestCase {
         XContentBuilder builder = jsonBuilder();
         executable.toXContent(builder, params);
         BytesReference bytes = builder.bytes();
-        logger.info("{}", bytes.toUtf8());
+        logger.info("{}", bytes.utf8ToString());
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
 

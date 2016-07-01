@@ -210,7 +210,7 @@ public class WatchStore extends AbstractComponent {
 
     IndexRequest createIndexRequest(String id, BytesReference source, long version) {
         IndexRequest indexRequest = new IndexRequest(INDEX, DOC_TYPE, id);
-        indexRequest.source(source.toBytes());
+        indexRequest.source(BytesReference.toBytes(source));
         indexRequest.version(version);
         return indexRequest;
     }

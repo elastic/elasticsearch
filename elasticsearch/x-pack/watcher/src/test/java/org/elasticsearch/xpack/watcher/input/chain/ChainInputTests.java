@@ -115,7 +115,7 @@ public class ChainInputTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         chainedInput.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-        assertThat(builder.bytes().toUtf8(),
+        assertThat(builder.bytes().utf8ToString(),
                 is("{\"inputs\":[{\"first\":{\"simple\":{\"foo\":\"bar\"}}},{\"second\":{\"simple\":{\"spam\":\"eggs\"}}}]}"));
 
         // parsing it back as well!

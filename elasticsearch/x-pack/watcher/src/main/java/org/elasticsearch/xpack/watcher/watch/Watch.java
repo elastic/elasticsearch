@@ -265,7 +265,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
 
         private Watch parse(String id, boolean includeStatus, boolean withSecrets, BytesReference source, DateTime now) throws IOException {
             if (logger.isTraceEnabled()) {
-                logger.trace("parsing watch [{}] ", source.toUtf8());
+                logger.trace("parsing watch [{}] ", source.utf8ToString());
             }
             XContentParser parser = null;
             try {

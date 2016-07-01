@@ -127,7 +127,7 @@ public class PutUserRequest extends ActionRequest<PutUserRequest> implements Use
         if (passwordHashRef == BytesArray.EMPTY) {
             passwordHash = null;
         } else {
-            passwordHash = CharArrays.utf8BytesToChars(passwordHashRef.array());
+            passwordHash = CharArrays.utf8BytesToChars(BytesReference.toBytes(passwordHashRef));
         }
         roles = in.readStringArray();
         fullName = in.readOptionalString();

@@ -190,7 +190,7 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
                 .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0L))
                 .addAction("_email", emailAction(emailBuilder).setAuthentication(USERNAME, PASSWORD.toCharArray())
                 .setAttachments(emailAttachments));
-        logger.info("TMP WATCHSOURCE {}", watchSourceBuilder.build().getBytes().toUtf8());
+        logger.info("TMP WATCHSOURCE {}", watchSourceBuilder.build().getBytes().utf8ToString());
 
         watcherClient.preparePutWatch("_test_id")
                 .setSource(watchSourceBuilder)

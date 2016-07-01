@@ -56,7 +56,7 @@ public class MonitoringIndexTests extends ESTestCase {
 
         index.writeTo(out);
 
-        final StreamInput in = StreamInput.wrap(out.bytes().toBytes());
+        final StreamInput in = out.bytes().streamInput();
 
         assertSame(index, MonitoringIndex.readFrom(in));
 

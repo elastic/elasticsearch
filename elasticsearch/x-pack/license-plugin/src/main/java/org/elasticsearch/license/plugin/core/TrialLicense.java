@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.license.plugin.core;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -32,7 +33,7 @@ public class TrialLicense {
         try {
             XContentBuilder contentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
             spec.toXContent(contentBuilder, new ToXContent.MapParams(Collections.singletonMap(License.LICENSE_SPEC_VIEW_MODE, "true")));
-            byte[] encrypt = encrypt(contentBuilder.bytes().toBytes());
+            byte[] encrypt = encrypt(BytesReference.toBytes(contentBuilder.bytes()));
             byte[] bytes = new byte[4 + 4 + encrypt.length];
             ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
             // always generate license version -VERSION_CURRENT

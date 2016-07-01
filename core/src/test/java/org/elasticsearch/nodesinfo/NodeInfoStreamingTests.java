@@ -81,11 +81,6 @@ public class NodeInfoStreamingTests extends ESTestCase {
         assertThat(nodeInfo.getBuild().toString(), equalTo(readNodeInfo.getBuild().toString()));
         assertThat(nodeInfo.getHostname(), equalTo(readNodeInfo.getHostname()));
         assertThat(nodeInfo.getVersion(), equalTo(readNodeInfo.getVersion()));
-        assertThat(nodeInfo.getServiceAttributes().size(), equalTo(readNodeInfo.getServiceAttributes().size()));
-        for (Map.Entry<String, String> entry : nodeInfo.getServiceAttributes().entrySet()) {
-            assertNotNull(readNodeInfo.getServiceAttributes().get(entry.getKey()));
-            assertThat(readNodeInfo.getServiceAttributes().get(entry.getKey()), equalTo(entry.getValue()));
-        }
         compareJsonOutput(nodeInfo.getHttp(), readNodeInfo.getHttp());
         compareJsonOutput(nodeInfo.getJvm(), readNodeInfo.getJvm());
         compareJsonOutput(nodeInfo.getProcess(), readNodeInfo.getProcess());
@@ -149,6 +144,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
             // pick a random long that sometimes exceeds an int:
             indexingBuffer = new ByteSizeValue(random().nextLong() & ((1L<<40)-1));
         }
-        return new NodeInfo(VersionUtils.randomVersion(random()), build, node, serviceAttributes, settings, osInfo, process, jvm, threadPoolInfo, transport, htttpInfo, plugins, ingestInfo, indexingBuffer);
+        return new NodeInfo(VersionUtils.randomVersion(random()), build, node, settings, osInfo, process, jvm,
+            threadPoolInfo, transport, htttpInfo, plugins, ingestInfo, indexingBuffer);
     }
 }

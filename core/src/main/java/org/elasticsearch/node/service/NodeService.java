@@ -19,13 +19,15 @@
 
 package org.elasticsearch.node.service;
 
+import java.io.Closeable;
+import java.io.IOException;
+
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -42,14 +44,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableMap;
-
 /**
  */
 public class NodeService extends AbstractComponent implements Closeable {
@@ -64,18 +58,14 @@ public class NodeService extends AbstractComponent implements Closeable {
     private final SettingsFilter settingsFilter;
     private ClusterService clusterService;
     private ScriptService scriptService;
-
-    @Nullable
-    private HttpServer httpServer;
-
-    private volatile Map<String, String> serviceAttributes = emptyMap();
+    private final HttpServer httpServer;
 
     private final Discovery discovery;
 
     @Inject
     public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService,
                        Discovery discovery, TransportService transportService, IndicesService indicesService,
-                       PluginsService pluginService, CircuitBreakerService circuitBreakerService,
+                       PluginsService pluginService, CircuitBreakerService circuitBreakerService, HttpServer httpServer,
                        ProcessorsRegistry.Builder processorsRegistryBuilder, ClusterService clusterService, SettingsFilter settingsFilter) {
         super(settings);
         this.threadPool = threadPool;
@@ -85,6 +75,7 @@ public class NodeService extends AbstractComponent implements Closeable {
         this.discovery = discovery;
         this.pluginService = pluginService;
         this.circuitBreakerService = circuitBreakerService;
+        this.httpServer = httpServer;
         this.clusterService = clusterService;
         this.ingestService = new IngestService(settings, threadPool, processorsRegistryBuilder);
         this.settingsFilter = settingsFilter;
@@ -99,38 +90,15 @@ public class NodeService extends AbstractComponent implements Closeable {
         this.ingestService.buildProcessorsFactoryRegistry(scriptService, clusterService);
     }
 
-    public void setHttpServer(@Nullable HttpServer httpServer) {
-        this.httpServer = httpServer;
-    }
-
-    public synchronized void putAttribute(String key, String value) {
-        Map<String, String> newServiceAttributes = new HashMap<>(serviceAttributes);
-        newServiceAttributes.put(key, value);
-        serviceAttributes = unmodifiableMap(newServiceAttributes);
-    }
-
-    public synchronized void removeAttribute(String key) {
-        Map<String, String> newServiceAttributes = new HashMap<>(serviceAttributes);
-        newServiceAttributes.remove(key);
-        serviceAttributes = unmodifiableMap(newServiceAttributes);
-    }
-
-    /**
-     * Attributes different services in the node can add to be reported as part of the node info (for example).
-     */
-    public Map<String, String> attributes() {
-        return this.serviceAttributes;
-    }
-
     public NodeInfo info() {
-        return new NodeInfo(Version.CURRENT, Build.CURRENT, discovery.localNode(), serviceAttributes,
+        return new NodeInfo(Version.CURRENT, Build.CURRENT, discovery.localNode(),
                 settings,
                 monitorService.osService().info(),
                 monitorService.processService().info(),
                 monitorService.jvmService().info(),
                 threadPool.info(),
                 transportService.info(),
-                httpServer == null ? null : httpServer.info(),
+                httpServer.info(),
                 pluginService == null ? null : pluginService.info(),
                 ingestService == null ? null : ingestService.info(),
                 indicesService.getTotalIndexingBufferBytes()
@@ -139,14 +107,14 @@ public class NodeService extends AbstractComponent implements Closeable {
 
     public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,
                 boolean transport, boolean http, boolean plugin, boolean ingest, boolean indices) {
-        return new NodeInfo(Version.CURRENT, Build.CURRENT, discovery.localNode(), serviceAttributes,
+        return new NodeInfo(Version.CURRENT, Build.CURRENT, discovery.localNode(),
                 settings ? settingsFilter.filter(this.settings) : null,
                 os ? monitorService.osService().info() : null,
                 process ? monitorService.processService().info() : null,
                 jvm ? monitorService.jvmService().info() : null,
                 threadPool ? this.threadPool.info() : null,
                 transport ? transportService.info() : null,
-                http ? (httpServer == null ? null : httpServer.info()) : null,
+                http ? httpServer.info() : null,
                 plugin ? (pluginService == null ? null : pluginService.info()) : null,
                 ingest ? (ingestService == null ? null : ingestService.info()) : null,
                 indices ? indicesService.getTotalIndexingBufferBytes() : null
@@ -164,7 +132,7 @@ public class NodeService extends AbstractComponent implements Closeable {
                 threadPool.stats(),
                 monitorService.fsService().stats(),
                 transportService.stats(),
-                httpServer == null ? null : httpServer.stats(),
+                httpServer.stats(),
                 circuitBreakerService.stats(),
                 scriptService.stats(),
                 discovery.stats(),
@@ -185,7 +153,7 @@ public class NodeService extends AbstractComponent implements Closeable {
                 threadPool ? this.threadPool.stats() : null,
                 fs ? monitorService.fsService().stats() : null,
                 transport ? transportService.stats() : null,
-                http ? (httpServer == null ? null : httpServer.stats()) : null,
+                http ? httpServer.stats() : null,
                 circuitBreaker ? circuitBreakerService.stats() : null,
                 script ? scriptService.stats() : null,
                 discoveryStats ? discovery.stats() : null,

@@ -590,8 +590,4 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
             assertNotEquals(b1, b2);
         }
     }
-
-    public boolean materializesBytesRef(BytesReference reference) {
-        return false;
-    }
 }

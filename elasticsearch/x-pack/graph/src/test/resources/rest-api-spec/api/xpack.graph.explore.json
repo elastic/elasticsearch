@@ -1,10 +1,10 @@
 {
-  "graph.explore": {
+  "xpack.graph.explore": {
     "documentation": "https://www.elastic.co/guide/en/graph/current/explore.html",
     "methods": ["GET", "POST"],
     "url": {
       "path": "/{index}/_xpack/graph/_explore",
-      "paths": ["/{index}/_xpack/graph/_explore", "/{index}/{type}/_xpack/graph/_explore"],   
+      "paths": ["/{index}/_xpack/graph/_explore", "/{index}/{type}/_xpack/graph/_explore"],
       "parts" : {
         "index": {
          "type" : "list",
@@ -23,7 +23,7 @@
         "timeout": {
           "type" : "time",
           "description" : "Explicit operation timeout"
-        }        
+        }
       }
     },
     "body": {

@@ -424,7 +424,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
                             BytesArray array = new BytesArray(bytesRef.bytes, bytesRef.offset, (int) req.length() - 1);
                             request = new RecoveryFileChunkRequest(req.recoveryId(), req.shardId(), req.metadata(), req.position(), array, req.lastChunk(), req.totalTranslogOps(), req.sourceThrottleTimeInNanos());
                         } else {
-                            byte[] array = BytesRef.deepCopyOf(req.content().toBytesRef()).bytes;
+                            assert req.content().toBytesRef().bytes == req.content().toBytesRef().bytes : "no internal reference!!";
+                            final byte[] array = req.content().toBytesRef().bytes;
                             int i = randomIntBetween(0, req.content().length() - 1);
                             array[i] = (byte) ~array[i]; // flip one byte in the content
                         }

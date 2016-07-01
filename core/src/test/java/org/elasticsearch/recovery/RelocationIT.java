@@ -94,8 +94,6 @@ import static org.hamcrest.Matchers.startsWith;
 public class RelocationIT extends ESIntegTestCase {
     private final TimeValue ACCEPTABLE_RELOCATION_TIME = new TimeValue(5, TimeUnit.MINUTES);
 
-
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(MockTransportService.TestPlugin.class, MockIndexEventListener.TestPlugin.class);
@@ -506,7 +504,8 @@ public class RelocationIT extends ESIntegTestCase {
                 if (chunkRequest.name().startsWith(IndexFileNames.SEGMENTS)) {
                     // corrupting the segments_N files in order to make sure future recovery re-send files
                     logger.debug("corrupting [{}] to {}. file name: [{}]", action, node, chunkRequest.name());
-                    byte[] array = BytesRef.deepCopyOf(chunkRequest.content().toBytesRef()).bytes;
+                    assert chunkRequest.content().toBytesRef().bytes == chunkRequest.content().toBytesRef().bytes : "no internal reference!!";
+                    byte[] array = chunkRequest.content().toBytesRef().bytes;
                     array[0] = (byte) ~array[0]; // flip one byte in the content
                     corruptionCount.countDown();
                 }

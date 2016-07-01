@@ -119,7 +119,7 @@ public class AggregatorParsingTests extends ESTestCase {
                 protected void configure() {
                     bindMapperExtension();
                 }
-            }, new SearchModule(settings, namedWriteableRegistry) {
+            }, new SearchModule(settings, namedWriteableRegistry, false) {
                 @Override
                 protected void configureSearch() {
                     // Skip me

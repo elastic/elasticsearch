@@ -631,7 +631,7 @@ public class ElasticsearchAssertions {
             registry = ESIntegTestCase.internalCluster().getInstance(NamedWriteableRegistry.class);
         } else {
             registry = new NamedWriteableRegistry();
-            new SearchModule(Settings.EMPTY, registry);
+            new SearchModule(Settings.EMPTY, registry, false);
         }
         assertVersionSerializable(version, streamable, registry);
     }

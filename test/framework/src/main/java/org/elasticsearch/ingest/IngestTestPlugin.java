@@ -34,7 +34,7 @@ public class IngestTestPlugin extends Plugin implements IngestPlugin {
     @Override
     public Map<String, Processor.Factory> getProcessors(
         Environment env, ScriptService scriptService, TemplateService templateService) {
-        return Collections.singletonMap("test", (factories, config) ->
+        return Collections.singletonMap("test", (factories, tag, config) ->
             new TestProcessor("id", "test", doc -> {
                 doc.setFieldValue("processed", true);
                 if (doc.hasField("fail") && doc.getFieldValue("fail", Boolean.class)) {

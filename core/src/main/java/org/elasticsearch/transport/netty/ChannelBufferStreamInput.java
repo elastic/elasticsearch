@@ -22,16 +22,14 @@ package org.elasticsearch.transport.netty;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.netty.NettyUtils;
 import org.jboss.netty.buffer.ChannelBuffer;
 
-import java.io.EOFException;
 import java.io.IOException;
 
 /**
  * A Netty {@link org.jboss.netty.buffer.ChannelBuffer} based {@link org.elasticsearch.common.io.stream.StreamInput}.
  */
-public class ChannelBufferStreamInput extends StreamInput {
+class ChannelBufferStreamInput extends StreamInput {
 
     private final ChannelBuffer buffer;
     private final int startIndex;

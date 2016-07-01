@@ -70,6 +70,11 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     @Override
     public InputStream readBlob(String blobName) throws IOException {
         logger.trace("readBlob({})", blobName);
+
+        if (!blobExists(blobName)) {
+            throw new IOException("Blob [" + blobName + "] does not exist");
+        }
+
         try {
             return blobStore.getInputStream(blobStore.container(), buildKey(blobName));
         } catch (StorageException e) {
@@ -116,6 +121,11 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     @Override
     public void deleteBlob(String blobName) throws IOException {
         logger.trace("deleteBlob({})", blobName);
+
+        if (!blobExists(blobName)) {
+            throw new IOException("Blob [" + blobName + "] does not exist");
+        }
+
         try {
             blobStore.deleteBlob(blobStore.container(), buildKey(blobName));
         } catch (URISyntaxException | StorageException e) {

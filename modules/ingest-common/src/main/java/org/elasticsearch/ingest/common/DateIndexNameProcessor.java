@@ -29,7 +29,6 @@ import java.util.function.Function;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -121,11 +120,11 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
         return dateFormats;
     }
 
-    public static final class Factory extends AbstractProcessorFactory {
+    public static final class Factory implements Processor.Factory {
 
         @Override
-        protected DateIndexNameProcessor doCreate(Map<String, Processor.Factory> registry, String tag,
-                                                  Map<String, Object> config) throws Exception {
+        public DateIndexNameProcessor create(Map<String, Processor.Factory> registry, String tag,
+                                             Map<String, Object> config) throws Exception {
             String localeString = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "locale");
             String timezoneString = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "timezone");
             DateTimeZone timezone = timezoneString == null ? DateTimeZone.UTC : DateTimeZone.forID(timezoneString);

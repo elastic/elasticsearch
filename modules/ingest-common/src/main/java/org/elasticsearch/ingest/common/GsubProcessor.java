@@ -20,7 +20,6 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
@@ -79,10 +78,10 @@ public final class GsubProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public static final class Factory extends AbstractProcessorFactory {
+    public static final class Factory implements Processor.Factory {
         @Override
-        public GsubProcessor doCreate(Map<String, Processor.Factory> registry, String processorTag,
-                                      Map<String, Object> config) throws Exception {
+        public GsubProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+                                    Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String pattern = readStringProperty(TYPE, processorTag, config, "pattern");
             String replacement = readStringProperty(TYPE, processorTag, config, "replacement");

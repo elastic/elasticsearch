@@ -38,13 +38,13 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
     public void testCreate() throws Exception {
         Processor processor = new TestProcessor(ingestDocument -> {});
         Map<String, Processor.Factory> registry = new HashMap<>();
-        registry.put("_name", (r, c) -> processor);
+        registry.put("_name", (r, t, c) -> processor);
         ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory();
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("processors", Collections.singletonList(Collections.singletonMap("_name", Collections.emptyMap())));
-        ForEachProcessor forEachProcessor = forEachFactory.create(registry, config);
+        ForEachProcessor forEachProcessor = forEachFactory.create(registry, null, config);
         assertThat(forEachProcessor, Matchers.notNullValue());
         assertThat(forEachProcessor.getField(), Matchers.equalTo("_field"));
         assertThat(forEachProcessor.getProcessors().size(), Matchers.equalTo(1));
@@ -53,7 +53,7 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         config = new HashMap<>();
         config.put("processors", Collections.singletonList(Collections.singletonMap("_name", Collections.emptyMap())));
         try {
-            forEachFactory.create(registry, config);
+            forEachFactory.create(registry, null, config);
             fail("exception expected");
         } catch (Exception e) {
             assertThat(e.getMessage(), Matchers.equalTo("[field] required property is missing"));
@@ -62,7 +62,7 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         config = new HashMap<>();
         config.put("field", "_field");
         try {
-            forEachFactory.create(registry, config);
+            forEachFactory.create(registry, null, config);
             fail("exception expected");
         } catch (Exception e) {
             assertThat(e.getMessage(), Matchers.equalTo("[processors] required property is missing"));

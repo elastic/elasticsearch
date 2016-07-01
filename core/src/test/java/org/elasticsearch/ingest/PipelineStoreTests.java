@@ -57,7 +57,7 @@ public class PipelineStoreTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         Map<String, Processor.Factory> processorFactories = new HashMap<>();
-        processorFactories.put("set", (factories, config) -> {
+        processorFactories.put("set", (factories, tag, config) -> {
             String field = (String) config.remove("field");
             String value = (String) config.remove("value");
             return new Processor() {
@@ -77,7 +77,7 @@ public class PipelineStoreTests extends ESTestCase {
                 }
             };
         });
-        processorFactories.put("remove", (factories, config) -> {
+        processorFactories.put("remove", (factories, tag, config) -> {
             String field = (String) config.remove("field");
             return new Processor() {
                 @Override

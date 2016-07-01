@@ -21,8 +21,6 @@ package org.elasticsearch.percolator;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.Mapper;
@@ -38,8 +36,6 @@ import java.util.List;
 import java.util.Map;
 
 public class PercolatorPlugin extends Plugin implements MapperPlugin, ActionPlugin {
-
-    public static final String NAME = "percolator";
 
     private final Settings settings;
 
@@ -65,7 +61,7 @@ public class PercolatorPlugin extends Plugin implements MapperPlugin, ActionPlug
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
+        return Collections.singletonList(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
     }
 
     @Override
@@ -73,7 +69,4 @@ public class PercolatorPlugin extends Plugin implements MapperPlugin, ActionPlug
         return Collections.singletonMap(PercolatorFieldMapper.CONTENT_TYPE, new PercolatorFieldMapper.TypeParser());
     }
 
-    static boolean transportClientMode(Settings settings) {
-        return TransportClient.CLIENT_TYPE.equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
-    }
 }

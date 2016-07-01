@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.indices.forcemerge;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -45,14 +45,14 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 public class RestForceMergeAction extends BaseRestHandler {
 
     @Inject
-    public RestForceMergeAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestForceMergeAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(POST, "/_forcemerge", this);
         controller.registerHandler(POST, "/{index}/_forcemerge", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         ForceMergeRequest mergeRequest = new ForceMergeRequest(Strings.splitStringByCommaToArray(request.param("index")));
         mergeRequest.indicesOptions(IndicesOptions.fromRequest(request, mergeRequest.indicesOptions()));
         mergeRequest.maxNumSegments(request.paramAsInt("max_num_segments", mergeRequest.maxNumSegments()));

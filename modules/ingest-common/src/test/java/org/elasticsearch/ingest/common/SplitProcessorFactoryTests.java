@@ -20,7 +20,6 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -36,8 +35,7 @@ public class SplitProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("separator", "\\.");
         String processorTag = randomAsciiOfLength(10);
-        config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
-        SplitProcessor splitProcessor = (SplitProcessor)factory.create(null, config);
+        SplitProcessor splitProcessor = factory.create(null, processorTag, config);
         assertThat(splitProcessor.getTag(), equalTo(processorTag));
         assertThat(splitProcessor.getField(), equalTo("field1"));
         assertThat(splitProcessor.getSeparator(), equalTo("\\."));
@@ -48,7 +46,7 @@ public class SplitProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("separator", "\\.");
         try {
-            factory.create(null, config);
+            factory.create(null, null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));
@@ -60,7 +58,7 @@ public class SplitProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         try {
-            factory.create(null, config);
+            factory.create(null, null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[separator] required property is missing"));

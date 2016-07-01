@@ -20,7 +20,7 @@
 package org.elasticsearch.rest.action.admin.cluster.node.tasks;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -35,13 +35,13 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetTaskAction extends BaseRestHandler {
     @Inject
-    public RestGetTaskAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestGetTaskAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/_tasks/{taskId}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         TaskId taskId = new TaskId(request.param("taskId"));
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", false);
         TimeValue timeout = request.paramAsTime("timeout", null);

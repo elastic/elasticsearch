@@ -20,7 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -42,16 +42,16 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<UpdateByQueryRequest, TransportUpdateByQueryAction> {
 
     @Inject
-    public RestUpdateByQueryAction(Settings settings, RestController controller, Client client,
+    public RestUpdateByQueryAction(Settings settings, RestController controller,
             IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, Suggesters suggesters,
             ClusterService clusterService, TransportUpdateByQueryAction action) {
-        super(settings, client, indicesQueriesRegistry, aggParsers, suggesters, clusterService, action);
+        super(settings, indicesQueriesRegistry, aggParsers, suggesters, clusterService, action);
         controller.registerHandler(POST, "/{index}/_update_by_query", this);
         controller.registerHandler(POST, "/{index}/{type}/_update_by_query", this);
     }
 
     @Override
-    protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {
+    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         handleRequest(request, channel, false, true);
     }
 

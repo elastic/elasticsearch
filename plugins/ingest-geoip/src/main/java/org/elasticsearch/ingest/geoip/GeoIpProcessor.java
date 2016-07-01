@@ -46,7 +46,6 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
@@ -216,7 +215,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
-    public static final class Factory extends AbstractProcessorFactory {
+    public static final class Factory implements Processor.Factory {
         static final Set<Property> DEFAULT_CITY_PROPERTIES = EnumSet.of(
             Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE, Property.REGION_NAME,
             Property.CITY_NAME, Property.LOCATION
@@ -230,7 +229,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         }
 
         @Override
-        public GeoIpProcessor doCreate(Map<String, Processor.Factory> registry, String processorTag,
+        public GeoIpProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                        Map<String, Object> config) throws Exception {
             String ipField = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "geoip");

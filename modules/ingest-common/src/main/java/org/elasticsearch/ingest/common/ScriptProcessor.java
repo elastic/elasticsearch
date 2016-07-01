@@ -24,7 +24,6 @@ import java.util.Map;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.script.CompiledScript;
@@ -78,7 +77,7 @@ public final class ScriptProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public static final class Factory extends AbstractProcessorFactory {
+    public static final class Factory implements Processor.Factory {
 
         private final ScriptService scriptService;
 
@@ -87,8 +86,8 @@ public final class ScriptProcessor extends AbstractProcessor {
         }
 
         @Override
-        public ScriptProcessor doCreate(Map<String, Processor.Factory> registry, String processorTag,
-                                        Map<String, Object> config) throws Exception {
+        public ScriptProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+                                      Map<String, Object> config) throws Exception {
             String field = readOptionalStringProperty(TYPE, processorTag, config, "field");
             String lang = readStringProperty(TYPE, processorTag, config, "lang");
             String inline = readOptionalStringProperty(TYPE, processorTag, config, "inline");

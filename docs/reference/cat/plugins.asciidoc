@@ -6,14 +6,9 @@ The `plugins` command provides a view per node of running plugins. This informat
 [source,sh]
 ------------------------------------------------------------------------------
 % curl 'localhost:9200/_cat/plugins?v'
-name    component       version        type isolation url
-Abraxas discovery-azure 2.1.0-SNAPSHOT j    x
-Abraxas lang-javascript 2.0.0-SNAPSHOT j    x
-Abraxas marvel          NA             j/s  x         /_plugin/marvel/
-Abraxas lang-python     2.0.0-SNAPSHOT j    x
-Abraxas inquisitor      NA             s              /_plugin/inquisitor/
-Abraxas kopf            0.5.2          s              /_plugin/kopf/
-Abraxas segmentspy      NA             s              /_plugin/segmentspy/
+name    component       version        description
+Abraxas discovery-gce   5.0.0          The Google Compute Engine (GCE) Discovery plugin allows to use GCE API for the unicast discovery mechanism. 
+Abraxas lang-javascript 5.0.0          The JavaScript language plugin allows to have javascript as the language of scripts to execute.
 -------------------------------------------------------------------------------
 
 We can tell quickly how many plugins per node we have and which versions.

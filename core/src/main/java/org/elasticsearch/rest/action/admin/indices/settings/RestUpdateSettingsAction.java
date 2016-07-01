@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.admin.indices.settings;
 
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -53,14 +53,14 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
             "allow_no_indices"));
 
     @Inject
-    public RestUpdateSettingsAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestUpdateSettingsAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.PUT, "/{index}/_settings", this);
         controller.registerHandler(RestRequest.Method.PUT, "/_settings", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         UpdateSettingsRequest updateSettingsRequest = updateSettingsRequest(Strings.splitStringByCommaToArray(request.param("index")));
         updateSettingsRequest.timeout(request.paramAsTime("timeout", updateSettingsRequest.timeout()));
         updateSettingsRequest.setPreserveExisting(request.paramAsBoolean("preserve_existing", updateSettingsRequest.isPreserveExisting()));

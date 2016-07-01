@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -150,7 +151,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         return (handler != null) ? handler.canTripCircuitBreaker() : true;
     }
 
-    public void dispatchRequest(final RestRequest request, final RestChannel channel, ThreadContext threadContext) throws Exception {
+    public void dispatchRequest(final RestRequest request, final RestChannel channel, final NodeClient client, ThreadContext threadContext) throws Exception {
         if (!checkRequestParameters(request, channel)) {
             return;
         }
@@ -162,10 +163,10 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
                 }
             }
             if (filters.length == 0) {
-                executeHandler(request, channel);
+                executeHandler(request, channel, client);
             } else {
                 ControllerFilterChain filterChain = new ControllerFilterChain(handlerFilter);
-                filterChain.continueProcessing(request, channel);
+                filterChain.continueProcessing(request, channel, client);
             }
         }
     }
@@ -200,10 +201,10 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         return true;
     }
 
-    void executeHandler(RestRequest request, RestChannel channel) throws Exception {
+    void executeHandler(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         final RestHandler handler = getHandler(request);
         if (handler != null) {
-            handler.handleRequest(request, channel);
+            handler.handleRequest(request, channel, client);
         } else {
             if (request.method() == RestRequest.Method.OPTIONS) {
                 // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
@@ -261,16 +262,16 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         }
 
         @Override
-        public void continueProcessing(RestRequest request, RestChannel channel) {
+        public void continueProcessing(RestRequest request, RestChannel channel, NodeClient client) {
             try {
                 int loc = index.getAndIncrement();
                 if (loc > filters.length) {
                     throw new IllegalStateException("filter continueProcessing was called more than expected");
                 } else if (loc == filters.length) {
-                    executionFilter.process(request, channel, this);
+                    executionFilter.process(request, channel, client, this);
                 } else {
                     RestFilter preProcessor = filters[loc];
-                    preProcessor.process(request, channel, this);
+                    preProcessor.process(request, channel, client, this);
                 }
             } catch (Exception e) {
                 try {
@@ -285,8 +286,8 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     class RestHandlerFilter extends RestFilter {
 
         @Override
-        public void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws Exception {
-            executeHandler(request, channel);
+        public void process(RestRequest request, RestChannel channel, NodeClient client, RestFilterChain filterChain) throws Exception {
+            executeHandler(request, channel, client);
         }
     }
 }

@@ -18,9 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -39,6 +41,13 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
 
         protected SingleValue(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
             super(name, pipelineAggregators, metaData);
+        }
+
+        /**
+         * Read from a stream.
+         */
+        protected SingleValue(StreamInput in) throws IOException {
+            super(in);
         }
 
         @Override
@@ -67,6 +76,13 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
             super(name, pipelineAggregators, metaData);
         }
 
+        /**
+         * Read from a stream.
+         */
+        protected MultiValue(StreamInput in) throws IOException {
+            super(in);
+        }
+
         public abstract double value(String name);
 
         public String valueAsString(String name) {
@@ -91,4 +107,10 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
         super(name, pipelineAggregators, metaData);
     }
 
+    /**
+     * Read from a stream.
+     */
+    protected InternalNumericMetricsAggregation(StreamInput in) throws IOException {
+        super(in);
+    }
 }

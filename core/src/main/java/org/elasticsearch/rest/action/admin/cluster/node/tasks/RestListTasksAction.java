@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.cluster.node.tasks;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -42,8 +42,8 @@ public class RestListTasksAction extends BaseRestHandler {
     private final ClusterService clusterService;
 
     @Inject
-    public RestListTasksAction(Settings settings, RestController controller, Client client, ClusterService clusterService) {
-        super(settings, client);
+    public RestListTasksAction(Settings settings, RestController controller, ClusterService clusterService) {
+        super(settings);
         this.clusterService = clusterService;
         controller.registerHandler(GET, "/_tasks", this);
     }
@@ -67,7 +67,7 @@ public class RestListTasksAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         ActionListener<ListTasksResponse> listener = nodeSettingListener(clusterService, new RestToXContentListener<>(channel));
         client.admin().cluster().listTasks(generateListTasksRequest(request), listener);
     }

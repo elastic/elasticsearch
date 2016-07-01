@@ -20,7 +20,6 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -112,11 +111,11 @@ public final class SortProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public final static class Factory extends AbstractProcessorFactory {
+    public final static class Factory implements Processor.Factory {
 
         @Override
-        public SortProcessor doCreate(Map<String, Processor.Factory> registry, String processorTag,
-                                      Map<String, Object> config) throws Exception {
+        public SortProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+                                    Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, FIELD);
             try {
                 SortOrder direction = SortOrder.fromString(

@@ -24,7 +24,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.template.MultiSearchTemplateAction;
 import org.elasticsearch.action.search.template.MultiSearchTemplateRequest;
 import org.elasticsearch.action.search.template.SearchTemplateRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -45,8 +45,8 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     private final boolean allowExplicitIndex;
 
     @Inject
-    public RestMultiSearchTemplateAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestMultiSearchTemplateAction(Settings settings, RestController controller) {
+        super(settings);
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
 
         controller.registerHandler(GET, "/_msearch/template", this);
@@ -58,7 +58,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {
+    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (RestActions.hasBodyContent(request) == false) {
             throw new ElasticsearchException("request body is required");
         }

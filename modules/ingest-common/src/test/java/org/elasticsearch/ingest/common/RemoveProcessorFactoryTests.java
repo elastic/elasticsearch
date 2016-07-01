@@ -20,7 +20,6 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -44,8 +43,7 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         String processorTag = randomAsciiOfLength(10);
-        config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
-        RemoveProcessor removeProcessor = factory.create(null, config);
+        RemoveProcessor removeProcessor = factory.create(null, processorTag, config);
         assertThat(removeProcessor.getTag(), equalTo(processorTag));
         assertThat(removeProcessor.getField().execute(Collections.emptyMap()), equalTo("field1"));
     }
@@ -53,7 +51,7 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
     public void testCreateMissingField() throws Exception {
         Map<String, Object> config = new HashMap<>();
         try {
-            factory.create(null, config);
+            factory.create(null, null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));

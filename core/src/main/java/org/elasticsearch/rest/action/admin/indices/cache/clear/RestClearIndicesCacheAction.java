@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.indices.cache.clear;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
@@ -50,8 +50,8 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 public class RestClearIndicesCacheAction extends BaseRestHandler {
 
     @Inject
-    public RestClearIndicesCacheAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestClearIndicesCacheAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(POST, "/_cache/clear", this);
         controller.registerHandler(POST, "/{index}/_cache/clear", this);
 
@@ -60,7 +60,7 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(Strings.splitStringByCommaToArray(request.param("index")));
         clearIndicesCacheRequest.indicesOptions(IndicesOptions.fromRequest(request, clearIndicesCacheRequest.indicesOptions()));
         fromRequest(request, clearIndicesCacheRequest, parseFieldMatcher);

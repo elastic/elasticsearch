@@ -96,7 +96,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
     public void testReadProcessors() throws Exception {
         Processor processor = mock(Processor.class);
         Map<String, Processor.Factory> registry =
-            Collections.singletonMap("test_processor", (factories, config) -> processor);
+            Collections.singletonMap("test_processor", (factories, tag, config) -> processor);
 
         List<Map<String, Map<String, Object>>> config = new ArrayList<>();
         Map<String, Object> emptyConfig = Collections.emptyMap();

@@ -20,7 +20,6 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -44,8 +43,7 @@ public class FailProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("message", "error");
         String processorTag = randomAsciiOfLength(10);
-        config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
-        FailProcessor failProcessor = (FailProcessor)factory.create(null, config);
+        FailProcessor failProcessor = factory.create(null, processorTag, config);
         assertThat(failProcessor.getTag(), equalTo(processorTag));
         assertThat(failProcessor.getMessage().execute(Collections.emptyMap()), equalTo("error"));
     }
@@ -53,7 +51,7 @@ public class FailProcessorFactoryTests extends ESTestCase {
     public void testCreateMissingMessageField() throws Exception {
         Map<String, Object> config = new HashMap<>();
         try {
-            factory.create(null, config);
+            factory.create(null, null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[message] required property is missing"));

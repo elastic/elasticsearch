@@ -20,7 +20,6 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -52,8 +51,7 @@ public class AppendProcessorFactoryTests extends ESTestCase {
         }
         config.put("value", value);
         String processorTag = randomAsciiOfLength(10);
-        config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
-        AppendProcessor appendProcessor = factory.create(null, config);
+        AppendProcessor appendProcessor = factory.create(null, processorTag, config);
         assertThat(appendProcessor.getTag(), equalTo(processorTag));
         assertThat(appendProcessor.getField().execute(Collections.emptyMap()), equalTo("field1"));
         assertThat(appendProcessor.getValue().copyAndResolve(Collections.emptyMap()), equalTo(value));
@@ -63,7 +61,7 @@ public class AppendProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("value", "value1");
         try {
-            factory.create(null, config);
+            factory.create(null, null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));
@@ -74,7 +72,7 @@ public class AppendProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         try {
-            factory.create(null, config);
+            factory.create(null, null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[value] required property is missing"));
@@ -86,7 +84,7 @@ public class AppendProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("value", null);
         try {
-            factory.create(null, config);
+            factory.create(null, null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[value] required property is missing"));

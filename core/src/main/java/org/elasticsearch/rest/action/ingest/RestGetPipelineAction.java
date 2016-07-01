@@ -20,7 +20,7 @@
 package org.elasticsearch.rest.action.ingest;
 
 import org.elasticsearch.action.ingest.GetPipelineRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -33,13 +33,13 @@ import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 public class RestGetPipelineAction extends BaseRestHandler {
 
     @Inject
-    public RestGetPipelineAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestGetPipelineAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.GET, "/_ingest/pipeline/{id}", this);
     }
 
     @Override
-    protected void handleRequest(RestRequest restRequest, RestChannel channel, Client client) throws Exception {
+    public void handleRequest(RestRequest restRequest, RestChannel channel, NodeClient client) throws Exception {
         GetPipelineRequest request = new GetPipelineRequest(Strings.splitStringByCommaToArray(restRequest.param("id")));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         client.admin().cluster().getPipeline(request, new RestStatusToXContentListener<>(channel));

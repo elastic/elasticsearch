@@ -56,7 +56,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     @BeforeClass
     public static void init() throws IOException {
         namedWriteableRegistry = new NamedWriteableRegistry();
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, namedWriteableRegistry);
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, namedWriteableRegistry, false);
         queriesRegistry = searchModule.getQueryParserRegistry();
         suggesters = searchModule.getSuggesters();
         parseFieldMatcher = ParseFieldMatcher.STRICT;

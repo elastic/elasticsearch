@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.termvectors;
 
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -48,8 +48,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestTermVectorsAction extends BaseRestHandler {
 
     @Inject
-    public RestTermVectorsAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestTermVectorsAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/{index}/{type}/_termvectors", this);
         controller.registerHandler(POST, "/{index}/{type}/_termvectors", this);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_termvectors", this);
@@ -63,7 +63,7 @@ public class RestTermVectorsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         TermVectorsRequest termVectorsRequest = new TermVectorsRequest(request.param("index"), request.param("type"), request.param("id"));
         if (RestActions.hasBodyContent(request)) {
             try (XContentParser parser = XContentFactory.xContent(RestActions.guessBodyContentType(request)).createParser(RestActions.getRestContent(request))){

@@ -40,7 +40,7 @@ public class PipelineFactoryTests extends ESTestCase {
     public void testCreate() throws Exception {
         Map<String, Object> processorConfig0 = new HashMap<>();
         Map<String, Object> processorConfig1 = new HashMap<>();
-        processorConfig0.put(AbstractProcessorFactory.TAG_KEY, "first-processor");
+        processorConfig0.put(ConfigurationUtils.TAG_KEY, "first-processor");
         Map<String, Object> pipelineConfig = new HashMap<>();
         pipelineConfig.put(Pipeline.DESCRIPTION_KEY, "_description");
         pipelineConfig.put(Pipeline.PROCESSORS_KEY,

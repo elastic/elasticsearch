@@ -24,8 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.netty.NettyUtils;
-import org.elasticsearch.common.netty.ReleaseChannelFutureListener;
+import org.elasticsearch.transport.netty.NettyUtils;
 import org.elasticsearch.http.netty.cors.CorsHandler;
 import org.elasticsearch.http.netty.pipelining.OrderedDownstreamChannelEvent;
 import org.elasticsearch.http.netty.pipelining.OrderedUpstreamMessageEvent;
@@ -128,7 +127,7 @@ public final class NettyHttpChannel extends AbstractRestChannel {
             }
 
             if (content instanceof Releasable) {
-                future.addListener(new ReleaseChannelFutureListener((Releasable) content));
+                future.addListener((x) -> ((Releasable)content).close());
                 addedReleaseListener = true;
             }
 

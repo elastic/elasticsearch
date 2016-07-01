@@ -20,7 +20,6 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -54,7 +53,7 @@ abstract class AbstractStringProcessor extends AbstractProcessor {
 
     protected abstract String process(String value);
 
-    static abstract class Factory extends AbstractProcessorFactory {
+    static abstract class Factory implements Processor.Factory {
         protected final String processorType;
 
         protected Factory(String processorType) {
@@ -62,9 +61,10 @@ abstract class AbstractStringProcessor extends AbstractProcessor {
         }
 
         @Override
-        public AbstractStringProcessor doCreate(Map<String, Processor.Factory> registry, String processorTag, Map<String, Object> config) throws Exception {
-            String field = ConfigurationUtils.readStringProperty(processorType, processorTag, config, "field");
-            return newProcessor(processorTag, field);
+        public AbstractStringProcessor create(Map<String, Processor.Factory> registry, String tag,
+                                              Map<String, Object> config) throws Exception {
+            String field = ConfigurationUtils.readStringProperty(processorType, tag, config, "field");
+            return newProcessor(tag, field);
         }
 
         protected abstract AbstractStringProcessor newProcessor(String processorTag, String field);

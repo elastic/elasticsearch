@@ -20,7 +20,6 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -35,8 +34,7 @@ public class LowercaseProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         String processorTag = randomAsciiOfLength(10);
-        config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
-        LowercaseProcessor uppercaseProcessor = factory.create(null, config);
+        LowercaseProcessor uppercaseProcessor = (LowercaseProcessor)factory.create(null, processorTag, config);
         assertThat(uppercaseProcessor.getTag(), equalTo(processorTag));
         assertThat(uppercaseProcessor.getField(), equalTo("field1"));
     }
@@ -45,7 +43,7 @@ public class LowercaseProcessorFactoryTests extends ESTestCase {
         LowercaseProcessor.Factory factory = new LowercaseProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         try {
-            factory.create(null, config);
+            factory.create(null, null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));

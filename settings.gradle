@@ -31,7 +31,7 @@ List projects = [
   'plugins:analysis-phonetic',
   'plugins:analysis-smartcn',
   'plugins:analysis-stempel',
-  'plugins:discovery-azure',
+  'plugins:discovery-azure-classic',
   'plugins:discovery-ec2',
   'plugins:discovery-gce',
   'plugins:ingest-geoip',

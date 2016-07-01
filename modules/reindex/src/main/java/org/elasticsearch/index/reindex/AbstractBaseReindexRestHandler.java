@@ -52,10 +52,10 @@ public abstract class AbstractBaseReindexRestHandler<
     private final ClusterService clusterService;
     private final TA action;
 
-    protected AbstractBaseReindexRestHandler(Settings settings, Client client,
-            IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, Suggesters suggesters,
-            ClusterService clusterService, TA action) {
-        super(settings, client);
+    protected AbstractBaseReindexRestHandler(Settings settings, IndicesQueriesRegistry indicesQueriesRegistry,
+                                             AggregatorParsers aggParsers, Suggesters suggesters,
+                                             ClusterService clusterService, TA action) {
+        super(settings);
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.aggParsers = aggParsers;
         this.suggesters = suggesters;
@@ -63,7 +63,7 @@ public abstract class AbstractBaseReindexRestHandler<
         this.action = action;
     }
 
-    protected void handleRequest(RestRequest request, RestChannel channel,
+    public void handleRequest(RestRequest request, RestChannel channel,
                                  boolean includeCreated, boolean includeUpdated) throws IOException {
 
         // Build the internal request

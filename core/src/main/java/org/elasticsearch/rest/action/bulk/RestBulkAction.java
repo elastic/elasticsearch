@@ -24,7 +24,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -56,8 +56,8 @@ public class RestBulkAction extends BaseRestHandler {
     private final boolean allowExplicitIndex;
 
     @Inject
-    public RestBulkAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestBulkAction(Settings settings, RestController controller) {
+        super(settings);
 
         controller.registerHandler(POST, "/_bulk", this);
         controller.registerHandler(PUT, "/_bulk", this);
@@ -70,7 +70,7 @@ public class RestBulkAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         BulkRequest bulkRequest = Requests.bulkRequest();
         String defaultIndex = request.param("index");
         String defaultType = request.param("type");

@@ -20,7 +20,6 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -71,10 +70,10 @@ public final class JoinProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public final static class Factory extends AbstractProcessorFactory {
+    public final static class Factory implements Processor.Factory {
         @Override
-        public JoinProcessor doCreate(Map<String, Processor.Factory> registry, String processorTag,
-                                      Map<String, Object> config) throws Exception {
+        public JoinProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+                                    Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String separator = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "separator");
             return new JoinProcessor(processorTag, field, separator);

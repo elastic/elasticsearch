@@ -85,10 +85,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
     @Override
     public void deleteBlob(String blobName) throws IOException {
         Path blobPath = path.resolve(blobName);
-        if (!Files.deleteIfExists(blobPath)) {
-            // blobPath does not exist
-            throw new IOException("File [" + blobPath.toString() + "] does not exist");
-        }
+        Files.delete(blobPath);
     }
 
     @Override

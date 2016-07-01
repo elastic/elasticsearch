@@ -38,6 +38,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -84,7 +85,7 @@ public class RestIndicesAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 final ClusterState state = clusterStateResponse.getState();
-                final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, strictExpandIndicesOptions, indices);
+                final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, strictExpandIndicesOptions, indices);
                 // concreteIndices should contain exactly the indices in state.metaData() that were selected by clusterStateRequest using
                 // IndicesOptions.strictExpand(). We select the indices again here so that they can be displayed in the resulting table
                 // in the requesting order.
@@ -129,6 +130,7 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("health", "alias:h;desc:current health status");
         table.addCell("status", "alias:s;desc:open/close status");
         table.addCell("index", "alias:i,idx;desc:index name");
+        table.addCell("uuid", "alias:id,uuid;desc:index uuid");
         table.addCell("pri", "alias:p,shards.primary,shardsPrimary;text-align:right;desc:number of primary shards");
         table.addCell("rep", "alias:r,shards.replica,shardsReplica;text-align:right;desc:number of replica shards");
         table.addCell("docs.count", "alias:dc,docsCount;text-align:right;desc:available docs");
@@ -312,19 +314,22 @@ public class RestIndicesAction extends AbstractCatAction {
         return table;
     }
 
-    private Table buildTable(RestRequest request, String[] indices, ClusterHealthResponse health, IndicesStatsResponse stats, MetaData indexMetaDatas) {
+    // package private for testing
+    Table buildTable(RestRequest request, Index[] indices, ClusterHealthResponse health, IndicesStatsResponse stats, MetaData indexMetaDatas) {
         Table table = getTableWithHeader(request);
 
-        for (String index : indices) {
-            ClusterIndexHealth indexHealth = health.getIndices().get(index);
-            IndexStats indexStats = stats.getIndices().get(index);
-            IndexMetaData indexMetaData = indexMetaDatas.getIndices().get(index);
+        for (final Index index : indices) {
+            final String indexName = index.getName();
+            ClusterIndexHealth indexHealth = health.getIndices().get(indexName);
+            IndexStats indexStats = stats.getIndices().get(indexName);
+            IndexMetaData indexMetaData = indexMetaDatas.getIndices().get(indexName);
             IndexMetaData.State state = indexMetaData.getState();
 
             table.startRow();
             table.addCell(state == IndexMetaData.State.OPEN ? (indexHealth == null ? "red*" : indexHealth.getStatus().toString().toLowerCase(Locale.ROOT)) : null);
             table.addCell(state.toString().toLowerCase(Locale.ROOT));
-            table.addCell(index);
+            table.addCell(indexName);
+            table.addCell(index.getUUID());
             table.addCell(indexHealth == null ? null : indexHealth.getNumberOfShards());
             table.addCell(indexHealth == null ? null : indexHealth.getNumberOfReplicas());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getDocs().getCount());

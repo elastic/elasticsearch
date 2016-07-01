@@ -19,12 +19,15 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+
+import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThan;
@@ -106,6 +109,14 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
             assertThat(commitStats.getUserData(), hasKey(Translog.TRANSLOG_GENERATION_KEY));
             assertThat(commitStats.getUserData(), hasKey(Translog.TRANSLOG_UUID_KEY));
         }
+    }
+
+    /**
+     * Gives access to package private IndicesStatsResponse constructor for test purpose.
+     **/
+    public static IndicesStatsResponse newIndicesStatsResponse(ShardStats[] shards, int totalShards, int successfulShards,
+                                                               int failedShards, List<ShardOperationFailedException> shardFailures) {
+        return new IndicesStatsResponse(shards, totalShards, successfulShards, failedShards, shardFailures);
     }
 
 }

@@ -16,11 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest.json;
+package org.elasticsearch.test.rest;
 
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.rest.Stash;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,22 +27,23 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Holds a json object and allows to extract specific values from it
+ * Holds an object and allows to extract specific values from it given their path
  */
-public class JsonPath {
+public class ObjectPath {
 
-    final String json;
-    final Map<String, Object> jsonMap;
+    private final Object object;
 
-    public JsonPath(String json) throws IOException {
-        this.json = json;
-        this.jsonMap = convertToMap(json);
+    public static ObjectPath createFromXContent(XContent xContent, String input) throws IOException {
+        try (XContentParser parser = xContent.createParser(input)) {
+            if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
+                return new ObjectPath(parser.listOrderedMap());
+            }
+            return new ObjectPath(parser.mapOrdered());
+        }
     }
 
-    private static Map<String, Object> convertToMap(String json) throws IOException {
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(json)) {
-            return parser.mapOrdered();
-        }
+    public ObjectPath(Object object) {
+        this.object = object;
     }
 
     /**
@@ -58,7 +58,7 @@ public class JsonPath {
      */
     public Object evaluate(String path, Stash stash) throws IOException {
         String[] parts = parsePath(path);
-        Object object = jsonMap;
+        Object object = this.object;
         for (String part : parts) {
             object = evaluate(part, object, stash);
             if (object == null) {
@@ -71,7 +71,7 @@ public class JsonPath {
     @SuppressWarnings("unchecked")
     private Object evaluate(String key, Object object, Stash stash) throws IOException {
         if (stash.isStashedValue(key)) {
-            key = stash.unstashValue(key).toString();
+            key = stash.getValue(key).toString();
         }
 
         if (object instanceof Map) {
@@ -84,7 +84,8 @@ public class JsonPath {
             } catch (NumberFormatException e) {
                 throw new IllegalArgumentException("element was a list, but [" + key + "] was not numeric", e);
             } catch (IndexOutOfBoundsException e) {
-                throw new IllegalArgumentException("element was a list with " + list.size() + " elements, but [" + key + "] was out of bounds", e);
+                throw new IllegalArgumentException("element was a list with " + list.size() +
+                        " elements, but [" + key + "] was out of bounds", e);
             }
         }
 

@@ -88,7 +88,7 @@ public class ActiveDirectoryGroupsResolver implements GroupsResolver {
      *
      * @param SID byte encoded security ID
      */
-    static public String binarySidToStringSid(byte[] SID) {
+    public static String binarySidToStringSid(byte[] SID) {
         String strSID;
 
         //convert the SID into string format

@@ -32,7 +32,7 @@ import static java.util.Collections.emptyMap;
 /**
  *
  */
-public class Exporters extends AbstractLifecycleComponent<Exporters> implements Iterable<Exporter> {
+public class Exporters extends AbstractLifecycleComponent implements Iterable<Exporter> {
 
     private final Map<String, Exporter.Factory> factories;
     private final ClusterService clusterService;

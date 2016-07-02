@@ -30,7 +30,7 @@ import java.util.List;
  * This collector runs on the master node only and collects the {@link ShardMonitoringDoc} documents
  * for every index shard.
  */
-public class ShardsCollector extends AbstractCollector<ShardsCollector> {
+public class ShardsCollector extends AbstractCollector {
 
     public static final String NAME = "shards-collector";
 

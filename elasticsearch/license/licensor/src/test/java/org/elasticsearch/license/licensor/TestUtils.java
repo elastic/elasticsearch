@@ -36,9 +36,9 @@ public class TestUtils {
     public static final String PUBLIC_KEY_RESOURCE = "/public.key";
     public static final String PRIVATE_KEY_RESOURCE = "/private.key";
 
-    private final static FormatDateTimeFormatter formatDateTimeFormatter = Joda.forPattern("yyyy-MM-dd");
-    private final static DateMathParser dateMathParser = new DateMathParser(formatDateTimeFormatter);
-    private final static DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.printer();
+    private static final FormatDateTimeFormatter formatDateTimeFormatter = Joda.forPattern("yyyy-MM-dd");
+    private static final DateMathParser dateMathParser = new DateMathParser(formatDateTimeFormatter);
+    private static final DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.printer();
 
     public static String dumpLicense(License license) throws Exception {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

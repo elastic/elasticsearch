@@ -22,7 +22,7 @@ public class AuditUtil {
             try {
                 return XContentHelper.convertToJson(request.content(), false, false);
             } catch (IOException ioe) {
-                return "Invalid Format: " + request.content().toUtf8();
+                return "Invalid Format: " + request.content().utf8ToString();
             }
         }
         return "";

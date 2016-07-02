@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest;
 
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -56,7 +57,7 @@ public class SecurityRestFilter extends RestFilter {
     }
 
     @Override
-    public void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws Exception {
+    public void process(RestRequest request, RestChannel channel, NodeClient client, RestFilterChain filterChain) throws Exception {
 
         if (licenseState.authenticationAndAuthorizationEnabled()) {
             // CORS - allow for preflight unauthenticated OPTIONS request
@@ -70,7 +71,7 @@ public class SecurityRestFilter extends RestFilter {
             RemoteHostHeader.process(request, threadContext);
         }
 
-        filterChain.continueProcessing(request, channel);
+        filterChain.continueProcessing(request, channel, client);
     }
 
     static void putClientCertificateInContext(RestRequest request, ThreadContext threadContext, ESLogger logger) throws Exception {

@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.common.http.HttpClient;
 /**
  *
  */
-public class InternalPagerDutyService extends AbstractLifecycleComponent<PagerDutyService> implements PagerDutyService {
+public class InternalPagerDutyService extends AbstractLifecycleComponent implements PagerDutyService {
 
     public static final Setting<Settings> PAGERDUTY_ACCOUNT_SETTING =
             Setting.groupSetting("xpack.notification.pagerduty.", Setting.Property.Dynamic, Setting.Property.NodeScope);

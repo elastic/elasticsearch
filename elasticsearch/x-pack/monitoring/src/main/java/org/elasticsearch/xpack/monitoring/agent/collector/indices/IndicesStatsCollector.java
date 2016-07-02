@@ -29,7 +29,7 @@ import java.util.Collections;
  * <p>
  * This collector runs on the master node only and collect one {@link IndicesStatsMonitoringDoc} document.
  */
-public class IndicesStatsCollector extends AbstractCollector<IndicesStatsCollector> {
+public class IndicesStatsCollector extends AbstractCollector {
 
     public static final String NAME = "indices-stats-collector";
 

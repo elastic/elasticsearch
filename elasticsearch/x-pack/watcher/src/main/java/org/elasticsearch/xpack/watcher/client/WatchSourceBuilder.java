@@ -172,8 +172,8 @@ public class WatchSourceBuilder implements ToXContent {
 
         private final String id;
         private final Action action;
-        private final @Nullable TimeValue throttlePeriod;
-        private final @Nullable Transform transform;
+        @Nullable private final TimeValue throttlePeriod;
+        @Nullable private final Transform transform;
 
         public TransformedAction(String id, Action action, @Nullable TimeValue throttlePeriod, @Nullable Transform transform) {
             this.id = id;

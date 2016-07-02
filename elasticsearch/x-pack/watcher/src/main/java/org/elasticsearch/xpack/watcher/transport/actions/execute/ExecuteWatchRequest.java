@@ -32,8 +32,8 @@ public class ExecuteWatchRequest extends MasterNodeReadRequest<ExecuteWatchReque
     private String id;
     private boolean ignoreCondition = false;
     private boolean recordExecution = false;
-    private @Nullable Map<String, Object> triggerData = null;
-    private @Nullable Map<String, Object> alternativeInput = null;
+    @Nullable private Map<String, Object> triggerData = null;
+    @Nullable private Map<String, Object> alternativeInput = null;
     private Map<String, ActionExecutionMode> actionModes = new HashMap<>();
     private BytesReference watchSource;
 

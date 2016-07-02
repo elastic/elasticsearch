@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -29,8 +29,8 @@ public class RestChangePasswordAction extends BaseRestHandler {
     private final SecurityContext securityContext;
 
     @Inject
-    public RestChangePasswordAction(Settings settings, Client client, RestController controller, SecurityContext securityContext) {
-        super(settings, client);
+    public RestChangePasswordAction(Settings settings, RestController controller, SecurityContext securityContext) {
+        super(settings);
         this.securityContext = securityContext;
         controller.registerHandler(RestRequest.Method.POST, "/_xpack/security/user/{username}/_password", this);
         controller.registerHandler(RestRequest.Method.PUT, "/_xpack/security/user/{username}/_password", this);
@@ -39,7 +39,7 @@ public class RestChangePasswordAction extends BaseRestHandler {
     }
 
     @Override
-    protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {
+    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         final User user = securityContext.getUser();
         String username = request.param("username");
         if (username == null) {

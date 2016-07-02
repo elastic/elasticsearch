@@ -148,7 +148,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         // now lets execute the watch manually
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(
-                jsonBuilder().startObject().field("key", "value").endObject().bytes().toUtf8()));
+                jsonBuilder().startObject().field("key", "value").endObject().bytes().utf8ToString()));
 
         TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC));
         ExecuteWatchResponse executeResponse = watcherClient.prepareExecuteWatch("_id")
@@ -220,7 +220,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         // now lets execute the watch manually
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(
-                jsonBuilder().startObject().field("key", "value").endObject().bytes().toUtf8()));
+                jsonBuilder().startObject().field("key", "value").endObject().bytes().utf8ToString()));
 
         TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC));
         ExecuteWatchResponse executeResponse = watcherClient.prepareExecuteWatch("_id")

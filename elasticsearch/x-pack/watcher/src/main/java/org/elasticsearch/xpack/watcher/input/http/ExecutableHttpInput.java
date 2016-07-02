@@ -81,7 +81,7 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
                 parser = contentType.xContent().createParser(response.body());
             } catch (Exception e) {
                 throw new ElasticsearchParseException("could not parse response body [{}] it does not appear to be [{}]", type(), ctx.id(),
-                        response.body().toUtf8(), contentType.shortName());
+                        response.body().utf8ToString(), contentType.shortName());
             }
         }
 
@@ -92,7 +92,7 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
             if (parser != null) {
                 payloadMap.putAll(parser.mapOrdered());
             } else {
-                payloadMap.put("_value", response.body().toUtf8());
+                payloadMap.put("_value", response.body().utf8ToString());
             }
         }
         if (headers.size() > 0) {

@@ -226,7 +226,8 @@ public class WebhookActionTests extends ESTestCase {
 
     public void testThatSelectingProxyWorks() throws Exception {
         Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
-        HttpClient httpClient = new HttpClient(Settings.EMPTY, authRegistry, environment).start();
+        HttpClient httpClient = new HttpClient(Settings.EMPTY, authRegistry, environment);
+        httpClient.start();
 
         MockWebServer proxyServer = new MockWebServer();
         try {

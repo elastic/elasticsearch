@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.notification.email;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -233,7 +234,7 @@ public abstract class Attachment extends BodyPartSource {
             try {
                 XContentBuilder builder = XContentBuilder.builder(type.xContent()).prettyPrint();
                 content.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                return builder.bytes().toBytes();
+                return BytesReference.toBytes(builder.bytes());
             } catch (IOException ioe) {
                 throw new ElasticsearchException("could not create an xcontent attachment [" + name + "]", ioe);
             }

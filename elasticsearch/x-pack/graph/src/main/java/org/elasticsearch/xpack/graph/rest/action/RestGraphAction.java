@@ -16,7 +16,7 @@ import java.util.Map;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -66,8 +66,8 @@ public class RestGraphAction extends BaseRestHandler {
     public static final ParseField TERM_FIELD = new ParseField("term");
 
     @Inject
-    public RestGraphAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry indicesQueriesRegistry) {
-        super(settings, client);
+    public RestGraphAction(Settings settings, RestController controller, IndicesQueriesRegistry indicesQueriesRegistry) {
+        super(settings);
         // @deprecated TODO need to add deprecation support as per https://github.com/elastic/x-plugins/issues/1760#issuecomment-217507517
         controller.registerHandler(GET, "/{index}/_graph/explore", this);
         controller.registerHandler(POST, "/{index}/_graph/explore", this);
@@ -82,7 +82,7 @@ public class RestGraphAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws IOException {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws IOException {
         GraphExploreRequest graphRequest = new GraphExploreRequest(Strings.splitStringByCommaToArray(request.param("index")));
         graphRequest.indicesOptions(IndicesOptions.fromRequest(request, graphRequest.indicesOptions()));
         graphRequest.routing(request.param("routing"));

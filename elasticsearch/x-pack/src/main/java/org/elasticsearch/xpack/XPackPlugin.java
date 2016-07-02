@@ -5,6 +5,14 @@
  */
 package org.elasticsearch.xpack;
 
+import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -21,8 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.plugin.Licensing;
-import org.elasticsearch.xpack.monitoring.Monitoring;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -40,6 +46,8 @@ import org.elasticsearch.xpack.common.text.TextTemplateModule;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.extensions.XPackExtensionsService;
 import org.elasticsearch.xpack.graph.Graph;
+import org.elasticsearch.xpack.monitoring.Monitoring;
+import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.notification.Notification;
 import org.elasticsearch.xpack.notification.email.Account;
 import org.elasticsearch.xpack.notification.email.support.BodyPartSource;
@@ -49,14 +57,6 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.AuthenticationModule;
 import org.elasticsearch.xpack.support.clock.ClockModule;
 import org.elasticsearch.xpack.watcher.Watcher;
-
-import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 
 public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
 

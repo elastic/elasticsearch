@@ -144,41 +144,10 @@ public class LicensingTests extends SecurityIntegTestCase {
 
         disableLicensing();
 
-        try {
-            client.admin().indices().prepareStats().get();
-            fail("expected an license expired exception when executing an index stats action");
-        } catch (ElasticsearchSecurityException ee) {
-            // expected
-            assertThat(ee.getHeader("es.license.expired.feature"), hasItem(Security.NAME));
-            assertThat(ee.status(), is(RestStatus.UNAUTHORIZED));
-        }
-
-        try {
-            client.admin().cluster().prepareClusterStats().get();
-            fail("expected an license expired exception when executing cluster stats action");
-        } catch (ElasticsearchSecurityException ee) {
-            // expected
-            assertThat(ee.getHeader("es.license.expired.feature"), hasItem(Security.NAME));
-            assertThat(ee.status(), is(RestStatus.UNAUTHORIZED));
-        }
-
-        try {
-            client.admin().cluster().prepareHealth().get();
-            fail("expected an license expired exception when executing cluster health action");
-        } catch (ElasticsearchSecurityException ee) {
-            // expected
-            assertThat(ee.getHeader("es.license.expired.feature"), hasItem(Security.NAME));
-            assertThat(ee.status(), is(RestStatus.UNAUTHORIZED));
-        }
-
-        try {
-            client.admin().cluster().prepareNodesStats().get();
-            fail("expected an license expired exception when executing cluster health action");
-        } catch (ElasticsearchSecurityException ee) {
-            // expected
-            assertThat(ee.getHeader("es.license.expired.feature"), hasItem(Security.NAME));
-            assertThat(ee.status(), is(RestStatus.UNAUTHORIZED));
-        }
+        assertElasticsearchSecurityException(() -> client.admin().indices().prepareStats().get());
+        assertElasticsearchSecurityException(() -> client.admin().cluster().prepareClusterStats().get());
+        assertElasticsearchSecurityException(() -> client.admin().cluster().prepareHealth().get());
+        assertElasticsearchSecurityException(() -> client.admin().cluster().prepareNodesStats().get());
 
         enableLicensing(randomFrom(OperationMode.values()));
 
@@ -239,6 +208,12 @@ public class LicensingTests extends SecurityIntegTestCase {
         } catch (NoNodeAvailableException e) {
             // expected
         }
+    }
+
+    private static void assertElasticsearchSecurityException(ThrowingRunnable runnable) {
+        ElasticsearchSecurityException ee = expectThrows(ElasticsearchSecurityException.class, runnable);
+        assertThat(ee.getHeader("es.license.expired.feature"), hasItem(Security.NAME));
+        assertThat(ee.status(), is(RestStatus.FORBIDDEN));
     }
 
     public static void disableLicensing() {

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.security.transport.SSLClientAuth;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty.NettyTransport;
+import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
@@ -32,6 +33,7 @@ import org.jboss.netty.handler.ssl.SslHandler;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 import java.net.InetSocketAddress;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.security.Security.featureEnabledSetting;
@@ -77,7 +79,7 @@ public class SecurityNettyTransport extends NettyTransport {
 
     private final ServerSSLService serverSslService;
     private final ClientSSLService clientSSLService;
-    private final @Nullable IPFilter authenticator;
+    @Nullable private final IPFilter authenticator;
     private final boolean ssl;
 
     @Inject
@@ -111,30 +113,23 @@ public class SecurityNettyTransport extends NettyTransport {
     }
 
     @Override
-    protected void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
-        if (!lifecycle.started()) {
-            return;
-        }
-
-        Throwable t = e.getCause();
-        if (isNotSslRecordException(t)) {
+    protected void onException(Channel channel, Throwable e) {
+        if (isNotSslRecordException(e)) {
             if (logger.isTraceEnabled()) {
-                logger.trace("received plaintext traffic on a encrypted channel, closing connection {}", t, ctx.getChannel());
+                logger.trace("received plaintext traffic on a encrypted channel, closing connection {}", e, channel);
             } else {
-                logger.warn("received plaintext traffic on a encrypted channel, closing connection {}", ctx.getChannel());
+                logger.warn("received plaintext traffic on a encrypted channel, closing connection {}", channel);
             }
-            ctx.getChannel().close();
-            disconnectFromNodeChannel(ctx.getChannel(), e.getCause());
-        } else if (isCloseDuringHandshakeException(t)) {
+            disconnectFromNodeChannel(channel, e);
+        } else if (isCloseDuringHandshakeException(e)) {
             if (logger.isTraceEnabled()) {
-                logger.trace("connection {} closed during handshake", t, ctx.getChannel());
+                logger.trace("connection {} closed during handshake", e, channel);
             } else {
-                logger.warn("connection {} closed during handshake", ctx.getChannel());
+                logger.warn("connection {} closed during handshake", channel);
             }
-            ctx.getChannel().close();
-            disconnectFromNodeChannel(ctx.getChannel(), e.getCause());
+            disconnectFromNodeChannel(channel, e);
         } else {
-            super.exceptionCaught(ctx, e);
+            super.onException(channel, e);
         }
     }
 

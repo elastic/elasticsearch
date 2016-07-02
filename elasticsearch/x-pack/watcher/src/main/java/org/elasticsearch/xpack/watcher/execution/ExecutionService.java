@@ -412,7 +412,7 @@ public class ExecutionService extends AbstractComponent {
         logger.debug("executed [{}] watches from the watch history", counter);
     }
 
-    private final static class StartupExecutionContext extends TriggeredExecutionContext {
+    private static final class StartupExecutionContext extends TriggeredExecutionContext {
 
         public StartupExecutionContext(Watch watch, DateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
             super(watch, executionTime, triggerEvent, defaultThrottlePeriod);

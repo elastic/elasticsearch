@@ -51,7 +51,7 @@ import static org.elasticsearch.xpack.security.Security.setting;
 /**
  *
  */
-public class InternalCryptoService extends AbstractLifecycleComponent<InternalCryptoService> implements CryptoService {
+public class InternalCryptoService extends AbstractLifecycleComponent implements CryptoService {
 
     public static final String KEY_ALGO = "HmacSHA512";
     public static final int KEY_SIZE = 1024;

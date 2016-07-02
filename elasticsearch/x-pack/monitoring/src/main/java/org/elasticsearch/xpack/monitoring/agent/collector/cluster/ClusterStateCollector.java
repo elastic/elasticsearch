@@ -30,7 +30,7 @@ import java.util.List;
  * This collector runs on the master node only and collects {@link ClusterStateMonitoringDoc} document
  * at a given frequency.
  */
-public class ClusterStateCollector extends AbstractCollector<ClusterStateCollector> {
+public class ClusterStateCollector extends AbstractCollector {
 
     public static final String NAME = "cluster-state-collector";
 

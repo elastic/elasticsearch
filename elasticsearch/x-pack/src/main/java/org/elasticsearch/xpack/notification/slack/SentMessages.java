@@ -63,9 +63,9 @@ public class SentMessages implements ToXContent, Iterable<SentMessages.SentMessa
 
         final String to;
         final SlackMessage message;
-        final @Nullable HttpRequest request;
-        final @Nullable HttpResponse response;
-        final @Nullable String failureReason;
+        @Nullable final HttpRequest request;
+        @Nullable final HttpResponse response;
+        @Nullable final String failureReason;
 
         public static SentMessage responded(String to, SlackMessage message, HttpRequest request, HttpResponse response) {
             String failureReason = resolveFailureReason(response);

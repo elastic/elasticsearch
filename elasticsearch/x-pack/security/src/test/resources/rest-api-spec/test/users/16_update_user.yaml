@@ -1,24 +1,5 @@
 ---
-"Test creating a user without password":
-  - do:
-      cluster.health:
-          wait_for_status: yellow
-
-  - do:
-      catch: request
-      xpack.security.put_user:
-        username: "joe"
-        body:  >
-            {
-              "roles" : [ "superuser" ]
-            }
-  - match: { error.root_cause.0.reason: 'Validation Failed: 1: password must be specified unless you are updating an existing user;' }
-
----
-"Test create user and update without and with password":
-  - skip:
-      features: headers
-
+setup:
   - do:
       cluster.health:
         wait_for_status: yellow
@@ -31,7 +12,30 @@
               "password": "s3krit",
               "roles" : [ "superuser" ]
             }
-  - match: { user: { created: true } }
+
+---
+teardown:
+  - do:
+      xpack.security.delete_user:
+        username: "joe"
+        ignore: 404
+
+---
+"Test creating a user without password":
+  - do:
+      catch: request
+      xpack.security.put_user:
+        username: "no_password_user"
+        body:  >
+            {
+              "roles" : [ "superuser" ]
+            }
+  - match: { error.root_cause.0.reason: 'Validation Failed: 1: password must be specified unless you are updating an existing user;' }
+
+---
+"Test create user and update without and with password":
+  - skip:
+      features: headers
 
 # test that the role actually works
   - do:

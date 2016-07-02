@@ -72,7 +72,7 @@ public class TemplateUtils {
      */
     public static String filter(BytesReference source, String version, String versionProperty) {
         return Pattern.compile(versionProperty)
-                .matcher(source.toUtf8())
+                .matcher(source.utf8ToString())
                 .replaceAll(version);
     }
 

@@ -46,7 +46,7 @@ import java.util.Map;
 /**
  * Client class to wrap http connections
  */
-public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
+public class HttpClient extends AbstractLifecycleComponent {
 
     static final String SETTINGS_SSL_PREFIX = "xpack.http.ssl.";
     static final String SETTINGS_PROXY_PREFIX = "xpack.http.proxy.";

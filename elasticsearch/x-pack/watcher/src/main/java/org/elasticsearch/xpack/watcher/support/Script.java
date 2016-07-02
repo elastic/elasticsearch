@@ -27,9 +27,9 @@ public class Script implements ToXContent {
     public static final String DEFAULT_LANG = ScriptSettings.DEFAULT_LANG;
 
     private final String script;
-    private final @Nullable ScriptType type;
-    private final @Nullable String lang;
-    private final @Nullable Map<String, Object> params;
+    @Nullable private final ScriptType type;
+    @Nullable private final String lang;
+    @Nullable private final Map<String, Object> params;
 
     Script(String script) {
         this(script, null, null, null);
@@ -189,7 +189,7 @@ public class Script implements ToXContent {
         return new Builder.DefaultType(text);
     }
 
-    public static abstract class Builder<B extends Builder> {
+    public abstract static class Builder<B extends Builder> {
 
         protected final ScriptType type;
         protected final String script;

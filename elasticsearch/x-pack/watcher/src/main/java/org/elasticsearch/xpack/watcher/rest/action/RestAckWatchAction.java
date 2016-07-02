@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -29,8 +29,8 @@ import org.elasticsearch.xpack.watcher.watch.Watch;
 public class RestAckWatchAction extends WatcherRestHandler {
 
     @Inject
-    public RestAckWatchAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestAckWatchAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/{id}/_ack", this);
         controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/{id}/_ack", this);
         controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/{id}/_ack/{actions}", this);
@@ -41,7 +41,7 @@ public class RestAckWatchAction extends WatcherRestHandler {
     }
 
     @Override
-    protected void handleRequest(RestRequest request, RestChannel restChannel, WatcherClient client) throws Exception {
+    public void handleRequest(RestRequest request, RestChannel restChannel, WatcherClient client) throws Exception {
         AckWatchRequest ackWatchRequest = new AckWatchRequest(request.param("id"));
         String[] actions = request.paramAsStringArray("actions", null);
         if (actions != null) {

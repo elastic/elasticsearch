@@ -79,7 +79,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Registered listeners are notified using {@link #notifyAndSchedule(LicensesMetaData)}
  */
 @Singleton
-public class LicensesService extends AbstractLifecycleComponent<LicensesService> implements ClusterStateListener, LicensesManagerService,
+public class LicensesService extends AbstractLifecycleComponent implements ClusterStateListener, LicensesManagerService,
         LicenseeRegistry {
 
     public static final String REGISTER_TRIAL_LICENSE_ACTION_NAME = "internal:plugin/license/cluster/register_trial_license";
@@ -643,11 +643,11 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         }
     }
 
-    public static abstract class ExpirationCallback {
+    public abstract static class ExpirationCallback {
 
         public enum Orientation {PRE, POST}
 
-        public static abstract class Pre extends ExpirationCallback {
+        public abstract static class Pre extends ExpirationCallback {
 
             /**
              * Callback schedule prior to license expiry
@@ -677,7 +677,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             }
         }
 
-        public static abstract class Post extends ExpirationCallback {
+        public abstract static class Post extends ExpirationCallback {
 
             /**
              * Callback schedule after license expiry

@@ -181,7 +181,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         out.setVersion(randomVersion(random()));
         request.writeTo(out);
 
-        StreamInput in = StreamInput.wrap(out.bytes());
+        StreamInput in = out.bytes().streamInput();
         in.setVersion(out.getVersion());
         MonitoringBulkRequest request2 = new MonitoringBulkRequest();
         request2.readFrom(in);

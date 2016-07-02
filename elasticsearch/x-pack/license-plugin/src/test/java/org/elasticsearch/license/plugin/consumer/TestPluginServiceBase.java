@@ -21,7 +21,7 @@ import org.elasticsearch.license.plugin.core.LicensesService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-public abstract class TestPluginServiceBase extends AbstractLifecycleComponent<TestPluginServiceBase>
+public abstract class TestPluginServiceBase extends AbstractLifecycleComponent
         implements ClusterStateListener, Licensee {
 
     private LicensesService licensesClientService;

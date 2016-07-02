@@ -32,7 +32,7 @@ import java.util.List;
  * This collector runs on the master node only and collects a {@link IndexRecoveryMonitoringDoc} document
  * for every index that has on-going shard recoveries.
  */
-public class IndexRecoveryCollector extends AbstractCollector<IndexRecoveryCollector> {
+public class IndexRecoveryCollector extends AbstractCollector {
 
     public static final String NAME = "index-recovery-collector";
 

@@ -93,7 +93,7 @@ public class SearchInputIT extends ESIntegTestCase {
         return types;
     }
 
-    private final static String TEMPLATE_QUERY = "{\"query\":{\"bool\":{\"must\":{\"match\":{\"event_type\":{\"query\":\"a\"," +
+    private static final String TEMPLATE_QUERY = "{\"query\":{\"bool\":{\"must\":{\"match\":{\"event_type\":{\"query\":\"a\"," +
             "\"type\":\"boolean\"}}},\"filter\":{\"range\":{\"_timestamp\":" +
             "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\"," +
             "\"include_lower\":true,\"include_upper\":true}}}}}}";
@@ -362,7 +362,7 @@ public class SearchInputIT extends ESIntegTestCase {
     protected WatcherSearchTemplateService watcherSearchTemplateService() {
         String master = internalCluster().getMasterName();
         return new WatcherSearchTemplateService(internalCluster().clusterService(master).getSettings(),
-                ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class, master), internalCluster().clusterService(master)),
+                ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class, master)),
                 internalCluster().getInstance(IndicesQueriesRegistry.class, master),
                 internalCluster().getInstance(AggregatorParsers.class, master),
                 internalCluster().getInstance(Suggesters.class, master)
@@ -370,7 +370,7 @@ public class SearchInputIT extends ESIntegTestCase {
     }
 
     protected ScriptServiceProxy scriptService() {
-        return ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class), internalCluster().clusterService());
+        return ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class));
     }
 
     private XContentSource toXContentSource(SearchInput.Result result) throws IOException {

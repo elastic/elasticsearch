@@ -10,7 +10,7 @@ import org.elasticsearch.common.component.LifecycleComponent;
 /**
  *
  */
-public interface HipChatService extends LifecycleComponent<HipChatService> {
+public interface HipChatService extends LifecycleComponent {
 
     /**
      * @return The default hipchat account.

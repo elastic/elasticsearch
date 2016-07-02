@@ -32,7 +32,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
 
     private final boolean enabled;
     private final SecurityLicenseState licenseState;
-    private final @Nullable Realms realms;
+    @Nullable private final Realms realms;
 
     @Inject
     public SecurityFeatureSet(Settings settings, @Nullable SecurityLicenseState licenseState,

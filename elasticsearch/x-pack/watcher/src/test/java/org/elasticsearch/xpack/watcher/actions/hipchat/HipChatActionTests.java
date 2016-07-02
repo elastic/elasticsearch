@@ -171,7 +171,7 @@ public class HipChatActionTests extends ESTestCase {
         builder.endObject();
 
         BytesReference bytes = builder.bytes();
-        logger.info("hipchat action json [{}]", bytes.toUtf8());
+        logger.info("hipchat action json [{}]", bytes.utf8ToString());
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
 
@@ -236,7 +236,7 @@ public class HipChatActionTests extends ESTestCase {
         XContentBuilder jsonBuilder = jsonBuilder();
         action.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
         BytesReference bytes = builder.bytes();
-        logger.info("{}", bytes.toUtf8());
+        logger.info("{}", bytes.utf8ToString());
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
 

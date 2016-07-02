@@ -358,49 +358,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             logger.warn("cannot read metadata for snapshot [{}]", ex, snapshotId);
         }
         try {
-            final String snapshotName = snapshotId.getName();
-            // Delete snapshot file first so we wouldn't end up with partially deleted snapshot that looks OK
-            if (snapshot != null) {
-                try {
-                    snapshotFormat(snapshot.version()).delete(snapshotsBlobContainer, blobId(snapshotId));
-                } catch (IOException e) {
-                    logger.debug("snapshotFormat failed to delete snapshot [{}]", snapshotId);
-                }
-
-                try {
-                    globalMetaDataFormat(snapshot.version()).delete(snapshotsBlobContainer, snapshotName);
-                } catch (IOException e) {
-                    logger.debug("gloalMetaDataFormat failed to delete snapshot [{}]");
-                }
-            } else {
-                // We don't know which version was the snapshot created with - try deleting both current and legacy formats
-                try {
-                    snapshotFormat.delete(snapshotsBlobContainer, blobId(snapshotId));
-                } catch (IOException e) {
-                    logger.debug("snapshotFormat failed to delete snapshot [{}]");
-                }
-
-                try {
-                    snapshotLegacyFormat.delete(snapshotsBlobContainer, snapshotName);
-                } catch (IOException e) {
-                    logger.debug("snapshotLegacyFormat failed to delete snapshot [{}]");
-                }
-
-                try {
-                    globalMetaDataLegacyFormat.delete(snapshotsBlobContainer, snapshotName);
-                } catch (IOException e) {
-                    logger.debug("globalMetaDataLegacyFormat failed to delete snapshot [{}]");
-                }
-
-                try {
-                    globalMetaDataFormat.delete(snapshotsBlobContainer, snapshotName);
-                } catch (IOException e) {
-                    logger.debug("globalMetaDataFormat failed to delete snapshot [{}]");
-                }
-            }
-            // Delete snapshot from the snapshot list
-            List<SnapshotId> snapshotIds = getSnapshots().stream().filter(id -> snapshotId.equals(id) == false).collect(Collectors.toList());
+            // Delete snapshot from the snapshot list, since it is the maintainer of truth of active snapshots
+            List<SnapshotId> snapshotIds = getSnapshots().stream()
+                                               .filter(id -> snapshotId.equals(id) == false)
+                                               .collect(Collectors.toList());
             writeSnapshotsToIndexGen(snapshotIds);
+
+            // delete the snapshot file
+            safeSnapshotBlobDelete(snapshot, blobId(snapshotId));
+            // delete the global metadata file
+            safeGlobalMetaDataBlobDelete(snapshot, snapshotId.getName());
 
             // Now delete all indices
             for (String index : indices) {
@@ -429,6 +396,57 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    private void safeSnapshotBlobDelete(final SnapshotInfo snapshotInfo, final String blobId) {
+        if (snapshotInfo != null) {
+            // we know the version the snapshot was created with
+            try {
+                snapshotFormat(snapshotInfo.version()).delete(snapshotsBlobContainer, blobId);
+            } catch (IOException e) {
+                logger.warn("[{}] Unable to delete snapshot file [{}]", e, snapshotInfo.snapshotId(), blobId);
+            }
+        } else {
+            // we don't know the version, first try the current format, then the legacy format
+            try {
+                snapshotFormat.delete(snapshotsBlobContainer, blobId);
+            } catch (IOException e) {
+                // now try legacy format
+                try {
+                    snapshotLegacyFormat.delete(snapshotsBlobContainer, blobId);
+                } catch (IOException e2) {
+                    // neither snapshot file could be deleted, log the error
+                    logger.warn("Unable to delete snapshot file [{}]", e, blobId);
+                }
+            }
+        }
+    }
+
+    private void safeGlobalMetaDataBlobDelete(final SnapshotInfo snapshotInfo, final String blobId) {
+        if (snapshotInfo != null) {
+            // we know the version the snapshot was created with
+            try {
+                globalMetaDataFormat(snapshotInfo.version()).delete(snapshotsBlobContainer, blobId);
+            } catch (IOException e) {
+                logger.warn("[{}] Unable to delete global metadata file [{}]", e, snapshotInfo.snapshotId(), blobId);
+            }
+        } else {
+            // we don't know the version, first try the current format, then the legacy format
+            try {
+                globalMetaDataFormat.delete(snapshotsBlobContainer, blobId);
+            } catch (IOException e) {
+                // now try legacy format
+                try {
+                    globalMetaDataLegacyFormat.delete(snapshotsBlobContainer, blobId);
+                } catch (IOException e2) {
+                    // neither global metadata file could be deleted, log the error
+                    logger.warn("Unable to delete global metadata file [{}]", e, blobId);
+                }
+            }
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public SnapshotInfo finalizeSnapshot(final SnapshotId snapshotId,
                                          final List<String> indices,

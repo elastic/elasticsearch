@@ -38,14 +38,14 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
     public void testCreate() throws Exception {
         ProcessorsRegistry.Builder builder = new ProcessorsRegistry.Builder();
         Processor processor = new TestProcessor(ingestDocument -> {});
-        builder.registerProcessor("_name", (registry) -> config -> processor);
+        builder.registerProcessor("_name", (registry) -> (tag, config) -> processor);
         ProcessorsRegistry registry = builder.build(mock(ScriptService.class), mock(ClusterService.class));
         ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory(registry);
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("processors", Collections.singletonList(Collections.singletonMap("_name", Collections.emptyMap())));
-        ForEachProcessor forEachProcessor = forEachFactory.create(config);
+        ForEachProcessor forEachProcessor = forEachFactory.create(null, config);
         assertThat(forEachProcessor, Matchers.notNullValue());
         assertThat(forEachProcessor.getField(), Matchers.equalTo("_field"));
         assertThat(forEachProcessor.getProcessors().size(), Matchers.equalTo(1));
@@ -54,7 +54,7 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         config = new HashMap<>();
         config.put("processors", Collections.singletonList(Collections.singletonMap("_name", Collections.emptyMap())));
         try {
-            forEachFactory.create(config);
+            forEachFactory.create(null, config);
             fail("exception expected");
         } catch (Exception e) {
             assertThat(e.getMessage(), Matchers.equalTo("[field] required property is missing"));
@@ -63,7 +63,7 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         config = new HashMap<>();
         config.put("field", "_field");
         try {
-            forEachFactory.create(config);
+            forEachFactory.create(null, config);
             fail("exception expected");
         } catch (Exception e) {
             assertThat(e.getMessage(), Matchers.equalTo("[processors] required property is missing"));

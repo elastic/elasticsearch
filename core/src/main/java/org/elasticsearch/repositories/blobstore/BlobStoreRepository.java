@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
@@ -34,7 +35,6 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.io.Streams;
@@ -83,7 +83,8 @@ import java.util.stream.Collectors;
  * <pre>
  * {@code
  *   STORE_ROOT
- *   |- index             - list of all snapshot name as JSON array
+ *   |- index-N           - list of all snapshot name as JSON array, N is the generation of the file
+ *   |- index-latest      - contains the numeric value of the latest generation of the index file (i.e. N from above)
  *   |- snapshot-20131010 - JSON serialized Snapshot for snapshot "20131010"
  *   |- meta-20131010.dat - JSON serialized MetaData for snapshot "20131010" (includes only global metadata)
  *   |- snapshot-20131011 - JSON serialized Snapshot for snapshot "20131011"
@@ -115,7 +116,7 @@ import java.util.stream.Collectors;
  * }
  * </pre>
  */
-public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Repository> implements Repository, RateLimiterListener {
+public abstract class BlobStoreRepository extends AbstractLifecycleComponent implements Repository, RateLimiterListener {
 
     private BlobContainer snapshotsBlobContainer;
 
@@ -127,11 +128,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
 
     private static final String SNAPSHOT_SUFFIX = ".dat";
 
-    private static final String COMMON_SNAPSHOT_PREFIX = "snap";
-
     private static final String SNAPSHOT_CODEC = "snapshot";
 
     static final String SNAPSHOTS_FILE = "index"; // package private for unit testing
+
+    private static final String SNAPSHOTS_FILE_PREFIX = "index-";
+
+    private static final String SNAPSHOTS_INDEX_LATEST_BLOB = "index.latest";
 
     private static final String TESTS_FILE = "tests-";
 
@@ -146,7 +149,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
     private static final String SNAPSHOT_NAME_FORMAT = SNAPSHOT_PREFIX + "%s" + SNAPSHOT_SUFFIX;
 
     private static final String LEGACY_SNAPSHOT_NAME_FORMAT = LEGACY_SNAPSHOT_PREFIX + "%s";
-
 
     private final BlobStoreIndexShardRepository indexShardRepository;
 
@@ -233,12 +235,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      *
      * @return blob store
      */
-    abstract protected BlobStore blobStore();
+    protected abstract  BlobStore blobStore();
 
     /**
      * Returns base path of the repository
      */
-    abstract protected BlobPath basePath();
+    protected abstract  BlobPath basePath();
 
     /**
      * Returns true if metadata and snapshot files should be compressed
@@ -334,7 +336,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
             }
             // Delete snapshot from the snapshot list
             List<SnapshotId> snapshotIds = snapshots().stream().filter(id -> snapshotId.equals(id) == false).collect(Collectors.toList());
-            writeSnapshotList(snapshotIds);
+            writeSnapshotsToIndexGen(snapshotIds);
+
             // Now delete all indices
             for (String index : indices) {
                 BlobPath indexPath = basePath().add("indices").add(index);
@@ -386,8 +389,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                 snapshotIds = new ArrayList<>(snapshotIds);
                 snapshotIds.add(snapshotId);
                 snapshotIds = Collections.unmodifiableList(snapshotIds);
+                writeSnapshotsToIndexGen(snapshotIds);
             }
-            writeSnapshotList(snapshotIds);
             return blobStoreSnapshot;
         } catch (IOException ex) {
             throw new RepositoryException(this.repositoryName, "failed to update snapshot in repository", ex);
@@ -400,40 +403,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
     @Override
     public List<SnapshotId> snapshots() {
         try {
-            List<SnapshotId> snapshots = new ArrayList<>();
-            Map<String, BlobMetaData> blobs;
-            try {
-                blobs = snapshotsBlobContainer.listBlobsByPrefix(COMMON_SNAPSHOT_PREFIX);
-            } catch (UnsupportedOperationException ex) {
-                // Fall back in case listBlobsByPrefix isn't supported by the blob store
-                return readSnapshotList();
-            }
-            int prefixLength = SNAPSHOT_PREFIX.length();
-            int suffixLength = SNAPSHOT_SUFFIX.length();
-            int legacyPrefixLength = LEGACY_SNAPSHOT_PREFIX.length();
-            for (BlobMetaData md : blobs.values()) {
-                String blobName = md.name();
-                final String name;
-                String uuid;
-                if (blobName.startsWith(SNAPSHOT_PREFIX) && blobName.length() > legacyPrefixLength) {
-                    final String str = blobName.substring(prefixLength, blobName.length() - suffixLength);
-                    // TODO: this will go away once we make the snapshot file writes atomic and
-                    // use it as the source of truth for the snapshots list instead of listing blobs
-                    Tuple<String, String> pair = parseNameUUIDFromBlobName(str);
-                    name = pair.v1();
-                    uuid = pair.v2();
-                } else if (blobName.startsWith(LEGACY_SNAPSHOT_PREFIX) && blobName.length() > suffixLength + prefixLength) {
-                    name = blobName.substring(legacyPrefixLength);
-                    uuid = SnapshotId.UNASSIGNED_UUID;
-                } else {
-                    // not sure what it was - ignore
-                    continue;
-                }
-                snapshots.add(new SnapshotId(name, uuid));
-            }
-            return Collections.unmodifiableList(snapshots);
-        } catch (IOException ex) {
-            throw new RepositoryException(repositoryName, "failed to list snapshots in repository", ex);
+            return Collections.unmodifiableList(readSnapshotsFromIndex());
+        } catch (NoSuchFileException | FileNotFoundException e) {
+            // its a fresh repository, no index file exists, so return an empty list
+            return Collections.emptyList();
+        } catch (IOException ioe) {
+            throw new RepositoryException(repositoryName, "failed to list snapshots in repository", ioe);
         }
     }
 
@@ -564,89 +539,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
     private static final String NAME = "name";
     private static final String UUID = "uuid";
 
-    /**
-     * Writes snapshot index file
-     * <p>
-     * This file can be used by read-only repositories that are unable to list files in the repository
-     *
-     * @param snapshots list of snapshot ids
-     * @throws IOException I/O errors
-     */
-    protected void writeSnapshotList(List<SnapshotId> snapshots) throws IOException {
-        final BytesReference bRef;
-        try(BytesStreamOutput bStream = new BytesStreamOutput()) {
-            try(StreamOutput stream = new OutputStreamStreamOutput(bStream)) {
-                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream);
-                builder.startObject();
-                builder.startArray(SNAPSHOTS);
-                for (SnapshotId snapshot : snapshots) {
-                    builder.startObject();
-                    builder.field(NAME, snapshot.getName());
-                    builder.field(UUID, snapshot.getUUID());
-                    builder.endObject();
-                }
-                builder.endArray();
-                builder.endObject();
-                builder.close();
-            }
-            bRef = bStream.bytes();
-        }
-        if (snapshotsBlobContainer.blobExists(SNAPSHOTS_FILE)) {
-            snapshotsBlobContainer.deleteBlob(SNAPSHOTS_FILE);
-        }
-        snapshotsBlobContainer.writeBlob(SNAPSHOTS_FILE, bRef);
-    }
-
-    /**
-     * Reads snapshot index file
-     * <p>
-     * This file can be used by read-only repositories that are unable to list files in the repository
-     *
-     * @return list of snapshots in the repository
-     * @throws IOException I/O errors
-     */
-    protected List<SnapshotId> readSnapshotList() throws IOException {
-        try (InputStream blob = snapshotsBlobContainer.readBlob(SNAPSHOTS_FILE)) {
-            BytesStreamOutput out = new BytesStreamOutput();
-            Streams.copy(blob, out);
-            ArrayList<SnapshotId> snapshots = new ArrayList<>();
-            try (XContentParser parser = XContentHelper.createParser(out.bytes())) {
-                if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
-                    if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
-                        String currentFieldName = parser.currentName();
-                        if (SNAPSHOTS.equals(currentFieldName)) {
-                            if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
-                                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                                    // the new format from 5.0 which contains the snapshot name and uuid
-                                    String name = null;
-                                    String uuid = null;
-                                    if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                                        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                                            currentFieldName = parser.currentName();
-                                            parser.nextToken();
-                                            if (NAME.equals(currentFieldName)) {
-                                                name = parser.text();
-                                            } else if (UUID.equals(currentFieldName)) {
-                                                uuid = parser.text();
-                                            }
-                                        }
-                                        snapshots.add(new SnapshotId(name, uuid));
-                                    }
-                                    // the old format pre 5.0 that only contains the snapshot name, use the name as the uuid too
-                                    else {
-                                        name = parser.text();
-                                        snapshots.add(new SnapshotId(name, SnapshotId.UNASSIGNED_UUID));
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            return Collections.unmodifiableList(snapshots);
-        }
-    }
-
     @Override
     public void onRestorePause(long nanos) {
         restoreRateLimitingTimeInNanos.inc(nanos);
@@ -714,27 +606,99 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         return snapshotsBlobContainer;
     }
 
-    // TODO: this will go away once readSnapshotsList uses the index file instead of listing blobs
-    // to know which snapshots are part of a repository.  See #18156
-    // Package private for testing.
-    static Tuple<String, String> parseNameUUIDFromBlobName(final String str) {
-        final String name;
-        final String uuid;
-        final int sizeOfUUID = 22; // uuid is 22 chars in length
-        // unreliable, but highly unlikely to have a snapshot name with a dash followed by 22 characters,
-        // and this will go away before a release (see #18156).
-        //norelease
-        if (str.length() > sizeOfUUID + 1 && str.charAt(str.length() - sizeOfUUID - 1) == '-') {
-            // new naming convention, snapshot blob id has name and uuid
-            final int idx = str.length() - sizeOfUUID - 1;
-            name = str.substring(0, idx);
-            uuid = str.substring(idx + 1);
-        } else {
-            // old naming convention, before snapshots had UUIDs
-            name = str;
-            uuid = SnapshotId.UNASSIGNED_UUID;
+    protected void writeSnapshotsToIndexGen(final List<SnapshotId> snapshots) throws IOException {
+        assert readOnly() == false; // can not write to a read only repository
+        final BytesReference snapshotsBytes;
+        try (BytesStreamOutput bStream = new BytesStreamOutput()) {
+            try (StreamOutput stream = new OutputStreamStreamOutput(bStream)) {
+                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream);
+                builder.startObject();
+                builder.startArray(SNAPSHOTS);
+                for (SnapshotId snapshot : snapshots) {
+                    builder.startObject();
+                    builder.field(NAME, snapshot.getName());
+                    builder.field(UUID, snapshot.getUUID());
+                    builder.endObject();
+                }
+                builder.endArray();
+                builder.endObject();
+                builder.close();
+            }
+            snapshotsBytes = bStream.bytes();
         }
-        return Tuple.tuple(name, uuid);
+        final long gen = latestIndexBlobId() + 1;
+        // write the index file
+        writeAtomic(SNAPSHOTS_FILE_PREFIX + Long.toString(gen), snapshotsBytes);
+        // delete the N-2 index file if it exists, keep the previous one around as a backup
+        if (readOnly() == false && gen - 2 >= 0) {
+            final String oldSnapshotIndexFile = SNAPSHOTS_FILE_PREFIX + Long.toString(gen - 2);
+            if (snapshotsBlobContainer.blobExists(oldSnapshotIndexFile)) {
+                snapshotsBlobContainer.deleteBlob(oldSnapshotIndexFile);
+            }
+        }
+
+        // write the current generation to the index-latest file
+        final BytesReference genBytes;
+        try (BytesStreamOutput bStream = new BytesStreamOutput()) {
+            bStream.writeLong(gen);
+            genBytes = bStream.bytes();
+        }
+        if (snapshotsBlobContainer.blobExists(SNAPSHOTS_INDEX_LATEST_BLOB)) {
+            snapshotsBlobContainer.deleteBlob(SNAPSHOTS_INDEX_LATEST_BLOB);
+        }
+        writeAtomic(SNAPSHOTS_INDEX_LATEST_BLOB, genBytes);
+    }
+
+    protected List<SnapshotId> readSnapshotsFromIndex() throws IOException {
+        final long indexGen = latestIndexBlobId();
+        final String snapshotsIndexBlobName;
+        if (indexGen == -1) {
+            // index-N file doesn't exist, either its a fresh repository, or its in the
+            // old format, so look for the older index file before returning an empty list
+            snapshotsIndexBlobName = SNAPSHOTS_FILE;
+        } else {
+            snapshotsIndexBlobName = SNAPSHOTS_FILE_PREFIX + Long.toString(indexGen);
+        }
+
+        try (InputStream blob = snapshotsBlobContainer.readBlob(snapshotsIndexBlobName)) {
+            BytesStreamOutput out = new BytesStreamOutput();
+            Streams.copy(blob, out);
+            ArrayList<SnapshotId> snapshots = new ArrayList<>();
+            try (XContentParser parser = XContentHelper.createParser(out.bytes())) {
+                if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
+                    if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
+                        String currentFieldName = parser.currentName();
+                        if (SNAPSHOTS.equals(currentFieldName)) {
+                            if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
+                                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                    // the new format from 5.0 which contains the snapshot name and uuid
+                                    String name = null;
+                                    String uuid = null;
+                                    if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                                        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                                            currentFieldName = parser.currentName();
+                                            parser.nextToken();
+                                            if (NAME.equals(currentFieldName)) {
+                                                name = parser.text();
+                                            } else if (UUID.equals(currentFieldName)) {
+                                                uuid = parser.text();
+                                            }
+                                        }
+                                        snapshots.add(new SnapshotId(name, uuid));
+                                    }
+                                    // the old format pre 5.0 that only contains the snapshot name, use the name as the uuid too
+                                    else {
+                                        name = parser.text();
+                                        snapshots.add(new SnapshotId(name, SnapshotId.UNASSIGNED_UUID));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return Collections.unmodifiableList(snapshots);
+        }
     }
 
     // Package private for testing
@@ -746,4 +710,79 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         }
         return snapshotId.getName() + "-" + uuid;
     }
+
+    /**
+     * Get the latest snapshot index blob id.  Snapshot index blobs are named index-N, where N is
+     * the next version number from when the index blob was written.  Each individual index-N blob is
+     * only written once and never overwritten.  The highest numbered index-N blob is the latest one
+     * that contains the current snapshots in the repository.
+     *
+     * Package private for testing
+     */
+    long latestIndexBlobId() throws IOException {
+        try {
+            // first, try listing the blobs and determining which index blob is the latest
+            return listBlobsToGetLatestIndexId();
+        } catch (UnsupportedOperationException e) {
+            // could not list the blobs because the repository does not support the operation,
+            // try reading from the index-latest file
+            try {
+                return readSnapshotIndexLatestBlob();
+            } catch (IOException ioe) {
+                // we likely could not find the blob, this can happen in two scenarios:
+                //  (1) its an empty repository
+                //  (2) when writing the index-latest blob, if the blob already exists,
+                //      we first delete it, then atomically write the new blob.  there is
+                //      a small window in time when the blob is deleted and the new one
+                //      written - if the node crashes during that time, we won't have an
+                //      index-latest blob
+                // in a read-only repository, we can't know which of the two scenarios it is,
+                // but we will assume (1) because we can't do anything about (2) anyway
+                return -1;
+            }
+        }
+    }
+
+    // package private for testing
+    long readSnapshotIndexLatestBlob() throws IOException {
+        try (InputStream blob = snapshotsBlobContainer.readBlob(SNAPSHOTS_INDEX_LATEST_BLOB)) {
+            BytesStreamOutput out = new BytesStreamOutput();
+            Streams.copy(blob, out);
+            return Numbers.bytesToLong(out.bytes().toBytesRef());
+        }
+    }
+
+    private long listBlobsToGetLatestIndexId() throws IOException {
+        Map<String, BlobMetaData> blobs = snapshotsBlobContainer.listBlobsByPrefix(SNAPSHOTS_FILE_PREFIX);
+        long latest = -1;
+        if (blobs.isEmpty()) {
+            // no snapshot index blobs have been written yet
+            return latest;
+        }
+        for (final BlobMetaData blobMetaData : blobs.values()) {
+            final String blobName = blobMetaData.name();
+            try {
+                final long curr = Long.parseLong(blobName.substring(SNAPSHOTS_FILE_PREFIX.length()));
+                latest = Math.max(latest, curr);
+            } catch (NumberFormatException nfe) {
+                // the index- blob wasn't of the format index-N where N is a number,
+                // no idea what this blob is but it doesn't belong in the repository!
+                logger.debug("[{}] Unknown blob in the repository: {}", repositoryName, blobName);
+            }
+        }
+        return latest;
+    }
+
+    private void writeAtomic(final String blobName, final BytesReference bytesRef) throws IOException {
+        final String tempBlobName = "pending-" + blobName;
+        snapshotsBlobContainer.writeBlob(tempBlobName, bytesRef);
+        try {
+            snapshotsBlobContainer.move(tempBlobName, blobName);
+        } catch (IOException ex) {
+            // Move failed - try cleaning up
+            snapshotsBlobContainer.deleteBlob(tempBlobName);
+            throw ex;
+        }
+    }
+
 }

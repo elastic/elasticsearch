@@ -202,7 +202,7 @@ public class TermVectorsService  {
 
         /* generate term vectors from fetched document fields */
         GetResult getResult = indexShard.getService().get(
-                get, request.id(), request.type(), validFields.toArray(Strings.EMPTY_ARRAY), null, false);
+                get, request.id(), request.type(), validFields.toArray(Strings.EMPTY_ARRAY), null);
         Fields generatedTermVectors = generateTermVectors(indexShard, getResult.getFields().values(), request.offsets(), request.perFieldAnalyzer(), validFields);
 
         /* merge with existing Fields */

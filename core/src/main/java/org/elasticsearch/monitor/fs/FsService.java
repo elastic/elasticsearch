@@ -36,7 +36,7 @@ public class FsService extends AbstractComponent {
     private final TimeValue refreshInterval;
     private final SingleObjectCache<FsInfo> cache;
 
-    public final static Setting<TimeValue> REFRESH_INTERVAL_SETTING =
+    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING =
         Setting.timeSetting(
             "monitor.fs.refresh_interval",
             TimeValue.timeValueSeconds(1),

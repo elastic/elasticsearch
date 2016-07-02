@@ -35,7 +35,7 @@ public class InternalChildren extends InternalSingleBucketAggregation implements
 
     public static final Type TYPE = new Type("children");
 
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalChildren readResult(StreamInput in) throws IOException {
             InternalChildren result = new InternalChildren();

@@ -204,7 +204,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
                 "assignedNode", allocationDelay, remainingDelay, null, false, nodeExplanations);
         BytesStreamOutput out = new BytesStreamOutput();
         cae.writeTo(out);
-        StreamInput in = StreamInput.wrap(out.bytes());
+        StreamInput in = out.bytes().streamInput();
         ClusterAllocationExplanation cae2 = new ClusterAllocationExplanation(in);
         assertEquals(shard, cae2.getShard());
         assertTrue(cae2.isPrimary());
@@ -214,9 +214,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         assertEquals(allocationDelay, cae2.getAllocationDelayMillis());
         assertEquals(remainingDelay, cae2.getRemainingDelayMillis());
         for (Map.Entry<DiscoveryNode, NodeExplanation> entry : cae2.getNodeExplanations().entrySet()) {
-            DiscoveryNode node = entry.getKey();
             NodeExplanation explanation = entry.getValue();
-            IndicesShardStoresResponse.StoreStatus status = explanation.getStoreStatus();
             assertNotNull(explanation.getStoreStatus());
             assertNotNull(explanation.getDecision());
             assertEquals(nodeWeight, explanation.getWeight());

@@ -90,7 +90,7 @@ public class InternalTestClusterTests extends ESTestCase {
      * a set of settings that are expected to have different values betweem clusters, even they have been initialized with the same
      * base settins.
      */
-    final static Set<String> clusterUniqueSettings = new HashSet<>();
+    static final Set<String> clusterUniqueSettings = new HashSet<>();
 
     static {
         clusterUniqueSettings.add(ClusterName.CLUSTER_NAME_SETTING.getKey());

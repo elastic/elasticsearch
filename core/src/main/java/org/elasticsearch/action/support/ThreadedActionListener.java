@@ -64,7 +64,7 @@ public final class ThreadedActionListener<Response> implements ActionListener<Re
             if (listener instanceof ThreadedActionListener) {
                 return listener;
             }
-            return new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.LISTENER, listener);
+            return new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.LISTENER, listener, false);
         }
     }
 
@@ -72,17 +72,25 @@ public final class ThreadedActionListener<Response> implements ActionListener<Re
     private final ThreadPool threadPool;
     private final String executor;
     private final ActionListener<Response> listener;
+    private final boolean forceExecution;
 
-    public ThreadedActionListener(ESLogger logger, ThreadPool threadPool, String executor, ActionListener<Response> listener) {
+    public ThreadedActionListener(ESLogger logger, ThreadPool threadPool, String executor, ActionListener<Response> listener,
+                                  boolean forceExecution) {
         this.logger = logger;
         this.threadPool = threadPool;
         this.executor = executor;
         this.listener = listener;
+        this.forceExecution = forceExecution;
     }
 
     @Override
     public void onResponse(final Response response) {
         threadPool.executor(executor).execute(new AbstractRunnable() {
+            @Override
+            public boolean isForceExecution() {
+                return forceExecution;
+            }
+
             @Override
             protected void doRun() throws Exception {
                 listener.onResponse(response);
@@ -98,6 +106,11 @@ public final class ThreadedActionListener<Response> implements ActionListener<Re
     @Override
     public void onFailure(final Throwable e) {
         threadPool.executor(executor).execute(new AbstractRunnable() {
+            @Override
+            public boolean isForceExecution() {
+                return forceExecution;
+            }
+
             @Override
             protected void doRun() throws Exception {
                 listener.onFailure(e);

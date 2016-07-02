@@ -69,7 +69,7 @@ public class IndexMetaDataTests extends ESTestCase {
 
         final BytesStreamOutput out = new BytesStreamOutput();
         metaData.writeTo(out);
-        IndexMetaData deserialized = IndexMetaData.PROTO.readFrom(StreamInput.wrap(out.bytes()));
+        IndexMetaData deserialized = IndexMetaData.PROTO.readFrom(out.bytes().streamInput());
         assertEquals(metaData, deserialized);
         assertEquals(metaData.hashCode(), deserialized.hashCode());
 

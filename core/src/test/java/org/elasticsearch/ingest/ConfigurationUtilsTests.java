@@ -96,7 +96,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
     public void testReadProcessors() throws Exception {
         Processor processor = mock(Processor.class);
         ProcessorsRegistry.Builder builder = new ProcessorsRegistry.Builder();
-        builder.registerProcessor("test_processor", (registry) -> config -> processor);
+        builder.registerProcessor("test_processor", (registry) -> (tag, config) -> processor);
         ProcessorsRegistry registry = builder.build(mock(ScriptService.class), mock(ClusterService.class));
 
 

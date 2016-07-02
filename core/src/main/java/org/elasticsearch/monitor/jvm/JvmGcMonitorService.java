@@ -40,7 +40,7 @@ import java.util.function.BiFunction;
 
 import static java.util.Collections.unmodifiableMap;
 
-public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitorService> {
+public class JvmGcMonitorService extends AbstractLifecycleComponent {
 
     private final ThreadPool threadPool;
     private final boolean enabled;
@@ -50,20 +50,20 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
 
     private volatile ScheduledFuture scheduledFuture;
 
-    public final static Setting<Boolean> ENABLED_SETTING =
+    public static final Setting<Boolean> ENABLED_SETTING =
         Setting.boolSetting("monitor.jvm.gc.enabled", true, Property.NodeScope);
-    public final static Setting<TimeValue> REFRESH_INTERVAL_SETTING =
+    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING =
         Setting.timeSetting("monitor.jvm.gc.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1),
             Property.NodeScope);
 
     private static String GC_COLLECTOR_PREFIX = "monitor.jvm.gc.collector.";
-    public final static Setting<Settings> GC_SETTING = Setting.groupSetting(GC_COLLECTOR_PREFIX, Property.NodeScope);
+    public static final Setting<Settings> GC_SETTING = Setting.groupSetting(GC_COLLECTOR_PREFIX, Property.NodeScope);
 
-    public final static Setting<Integer> GC_OVERHEAD_WARN_SETTING =
+    public static final Setting<Integer> GC_OVERHEAD_WARN_SETTING =
         Setting.intSetting("monitor.jvm.gc.overhead.warn", 50, 0, 100, Property.NodeScope);
-    public final static Setting<Integer> GC_OVERHEAD_INFO_SETTING =
+    public static final Setting<Integer> GC_OVERHEAD_INFO_SETTING =
         Setting.intSetting("monitor.jvm.gc.overhead.info", 25, 0, 100, Property.NodeScope);
-    public final static Setting<Integer> GC_OVERHEAD_DEBUG_SETTING =
+    public static final Setting<Integer> GC_OVERHEAD_DEBUG_SETTING =
         Setting.intSetting("monitor.jvm.gc.overhead.debug", 10, 0, 100, Property.NodeScope);
 
     static class GcOverheadThreshold {
@@ -341,7 +341,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
     protected void doClose() {
     }
 
-    static abstract class JvmMonitor implements Runnable {
+    abstract static class JvmMonitor implements Runnable {
 
         enum Threshold { DEBUG, INFO, WARN }
 

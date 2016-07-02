@@ -44,8 +44,8 @@ public class YamlXContent implements XContent {
         return XContentBuilder.builder(yamlXContent);
     }
 
-    final static YAMLFactory yamlFactory;
-    public final static YamlXContent yamlXContent;
+    static final YAMLFactory yamlFactory;
+    public static final YamlXContent yamlXContent;
 
     static {
         yamlFactory = new YAMLFactory();
@@ -92,9 +92,6 @@ public class YamlXContent implements XContent {
 
     @Override
     public XContentParser createParser(BytesReference bytes) throws IOException {
-        if (bytes.hasArray()) {
-            return createParser(bytes.array(), bytes.arrayOffset(), bytes.length());
-        }
         return createParser(bytes.streamInput());
     }
 

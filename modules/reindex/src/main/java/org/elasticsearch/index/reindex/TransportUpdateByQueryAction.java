@@ -92,7 +92,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         protected BiFunction<RequestWrapper<?>, SearchHit, RequestWrapper<?>> buildScriptApplier() {
             Script script = mainRequest.getScript();
             if (script != null) {
-                return new UpdateByQueryScriptApplier(task, scriptService, script, clusterState, script.getParams());
+                return new UpdateByQueryScriptApplier(task, scriptService, script, script.getParams());
             }
             return super.buildScriptApplier();
         }
@@ -112,9 +112,9 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
 
         class UpdateByQueryScriptApplier extends ScriptApplier {
 
-            UpdateByQueryScriptApplier(BulkByScrollTask task, ScriptService scriptService, Script script, ClusterState state,
+            UpdateByQueryScriptApplier(BulkByScrollTask task, ScriptService scriptService, Script script,
                                  Map<String, Object> params) {
-                super(task, scriptService, script, state, params);
+                super(task, scriptService, script, params);
             }
 
             @Override

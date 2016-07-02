@@ -995,7 +995,7 @@ public class InternalEngine extends Engine {
     }
 
     /** Extended SearcherFactory that warms the segments if needed when acquiring a new searcher */
-    final static class SearchFactory extends EngineSearcherFactory {
+    static final class SearchFactory extends EngineSearcherFactory {
         private final Engine.Warmer warmer;
         private final ESLogger logger;
         private final AtomicBoolean isEngineClosed;

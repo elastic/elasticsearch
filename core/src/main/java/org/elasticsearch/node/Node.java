@@ -26,6 +26,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.GenericAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterModule;
@@ -42,6 +44,7 @@ import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -122,6 +125,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -174,7 +178,7 @@ public class Node implements Closeable {
     private final Environment environment;
     private final NodeEnvironment nodeEnvironment;
     private final PluginsService pluginsService;
-    private final Client client;
+    private final NodeClient client;
 
     /**
      * Constructs a node with the given settings.
@@ -255,6 +259,7 @@ public class Node implements Closeable {
             resourcesToClose.add(resourceWatcherService);
             final NetworkService networkService = new NetworkService(settings);
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
+            clusterService.add(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
             final TribeService tribeService = new TribeService(settings, clusterService);
             resourcesToClose.add(tribeService);
@@ -271,7 +276,7 @@ public class Node implements Closeable {
             ClusterModule clusterModule = new ClusterModule(settings, clusterService);
             modules.add(clusterModule);
             modules.add(new IndicesModule(namedWriteableRegistry, pluginsService.filterPlugins(MapperPlugin.class)));
-            modules.add(new SearchModule(settings, namedWriteableRegistry));
+            modules.add(new SearchModule(settings, namedWriteableRegistry, false));
             modules.add(new ActionModule(DiscoveryNode.isIngestNode(settings), false, settings,
                     clusterModule.getIndexNameExpressionResolver(), settingsModule.getClusterSettings(),
                     pluginsService.filterPlugins(ActionPlugin.class)));
@@ -284,9 +289,11 @@ public class Node implements Closeable {
             BigArrays bigArrays = createBigArrays(settings, circuitBreakerService);
             resourcesToClose.add(bigArrays);
             modules.add(settingsModule);
+            client = new NodeClient(settings, threadPool);
             modules.add(b -> {
                     b.bind(PluginsService.class).toInstance(pluginsService);
-                    b.bind(Client.class).to(NodeClient.class).asEagerSingleton();
+                    b.bind(Client.class).toInstance(client);
+                    b.bind(NodeClient.class).toInstance(client);
                     b.bind(Environment.class).toInstance(environment);
                     b.bind(ThreadPool.class).toInstance(threadPool);
                     b.bind(NodeEnvironment.class).toInstance(nodeEnvironment);
@@ -299,7 +306,7 @@ public class Node implements Closeable {
                 }
             );
             injector = modules.createInjector();
-            client = injector.getInstance(Client.class);
+            client.intialize(injector.getInstance(new Key<Map<GenericAction, TransportAction>>() {}));
             success = true;
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to bind service", ex);
@@ -561,6 +568,7 @@ public class Node implements Closeable {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getName() + ")"));
             toClose.add(injector.getInstance(plugin));
         }
+        toClose.addAll(pluginsService.filterPlugins(Closeable.class));
 
         toClose.add(() -> stopWatch.stop().start("script"));
         toClose.add(injector.getInstance(ScriptService.class));

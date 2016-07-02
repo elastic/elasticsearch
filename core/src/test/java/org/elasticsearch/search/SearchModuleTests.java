@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class SearchModuleTests extends ModuleTestCase {
 
    public void testDoubleRegister() {
-       SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
+       SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry(), false);
        try {
            module.registerHighlighter("fvh", new PlainHighlighter());
        } catch (IllegalArgumentException e) {
@@ -62,7 +62,7 @@ public class SearchModuleTests extends ModuleTestCase {
    }
 
     public void testRegisterSuggester() {
-        SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
+        SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry(), false);
         module.registerSuggester("custom", CustomSuggester.INSTANCE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> module.registerSuggester("custom", CustomSuggester.INSTANCE));
@@ -70,7 +70,7 @@ public class SearchModuleTests extends ModuleTestCase {
     }
 
     public void testRegisterHighlighter() {
-        SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
+        SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry(), false);
         CustomHighlighter customHighlighter = new CustomHighlighter();
         module.registerHighlighter("custom",  customHighlighter);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
@@ -88,14 +88,14 @@ public class SearchModuleTests extends ModuleTestCase {
     }
 
     public void testRegisterQueryParserDuplicate() {
-        SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
+        SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry(), false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> module
                 .registerQuery(TermQueryBuilder::new, TermQueryBuilder::fromXContent, TermQueryBuilder.QUERY_NAME_FIELD));
         assertThat(e.getMessage(), containsString("] already registered for [query][term] while trying to register [org.elasticsearch."));
     }
 
     public void testRegisteredQueries() throws IOException {
-        SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
+        SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry(), false);
         List<String> allSupportedQueries = new ArrayList<>();
         Collections.addAll(allSupportedQueries, NON_DEPRECATED_QUERIES);
         Collections.addAll(allSupportedQueries, DEPRECATED_QUERIES);

@@ -22,7 +22,6 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.Map;
@@ -106,7 +105,7 @@ public class ReindexScriptTests extends AbstractAsyncBulkIndexByScrollActionScri
     }
 
     public void testSetTimestamp() throws Exception {
-        String timestamp = randomFrom(null, "now", "1234");
+        String timestamp = randomFrom("now", "1234", null);
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_timestamp", timestamp));
         assertEquals(timestamp, index.timestamp());
     }

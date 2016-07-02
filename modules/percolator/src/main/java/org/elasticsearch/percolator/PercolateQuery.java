@@ -292,19 +292,13 @@ public final class PercolateQuery extends Query implements Accountable {
 
     @Override
     public String toString(String s) {
-        return "PercolateQuery{document_type={" + documentType + "},document_source={" + documentSource.toUtf8() +
+        return "PercolateQuery{document_type={" + documentType + "},document_source={" + documentSource.utf8ToString() +
                 "},inner={" + percolatorQueriesQuery.toString(s)  + "}}";
     }
 
     @Override
     public long ramBytesUsed() {
-        long sizeInBytes = 0;
-        if (documentSource.hasArray()) {
-            sizeInBytes += documentSource.array().length;
-        } else {
-            sizeInBytes += documentSource.length();
-        }
-        return sizeInBytes;
+        return documentSource.ramBytesUsed();
     }
 
     @FunctionalInterface
@@ -321,7 +315,7 @@ public final class PercolateQuery extends Query implements Accountable {
 
     }
 
-    static abstract class BaseScorer extends Scorer {
+    abstract static class BaseScorer extends Scorer {
 
         final Scorer approximation;
         final QueryStore.Leaf percolatorQueries;

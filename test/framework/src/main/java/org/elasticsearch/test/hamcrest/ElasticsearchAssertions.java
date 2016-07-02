@@ -631,7 +631,7 @@ public class ElasticsearchAssertions {
             registry = ESIntegTestCase.internalCluster().getInstance(NamedWriteableRegistry.class);
         } else {
             registry = new NamedWriteableRegistry();
-            new SearchModule(Settings.EMPTY, registry);
+            new SearchModule(Settings.EMPTY, registry, false);
         }
         assertVersionSerializable(version, streamable, registry);
     }
@@ -647,7 +647,7 @@ public class ElasticsearchAssertions {
                 ((ActionRequest<?>) streamable).validate();
             }
             BytesReference orig = serialize(version, streamable);
-            StreamInput input = StreamInput.wrap(orig);
+            StreamInput input = orig.streamInput();
             if (namedWriteableRegistry != null) {
                 input = new NamedWriteableAwareStreamInput(input, namedWriteableRegistry);
             }

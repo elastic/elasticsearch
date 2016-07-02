@@ -93,7 +93,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
             this.type = type;
         }
 
-        private final static Map<String, ThreadPoolType> TYPE_MAP;
+        private static final Map<String, ThreadPoolType> TYPE_MAP;
 
         static {
             Map<String, ThreadPoolType> typeMap = new HashMap<>();

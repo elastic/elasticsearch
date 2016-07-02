@@ -38,10 +38,10 @@ import java.util.Map;
 
 public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
 
-    public final static Type TYPE = new Type("percentiles_bucket");
+    public static final Type TYPE = new Type("percentiles_bucket");
     public final ParseField PERCENTS_FIELD = new ParseField("percents");
 
-    public final static PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
+    public static final PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
         @Override
         public PercentilesBucketPipelineAggregator readResult(StreamInput in) throws IOException {
             PercentilesBucketPipelineAggregator result = new PercentilesBucketPipelineAggregator();

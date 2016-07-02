@@ -19,20 +19,19 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import org.locationtech.spatial4j.exception.InvalidShapeException;
-import org.locationtech.spatial4j.shape.Shape;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.LinearRing;
 import com.vividsolutions.jts.geom.MultiPolygon;
 import com.vividsolutions.jts.geom.Polygon;
-
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
+import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -579,7 +578,7 @@ public class PolygonBuilder extends ShapeBuilder {
         boolean direction = (component == 0 ^ orientation == Orientation.RIGHT);
         // set the points array accordingly (shell or hole)
         Coordinate[] points = (hole != null) ? hole.coordinates(false) : shell.coordinates(false);
-        ring(component, direction, orientation == Orientation.LEFT, shell, points, 0, edges, offset, points.length-1, translated);
+        ring(component, direction, orientation == Orientation.LEFT, points, 0, edges, offset, points.length-1, translated);
         return points.length-1;
     }
 
@@ -594,7 +593,7 @@ public class PolygonBuilder extends ShapeBuilder {
      *            number of points
      * @return Array of edges
      */
-    private static Edge[] ring(int component, boolean direction, boolean handedness, LineStringBuilder shell,
+    private static Edge[] ring(int component, boolean direction, boolean handedness,
                                  Coordinate[] points, int offset, Edge[] edges, int toffset, int length, final AtomicBoolean translated) {
         // calculate the direction of the points:
         // find the point a the top of the set and check its

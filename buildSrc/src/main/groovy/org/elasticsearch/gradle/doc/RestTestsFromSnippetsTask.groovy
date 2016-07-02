@@ -131,8 +131,9 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
         }
 
         private void response(Snippet response) {
-            current.println("  - response_body: |")
-            response.contents.eachLine { current.println("      $it") }
+            current.println("  - match: ")
+            current.println("      \$body: ")
+            response.contents.eachLine { current.println("        $it") }
         }
 
         void emitDo(String method, String pathAndQuery,

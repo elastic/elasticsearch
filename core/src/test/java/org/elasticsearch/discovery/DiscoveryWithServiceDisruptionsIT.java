@@ -62,6 +62,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
+import org.elasticsearch.test.disruption.BridgePartition;
 import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
 import org.elasticsearch.test.disruption.LongGCDisruption;
 import org.elasticsearch.test.disruption.NetworkDelaysPartition;
@@ -169,7 +170,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         return nodes;
     }
 
-    final static Settings DEFAULT_SETTINGS = Settings.builder()
+    static final Settings DEFAULT_SETTINGS = Settings.builder()
             .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1s") // for hitting simulated network failures quickly
             .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1") // for hitting simulated network failures quickly
             .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
@@ -447,8 +448,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         final int seconds = !(TEST_NIGHTLY && rarely()) ? 1 : 5;
         final String timeout = seconds + "s";
 
-        // TODO: add node count randomizaion
-        final List<String> nodes = startCluster(3);
+        final List<String> nodes = startCluster(rarely() ? 5 : 3);
 
         assertAcked(prepareCreate("test")
                 .setSettings(Settings.builder()
@@ -540,7 +540,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                 logger.info("stopping disruption");
                 disruptionScheme.stopDisrupting();
                 for (String node : internalCluster().getNodeNames()) {
-                    ensureStableCluster(3, TimeValue.timeValueMillis(disruptionScheme.expectedTimeToHeal().millis() +
+                    ensureStableCluster(nodes.size(), TimeValue.timeValueMillis(disruptionScheme.expectedTimeToHeal().millis() +
                             DISRUPTION_HEALING_OVERHEAD.millis()), true, node);
                 }
                 ensureGreen("test");
@@ -548,7 +548,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                 logger.info("validating successful docs");
                 for (String node : nodes) {
                     try {
-                        logger.debug("validating through node [{}]", node);
+                        logger.debug("validating through node [{}] ([{}] acked docs)", node, ackedDocs.size());
                         for (String id : ackedDocs.keySet()) {
                             assertTrue("doc [" + id + "] indexed via node [" + ackedDocs.get(id) + "] not found",
                                     client(node).prepareGet("test", "type", id).setPreference("_local").get().isExists());
@@ -1192,7 +1192,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                 new NetworkUnresponsivePartition(random()),
                 new NetworkDelaysPartition(random()),
                 new NetworkDisconnectPartition(random()),
-                new SlowClusterStateProcessing(random())
+                new SlowClusterStateProcessing(random()),
+                new BridgePartition(random(), randomBoolean())
         );
         Collections.shuffle(list, random());
         setDisruptionScheme(list.get(0));

@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -64,9 +64,9 @@ public class RestMultiSearchAction extends BaseRestHandler {
     private final Suggesters suggesters;
 
     @Inject
-    public RestMultiSearchAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry indicesQueriesRegistry,
+    public RestMultiSearchAction(Settings settings, RestController controller, IndicesQueriesRegistry indicesQueriesRegistry,
                                  AggregatorParsers aggParsers, Suggesters suggesters) {
-        super(settings, client);
+        super(settings);
         this.aggParsers = aggParsers;
         this.suggesters = suggesters;
 
@@ -82,7 +82,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         MultiSearchRequest multiSearchRequest = parseRequest(request, allowExplicitIndex, indicesQueriesRegistry, parseFieldMatcher,
                 aggParsers, suggesters);
         client.multiSearch(multiSearchRequest, new RestToXContentListener<>(channel));

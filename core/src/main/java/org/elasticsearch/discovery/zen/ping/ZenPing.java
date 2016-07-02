@@ -32,7 +32,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
-public interface ZenPing extends LifecycleComponent<ZenPing> {
+public interface ZenPing extends LifecycleComponent {
 
     void setPingContextProvider(PingContextProvider contextProvider);
 

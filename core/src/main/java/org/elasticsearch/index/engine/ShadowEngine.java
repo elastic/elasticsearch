@@ -58,8 +58,8 @@ import java.util.function.Function;
 public class ShadowEngine extends Engine {
 
     /** how long to wait for an index to exist */
-    public final static String NONEXISTENT_INDEX_RETRY_WAIT = "index.shadow.wait_for_initial_commit";
-    public final static TimeValue DEFAULT_NONEXISTENT_INDEX_RETRY_WAIT = TimeValue.timeValueSeconds(5);
+    public static final String NONEXISTENT_INDEX_RETRY_WAIT = "index.shadow.wait_for_initial_commit";
+    public static final TimeValue DEFAULT_NONEXISTENT_INDEX_RETRY_WAIT = TimeValue.timeValueSeconds(5);
 
     private volatile SearcherManager searcherManager;
 

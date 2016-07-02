@@ -30,6 +30,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -121,7 +123,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 Diff<ClusterState> diffBeforeSerialization = clusterState.diff(previousClusterState);
                 BytesStreamOutput os = new BytesStreamOutput();
                 diffBeforeSerialization.writeTo(os);
-                byte[] diffBytes = os.bytes().toBytes();
+                byte[] diffBytes = BytesReference.toBytes(os.bytes());
                 Diff<ClusterState> diff;
                 try (StreamInput input = StreamInput.wrap(diffBytes)) {
                     diff = previousClusterStateFromDiffs.readDiffFrom(input);

@@ -409,7 +409,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
             Repository repository = repositoryInjector.getInstance(Repository.class);
             IndexShardRepository indexShardRepository = repositoryInjector.getInstance(IndexShardRepository.class);
             repository.start();
-            return new RepositoryHolder(repositoryMetaData.type(), repositoryMetaData.settings(), repositoryInjector, repository, indexShardRepository);
+            return new RepositoryHolder(repositoryMetaData.type(), repositoryMetaData.settings(), repository, indexShardRepository);
         } catch (Throwable t) {
             logger.warn("failed to create repository [{}][{}]", t, repositoryMetaData.type(), repositoryMetaData.name());
             throw new RepositoryException(repositoryMetaData.name(), "failed to create repository", t);
@@ -473,7 +473,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
         private final Repository repository;
         private final IndexShardRepository indexShardRepository;
 
-        public RepositoryHolder(String type, Settings settings, Injector injector, Repository repository, IndexShardRepository indexShardRepository) {
+        public RepositoryHolder(String type, Settings settings,Repository repository, IndexShardRepository indexShardRepository) {
             this.type = type;
             this.settings = settings;
             this.repository = repository;

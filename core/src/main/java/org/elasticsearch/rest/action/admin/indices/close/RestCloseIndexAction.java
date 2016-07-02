@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.indices.close;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -38,14 +38,14 @@ import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 public class RestCloseIndexAction extends BaseRestHandler {
 
     @Inject
-    public RestCloseIndexAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestCloseIndexAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.POST, "/_close", this);
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_close", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
         closeIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", closeIndexRequest.masterNodeTimeout()));
         closeIndexRequest.timeout(request.paramAsTime("timeout", closeIndexRequest.timeout()));

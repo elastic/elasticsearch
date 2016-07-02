@@ -45,7 +45,7 @@ public class NamedRegistry<T> {
         requireNonNull(name, "name is required");
         requireNonNull(t, targetName + " is required");
         if (registry.putIfAbsent(name, t) != null) {
-            throw new IllegalArgumentException(targetName + " for name " + name + " already registered");
+            throw new IllegalArgumentException(targetName + " for name [" + name + "] already registered");
         }
     }
 

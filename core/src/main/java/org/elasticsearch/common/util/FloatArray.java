@@ -27,21 +27,21 @@ public interface FloatArray extends BigArray {
     /**
      * Get an element given its index.
      */
-    public abstract float get(long index);
+    float get(long index);
 
     /**
      * Set a value at the given index and return the previous value.
      */
-    public abstract float set(long index, float value);
+    float set(long index, float value);
 
     /**
      * Increment value at the given index by <code>inc</code> and return the value.
      */
-    public abstract float increment(long index, float inc);
+    float increment(long index, float inc);
 
     /**
      * Fill slots between <code>fromIndex</code> inclusive to <code>toIndex</code> exclusive with <code>value</code>.
      */
-    public abstract void fill(long fromIndex, long toIndex, float value);
+    void fill(long fromIndex, long toIndex, float value);
 
 }

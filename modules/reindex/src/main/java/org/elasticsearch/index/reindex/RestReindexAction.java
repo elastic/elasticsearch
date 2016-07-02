@@ -22,7 +22,7 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -103,15 +103,15 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     }
 
     @Inject
-    public RestReindexAction(Settings settings, RestController controller, Client client,
+    public RestReindexAction(Settings settings, RestController controller,
             IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, Suggesters suggesters,
             ClusterService clusterService, TransportReindexAction action) {
-        super(settings, client, indicesQueriesRegistry, aggParsers, suggesters, clusterService, action);
+        super(settings, indicesQueriesRegistry, aggParsers, suggesters, clusterService, action);
         controller.registerHandler(POST, "/_reindex", this);
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel channel, Client client) throws IOException {
+    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws IOException {
         if (false == request.hasContent()) {
             throw new ElasticsearchException("_reindex requires a request body");
         }

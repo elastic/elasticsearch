@@ -326,11 +326,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     /**
      * Parses the query provided as string argument and compares it with the expected result provided as argument as a {@link QueryBuilder}
      */
-    protected final static void assertParsedQuery(String queryAsString, QueryBuilder expectedQuery) throws IOException {
+    protected static final void assertParsedQuery(String queryAsString, QueryBuilder expectedQuery) throws IOException {
         assertParsedQuery(queryAsString, expectedQuery, ParseFieldMatcher.STRICT);
     }
 
-    protected final static void assertParsedQuery(String queryAsString, QueryBuilder expectedQuery, ParseFieldMatcher matcher) throws IOException {
+    protected static final void assertParsedQuery(String queryAsString, QueryBuilder expectedQuery, ParseFieldMatcher matcher) throws IOException {
         QueryBuilder newQuery = parseQuery(queryAsString, matcher);
         assertNotSame(newQuery, expectedQuery);
         assertEquals(expectedQuery, newQuery);
@@ -340,31 +340,31 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     /**
      * Parses the query provided as bytes argument and compares it with the expected result provided as argument as a {@link QueryBuilder}
      */
-    protected final static void assertParsedQuery(BytesReference queryAsBytes, QueryBuilder expectedQuery) throws IOException {
+    protected static final void assertParsedQuery(BytesReference queryAsBytes, QueryBuilder expectedQuery) throws IOException {
         assertParsedQuery(queryAsBytes, expectedQuery, ParseFieldMatcher.STRICT);
     }
 
-    protected final static void assertParsedQuery(BytesReference queryAsBytes, QueryBuilder expectedQuery, ParseFieldMatcher matcher) throws IOException {
+    protected static final void assertParsedQuery(BytesReference queryAsBytes, QueryBuilder expectedQuery, ParseFieldMatcher matcher) throws IOException {
         QueryBuilder newQuery = parseQuery(queryAsBytes, matcher);
         assertNotSame(newQuery, expectedQuery);
         assertEquals(expectedQuery, newQuery);
         assertEquals(expectedQuery.hashCode(), newQuery.hashCode());
     }
 
-    protected final static QueryBuilder parseQuery(String queryAsString) throws IOException {
+    protected static final QueryBuilder parseQuery(String queryAsString) throws IOException {
         return parseQuery(queryAsString, ParseFieldMatcher.STRICT);
     }
 
-    protected final static QueryBuilder parseQuery(String queryAsString, ParseFieldMatcher matcher) throws IOException {
+    protected static final QueryBuilder parseQuery(String queryAsString, ParseFieldMatcher matcher) throws IOException {
         XContentParser parser = XContentFactory.xContent(queryAsString).createParser(queryAsString);
         return parseQuery(parser, matcher);
     }
 
-    protected final static QueryBuilder parseQuery(BytesReference queryAsBytes) throws IOException {
+    protected static final QueryBuilder parseQuery(BytesReference queryAsBytes) throws IOException {
         return parseQuery(queryAsBytes, ParseFieldMatcher.STRICT);
     }
 
-    protected final static QueryBuilder parseQuery(BytesReference queryAsBytes, ParseFieldMatcher matcher) throws IOException {
+    protected static final QueryBuilder parseQuery(BytesReference queryAsBytes, ParseFieldMatcher matcher) throws IOException {
         XContentParser parser = XContentFactory.xContent(queryAsBytes).createParser(queryAsBytes);
         return parseQuery(parser, matcher);
     }
@@ -513,7 +513,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     protected QueryBuilder assertSerialization(QueryBuilder testQuery) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.writeNamedWriteable(testQuery);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), serviceHolder.namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), serviceHolder.namedWriteableRegistry)) {
                 QueryBuilder deserializedQuery = in.readNamedWriteable(QueryBuilder.class);
                 assertEquals(testQuery, deserializedQuery);
                 assertEquals(testQuery.hashCode(), deserializedQuery.hashCode());
@@ -562,7 +562,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     protected QB copyQuery(QB query) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.writeNamedWriteable(query);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), serviceHolder.namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), serviceHolder.namedWriteableRegistry)) {
                 return (QB) in.readNamedWriteable(QueryBuilder.class);
             }
         }
@@ -690,7 +690,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     public static class GeohashGenerator extends CodepointSetGenerator {
-        private final static char[] ASCII_SET = "0123456789bcdefghjkmnpqrstuvwxyz".toCharArray();
+        private static final char[] ASCII_SET = "0123456789bcdefghjkmnpqrstuvwxyz".toCharArray();
 
         public GeohashGenerator() {
             super(ASCII_SET);
@@ -880,7 +880,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             scriptSettings.addAll(pluginsService.getPluginSettings());
             scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
             SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, pluginsService.getPluginSettingsFilter());
-            searchModule = new SearchModule(settings, namedWriteableRegistry) {
+            searchModule = new SearchModule(settings, namedWriteableRegistry, false) {
                 @Override
                 protected void configureSearch() {
                     // Skip me

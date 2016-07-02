@@ -44,6 +44,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -105,6 +106,7 @@ import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -121,6 +123,7 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -295,13 +298,13 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         client().admin().indices().prepareDelete("test").get();
         assertThat(indexShard.getActiveOperationsCount(), equalTo(0));
         try {
-            indexShard.acquirePrimaryOperationLock();
+            indexShard.acquirePrimaryOperationLock(null, ThreadPool.Names.INDEX);
             fail("we should not be able to increment anymore");
         } catch (IndexShardClosedException e) {
             // expected
         }
         try {
-            indexShard.acquireReplicaOperationLock(indexShard.getPrimaryTerm());
+            indexShard.acquireReplicaOperationLock(indexShard.getPrimaryTerm(), null, ThreadPool.Names.INDEX);
             fail("we should not be able to increment anymore");
         } catch (IndexShardClosedException e) {
             // expected
@@ -339,19 +342,31 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertEquals(0, indexShard.getActiveOperationsCount());
         if (newPrimaryShardRouting.isRelocationTarget() == false) {
             try {
-                indexShard.acquireReplicaOperationLock(primaryTerm);
+                indexShard.acquireReplicaOperationLock(primaryTerm, null, ThreadPool.Names.INDEX);
                 fail("shard shouldn't accept operations as replica");
             } catch (IllegalStateException ignored) {
 
             }
         }
-        Releasable operation1 = indexShard.acquirePrimaryOperationLock();
+        Releasable operation1 = acquirePrimaryOperationLockBlockingly(indexShard);
         assertEquals(1, indexShard.getActiveOperationsCount());
-        Releasable operation2 = indexShard.acquirePrimaryOperationLock();
+        Releasable operation2 = acquirePrimaryOperationLockBlockingly(indexShard);
         assertEquals(2, indexShard.getActiveOperationsCount());
 
         Releasables.close(operation1, operation2);
         assertEquals(0, indexShard.getActiveOperationsCount());
+    }
+
+    private Releasable acquirePrimaryOperationLockBlockingly(IndexShard indexShard) throws ExecutionException, InterruptedException {
+        PlainActionFuture<Releasable> fut = new PlainActionFuture<>();
+        indexShard.acquirePrimaryOperationLock(fut, ThreadPool.Names.INDEX);
+        return fut.get();
+    }
+
+    private Releasable acquireReplicaOperationLockBlockingly(IndexShard indexShard, long opPrimaryTerm) throws ExecutionException, InterruptedException {
+        PlainActionFuture<Releasable> fut = new PlainActionFuture<>();
+        indexShard.acquireReplicaOperationLock(opPrimaryTerm, fut, ThreadPool.Names.INDEX);
+        return fut.get();
     }
 
     public void testOperationLocksOnReplicaShards() throws InterruptedException, ExecutionException, IOException {
@@ -399,20 +414,20 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertEquals(0, indexShard.getActiveOperationsCount());
         if (newShardRouting.primary() == false) {
             try {
-                indexShard.acquirePrimaryOperationLock();
+                indexShard.acquirePrimaryOperationLock(null, ThreadPool.Names.INDEX);
                 fail("shard shouldn't accept primary ops");
             } catch (IllegalStateException ignored) {
 
             }
         }
 
-        Releasable operation1 = indexShard.acquireReplicaOperationLock(primaryTerm);
+        Releasable operation1 = acquireReplicaOperationLockBlockingly(indexShard, primaryTerm);
         assertEquals(1, indexShard.getActiveOperationsCount());
-        Releasable operation2 = indexShard.acquireReplicaOperationLock(primaryTerm);
+        Releasable operation2 = acquireReplicaOperationLockBlockingly(indexShard, primaryTerm);
         assertEquals(2, indexShard.getActiveOperationsCount());
 
         try {
-            indexShard.acquireReplicaOperationLock(primaryTerm - 1);
+            indexShard.acquireReplicaOperationLock(primaryTerm - 1, null, ThreadPool.Names.INDEX);
             fail("you can not increment the operation counter with an older primary term");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("operation term"));
@@ -420,7 +435,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         }
 
         // but you can increment with a newer one..
-        indexShard.acquireReplicaOperationLock(primaryTerm + 1 + randomInt(20)).close();
+        acquireReplicaOperationLockBlockingly(indexShard, primaryTerm + 1 + randomInt(20)).close();
         Releasables.close(operation1, operation2);
         assertEquals(0, indexShard.getActiveOperationsCount());
     }
@@ -653,7 +668,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         if (randomBoolean() || true) { // try to serialize it to ensure values survive the serialization
             BytesStreamOutput out = new BytesStreamOutput();
             stats.writeTo(out);
-            StreamInput in = StreamInput.wrap(out.bytes());
+            StreamInput in = out.bytes().streamInput();
             stats = ShardStats.readShardStats(in);
         }
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -882,13 +897,18 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
         final IndexShard shard = test.getShardOrNull(0);
+        assertBusy(() -> assertThat(shard.state(), equalTo(IndexShardState.STARTED)));
         CountDownLatch latch = new CountDownLatch(1);
         Thread recoveryThread = new Thread(() -> {
             latch.countDown();
-            shard.relocated("simulated recovery");
+            try {
+                shard.relocated("simulated recovery");
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
         });
 
-        try (Releasable ignored = shard.acquirePrimaryOperationLock()) {
+        try (Releasable ignored = acquirePrimaryOperationLockBlockingly(shard)) {
             // start finalization of recovery
             recoveryThread.start();
             latch.await();
@@ -898,10 +918,48 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         // recovery can be now finalized
         recoveryThread.join();
         assertThat(shard.state(), equalTo(IndexShardState.RELOCATED));
-        try (Releasable ignored = shard.acquirePrimaryOperationLock()) {
+        try (Releasable ignored = acquirePrimaryOperationLockBlockingly(shard)) {
             // lock can again be acquired
             assertThat(shard.state(), equalTo(IndexShardState.RELOCATED));
         }
+    }
+
+    public void testDelayedOperationsBeforeAndAfterRelocated() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(
+            Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
+        ).get());
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService(resolveIndex("test"));
+        final IndexShard shard = test.getShardOrNull(0);
+        assertBusy(() -> assertThat(shard.state(), equalTo(IndexShardState.STARTED)));
+        Thread recoveryThread = new Thread(() -> {
+            try {
+                shard.relocated("simulated recovery");
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        recoveryThread.start();
+        List<PlainActionFuture<Releasable>> onLockAcquiredActions = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            PlainActionFuture<Releasable> onLockAcquired = new PlainActionFuture<Releasable>() {
+                @Override
+                public void onResponse(Releasable releasable) {
+                    releasable.close();
+                    super.onResponse(releasable);
+                }
+            };
+            shard.acquirePrimaryOperationLock(onLockAcquired, ThreadPool.Names.INDEX);
+            onLockAcquiredActions.add(onLockAcquired);
+        }
+
+        for (PlainActionFuture<Releasable> onLockAcquired : onLockAcquiredActions) {
+            assertNotNull(onLockAcquired.get(30, TimeUnit.SECONDS));
+        }
+
+        recoveryThread.join();
     }
 
     public void testStressRelocated() throws Exception {
@@ -920,10 +978,10 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             indexThreads[i] = new Thread() {
                 @Override
                 public void run() {
-                    try (Releasable operationLock = shard.acquirePrimaryOperationLock()) {
+                    try (Releasable operationLock = acquirePrimaryOperationLockBlockingly(shard)) {
                         allPrimaryOperationLocksAcquired.countDown();
                         barrier.await();
-                    } catch (InterruptedException | BrokenBarrierException e) {
+                    } catch (InterruptedException | BrokenBarrierException | ExecutionException e) {
                         throw new RuntimeException(e);
                     }
                 }
@@ -932,7 +990,11 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         }
         AtomicBoolean relocated = new AtomicBoolean();
         final Thread recoveryThread = new Thread(() -> {
-            shard.relocated("simulated recovery");
+            try {
+                shard.relocated("simulated recovery");
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
             relocated.set(true);
         });
         // ensure we wait for all primary operation locks to be acquired
@@ -1410,8 +1472,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         IndexShard newShard = new IndexShard(initializingShardRouting, indexService.getIndexSettings(), shard.shardPath(),
             shard.store(), indexService.cache(), indexService.mapperService(), indexService.similarityService(),
             indexService.fieldData(), shard.getEngineFactory(), indexService.getIndexEventListener(), wrapper,
-            indexService.getThreadPool(), indexService.getBigArrays(), null, Collections.emptyList(), Arrays.asList(listeners)
-        );
+            indexService.getThreadPool(), indexService.getBigArrays(), null, Collections.emptyList(), Arrays.asList(listeners));
         return newShard;
     }
 
@@ -1442,7 +1503,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
         newShard.markAsRecovering("for testing", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.REPLICA, localNode, localNode));
         List<Translog.Operation> operations = new ArrayList<>();
-        operations.add(new Translog.Index("testtype", "1", jsonBuilder().startObject().field("foo", "bar").endObject().bytes().toBytes()));
+        operations.add(new Translog.Index("testtype", "1", BytesReference.toBytes(jsonBuilder().startObject().field("foo", "bar").endObject().bytes())));
         newShard.prepareForIndexRecovery();
         newShard.recoveryState().getTranslog().totalOperations(operations.size());
         newShard.skipTranslogRecovery();
@@ -1500,7 +1561,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(newShard.isActive());
         List<Translog.Operation> operations = new ArrayList<>();
-        operations.add(new Translog.Index("testtype", "1", jsonBuilder().startObject().field("foo", "bar").endObject().bytes().toBytes()));
+        operations.add(new Translog.Index("testtype", "1", BytesReference.toBytes(jsonBuilder().startObject().field("foo", "bar").endObject().bytes())));
         newShard.prepareForIndexRecovery();
         newShard.skipTranslogRecovery();
         // Shard is still inactive since we haven't started recovering yet

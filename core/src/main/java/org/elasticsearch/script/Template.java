@@ -35,12 +35,12 @@ import java.util.Collections;
 import java.util.Map;
 
 public class Template extends Script {
-    
+
     /** Default templating language */
     public static final String DEFAULT_LANG = "mustache";
 
     private XContentType contentType;
-    
+
     /**
      * Constructor for simple inline template. The template will have no lang,
      * content type or params set.
@@ -173,7 +173,7 @@ public class Template extends Script {
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 contentType = parser.contentType();
                 XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-                return builder.copyCurrentStructure(parser).bytes().toUtf8();
+                return builder.copyCurrentStructure(parser).bytes().utf8ToString();
             } else {
                 return parser.text();
             }

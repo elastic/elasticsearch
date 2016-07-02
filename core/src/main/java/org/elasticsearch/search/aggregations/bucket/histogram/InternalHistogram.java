@@ -52,9 +52,9 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         Histogram {
 
     public static final Factory<Bucket> HISTOGRAM_FACTORY = new Factory<Bucket>();
-    final static Type TYPE = new Type("histogram", "histo");
+    static final Type TYPE = new Type("histogram", "histo");
 
-    private final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    private static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @SuppressWarnings("rawtypes")
         @Override
         public InternalHistogram readResult(StreamInput in) throws IOException {
@@ -64,7 +64,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         }
     };
 
-    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
+    private static final BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
         @Override
         public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
             Factory<?> factory = (Factory<?>) context.attributes().get("factory");
@@ -96,8 +96,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         long key;
         long docCount;
         InternalAggregations aggregations;
-        private transient final boolean keyed;
-        protected transient final DocValueFormat format;
+        private final transient boolean keyed;
+        protected final transient DocValueFormat format;
         private Factory<?> factory;
 
         public Bucket(boolean keyed, DocValueFormat formatter, Factory<?> factory) {

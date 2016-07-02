@@ -60,7 +60,7 @@ public class IngestCommonPlugin extends Plugin {
         nodeModule.registerProcessor(SortProcessor.TYPE, (registry) -> new SortProcessor.Factory());
         nodeModule.registerProcessor(GrokProcessor.TYPE, (registry) -> new GrokProcessor.Factory(builtinPatterns));
         nodeModule.registerProcessor(ScriptProcessor.TYPE, (registry) ->
-            new ScriptProcessor.Factory(registry.getScriptService(), registry.getClusterService()));
+            new ScriptProcessor.Factory(registry.getScriptService()));
     }
 
     // Code for loading built-in grok patterns packaged with the jar file:

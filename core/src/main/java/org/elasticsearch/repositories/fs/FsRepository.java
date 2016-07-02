@@ -50,7 +50,7 @@ import java.util.function.Function;
  */
 public class FsRepository extends BlobStoreRepository {
 
-    public final static String TYPE = "fs";
+    public static final String TYPE = "fs";
 
     public static final Setting<String> LOCATION_SETTING =
         new Setting<>("location", "", Function.identity(), Property.NodeScope);

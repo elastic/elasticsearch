@@ -293,6 +293,5 @@ still defaults to `true` in that case.
 
 The unit 'w' representing weeks is no longer supported.
 
-Fractional time values (e.g., 0.5s) are no longer supported. For
-example, this means when setting timeouts "0.5s" will be rejected and
-should instead be input as "500ms".
+Fractional time values (e.g., 0.5s) are no longer supported. For example, this means when setting
+timeouts "0.5s" will be rejected and should instead be input as "500ms".

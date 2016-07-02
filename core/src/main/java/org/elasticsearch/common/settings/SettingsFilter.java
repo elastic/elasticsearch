@@ -49,7 +49,6 @@ public final class SettingsFilter extends AbstractComponent {
 
     public SettingsFilter(Settings settings, Collection<String> patterns) {
         super(settings);
-        HashSet<String> set = new HashSet<>();
         for (String pattern : patterns) {
             if (isValidPattern(pattern) == false) {
                 throw new IllegalArgumentException("invalid pattern: " + pattern);

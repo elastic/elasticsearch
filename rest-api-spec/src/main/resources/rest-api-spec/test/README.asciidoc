@@ -20,12 +20,17 @@ Test file structure
 
 A YAML test file consists of:
 * an optional `setup` section, followed by
+* an optional `teardown` section, followed by
 * one or more test sections
 
 For instance:
 
     setup:
       - do: ....
+      - do: ....
+
+    ---
+    teardown:
       - do: ....
 
     ---
@@ -42,6 +47,11 @@ For instance:
 A `setup` section contains a list of commands to run before each test
 section in order to setup the same environment for each test section.
 
+A `teardown` section contains a list of commands to run after each test
+section in order to setup the same environment for each test section. This
+may be needed for modifications made by the testthat are not cleared by the
+deletion of indices and templates.
+
 A test section represents an independent test, containing multiple `do`
 statements and assertions. The contents of a test section must be run in
 order, but individual test sections may be run in any order, as follows:
@@ -49,9 +59,8 @@ order, but individual test sections may be run in any order, as follows:
 1. run `setup` (if any)
 2. reset the `response` var and the `stash` (see below)
 2. run test contents
-3. run teardown
-
-The `teardown` should delete all indices and all templates.
+3. run `teardown` (if any)
+4. delete all indices and all templates
 
 Dot notation:
 -------------

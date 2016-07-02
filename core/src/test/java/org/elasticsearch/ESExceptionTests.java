@@ -295,7 +295,7 @@ public class ESExceptionTests extends ESTestCase {
         ParsingException ex = new ParsingException(1, 2, "foobar", null);
         out.writeThrowable(ex);
 
-        StreamInput in = StreamInput.wrap(out.bytes());
+        StreamInput in = out.bytes().streamInput();
         ParsingException e = in.readThrowable();
         assertEquals(ex.getIndex(), e.getIndex());
         assertEquals(ex.getMessage(), e.getMessage());
@@ -309,7 +309,7 @@ public class ESExceptionTests extends ESTestCase {
         Throwable ex = new Throwable("eggplant", ParsingException);
         out.writeThrowable(ex);
 
-        StreamInput in = StreamInput.wrap(out.bytes());
+        StreamInput in = out.bytes().streamInput();
         Throwable throwable = in.readThrowable();
         assertEquals("throwable: eggplant", throwable.getMessage());
         assertTrue(throwable instanceof ElasticsearchException);
@@ -346,7 +346,7 @@ public class ESExceptionTests extends ESTestCase {
             BytesStreamOutput out = new BytesStreamOutput();
             ElasticsearchException ex = new ElasticsearchException("topLevel", t);
             out.writeThrowable(ex);
-            StreamInput in = StreamInput.wrap(out.bytes());
+            StreamInput in = out.bytes().streamInput();
             ElasticsearchException e = in.readThrowable();
             assertEquals(e.getMessage(), ex.getMessage());
             assertTrue("Expected: " + e.getCause().getMessage() + " to contain: " +

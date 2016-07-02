@@ -465,7 +465,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
         String dateTime = Joda.forPattern("dateOptionalTime").printer().print(new DateTime(2012, 3, 22, 0, 0, DateTimeZone.UTC));
         assertThat(searchResponse.getHits().getAt(0).fields().get("date_field").value(), equalTo((Object) dateTime));
         assertThat(searchResponse.getHits().getAt(0).fields().get("boolean_field").value(), equalTo((Object) Boolean.TRUE));
-        assertThat(((BytesReference) searchResponse.getHits().getAt(0).fields().get("binary_field").value()).toBytesArray(), equalTo((BytesReference) new BytesArray("testing text".getBytes("UTF8"))));
+        assertThat(((BytesReference) searchResponse.getHits().getAt(0).fields().get("binary_field").value()), equalTo((BytesReference) new BytesArray("testing text".getBytes("UTF8"))));
 
     }
 

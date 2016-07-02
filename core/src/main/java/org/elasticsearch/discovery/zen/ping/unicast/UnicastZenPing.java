@@ -86,7 +86,7 @@ import static org.elasticsearch.discovery.zen.ping.ZenPing.PingResponse.readPing
 /**
  *
  */
-public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implements ZenPing {
+public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPing {
 
     public static final String ACTION_NAME = "internal:discovery/zen/unicast";
     public static final Setting<List<String>> DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING =

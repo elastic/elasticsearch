@@ -324,16 +324,13 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testVoidMessageCompressed() {
         serviceA.registerRequestHandler("sayHello", TransportRequest.Empty::new, ThreadPool.Names.GENERIC,
-            new TransportRequestHandler<TransportRequest.Empty>() {
-                @Override
-                public void messageReceived(TransportRequest.Empty request, TransportChannel channel) {
-                    try {
-                        TransportResponseOptions responseOptions = TransportResponseOptions.builder().withCompress(true).build();
-                        channel.sendResponse(TransportResponse.Empty.INSTANCE, responseOptions);
-                    } catch (IOException e) {
-                        logger.error("Unexpected failure", e);
-                        fail(e.getMessage());
-                    }
+            (request, channel) -> {
+                try {
+                    TransportResponseOptions responseOptions = TransportResponseOptions.builder().withCompress(true).build();
+                    channel.sendResponse(TransportResponse.Empty.INSTANCE, responseOptions);
+                } catch (IOException e) {
+                    logger.error("Unexpected failure", e);
+                    fail(e.getMessage());
                 }
             });
 

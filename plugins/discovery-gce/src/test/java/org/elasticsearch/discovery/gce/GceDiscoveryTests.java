@@ -254,4 +254,19 @@ public class GceDiscoveryTests extends ESTestCase {
             assertThat(expected.getMessage(), containsString("one or more gce discovery settings are missing."));
         }
     }
+
+    /**
+     * For issue https://github.com/elastic/elasticsearch/issues/16967:
+     * When using multiple regions and one of them has no instance at all, this
+     * was producing a NPE as a result.
+     */
+    public void testNoRegionReturnsEmptyList() {
+        Settings nodeSettings = Settings.builder()
+            .put(GceComputeService.PROJECT_SETTING.getKey(), projectName)
+            .putArray(GceComputeService.ZONE_SETTING.getKey(), "europe-west1-b", "us-central1-a")
+            .build();
+        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
+        assertThat(discoveryNodes, hasSize(1));
+    }
 }

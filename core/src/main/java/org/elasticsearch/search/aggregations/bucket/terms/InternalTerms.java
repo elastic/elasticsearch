@@ -44,7 +44,7 @@ public abstract class InternalTerms<A extends InternalTerms, B extends InternalT
     protected static final String DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME = "doc_count_error_upper_bound";
     protected static final String SUM_OF_OTHER_DOC_COUNTS = "sum_other_doc_count";
 
-    public static abstract class Bucket extends Terms.Bucket {
+    public abstract static class Bucket extends Terms.Bucket {
 
         long bucketOrd;
 
@@ -52,7 +52,7 @@ public abstract class InternalTerms<A extends InternalTerms, B extends InternalT
         protected long docCountError;
         protected InternalAggregations aggregations;
         protected boolean showDocCountError;
-        transient final DocValueFormat format;
+        final transient DocValueFormat format;
 
         protected Bucket(DocValueFormat formatter, boolean showDocCountError) {
             // for serialization

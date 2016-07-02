@@ -98,7 +98,7 @@ import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
  * notifies all {@link #snapshotCompletionListeners} that snapshot is completed, and finally calls {@link #removeSnapshotFromClusterState(Snapshot, SnapshotInfo, Throwable)} to remove snapshot from cluster state</li>
  * </ul>
  */
-public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsService> implements ClusterStateListener {
+public class SnapshotsService extends AbstractLifecycleComponent implements ClusterStateListener {
 
     private final ClusterService clusterService;
 

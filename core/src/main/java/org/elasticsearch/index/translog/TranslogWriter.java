@@ -114,7 +114,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         return tragedy;
     }
 
-    private synchronized final void closeWithTragicEvent(Throwable throwable) throws IOException {
+    private synchronized void closeWithTragicEvent(Throwable throwable) throws IOException {
         assert throwable != null : "throwable must not be null in a tragic event";
         if (tragedy == null) {
             tragedy = throwable;

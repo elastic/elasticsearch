@@ -63,7 +63,7 @@ import java.util.List;
  */
 public class AggregationPath {
 
-    private final static String AGG_DELIM = ">";
+    private static final String AGG_DELIM = ">";
 
     public static AggregationPath parse(String path) {
         String[] elements = Strings.tokenizeToStringArray(path, AGG_DELIM);

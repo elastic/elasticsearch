@@ -805,13 +805,6 @@ public abstract class StreamInput extends InputStream {
         return builder;
     }
 
-    public static StreamInput wrap(BytesReference reference) {
-        if (reference.hasArray() == false) {
-            reference = reference.toBytesArray();
-        }
-        return wrap(reference.array(), reference.arrayOffset(), reference.length());
-    }
-
     public static StreamInput wrap(byte[] bytes) {
         return wrap(bytes, 0, bytes.length);
     }

@@ -19,7 +19,6 @@
 package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
@@ -33,6 +32,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -56,7 +56,7 @@ public class NettyScheduledPingTests extends ESTestCase {
         ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
         Settings settings = Settings.builder()
-            .put(NettyTransport.PING_SCHEDULE.getKey(), "5ms")
+            .put(TcpTransport.PING_SCHEDULE.getKey(), "5ms")
             .put(TransportSettings.PORT.getKey(), 0)
             .put("cluster.name", "test")
             .build();
@@ -89,12 +89,12 @@ public class NettyScheduledPingTests extends ESTestCase {
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                assertThat(nettyA.scheduledPing.successfulPings.count(), greaterThan(100L));
-                assertThat(nettyB.scheduledPing.successfulPings.count(), greaterThan(100L));
+                assertThat(nettyA.getPing().getSuccessfulPings(), greaterThan(100L));
+                assertThat(nettyB.getPing().getSuccessfulPings(), greaterThan(100L));
             }
         });
-        assertThat(nettyA.scheduledPing.failedPings.count(), equalTo(0L));
-        assertThat(nettyB.scheduledPing.failedPings.count(), equalTo(0L));
+        assertThat(nettyA.getPing().getFailedPings(), equalTo(0L));
+        assertThat(nettyB.getPing().getFailedPings(), equalTo(0L));
 
         serviceA.registerRequestHandler("sayHello", TransportRequest.Empty::new, ThreadPool.Names.GENERIC,
             new TransportRequestHandler<TransportRequest.Empty>() {
@@ -137,15 +137,12 @@ public class NettyScheduledPingTests extends ESTestCase {
                     }).txGet();
         }
 
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat(nettyA.scheduledPing.successfulPings.count(), greaterThan(200L));
-                assertThat(nettyB.scheduledPing.successfulPings.count(), greaterThan(200L));
-            }
+        assertBusy(() -> {
+            assertThat(nettyA.getPing().getSuccessfulPings(), greaterThan(200L));
+            assertThat(nettyB.getPing().getSuccessfulPings(), greaterThan(200L));
         });
-        assertThat(nettyA.scheduledPing.failedPings.count(), equalTo(0L));
-        assertThat(nettyB.scheduledPing.failedPings.count(), equalTo(0L));
+        assertThat(nettyA.getPing().getFailedPings(), equalTo(0L));
+        assertThat(nettyB.getPing().getFailedPings(), equalTo(0L));
 
         Releasables.close(serviceA, serviceB);
         terminate(threadPool);

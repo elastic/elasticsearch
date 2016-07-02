@@ -157,7 +157,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        return new ScriptQuery(script, context.getScriptService(), context.lookup(), context.getClusterState());
+        return new ScriptQuery(script, context.getScriptService(), context.lookup());
     }
 
     static class ScriptQuery extends Query {
@@ -166,9 +166,9 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
         private final SearchScript searchScript;
 
-        public ScriptQuery(Script script, ScriptService scriptService, SearchLookup searchLookup, ClusterState state) {
+        public ScriptQuery(Script script, ScriptService scriptService, SearchLookup searchLookup) {
             this.script = script;
-            this.searchScript = scriptService.search(searchLookup, script, ScriptContext.Standard.SEARCH, Collections.emptyMap(), state);
+            this.searchScript = scriptService.search(searchLookup, script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
         }
 
         @Override

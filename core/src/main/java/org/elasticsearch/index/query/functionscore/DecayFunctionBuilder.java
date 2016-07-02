@@ -501,7 +501,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
      * This is the base class for scoring a single field.
      *
      * */
-    public static abstract class AbstractDistanceScoreFunction extends ScoreFunction {
+    public abstract static class AbstractDistanceScoreFunction extends ScoreFunction {
 
         private final double scale;
         protected final double offset;

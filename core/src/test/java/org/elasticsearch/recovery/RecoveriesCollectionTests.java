@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
 public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
-    final static RecoveryTargetService.RecoveryListener listener = new RecoveryTargetService.RecoveryListener() {
+    static final RecoveryTargetService.RecoveryListener listener = new RecoveryTargetService.RecoveryListener() {
         @Override
         public void onRecoveryDone(RecoveryState state) {
 

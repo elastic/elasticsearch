@@ -88,6 +88,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
@@ -420,9 +421,9 @@ public final class InternalTestCluster extends TestCluster {
         // randomize netty settings
         if (random.nextBoolean()) {
             builder.put(NettyTransport.WORKER_COUNT.getKey(), random.nextInt(3) + 1);
-            builder.put(NettyTransport.CONNECTIONS_PER_NODE_RECOVERY.getKey(), random.nextInt(2) + 1);
-            builder.put(NettyTransport.CONNECTIONS_PER_NODE_BULK.getKey(), random.nextInt(3) + 1);
-            builder.put(NettyTransport.CONNECTIONS_PER_NODE_REG.getKey(), random.nextInt(6) + 1);
+            builder.put(TcpTransport.CONNECTIONS_PER_NODE_RECOVERY.getKey(), random.nextInt(2) + 1);
+            builder.put(TcpTransport.CONNECTIONS_PER_NODE_BULK.getKey(), random.nextInt(3) + 1);
+            builder.put(TcpTransport.CONNECTIONS_PER_NODE_REG.getKey(), random.nextInt(6) + 1);
         }
 
         if (random.nextBoolean()) {
@@ -454,7 +455,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         if (random.nextBoolean()) {
-            builder.put(NettyTransport.PING_SCHEDULE.getKey(), RandomInts.randomIntBetween(random, 100, 2000) + "ms");
+            builder.put(TcpTransport.PING_SCHEDULE.getKey(), RandomInts.randomIntBetween(random, 100, 2000) + "ms");
         }
 
         if (random.nextBoolean()) {
@@ -1335,7 +1336,7 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Restarts a node and calls the callback during restart.
      */
-    synchronized public void restartNode(String nodeName, RestartCallback callback) throws Exception {
+    public synchronized void restartNode(String nodeName, RestartCallback callback) throws Exception {
         ensureOpen();
         NodeAndClient nodeAndClient = nodes.get(nodeName);
         if (nodeAndClient != null) {
@@ -1344,7 +1345,7 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    synchronized private void restartAllNodes(boolean rollingRestart, RestartCallback callback) throws Exception {
+    private synchronized void restartAllNodes(boolean rollingRestart, RestartCallback callback) throws Exception {
         ensureOpen();
         List<NodeAndClient> toRemove = new ArrayList<>();
         try {

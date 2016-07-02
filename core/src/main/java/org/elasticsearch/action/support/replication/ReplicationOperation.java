@@ -50,11 +50,11 @@ public class ReplicationOperation<
             ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
             PrimaryResultT extends ReplicationOperation.PrimaryResult<ReplicaRequest>
         > {
-    final private ESLogger logger;
-    final private Request request;
-    final private Supplier<ClusterState> clusterStateSupplier;
-    final private String opType;
-    final private AtomicInteger totalShards = new AtomicInteger();
+    private final ESLogger logger;
+    private final Request request;
+    private final Supplier<ClusterState> clusterStateSupplier;
+    private final String opType;
+    private final AtomicInteger totalShards = new AtomicInteger();
     /**
      * The number of pending sub-operations in this operation. This is incremented when the following operations start and decremented when
      * they complete:
@@ -65,14 +65,14 @@ public class ReplicationOperation<
      * operations and the primary finishes.</li>
      * </ul>
      */
-    final private AtomicInteger pendingShards = new AtomicInteger();
-    final private AtomicInteger successfulShards = new AtomicInteger();
-    final private boolean executeOnReplicas;
-    final private boolean checkWriteConsistency;
-    final private Primary<Request, ReplicaRequest, PrimaryResultT> primary;
-    final private Replicas<ReplicaRequest> replicasProxy;
-    final private AtomicBoolean finished = new AtomicBoolean();
-    final protected ActionListener<PrimaryResultT> resultListener;
+    private final AtomicInteger pendingShards = new AtomicInteger();
+    private final AtomicInteger successfulShards = new AtomicInteger();
+    private final boolean executeOnReplicas;
+    private final boolean checkWriteConsistency;
+    private final Primary<Request, ReplicaRequest, PrimaryResultT> primary;
+    private final Replicas<ReplicaRequest> replicasProxy;
+    private final AtomicBoolean finished = new AtomicBoolean();
+    protected final ActionListener<PrimaryResultT> resultListener;
 
     private volatile PrimaryResultT primaryResult = null;
 

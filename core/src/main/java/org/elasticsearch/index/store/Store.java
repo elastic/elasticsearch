@@ -41,6 +41,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
@@ -715,7 +716,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @see StoreFileMetaData
      */
-    public final static class MetadataSnapshot implements Iterable<StoreFileMetaData>, Writeable {
+    public static final class MetadataSnapshot implements Iterable<StoreFileMetaData>, Writeable {
         private final Map<String, StoreFileMetaData> metadata;
 
         public static final MetadataSnapshot EMPTY = new MetadataSnapshot();
@@ -1339,7 +1340,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 out.writeThrowable(exception);
                 BytesReference bytes = out.bytes();
                 output.writeVInt(bytes.length());
-                output.writeBytes(bytes.array(), bytes.arrayOffset(), bytes.length());
+                BytesRef ref = bytes.toBytesRef();
+                output.writeBytes(ref.bytes, ref.offset, ref.length);
                 CodecUtil.writeFooter(output);
             } catch (IOException ex) {
                 logger.warn("Can't mark store as corrupted", ex);

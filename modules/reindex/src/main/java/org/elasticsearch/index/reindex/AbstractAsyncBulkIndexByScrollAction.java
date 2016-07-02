@@ -439,19 +439,17 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
 
         private final BulkByScrollTask task;
         private final ScriptService scriptService;
-        private final ClusterState state;
         private final Script script;
         private final Map<String, Object> params;
 
         private ExecutableScript executable;
         private Map<String, Object> context;
 
-        public ScriptApplier(BulkByScrollTask task, ScriptService scriptService, Script script, ClusterState state,
+        public ScriptApplier(BulkByScrollTask task, ScriptService scriptService, Script script,
                              Map<String, Object> params) {
             this.task = task;
             this.scriptService = scriptService;
             this.script = script;
-            this.state = state;
             this.params = params;
         }
 
@@ -462,7 +460,7 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
                 return request;
             }
             if (executable == null) {
-                CompiledScript compiled = scriptService.compile(script, ScriptContext.Standard.UPDATE, emptyMap(), state);
+                CompiledScript compiled = scriptService.compile(script, ScriptContext.Standard.UPDATE, emptyMap());
                 executable = scriptService.executable(compiled, params);
             }
             if (context == null) {

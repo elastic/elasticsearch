@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.plugin.example;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -38,15 +38,14 @@ public class ExampleCatAction extends AbstractCatAction {
     private final ExamplePluginConfiguration config;
 
     @Inject
-    public ExampleCatAction(Settings settings, RestController controller,
-            Client client, ExamplePluginConfiguration config) {
-        super(settings, controller, client);
+    public ExampleCatAction(Settings settings, RestController controller, ExamplePluginConfiguration config) {
+        super(settings);
         this.config = config;
         controller.registerHandler(GET, "/_cat/configured_example", this);
     }
 
     @Override
-    protected void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    protected void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         Table table = getTableWithHeader(request);
         table.startRow();
         table.addCell(config.getTestConfig());

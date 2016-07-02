@@ -47,7 +47,6 @@ public final class ClusterAllocationExplainTests extends ESSingleNodeTestCase {
         NodeExplanation explanation = cae.getNodeExplanations().values().iterator().next();
         ClusterAllocationExplanation.FinalDecision fd = explanation.getFinalDecision();
         ClusterAllocationExplanation.StoreCopy storeCopy = explanation.getStoreCopy();
-        String finalExplanation = explanation.getFinalExplanation();
         Decision d = explanation.getDecision();
         assertNotNull("should have a decision", d);
         assertEquals(Decision.Type.NO, d.type());
@@ -76,7 +75,6 @@ public final class ClusterAllocationExplainTests extends ESSingleNodeTestCase {
         d = explanation.getDecision();
         fd = explanation.getFinalDecision();
         storeCopy = explanation.getStoreCopy();
-        finalExplanation = explanation.getFinalExplanation();
         assertNotNull("should have a decision", d);
         assertEquals(Decision.Type.NO, d.type());
         assertEquals(ClusterAllocationExplanation.FinalDecision.ALREADY_ASSIGNED, fd);

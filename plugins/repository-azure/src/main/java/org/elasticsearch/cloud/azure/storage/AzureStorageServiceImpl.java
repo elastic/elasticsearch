@@ -45,7 +45,7 @@ import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureStorageServiceImpl>
+public class AzureStorageServiceImpl extends AbstractLifecycleComponent
     implements AzureStorageService {
 
     final AzureStorageSettings primaryStorageSettings;

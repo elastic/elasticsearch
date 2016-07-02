@@ -136,7 +136,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         @Override
         protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
             // remove unneeded threading by wrapping listener with SAME to prevent super.doExecute from wrapping it with LISTENER
-            super.doExecute(task, request, new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SAME, listener));
+            super.doExecute(task, request, new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SAME, listener, false));
         }
 
         @Override
@@ -244,7 +244,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         Request request = new Request();
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        setState(clusterService, ClusterStateCreationUtils.state(localNode, randomFrom(null, localNode, remoteNode), allNodes));
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, randomFrom(localNode, remoteNode, null), allNodes));
 
         new Action(Settings.EMPTY, "testAction", transportService, clusterService, threadPool) {
             @Override

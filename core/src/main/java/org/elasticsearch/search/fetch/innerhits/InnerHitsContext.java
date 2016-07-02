@@ -86,7 +86,7 @@ public final class InnerHitsContext {
         innerHits.put(innerHit.getName(), innerHit);
     }
 
-    public static abstract class BaseInnerHits extends SubSearchContext {
+    public abstract static class BaseInnerHits extends SubSearchContext {
 
         private final String name;
         private InnerHitsContext childInnerHits;

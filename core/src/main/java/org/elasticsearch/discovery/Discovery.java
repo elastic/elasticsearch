@@ -34,7 +34,7 @@ import java.io.IOException;
  * state to all nodes, electing a master of the cluster that raises cluster state change
  * events.
  */
-public interface Discovery extends LifecycleComponent<Discovery> {
+public interface Discovery extends LifecycleComponent {
 
     DiscoveryNode localNode();
 

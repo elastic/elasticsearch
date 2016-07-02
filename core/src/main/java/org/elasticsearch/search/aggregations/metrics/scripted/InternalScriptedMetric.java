@@ -40,9 +40,9 @@ import java.util.Map;
 
 public class InternalScriptedMetric extends InternalMetricsAggregation implements ScriptedMetric {
 
-    public final static Type TYPE = new Type("scripted_metric");
+    public static final Type TYPE = new Type("scripted_metric");
 
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalScriptedMetric readResult(StreamInput in) throws IOException {
             InternalScriptedMetric result = new InternalScriptedMetric();
@@ -92,7 +92,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
                 vars.putAll(firstAggregation.reduceScript.getParams());
             }
             CompiledScript compiledScript = reduceContext.scriptService().compile(firstAggregation.reduceScript,
-                    ScriptContext.Standard.AGGS, Collections.emptyMap(), reduceContext.clusterState());
+                    ScriptContext.Standard.AGGS, Collections.emptyMap());
             ExecutableScript script = reduceContext.scriptService().executable(compiledScript, vars);
             aggregation = script.run();
         } else {

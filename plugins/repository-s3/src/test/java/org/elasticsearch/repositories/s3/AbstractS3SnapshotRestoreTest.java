@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  */
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 2, numClientNodes = 0, transportClientRatio = 0.0)
-abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase {
+public abstract  class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase {
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {

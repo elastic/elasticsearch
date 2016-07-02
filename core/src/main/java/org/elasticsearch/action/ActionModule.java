@@ -194,14 +194,120 @@ import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.action.admin.cluster.allocation.RestClusterAllocationExplainAction;
+import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthAction;
+import org.elasticsearch.rest.action.admin.cluster.node.hotthreads.RestNodesHotThreadsAction;
+import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
+import org.elasticsearch.rest.action.admin.cluster.node.stats.RestNodesStatsAction;
+import org.elasticsearch.rest.action.admin.cluster.node.tasks.RestCancelTasksAction;
+import org.elasticsearch.rest.action.admin.cluster.node.tasks.RestGetTaskAction;
+import org.elasticsearch.rest.action.admin.cluster.node.tasks.RestListTasksAction;
+import org.elasticsearch.rest.action.admin.cluster.repositories.delete.RestDeleteRepositoryAction;
+import org.elasticsearch.rest.action.admin.cluster.repositories.get.RestGetRepositoriesAction;
+import org.elasticsearch.rest.action.admin.cluster.repositories.put.RestPutRepositoryAction;
+import org.elasticsearch.rest.action.admin.cluster.repositories.verify.RestVerifyRepositoryAction;
+import org.elasticsearch.rest.action.admin.cluster.reroute.RestClusterRerouteAction;
+import org.elasticsearch.rest.action.admin.cluster.settings.RestClusterGetSettingsAction;
+import org.elasticsearch.rest.action.admin.cluster.settings.RestClusterUpdateSettingsAction;
+import org.elasticsearch.rest.action.admin.cluster.shards.RestClusterSearchShardsAction;
+import org.elasticsearch.rest.action.admin.cluster.snapshots.create.RestCreateSnapshotAction;
+import org.elasticsearch.rest.action.admin.cluster.snapshots.delete.RestDeleteSnapshotAction;
+import org.elasticsearch.rest.action.admin.cluster.snapshots.get.RestGetSnapshotsAction;
+import org.elasticsearch.rest.action.admin.cluster.snapshots.restore.RestRestoreSnapshotAction;
+import org.elasticsearch.rest.action.admin.cluster.snapshots.status.RestSnapshotsStatusAction;
+import org.elasticsearch.rest.action.admin.cluster.state.RestClusterStateAction;
+import org.elasticsearch.rest.action.admin.cluster.stats.RestClusterStatsAction;
+import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestDeleteStoredScriptAction;
+import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestGetStoredScriptAction;
+import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestPutStoredScriptAction;
+import org.elasticsearch.rest.action.admin.cluster.tasks.RestPendingClusterTasksAction;
+import org.elasticsearch.rest.action.admin.indices.RestRolloverIndexAction;
+import org.elasticsearch.rest.action.admin.indices.RestShrinkIndexAction;
+import org.elasticsearch.rest.action.admin.indices.alias.RestIndicesAliasesAction;
+import org.elasticsearch.rest.action.admin.indices.alias.delete.RestIndexDeleteAliasesAction;
+import org.elasticsearch.rest.action.admin.indices.alias.get.RestGetAliasesAction;
+import org.elasticsearch.rest.action.admin.indices.alias.head.RestAliasesExistAction;
+import org.elasticsearch.rest.action.admin.indices.alias.put.RestIndexPutAliasAction;
+import org.elasticsearch.rest.action.admin.indices.analyze.RestAnalyzeAction;
+import org.elasticsearch.rest.action.admin.indices.cache.clear.RestClearIndicesCacheAction;
+import org.elasticsearch.rest.action.admin.indices.close.RestCloseIndexAction;
+import org.elasticsearch.rest.action.admin.indices.create.RestCreateIndexAction;
+import org.elasticsearch.rest.action.admin.indices.delete.RestDeleteIndexAction;
+import org.elasticsearch.rest.action.admin.indices.exists.indices.RestIndicesExistsAction;
+import org.elasticsearch.rest.action.admin.indices.exists.types.RestTypesExistsAction;
+import org.elasticsearch.rest.action.admin.indices.flush.RestFlushAction;
+import org.elasticsearch.rest.action.admin.indices.flush.RestSyncedFlushAction;
+import org.elasticsearch.rest.action.admin.indices.forcemerge.RestForceMergeAction;
+import org.elasticsearch.rest.action.admin.indices.get.RestGetIndicesAction;
+import org.elasticsearch.rest.action.admin.indices.mapping.get.RestGetFieldMappingAction;
+import org.elasticsearch.rest.action.admin.indices.mapping.get.RestGetMappingAction;
+import org.elasticsearch.rest.action.admin.indices.mapping.put.RestPutMappingAction;
+import org.elasticsearch.rest.action.admin.indices.open.RestOpenIndexAction;
+import org.elasticsearch.rest.action.admin.indices.recovery.RestRecoveryAction;
+import org.elasticsearch.rest.action.admin.indices.refresh.RestRefreshAction;
+import org.elasticsearch.rest.action.admin.indices.segments.RestIndicesSegmentsAction;
+import org.elasticsearch.rest.action.admin.indices.settings.RestGetSettingsAction;
+import org.elasticsearch.rest.action.admin.indices.settings.RestUpdateSettingsAction;
+import org.elasticsearch.rest.action.admin.indices.shards.RestIndicesShardStoresAction;
+import org.elasticsearch.rest.action.admin.indices.stats.RestIndicesStatsAction;
+import org.elasticsearch.rest.action.admin.indices.template.delete.RestDeleteIndexTemplateAction;
+import org.elasticsearch.rest.action.admin.indices.template.get.RestGetIndexTemplateAction;
+import org.elasticsearch.rest.action.admin.indices.template.head.RestHeadIndexTemplateAction;
+import org.elasticsearch.rest.action.admin.indices.template.put.RestPutIndexTemplateAction;
+import org.elasticsearch.rest.action.admin.indices.upgrade.RestUpgradeAction;
+import org.elasticsearch.rest.action.admin.indices.validate.query.RestValidateQueryAction;
+import org.elasticsearch.rest.action.bulk.RestBulkAction;
+import org.elasticsearch.rest.action.cat.AbstractCatAction;
+import org.elasticsearch.rest.action.cat.RestAliasAction;
+import org.elasticsearch.rest.action.cat.RestAllocationAction;
+import org.elasticsearch.rest.action.cat.RestCatAction;
+import org.elasticsearch.rest.action.cat.RestFielddataAction;
+import org.elasticsearch.rest.action.cat.RestHealthAction;
+import org.elasticsearch.rest.action.cat.RestIndicesAction;
+import org.elasticsearch.rest.action.cat.RestMasterAction;
+import org.elasticsearch.rest.action.cat.RestNodeAttrsAction;
+import org.elasticsearch.rest.action.cat.RestNodesAction;
+import org.elasticsearch.rest.action.cat.RestPluginsAction;
+import org.elasticsearch.rest.action.cat.RestRepositoriesAction;
+import org.elasticsearch.rest.action.cat.RestSegmentsAction;
+import org.elasticsearch.rest.action.cat.RestShardsAction;
+import org.elasticsearch.rest.action.cat.RestSnapshotAction;
+import org.elasticsearch.rest.action.cat.RestTasksAction;
+import org.elasticsearch.rest.action.cat.RestThreadPoolAction;
+import org.elasticsearch.rest.action.delete.RestDeleteAction;
+import org.elasticsearch.rest.action.explain.RestExplainAction;
+import org.elasticsearch.rest.action.fieldstats.RestFieldStatsAction;
+import org.elasticsearch.rest.action.get.RestGetAction;
+import org.elasticsearch.rest.action.get.RestGetSourceAction;
+import org.elasticsearch.rest.action.get.RestHeadAction;
+import org.elasticsearch.rest.action.get.RestMultiGetAction;
+import org.elasticsearch.rest.action.index.RestIndexAction;
+import org.elasticsearch.rest.action.ingest.RestDeletePipelineAction;
+import org.elasticsearch.rest.action.ingest.RestGetPipelineAction;
+import org.elasticsearch.rest.action.ingest.RestPutPipelineAction;
+import org.elasticsearch.rest.action.ingest.RestSimulatePipelineAction;
+import org.elasticsearch.rest.action.main.RestMainAction;
+import org.elasticsearch.rest.action.search.RestClearScrollAction;
+import org.elasticsearch.rest.action.search.RestMultiSearchAction;
+import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.rest.action.search.RestSearchScrollAction;
+import org.elasticsearch.rest.action.suggest.RestSuggestAction;
+import org.elasticsearch.rest.action.termvectors.RestMultiTermVectorsAction;
+import org.elasticsearch.rest.action.termvectors.RestTermVectorsAction;
+import org.elasticsearch.rest.action.update.RestUpdateAction;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
@@ -212,21 +318,27 @@ import static java.util.Collections.unmodifiableMap;
 public class ActionModule extends AbstractModule {
 
     private final boolean transportClient;
+    private final Settings settings;
+    private final List<ActionPlugin> actionPlugins;
     private final Map<String, ActionHandler<?, ?>> actions;
     private final List<Class<? extends ActionFilter>> actionFilters;
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
+    private final RestController restController;
 
     public ActionModule(boolean ingestEnabled, boolean transportClient, Settings settings, IndexNameExpressionResolver resolver,
             ClusterSettings clusterSettings, List<ActionPlugin> actionPlugins) {
         this.transportClient = transportClient;
+        this.settings = settings;
+        this.actionPlugins = actionPlugins;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins, ingestEnabled);
         autoCreateIndex = transportClient ? null : new AutoCreateIndex(settings, resolver);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
+        restController = new RestController(settings);
     }
 
-    private Map<String, ActionHandler<?, ?>> setupActions(List<ActionPlugin> actionPlugins) {
+    static Map<String, ActionHandler<?, ?>> setupActions(List<ActionPlugin> actionPlugins) {
         // Subclass NamedRegistry for easy registration
         class ActionRegistry extends NamedRegistry<ActionHandler<?, ?>> {
             public ActionRegistry() {
@@ -357,6 +469,149 @@ public class ActionModule extends AbstractModule {
         return unmodifiableList(filters);
     }
 
+    static Set<Class<? extends RestHandler>> setupRestHandlers(List<ActionPlugin> actionPlugins) {
+        Set<Class<? extends RestHandler>> handlers = new HashSet<>();
+        registerRestHandler(handlers, RestMainAction.class);
+        registerRestHandler(handlers, RestNodesInfoAction.class);
+        registerRestHandler(handlers, RestNodesStatsAction.class);
+        registerRestHandler(handlers, RestNodesHotThreadsAction.class);
+        registerRestHandler(handlers, RestClusterAllocationExplainAction.class);
+        registerRestHandler(handlers, RestClusterStatsAction.class);
+        registerRestHandler(handlers, RestClusterStateAction.class);
+        registerRestHandler(handlers, RestClusterHealthAction.class);
+        registerRestHandler(handlers, RestClusterUpdateSettingsAction.class);
+        registerRestHandler(handlers, RestClusterGetSettingsAction.class);
+        registerRestHandler(handlers, RestClusterRerouteAction.class);
+        registerRestHandler(handlers, RestClusterSearchShardsAction.class);
+        registerRestHandler(handlers, RestPendingClusterTasksAction.class);
+        registerRestHandler(handlers, RestPutRepositoryAction.class);
+        registerRestHandler(handlers, RestGetRepositoriesAction.class);
+        registerRestHandler(handlers, RestDeleteRepositoryAction.class);
+        registerRestHandler(handlers, RestVerifyRepositoryAction.class);
+        registerRestHandler(handlers, RestGetSnapshotsAction.class);
+        registerRestHandler(handlers, RestCreateSnapshotAction.class);
+        registerRestHandler(handlers, RestRestoreSnapshotAction.class);
+        registerRestHandler(handlers, RestDeleteSnapshotAction.class);
+        registerRestHandler(handlers, RestSnapshotsStatusAction.class);
+
+        registerRestHandler(handlers, RestIndicesExistsAction.class);
+        registerRestHandler(handlers, RestTypesExistsAction.class);
+        registerRestHandler(handlers, RestGetIndicesAction.class);
+        registerRestHandler(handlers, RestIndicesStatsAction.class);
+        registerRestHandler(handlers, RestIndicesSegmentsAction.class);
+        registerRestHandler(handlers, RestIndicesShardStoresAction.class);
+        registerRestHandler(handlers, RestGetAliasesAction.class);
+        registerRestHandler(handlers, RestAliasesExistAction.class);
+        registerRestHandler(handlers, RestIndexDeleteAliasesAction.class);
+        registerRestHandler(handlers, RestIndexPutAliasAction.class);
+        registerRestHandler(handlers, RestIndicesAliasesAction.class);
+        registerRestHandler(handlers, RestCreateIndexAction.class);
+        registerRestHandler(handlers, RestShrinkIndexAction.class);
+        registerRestHandler(handlers, RestRolloverIndexAction.class);
+        registerRestHandler(handlers, RestDeleteIndexAction.class);
+        registerRestHandler(handlers, RestCloseIndexAction.class);
+        registerRestHandler(handlers, RestOpenIndexAction.class);
+
+        registerRestHandler(handlers, RestUpdateSettingsAction.class);
+        registerRestHandler(handlers, RestGetSettingsAction.class);
+
+        registerRestHandler(handlers, RestAnalyzeAction.class);
+        registerRestHandler(handlers, RestGetIndexTemplateAction.class);
+        registerRestHandler(handlers, RestPutIndexTemplateAction.class);
+        registerRestHandler(handlers, RestDeleteIndexTemplateAction.class);
+        registerRestHandler(handlers, RestHeadIndexTemplateAction.class);
+
+        registerRestHandler(handlers, RestPutMappingAction.class);
+        registerRestHandler(handlers, RestGetMappingAction.class);
+        registerRestHandler(handlers, RestGetFieldMappingAction.class);
+
+        registerRestHandler(handlers, RestRefreshAction.class);
+        registerRestHandler(handlers, RestFlushAction.class);
+        registerRestHandler(handlers, RestSyncedFlushAction.class);
+        registerRestHandler(handlers, RestForceMergeAction.class);
+        registerRestHandler(handlers, RestUpgradeAction.class);
+        registerRestHandler(handlers, RestClearIndicesCacheAction.class);
+
+        registerRestHandler(handlers, RestIndexAction.class);
+        registerRestHandler(handlers, RestGetAction.class);
+        registerRestHandler(handlers, RestGetSourceAction.class);
+        registerRestHandler(handlers, RestHeadAction.Document.class);
+        registerRestHandler(handlers, RestHeadAction.Source.class);
+        registerRestHandler(handlers, RestMultiGetAction.class);
+        registerRestHandler(handlers, RestDeleteAction.class);
+        registerRestHandler(handlers, org.elasticsearch.rest.action.count.RestCountAction.class);
+        registerRestHandler(handlers, RestSuggestAction.class);
+        registerRestHandler(handlers, RestTermVectorsAction.class);
+        registerRestHandler(handlers, RestMultiTermVectorsAction.class);
+        registerRestHandler(handlers, RestBulkAction.class);
+        registerRestHandler(handlers, RestUpdateAction.class);
+
+        registerRestHandler(handlers, RestSearchAction.class);
+        registerRestHandler(handlers, RestSearchScrollAction.class);
+        registerRestHandler(handlers, RestClearScrollAction.class);
+        registerRestHandler(handlers, RestMultiSearchAction.class);
+
+        registerRestHandler(handlers, RestValidateQueryAction.class);
+
+        registerRestHandler(handlers, RestExplainAction.class);
+
+        registerRestHandler(handlers, RestRecoveryAction.class);
+
+        // Scripts API
+        registerRestHandler(handlers, RestGetStoredScriptAction.class);
+        registerRestHandler(handlers, RestPutStoredScriptAction.class);
+        registerRestHandler(handlers, RestDeleteStoredScriptAction.class);
+
+        registerRestHandler(handlers, RestFieldStatsAction.class);
+
+        // Tasks API
+        registerRestHandler(handlers, RestListTasksAction.class);
+        registerRestHandler(handlers, RestGetTaskAction.class);
+        registerRestHandler(handlers, RestCancelTasksAction.class);
+
+        // Ingest API
+        registerRestHandler(handlers, RestPutPipelineAction.class);
+        registerRestHandler(handlers, RestGetPipelineAction.class);
+        registerRestHandler(handlers, RestDeletePipelineAction.class);
+        registerRestHandler(handlers, RestSimulatePipelineAction.class);
+
+        // CAT API
+        registerRestHandler(handlers, RestCatAction.class);
+        registerRestHandler(handlers, RestAllocationAction.class);
+        registerRestHandler(handlers, RestShardsAction.class);
+        registerRestHandler(handlers, RestMasterAction.class);
+        registerRestHandler(handlers, RestNodesAction.class);
+        registerRestHandler(handlers, RestTasksAction.class);
+        registerRestHandler(handlers, RestIndicesAction.class);
+        registerRestHandler(handlers, RestSegmentsAction.class);
+        // Fully qualified to prevent interference with rest.action.count.RestCountAction
+        registerRestHandler(handlers, org.elasticsearch.rest.action.cat.RestCountAction.class);
+        // Fully qualified to prevent interference with rest.action.indices.RestRecoveryAction
+        registerRestHandler(handlers, org.elasticsearch.rest.action.cat.RestRecoveryAction.class);
+        registerRestHandler(handlers, RestHealthAction.class);
+        registerRestHandler(handlers, org.elasticsearch.rest.action.cat.RestPendingClusterTasksAction.class);
+        registerRestHandler(handlers, RestAliasAction.class);
+        registerRestHandler(handlers, RestThreadPoolAction.class);
+        registerRestHandler(handlers, RestPluginsAction.class);
+        registerRestHandler(handlers, RestFielddataAction.class);
+        registerRestHandler(handlers, RestNodeAttrsAction.class);
+        registerRestHandler(handlers, RestRepositoriesAction.class);
+        registerRestHandler(handlers, RestSnapshotAction.class);
+        for (ActionPlugin plugin : actionPlugins) {
+            for (Class<? extends RestHandler> handler : plugin.getRestHandlers()) {
+                registerRestHandler(handlers, handler);
+            }
+        }
+        return handlers;
+    }
+
+    private static void registerRestHandler(Set<Class<? extends RestHandler>> handlers, Class<? extends RestHandler> handler) {
+        if (handlers.contains(handler)) {
+            throw new IllegalArgumentException("can't register the same [rest_handler] more than once for [" + handler.getName() + "]");
+        }
+        handlers.add(handler);
+    }
+
     @Override
     protected void configure() {
         Multibinder<ActionFilter> actionFilterMultibinder = Multibinder.newSetBinder(binder(), ActionFilter.class);
@@ -374,11 +629,12 @@ public class ActionModule extends AbstractModule {
         for (Map.Entry<String, ActionHandler<?, ?>> entry : actions.entrySet()) {
             actionsBinder.addBinding(entry.getKey()).toInstance(entry.getValue().getAction());
         }
-        // register GenericAction -> transportAction Map that can be injected to instances.
-        // also register any supporting classes
         if (false == transportClient) {
+            // Supporting classes only used when not a transport client
             bind(AutoCreateIndex.class).toInstance(autoCreateIndex);
             bind(TransportLivenessAction.class).asEagerSingleton();
+
+            // register GenericAction -> transportAction Map used by NodeClient
             @SuppressWarnings("rawtypes")
             MapBinder<GenericAction, TransportAction> transportActionsBinder
                     = MapBinder.newMapBinder(binder(), GenericAction.class, TransportAction.class);
@@ -388,6 +644,23 @@ public class ActionModule extends AbstractModule {
                 transportActionsBinder.addBinding(action.getAction()).to(action.getTransportAction()).asEagerSingleton();
                 for (Class<?> supportAction : action.getSupportTransportActions()) {
                     bind(supportAction).asEagerSingleton();
+                }
+            }
+
+            // Bind the RestController which is required (by Node) even if rest isn't enabled.
+            bind(RestController.class).toInstance(restController);
+
+            // Setup the RestHandlers
+            if (NetworkModule.HTTP_ENABLED.get(settings)) {
+                Multibinder<RestHandler> restHandlers = Multibinder.newSetBinder(binder(), RestHandler.class);
+                Multibinder<AbstractCatAction> catHandlers = Multibinder.newSetBinder(binder(), AbstractCatAction.class);
+                for (Class<? extends RestHandler> handler : setupRestHandlers(actionPlugins)) {
+                    bind(handler).asEagerSingleton();
+                    if (AbstractCatAction.class.isAssignableFrom(handler)) {
+                        catHandlers.addBinding().to(handler.asSubclass(AbstractCatAction.class));
+                    } else {
+                        restHandlers.addBinding().to(handler);
+                    }
                 }
             }
         }

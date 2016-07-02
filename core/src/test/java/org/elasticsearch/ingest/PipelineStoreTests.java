@@ -58,7 +58,7 @@ public class PipelineStoreTests extends ESTestCase {
     public void init() throws Exception {
         store = new PipelineStore(Settings.EMPTY);
         ProcessorsRegistry.Builder registryBuilder = new ProcessorsRegistry.Builder();
-        registryBuilder.registerProcessor("set", (registry) -> config -> {
+        registryBuilder.registerProcessor("set", (registry) -> (tag, config) -> {
             String field = (String) config.remove("field");
             String value = (String) config.remove("value");
             return new Processor() {
@@ -78,7 +78,7 @@ public class PipelineStoreTests extends ESTestCase {
                 }
             };
         });
-        registryBuilder.registerProcessor("remove", (registry) -> config -> {
+        registryBuilder.registerProcessor("remove", (registry) -> (tag, config) -> {
             String field = (String) config.remove("field");
             return new Processor() {
                 @Override

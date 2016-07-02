@@ -20,7 +20,6 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -45,8 +44,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("value", "value1");
         String processorTag = randomAsciiOfLength(10);
-        config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
-        SetProcessor setProcessor = factory.create(config);
+        SetProcessor setProcessor = factory.create(processorTag, config);
         assertThat(setProcessor.getTag(), equalTo(processorTag));
         assertThat(setProcessor.getField().execute(Collections.emptyMap()), equalTo("field1"));
         assertThat(setProcessor.getValue().copyAndResolve(Collections.emptyMap()), equalTo("value1"));
@@ -60,8 +58,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         config.put("value", "value1");
         config.put("override", overrideEnabled);
         String processorTag = randomAsciiOfLength(10);
-        config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
-        SetProcessor setProcessor = factory.create(config);
+        SetProcessor setProcessor = factory.create(processorTag, config);
         assertThat(setProcessor.getTag(), equalTo(processorTag));
         assertThat(setProcessor.getField().execute(Collections.emptyMap()), equalTo("field1"));
         assertThat(setProcessor.getValue().copyAndResolve(Collections.emptyMap()), equalTo("value1"));
@@ -72,7 +69,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("value", "value1");
         try {
-            factory.create(config);
+            factory.create(null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));
@@ -83,7 +80,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         try {
-            factory.create(config);
+            factory.create(null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[value] required property is missing"));
@@ -95,7 +92,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("value", null);
         try {
-            factory.create(config);
+            factory.create(null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[value] required property is missing"));

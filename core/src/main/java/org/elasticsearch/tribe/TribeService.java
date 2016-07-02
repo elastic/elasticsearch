@@ -86,7 +86,7 @@ import static java.util.Collections.unmodifiableMap;
  * in another cluster, the conflict one will be discarded. This happens because we need to have the correct index name
  * to propagate to the relevant cluster.
  */
-public class TribeService extends AbstractLifecycleComponent<TribeService> {
+public class TribeService extends AbstractLifecycleComponent {
 
     public static final ClusterBlock TRIBE_METADATA_BLOCK = new ClusterBlock(10, "tribe node, metadata not allowed", false, false,
             RestStatus.BAD_REQUEST, EnumSet.of(ClusterBlockLevel.METADATA_READ, ClusterBlockLevel.METADATA_WRITE));

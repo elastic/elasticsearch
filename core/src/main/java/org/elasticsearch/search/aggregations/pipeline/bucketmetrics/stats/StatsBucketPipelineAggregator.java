@@ -22,10 +22,8 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregator;
 
 import java.io.IOException;
@@ -33,23 +31,6 @@ import java.util.List;
 import java.util.Map;
 
 public class StatsBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
-
-    public final static Type TYPE = new Type("stats_bucket");
-
-    public final static PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
-        @Override
-        public StatsBucketPipelineAggregator readResult(StreamInput in) throws IOException {
-            StatsBucketPipelineAggregator result = new StatsBucketPipelineAggregator();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        PipelineAggregatorStreams.registerStream(STREAM, TYPE.stream());
-        InternalStatsBucket.registerStreams();
-    }
-
     private double sum = 0;
     private long count = 0;
     private double min = Double.POSITIVE_INFINITY;
@@ -60,13 +41,13 @@ public class StatsBucketPipelineAggregator extends BucketMetricsPipelineAggregat
         super(name, bucketsPaths, gapPolicy, formatter, metaData);
     }
 
-    StatsBucketPipelineAggregator() {
-        // For serialization
+    public StatsBucketPipelineAggregator(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override
-    public Type type() {
-        return TYPE;
+    public String getWriteableName() {
+        return StatsBucketPipelineAggregationBuilder.NAME;
     }
 
     @Override
@@ -89,5 +70,4 @@ public class StatsBucketPipelineAggregator extends BucketMetricsPipelineAggregat
     protected InternalAggregation buildAggregation(List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
         return new InternalStatsBucket(name(), count, sum, min, max, format, pipelineAggregators, metadata);
     }
-
 }

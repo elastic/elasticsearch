@@ -40,7 +40,7 @@ import java.io.IOException;
  */
 public class ReplicationResponse extends ActionResponse {
 
-    public final static ReplicationResponse.ShardInfo.Failure[] EMPTY = new ReplicationResponse.ShardInfo.Failure[0];
+    public static final ReplicationResponse.ShardInfo.Failure[] EMPTY = new ReplicationResponse.ShardInfo.Failure[0];
 
     private ShardInfo shardInfo;
 
@@ -298,7 +298,6 @@ public class ReplicationResponse extends ActionResponse {
             private static final String _SHARDS = "_shards";
             private static final String TOTAL = "total";
             private static final String SUCCESSFUL = "successful";
-            private static final String PENDING = "pending";
             private static final String FAILED = "failed";
             private static final String FAILURES = "failures";
 

@@ -253,18 +253,12 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public Transport start() {
-            return null;
-        }
+        public void start() {}
 
         @Override
-        public Transport stop() {
-            return null;
-        }
+        public void stop() {}
 
         @Override
-        public void close() {
-
-        }
+        public void close() {}
     }
 }

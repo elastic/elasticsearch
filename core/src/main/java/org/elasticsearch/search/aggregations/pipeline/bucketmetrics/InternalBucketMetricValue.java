@@ -34,9 +34,9 @@ import java.util.Map;
 
 public class InternalBucketMetricValue extends InternalNumericMetricsAggregation.SingleValue {
 
-    public final static Type TYPE = new Type("bucket_metric_value");
+    public static final Type TYPE = new Type("bucket_metric_value");
 
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalBucketMetricValue readResult(StreamInput in) throws IOException {
             InternalBucketMetricValue result = new InternalBucketMetricValue();

@@ -496,7 +496,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                 UPDATE_RESTORE_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
     }
 
-    public final static class RestoreCompletionResponse {
+    public static final class RestoreCompletionResponse {
         private final Snapshot snapshot;
         private final RestoreInfo restoreInfo;
 
@@ -869,33 +869,33 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
      */
     public static class RestoreRequest {
 
-        final private String cause;
+        private final String cause;
 
-        final private String repositoryName;
+        private final String repositoryName;
 
-        final private String snapshotName;
+        private final String snapshotName;
 
-        final private String[] indices;
+        private final String[] indices;
 
-        final private String renamePattern;
+        private final String renamePattern;
 
-        final private String renameReplacement;
+        private final String renameReplacement;
 
-        final private IndicesOptions indicesOptions;
+        private final IndicesOptions indicesOptions;
 
-        final private Settings settings;
+        private final Settings settings;
 
-        final private TimeValue masterNodeTimeout;
+        private final TimeValue masterNodeTimeout;
 
-        final private boolean includeGlobalState;
+        private final boolean includeGlobalState;
 
-        final private boolean partial;
+        private final boolean partial;
 
-        final private boolean includeAliases;
+        private final boolean includeAliases;
 
-        final private Settings indexSettings;
+        private final Settings indexSettings;
 
-        final private String[] ignoreIndexSettings;
+        private final String[] ignoreIndexSettings;
 
         /**
          * Constructs new restore request

@@ -40,9 +40,9 @@ import java.util.Map;
  */
 public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, InternalDateRange> {
 
-    public final static Type TYPE = new Type("date_range", "drange");
+    public static final Type TYPE = new Type("date_range", "drange");
 
-    private final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    private static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalDateRange readResult(StreamInput in) throws IOException {
             InternalDateRange ranges = new InternalDateRange();
@@ -51,7 +51,7 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
         }
     };
 
-    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
+    private static final BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
         @Override
         public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
             Bucket buckets = new Bucket(context.keyed(), context.format());

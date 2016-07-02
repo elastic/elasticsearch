@@ -44,8 +44,8 @@ import java.util.Map;
  */
 public final class IngestMetadata implements MetaData.Custom {
 
-    public final static String TYPE = "ingest";
-    public final static IngestMetadata PROTO = new IngestMetadata();
+    public static final String TYPE = "ingest";
+    public static final IngestMetadata PROTO = new IngestMetadata();
     private static final ParseField PIPELINES_FIELD = new ParseField("pipeline");
     private static final ObjectParser<List<PipelineConfiguration>, ParseFieldMatcherSupplier> INGEST_METADATA_PARSER = new ObjectParser<>(
             "ingest_metadata", ArrayList::new);

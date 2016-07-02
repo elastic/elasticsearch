@@ -62,7 +62,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
     public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
     public static final QueryBuilder DEFAULT_INNER_HIT_QUERY = new MatchAllQueryBuilder();
 
-    private final static ObjectParser<InnerHitBuilder, QueryParseContext> PARSER = new ObjectParser<>("inner_hits", InnerHitBuilder::new);
+    private static final ObjectParser<InnerHitBuilder, QueryParseContext> PARSER = new ObjectParser<>("inner_hits", InnerHitBuilder::new);
 
     static {
         PARSER.declareString(InnerHitBuilder::setName, NAME_FIELD);
@@ -504,7 +504,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         if (scriptFields != null) {
             for (ScriptField field : scriptFields) {
                 SearchScript searchScript = innerHitsContext.scriptService().search(innerHitsContext.lookup(), field.script(),
-                        ScriptContext.Standard.SEARCH, Collections.emptyMap(), context.getClusterState());
+                        ScriptContext.Standard.SEARCH, Collections.emptyMap());
                 innerHitsContext.scriptFields().add(new org.elasticsearch.search.fetch.script.ScriptFieldsContext.ScriptField(
                         field.fieldName(), searchScript, field.ignoreFailure()));
             }

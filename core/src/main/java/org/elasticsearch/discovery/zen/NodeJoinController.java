@@ -345,7 +345,7 @@ public class NodeJoinController extends AbstractComponent {
 
     static class JoinTaskListener implements ClusterStateTaskListener {
         final List<MembershipAction.JoinCallback> callbacks;
-        final private ESLogger logger;
+        private final ESLogger logger;
 
         JoinTaskListener(MembershipAction.JoinCallback callback, ESLogger logger) {
             this(Collections.singletonList(callback), logger);

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
@@ -78,7 +79,7 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            void executeHandler(RestRequest request, RestChannel channel) throws Exception {
+            void executeHandler(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 assertEquals("true", threadContext.getHeader("header.1"));
                 assertEquals("true", threadContext.getHeader("header.2"));
                 assertNull(threadContext.getHeader("header.3"));
@@ -91,7 +92,7 @@ public class RestControllerTests extends ESTestCase {
         restHeaders.put("header.1", "true");
         restHeaders.put("header.2", "true");
         restHeaders.put("header.3", "false");
-        restController.dispatchRequest(new FakeRestRequest.Builder().withHeaders(restHeaders).build(), null, threadContext);
+        restController.dispatchRequest(new FakeRestRequest.Builder().withHeaders(restHeaders).build(), null, null, threadContext);
         assertNull(threadContext.getHeader("header.1"));
         assertNull(threadContext.getHeader("header.2"));
         assertEquals("true", threadContext.getHeader("header.3"));
@@ -117,7 +118,7 @@ public class RestControllerTests extends ESTestCase {
         }
 
         @Override
-        public void handleRequest(RestRequest request, RestChannel channel) throws Exception {
+        public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
             //no op
         }
 

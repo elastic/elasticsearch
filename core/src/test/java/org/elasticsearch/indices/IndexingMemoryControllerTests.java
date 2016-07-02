@@ -69,8 +69,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
             super(Settings.builder()
                             .put("indices.memory.interval", "200h") // disable it
                             .put(settings)
-                            .build(),
-                    null, null, 100 * 1024 * 1024); // fix jvm mem size to 100mb
+                            .build(), null, null);
         }
 
         public void deleteShard(IndexShard shard) {

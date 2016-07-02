@@ -359,6 +359,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         //skip test if the whole suite (yaml file) is disabled
         assumeFalse(buildSkipMessage(testCandidate.getSuitePath(), testCandidate.getSetupSection().getSkipSection()),
                 testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+        //skip test if the whole suite (yaml file) is disabled
+        assumeFalse(buildSkipMessage(testCandidate.getSuitePath(), testCandidate.getTeardownSection().getSkipSection()),
+            testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
         //skip test if test section is disabled
         assumeFalse(buildSkipMessage(testCandidate.getTestPath(), testCandidate.getTestSection().getSkipSection()),
                 testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
@@ -391,8 +394,16 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         restTestExecutionContext.clear();
 
-        for (ExecutableSection executableSection : testCandidate.getTestSection().getExecutableSections()) {
-            executableSection.execute(restTestExecutionContext);
+        try {
+            for (ExecutableSection executableSection : testCandidate.getTestSection().getExecutableSections()) {
+                executableSection.execute(restTestExecutionContext);
+            }
+        } finally {
+            logger.debug("start teardown test [{}]", testCandidate.getTestPath());
+            for (DoSection doSection : testCandidate.getTeardownSection().getDoSections()) {
+                doSection.execute(restTestExecutionContext);
+            }
+            logger.debug("end teardown test [{}]", testCandidate.getTestPath());
         }
     }
 

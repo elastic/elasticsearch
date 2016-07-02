@@ -153,7 +153,8 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
                     .get();
             fail("Shouldn't be here");
         } catch (RepositoryException ex) {
-            assertThat(ex.toString(), containsString("unsupported url protocol [netdoc]"));
+            assertThat(ex.toString(), containsString("Unable to parse URL repository setting"));
+            assertThat(ex.toString(), containsString("netdoc"));
         }
 
         logger.info("--> trying creating url repository with location that is not registered in path.repo setting");

@@ -55,7 +55,6 @@ public final class CompositeBytesReference extends BytesReference {
         }
         this.ramBytesUsed = ramBytesUsed;
         length = offset;
-
     }
 
 

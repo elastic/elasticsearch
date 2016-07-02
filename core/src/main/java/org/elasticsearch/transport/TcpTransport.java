@@ -908,7 +908,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             stream.setVersion(version);
             threadPool.getThreadContext().writeTo(stream);
             stream.writeString(action);
-            BytesReference message = buildMessage(node.getVersion(), request, stream, bStream);
+            BytesReference message = buildMessage(requestId, status, node.getVersion(), request, stream, bStream);
             final TransportRequestOptions finalOptions = options;
             Runnable onRequestSent = () -> {
                 try {
@@ -917,8 +917,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions);
                 }
             };
-            final BytesReference header = getHeader(requestId, status, version, message.length());
-            sendMessage(targetChannel, new CompositeBytesReference(header, message), onRequestSent, false);
+            sendMessage(targetChannel, message, onRequestSent, false);
             addedReleaseListener = true;
         } finally {
             IOUtils.close(stream);
@@ -975,7 +974,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 stream = CompressorFactory.COMPRESSOR.streamOutput(stream);
             }
             stream.setVersion(nodeVersion);
-            BytesReference reference = buildMessage(nodeVersion, response, stream, bStream);
+            BytesReference reference = buildMessage(requestId, status,nodeVersion, response, stream, bStream);
 
             final TransportResponseOptions finalOptions = options;
             Runnable onRequestSent = () -> {
@@ -985,8 +984,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     transportServiceAdapter.onResponseSent(requestId, action, response, finalOptions);
                 }
             };
-            final BytesReference header = getHeader(requestId, status, nodeVersion, reference.length());
-            sendMessage(channel, new CompositeBytesReference(header, reference), onRequestSent, false);
+            sendMessage(channel, reference, onRequestSent, false);
             addedReleaseListener = true;
 
         } finally {
@@ -1009,20 +1007,24 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     /**
      * Serializes the given message into a bytes representation
      */
-    private BytesReference buildMessage(Version nodeVersion, TransportMessage message, StreamOutput stream,
+    private BytesReference buildMessage(long requestId, byte status, Version nodeVersion, TransportMessage message, StreamOutput stream,
                                         ReleasableBytesStream writtenBytes) throws IOException {
+        final BytesReference zeroCopyBuffer;
         if (message instanceof BytesTransportRequest) {
             BytesTransportRequest bRequest = (BytesTransportRequest) message;
             assert nodeVersion.equals(bRequest.version());
             bRequest.writeThin(stream);
             stream.flush();
-            ReleasablePagedBytesReference bytes = writtenBytes.bytes();
-            return new CompositeBytesReference(bytes, bRequest.bytes);
+            zeroCopyBuffer = bRequest.bytes;
         } else {
             message.writeTo(stream);
             stream.flush();
+            zeroCopyBuffer = BytesArray.EMPTY;
         }
-        return writtenBytes.bytes();
+        final BytesReference messageBody = writtenBytes.bytes();
+        final BytesReference header = getHeader(requestId, status, stream.getVersion(), messageBody.length() + zeroCopyBuffer.length());
+
+        return new CompositeBytesReference(header, messageBody, zeroCopyBuffer);
     }
 
     /**

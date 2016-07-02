@@ -30,7 +30,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.Compressor;
@@ -946,7 +945,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             status = TransportStatus.setResponse(status);
             status = TransportStatus.setError(status);
             final BytesReference bytes = stream.bytes();
-            final BytesReference header = getHeader(requestId, status, nodeVersion, bytes.length());
+            final BytesReference header = buildHeader(requestId, status, nodeVersion, bytes.length());
             Runnable onRequestSent = () -> transportServiceAdapter.onResponseSent(requestId, action, error);
             sendMessage(channel, new CompositeBytesReference(header, bytes), onRequestSent, false);
         }
@@ -995,12 +994,24 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
     }
 
-    private BytesReference getHeader(long requestId, byte status, Version nodeVersion, int length) throws IOException {
+    /**
+     * Writes the Tcp message header into a bytes reference.
+     *
+     * @param requestId       the request ID
+     * @param status          the request status
+     * @param protocolVersion the protocol version used to serialize the data in the message
+     * @param length          the payload length in bytes
+     * @see TcpHeader
+     */
+    private BytesReference buildHeader(long requestId, byte status, Version protocolVersion, int length) throws IOException {
         try (BytesStreamOutput headerOutput = new BytesStreamOutput(TcpHeader.HEADER_SIZE)) {
-            headerOutput.setVersion(nodeVersion);
-            TcpHeader.writeHeader(headerOutput, requestId, status, nodeVersion,
+            headerOutput.setVersion(protocolVersion);
+            TcpHeader.writeHeader(headerOutput, requestId, status, protocolVersion,
                 length);
-            return headerOutput.bytes();
+            final BytesReference bytes = headerOutput.bytes();
+            assert bytes.length() == TcpHeader.HEADER_SIZE : "header size mismatch expected: " + TcpHeader.HEADER_SIZE + " but was: "
+                + bytes.length();
+            return bytes;
         }
     }
 
@@ -1014,16 +1025,14 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             BytesTransportRequest bRequest = (BytesTransportRequest) message;
             assert nodeVersion.equals(bRequest.version());
             bRequest.writeThin(stream);
-            stream.flush();
             zeroCopyBuffer = bRequest.bytes;
         } else {
             message.writeTo(stream);
-            stream.flush();
             zeroCopyBuffer = BytesArray.EMPTY;
         }
+        stream.flush();
         final BytesReference messageBody = writtenBytes.bytes();
-        final BytesReference header = getHeader(requestId, status, stream.getVersion(), messageBody.length() + zeroCopyBuffer.length());
-
+        final BytesReference header = buildHeader(requestId, status, stream.getVersion(), messageBody.length() + zeroCopyBuffer.length());
         return new CompositeBytesReference(header, messageBody, zeroCopyBuffer);
     }
 

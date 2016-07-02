@@ -51,10 +51,10 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         final int probes = randomIntBetween(20, 100);
         BytesReference copy = new BytesArray(pbr.toBytesRef(), true);
         for (int i = 0; i < probes; i++) {
-            int index = randomIntBetween(0, copy.length());
+            int index = randomIntBetween(0, copy.length() - 1);
             assertEquals(pbr.get(index), copy.get(index));
             index = randomIntBetween(sliceOffset, sliceOffset + sliceLength);
-            assertEquals(pbr.get(index), slice.get(index-sliceOffset));
+            assertEquals(pbr.get(index), slice.get(index - sliceOffset));
         }
     }
 

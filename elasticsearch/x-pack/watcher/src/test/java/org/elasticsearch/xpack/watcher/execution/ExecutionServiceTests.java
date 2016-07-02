@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.watcher.input.Input;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.support.clock.ClockMock;
-import org.elasticsearch.xpack.watcher.support.validation.WatcherSettingsValidation;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.transform.Transform;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
@@ -89,10 +88,9 @@ public class ExecutionServiceTests extends ESTestCase {
         when(executor.queue()).thenReturn(new ArrayBlockingQueue<Runnable>(1));
 
         watchLockService = mock(WatchLockService.class);
-        WatcherSettingsValidation settingsValidator = mock(WatcherSettingsValidation.class);
         clock = new ClockMock();
         executionService = new ExecutionService(Settings.EMPTY, historyStore, triggeredWatchStore, executor, watchStore,
-                watchLockService, clock, settingsValidator);
+                watchLockService, clock);
 
         ClusterState clusterState = mock(ClusterState.class);
         when(triggeredWatchStore.loadTriggeredWatches(clusterState)).thenReturn(new ArrayList<TriggeredWatch>());

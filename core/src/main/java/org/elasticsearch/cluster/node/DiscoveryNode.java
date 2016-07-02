@@ -106,7 +106,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
      * and updated.
      * </p>
      *
-     * @param id               the nodes unique (ephemeral and persistent) node id
+     * @param id               the nodes unique (persistent) node id. This constructor will auto generate a random ephemeral id.
      * @param address          the nodes transport address
      * @param attributes       node attributes
      * @param roles            node roles
@@ -127,7 +127,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
      * </p>
      *
      * @param nodeName         the nodes name
-     * @param nodeId           the nodes unique persistent id
+     * @param nodeId           the nodes unique persistent id. An ephemeral id will be auto generated.
      * @param address          the nodes transport address
      * @param attributes       node attributes
      * @param roles            node roles
@@ -251,7 +251,11 @@ public class DiscoveryNode implements Writeable, ToXContent {
     }
 
     /**
-     * The unique ephemeral id of the node.
+     * The unique ephemeral id of the node. Ephemeral ids are meant to be attached the the life span
+     * of a node process. When ever a node is restarted, it's ephemeral id is required to change (while it's {@link #getId()}
+     * will be read from the data folder and will remain the same across restarts). Since all node attributes and addresses
+     * are maintained during the life span of a node process, we can (and are) using the ephemeralId in
+     * {@link DiscoveryNode#equals(Object)}.
      */
     public String getEphemeralId() {
         return ephemeralId;

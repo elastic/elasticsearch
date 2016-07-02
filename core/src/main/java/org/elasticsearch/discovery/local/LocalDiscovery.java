@@ -101,8 +101,9 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
             }
             logger.debug("Connected to cluster [{}]", clusterName);
 
-            Optional<LocalDiscovery> current = clusterGroup.members().stream().filter(other -> other.localNode().equals(this.localNode()))
-                .findFirst();
+            Optional<LocalDiscovery> current = clusterGroup.members().stream().filter(other -> (
+                other.localNode().equals(this.localNode()) || other.localNode().getId().equals(this.localNode().getId())
+            )).findFirst();
             if (current.isPresent()) {
                 throw new IllegalStateException("current cluster group already contains a node with the same id. current "
                     + current.get().localNode() + ", this node " + localNode());
@@ -233,7 +234,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
                         // reroute here, so we eagerly remove dead nodes from the routing
                         ClusterState updatedState = ClusterState.builder(currentState).nodes(newNodes).build();
                         RoutingAllocation.Result routingResult = master.routingService.getAllocationService().reroute(
-                                ClusterState.builder(updatedState).build(), "elected as master");
+                            ClusterState.builder(updatedState).build(), "elected as master");
                         return ClusterState.builder(updatedState).routingResult(routingResult).build();
                     }
 
@@ -318,7 +319,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
                 synchronized (this) {
                     // we do the marshaling intentionally, to check it works well...
                     // check if we published cluster state at least once and node was in the cluster when we published cluster state the last time
-                    if (discovery.lastProcessedClusterState != null && clusterChangedEvent.previousState().nodes().nodeExists(discovery.localNode().getId())) {
+                    if (discovery.lastProcessedClusterState != null && clusterChangedEvent.previousState().nodes().nodeExists(discovery.localNode())) {
                         // both conditions are true - which means we can try sending cluster state as diffs
                         if (clusterStateDiffBytes == null) {
                             Diff diff = clusterState.diff(clusterChangedEvent.previousState());

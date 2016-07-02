@@ -260,8 +260,8 @@ public class NodesFaultDetection extends FaultDetection {
         public void messageReceived(PingRequest request, TransportChannel channel) throws Exception {
             // if we are not the node we are supposed to be pinged, send an exception
             // this can happen when a kill -9 is sent, and another node is started using the same port
-            if (!localNode.equals(request.node())) {
-                throw new IllegalStateException("Got pinged as node " + request.node() + "], but I am node " + localNode );
+            if (!localNode.equals(request.targetNode())) {
+                throw new IllegalStateException("Got pinged as node " + request.targetNode() + "], but I am node " + localNode );
             }
 
             // PingRequest will have clusterName set to null if it came from a node of version <1.4.0
@@ -281,7 +281,7 @@ public class NodesFaultDetection extends FaultDetection {
     public static class PingRequest extends TransportRequest {
 
         // the (assumed) node we are pinging
-        private DiscoveryNode node;
+        private DiscoveryNode targetNode;
 
         private ClusterName clusterName;
 
@@ -292,15 +292,15 @@ public class NodesFaultDetection extends FaultDetection {
         public PingRequest() {
         }
 
-        PingRequest(DiscoveryNode node, ClusterName clusterName, DiscoveryNode masterNode, long clusterStateVersion) {
-            this.node = node;
+        PingRequest(DiscoveryNode targetNode, ClusterName clusterName, DiscoveryNode masterNode, long clusterStateVersion) {
+            this.targetNode = targetNode;
             this.clusterName = clusterName;
             this.masterNode = masterNode;
             this.clusterStateVersion = clusterStateVersion;
         }
 
-        public DiscoveryNode node() {
-            return node;
+        public DiscoveryNode targetNode() {
+            return targetNode;
         }
 
         public ClusterName clusterName() {
@@ -318,7 +318,7 @@ public class NodesFaultDetection extends FaultDetection {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            node = new DiscoveryNode(in);
+            targetNode = new DiscoveryNode(in);
             clusterName = new ClusterName(in);
             masterNode = new DiscoveryNode(in);
             clusterStateVersion = in.readLong();
@@ -327,7 +327,7 @@ public class NodesFaultDetection extends FaultDetection {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            node.writeTo(out);
+            targetNode.writeTo(out);
             clusterName.writeTo(out);
             masterNode.writeTo(out);
             out.writeLong(clusterStateVersion);

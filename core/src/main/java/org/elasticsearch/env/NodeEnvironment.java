@@ -73,7 +73,6 @@ import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableSet;
 
@@ -161,6 +160,10 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
         Setting.boolSetting("node.add_lock_id_to_custom_path", true, Property.NodeScope);
 
 
+    /**
+     * Seed for determining a persisted unique uuid of this node. If the node has already a persisted uuid on disk,
+     * this seed will be ignored and the uuid from disk will be reused.
+     */
     public static final Setting<Long> NODE_ID_SEED_SETTING =
         Setting.longSetting("node.id.seed", 0L, Long.MIN_VALUE, Property.NodeScope);
 
@@ -382,8 +385,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
      */
     private static NodeMetaData loadOrCreateNodeMetaData(Settings settings, ESLogger logger,
                                                          NodePath... nodePaths) throws IOException {
-        List<Path> pathList = Arrays.stream(nodePaths).map(np -> np.path).collect(Collectors.toList());
-        final Path[] paths = pathList.toArray(new Path[pathList.size()]);
+        final Path[] paths = Arrays.stream(nodePaths).map(np -> np.path).toArray(Path[]::new);
         NodeMetaData metaData = NodeMetaData.FORMAT.loadLatestState(logger, paths);
         if (metaData == null) {
             metaData = new NodeMetaData(generateNodeId(settings));

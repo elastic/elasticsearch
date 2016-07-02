@@ -123,7 +123,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         for (Iterator<Entry<DiscoveryNode, IndicesClusterStateService>> it = clusterStateServiceMap.entrySet().iterator(); it.hasNext(); ) {
             DiscoveryNode node = it.next().getKey();
-            if (state.nodes().nodeExists(node.getId()) == false) {
+            if (state.nodes().nodeExists(node) == false) {
                 it.remove();
             }
         }

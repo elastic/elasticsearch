@@ -554,8 +554,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                 node = localNode;
             }
             // some one already built this and validated it's OK, skip the n2 scans
-            assert builder.preflightPut(node) == null : "building disco nodes from network doesn't pass preflight: "
-                + builder.preflightPut(node);
+            assert builder.validatePut(node) == null : "building disco nodes from network doesn't pass preflight: "
+                + builder.validatePut(node);
             builder.putUnsafe(node);
         }
         return builder.build();
@@ -592,10 +592,10 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
         /**
          * adds a disco node to the builder. Will throw an {@link IllegalArgumentException} if
-         * the supplied node doesn't pass the pre-flight checks performed by {@link #preflightPut(DiscoveryNode)}
+         * the supplied node doesn't pass the pre-flight checks performed by {@link #validatePut(DiscoveryNode)}
          */
         public Builder put(DiscoveryNode node) {
-            final String preflight = preflightPut(node);
+            final String preflight = validatePut(node);
             if (preflight != null) {
                 throw new IllegalArgumentException(preflight);
             }
@@ -638,7 +638,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
          * Note: if this method returns a non-null value, calling {@link #put(DiscoveryNode)} will fail with an
          * exception
          */
-        public String preflightPut(DiscoveryNode node) {
+        private String validatePut(DiscoveryNode node) {
             for (ObjectCursor<DiscoveryNode> cursor : nodes.values()) {
                 final DiscoveryNode existingNode = cursor.value;
                 if (node.getAddress().equals(existingNode.getAddress()) &&

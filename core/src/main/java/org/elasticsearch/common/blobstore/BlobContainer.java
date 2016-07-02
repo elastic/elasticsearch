@@ -23,6 +23,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.NoSuchFileException;
 import java.util.Collection;
 import java.util.Map;
 
@@ -53,7 +54,8 @@ public interface BlobContainer {
      * @param   blobName
      *          The name of the blob to get an {@link InputStream} for.
      * @return  The {@code InputStream} to read the blob.
-     * @throws  IOException if the blob does not exist or can not be read.
+     * @throws  NoSuchFileException if the blob does not exist
+     * @throws  IOException if the blob can not be read.
      */
     InputStream readBlob(String blobName) throws IOException;
 
@@ -95,7 +97,8 @@ public interface BlobContainer {
      *
      * @param   blobName
      *          The name of the blob to delete.
-     * @throws  IOException if the blob does not exist, or if the blob exists but could not be deleted.
+     * @throws  NoSuchFileException if the blob does not exist
+     * @throws  IOException if the blob exists but could not be deleted.
      */
     void deleteBlob(String blobName) throws IOException;
 

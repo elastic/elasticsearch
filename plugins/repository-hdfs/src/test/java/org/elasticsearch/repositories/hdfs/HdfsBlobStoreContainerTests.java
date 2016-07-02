@@ -23,6 +23,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.AbstractFileSystem;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
 
@@ -55,7 +56,8 @@ public class HdfsBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
         });
     }
 
-    public FileContext createContext(URI uri) {
+    @SuppressForbidden(reason = "lesser of two evils (the other being a bunch of JNI/classloader nightmares)")
+    private FileContext createContext(URI uri) {
         // mirrors HdfsRepository.java behaviour
         Configuration cfg = new Configuration(true);
         cfg.setClassLoader(HdfsRepository.class.getClassLoader());
@@ -85,8 +87,7 @@ public class HdfsBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
 
         // set file system to TestingFs to avoid a bunch of security
         // checks, similar to what is done in HdfsTests.java
-        cfg.set(String.format("fs.AbstractFileSystem.%s.impl", uri.getScheme()),
-                TestingFs.class.getName());
+        cfg.set("fs.AbstractFileSystem." + uri.getScheme() + ".impl", TestingFs.class.getName());
 
         // create the FileContext with our user
         return Subject.doAs(subject, new PrivilegedAction<FileContext>() {

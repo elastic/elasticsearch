@@ -32,6 +32,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -95,7 +96,11 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public InputStream readBlob(String name) throws IOException {
-        return new BufferedInputStream(Files.newInputStream(path.resolve(name)), blobStore.bufferSizeInBytes());
+        final Path resolvedPath = path.resolve(name);
+        if (!Files.exists(resolvedPath)) {
+            throw new NoSuchFileException("[" + resolvedPath + "] file not found");
+        }
+        return new BufferedInputStream(Files.newInputStream(resolvedPath), blobStore.bufferSizeInBytes());
     }
 
     @Override

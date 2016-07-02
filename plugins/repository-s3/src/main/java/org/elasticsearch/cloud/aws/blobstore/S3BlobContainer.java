@@ -37,10 +37,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.Streams;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.NoSuchFileException;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
@@ -89,7 +89,7 @@ public class S3BlobContainer extends AbstractBlobContainer {
                 } else {
                     if (e instanceof AmazonS3Exception) {
                         if (404 == ((AmazonS3Exception) e).getStatusCode()) {
-                            throw new FileNotFoundException("Blob object [" + blobName + "] not found: " + e.getMessage());
+                            throw new NoSuchFileException("Blob object [" + blobName + "] not found: " + e.getMessage());
                         }
                     }
                     throw e;
@@ -116,7 +116,7 @@ public class S3BlobContainer extends AbstractBlobContainer {
     @Override
     public void deleteBlob(String blobName) throws IOException {
         if (!blobExists(blobName)) {
-            throw new IOException("Blob [" + blobName + "] does not exist");
+            throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
         }
 
         try {

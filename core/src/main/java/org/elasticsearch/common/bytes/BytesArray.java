@@ -35,10 +35,7 @@ public final class BytesArray extends BytesReference {
     private final int length;
 
     public BytesArray(String bytes) {
-        BytesRef bytesRef = new BytesRef(bytes);
-        this.bytes = bytesRef.bytes;
-        this.offset = bytesRef.offset;
-        this.length = bytesRef.length;
+        this(new BytesRef(bytes));
     }
 
     public BytesArray(BytesRef bytesRef) {
@@ -47,21 +44,15 @@ public final class BytesArray extends BytesReference {
 
     public BytesArray(BytesRef bytesRef, boolean deepCopy) {
         if (deepCopy) {
-            BytesRef copy = BytesRef.deepCopyOf(bytesRef);
-            bytes = copy.bytes;
-            offset = copy.offset;
-            length = copy.length;
-        } else {
-            bytes = bytesRef.bytes;
-            offset = bytesRef.offset;
-            length = bytesRef.length;
+            bytesRef = BytesRef.deepCopyOf(bytesRef);
         }
+        bytes = bytesRef.bytes;
+        offset = bytesRef.offset;
+        length = bytesRef.length;
     }
 
     public BytesArray(byte[] bytes) {
-        this.bytes = bytes;
-        this.offset = 0;
-        this.length = bytes.length;
+        this(bytes, 0, bytes.length);
     }
 
     public BytesArray(byte[] bytes, int offset, int length) {

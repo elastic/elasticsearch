@@ -41,19 +41,19 @@ public final class CompositeBytesReference extends BytesReference {
 
     public CompositeBytesReference(BytesReference... references) {
         this.references = references;
-        int i = 0;
-        int offset = 0;
-        offsets = new int[references.length];
+        this.offsets = new int[references.length];
         long ramBytesUsed = 0;
-        for (BytesReference reference : references) {
+        int offset = 0;
+        for (int i = 0; i < references.length; i++) {
+            BytesReference reference = references[i];
             if (reference == null) {
                 throw new IllegalArgumentException("references must not be null");
             }
-            offsets[i++] = offset;
+            offsets[i] = offset;
             offset += reference.length();
             ramBytesUsed += reference.ramBytesUsed();
         }
-        this.ramBytesUsed = ramBytesUsed;
+        this.ramBytesUsed = ramBytesUsed + Integer.BYTES * offsets.length;
         length = offset;
     }
 
@@ -61,7 +61,7 @@ public final class CompositeBytesReference extends BytesReference {
     @Override
     public byte get(int index) {
         int i = getOffsetIndex(index);
-        return references[i].get(index - (int)offsets[i]);
+        return references[i].get(index - offsets[i]);
     }
 
     @Override
@@ -90,10 +90,7 @@ public final class CompositeBytesReference extends BytesReference {
 
     private final int getOffsetIndex(int offset) {
         int i = Arrays.binarySearch(offsets, offset);
-        if (i < 0) {
-            i = (-(i+1)) - 1;
-        }
-        return i;
+        return i < 0 ? (-(i+1)) - 1 : i;
     }
 
     @Override

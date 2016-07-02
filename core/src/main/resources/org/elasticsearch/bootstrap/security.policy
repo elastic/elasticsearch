@@ -24,7 +24,7 @@
 //// SecurityManager impl:
 //// Must have all permissions to properly perform access checks
 
-grant codeBase "${codebase.securesm-1.0.jar}" {
+grant codeBase "${codebase.securesm-1.1.jar}" {
   permission java.security.AllPermission;
 };
 

@@ -120,7 +120,7 @@ final class Security {
         Policy.setPolicy(new ESPolicy(createPermissions(environment), getPluginPermissions(environment), filterBadDefaults));
 
         // enable security manager
-        System.setSecurityManager(new SecureSM());
+        System.setSecurityManager(new SecureSM(new String[] { "org.elasticsearch.bootstrap." }));
 
         // do some basic tests
         selfTest();

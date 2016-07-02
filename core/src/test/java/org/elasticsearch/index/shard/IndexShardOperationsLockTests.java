@@ -92,10 +92,12 @@ public class IndexShardOperationsLockTests extends ESTestCase {
             operationThreads.add(thread);
         }
 
+        CountDownLatch blockFinished = new CountDownLatch(1);
         threadPool.generic().execute(() -> {
             try {
                 latch.await();
                 blockAndWait().close();
+                blockFinished.countDown();
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -112,6 +114,8 @@ public class IndexShardOperationsLockTests extends ESTestCase {
         for (Thread thread : operationThreads) {
             thread.join();
         }
+
+        blockFinished.await();
     }
 
 

@@ -55,7 +55,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportChannelResponseHandler;
@@ -628,7 +628,7 @@ public abstract class TransportReplicationAction<
         }
 
         private void performAction(final DiscoveryNode node, final String action, final boolean isPrimaryAction) {
-            transportService.sendRequest(node, action, request, transportOptions, new BaseTransportResponseHandler<Response>() {
+            transportService.sendRequest(node, action, request, transportOptions, new TransportResponseHandler<Response>() {
 
                 @Override
                 public Response newInstance() {

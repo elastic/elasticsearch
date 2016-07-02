@@ -46,7 +46,7 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
@@ -444,7 +444,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
                                        final CountDownLatch latch, final DiscoveryNode node, final DiscoveryNode nodeToSend) {
         logger.trace("[{}] sending to {}", id, nodeToSend);
         transportService.sendRequest(nodeToSend, ACTION_NAME, pingRequest, TransportRequestOptions.builder()
-                .withTimeout((long) (timeout.millis() * 1.25)).build(), new BaseTransportResponseHandler<UnicastPingResponse>() {
+                .withTimeout((long) (timeout.millis() * 1.25)).build(), new TransportResponseHandler<UnicastPingResponse>() {
 
             @Override
             public UnicastPingResponse newInstance() {

@@ -30,7 +30,7 @@ import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -188,7 +188,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     }
 
                     iteration.transportService.sendRequest(node, "action", new TestRequest(),
-                            TransportRequestOptions.EMPTY, new BaseTransportResponseHandler<TestResponse>() {
+                            TransportRequestOptions.EMPTY, new TransportResponseHandler<TestResponse>() {
                         @Override
                         public TestResponse newInstance() {
                             return new TestResponse();

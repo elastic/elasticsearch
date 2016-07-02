@@ -37,7 +37,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -177,7 +177,7 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
                         onOperation(shard, shardIt, shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
                     } else {
                         taskManager.registerChildTask(task, node.getId());
-                        transportService.sendRequest(node, transportShardAction, shardRequest, new BaseTransportResponseHandler<ShardResponse>() {
+                        transportService.sendRequest(node, transportShardAction, shardRequest, new TransportResponseHandler<ShardResponse>() {
                             @Override
                             public ShardResponse newInstance() {
                                 return newShardResponse();

@@ -46,7 +46,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -318,7 +318,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                     nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                     taskManager.registerChildTask(task, node.getId());
                 }
-                transportService.sendRequest(node, transportNodeBroadcastAction, nodeRequest, new BaseTransportResponseHandler<NodeResponse>() {
+                transportService.sendRequest(node, transportNodeBroadcastAction, nodeRequest, new TransportResponseHandler<NodeResponse>() {
                     @Override
                     public NodeResponse newInstance() {
                         return new NodeResponse();

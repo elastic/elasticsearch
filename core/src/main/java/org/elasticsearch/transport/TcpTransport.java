@@ -349,6 +349,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             }
         }
 
+        public List<Channel[]> getChannelArrays() {
+            return Arrays.asList(recovery, bulk, reg, state, ping);
+        }
+
         public synchronized void close() {
             closeChannels(allChannels);
         }

@@ -20,15 +20,11 @@
 package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.ReleasableBytesStream;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkService.TcpSettings;
@@ -43,17 +39,12 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.TransportMessage;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.TransportSettings;
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.bootstrap.ServerBootstrap;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.AdaptiveReceiveBufferSizePredictorFactory;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFuture;
@@ -72,11 +63,10 @@ import org.jboss.netty.channel.socket.oio.OioClientSocketChannelFactory;
 import org.jboss.netty.channel.socket.oio.OioServerSocketChannelFactory;
 import org.jboss.netty.util.HashedWheelTimer;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -346,81 +336,33 @@ public class NettyTransport extends TcpTransport<Channel> {
         channels[0].getCloseFuture().addListener(new ChannelCloseListener(node));
         return new NodeChannels(channels, channels, channels, channels, channels);
     }
-
     protected NodeChannels connectToChannels(DiscoveryNode node) {
         final NodeChannels nodeChannels = new NodeChannels(new Channel[connectionsPerNodeRecovery], new Channel[connectionsPerNodeBulk],
             new Channel[connectionsPerNodeReg], new Channel[connectionsPerNodeState],
             new Channel[connectionsPerNodePing]);
         boolean success = false;
         try {
-            ChannelFuture[] connectRecovery = new ChannelFuture[nodeChannels.recovery.length];
-            ChannelFuture[] connectBulk = new ChannelFuture[nodeChannels.bulk.length];
-            ChannelFuture[] connectReg = new ChannelFuture[nodeChannels.reg.length];
-            ChannelFuture[] connectState = new ChannelFuture[nodeChannels.state.length];
-            ChannelFuture[] connectPing = new ChannelFuture[nodeChannels.ping.length];
+            int numConnections = connectionsPerNodeBulk + connectionsPerNodePing + connectionsPerNodeRecovery + connectionsPerNodeReg
+                + connectionsPerNodeState;
+            ArrayList<ChannelFuture> connections = new ArrayList<>();
             InetSocketAddress address = ((InetSocketTransportAddress) node.getAddress()).address();
-            for (int i = 0; i < connectRecovery.length; i++) {
-                connectRecovery[i] = clientBootstrap.connect(address);
+            for (int i = 0; i < numConnections; i++) {
+                connections.add(clientBootstrap.connect(address));
             }
-            for (int i = 0; i < connectBulk.length; i++) {
-                connectBulk[i] = clientBootstrap.connect(address);
-            }
-            for (int i = 0; i < connectReg.length; i++) {
-                connectReg[i] = clientBootstrap.connect(address);
-            }
-            for (int i = 0; i < connectState.length; i++) {
-                connectState[i] = clientBootstrap.connect(address);
-            }
-            for (int i = 0; i < connectPing.length; i++) {
-                connectPing[i] = clientBootstrap.connect(address);
-            }
-
+            final Iterator<ChannelFuture> iterator = connections.iterator();
             try {
-                for (int i = 0; i < connectRecovery.length; i++) {
-                    connectRecovery[i].awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
-                    if (!connectRecovery[i].isSuccess()) {
-                        throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", connectRecovery[i].getCause());
+                for (Channel[] channels : nodeChannels.getChannelArrays()) {
+                    for (int i = 0; i < channels.length; i++) {
+                        assert iterator.hasNext();
+                        ChannelFuture future = iterator.next();
+                        future.awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
+                        if (!future.isSuccess()) {
+                            throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", future.getCause());
+                        }
+                        channels[i] = future.getChannel();
+                        channels[i].getCloseFuture().addListener(new ChannelCloseListener(node));
                     }
-                    nodeChannels.recovery[i] = connectRecovery[i].getChannel();
-                    nodeChannels.recovery[i].getCloseFuture().addListener(new ChannelCloseListener(node));
                 }
-
-                for (int i = 0; i < connectBulk.length; i++) {
-                    connectBulk[i].awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
-                    if (!connectBulk[i].isSuccess()) {
-                        throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", connectBulk[i].getCause());
-                    }
-                    nodeChannels.bulk[i] = connectBulk[i].getChannel();
-                    nodeChannels.bulk[i].getCloseFuture().addListener(new ChannelCloseListener(node));
-                }
-
-                for (int i = 0; i < connectReg.length; i++) {
-                    connectReg[i].awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
-                    if (!connectReg[i].isSuccess()) {
-                        throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", connectReg[i].getCause());
-                    }
-                    nodeChannels.reg[i] = connectReg[i].getChannel();
-                    nodeChannels.reg[i].getCloseFuture().addListener(new ChannelCloseListener(node));
-                }
-
-                for (int i = 0; i < connectState.length; i++) {
-                    connectState[i].awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
-                    if (!connectState[i].isSuccess()) {
-                        throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", connectState[i].getCause());
-                    }
-                    nodeChannels.state[i] = connectState[i].getChannel();
-                    nodeChannels.state[i].getCloseFuture().addListener(new ChannelCloseListener(node));
-                }
-
-                for (int i = 0; i < connectPing.length; i++) {
-                    connectPing[i].awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
-                    if (!connectPing[i].isSuccess()) {
-                        throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", connectPing[i].getCause());
-                    }
-                    nodeChannels.ping[i] = connectPing[i].getChannel();
-                    nodeChannels.ping[i].getCloseFuture().addListener(new ChannelCloseListener(node));
-                }
-
                 if (nodeChannels.recovery.length == 0) {
                     if (nodeChannels.bulk.length > 0) {
                         nodeChannels.recovery = nodeChannels.bulk;
@@ -432,14 +374,7 @@ public class NettyTransport extends TcpTransport<Channel> {
                     nodeChannels.bulk = nodeChannels.reg;
                 }
             } catch (RuntimeException e) {
-                // clean the futures
-                List<ChannelFuture> futures = new ArrayList<>();
-                futures.addAll(Arrays.asList(connectRecovery));
-                futures.addAll(Arrays.asList(connectBulk));
-                futures.addAll(Arrays.asList(connectReg));
-                futures.addAll(Arrays.asList(connectState));
-                futures.addAll(Arrays.asList(connectPing));
-                for (ChannelFuture future : Collections.unmodifiableList(futures)) {
+                for (ChannelFuture future : Collections.unmodifiableList(connections)) {
                     future.cancel();
                     if (future.getChannel() != null && future.getChannel().isOpen()) {
                         try {
@@ -546,6 +481,7 @@ public class NettyTransport extends TcpTransport<Channel> {
         }
     }
 
+    @Override
     protected void sendMessage(Channel channel, BytesReference reference, Runnable sendListener, boolean close) {
         final ChannelFuture future = channel.write(NettyUtils.toChannelBuffer(reference));
         if (close) {

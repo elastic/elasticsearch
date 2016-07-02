@@ -32,6 +32,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
@@ -54,7 +55,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.SuspendableRefContainer;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -128,6 +128,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -187,7 +188,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final ShardPath path;
 
-    private final SuspendableRefContainer suspendableRefContainer;
+    private final IndexShardOperationsLock indexShardOperationsLock;
 
     private static final EnumSet<IndexShardState> readAllowedStates = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED, IndexShardState.POST_RECOVERY);
     // for primaries, we only allow to write when actually started (so the cluster has decided we started)
@@ -260,7 +261,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             cachingPolicy = new UsageTrackingQueryCachingPolicy();
         }
-        suspendableRefContainer = new SuspendableRefContainer();
+        indexShardOperationsLock = new IndexShardOperationsLock(shardId, logger, threadPool);
         searcherWrapper = indexSearcherWrapper;
         primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
         refreshListeners = buildRefreshListeners();
@@ -436,19 +437,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public IndexShard relocated(String reason) throws IndexShardNotStartedException {
-        try (Releasable block = suspendableRefContainer.blockAcquisition()) {
-            // no shard operation locks are being held here, move state from started to relocated
-            synchronized (mutex) {
-                if (state != IndexShardState.STARTED) {
-                    throw new IndexShardNotStartedException(shardId, state);
+    public void relocated(String reason) throws IllegalIndexShardStateException, InterruptedException {
+        try {
+            indexShardOperationsLock.blockOperations(30, TimeUnit.MINUTES, () -> {
+                // no shard operation locks are being held here, move state from started to relocated
+                assert indexShardOperationsLock.getActiveOperationsCount() == 0 :
+                    "in-flight operations in progress while moving shard state to relocated";
+                synchronized (mutex) {
+                    if (state != IndexShardState.STARTED) {
+                        throw new IndexShardNotStartedException(shardId, state);
+                    }
+                    changeState(IndexShardState.RELOCATED, reason);
                 }
-                changeState(IndexShardState.RELOCATED, reason);
-            }
+            });
+        } catch (TimeoutException e) {
+            logger.warn("timed out waiting for relocation hand-off to complete");
+            // This is really bad as ongoing replication operations are preventing this shard from completing relocation hand-off.
+            // Fail primary relocation source and target shards.
+            failShard("timed out waiting for relocation hand-off to complete", null);
+            throw new IndexShardClosedException(shardId(), "timed out waiting for relocation hand-off to complete");
         }
-
-        return this;
     }
+
 
     public IndexShardState state() {
         return state;
@@ -842,6 +852,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 } finally { // playing safe here and close the engine even if the above succeeds - close can be called multiple times
                     IOUtils.close(engine);
+                    indexShardOperationsLock.close();
                 }
             }
         }
@@ -1534,17 +1545,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()), refreshListeners);
     }
 
-    public Releasable acquirePrimaryOperationLock() {
+    /**
+     * Acquire a primary operation lock whenever the shard is ready for indexing. If the lock is directly available, the provided
+     * ActionListener will be called on the calling thread. During relocation hand-off, lock acquisition can be delayed. The provided
+     * ActionListener will then be called using the provided executor.
+     */
+    public void acquirePrimaryOperationLock(ActionListener<Releasable> onLockAcquired, String executorOnDelay) {
         verifyNotClosed();
         verifyPrimary();
-        return suspendableRefContainer.acquireUninterruptibly();
+
+        indexShardOperationsLock.acquire(onLockAcquired, executorOnDelay, false);
     }
 
     /**
-     * acquires operation log. If the given primary term is lower then the one in {@link #shardRouting}
-     * an {@link IllegalArgumentException} is thrown.
+     * Acquire a replica operation lock whenever the shard is ready for indexing (see acquirePrimaryOperationLock). If the given primary
+     * term is lower then the one in {@link #shardRouting} an {@link IllegalArgumentException} is thrown.
      */
-    public Releasable acquireReplicaOperationLock(long opPrimaryTerm) {
+    public void acquireReplicaOperationLock(long opPrimaryTerm, ActionListener<Releasable> onLockAcquired, String executorOnDelay) {
         verifyNotClosed();
         verifyReplicationTarget();
         if (primaryTerm > opPrimaryTerm) {
@@ -1552,11 +1569,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throw new IllegalArgumentException(LoggerMessageFormat.format("{} operation term [{}] is too old (current [{}])",
                 shardId, opPrimaryTerm, primaryTerm));
         }
-        return suspendableRefContainer.acquireUninterruptibly();
+
+        indexShardOperationsLock.acquire(onLockAcquired, executorOnDelay, true);
     }
 
     public int getActiveOperationsCount() {
-        return suspendableRefContainer.activeRefs(); // refCount is incremented on creation and decremented on close
+        return indexShardOperationsLock.getActiveOperationsCount(); // refCount is incremented on successful acquire and decremented on close
     }
 
     /**

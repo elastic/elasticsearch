@@ -390,7 +390,15 @@ public class TransportReplicationActionTests extends ESTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
         AtomicBoolean executed = new AtomicBoolean();
-        Action.PrimaryOperationTransportHandler primaryPhase = action.new PrimaryOperationTransportHandler() {
+
+        ShardRouting primaryShard = state.getRoutingTable().shardRoutingTable(shardId).primaryShard();
+        boolean executeOnPrimary = true;
+        // whether shard has been marked as relocated already (i.e. relocation completed)
+        if (primaryShard.relocating() && randomBoolean()) {
+            isRelocated.set(true);
+            executeOnPrimary = false;
+        }
+        action.new AsyncPrimaryAction(request, createTransportChannel(listener), task) {
             @Override
             protected ReplicationOperation<Request, Request, Action.PrimaryResult> createReplicatedOperation(Request request,
                     ActionListener<Action.PrimaryResult> actionListener, Action.PrimaryShardReference primaryShardReference,
@@ -403,15 +411,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                     }
                 };
             }
-        };
-        ShardRouting primaryShard = state.getRoutingTable().shardRoutingTable(shardId).primaryShard();
-        boolean executeOnPrimary = true;
-        // whether shard has been marked as relocated already (i.e. relocation completed)
-        if (primaryShard.relocating() && randomBoolean()) {
-            isRelocated.set(true);
-            executeOnPrimary = false;
-        }
-        primaryPhase.messageReceived(request, createTransportChannel(listener), task);
+        }.run();
         if (executeOnPrimary) {
             assertTrue(executed.get());
             assertTrue(listener.isDone());
@@ -445,7 +445,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
         AtomicBoolean executed = new AtomicBoolean();
-        Action.PrimaryOperationTransportHandler primaryPhase = action.new PrimaryOperationTransportHandler() {
+        action.new AsyncPrimaryAction(request, createTransportChannel(listener), task) {
             @Override
             protected ReplicationOperation<Request, Request, Action.PrimaryResult> createReplicatedOperation(Request request,
                     ActionListener<Action.PrimaryResult> actionListener, Action.PrimaryShardReference primaryShardReference,
@@ -458,8 +458,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                     }
                 };
             }
-        };
-        primaryPhase.messageReceived(request, createTransportChannel(listener), task);
+        }.run();
         assertThat(executed.get(), equalTo(true));
         assertPhase(task, "finished");
     }
@@ -579,16 +578,18 @@ public class TransportReplicationActionTests extends ESTestCase {
         metaData.put(IndexMetaData.builder(metaData.get(index)).settings(settings));
         state = ClusterState.builder(state).metaData(metaData).build();
         setState(clusterService, state);
-        Action.PrimaryOperationTransportHandler primaryPhase = action.new PrimaryOperationTransportHandler() {
+        AtomicBoolean executed = new AtomicBoolean();
+        action.new AsyncPrimaryAction(new Request(shardId), createTransportChannel(new PlainActionFuture<>()), null) {
             @Override
             protected ReplicationOperation<Request, Request, Action.PrimaryResult> createReplicatedOperation(Request request,
                     ActionListener<Action.PrimaryResult> actionListener, Action.PrimaryShardReference primaryShardReference,
                     boolean executeOnReplicas) {
                 assertFalse(executeOnReplicas);
+                assertFalse(executed.getAndSet(true));
                 return new NoopReplicationOperation(request, actionListener);
             }
-        };
-        primaryPhase.messageReceived(new Request(shardId), createTransportChannel(new PlainActionFuture<>()), null);
+        }.run();
+        assertThat(executed.get(), equalTo(true));
     }
 
     public void testCounterOnPrimary() throws Exception {
@@ -604,17 +605,16 @@ public class TransportReplicationActionTests extends ESTestCase {
         final boolean throwExceptionOnCreation = i == 1;
         final boolean throwExceptionOnRun = i == 2;
         final boolean respondWithError = i == 3;
-        Action.PrimaryOperationTransportHandler primaryPhase = action.new PrimaryOperationTransportHandler() {
-
+        action.new AsyncPrimaryAction(request, createTransportChannel(listener), task) {
             @Override
             protected ReplicationOperation<Request, Request, Action.PrimaryResult> createReplicatedOperation(Request request,
-                    ActionListener<Action.PrimaryResult> listener, Action.PrimaryShardReference primaryShardReference,
+                    ActionListener<Action.PrimaryResult> actionListener, Action.PrimaryShardReference primaryShardReference,
                     boolean executeOnReplicas) {
                 assertIndexShardCounter(1);
                 if (throwExceptionOnCreation) {
                     throw new ElasticsearchException("simulated exception, during createReplicatedOperation");
                 }
-                return new NoopReplicationOperation(request, listener) {
+                return new NoopReplicationOperation(request, actionListener) {
                     @Override
                     public void execute() throws Exception {
                         assertIndexShardCounter(1);
@@ -629,18 +629,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                     }
                 };
             }
-        };
-        try {
-            primaryPhase.messageReceived(request, createTransportChannel(listener), task);
-        } catch (ElasticsearchException e) {
-            if (throwExceptionOnCreation || throwExceptionOnRun) {
-                assertThat(e.getMessage(), containsString("simulated"));
-                assertIndexShardCounter(0);
-                return; // early terminate
-            } else {
-                throw e;
-            }
-        }
+        }.run();
         assertIndexShardCounter(0);
         assertTrue(listener.isDone());
         assertPhase(task, "finished");
@@ -648,7 +637,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         try {
             listener.get();
         } catch (ExecutionException e) {
-            if (respondWithError) {
+            if (throwExceptionOnCreation || throwExceptionOnRun || respondWithError) {
                 Throwable cause = e.getCause();
                 assertThat(cause, instanceOf(ElasticsearchException.class));
                 assertThat(cause.getMessage(), containsString("simulated"));
@@ -787,9 +776,9 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        protected PrimaryShardReference getPrimaryShardReference(ShardId shardId) {
+        protected void acquirePrimaryShardReference(ShardId shardId, ActionListener<PrimaryShardReference> onReferenceAcquired) {
             count.incrementAndGet();
-            return new PrimaryShardReference(null, null) {
+            PrimaryShardReference primaryShardReference = new PrimaryShardReference(null, null) {
                 @Override
                 public boolean isRelocated() {
                     return isRelocated.get();
@@ -812,13 +801,15 @@ public class TransportReplicationActionTests extends ESTestCase {
                 public void close() {
                     count.decrementAndGet();
                 }
-
             };
+
+            onReferenceAcquired.onResponse(primaryShardReference);
         }
 
-        protected Releasable acquireReplicaOperationLock(ShardId shardId, long primaryTerm) {
+        @Override
+        protected void acquireReplicaOperationLock(ShardId shardId, long primaryTerm, ActionListener<Releasable> onLockAcquired) {
             count.incrementAndGet();
-            return count::decrementAndGet;
+            onLockAcquired.onResponse(count::decrementAndGet);
         }
     }
 

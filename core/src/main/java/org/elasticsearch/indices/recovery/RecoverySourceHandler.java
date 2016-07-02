@@ -39,7 +39,6 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.index.engine.RecoveryEngineException;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -360,22 +359,20 @@ public class RecoverySourceHandler {
         cancellableThreads.checkForCancel();
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("[{}][{}] finalizing recovery to {}", indexName, shardId, request.targetNode());
-
-
         cancellableThreads.execute(recoveryTarget::finalizeRecovery);
 
         if (isPrimaryRelocation()) {
+            logger.trace("[{}][{}] performing relocation hand-off to {}", indexName, shardId, request.targetNode());
+            try {
+                cancellableThreads.execute(() -> shard.relocated("to " + request.targetNode()));
+            } catch (Throwable e) {
+                logger.debug("[{}][{}] completing relocation hand-off to {} failed", e, indexName, shardId, request.targetNode());
+                throw e;
+            }
             /**
              * if the recovery process fails after setting the shard state to RELOCATED, both relocation source and
              * target are failed (see {@link IndexShard#updateRoutingEntry}).
              */
-            try {
-                shard.relocated("to " + request.targetNode());
-            } catch (IllegalIndexShardStateException e) {
-                // we can ignore this exception since, on the other node, when it moved to phase3
-                // it will also send shard started, which might cause the index shard we work against
-                // to move be closed by the time we get to the relocated method
-            }
         }
         stopWatch.stop();
         logger.trace("[{}][{}] finalizing recovery to {}: took [{}]",

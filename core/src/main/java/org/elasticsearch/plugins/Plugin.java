@@ -38,8 +38,14 @@ import java.util.List;
 /**
  * An extension point allowing to plug in custom functionality.
  * <p>
- * A plugin can be register custom extensions to builtin behavior by implementing <tt>onModule(AnyModule)</tt>,
- * and registering the extension with the given module.
+ * Implement any of these interfaces to extend Elasticsearch:
+ * <ul>
+ * <li>{@link ActionPlugin}
+ * <li>{@link AnalysisPlugin}
+ * <li>{@link MapperPlugin}
+ * <li>{@link ScriptPlugin}
+ * <li>{@link SearchPlugin}
+ * </ul>
  */
 public abstract class Plugin {
 

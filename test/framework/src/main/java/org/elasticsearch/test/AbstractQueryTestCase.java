@@ -94,6 +94,7 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -866,7 +867,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             scriptSettings.addAll(pluginsService.getPluginSettings());
             scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
             SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, pluginsService.getPluginSettingsFilter());
-            searchModule = new SearchModule(settings, namedWriteableRegistry, false) {
+            searchModule = new SearchModule(settings, namedWriteableRegistry, false, pluginsService.filterPlugins(SearchPlugin.class)) {
                 @Override
                 protected void configureSearch() {
                     // Skip me

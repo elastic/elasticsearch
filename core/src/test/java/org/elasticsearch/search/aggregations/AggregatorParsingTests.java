@@ -62,6 +62,7 @@ import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.containsString;
@@ -119,7 +120,7 @@ public class AggregatorParsingTests extends ESTestCase {
                 protected void configure() {
                     bindMapperExtension();
                 }
-            }, new SearchModule(settings, namedWriteableRegistry, false) {
+            }, new SearchModule(settings, namedWriteableRegistry, false, emptyList()) {
                 @Override
                 protected void configureSearch() {
                     // Skip me

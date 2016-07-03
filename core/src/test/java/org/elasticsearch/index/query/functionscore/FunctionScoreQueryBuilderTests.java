@@ -25,7 +25,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -37,11 +36,7 @@ import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -50,21 +45,24 @@ import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -728,7 +726,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
      */
     static class RandomScoreFunctionBuilderWithFixedSeed extends RandomScoreFunctionBuilder {
         public static final String NAME = "random_with_fixed_seed";
-        public static final ParseField FUNCTION_NAME_FIELD = new ParseField(NAME);
 
         public RandomScoreFunctionBuilderWithFixedSeed() {
         }
@@ -760,11 +757,11 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         }
     }
 
-    public static class TestPlugin extends Plugin {
-        public void onModule(SearchModule module) {
-            module.registerScoreFunction(RandomScoreFunctionBuilderWithFixedSeed::new,
-                    RandomScoreFunctionBuilderWithFixedSeed::fromXContent, RandomScoreFunctionBuilderWithFixedSeed.FUNCTION_NAME_FIELD);
+    public static class TestPlugin extends Plugin implements SearchPlugin {
+        @Override
+        public List<ScoreFunctionSpec<?>> getScoreFunctions() {
+            return singletonList(new ScoreFunctionSpec<>(RandomScoreFunctionBuilderWithFixedSeed.NAME,
+                    RandomScoreFunctionBuilderWithFixedSeed::new, RandomScoreFunctionBuilderWithFixedSeed::fromXContent));
         }
-
     }
 }

@@ -118,7 +118,7 @@ public class TemplateQueryParserTests extends ESTestCase {
                     b.bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
                 },
                 settingsModule,
-                new SearchModule(settings, new NamedWriteableRegistry(), false) {
+                new SearchModule(settings, new NamedWriteableRegistry(), false, emptyList()) {
                     @Override
                     protected void configureSearch() {
                         // skip so we don't need transport

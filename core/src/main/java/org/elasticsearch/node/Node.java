@@ -98,6 +98,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptModule;
@@ -289,7 +290,7 @@ public class Node implements Closeable {
             ClusterModule clusterModule = new ClusterModule(settings, clusterService);
             modules.add(clusterModule);
             modules.add(new IndicesModule(namedWriteableRegistry, pluginsService.filterPlugins(MapperPlugin.class)));
-            modules.add(new SearchModule(settings, namedWriteableRegistry, false));
+            modules.add(new SearchModule(settings, namedWriteableRegistry, false, pluginsService.filterPlugins(SearchPlugin.class)));
             modules.add(new ActionModule(DiscoveryNode.isIngestNode(settings), false, settings,
                     clusterModule.getIndexNameExpressionResolver(), settingsModule.getClusterSettings(),
                     pluginsService.filterPlugins(ActionPlugin.class)));

@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 /**
- *
+ * Integration test for registering a custom suggester.
  */
 @ClusterScope(scope= Scope.SUITE, numDataNodes =1)
 public class CustomSuggesterSearchIT extends ESIntegTestCase {

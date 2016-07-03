@@ -29,7 +29,6 @@ import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
-import org.elasticsearch.search.Highlighters;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -43,9 +42,9 @@ import java.util.Map;
 public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
     private static final List<String> STANDARD_HIGHLIGHTERS_BY_PRECEDENCE = Arrays.asList("fvh", "postings", "plain");
 
-    private final Highlighters highlighters;
+    private final Map<String, Highlighter> highlighters;
 
-    public HighlightPhase(Settings settings, Highlighters highlighters) {
+    public HighlightPhase(Settings settings, Map<String, Highlighter> highlighters) {
         super(settings);
         this.highlighters = highlighters;
     }

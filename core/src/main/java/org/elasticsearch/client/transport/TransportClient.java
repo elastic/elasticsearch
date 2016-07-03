@@ -55,6 +55,7 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -145,7 +146,7 @@ public class TransportClient extends AbstractClient {
                 }
                 modules.add(new NetworkModule(networkService, settings, true, namedWriteableRegistry));
                 modules.add(b -> b.bind(ThreadPool.class).toInstance(threadPool));
-                modules.add(new SearchModule(settings, namedWriteableRegistry, true));
+                modules.add(new SearchModule(settings, namedWriteableRegistry, true, pluginsService.filterPlugins(SearchPlugin.class)));
                 ActionModule actionModule = new ActionModule(false, true, settings, null, settingsModule.getClusterSettings(),
                     pluginsService.filterPlugins(ActionPlugin.class));
                 modules.add(actionModule);

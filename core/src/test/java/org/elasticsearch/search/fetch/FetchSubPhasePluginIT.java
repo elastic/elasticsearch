@@ -32,11 +32,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchHitField;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -47,8 +46,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -99,9 +100,10 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 equalTo(1));
     }
 
-    public static class FetchTermVectorsPlugin extends Plugin {
-        public void onModule(SearchModule searchModule) {
-            searchModule.registerFetchSubPhase(new TermVectorsFetchSubPhase());
+    public static class FetchTermVectorsPlugin extends Plugin implements SearchPlugin {
+        @Override
+        public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
+            return singletonList(new TermVectorsFetchSubPhase());
         }
     }
 

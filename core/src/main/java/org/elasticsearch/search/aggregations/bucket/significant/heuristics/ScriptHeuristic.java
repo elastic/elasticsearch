@@ -22,8 +22,6 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,7 +46,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public class ScriptHeuristic extends SignificanceHeuristic {
-    public static final ParseField NAMES_FIELD = new ParseField("script_heuristic");
+    public static final String NAME = "script_heuristic";
 
     private final LongAccessor subsetSizeHolder;
     private final LongAccessor supersetSizeHolder;
@@ -123,12 +121,12 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     @Override
     public String getWriteableName() {
-        return NAMES_FIELD.getPreferredName();
+        return NAME;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {
-        builder.startObject(NAMES_FIELD.getPreferredName());
+        builder.startObject(NAME);
         builder.field(ScriptField.SCRIPT.getPreferredName());
         script.toXContent(builder, builderParams);
         builder.endObject();
@@ -205,7 +203,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {
-            builder.startObject(NAMES_FIELD.getPreferredName());
+            builder.startObject(NAME);
             builder.field(ScriptField.SCRIPT.getPreferredName());
             script.toXContent(builder, builderParams);
             builder.endObject();

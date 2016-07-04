@@ -25,12 +25,16 @@ import com.fasterxml.jackson.dataformat.smile.SmileFactory;
 import com.fasterxml.jackson.dataformat.smile.SmileGenerator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.common.xcontent.json.BaseJsonGenerator;
-import org.elasticsearch.common.xcontent.support.filtering.FilteringJsonGenerator;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Reader;
 
 /**
  * A Smile based content implementation using Jackson.
@@ -41,13 +45,15 @@ public class SmileXContent implements XContent {
         return XContentBuilder.builder(smileXContent);
     }
 
-    final static SmileFactory smileFactory;
-    public final static SmileXContent smileXContent;
+    static final SmileFactory smileFactory;
+    public static final SmileXContent smileXContent;
 
     static {
         smileFactory = new SmileFactory();
         smileFactory.configure(SmileGenerator.Feature.ENCODE_BINARY_AS_7BIT, false); // for now, this is an overhead, might make sense for web sockets
         smileFactory.configure(SmileFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
+        // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.dataformat.smile.SmileGenerator#close() method
+        smileFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         smileXContent = new SmileXContent();
     }
 
@@ -64,27 +70,9 @@ public class SmileXContent implements XContent {
         return (byte) 0xFF;
     }
 
-    private XContentGenerator newXContentGenerator(JsonGenerator jsonGenerator) {
-        return new SmileXContentGenerator(new BaseJsonGenerator(jsonGenerator));
-    }
-
     @Override
-    public XContentGenerator createGenerator(OutputStream os) throws IOException {
-        return newXContentGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8));
-    }
-
-    @Override
-    public XContentGenerator createGenerator(OutputStream os, String[] filters) throws IOException {
-        if (CollectionUtils.isEmpty(filters)) {
-            return createGenerator(os);
-        }
-        FilteringJsonGenerator smileGenerator = new FilteringJsonGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8), filters);
-        return new SmileXContentGenerator(smileGenerator);
-    }
-
-    @Override
-    public XContentGenerator createGenerator(Writer writer) throws IOException {
-        return newXContentGenerator(smileFactory.createGenerator(writer));
+    public XContentGenerator createGenerator(OutputStream os, String[] filters, boolean inclusive) throws IOException {
+        return new SmileXContentGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8), os, filters, inclusive);
     }
 
     @Override
@@ -109,9 +97,6 @@ public class SmileXContent implements XContent {
 
     @Override
     public XContentParser createParser(BytesReference bytes) throws IOException {
-        if (bytes.hasArray()) {
-            return createParser(bytes.array(), bytes.arrayOffset(), bytes.length());
-        }
         return createParser(bytes.streamInput());
     }
 

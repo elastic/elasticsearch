@@ -23,20 +23,26 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 public class MutualInformation extends NXYSignificanceHeuristic {
-
-    protected static final ParseField NAMES_FIELD = new ParseField("mutual_information");
+    public static final ParseField NAMES_FIELD = new ParseField("mutual_information");
 
     private static final double log2 = Math.log(2.0);
 
     public MutualInformation(boolean includeNegatives, boolean backgroundIsSuperset) {
         super(includeNegatives, backgroundIsSuperset);
     }
+
+    /**
+     * Read from a stream.
+     */
+    public MutualInformation(StreamInput in) throws IOException {
+        super(in);
+    }
+
 
     @Override
     public boolean equals(Object other) {
@@ -52,18 +58,6 @@ public class MutualInformation extends NXYSignificanceHeuristic {
         result = 31 * result + super.hashCode();
         return result;
     }
-
-    public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {
-        @Override
-        public SignificanceHeuristic readResult(StreamInput in) throws IOException {
-            return new MutualInformation(in.readBoolean(), in.readBoolean());
-        }
-
-        @Override
-        public String getName() {
-            return NAMES_FIELD.getPreferredName();
-        }
-    };
 
     /**
      * Calculates mutual information
@@ -113,23 +107,24 @@ public class MutualInformation extends NXYSignificanceHeuristic {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(STREAM.getName());
-        super.writeTo(out);
+    public String getWriteableName() {
+        return NAMES_FIELD.getPreferredName();
     }
 
-    public static class MutualInformationParser extends NXYParser {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(NAMES_FIELD.getPreferredName());
+        super.build(builder);
+        builder.endObject();
+        return builder;
+    }
 
+    public static SignificanceHeuristicParser PARSER = new NXYParser() {
         @Override
         protected SignificanceHeuristic newHeuristic(boolean includeNegatives, boolean backgroundIsSuperset) {
             return new MutualInformation(includeNegatives, backgroundIsSuperset);
         }
-
-        @Override
-        public String[] getNames() {
-            return NAMES_FIELD.getAllNamesIncludedDeprecated();
-        }
-    }
+    };
 
     public static class MutualInformationBuilder extends NXYBuilder {
 
@@ -139,7 +134,7 @@ public class MutualInformation extends NXYSignificanceHeuristic {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(STREAM.getName());
+            builder.startObject(NAMES_FIELD.getPreferredName());
             super.build(builder);
             builder.endObject();
             return builder;

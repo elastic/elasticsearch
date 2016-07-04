@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,13 +40,13 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
         private String index;
         private String type;
         private String id;
-        private Throwable cause;
+        private Exception cause;
 
         Failure() {
 
         }
 
-        public Failure(String index, String type, String id, Throwable cause) {
+        public Failure(String index, String type, String id, Exception cause) {
             this.index = index;
             this.type = type;
             this.id = id;
@@ -78,7 +77,7 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
         /**
          * The failure cause.
          */
-        public Throwable getCause() {
+        public Exception getCause() {
             return this.cause;
         }
 
@@ -93,7 +92,7 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
             index = in.readString();
             type = in.readOptionalString();
             id = in.readString();
-            cause = in.readThrowable();
+            cause = in.readException();
         }
 
         @Override
@@ -133,7 +132,7 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
                 builder.field(Fields._INDEX, failure.getIndex());
                 builder.field(Fields._TYPE, failure.getType());
                 builder.field(Fields._ID, failure.getId());
-                ElasticsearchException.renderThrowable(builder, params, failure.getCause());
+                ElasticsearchException.renderException(builder, params, failure.getCause());
                 builder.endObject();
             } else {
                 TermVectorsResponse getResponse = response.getResponse();
@@ -147,10 +146,10 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
     }
 
     static final class Fields {
-        static final XContentBuilderString DOCS = new XContentBuilderString("docs");
-        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
+        static final String DOCS = "docs";
+        static final String _INDEX = "_index";
+        static final String _TYPE = "_type";
+        static final String _ID = "_id";
     }
 
     @Override

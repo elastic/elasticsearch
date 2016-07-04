@@ -21,15 +21,16 @@ package org.elasticsearch.search.highlight;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
-import org.elasticsearch.search.SearchParseElement;
+import org.elasticsearch.search.Highlighters;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.Arrays;
@@ -39,45 +40,21 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.singletonMap;
-
-/**
- *
- */
 public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
     private static final List<String> STANDARD_HIGHLIGHTERS_BY_PRECEDENCE = Arrays.asList("fvh", "postings", "plain");
-    private static final Map<String, ? extends SearchParseElement> PARSE_ELEMENTS = singletonMap("highlight",
-            new HighlighterParseElement());
 
     private final Highlighters highlighters;
 
-    @Inject
     public HighlightPhase(Settings settings, Highlighters highlighters) {
         super(settings);
         this.highlighters = highlighters;
     }
 
     @Override
-    public Map<String, ? extends SearchParseElement> parseElements() {
-        return PARSE_ELEMENTS;
-    }
-
-    @Override
-    public boolean hitsExecutionNeeded(SearchContext context) {
-        return false;
-    }
-
-    @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
-    }
-
-    @Override
-    public boolean hitExecutionNeeded(SearchContext context) {
-        return context.highlight() != null;
-    }
-
-    @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {
+        if (context.highlight() == null) {
+            return;
+        }
         Map<String, HighlightField> highlightFields = new HashMap<>();
         for (SearchContextHighlight.Field field : context.highlight().fields()) {
             Collection<String> fieldNamesToHighlight;
@@ -102,6 +79,21 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                     continue;
                 }
 
+                // We should prevent highlighting if a field is anything but a text or keyword field.
+                // However, someone might implement a custom field type that has text and still want to
+                // highlight on that. We cannot know in advance if the highlighter will be able to
+                // highlight such a field and so we do the following:
+                // If the field is only highlighted because the field matches a wildcard we assume
+                // it was a mistake and do not process it.
+                // If the field was explicitly given we assume that whoever issued the query knew
+                // what they were doing and try to highlight anyway.
+                if (fieldNameContainsWildcards) {
+                    if (fieldMapper.fieldType().typeName().equals(TextFieldMapper.CONTENT_TYPE) == false &&
+                        fieldMapper.fieldType().typeName().equals(KeywordFieldMapper.CONTENT_TYPE) == false &&
+                        fieldMapper.fieldType().typeName().equals(StringFieldMapper.CONTENT_TYPE) == false) {
+                        continue;
+                    }
+                }
                 String highlighterType = field.fieldOptions().highlighterType();
                 if (highlighterType == null) {
                     for(String highlighterCandidate : STANDARD_HIGHLIGHTERS_BY_PRECEDENCE) {

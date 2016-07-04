@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -44,35 +45,54 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        String sourceNodeId = shardRouting.currentNodeId();
-        /* if sourceNodeId is not null we do a relocation and just check the version of the node
-         * that we are currently allocate on. If not we are initializing and recover from primary.*/
-        if (sourceNodeId == null) { // we allocate - check primary
-            if (shardRouting.primary()) {
-                // we are the primary we can allocate wherever
-                return allocation.decision(Decision.YES, NAME, "primary shard can be allocated anywhere");
+        if (shardRouting.primary()) {
+            if (shardRouting.currentNodeId() == null) {
+                if (shardRouting.restoreSource() != null) {
+                    // restoring from a snapshot - check that the node can handle the version
+                    return isVersionCompatible(shardRouting.restoreSource(), node, allocation);
+                } else {
+                    // fresh primary, we can allocate wherever
+                    return allocation.decision(Decision.YES, NAME, "the primary shard is new and can be allocated anywhere");
+                }
+            } else {
+                // relocating primary, only migrate to newer host
+                return isVersionCompatible(allocation.routingNodes(), shardRouting.currentNodeId(), node, allocation);
             }
-            final ShardRouting primary = allocation.routingNodes().activePrimary(shardRouting);
-            if (primary == null) { // we have a primary - it's a start ;)
+        } else {
+            final ShardRouting primary = allocation.routingNodes().activePrimary(shardRouting.shardId());
+            // check that active primary has a newer version so that peer recovery works
+            if (primary != null) {
+                return isVersionCompatible(allocation.routingNodes(), primary.currentNodeId(), node, allocation);
+            } else {
+                // ReplicaAfterPrimaryActiveAllocationDecider should prevent this case from occurring
                 return allocation.decision(Decision.YES, NAME, "no active primary shard yet");
             }
-            sourceNodeId = primary.currentNodeId();
         }
-        return isVersionCompatible(allocation.routingNodes(), sourceNodeId, node, allocation);
-
     }
 
-    private Decision isVersionCompatible(final RoutingNodes routingNodes, final String sourceNodeId, final RoutingNode target, RoutingAllocation allocation) {
+    private Decision isVersionCompatible(final RoutingNodes routingNodes, final String sourceNodeId, final RoutingNode target,
+                                         RoutingAllocation allocation) {
         final RoutingNode source = routingNodes.node(sourceNodeId);
-        if (target.node().version().onOrAfter(source.node().version())) {
+        if (target.node().getVersion().onOrAfter(source.node().getVersion())) {
             /* we can allocate if we can recover from a node that is younger or on the same version
              * if the primary is already running on a newer version that won't work due to possible
              * differences in the lucene index format etc.*/
-            return allocation.decision(Decision.YES, NAME, "target node version [%s] is same or newer than source node version [%s]",
-                    target.node().version(), source.node().version());
+            return allocation.decision(Decision.YES, NAME, "target node version [%s] is the same or newer than source node version [%s]",
+                    target.node().getVersion(), source.node().getVersion());
         } else {
-            return allocation.decision(Decision.NO, NAME, "target node version [%s] is older than source node version [%s]",
-                    target.node().version(), source.node().version());
+            return allocation.decision(Decision.NO, NAME, "target node version [%s] is older than the source node version [%s]",
+                    target.node().getVersion(), source.node().getVersion());
+        }
+    }
+
+    private Decision isVersionCompatible(RestoreSource restoreSource, final RoutingNode target, RoutingAllocation allocation) {
+        if (target.node().getVersion().onOrAfter(restoreSource.version())) {
+            /* we can allocate if we can restore from a snapshot that is older or on the same version */
+            return allocation.decision(Decision.YES, NAME, "target node version [%s] is the same or newer than snapshot version [%s]",
+                target.node().getVersion(), restoreSource.version());
+        } else {
+            return allocation.decision(Decision.NO, NAME, "target node version [%s] is older than the snapshot version [%s]",
+                target.node().getVersion(), restoreSource.version());
         }
     }
 }

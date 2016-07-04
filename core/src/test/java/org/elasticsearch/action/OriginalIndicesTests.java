@@ -23,7 +23,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -36,7 +35,6 @@ public class OriginalIndicesTests extends ESTestCase {
             IndicesOptions.lenientExpandOpen() , IndicesOptions.strictExpand(), IndicesOptions.strictExpandOpen(),
             IndicesOptions.strictExpandOpenAndForbidClosed(), IndicesOptions.strictSingleIndexNoExpandForbidClosed()};
 
-    @Test
     public void testOriginalIndicesSerialization() throws IOException {
         int iterations = iterations(10, 30);
         for (int i = 0; i < iterations; i++) {
@@ -46,7 +44,7 @@ public class OriginalIndicesTests extends ESTestCase {
             out.setVersion(randomVersion(random()));
             OriginalIndices.writeOriginalIndices(originalIndices, out);
 
-            StreamInput in = StreamInput.wrap(out.bytes());
+            StreamInput in = out.bytes().streamInput();
             in.setVersion(out.getVersion());
             OriginalIndices originalIndices2 = OriginalIndices.readOriginalIndices(in);
 

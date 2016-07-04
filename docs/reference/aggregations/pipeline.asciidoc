@@ -22,9 +22,9 @@ parameter to indicate the paths to the required metrics. The syntax for defining
 
 Pipeline aggregations cannot have sub-aggregations but depending on the type it can reference another pipeline in the `buckets_path`
 allowing pipeline aggregations to be chained.  For example, you can chain together two derivatives to calculate the second derivative
-(e.g. a derivative of a derivative).
+(i.e. a derivative of a derivative).
 
-NOTE: Because pipeline aggregations only add to the output, when chaining pipeline aggregations the output of each pipeline aggregation 
+NOTE: Because pipeline aggregations only add to the output, when chaining pipeline aggregations the output of each pipeline aggregation
 will be included in the final output.
 
 [[buckets-path-syntax]]
@@ -104,7 +104,7 @@ a metric embedded inside a sibling aggregation:
 `sales_per_month` date histogram.
 
 [float]
-==== Special Paths
+=== Special Paths
 
 Instead of pathing to a metric, `buckets_path` can use a special `"_count"` path.  This instructs
 the pipeline aggregation to use the document count as it's input.  For example, a moving average can be calculated on the document
@@ -127,6 +127,20 @@ count of each bucket, instead of a specific metric:
 }
 --------------------------------------------------
 <1> By using `_count` instead of a metric name, we can calculate the moving average of document counts in the histogram
+
+[[dots-in-agg-names]]
+[float]
+=== Dealing with dots in agg names
+
+An alternate syntax is supported to cope with aggregations or metrics which
+have dots in the name, such as the ++99.9++th
+<<search-aggregations-metrics-percentile-aggregation,percentile>>. This metric
+may be referred to as:
+
+[source,js]
+---------------
+"buckets_path": "my_percentile[99.9]"
+---------------
 
 [[gap-policy]]
 [float]

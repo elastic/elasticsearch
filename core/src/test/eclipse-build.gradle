@@ -1,0 +1,7 @@
+
+// this is just shell gradle file for eclipse to have separate projects for core src and tests
+apply from: '../../build.gradle'
+
+dependencies {
+  testCompile project(':core')
+}

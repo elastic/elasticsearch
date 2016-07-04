@@ -19,65 +19,44 @@
 package org.elasticsearch.search.aggregations.metrics.stats.extended;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
  */
-public class ExtendedStatsParser  implements Aggregator.Parser {
+public class ExtendedStatsParser extends NumericValuesSourceParser {
 
-    static final ParseField SIGMA = new ParseField("sigma");
-
-    @Override
-    public String type() {
-        return InternalExtendedStats.TYPE.name();
-    }
-
-    protected AggregatorFactory createFactory(String aggregationName, ValuesSourceConfig<ValuesSource.Numeric> config, double sigma) {
-        return new ExtendedStatsAggregator.Factory(aggregationName, config, sigma);
+    public ExtendedStatsParser() {
+        super(true, true, false);
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
-
-        ValuesSourceParser<ValuesSource.Numeric> vsParser = ValuesSourceParser.numeric(aggregationName, InternalExtendedStats.TYPE, context).formattable(true)
-                .build();
-
-        XContentParser.Token token;
-        String currentFieldName = null;
-        double sigma = 2.0;
-
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (vsParser.token(currentFieldName, token, parser)) {
-                continue;
-            } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if (context.parseFieldMatcher().match(currentFieldName, SIGMA)) {
-                    sigma = parser.doubleValue();
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
-                }
-            } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
-                        parser.getTokenLocation());
+    protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
+            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+        if (parseFieldMatcher.match(currentFieldName, ExtendedStatsAggregator.SIGMA_FIELD)) {
+            if (token.isValue()) {
+                otherOptions.put(ExtendedStatsAggregator.SIGMA_FIELD, parser.doubleValue());
+                return true;
             }
         }
+        return false;
+    }
 
-        if (sigma < 0) {
-            throw new SearchParseException(context, "[sigma] must not be negative. Value provided was" + sigma, parser.getTokenLocation());
+    @Override
+    protected ExtendedStatsAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        ExtendedStatsAggregationBuilder factory = new ExtendedStatsAggregationBuilder(aggregationName);
+        Double sigma = (Double) otherOptions.get(ExtendedStatsAggregator.SIGMA_FIELD);
+        if (sigma != null) {
+            factory.sigma(sigma);
         }
-
-        return createFactory(aggregationName, vsParser.config(), sigma);
+        return factory;
     }
 }

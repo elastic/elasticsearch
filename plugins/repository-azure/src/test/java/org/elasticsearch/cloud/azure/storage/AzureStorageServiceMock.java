@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cloud.azure.storage;
 
+import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -30,6 +31,8 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
@@ -40,7 +43,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * In memory storage for unit tests
  */
-public class AzureStorageServiceMock extends AbstractLifecycleComponent<AzureStorageServiceMock>
+public class AzureStorageServiceMock extends AbstractLifecycleComponent
         implements AzureStorageService {
 
     protected Map<String, ByteArrayOutputStream> blobs = new ConcurrentHashMap<>();
@@ -51,57 +54,67 @@ public class AzureStorageServiceMock extends AbstractLifecycleComponent<AzureSto
     }
 
     @Override
-    public boolean doesContainerExist(String container) {
+    public boolean doesContainerExist(String account, LocationMode mode, String container) {
         return true;
     }
 
     @Override
-    public void removeContainer(String container) {
+    public void removeContainer(String account, LocationMode mode, String container) {
     }
 
     @Override
-    public void createContainer(String container) {
+    public void createContainer(String account, LocationMode mode, String container) {
     }
 
     @Override
-    public void deleteFiles(String container, String path) {
+    public void deleteFiles(String account, LocationMode mode, String container, String path) {
     }
 
     @Override
-    public boolean blobExists(String container, String blob) {
+    public boolean blobExists(String account, LocationMode mode, String container, String blob) {
         return blobs.containsKey(blob);
     }
 
     @Override
-    public void deleteBlob(String container, String blob) {
+    public void deleteBlob(String account, LocationMode mode, String container, String blob) {
         blobs.remove(blob);
     }
 
     @Override
-    public InputStream getInputStream(String container, String blob) {
+    public InputStream getInputStream(String account, LocationMode mode, String container, String blob) throws IOException {
+        if (!blobExists(account, mode, container, blob)) {
+            throw new FileNotFoundException("missing blob [" + blob + "]");
+        }
         return new ByteArrayInputStream(blobs.get(blob).toByteArray());
     }
 
     @Override
-    public OutputStream getOutputStream(String container, String blob) throws URISyntaxException, StorageException {
+    public OutputStream getOutputStream(String account, LocationMode mode, String container, String blob) throws URISyntaxException, StorageException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         blobs.put(blob, outputStream);
         return outputStream;
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix) {
+    public Map<String, BlobMetaData> listBlobsByPrefix(String account, LocationMode mode, String container, String keyPath, String prefix) {
         MapBuilder<String, BlobMetaData> blobsBuilder = MapBuilder.newMapBuilder();
         for (String blobName : blobs.keySet()) {
-            if (startsWithIgnoreCase(blobName, prefix)) {
-                blobsBuilder.put(blobName, new PlainBlobMetaData(blobName, blobs.get(blobName).size()));
+            final String checkBlob;
+            if (keyPath != null) {
+                // strip off key path from the beginning of the blob name
+                checkBlob = blobName.replace(keyPath, "");
+            } else {
+                checkBlob = blobName;
+            }
+            if (startsWithIgnoreCase(checkBlob, prefix)) {
+                blobsBuilder.put(blobName, new PlainBlobMetaData(checkBlob, blobs.get(blobName).size()));
             }
         }
         return blobsBuilder.immutableMap();
     }
 
     @Override
-    public void moveBlob(String container, String sourceBlob, String targetBlob) throws URISyntaxException, StorageException {
+    public void moveBlob(String account, LocationMode mode, String container, String sourceBlob, String targetBlob) throws URISyntaxException, StorageException {
         for (String blobName : blobs.keySet()) {
             if (endsWithIgnoreCase(blobName, sourceBlob)) {
                 ByteArrayOutputStream outputStream = blobs.get(blobName);

@@ -7,8 +7,8 @@ The following pages have moved or been deleted.
 === Nodes shutdown
 
 The `_shutdown` API has been removed.  Instead, setup Elasticsearch to run as
-a service (see <<setup-service>> or <<setup-service-win>>) or use the `-p`
-command line option to <<setup-installation-pid,write the PID to a file>>.
+a service (see <<rpm>>, <<deb>>,  or <<windows>>) or use the `-p`
+command line option to <<setup-installation-daemon,write the PID to a file>>.
 
 [role="exclude",id="docs-bulk-udp"]
 === Bulk UDP API
@@ -80,9 +80,7 @@ in ``query context'' and as a filter in ``filter context'' (see <<query-dsl>>).
 [role="exclude",id="query-dsl-not-filter"]
 === Not Filter
 
-The `not` filter has been replaced by the <<query-dsl-not-query>>.  It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
+The `not` query has been replaced by using a `mustNot` clause in a Boolean query.
 
 [role="exclude",id="query-dsl-bool-filter"]
 === Bool Filter
@@ -97,14 +95,6 @@ as a query in ``query context'' and as a filter in ``filter context'' (see
 The `exists` filter has been replaced by the <<query-dsl-exists-query>>.  It behaves
 as a query in ``query context'' and as a filter in ``filter context'' (see
 <<query-dsl>>).
-
-[role="exclude",id="query-dsl-missing-filter"]
-=== Missing Filter
-
-The `missing` filter has been replaced by the <<query-dsl-missing-query>>.  It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
 
 [role="exclude",id="query-dsl-geo-bounding-box-filter"]
 === Geo Bounding Box Filter
@@ -364,7 +354,7 @@ The filter cache has been renamed <<query-cache>>.
 [role="exclude",id="query-dsl-filtered-query"]
 === Filtered query
 
-The `filtered` query is replaced in favour of the <<query-dsl-bool-query,bool>> query. Instead of
+The `filtered` query is replaced by the <<query-dsl-bool-query,bool>> query. Instead of
 the following:
 
 [source,js]
@@ -443,3 +433,24 @@ parameter of search requests.
 
 The `limit` filter is replaced in favour of the <<search-request-body,terminate_after>>
 parameter of search requests.
+
+[role="exclude",id="query-dsl-not-query"]
+=== Not query
+
+The `not` query has been replaced by using a `mustNot` clause in a Boolean query.
+
+[role="exclude",id="mapping-nested-type"]
+=== Nested type
+
+The docs for the `nested` field datatype have moved to <<nested>>.
+
+[role="exclude",id="indices-warmers"]
+=== Warmers
+
+Warmers have been removed. There have been significant improvements to the
+index that make warmers not necessary anymore.
+
+[role="exclude",id="index-boost"]
+=== Index time boosting
+
+The index time boost mapping has been replaced with query time boost (see <<mapping-boost>>).

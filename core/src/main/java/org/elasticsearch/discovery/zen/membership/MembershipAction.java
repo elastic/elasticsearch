@@ -19,7 +19,7 @@
 
 package org.elasticsearch.discovery.zen.membership;
 
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,7 +28,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.EmptyTransportResponseHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -42,13 +47,13 @@ public class MembershipAction extends AbstractComponent {
     public static final String DISCOVERY_JOIN_VALIDATE_ACTION_NAME = "internal:discovery/zen/join/validate";
     public static final String DISCOVERY_LEAVE_ACTION_NAME = "internal:discovery/zen/leave";
 
-    public static interface JoinCallback {
+    public interface JoinCallback {
         void onSuccess();
 
-        void onFailure(Throwable t);
+        void onFailure(Exception e);
     }
 
-    public static interface MembershipListener {
+    public interface MembershipListener {
         void onJoin(DiscoveryNode node, JoinCallback callback);
 
         void onLeave(DiscoveryNode node);
@@ -60,14 +65,11 @@ public class MembershipAction extends AbstractComponent {
 
     private final MembershipListener listener;
 
-    private final ClusterService clusterService;
-
-    public MembershipAction(Settings settings, ClusterService clusterService, TransportService transportService, DiscoveryNodesProvider nodesProvider, MembershipListener listener) {
+    public MembershipAction(Settings settings, TransportService transportService, DiscoveryNodesProvider nodesProvider, MembershipListener listener) {
         super(settings);
         this.transportService = transportService;
         this.nodesProvider = nodesProvider;
         this.listener = listener;
-        this.clusterService = clusterService;
 
         transportService.registerRequestHandler(DISCOVERY_JOIN_ACTION_NAME, JoinRequest::new, ThreadPool.Names.GENERIC, new JoinRequestRequestHandler());
         transportService.registerRequestHandler(DISCOVERY_JOIN_VALIDATE_ACTION_NAME, ValidateJoinRequest::new, ThreadPool.Names.GENERIC, new ValidateJoinRequestRequestHandler());
@@ -88,10 +90,6 @@ public class MembershipAction extends AbstractComponent {
         transportService.submitRequest(masterNode, DISCOVERY_LEAVE_ACTION_NAME, new LeaveRequest(node), EmptyTransportResponseHandler.INSTANCE_SAME).txGet(timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
-    public void sendJoinRequest(DiscoveryNode masterNode, DiscoveryNode node) {
-        transportService.sendRequest(masterNode, DISCOVERY_JOIN_ACTION_NAME, new JoinRequest(node), EmptyTransportResponseHandler.INSTANCE_SAME);
-    }
-
     public void sendJoinRequestBlocking(DiscoveryNode masterNode, DiscoveryNode node, TimeValue timeout) {
         transportService.submitRequest(masterNode, DISCOVERY_JOIN_ACTION_NAME, new JoinRequest(node), EmptyTransportResponseHandler.INSTANCE_SAME)
                 .txGet(timeout.millis(), TimeUnit.MILLISECONDS);
@@ -100,8 +98,8 @@ public class MembershipAction extends AbstractComponent {
     /**
      * Validates the join request, throwing a failure if it failed.
      */
-    public void sendValidateJoinRequestBlocking(DiscoveryNode node, TimeValue timeout) {
-        transportService.submitRequest(node, DISCOVERY_JOIN_VALIDATE_ACTION_NAME, new ValidateJoinRequest(), EmptyTransportResponseHandler.INSTANCE_SAME)
+    public void sendValidateJoinRequestBlocking(DiscoveryNode node, ClusterState state, TimeValue timeout) {
+        transportService.submitRequest(node, DISCOVERY_JOIN_VALIDATE_ACTION_NAME, new ValidateJoinRequest(state), EmptyTransportResponseHandler.INSTANCE_SAME)
                 .txGet(timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
@@ -119,7 +117,7 @@ public class MembershipAction extends AbstractComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            node = DiscoveryNode.readNode(in);
+            node = new DiscoveryNode(in);
         }
 
         @Override
@@ -139,26 +137,44 @@ public class MembershipAction extends AbstractComponent {
                 public void onSuccess() {
                     try {
                         channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                    } catch (Throwable t) {
-                        onFailure(t);
+                    } catch (Exception e) {
+                        onFailure(e);
                     }
                 }
 
                 @Override
-                public void onFailure(Throwable t) {
+                public void onFailure(Exception e) {
                     try {
-                        channel.sendResponse(t);
-                    } catch (Throwable e) {
-                        logger.warn("failed to send back failure on join request", e);
+                        channel.sendResponse(e);
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        logger.warn("failed to send back failure on join request", inner);
                     }
                 }
             });
         }
     }
 
-    public static class ValidateJoinRequest extends TransportRequest {
+    class ValidateJoinRequest extends TransportRequest {
+        private ClusterState state;
 
-        public ValidateJoinRequest() {
+        ValidateJoinRequest() {
+        }
+
+        ValidateJoinRequest(ClusterState state) {
+            this.state = state;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            this.state = ClusterState.Builder.readFrom(in, nodesProvider.nodes().getLocalNode());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            this.state.writeTo(out);
         }
     }
 
@@ -185,7 +201,7 @@ public class MembershipAction extends AbstractComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            node = DiscoveryNode.readNode(in);
+            node = new DiscoveryNode(in);
         }
 
         @Override

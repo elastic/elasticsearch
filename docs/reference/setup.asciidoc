@@ -1,14 +1,15 @@
 [[setup]]
-= Setup
+= Setup Elasticsearch
 
 [partintro]
 --
-This section includes information on how to setup *elasticsearch* and
-get it running. If you haven't already, http://www.elastic.co/downloads[download] it, and
-then check the <<setup-installation,installation>> docs.
+This section includes information on how to setup Elasticsearch and get it
+running, including:
 
-NOTE: Elasticsearch can also be installed from our repositories using `apt` or `yum`.
-See <<setup-repositories>>.
+* Downloading
+* Installing
+* Starting
+* Configuring
 
 [[supported-platforms]]
 [float]
@@ -18,90 +19,31 @@ The matrix of officially supported operating systems and JVMs is available here:
 link:/support/matrix[Support Matrix].  Elasticsearch is tested on the listed
 platforms, but it is possible that it will work on other platforms too.
 
-[[setup-installation]]
-[float]
-== Installation
-
-After link:/downloads/elasticsearch[downloading] the latest release and extracting it,
-*elasticsearch* can be started using:
-
-[source,sh]
---------------------------------------------------
-$ bin/elasticsearch
---------------------------------------------------
-
-On *nix systems, the command will start the process in the foreground.
-
-[[setup-installation-daemon]]
-[float]
-=== Running as a daemon
-
-To run it in the background, add the `-d` switch to it:
-
-[source,sh]
---------------------------------------------------
-$ bin/elasticsearch -d
---------------------------------------------------
-
-[[setup-installation-pid]]
-[float]
-=== PID
-
-The Elasticsearch process can write its PID to a specified file on startup,
-making it easy to shut down the process later on:
-
-[source,sh]
---------------------------------------------------
-$ bin/elasticsearch -d -p pid <1>
-$ kill `cat pid` <2>
---------------------------------------------------
-<1> The PID is written to a file called `pid`.
-<2> The `kill` command sends a `TERM` signal to the PID stored in the `pid` file.
-
-NOTE: The startup scripts provided for <<setup-service,Linux>> and <<setup-service-win,Windows>>
-take care of starting and stopping the Elasticsearch process for you.
-
-.*NIX
-*************************************************************************
-There are added features when using the `elasticsearch` shell script.
-The first, which was explained earlier, is the ability to easily run the
-process either in the foreground or the background.
-
-Another feature is the ability to pass `-D` or getopt long style
-configuration parameters directly to the script. When set, all override
-anything set using either `JAVA_OPTS` or `ES_JAVA_OPTS`. For example:
-
-[source,sh]
---------------------------------------------------
-$ bin/elasticsearch -Des.index.refresh_interval=5s --node.name=my-node
---------------------------------------------------
-*************************************************************************
-
 [float]
 [[jvm-version]]
-== Java (JVM) version
+== Java (JVM) Version
 
 Elasticsearch is built using Java, and requires at least
 http://www.oracle.com/technetwork/java/javase/downloads/index.html[Java 8] in
 order to run. Only Oracle's Java and the OpenJDK are supported. The same JVM
 version should be used on all Elasticsearch nodes and clients.
 
-We recommend installing the *Java 8 update 20 or later*.
-Elasticsearch will refuse to start if a known-bad version of Java is used.
+We recommend installing Java version *{jdk} or later*. Elasticsearch will
+refuse to start if a known-bad version of Java is used.
 
-The version of Java to use can be configured by setting the `JAVA_HOME`
-environment variable.
+The version of Java that Elasticsearch will use can be configured by setting
+the `JAVA_HOME` environment variable.
 
 --
 
+include::setup/install.asciidoc[]
+
 include::setup/configuration.asciidoc[]
 
-include::setup/as-a-service.asciidoc[]
+include::setup/important-settings.asciidoc[]
 
-include::setup/as-a-service-win.asciidoc[]
+include::setup/bootstrap-checks.asciidoc[]
 
-include::setup/dir-layout.asciidoc[]
-
-include::setup/repositories.asciidoc[]
+include::setup/sysconfig.asciidoc[]
 
 include::setup/upgrade.asciidoc[]

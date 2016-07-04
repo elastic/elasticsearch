@@ -19,18 +19,14 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.QueryBuilder;
 
 /**
  *
  */
 public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilder<ValidateQueryRequest, ValidateQueryResponse, ValidateQueryRequestBuilder> {
-
-    private QuerySourceBuilder sourceBuilder;
 
     public ValidateQueryRequestBuilder(ElasticsearchClient client, ValidateQueryAction action) {
         super(client, action, new ValidateQueryRequest());
@@ -45,32 +41,12 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
     }
 
     /**
-     * The query source to validate.
+     * The query to validate.
      *
      * @see org.elasticsearch.index.query.QueryBuilders
      */
     public ValidateQueryRequestBuilder setQuery(QueryBuilder queryBuilder) {
-        sourceBuilder().setQuery(queryBuilder);
-        return this;
-    }
-
-    /**
-     * The source to validate.
-     *
-     * @see org.elasticsearch.index.query.QueryBuilders
-     */
-    public ValidateQueryRequestBuilder setSource(BytesReference source) {
-        request().source(source);
-        return this;
-    }
-
-    /**
-     * The source to validate.
-     *
-     * @see org.elasticsearch.index.query.QueryBuilders
-     */
-    public ValidateQueryRequestBuilder setSource(byte[] source) {
-        request.source(source);
+        request.query(queryBuilder);
         return this;
     }
 
@@ -90,20 +66,5 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
     public ValidateQueryRequestBuilder setRewrite(boolean rewrite) {
         request.rewrite(rewrite);
         return this;
-    }
-
-    @Override
-    protected ValidateQueryRequest beforeExecute(ValidateQueryRequest request) {
-        if (sourceBuilder != null) {
-            request.source(sourceBuilder);
-        }
-        return request;
-    }
-
-    private QuerySourceBuilder sourceBuilder() {
-        if (sourceBuilder == null) {
-            sourceBuilder = new QuerySourceBuilder();
-        }
-        return sourceBuilder;
     }
 }

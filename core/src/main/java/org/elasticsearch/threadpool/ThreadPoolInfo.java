@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -76,7 +75,7 @@ public class ThreadPoolInfo implements Streamable, Iterable<ThreadPool.Info>, To
     }
 
     static final class Fields {
-        static final XContentBuilderString THREAD_POOL = new XContentBuilderString("thread_pool");
+        static final String THREAD_POOL = "thread_pool";
     }
 
     @Override

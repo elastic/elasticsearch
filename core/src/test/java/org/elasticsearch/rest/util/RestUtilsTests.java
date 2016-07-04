@@ -19,17 +19,14 @@
 
 package org.elasticsearch.rest.util;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -39,7 +36,10 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class RestUtilsTests extends ESTestCase {
 
-    @Test
+    static char randomDelimiter() {
+        return randomBoolean() ? '&' : ';';
+    }
+
     public void testDecodeQueryString() {
         Map<String, String> params = new HashMap<>();
 
@@ -49,7 +49,7 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.get("test"), equalTo("value"));
 
         params.clear();
-        uri = "something?test=value&test1=value1";
+        uri = String.format(Locale.ROOT, "something?test=value%ctest1=value1", randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(2));
         assertThat(params.get("test"), equalTo("value"));
@@ -66,7 +66,6 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.size(), equalTo(0));
     }
 
-    @Test
     public void testDecodeQueryStringEdgeCases() {
         Map<String, String> params = new HashMap<>();
 
@@ -75,12 +74,12 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.size(), equalTo(0));
 
         params.clear();
-        uri = "something?&";
+        uri = String.format(Locale.ROOT, "something?%c", randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(0));
 
         params.clear();
-        uri = "something?p=v&&p1=v1";
+        uri = String.format(Locale.ROOT, "something?p=v%c%cp1=v1", randomDelimiter(), randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(2));
         assertThat(params.get("p"), equalTo("v"));
@@ -92,7 +91,7 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.size(), equalTo(0));
 
         params.clear();
-        uri = "something?&=";
+        uri = String.format(Locale.ROOT, "something?%c=", randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(0));
 
@@ -103,14 +102,14 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.get("a"), equalTo(""));
 
         params.clear();
-        uri = "something?p=v&a";
+        uri = String.format(Locale.ROOT, "something?p=v%ca", randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(2));
         assertThat(params.get("a"), equalTo(""));
         assertThat(params.get("p"), equalTo("v"));
 
         params.clear();
-        uri = "something?p=v&a&p1=v1";
+        uri = String.format(Locale.ROOT, "something?p=v%ca%cp1=v1", randomDelimiter(), randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(3));
         assertThat(params.get("a"), equalTo(""));
@@ -118,7 +117,7 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.get("p1"), equalTo("v1"));
 
         params.clear();
-        uri = "something?p=v&a&b&p1=v1";
+        uri = String.format(Locale.ROOT, "something?p=v%ca%cb%cp1=v1", randomDelimiter(), randomDelimiter(), randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(4));
         assertThat(params.get("a"), equalTo(""));
@@ -127,7 +126,6 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.get("p1"), equalTo("v1"));
     }
 
-    @Test
     public void testCorsSettingIsARegex() {
         assertCorsSettingRegex("/foo/", Pattern.compile("foo"));
         assertCorsSettingRegex("/.*/", Pattern.compile(".*"));
@@ -139,29 +137,34 @@ public class RestUtilsTests extends ESTestCase {
         assertCorsSettingRegexIsNull("/foo");
         assertCorsSettingRegexIsNull("foo");
         assertCorsSettingRegexIsNull("");
-        assertThat(RestUtils.getCorsSettingRegex(Settings.EMPTY), is(nullValue()));
     }
 
     public void testCrazyURL() {
         Map<String, String> params = new HashMap<>();
 
         // This is a valid URL
-        String uri = "example.com/:@-._~!$&'()*+,=;:@-._~!$&'()*+,=:@-._~!$&'()*+,==?/?:@-._~!$'()*+,;=/?:@-._~!$'()*+,;==#/?:@-._~!$&'()*+,;=";
+        String uri = String.format(
+                Locale.ROOT,
+                "example.com/:@-._~!$%c'()*+,=;:@-._~!$%c'()*+,=:@-._~!$%c'()*+,==?/?:@-._~!$'()*+,=/?:@-._~!$'()*+,==#/?:@-._~!$%c'()*+,;=",
+                randomDelimiter(),
+                randomDelimiter(),
+                randomDelimiter(),
+                randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
-        assertThat(params.get("/?:@-._~!$'()* ,;"), equalTo("/?:@-._~!$'()* ,;=="));
+        assertThat(params.get("/?:@-._~!$'()* ,"), equalTo("/?:@-._~!$'()* ,=="));
         assertThat(params.size(), equalTo(1));
     }
 
     private void assertCorsSettingRegexIsNull(String settingsValue) {
-        assertThat(RestUtils.getCorsSettingRegex(settingsBuilder().put("http.cors.allow-origin", settingsValue).build()), is(nullValue()));
+        assertThat(RestUtils.checkCorsSettingForRegex(settingsValue), is(nullValue()));
     }
 
     private void assertCorsSettingRegex(String settingsValue, Pattern pattern) {
-        assertThat(RestUtils.getCorsSettingRegex(settingsBuilder().put("http.cors.allow-origin", settingsValue).build()).toString(), is(pattern.toString()));
+        assertThat(RestUtils.checkCorsSettingForRegex(settingsValue).toString(), is(pattern.toString()));
     }
 
     private void assertCorsSettingRegexMatches(String settingsValue, boolean expectMatch, String ... candidates) {
-        Pattern pattern = RestUtils.getCorsSettingRegex(settingsBuilder().put("http.cors.allow-origin", settingsValue).build());
+        Pattern pattern = RestUtils.checkCorsSettingForRegex(settingsValue);
         for (String candidate : candidates) {
             assertThat(String.format(Locale.ROOT, "Expected pattern %s to match against %s: %s", settingsValue, candidate, expectMatch),
                     pattern.matcher(candidate).matches(), is(expectMatch));

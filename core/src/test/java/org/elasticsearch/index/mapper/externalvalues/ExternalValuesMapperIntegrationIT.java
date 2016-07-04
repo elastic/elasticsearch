@@ -21,32 +21,79 @@ package org.elasticsearch.index.mapper.externalvalues;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Collection;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(ExternalMapperPlugin.class);
     }
 
-    @Test
+    public void testHighlightingOnCustomString() throws Exception {
+        prepareCreate("test-idx").addMapping("type",
+            XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("field").field("type", FakeStringFieldMapper.CONTENT_TYPE).endObject()
+                .endObject()
+                .endObject().endObject()).execute().get();
+        ensureYellow("test-idx");
+
+        index("test-idx", "type", "1", XContentFactory.jsonBuilder()
+            .startObject()
+            .field("field", "Every day is exactly the same")
+            .endObject());
+        refresh();
+
+        SearchResponse response;
+        // test if the highlighting is excluded when we use wildcards
+        response = client().prepareSearch("test-idx")
+            .setQuery(QueryBuilders.matchQuery("field", "exactly the same"))
+            .highlighter(new HighlightBuilder().field("*"))
+            .execute().actionGet();
+        assertSearchResponse(response);
+        assertThat(response.getHits().getTotalHits(), equalTo(1L));
+        assertThat(response.getHits().getAt(0).getHighlightFields().size(), equalTo(0));
+
+        // make sure it is not excluded when we explicitly provide the fieldname
+        response = client().prepareSearch("test-idx")
+            .setQuery(QueryBuilders.matchQuery("field", "exactly the same"))
+            .highlighter(new HighlightBuilder().field("field"))
+            .execute().actionGet();
+        assertSearchResponse(response);
+        assertThat(response.getHits().getTotalHits(), equalTo(1L));
+        assertThat(response.getHits().getAt(0).getHighlightFields().size(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getHighlightFields().get("field").fragments()[0].string(), equalTo("Every day is " +
+            "<em>exactly</em> <em>the</em> <em>same</em>"));
+
+        // make sure it is not excluded when we explicitly provide the fieldname and a wildcard
+        response = client().prepareSearch("test-idx")
+            .setQuery(QueryBuilders.matchQuery("field", "exactly the same"))
+            .highlighter(new HighlightBuilder().field("*").field("field"))
+            .execute().actionGet();
+        assertSearchResponse(response);
+        assertThat(response.getHits().getTotalHits(), equalTo(1L));
+        assertThat(response.getHits().getAt(0).getHighlightFields().size(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getHighlightFields().get("field").fragments()[0].string(), equalTo("Every day is " +
+            "<em>exactly</em> <em>the</em> <em>same</em>"));
+    }
+
     public void testExternalValues() throws Exception {
         prepareCreate("test-idx").addMapping("type",
                 XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject(ExternalMetadataMapper.CONTENT_TYPE)
                 .endObject()
                 .startObject("properties")
-                    .startObject("field").field("type", RegisterExternalTypes.EXTERNAL).endObject()
+                    .startObject("field").field("type", ExternalMapperPlugin.EXTERNAL).endObject()
                 .endObject()
             .endObject().endObject()).execute().get();
         ensureYellow("test-idx");
@@ -72,7 +119,7 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
         assertThat(response.getHits().totalHits(), equalTo((long) 1));
 
         response = client().prepareSearch("test-idx")
-                .setPostFilter(QueryBuilders.geoShapeQuery("field.shape", ShapeBuilder.newPoint(-100, 45)).relation(ShapeRelation.WITHIN))
+                .setPostFilter(QueryBuilders.geoShapeQuery("field.shape", ShapeBuilders.newPoint(-100, 45)).relation(ShapeRelation.WITHIN))
                         .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo((long) 1));
@@ -84,21 +131,19 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
         assertThat(response.getHits().totalHits(), equalTo((long) 1));
     }
 
-    @Test
     public void testExternalValuesWithMultifield() throws Exception {
         prepareCreate("test-idx").addMapping("doc",
                 XContentFactory.jsonBuilder().startObject().startObject("doc").startObject("properties")
                 .startObject("f")
-                    .field("type", RegisterExternalTypes.EXTERNAL_UPPER)
+                    .field("type", ExternalMapperPlugin.EXTERNAL_UPPER)
                     .startObject("fields")
-                        .startObject("f")
-                            .field("type", "string")
-                            .field("store", "yes")
+                        .startObject("g")
+                            .field("type", "text")
+                            .field("store", true)
                             .startObject("fields")
                                 .startObject("raw")
-                                    .field("type", "string")
-                                    .field("index", "not_analyzed")
-                                    .field("store", "yes")
+                                    .field("type", "keyword")
+                                    .field("store", true)
                                 .endObject()
                             .endObject()
                         .endObject()
@@ -111,7 +156,7 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse response = client().prepareSearch("test-idx")
-                .setQuery(QueryBuilders.termQuery("f.f.raw", "FOO BAR"))
+                .setQuery(QueryBuilders.termQuery("f.g.raw", "FOO BAR"))
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo((long) 1));

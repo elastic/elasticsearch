@@ -109,23 +109,6 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
     }
 
     /**
-     * Should the source be transformed using the script to used at index time
-     * (if any)? Note that calling this without having called setFetchSource
-     * will automatically turn on source fetching.
-     *
-     * @return this for chaining
-     */
-    public GetRequestBuilder setTransformSource(boolean transform) {
-        FetchSourceContext context = request.fetchSourceContext();
-        if (context == null) {
-            context = new FetchSourceContext(true);
-            request.fetchSourceContext(context);
-        }
-        context.transformSource(transform);
-        return this;
-    }
-
-    /**
      * Indicate that _source should be returned, with an "include" and/or "exclude" set which can include simple wildcard
      * elements.
      *
@@ -167,7 +150,7 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
         return this;
     }
 
-    public GetRequestBuilder setRealtime(Boolean realtime) {
+    public GetRequestBuilder setRealtime(boolean realtime) {
         request.realtime(realtime);
         return this;
     }

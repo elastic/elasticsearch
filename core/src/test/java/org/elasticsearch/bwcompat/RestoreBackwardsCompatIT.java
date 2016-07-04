@@ -27,6 +27,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.repositories.uri.URLRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.RestoreInfo;
@@ -34,24 +36,26 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.junit.Test;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
-import java.lang.reflect.Modifier;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = Scope.TEST)
 public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
@@ -60,17 +64,17 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         if (randomBoolean()) {
             // Configure using path.repo
-            return settingsBuilder()
+            return Settings.builder()
                     .put(super.nodeSettings(nodeOrdinal))
-                    .put("path.repo", getBwcIndicesPath())
+                    .put(Environment.PATH_REPO_SETTING.getKey(), getBwcIndicesPath())
                     .build();
         } else {
             // Configure using url white list
             try {
                 URI repoJarPatternUri = new URI("jar:" + getBwcIndicesPath().toUri().toString() + "*.zip!/repo/");
-                return settingsBuilder()
+                return Settings.builder()
                         .put(super.nodeSettings(nodeOrdinal))
-                        .putArray("repositories.url.allowed_urls", repoJarPatternUri.toString())
+                        .putArray(URLRepository.ALLOWED_URLS_SETTING.getKey(), repoJarPatternUri.toString())
                         .build();
             } catch (URISyntaxException ex) {
                 throw new IllegalArgumentException(ex);
@@ -79,8 +83,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    @Test
-    public void restoreOldSnapshots() throws Exception {
+    public void testRestoreOldSnapshots() throws Exception {
         String repo = "test_repo";
         String snapshot = "test_1";
         List<String> repoVersions = repoVersions();
@@ -91,19 +94,17 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         }
 
         SortedSet<String> expectedVersions = new TreeSet<>();
-        for (java.lang.reflect.Field field : Version.class.getDeclaredFields()) {
-            if (Modifier.isStatic(field.getModifiers()) && field.getType() == Version.class) {
-                Version v = (Version) field.get(Version.class);
-                if (v.snapshot()) continue;
-                if (v.onOrBefore(Version.V_2_0_0_beta1)) continue;
-                if (v.equals(Version.CURRENT)) continue;
-                expectedVersions.add(v.toString());
-            }
+        for (Version v : VersionUtils.allVersions()) {
+            if (VersionUtils.isSnapshot(v)) continue;  // snapshots are unreleased, so there is no backcompat yet
+            if (v.isAlpha()) continue; // no guarantees for alpha releases
+            if (v.onOrBefore(Version.V_2_0_0_beta1)) continue; // we can only test back one major lucene version
+            if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
+            expectedVersions.add(v.toString());
         }
 
         for (String repoVersion : repoVersions) {
             if (expectedVersions.remove(repoVersion) == false) {
-                logger.warn("Old repositories tests contain extra repo: " + repoVersion);
+                logger.warn("Old repositories tests contain extra repo: {}", repoVersion);
             }
         }
         if (expectedVersions.isEmpty() == false) {
@@ -115,7 +116,6 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    @Test
     public void testRestoreUnsupportedSnapshots() throws Exception {
         String repo = "test_repo";
         String snapshot = "test_1";
@@ -125,6 +125,44 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
             createRepo("unsupportedrepo", version, repo);
             assertUnsupportedIndexFailsToRestore(repo, snapshot);
         }
+    }
+
+    public void testRestoreSnapshotWithMissingChecksum() throws Exception {
+        final String repo = "test_repo";
+        final String snapshot = "test_1";
+        final String indexName = "index-2.3.4";
+        final String repoFileId = "missing-checksum-repo-2.3.4";
+        Path repoFile = getBwcIndicesPath().resolve(repoFileId + ".zip");
+        URI repoFileUri = repoFile.toUri();
+        URI repoJarUri = new URI("jar:" + repoFileUri.toString() + "!/repo/");
+        logger.info("-->  creating repository [{}] for repo file [{}]", repo, repoFileId);
+        assertAcked(client().admin().cluster().preparePutRepository(repo)
+                                              .setType("url")
+                                              .setSettings(Settings.builder().put("url", repoJarUri.toString())));
+
+        logger.info("--> get snapshot and check its indices");
+        GetSnapshotsResponse getSnapshotsResponse = client().admin().cluster().prepareGetSnapshots(repo).setSnapshots(snapshot).get();
+        assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(1));
+        SnapshotInfo snapshotInfo = getSnapshotsResponse.getSnapshots().get(0);
+        assertThat(snapshotInfo.indices(), equalTo(Arrays.asList(indexName)));
+
+        logger.info("--> restoring snapshot");
+        RestoreSnapshotResponse response = client().admin().cluster().prepareRestoreSnapshot(repo, snapshot).setRestoreGlobalState(true).setWaitForCompletion(true).get();
+        assertThat(response.status(), equalTo(RestStatus.OK));
+        RestoreInfo restoreInfo = response.getRestoreInfo();
+        assertThat(restoreInfo.successfulShards(), greaterThan(0));
+        assertThat(restoreInfo.successfulShards(), equalTo(restoreInfo.totalShards()));
+        assertThat(restoreInfo.failedShards(), equalTo(0));
+        String index = restoreInfo.indices().get(0);
+        assertThat(index, equalTo(indexName));
+
+        logger.info("--> check search");
+        SearchResponse searchResponse = client().prepareSearch(index).get();
+        assertThat(searchResponse.getHits().totalHits(), greaterThan(0L));
+
+        logger.info("--> cleanup");
+        cluster().wipeIndices(restoreInfo.indices().toArray(new String[restoreInfo.indices().size()]));
+        cluster().wipeTemplates();
     }
 
     private List<String> repoVersions() throws Exception {
@@ -155,7 +193,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         URI repoJarUri = new URI("jar:" + repoFileUri.toString() + "!/repo/");
         logger.info("-->  creating repository [{}] for version [{}]", repo, version);
         assertAcked(client().admin().cluster().preparePutRepository(repo)
-                .setType("url").setSettings(settingsBuilder()
+                .setType("url").setSettings(Settings.builder()
                         .put("url", repoJarUri.toString())));
     }
 
@@ -181,7 +219,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> check settings");
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-        assertThat(clusterState.metaData().persistentSettings().get(FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP + "version_attr"), equalTo(version));
+        assertThat(clusterState.metaData().persistentSettings().get(FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "version_attr"), equalTo(version));
 
         logger.info("--> check templates");
         IndexTemplateMetaData template = clusterState.getMetaData().templates().get("template_" + version.toLowerCase(Locale.ROOT));
@@ -190,14 +228,11 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         assertThat(template.settings().getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1), equalTo(1));
         assertThat(template.mappings().size(), equalTo(1));
         assertThat(template.mappings().get("type1").string(), equalTo("{\"type1\":{\"_source\":{\"enabled\":false}}}"));
-        if (Version.fromString(version).onOrAfter(Version.V_1_1_0)) {
-            // Support for aliases in templates was added in v1.1.0
-            assertThat(template.aliases().size(), equalTo(3));
-            assertThat(template.aliases().get("alias1"), notNullValue());
-            assertThat(template.aliases().get("alias2").filter().string(), containsString(version));
-            assertThat(template.aliases().get("alias2").indexRouting(), equalTo("kimchy"));
-            assertThat(template.aliases().get("{index}-alias"), notNullValue());
-        }
+        assertThat(template.aliases().size(), equalTo(3));
+        assertThat(template.aliases().get("alias1"), notNullValue());
+        assertThat(template.aliases().get("alias2").filter().string(), containsString(version));
+        assertThat(template.aliases().get("alias2").indexRouting(), equalTo("kimchy"));
+        assertThat(template.aliases().get("{index}-alias"), notNullValue());
 
         logger.info("--> cleanup");
         cluster().wipeIndices(restoreInfo.indices().toArray(new String[restoreInfo.indices().size()]));

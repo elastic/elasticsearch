@@ -17,43 +17,44 @@
  * under the License.
  */
 package org.elasticsearch.common.lucene;
+
 import org.apache.lucene.analysis.MockAnalyzer;
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoDeletionPolicy;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
-import org.apache.lucene.util.Version;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * 
- */
 public class LuceneTests extends ESTestCase {
-
-
-    /*
-     * simple test that ensures that we bump the version on Upgrade
-     */
-    @Test
-    public void testVersion() {
-        // note this is just a silly sanity check, we test it in lucene, and we point to it this way
-        assertEquals(Lucene.VERSION, Version.LATEST);
-    }
-
     public void testWaitForIndex() throws Exception {
         final MockDirectoryWrapper dir = newMockDirectory();
 
@@ -85,7 +86,6 @@ public class LuceneTests extends ESTestCase {
         // now shadow engine should try to be created
         latch.countDown();
 
-        dir.setEnableVirusScanner(false);
         IndexWriterConfig iwc = newIndexWriterConfig();
         iwc.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
@@ -105,7 +105,6 @@ public class LuceneTests extends ESTestCase {
 
     public void testCleanIndex() throws IOException {
         MockDirectoryWrapper dir = newMockDirectory();
-        dir.setEnableVirusScanner(false);
         IndexWriterConfig iwc = newIndexWriterConfig();
         iwc.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
@@ -131,7 +130,7 @@ public class LuceneTests extends ESTestCase {
 
         writer.deleteDocuments(new Term("id", "2"));
         writer.commit();
-        try (DirectoryReader open = DirectoryReader.open(writer, true)) {
+        try (DirectoryReader open = DirectoryReader.open(writer)) {
             assertEquals(3, open.numDocs());
             assertEquals(1, open.numDeletedDocs());
             assertEquals(4, open.maxDoc());
@@ -159,7 +158,6 @@ public class LuceneTests extends ESTestCase {
 
     public void testPruneUnreferencedFiles() throws IOException {
         MockDirectoryWrapper dir = newMockDirectory();
-        dir.setEnableVirusScanner(false);
         IndexWriterConfig iwc = newIndexWriterConfig();
         iwc.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
@@ -187,7 +185,7 @@ public class LuceneTests extends ESTestCase {
 
         writer.deleteDocuments(new Term("id", "2"));
         writer.commit();
-        DirectoryReader open = DirectoryReader.open(writer, true);
+        DirectoryReader open = DirectoryReader.open(writer);
         assertEquals(3, open.numDocs());
         assertEquals(1, open.numDeletedDocs());
         assertEquals(4, open.maxDoc());
@@ -216,7 +214,6 @@ public class LuceneTests extends ESTestCase {
 
     public void testFiles() throws IOException {
         MockDirectoryWrapper dir = newMockDirectory();
-        dir.setEnableVirusScanner(false);
         IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         iwc.setMaxBufferedDocs(2);
@@ -280,7 +277,6 @@ public class LuceneTests extends ESTestCase {
 
     public void testNumDocs() throws IOException {
         MockDirectoryWrapper dir = newMockDirectory();
-        dir.setEnableVirusScanner(false);
         IndexWriterConfig iwc = newIndexWriterConfig();
         IndexWriter writer = new IndexWriter(dir, iwc);
         Document doc = new Document();
@@ -330,7 +326,7 @@ public class LuceneTests extends ESTestCase {
 
     public void testCount() throws Exception {
         Directory dir = newDirectory();
-        RandomIndexWriter w = new RandomIndexWriter(getRandom(), dir);
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
 
         try (DirectoryReader reader = w.getReader()) {
             // match_all does not match anything on an empty index
@@ -361,6 +357,45 @@ public class LuceneTests extends ESTestCase {
         dir.close();
     }
 
+    public void testAsSequentialAccessBits() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new KeywordAnalyzer()));
+
+        Document doc = new Document();
+        doc.add(new StringField("foo", "bar", Store.NO));
+        w.addDocument(doc);
+
+        doc = new Document();
+        w.addDocument(doc);
+
+        doc = new Document();
+        doc.add(new StringField("foo", "bar", Store.NO));
+        w.addDocument(doc);
+
+
+        try (DirectoryReader reader = DirectoryReader.open(w)) {
+            IndexSearcher searcher = newSearcher(reader);
+            Weight termWeight = new TermQuery(new Term("foo", "bar")).createWeight(searcher, false);
+            assertEquals(1, reader.leaves().size());
+            LeafReaderContext leafReaderContext = searcher.getIndexReader().leaves().get(0);
+            Bits bits = Lucene.asSequentialAccessBits(leafReaderContext.reader().maxDoc(), termWeight.scorer(leafReaderContext));
+
+            expectThrows(IndexOutOfBoundsException.class, () -> bits.get(-1));
+            expectThrows(IndexOutOfBoundsException.class, () -> bits.get(leafReaderContext.reader().maxDoc()));
+            assertTrue(bits.get(0));
+            assertTrue(bits.get(0));
+            assertFalse(bits.get(1));
+            assertFalse(bits.get(1));
+            expectThrows(IllegalArgumentException.class, () -> bits.get(0));
+            assertTrue(bits.get(2));
+            assertTrue(bits.get(2));
+            expectThrows(IllegalArgumentException.class, () -> bits.get(1));
+        }
+
+        w.close();
+        dir.close();
+    }
+
     /**
      * Test that the "unmap hack" is detected as supported by lucene.
      * This works around the following bug: https://bugs.openjdk.java.net/browse/JDK-4724038
@@ -370,6 +405,6 @@ public class LuceneTests extends ESTestCase {
      */
     public void testMMapHackSupported() throws Exception {
         // add assume's here if needed for certain platforms, but we should know if it does not work.
-        assertTrue(MMapDirectory.UNMAP_SUPPORTED);
+        assertTrue("MMapDirectory does not support unmapping: " + MMapDirectory.UNMAP_NOT_SUPPORTED_REASON, MMapDirectory.UNMAP_SUPPORTED);
     }
 }

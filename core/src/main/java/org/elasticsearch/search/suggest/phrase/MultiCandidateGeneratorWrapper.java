@@ -18,17 +18,17 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Comparator;
-
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.CandidateSet;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Comparator;
 //TODO public for tests
 public final class MultiCandidateGeneratorWrapper extends CandidateGenerator {
 
-    
+
     private final CandidateGenerator[] candidateGenerator;
     private int numCandidates ;
 
@@ -53,22 +53,16 @@ public final class MultiCandidateGeneratorWrapper extends CandidateGenerator {
         }
         return reduce(set, numCandidates);
     }
-    
-    private final CandidateSet reduce(CandidateSet set, int numCandidates) {
+
+    private CandidateSet reduce(CandidateSet set, int numCandidates) {
         if (set.candidates.length > numCandidates) {
             Candidate[] candidates = set.candidates;
-            Arrays.sort(candidates, new Comparator<Candidate>() {
-
-                @Override
-                public int compare(Candidate left, Candidate right) {
-                 return Double.compare(right.score, left.score);   
-                }
-            });
+            Arrays.sort(candidates, (left, right) -> Double.compare(right.score, left.score));
             Candidate[] newSet = new Candidate[numCandidates];
             System.arraycopy(candidates, 0, newSet, 0, numCandidates);
             set.candidates = newSet;
         }
-        
+
         return set;
     }
     @Override

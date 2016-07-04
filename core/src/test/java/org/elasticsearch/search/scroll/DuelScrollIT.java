@@ -21,7 +21,6 @@ package org.elasticsearch.search.scroll;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -34,7 +33,6 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Arrays;
 
@@ -46,9 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public class DuelScrollIT extends ESIntegTestCase {
-
-    @Test
-    public void testDuel_queryThenFetch() throws Exception {
+    public void testDuelQueryThenFetch() throws Exception {
         TestContext context = create(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH);
 
         SearchResponse control = client().prepareSearch("index")
@@ -103,8 +99,7 @@ public class DuelScrollIT extends ESIntegTestCase {
         clearScroll(scrollId);
     }
 
-    @Test
-    public void testDuel_queryAndFetch() throws Exception {
+    public void testDuelQueryAndFetch() throws Exception {
         // *_QUERY_AND_FETCH search types are tricky: the ordering can be incorrect, since it returns num_shards * (from + size)
         // a subsequent scroll call can return hits that should have been in the hits of the first scroll call.
 
@@ -143,7 +138,7 @@ public class DuelScrollIT extends ESIntegTestCase {
                     .field("type", "long")
                 .endObject()
                 .startObject("field2")
-                    .field("type", "string")
+                    .field("type", "keyword")
                 .endObject()
                 .startObject("nested")
                     .field("type", "nested")
@@ -152,7 +147,7 @@ public class DuelScrollIT extends ESIntegTestCase {
                             .field("type", "long")
                         .endObject()
                         .startObject("field4")
-                            .field("type", "string")
+                            .field("type", "keyword")
                         .endObject()
                     .endObject()
                 .endObject()
@@ -208,7 +203,7 @@ public class DuelScrollIT extends ESIntegTestCase {
         }
         sort.order(randomBoolean() ? SortOrder.ASC : SortOrder.DESC);
 
-        SearchType searchType = RandomPicks.randomFrom(getRandom(), Arrays.asList(searchTypes));
+        SearchType searchType = RandomPicks.randomFrom(random(), Arrays.asList(searchTypes));
 
         logger.info("numDocs={}, scrollRequestSize={}, sort={}, searchType={}", numDocs, scrollRequestSize, sort, searchType);
         return new TestContext(numDocs, scrollRequestSize, sort, searchType);
@@ -287,8 +282,8 @@ public class DuelScrollIT extends ESIntegTestCase {
             }
             assertEquals(control.getHits().getTotalHits(), scrollDocs);
         } catch (AssertionError e) {
-            logger.info("Control:\n" + control);
-            logger.info("Scroll size=" + size + ", from=" + scrollDocs + ":\n" + scroll);
+            logger.info("Control:\n{}", control);
+            logger.info("Scroll size={}, from={}:\n{}", size, scrollDocs, scroll);
             throw e;
         } finally {
             clearScroll(scroll.getScrollId());

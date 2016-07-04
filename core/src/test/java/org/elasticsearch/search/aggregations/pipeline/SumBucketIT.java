@@ -21,24 +21,24 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
+import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.sumBucket;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.sumBucket;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -59,7 +59,8 @@ public class SumBucketIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        createIndex("idx");
+        assertAcked(client().admin().indices().prepareCreate("idx")
+                .addMapping("type", "tag", "type=keyword").get());
         createIndex("idx_unmapped");
 
         numDocs = randomIntBetween(6, 20);
@@ -91,12 +92,11 @@ public class SumBucketIT extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    @Test
-    public void testDocCount_topLevel() throws Exception {
+    public void testDocCountTopLevel() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                        .extendedBounds((long) minRandomValue, (long) maxRandomValue))
-                .addAggregation(sumBucket("sum_bucket").setBucketsPaths("histo>_count")).execute().actionGet();
+                        .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue)))
+                .addAggregation(sumBucket("sum_bucket", "histo>_count")).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -121,8 +121,7 @@ public class SumBucketIT extends ESIntegTestCase {
         assertThat(sumBucketValue.value(), equalTo(sum));
     }
 
-    @Test
-    public void testDocCount_asSubAgg() throws Exception {
+    public void testDocCountAsSubAgg() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -131,8 +130,8 @@ public class SumBucketIT extends ESIntegTestCase {
                                 .order(Order.term(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds((long) minRandomValue, (long) maxRandomValue))
-                                .subAggregation(sumBucket("sum_bucket").setBucketsPaths("histo>_count"))).execute().actionGet();
+                                                .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue)))
+                                .subAggregation(sumBucket("sum_bucket", "histo>_count"))).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -167,12 +166,11 @@ public class SumBucketIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void testMetric_topLevel() throws Exception {
+    public void testMetricTopLevel() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .addAggregation(sumBucket("sum_bucket").setBucketsPaths("terms>sum")).execute().actionGet();
+                .addAggregation(sumBucket("sum_bucket", "terms>sum")).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -187,7 +185,7 @@ public class SumBucketIT extends ESIntegTestCase {
             Terms.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
             assertThat((String) bucket.getKey(), equalTo("tag" + (i % interval)));
-            assertThat(bucket.getDocCount(), greaterThan(0l));
+            assertThat(bucket.getDocCount(), greaterThan(0L));
             Sum sum = bucket.getAggregations().get("sum");
             assertThat(sum, notNullValue());
             bucketSum += sum.value();
@@ -199,8 +197,7 @@ public class SumBucketIT extends ESIntegTestCase {
         assertThat(sumBucketValue.value(), equalTo(bucketSum));
     }
 
-    @Test
-    public void testMetric_asSubAgg() throws Exception {
+    public void testMetricAsSubAgg() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -209,9 +206,9 @@ public class SumBucketIT extends ESIntegTestCase {
                                 .order(Order.term(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds((long) minRandomValue, (long) maxRandomValue)
+                                                .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue))
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                                .subAggregation(sumBucket("sum_bucket").setBucketsPaths("histo>sum"))).execute().actionGet();
+                                .subAggregation(sumBucket("sum_bucket", "histo>sum"))).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -250,8 +247,7 @@ public class SumBucketIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void testMetric_asSubAggWithInsertZeros() throws Exception {
+    public void testMetricAsSubAggWithInsertZeros() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -260,9 +256,9 @@ public class SumBucketIT extends ESIntegTestCase {
                                 .order(Order.term(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds((long) minRandomValue, (long) maxRandomValue)
+                                                .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue))
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                                .subAggregation(sumBucket("sum_bucket").setBucketsPaths("histo>sum").gapPolicy(GapPolicy.INSERT_ZEROS)))
+                                .subAggregation(sumBucket("sum_bucket", "histo>sum").gapPolicy(GapPolicy.INSERT_ZEROS)))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -301,11 +297,11 @@ public class SumBucketIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testNoBuckets() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("terms").field("tag").exclude("tag.*").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .addAggregation(sumBucket("sum_bucket").setBucketsPaths("terms>sum")).execute().actionGet();
+                .addAggregation(terms("terms").field("tag").includeExclude(new IncludeExclude(null, "tag.*"))
+                        .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
+                .addAggregation(sumBucket("sum_bucket", "terms>sum")).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -321,7 +317,6 @@ public class SumBucketIT extends ESIntegTestCase {
         assertThat(sumBucketValue.value(), equalTo(0.0));
     }
 
-    @Test
     public void testNested() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -331,9 +326,9 @@ public class SumBucketIT extends ESIntegTestCase {
                                 .order(Order.term(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds((long) minRandomValue, (long) maxRandomValue))
-                                .subAggregation(sumBucket("sum_histo_bucket").setBucketsPaths("histo>_count")))
-                .addAggregation(sumBucket("sum_terms_bucket").setBucketsPaths("terms>sum_histo_bucket")).execute().actionGet();
+                                                .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue)))
+                                .subAggregation(sumBucket("sum_histo_bucket", "histo>_count")))
+                .addAggregation(sumBucket("sum_terms_bucket", "terms>sum_histo_bucket")).execute().actionGet();
 
         assertSearchResponse(response);
 

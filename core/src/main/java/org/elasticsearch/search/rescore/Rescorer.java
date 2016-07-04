@@ -23,7 +23,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -38,18 +37,18 @@ public interface Rescorer {
     /**
      * Returns the name of this rescorer
      */
-    public String name();
+    String name();
 
     /**
      * Modifies the result of the previously executed search ({@link TopDocs})
      * in place based on the given {@link RescoreSearchContext}.
      *
-     * @param topDocs        the result of the previously exectued search
+     * @param topDocs        the result of the previously executed search
      * @param context        the current {@link SearchContext}. This will never be <code>null</code>.
      * @param rescoreContext the {@link RescoreSearchContext}. This will never be <code>null</code>
      * @throws IOException if an {@link IOException} occurs during rescoring
      */
-    public TopDocs rescore(TopDocs topDocs, SearchContext context, RescoreSearchContext rescoreContext) throws IOException;
+    TopDocs rescore(TopDocs topDocs, SearchContext context, RescoreSearchContext rescoreContext) throws IOException;
 
     /**
      * Executes an {@link Explanation} phase on the rescorer.
@@ -61,30 +60,20 @@ public interface Rescorer {
      * @return the explain for the given top level document ID.
      * @throws IOException if an {@link IOException} occurs
      */
-    public Explanation explain(int topLevelDocId, SearchContext context, RescoreSearchContext rescoreContext,
-            Explanation sourceExplanation) throws IOException;
+    Explanation explain(int topLevelDocId, SearchContext context, RescoreSearchContext rescoreContext,
+                        Explanation sourceExplanation) throws IOException;
 
     /**
-     * Parses the {@link RescoreSearchContext} for this impelementation
-     *
-     * @param parser  the parser to read the context from
-     * @param context the current search context
-     * @return the parsed {@link RescoreSearchContext}
-     * @throws IOException if an {@link IOException} occurs while parsing the context
-     */
-    public RescoreSearchContext parse(XContentParser parser, SearchContext context) throws IOException;
-
-    /**
-     * Extracts all terms needed to exectue this {@link Rescorer}. This method
+     * Extracts all terms needed to execute this {@link Rescorer}. This method
      * is executed in a distributed frequency collection roundtrip for
      * {@link SearchType#DFS_QUERY_AND_FETCH} and
      * {@link SearchType#DFS_QUERY_THEN_FETCH}
      */
-    public void extractTerms(SearchContext context, RescoreSearchContext rescoreContext, Set<Term> termsSet);
-    
+    void extractTerms(SearchContext context, RescoreSearchContext rescoreContext, Set<Term> termsSet);
+
     /*
-     * TODO: At this point we only have one implemenation which modifies the
-     * TopDocs given. Future implemenations might return actual resutls that
+     * TODO: At this point we only have one implementation which modifies the
+     * TopDocs given. Future implementations might return actual results that
      * contain information about the rescore context. For example a pair wise
      * reranker might return the feature vector for the top N window in order to
      * merge results on the callers side. For now we don't have a return type at

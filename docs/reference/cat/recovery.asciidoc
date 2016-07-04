@@ -15,10 +15,12 @@ are no shards in transit from one node to another:
 [source,sh]
 ----------------------------------------------------------------------------
 > curl -XGET 'localhost:9200/_cat/recovery?v'
-index shard time type    stage source target files percent bytes     percent
-wiki  0     73   store done  hostA  hostA  36    100.0%  24982806 100.0%
-wiki  1     245  store done  hostA  hostA  33    100.0%  24501912 100.0%
-wiki  2     230  store done  hostA  hostA  36    100.0%  30267222 100.0%
+index shard time type  stage source_host source_node target_host target_node repository snapshot files files_percent bytes bytes_percent total_files total_bytes translog translog_percent total_translog
+index 0     87ms store done  127.0.0.1        Athena      127.0.0.1        Athena      n/a        n/a      0     0.0%          0     0.0%          0           0           0        100.0%           0
+index 1     97ms store done  127.0.0.1        Athena      127.0.0.1        Athena      n/a        n/a      0     0.0%          0     0.0%          0           0           0        100.0%           0
+index 2     93ms store done  127.0.0.1        Athena      127.0.0.1        Athena      n/a        n/a      0     0.0%          0     0.0%          0           0           0        100.0%           0
+index 3     90ms store done  127.0.0.1        Athena      127.0.0.1        Athena      n/a        n/a      0     0.0%          0     0.0%          0           0           0        100.0%           0
+index 4     9ms  store done  127.0.0.1        Athena      127.0.0.1        Athena      n/a        n/a      0     0.0%          0     0.0%          0           0           0        100.0%           0
 ---------------------------------------------------------------------------
 
 In the above case, the source and target nodes are the same because the recovery
@@ -33,14 +35,14 @@ what a live shard recovery looks like.
 > curl -XPUT 'localhost:9200/wiki/_settings' -d'{"number_of_replicas":1}'
 {"acknowledged":true}
 
-> curl -XGET 'localhost:9200/_cat/recovery?v'
-index shard time type    stage source target files percent bytes    percent
-wiki  0     1252 store done  hostA  hostA  4     100.0%  23638870 100.0%
-wiki  0     1672 replica index hostA  hostB  4     75.0%   23638870 48.8%
-wiki  1     1698 replica index hostA  hostB  4     75.0%   23348540 49.4%
-wiki  1     4812 store done  hostA  hostA  33    100.0%  24501912 100.0%
-wiki  2     1689 replica index hostA  hostB  4     75.0%   28681851 40.2%
-wiki  2     5317 store done  hostA  hostA  36    100.0%  30267222 100.0%
+> curl -XGET 'localhost:9200/_cat/recovery?v&h=i,s,t,ty,st,shost,thost,f,fp,b,bp'
+i     s t      ty      st    shost  thost  f     fp      b        bp
+wiki  0 1252ms store   done  hostA  hostA  4     100.0%  23638870 100.0%
+wiki  0 1672ms replica index hostA  hostB  4     75.0%   23638870 48.8%
+wiki  1 1698ms replica index hostA  hostB  4     75.0%   23348540 49.4%
+wiki  1 4812ms store   done  hostA  hostA  33    100.0%  24501912 100.0%
+wiki  2 1689ms replica index hostA  hostB  4     75.0%   28681851 40.2%
+wiki  2 5317ms store   done  hostA  hostA  36    100.0%  30267222 100.0%
 ----------------------------------------------------------------------------
 
 We can see in the above listing that our 3 initial shards are in various stages
@@ -55,13 +57,13 @@ API.
 --------------------------------------------------------------------------------
 > curl -XPOST 'localhost:9200/_snapshot/imdb/snapshot_2/_restore'
 {"acknowledged":true}
-> curl -XGET 'localhost:9200/_cat/recovery?v'
-index shard time type     stage repository snapshot files percent bytes percent
-imdb  0     1978 snapshot done  imdb       snap_1   79    8.0%    12086 9.0%
-imdb  1     2790 snapshot index imdb       snap_1   88    7.7%    11025 8.1%
-imdb  2     2790 snapshot index imdb       snap_1   85    0.0%    12072 0.0%
-imdb  3     2796 snapshot index imdb       snap_1   85    2.4%    12048 7.2%
-imdb  4     819  snapshot init  imdb       snap_1   0     0.0%    0     0.0%
+> curl -XGET 'localhost:9200/_cat/recovery?v&h=i,s,t,ty,st,rep,snap,f,fp,b,bp'
+i     s t      ty       st    rep        snap     f     fp      b     bp
+imdb  0 1978ms snapshot done  imdb       snap_1   79    8.0%    12086 9.0%
+imdb  1 2790ms snapshot index imdb       snap_1   88    7.7%    11025 8.1%
+imdb  2 2790ms snapshot index imdb       snap_1   85    0.0%    12072 0.0%
+imdb  3 2796ms snapshot index imdb       snap_1   85    2.4%    12048 7.2%
+imdb  4  819ms snapshot init  imdb       snap_1   0     0.0%    0     0.0%
 --------------------------------------------------------------------------------
 
 

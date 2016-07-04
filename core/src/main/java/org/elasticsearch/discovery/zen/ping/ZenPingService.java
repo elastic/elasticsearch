@@ -33,7 +33,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implements ZenPing {
+public class ZenPingService extends AbstractLifecycleComponent implements ZenPing {
 
     private List<ZenPing> zenPings = Collections.emptyList();
 

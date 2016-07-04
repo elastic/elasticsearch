@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.termvectors;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocumentRequest;
@@ -28,6 +27,7 @@ import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -66,6 +66,8 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
     private String routing;
 
+    private String parent;
+
     private VersionType versionType = VersionType.INTERNAL;
 
     private long version = Versions.MATCH_ANY;
@@ -77,7 +79,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     // TODO: change to String[]
     private Set<String> selectedFields;
 
-    Boolean realtime;
+    private boolean realtime = true;
 
     private Map<String, String> perFieldAnalyzer;
 
@@ -132,8 +134,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     private EnumSet<Flag> flagsEnum = EnumSet.of(Flag.Positions, Flag.Offsets, Flag.Payloads,
             Flag.FieldStatistics);
 
-    long startTime;
-
     public TermVectorsRequest() {
     }
 
@@ -158,11 +158,12 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         this.id = other.id();
         this.type = other.type();
         if (this.doc != null) {
-            this.doc = other.doc().copyBytesArray();
+            this.doc = new BytesArray(other.doc().toBytesRef(), true);
         }
         this.flagsEnum = other.getFlags().clone();
         this.preference = other.preference();
         this.routing = other.routing();
+        this.parent = other.parent();
         if (other.selectedFields != null) {
             this.selectedFields = new HashSet<>(other.selectedFields);
         }
@@ -172,7 +173,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         this.realtime = other.realtime();
         this.version = other.version();
         this.versionType = VersionType.fromValue(other.versionType().getValue());
-        this.startTime = other.startTime();
         this.filterSettings = other.filterSettings();
     }
 
@@ -182,6 +182,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         this.type = item.type();
         this.selectedFields(item.fields());
         this.routing(item.routing());
+        this.parent(item.parent());
     }
 
     public EnumSet<Flag> getFlags() {
@@ -211,7 +212,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     public String id() {
         return id;
     }
-    
+
     /**
      * Sets the id of document the term vector is requested for.
      */
@@ -260,14 +261,16 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         return this;
     }
 
+    @Override
+    public String parent() {
+        return parent;
+    }
+
     /**
-     * Sets the parent id of this document. Will simply set the routing to this
-     * value, as it is only used for routing with delete requests.
+     * Sets the parent id of this document.
      */
     public TermVectorsRequest parent(String parent) {
-        if (routing == null) {
-            routing = parent;
-        }
+        this.parent = parent;
         return this;
     }
 
@@ -369,22 +372,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     }
 
     /**
-     * @return <code>true</code> if distributed frequencies should be returned. Otherwise
-     * <code>false</code>
-     */
-    public boolean dfs() {
-        return flagsEnum.contains(Flag.Dfs);
-    }
-
-    /**
-     * Use distributed frequencies instead of shard statistics.
-     */
-    public TermVectorsRequest dfs(boolean dfs) {
-        setFlag(Flag.Dfs, dfs);
-        return this;
-    }
-
-    /**
      * Return only term vectors for special selected fields. Returns for term
      * vectors for all fields if selectedFields == null
      */
@@ -405,14 +392,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
      * Return whether term vectors should be generated real-time (default to true).
      */
     public boolean realtime() {
-        return this.realtime == null ? true : this.realtime;
+        return this.realtime;
     }
 
-    /**
-     * Choose whether term vectors be generated real-time.
-     */
     @Override
-    public TermVectorsRequest realtime(Boolean realtime) {
+    public TermVectorsRequest realtime(boolean realtime) {
         this.realtime = realtime;
         return this;
     }
@@ -474,10 +458,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         }
     }
 
-    public long startTime() {
-        return this.startTime;
-    }
-
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validateNonNullIndex();
@@ -507,6 +487,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             doc = in.readBytesReference();
         }
         routing = in.readOptionalString();
+        parent = in.readOptionalString();
         preference = in.readOptionalString();
         long flags = in.readVLong();
 
@@ -546,6 +527,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             out.writeBytesReference(doc);
         }
         out.writeOptionalString(routing);
+        out.writeOptionalString(parent);
         out.writeOptionalString(preference);
         long longFlags = 0;
         for (Flag flag : flagsEnum) {
@@ -568,7 +550,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         if (filterSettings != null) {
             filterSettings.writeTo(out);
         }
-        out.writeBoolean(realtime());
+        out.writeBoolean(realtime);
         out.writeByte(versionType.getValue());
         out.writeLong(version);
     }
@@ -576,7 +558,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     public static enum Flag {
         // Do not change the order of these flags we use
         // the ordinal for encoding! Only append to the end!
-        Positions, Offsets, Payloads, FieldStatistics, TermStatistics, Dfs
+        Positions, Offsets, Payloads, FieldStatistics, TermStatistics
     }
 
     /**
@@ -609,11 +591,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                 } else if (currentFieldName.equals("field_statistics") || currentFieldName.equals("fieldStatistics")) {
                     termVectorsRequest.fieldStatistics(parser.booleanValue());
                 } else if (currentFieldName.equals("dfs")) {
-                    termVectorsRequest.dfs(parser.booleanValue());
+                    throw new IllegalArgumentException("distributed frequencies is not supported anymore for term vectors");
                 } else if (currentFieldName.equals("per_field_analyzer") || currentFieldName.equals("perFieldAnalyzer")) {
                     termVectorsRequest.perFieldAnalyzer(readPerFieldAnalyzer(parser.map()));
                 } else if (currentFieldName.equals("filter")) {
-                    termVectorsRequest.filterSettings(readFilterSettings(parser, termVectorsRequest));
+                    termVectorsRequest.filterSettings(readFilterSettings(parser));
                 } else if ("_index".equals(currentFieldName)) { // the following is important for multi request parsing.
                     termVectorsRequest.index = parser.text();
                 } else if ("_type".equals(currentFieldName)) {
@@ -630,6 +612,8 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                     termVectorsRequest.doc(jsonBuilder().copyCurrentStructure(parser));
                 } else if ("_routing".equals(currentFieldName) || "routing".equals(currentFieldName)) {
                     termVectorsRequest.routing = parser.text();
+                } else if ("_parent".equals(currentFieldName) || "parent".equals(currentFieldName)) {
+                    termVectorsRequest.parent = parser.text();
                 } else if ("_version".equals(currentFieldName) || "version".equals(currentFieldName)) {
                     termVectorsRequest.version = parser.longValue();
                 } else if ("_version_type".equals(currentFieldName) || "_versionType".equals(currentFieldName) || "version_type".equals(currentFieldName) || "versionType".equals(currentFieldName)) {
@@ -651,13 +635,13 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             if (e.getValue() instanceof String) {
                 mapStrStr.put(e.getKey(), (String) e.getValue());
             } else {
-                throw new ElasticsearchException("expecting the analyzer at [{}] to be a String, but found [{}] instead", e.getKey(), e.getValue().getClass());
+                throw new ElasticsearchParseException("expecting the analyzer at [{}] to be a String, but found [{}] instead", e.getKey(), e.getValue().getClass());
             }
         }
         return mapStrStr;
     }
 
-    private static FilterSettings readFilterSettings(XContentParser parser, TermVectorsRequest termVectorsRequest) throws IOException {
+    private static FilterSettings readFilterSettings(XContentParser parser) throws IOException {
         FilterSettings settings = new FilterSettings();
         XContentParser.Token token;
         String currentFieldName = null;

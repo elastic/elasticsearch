@@ -54,12 +54,33 @@ import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.apache.lucene.analysis.sv.SwedishLightStemFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
-import org.tartarus.snowball.ext.*;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
+import org.tartarus.snowball.ext.ArmenianStemmer;
+import org.tartarus.snowball.ext.BasqueStemmer;
+import org.tartarus.snowball.ext.CatalanStemmer;
+import org.tartarus.snowball.ext.DanishStemmer;
+import org.tartarus.snowball.ext.DutchStemmer;
+import org.tartarus.snowball.ext.EnglishStemmer;
+import org.tartarus.snowball.ext.FinnishStemmer;
+import org.tartarus.snowball.ext.FrenchStemmer;
+import org.tartarus.snowball.ext.German2Stemmer;
+import org.tartarus.snowball.ext.GermanStemmer;
+import org.tartarus.snowball.ext.HungarianStemmer;
+import org.tartarus.snowball.ext.IrishStemmer;
+import org.tartarus.snowball.ext.ItalianStemmer;
+import org.tartarus.snowball.ext.KpStemmer;
+import org.tartarus.snowball.ext.LithuanianStemmer;
+import org.tartarus.snowball.ext.LovinsStemmer;
+import org.tartarus.snowball.ext.NorwegianStemmer;
+import org.tartarus.snowball.ext.PorterStemmer;
+import org.tartarus.snowball.ext.PortugueseStemmer;
+import org.tartarus.snowball.ext.RomanianStemmer;
+import org.tartarus.snowball.ext.RussianStemmer;
+import org.tartarus.snowball.ext.SpanishStemmer;
+import org.tartarus.snowball.ext.SwedishStemmer;
+import org.tartarus.snowball.ext.TurkishStemmer;
 
 /**
  */
@@ -67,15 +88,14 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private String language;
 
-    @Inject
-    public StemmerTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public StemmerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+        super(indexSettings, name, settings);
         this.language = Strings.capitalize(settings.get("language", settings.get("name", "porter")));
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        final Version indexVersion = Version.indexCreated(indexSettings);
+        final Version indexVersion = indexSettings.getIndexVersionCreated();
 
         if ("arabic".equalsIgnoreCase(language)) {
             return new ArabicStemFilter(tokenStream);
@@ -102,11 +122,7 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
             // English stemmers
         } else if ("english".equalsIgnoreCase(language)) {
-            if (indexVersion.onOrAfter(Version.V_1_3_0)) {
-                return new PorterStemFilter(tokenStream);
-            } else {
-                return new SnowballFilter(tokenStream, new EnglishStemmer());
-            }
+            return new PorterStemFilter(tokenStream);
         } else if ("light_english".equalsIgnoreCase(language) || "lightEnglish".equalsIgnoreCase(language)
                 || "kstem".equalsIgnoreCase(language)) {
             return new KStemFilter(tokenStream);
@@ -115,11 +131,7 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
         } else if ("porter".equalsIgnoreCase(language)) {
             return new PorterStemFilter(tokenStream);
         } else if ("porter2".equalsIgnoreCase(language)) {
-            if (indexVersion.onOrAfter(Version.V_1_3_0)) {
-                return new SnowballFilter(tokenStream, new EnglishStemmer());
-            } else {
-                return new SnowballFilter(tokenStream, new PorterStemmer());
-            }
+            return new SnowballFilter(tokenStream, new EnglishStemmer());
         } else if ("minimal_english".equalsIgnoreCase(language) || "minimalEnglish".equalsIgnoreCase(language)) {
             return new EnglishMinimalStemFilter(tokenStream);
         } else if ("possessive_english".equalsIgnoreCase(language) || "possessiveEnglish".equalsIgnoreCase(language)) {
@@ -141,7 +153,7 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
             return new FrenchLightStemFilter(tokenStream);
         } else if ("minimal_french".equalsIgnoreCase(language) || "minimalFrench".equalsIgnoreCase(language)) {
             return new FrenchMinimalStemFilter(tokenStream);
-            
+
             // Galician stemmers
         } else if ("galician".equalsIgnoreCase(language)) {
             return new GalicianStemFilter(tokenStream);
@@ -171,7 +183,7 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
         } else if ("indonesian".equalsIgnoreCase(language)) {
             return new IndonesianStemFilter(tokenStream);
-            
+
             // Irish stemmer
         } else if ("irish".equalsIgnoreCase(language)) {
             return new SnowballFilter(tokenStream, new IrishStemmer());
@@ -195,8 +207,8 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
             return new NorwegianLightStemFilter(tokenStream);
         } else if ("minimal_norwegian".equalsIgnoreCase(language) || "minimalNorwegian".equals(language)) {
             return new NorwegianMinimalStemFilter(tokenStream);
-            
-            // Norwegian (Nynorsk) stemmers 
+
+            // Norwegian (Nynorsk) stemmers
         } else if ("light_nynorsk".equalsIgnoreCase(language) || "lightNynorsk".equalsIgnoreCase(language)) {
             return new NorwegianLightStemFilter(tokenStream, NorwegianLightStemmer.NYNORSK);
         } else if ("minimal_nynorsk".equalsIgnoreCase(language) || "minimalNynorsk".equalsIgnoreCase(language)) {
@@ -226,7 +238,7 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
             return new SnowballFilter(tokenStream, new SpanishStemmer());
         } else if ("light_spanish".equalsIgnoreCase(language) || "lightSpanish".equalsIgnoreCase(language)) {
             return new SpanishLightStemFilter(tokenStream);
-            
+
             // Sorani Kurdish stemmer
         } else if ("sorani".equalsIgnoreCase(language)) {
             return new SoraniStemFilter(tokenStream);

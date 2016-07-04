@@ -13,7 +13,7 @@ This plugin can be installed using the plugin manager:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin install mapper-size
+sudo bin/elasticsearch-plugin install mapper-size
 ----------------------------------------------------------------
 
 The plugin must be installed on every node in the cluster, and each node must
@@ -27,7 +27,7 @@ The plugin can be removed with the following command:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin remove mapper-size
+sudo bin/elasticsearch-plugin remove mapper-size
 ----------------------------------------------------------------
 
 The node must be stopped before removing the plugin.
@@ -50,10 +50,9 @@ PUT my_index
   }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
-The value of the `_size` field is accessible in queries, aggregations, scripts,
-and when sorting:
+The value of the `_size` field is accessible in queries:
 
 [source,js]
 --------------------------
@@ -76,33 +75,10 @@ GET my_index/_search
         "gt": 10
       }
     }
-  },
-  "aggs": {
-    "Sizes": {
-      "terms": {
-        "field": "_size", <2>
-        "size": 10
-      }
-    }
-  },
-  "sort": [
-    {
-      "_size": { <3>
-        "order": "desc"
-      }
-    }
-  ],
-  "script_fields": {
-    "Size": {
-      "script": "doc['_size']"  <4>
-    }
   }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[continued]
 
 <1> Querying on the `_size` field
-<2> Aggregating on the `_size` field
-<3> Sorting on the `_size` field
-<4> Accessing the `_size` field in scripts (inline scripts must be modules-scripting.html#enable-dynamic-scripting[enabled] for this example to work)
-

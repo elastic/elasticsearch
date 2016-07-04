@@ -24,8 +24,9 @@
   - match:
       $body: |
                /^(green  \s+
-                  (open|close) \s+
+                  open   \s+
                   index1 \s+
+                  ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
                   1      \s+
                   0      \s+
                   0      \s+
@@ -47,5 +48,27 @@
                   (\d\d\d\d\-\d\d\-\d\dT\d\d:\d\d:\d\d.\d\d\dZ) \s+
                   (\d+)                                                     \s+
                   (\d\d\d\d\-\d\d\-\d\dT\d\d:\d\d:\d\d.\d\d\dZ) \s*
+                )
+                $/
+  - do:
+      indices.close:
+        index: index1
+
+  - do:
+      cat.indices:
+        index: index*
+
+  - match:
+      $body: |
+               /^(       \s+
+                  close  \s+
+                  index1 \s+
+                  ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
+                         \s+
+                         \s+
+                         \s+
+                         \s+
+                         \s+
+                         \s*
                 )
                 $/

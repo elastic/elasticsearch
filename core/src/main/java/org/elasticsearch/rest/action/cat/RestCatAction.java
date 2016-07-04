@@ -19,10 +19,15 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 
 import java.util.Set;
 
@@ -35,8 +40,8 @@ public class RestCatAction extends BaseRestHandler {
     private final String HELP;
 
     @Inject
-    public RestCatAction(Settings settings, RestController controller, Set<AbstractCatAction> catActions, Client client) {
-        super(settings, controller, client);
+    public RestCatAction(Settings settings, RestController controller, Set<AbstractCatAction> catActions) {
+        super(settings);
         controller.registerHandler(GET, "/_cat", this);
         StringBuilder sb = new StringBuilder();
         sb.append(CAT_NL);
@@ -47,7 +52,7 @@ public class RestCatAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         channel.sendResponse(new BytesRestResponse(RestStatus.OK, HELP));
     }
 }

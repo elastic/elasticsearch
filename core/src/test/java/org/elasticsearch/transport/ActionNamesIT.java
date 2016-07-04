@@ -20,7 +20,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.startsWith;
@@ -42,13 +41,11 @@ import static org.hamcrest.CoreMatchers.startsWith;
  * we use the `[n]` suffix to identify node actions and the `[s]` suffix to identify shard actions.
  */
 public class ActionNamesIT extends ESIntegTestCase {
-
-    @Test
-    @SuppressWarnings("unchecked")
     public void testActionNamesCategories() throws NoSuchFieldException, IllegalAccessException {
         TransportService transportService = internalCluster().getInstance(TransportService.class);
         for (String action : transportService.requestHandlers.keySet()) {
-            assertThat("action doesn't belong to known category", action, either(startsWith("indices:admin")).or(startsWith("indices:monitor"))
+            assertThat("action doesn't belong to known category", action,
+                either(startsWith("indices:admin")).or(startsWith("indices:monitor"))
                     .or(startsWith("indices:data/read")).or(startsWith("indices:data/write"))
                     .or(startsWith("cluster:admin")).or(startsWith("cluster:monitor"))
                     .or(startsWith("internal:")));

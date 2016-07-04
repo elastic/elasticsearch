@@ -21,9 +21,16 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
+import org.apache.lucene.index.LiveIndexWriterConfig;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SnapshotDeletionPolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
@@ -36,17 +43,20 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.shard.MergeSchedulerConfig;
+import org.elasticsearch.index.shard.RefreshListeners;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.store.DirectoryService;
@@ -56,11 +66,12 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -69,15 +80,20 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * TODO: document me!
  */
 public class ShadowEngineTests extends ESTestCase {
 
-    protected final ShardId shardId = new ShardId(new Index("index"), 1);
+    protected final ShardId shardId = new ShardId("index", "_na_", 1);
 
     protected ThreadPool threadPool;
 
@@ -88,7 +104,7 @@ public class ShadowEngineTests extends ESTestCase {
     protected Engine primaryEngine;
     protected Engine replicaEngine;
 
-    private Settings defaultSettings;
+    private IndexSettings defaultSettings;
     private String codecName;
     private Path dirPath;
 
@@ -96,7 +112,7 @@ public class ShadowEngineTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        CodecService codecService = new CodecService(shardId.index());
+        CodecService codecService = new CodecService(null, logger);
         String name = Codec.getDefault().getName();
         if (Arrays.asList(codecService.availableCodecs()).contains(name)) {
             // some codecs are read only so we only take the ones that we have in the service and randomly
@@ -105,13 +121,13 @@ public class ShadowEngineTests extends ESTestCase {
         } else {
             codecName = "default";
         }
-        defaultSettings = Settings.builder()
-                .put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, randomBoolean())
-                .put(EngineConfig.INDEX_GC_DELETES_SETTING, "1h") // make sure this doesn't kick in on us
-                .put(EngineConfig.INDEX_CODEC_SETTING, codecName)
+        defaultSettings = IndexSettingsModule.newIndexSettings("test", Settings.builder()
+                .put(IndexSettings.INDEX_GC_DELETES_SETTING, "1h") // make sure this doesn't kick in on us
+                .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codecName)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .build(); // TODO randomize more settings
-        threadPool = new ThreadPool(getClass().getName());
+                .build()); // TODO randomize more settings
+
+        threadPool = new TestThreadPool(getClass().getName());
         dirPath = createTempDir();
         store = createStore(dirPath);
         storeReplica = createStore(dirPath);
@@ -161,15 +177,18 @@ public class ShadowEngineTests extends ESTestCase {
         Field versionField = new NumericDocValuesField("_version", 0);
         document.add(uidField);
         document.add(versionField);
-        return new ParsedDocument(uidField, versionField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingsUpdate);
+        document.add(new LongPoint("point_field", 42)); // so that points report memory/disk usage
+        return new ParsedDocument(versionField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingsUpdate);
     }
 
     protected Store createStore(Path p) throws IOException {
         return createStore(newMockFSDirectory(p));
     }
 
+
     protected Store createStore(final Directory directory) throws IOException {
-        final DirectoryService directoryService = new DirectoryService(shardId, EMPTY_SETTINGS) {
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
+        final DirectoryService directoryService = new DirectoryService(shardId, indexSettings) {
             @Override
             public Directory newDirectory() throws IOException {
                 return directory;
@@ -180,7 +199,7 @@ public class ShadowEngineTests extends ESTestCase {
                 return 0;
             }
         };
-        return new Store(shardId, EMPTY_SETTINGS, directoryService, new DummyShardLock(shardId));
+        return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
     }
 
     protected SnapshotDeletionPolicy createSnapshotDeletionPolicy() {
@@ -195,33 +214,44 @@ public class ShadowEngineTests extends ESTestCase {
         return createInternalEngine(defaultSettings, store, translogPath);
     }
 
-    protected ShadowEngine createShadowEngine(Settings indexSettings, Store store) {
-        return new ShadowEngine(config(indexSettings, store, null, new MergeSchedulerConfig(indexSettings), null));
+    protected ShadowEngine createShadowEngine(IndexSettings indexSettings, Store store) {
+        return new ShadowEngine(config(indexSettings, store, null, null, null));
     }
 
-    protected InternalEngine createInternalEngine(Settings indexSettings, Store store, Path translogPath) {
+    protected InternalEngine createInternalEngine(IndexSettings indexSettings, Store store, Path translogPath) {
         return createInternalEngine(indexSettings, store, translogPath, newMergePolicy());
     }
 
-    protected InternalEngine createInternalEngine(Settings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {
-        return new InternalEngine(config(indexSettings, store, translogPath, new MergeSchedulerConfig(indexSettings), mergePolicy), true);
+    protected InternalEngine createInternalEngine(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {
+        EngineConfig config = config(indexSettings, store, translogPath, mergePolicy, null);
+        return new InternalEngine(config);
     }
 
-    public EngineConfig config(Settings indexSettings, Store store, Path translogPath, MergeSchedulerConfig mergeSchedulerConfig, MergePolicy mergePolicy) {
+    public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
+            RefreshListeners refreshListeners) {
         IndexWriterConfig iwc = newIndexWriterConfig();
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
-        EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, indexSettings), indexSettings
-                , null, store, createSnapshotDeletionPolicy(), mergePolicy, mergeSchedulerConfig,
-                iwc.getAnalyzer(), iwc.getSimilarity() , new CodecService(shardId.index()), new Engine.FailedEngineListener() {
-            @Override
-            public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t) {
-                // we don't need to notify anybody in this test
-        }}, null, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig);
+        final EngineConfig.OpenMode openMode;
         try {
-            config.setCreate(Lucene.indexExists(store.directory()) == false);
+            if (Lucene.indexExists(store.directory()) == false) {
+                openMode = EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG;
+            } else {
+                openMode = EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG;
+            }
         } catch (IOException e) {
             throw new ElasticsearchException("can't find index?", e);
         }
+        Engine.EventListener eventListener = new Engine.EventListener() {
+            @Override
+            public void onFailedEngine(String reason, @Nullable Exception e) {
+                // we don't need to notify anybody in this test
+            }
+        };
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
+        EngineConfig config = new EngineConfig(openMode, shardId, threadPool, indexSettings, null, store, createSnapshotDeletionPolicy(),
+                mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), eventListener, null,
+                IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
+                TimeValue.timeValueMinutes(5), refreshListeners);
+
         return config;
     }
 
@@ -239,7 +269,7 @@ public class ShadowEngineTests extends ESTestCase {
         primaryEngine.index(new Engine.Index(newUid("1"), doc));
 
         CommitStats stats1 = replicaEngine.commitStats();
-        assertThat(stats1.getGeneration(), greaterThan(0l));
+        assertThat(stats1.getGeneration(), greaterThan(0L));
         assertThat(stats1.getId(), notNullValue());
         assertThat(stats1.getUserData(), hasKey(Translog.TRANSLOG_GENERATION_KEY));
 
@@ -258,16 +288,13 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(stats2.getUserData().get(Translog.TRANSLOG_UUID_KEY), equalTo(stats1.getUserData().get(Translog.TRANSLOG_UUID_KEY)));
     }
 
-
-    @Test
     public void testSegments() throws Exception {
         primaryEngine.close(); // recreate without merging
         primaryEngine = createInternalEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
         List<Segment> segments = primaryEngine.segments(false);
         assertThat(segments.isEmpty(), equalTo(true));
-        assertThat(primaryEngine.segmentsStats().getCount(), equalTo(0l));
-        assertThat(primaryEngine.segmentsStats().getMemoryInBytes(), equalTo(0l));
-        final boolean defaultCompound = defaultSettings.getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, true);
+        assertThat(primaryEngine.segmentsStats(false).getCount(), equalTo(0L));
+        assertThat(primaryEngine.segmentsStats(false).getMemoryInBytes(), equalTo(0L));
 
         // create a doc and refresh
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
@@ -279,30 +306,32 @@ public class ShadowEngineTests extends ESTestCase {
 
         segments = primaryEngine.segments(false);
         assertThat(segments.size(), equalTo(1));
-        SegmentsStats stats = primaryEngine.segmentsStats();
-        assertThat(stats.getCount(), equalTo(1l));
-        assertThat(stats.getTermsMemoryInBytes(), greaterThan(0l));
-        assertThat(stats.getStoredFieldsMemoryInBytes(), greaterThan(0l));
-        assertThat(stats.getTermVectorsMemoryInBytes(), equalTo(0l));
-        assertThat(stats.getNormsMemoryInBytes(), greaterThan(0l));
-        assertThat(stats.getDocValuesMemoryInBytes(), greaterThan(0l));
+        SegmentsStats stats = primaryEngine.segmentsStats(false);
+        assertThat(stats.getCount(), equalTo(1L));
+        assertThat(stats.getTermsMemoryInBytes(), greaterThan(0L));
+        assertThat(stats.getStoredFieldsMemoryInBytes(), greaterThan(0L));
+        assertThat(stats.getTermVectorsMemoryInBytes(), equalTo(0L));
+        assertThat(stats.getNormsMemoryInBytes(), greaterThan(0L));
+        assertThat(stats.getPointsMemoryInBytes(), greaterThan(0L));
+        assertThat(stats.getDocValuesMemoryInBytes(), greaterThan(0L));
         assertThat(segments.get(0).isCommitted(), equalTo(false));
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(2));
         assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+        assertTrue(segments.get(0).isCompound());
         assertThat(segments.get(0).ramTree, nullValue());
 
         // Check that the replica sees nothing
         segments = replicaEngine.segments(false);
         assertThat(segments.size(), equalTo(0));
-        stats = replicaEngine.segmentsStats();
-        assertThat(stats.getCount(), equalTo(0l));
-        assertThat(stats.getTermsMemoryInBytes(), equalTo(0l));
-        assertThat(stats.getStoredFieldsMemoryInBytes(), equalTo(0l));
-        assertThat(stats.getTermVectorsMemoryInBytes(), equalTo(0l));
-        assertThat(stats.getNormsMemoryInBytes(), equalTo(0l));
-        assertThat(stats.getDocValuesMemoryInBytes(), equalTo(0l));
+        stats = replicaEngine.segmentsStats(false);
+        assertThat(stats.getCount(), equalTo(0L));
+        assertThat(stats.getTermsMemoryInBytes(), equalTo(0L));
+        assertThat(stats.getStoredFieldsMemoryInBytes(), equalTo(0L));
+        assertThat(stats.getTermVectorsMemoryInBytes(), equalTo(0L));
+        assertThat(stats.getNormsMemoryInBytes(), equalTo(0L));
+        assertThat(stats.getPointsMemoryInBytes(), equalTo(0L));
+        assertThat(stats.getDocValuesMemoryInBytes(), equalTo(0L));
         assertThat(segments.size(), equalTo(0));
 
         // flush the primary engine
@@ -313,25 +342,22 @@ public class ShadowEngineTests extends ESTestCase {
         // Check that the primary AND replica sees segments now
         segments = primaryEngine.segments(false);
         assertThat(segments.size(), equalTo(1));
-        assertThat(primaryEngine.segmentsStats().getCount(), equalTo(1l));
+        assertThat(primaryEngine.segmentsStats(false).getCount(), equalTo(1L));
         assertThat(segments.get(0).isCommitted(), equalTo(true));
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(2));
         assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+        assertThat(segments.get(0).isCompound(), equalTo(true));
 
         segments = replicaEngine.segments(false);
         assertThat(segments.size(), equalTo(1));
-        assertThat(replicaEngine.segmentsStats().getCount(), equalTo(1l));
+        assertThat(replicaEngine.segmentsStats(false).getCount(), equalTo(1L));
         assertThat(segments.get(0).isCommitted(), equalTo(true));
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(2));
         assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+        assertThat(segments.get(0).isCompound(), equalTo(true));
 
-
-        primaryEngine.config().setCompoundOnFlush(false);
-        primaryEngine.onSettingsChanged();
 
         ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
         primaryEngine.index(new Engine.Index(newUid("3"), doc3));
@@ -339,23 +365,24 @@ public class ShadowEngineTests extends ESTestCase {
 
         segments = primaryEngine.segments(false);
         assertThat(segments.size(), equalTo(2));
-        assertThat(primaryEngine.segmentsStats().getCount(), equalTo(2l));
-        assertThat(primaryEngine.segmentsStats().getTermsMemoryInBytes(), greaterThan(stats.getTermsMemoryInBytes()));
-        assertThat(primaryEngine.segmentsStats().getStoredFieldsMemoryInBytes(), greaterThan(stats.getStoredFieldsMemoryInBytes()));
-        assertThat(primaryEngine.segmentsStats().getTermVectorsMemoryInBytes(), equalTo(0l));
-        assertThat(primaryEngine.segmentsStats().getNormsMemoryInBytes(), greaterThan(stats.getNormsMemoryInBytes()));
-        assertThat(primaryEngine.segmentsStats().getDocValuesMemoryInBytes(), greaterThan(stats.getDocValuesMemoryInBytes()));
+        assertThat(primaryEngine.segmentsStats(false).getCount(), equalTo(2L));
+        assertThat(primaryEngine.segmentsStats(false).getTermsMemoryInBytes(), greaterThan(stats.getTermsMemoryInBytes()));
+        assertThat(primaryEngine.segmentsStats(false).getStoredFieldsMemoryInBytes(), greaterThan(stats.getStoredFieldsMemoryInBytes()));
+        assertThat(primaryEngine.segmentsStats(false).getTermVectorsMemoryInBytes(), equalTo(0L));
+        assertThat(primaryEngine.segmentsStats(false).getNormsMemoryInBytes(), greaterThan(stats.getNormsMemoryInBytes()));
+        assertThat(primaryEngine.segmentsStats(false).getPointsMemoryInBytes(), greaterThan(stats.getPointsMemoryInBytes()));
+        assertThat(primaryEngine.segmentsStats(false).getDocValuesMemoryInBytes(), greaterThan(stats.getDocValuesMemoryInBytes()));
         assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
         assertThat(segments.get(0).isCommitted(), equalTo(true));
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(2));
         assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+        assertThat(segments.get(0).isCompound(), equalTo(true));
         assertThat(segments.get(1).isCommitted(), equalTo(false));
         assertThat(segments.get(1).isSearch(), equalTo(true));
         assertThat(segments.get(1).getNumDocs(), equalTo(1));
         assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(1).isCompound(), equalTo(false));
+        assertThat(segments.get(1).isCompound(), equalTo(true));
 
         // Make visible to shadow replica
         primaryEngine.flush();
@@ -363,48 +390,46 @@ public class ShadowEngineTests extends ESTestCase {
 
         segments = replicaEngine.segments(false);
         assertThat(segments.size(), equalTo(2));
-        assertThat(replicaEngine.segmentsStats().getCount(), equalTo(2l));
-        assertThat(replicaEngine.segmentsStats().getTermsMemoryInBytes(), greaterThan(stats.getTermsMemoryInBytes()));
-        assertThat(replicaEngine.segmentsStats().getStoredFieldsMemoryInBytes(), greaterThan(stats.getStoredFieldsMemoryInBytes()));
-        assertThat(replicaEngine.segmentsStats().getTermVectorsMemoryInBytes(), equalTo(0l));
-        assertThat(replicaEngine.segmentsStats().getNormsMemoryInBytes(), greaterThan(stats.getNormsMemoryInBytes()));
-        assertThat(replicaEngine.segmentsStats().getDocValuesMemoryInBytes(), greaterThan(stats.getDocValuesMemoryInBytes()));
+        assertThat(replicaEngine.segmentsStats(false).getCount(), equalTo(2L));
+        assertThat(replicaEngine.segmentsStats(false).getTermsMemoryInBytes(), greaterThan(stats.getTermsMemoryInBytes()));
+        assertThat(replicaEngine.segmentsStats(false).getStoredFieldsMemoryInBytes(), greaterThan(stats.getStoredFieldsMemoryInBytes()));
+        assertThat(replicaEngine.segmentsStats(false).getTermVectorsMemoryInBytes(), equalTo(0L));
+        assertThat(replicaEngine.segmentsStats(false).getNormsMemoryInBytes(), greaterThan(stats.getNormsMemoryInBytes()));
+        assertThat(replicaEngine.segmentsStats(false).getPointsMemoryInBytes(), greaterThan(stats.getPointsMemoryInBytes()));
+        assertThat(replicaEngine.segmentsStats(false).getDocValuesMemoryInBytes(), greaterThan(stats.getDocValuesMemoryInBytes()));
         assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
         assertThat(segments.get(0).isCommitted(), equalTo(true));
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(2));
         assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+        assertThat(segments.get(0).isCompound(), equalTo(true));
         assertThat(segments.get(1).isCommitted(), equalTo(true));
         assertThat(segments.get(1).isSearch(), equalTo(true));
         assertThat(segments.get(1).getNumDocs(), equalTo(1));
         assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(1).isCompound(), equalTo(false));
+        assertThat(segments.get(1).isCompound(), equalTo(true));
 
         primaryEngine.delete(new Engine.Delete("test", "1", newUid("1")));
         primaryEngine.refresh("test");
 
         segments = primaryEngine.segments(false);
         assertThat(segments.size(), equalTo(2));
-        assertThat(primaryEngine.segmentsStats().getCount(), equalTo(2l));
+        assertThat(primaryEngine.segmentsStats(false).getCount(), equalTo(2L));
         assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
         assertThat(segments.get(0).isCommitted(), equalTo(true));
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(1));
         assertThat(segments.get(0).getDeletedDocs(), equalTo(1));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+        assertThat(segments.get(0).isCompound(), equalTo(true));
         assertThat(segments.get(1).isCommitted(), equalTo(true));
         assertThat(segments.get(1).isSearch(), equalTo(true));
         assertThat(segments.get(1).getNumDocs(), equalTo(1));
         assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(1).isCompound(), equalTo(false));
+        assertThat(segments.get(1).isCompound(), equalTo(true));
 
         // Make visible to shadow replica
         primaryEngine.flush();
         replicaEngine.refresh("test");
-
-        primaryEngine.config().setCompoundOnFlush(true);
-        primaryEngine.onSettingsChanged();
 
         ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
         primaryEngine.index(new Engine.Index(newUid("4"), doc4));
@@ -412,19 +437,19 @@ public class ShadowEngineTests extends ESTestCase {
 
         segments = primaryEngine.segments(false);
         assertThat(segments.size(), equalTo(3));
-        assertThat(primaryEngine.segmentsStats().getCount(), equalTo(3l));
+        assertThat(primaryEngine.segmentsStats(false).getCount(), equalTo(3L));
         assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
         assertThat(segments.get(0).isCommitted(), equalTo(true));
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(1));
         assertThat(segments.get(0).getDeletedDocs(), equalTo(1));
-        assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
+        assertThat(segments.get(0).isCompound(), equalTo(true));
 
         assertThat(segments.get(1).isCommitted(), equalTo(true));
         assertThat(segments.get(1).isSearch(), equalTo(true));
         assertThat(segments.get(1).getNumDocs(), equalTo(1));
         assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
-        assertThat(segments.get(1).isCompound(), equalTo(false));
+        assertThat(segments.get(1).isCompound(), equalTo(true));
 
         assertThat(segments.get(2).isCommitted(), equalTo(false));
         assertThat(segments.get(2).isSearch(), equalTo(true));
@@ -433,7 +458,6 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(segments.get(2).isCompound(), equalTo(true));
     }
 
-    @Test
     public void testVerboseSegments() throws Exception {
         primaryEngine.close(); // recreate without merging
         primaryEngine = createInternalEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
@@ -473,11 +497,10 @@ public class ShadowEngineTests extends ESTestCase {
 
     }
 
-    @Test
     public void testShadowEngineIgnoresWriteOperations() throws Exception {
         // create a document
         ParseContext.Document document = testDocumentWithTextField();
-        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
         try {
             replicaEngine.index(new Engine.Index(newUid("1"), doc));
@@ -515,7 +538,7 @@ public class ShadowEngineTests extends ESTestCase {
 
         // Now, add a document to the primary so we can test shadow engine deletes
         document = testDocumentWithTextField();
-        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
         doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
         primaryEngine.index(new Engine.Index(newUid("1"), doc));
         primaryEngine.flush();
@@ -563,7 +586,6 @@ public class ShadowEngineTests extends ESTestCase {
         getResult.release();
     }
 
-    @Test
     public void testSimpleOperations() throws Exception {
         Engine.Searcher searchResult = primaryEngine.acquireSearcher("test");
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
@@ -571,7 +593,7 @@ public class ShadowEngineTests extends ESTestCase {
 
         // create a document
         ParseContext.Document document = testDocumentWithTextField();
-        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
         primaryEngine.index(new Engine.Index(newUid("1"), doc));
 
@@ -590,7 +612,7 @@ public class ShadowEngineTests extends ESTestCase {
         // but, we can still get it (in realtime)
         Engine.GetResult getResult = primaryEngine.get(new Engine.Get(true, newUid("1")));
         assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.source().source.toBytesArray(), equalTo(B_1.toBytesArray()));
+        assertThat(getResult.source().source, equalTo(B_1));
         assertThat(getResult.docIdAndVersion(), nullValue());
         getResult.release();
 
@@ -627,7 +649,7 @@ public class ShadowEngineTests extends ESTestCase {
         // now do an update
         document = testDocument();
         document.add(new TextField("value", "test1", Field.Store.YES));
-        document.add(new Field(SourceFieldMapper.NAME, B_2.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_2), SourceFieldMapper.Defaults.FIELD_TYPE));
         doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_2, null);
         primaryEngine.index(new Engine.Index(newUid("1"), doc));
 
@@ -641,7 +663,7 @@ public class ShadowEngineTests extends ESTestCase {
         // but, we can still get it (in realtime)
         getResult = primaryEngine.get(new Engine.Get(true, newUid("1")));
         assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.source().source.toBytesArray(), equalTo(B_2.toBytesArray()));
+        assertThat(getResult.source().source, equalTo(B_2));
         assertThat(getResult.docIdAndVersion(), nullValue());
         getResult.release();
 
@@ -698,7 +720,7 @@ public class ShadowEngineTests extends ESTestCase {
 
         // add it back
         document = testDocumentWithTextField();
-        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
         doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
         primaryEngine.index(new Engine.Index(newUid("1"), doc));
 
@@ -776,7 +798,6 @@ public class ShadowEngineTests extends ESTestCase {
         searchResult.close();
     }
 
-    @Test
     public void testSearchResultRelease() throws Exception {
         Engine.Searcher searchResult = replicaEngine.acquireSearcher("test");
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
@@ -827,7 +848,6 @@ public class ShadowEngineTests extends ESTestCase {
         searchResult.close();
     }
 
-    @Test
     public void testFailEngineOnCorruption() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
         primaryEngine.index(new Engine.Index(newUid("1"), doc));
@@ -852,7 +872,6 @@ public class ShadowEngineTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testExtractShardId() {
         try (Engine.Searcher test = replicaEngine.acquireSearcher("test")) {
             ShardId shardId = ShardUtils.extractShardId(test.getDirectoryReader());
@@ -865,7 +884,6 @@ public class ShadowEngineTests extends ESTestCase {
      * Random test that throws random exception and ensures all references are
      * counted down / released and resources are closed.
      */
-    @Test
     public void testFailStart() throws IOException {
         // Need a commit point for this
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
@@ -910,13 +928,11 @@ public class ShadowEngineTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testSettings() {
-        CodecService codecService = new CodecService(shardId.index());
+        CodecService codecService = new CodecService(null, logger);
         assertEquals(replicaEngine.config().getCodec().getName(), codecService.codec(codecName).getName());
     }
 
-    @Test
     public void testShadowEngineCreationRetry() throws Exception {
         final Path srDir = createTempDir();
         final Store srStore = createStore(srDir);
@@ -955,7 +971,7 @@ public class ShadowEngineTests extends ESTestCase {
 
         // create a document
         ParseContext.Document document = testDocumentWithTextField();
-        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
         pEngine.index(new Engine.Index(newUid("1"), doc));
         pEngine.flush(true, true);
@@ -973,5 +989,39 @@ public class ShadowEngineTests extends ESTestCase {
         } catch (UnsupportedOperationException ex) {
             // all good
         }
+    }
+
+    public void testDocStats() throws IOException {
+        final int numDocs = randomIntBetween(2, 10); // at least 2 documents otherwise we don't see any deletes below
+        for (int i = 0; i < numDocs; i++) {
+            ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
+            Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime());
+            primaryEngine.index(firstIndexRequest);
+            assertThat(firstIndexRequest.version(), equalTo(1L));
+        }
+        DocsStats docStats = primaryEngine.getDocStats();
+        assertEquals(numDocs, docStats.getCount());
+        assertEquals(0, docStats.getDeleted());
+
+        docStats = replicaEngine.getDocStats();
+        assertEquals(0, docStats.getCount());
+        assertEquals(0, docStats.getDeleted());
+        primaryEngine.flush();
+
+        docStats = replicaEngine.getDocStats();
+        assertEquals(0, docStats.getCount());
+        assertEquals(0, docStats.getDeleted());
+        replicaEngine.refresh("test");
+        docStats = replicaEngine.getDocStats();
+        assertEquals(numDocs, docStats.getCount());
+        assertEquals(0, docStats.getDeleted());
+        primaryEngine.forceMerge(randomBoolean(), 1, false, false, false);
+    }
+
+    public void testRefreshListenersFails() throws IOException {
+        EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(),
+                new RefreshListeners(null, null, null, logger));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new ShadowEngine(config));
+        assertEquals("ShadowEngine doesn't support RefreshListeners", e.getMessage());
     }
 }

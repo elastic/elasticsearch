@@ -11,7 +11,7 @@ This plugin can be installed using the plugin manager:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin install store-smb
+sudo bin/elasticsearch-plugin install store-smb
 ----------------------------------------------------------------
 
 The plugin must be installed on every node in the cluster, and each node must
@@ -25,7 +25,7 @@ The plugin can be removed with the following command:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin remove store-smb
+sudo bin/elasticsearch-plugin remove store-smb
 ----------------------------------------------------------------
 
 The node must be stopped before removing the plugin.
@@ -68,7 +68,7 @@ Note that setting will be applied for newly created indices.
 
 It can also be set on a per-index basis at index creation time:
 
-[source,json]
+[source,js]
 ----
 PUT my_index
 {
@@ -77,4 +77,4 @@ PUT my_index
    }
 }
 ----
-// AUTOSENSE
+// CONSOLE

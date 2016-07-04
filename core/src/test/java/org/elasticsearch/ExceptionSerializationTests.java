@@ -18,20 +18,22 @@
  */
 package org.elasticsearch;
 
-import com.fasterxml.jackson.core.JsonLocation;
-import com.fasterxml.jackson.core.JsonParseException;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.client.AbstractClientHeadersTestCase;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IllegalShardRoutingStateException;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -51,7 +53,6 @@ import org.elasticsearch.index.AlreadyExpiredException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.IndexFailedEngineException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
-import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -61,7 +62,6 @@ import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.recovery.RecoverFilesRecoveryException;
-import org.elasticsearch.percolator.PercolateException;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesNotFoundException;
@@ -70,8 +70,9 @@ import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.warmer.IndexWarmerMissingException;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotException;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.VersionUtils;
@@ -79,20 +80,33 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.ActionTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
-import java.lang.reflect.Modifier;
 import java.net.URISyntaxException;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.DirectoryNotEmptyException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystemException;
+import java.nio.file.FileSystemLoopException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static java.lang.reflect.Modifier.isAbstract;
+import static java.lang.reflect.Modifier.isInterface;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -100,14 +114,14 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testExceptionRegistration()
             throws ClassNotFoundException, IOException, URISyntaxException {
-        final Set<Class> notRegistered = new HashSet<>();
-        final Set<Class> hasDedicatedWrite = new HashSet<>();
-        final Set<Class> registered = new HashSet<>();
+        final Set<Class<?>> notRegistered = new HashSet<>();
+        final Set<Class<?>> hasDedicatedWrite = new HashSet<>();
+        final Set<Class<?>> registered = new HashSet<>();
         final String path = "/org/elasticsearch";
-        final Path startPath = PathUtils.get(ElasticsearchException.class.getProtectionDomain().getCodeSource().getLocation().toURI()).resolve("org").resolve("elasticsearch");
-        final Set<? extends Class> ignore = Sets.newHashSet(
+        final Path startPath = PathUtils.get(ElasticsearchException.class.getProtectionDomain().getCodeSource().getLocation().toURI())
+                .resolve("org").resolve("elasticsearch");
+        final Set<? extends Class<?>> ignore = Sets.newHashSet(
                 org.elasticsearch.test.rest.parser.RestTestParseException.class,
-                org.elasticsearch.test.rest.client.RestException.class,
                 CancellableThreadsTests.CustomException.class,
                 org.elasticsearch.rest.BytesRestResponseTests.WithHeadersException.class,
                 AbstractClientHeadersTestCase.InternalException.class);
@@ -126,33 +140,41 @@ public class ExceptionSerializationTests extends ESTestCase {
 
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                checkFile(file.getFileName().toString());
+                return FileVisitResult.CONTINUE;
+            }
+
+            private void checkFile(String filename) {
+                if (filename.endsWith(".class") == false) {
+                    return;
+                }
                 try {
-                    String filename = file.getFileName().toString();
-                    if (filename.endsWith(".class")) {
-                        Class<?> clazz = loadClass(filename);
-                        if (ignore.contains(clazz) == false) {
-                            if (Modifier.isAbstract(clazz.getModifiers()) == false && Modifier.isInterface(clazz.getModifiers()) == false && isEsException(clazz)) {
-                                if (ElasticsearchException.isRegistered((Class<? extends Throwable>) clazz) == false && ElasticsearchException.class.equals(clazz.getEnclosingClass()) == false) {
-                                    notRegistered.add(clazz);
-                                } else if (ElasticsearchException.isRegistered((Class<? extends Throwable>) clazz)) {
-                                    registered.add(clazz);
-                                    try {
-                                        if (clazz.getDeclaredMethod("writeTo", StreamOutput.class) != null) {
-                                            hasDedicatedWrite.add(clazz);
-                                        }
-                                    } catch (Exception e) {
-                                        // fair enough
-                                    }
-
-                                }
-                            }
-                        }
-
-                    }
+                    checkClass(loadClass(filename));
                 } catch (ClassNotFoundException e) {
                     throw new RuntimeException(e);
                 }
-                return FileVisitResult.CONTINUE;
+            }
+
+            private void checkClass(Class<?> clazz) {
+                if (ignore.contains(clazz) || isAbstract(clazz.getModifiers()) || isInterface(clazz.getModifiers())) {
+                    return;
+                }
+                if (isEsException(clazz) == false) {
+                    return;
+                }
+                if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class)) == false
+                        && ElasticsearchException.class.equals(clazz.getEnclosingClass()) == false) {
+                    notRegistered.add(clazz);
+                } else if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class))) {
+                    registered.add(clazz);
+                    try {
+                        if (clazz.getMethod("writeTo", StreamOutput.class) != null) {
+                            hasDedicatedWrite.add(clazz);
+                        }
+                    } catch (Exception e) {
+                        // fair enough
+                    }
+                }
             }
 
             private boolean isEsException(Class<?> clazz) {
@@ -197,18 +219,19 @@ public class ExceptionSerializationTests extends ESTestCase {
         }
     }
 
-    private <T extends Throwable> T serialize(T exception) throws IOException {
+    private <T extends Exception> T serialize(T exception) throws IOException {
         ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(random()), exception);
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeThrowable(exception);
-        StreamInput in = StreamInput.wrap(out.bytes());
-        return in.readThrowable();
+        StreamInput in = out.bytes().streamInput();
+        return in.readException();
     }
 
     public void testIllegalShardRoutingStateException() throws IOException {
-        final ShardRouting routing = TestShardRouting.newShardRouting("test", 0, "xyz", "def", false, ShardRoutingState.STARTED, 0);
+        final ShardRouting routing = TestShardRouting.newShardRouting("test", 0, "xyz", "def", false, ShardRoutingState.STARTED);
         final String routingAsString = routing.toString();
-        IllegalShardRoutingStateException serialize = serialize(new IllegalShardRoutingStateException(routing, "foo", new NullPointerException()));
+        IllegalShardRoutingStateException serialize = serialize(
+                new IllegalShardRoutingStateException(routing, "foo", new NullPointerException()));
         assertNotNull(serialize.shard());
         assertEquals(routing, serialize.shard());
         assertEquals(routingAsString + ": foo", serialize.getMessage());
@@ -236,8 +259,8 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testQueryShardException() throws IOException {
-        QueryShardException ex = serialize(new QueryShardException(new Index("foo"), "fobar", null));
-        assertEquals(ex.getIndex(), "foo");
+        QueryShardException ex = serialize(new QueryShardException(new Index("foo", "_na_"), "fobar", null));
+        assertEquals(ex.getIndex().getName(), "foo");
         assertEquals(ex.getMessage(), "fobar");
 
         ex = serialize(new QueryShardException((Index) null, null, null));
@@ -246,7 +269,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testSearchException() throws IOException {
-        SearchShardTarget target = new SearchShardTarget("foo", "bar", 1);
+        SearchShardTarget target = new SearchShardTarget("foo", new Index("bar", "_na_"), 1);
         SearchException ex = serialize(new SearchException(target, "hello world"));
         assertEquals(target, ex.shard());
         assertEquals(ex.getMessage(), "hello world");
@@ -259,7 +282,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testAlreadyExpiredException() throws IOException {
         AlreadyExpiredException alreadyExpiredException = serialize(new AlreadyExpiredException("index", "type", "id", 1, 2, 3));
-        assertEquals("index", alreadyExpiredException.getIndex());
+        assertEquals("index", alreadyExpiredException.getIndex().getName());
         assertEquals("type", alreadyExpiredException.type());
         assertEquals("id", alreadyExpiredException.id());
         assertEquals(2, alreadyExpiredException.ttl());
@@ -275,11 +298,6 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals(-3, alreadyExpiredException.now());
     }
 
-    public void testMergeMappingException() throws IOException {
-        MergeMappingException ex = serialize(new MergeMappingException(new String[]{"one", "two"}));
-        assertArrayEquals(ex.failures(), new String[]{"one", "two"});
-    }
-
     public void testActionNotFoundTransportException() throws IOException {
         ActionNotFoundTransportException ex = serialize(new ActionNotFoundTransportException("AACCCTION"));
         assertEquals("AACCCTION", ex.action());
@@ -287,19 +305,22 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testSnapshotException() throws IOException {
-        SnapshotException ex = serialize(new SnapshotException(new SnapshotId("repo", "snap"), "no such snapshot", new NullPointerException()));
-        assertEquals(ex.snapshot(), new SnapshotId("repo", "snap"));
-        assertEquals(ex.getMessage(), "[repo:snap] no such snapshot");
+        final Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap", UUIDs.randomBase64UUID()));
+        SnapshotException ex = serialize(new SnapshotException(snapshot, "no such snapshot", new NullPointerException()));
+        assertEquals(ex.getRepositoryName(), snapshot.getRepository());
+        assertEquals(ex.getSnapshotName(), snapshot.getSnapshotId().getName());
+        assertEquals(ex.getMessage(), "[" + snapshot + "] no such snapshot");
         assertTrue(ex.getCause() instanceof NullPointerException);
 
         ex = serialize(new SnapshotException(null, "no such snapshot", new NullPointerException()));
-        assertEquals(ex.snapshot(), null);
+        assertNull(ex.getRepositoryName());
+        assertNull(ex.getSnapshotName());
         assertEquals(ex.getMessage(), "[_na] no such snapshot");
         assertTrue(ex.getCause() instanceof NullPointerException);
     }
 
     public void testRecoverFilesRecoveryException() throws IOException {
-        ShardId id = new ShardId("foo", 1);
+        ShardId id = new ShardId("foo", "_na_", 1);
         ByteSizeValue bytes = new ByteSizeValue(randomIntBetween(0, 10000));
         RecoverFilesRecoveryException ex = serialize(new RecoverFilesRecoveryException(id, 10, bytes, null));
         assertEquals(ex.getShardId(), id);
@@ -327,8 +348,9 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testBatchOperationException() throws IOException {
-        ShardId id = new ShardId("foo", 1);
-        TranslogRecoveryPerformer.BatchOperationException ex = serialize(new TranslogRecoveryPerformer.BatchOperationException(id, "batched the fucker", 666, null));
+        ShardId id = new ShardId("foo", "_na_", 1);
+        TranslogRecoveryPerformer.BatchOperationException ex = serialize(
+                new TranslogRecoveryPerformer.BatchOperationException(id, "batched the fucker", 666, null));
         assertEquals(ex.getShardId(), id);
         assertEquals(666, ex.completedOperations());
         assertEquals("batched the fucker", ex.getMessage());
@@ -351,7 +373,8 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testActionTransportException() throws IOException {
-        ActionTransportException ex = serialize(new ActionTransportException("name?", new LocalTransportAddress("dead.end:666"), "ACTION BABY!", "message?", null));
+        ActionTransportException ex = serialize(
+                new ActionTransportException("name?", new LocalTransportAddress("dead.end:666"), "ACTION BABY!", "message?", null));
         assertEquals("ACTION BABY!", ex.action());
         assertEquals(new LocalTransportAddress("dead.end:666"), ex.address());
         assertEquals("[name?][local[dead.end:666]][ACTION BABY!] message?", ex.getMessage());
@@ -361,27 +384,6 @@ public class ExceptionSerializationTests extends ESTestCase {
         long id = randomLong();
         SearchContextMissingException ex = serialize(new SearchContextMissingException(id));
         assertEquals(id, ex.id());
-    }
-
-    public void testPercolateException() throws IOException {
-        ShardId id = new ShardId("foo", 1);
-        PercolateException ex = serialize(new PercolateException(id, "percolate my ass", null));
-        assertEquals(id, ex.getShardId());
-        assertEquals("percolate my ass", ex.getMessage());
-        assertNull(ex.getCause());
-
-        ex = serialize(new PercolateException(id, "percolate my ass", new NullPointerException()));
-        assertEquals(id, ex.getShardId());
-        assertEquals("percolate my ass", ex.getMessage());
-        assertTrue(ex.getCause() instanceof NullPointerException);
-    }
-
-    public void testRoutingValidationException() throws IOException {
-        RoutingTableValidation validation = new RoutingTableValidation();
-        validation.addIndexFailure("foo", "bar");
-        RoutingValidationException ex = serialize(new RoutingValidationException(validation));
-        assertEquals("[Index [foo]: bar]", ex.getMessage());
-        assertEquals(validation.toString(), ex.validation().toString());
     }
 
     public void testCircuitBreakingException() throws IOException {
@@ -398,9 +400,9 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testIndexFailedEngineException() throws IOException {
-        ShardId id = new ShardId("foo", 1);
+        ShardId id = new ShardId("foo", "_na_", 1);
         IndexFailedEngineException ex = serialize(new IndexFailedEngineException(id, "type", "id", null));
-        assertEquals(ex.getShardId(), new ShardId("foo", 1));
+        assertEquals(ex.getShardId(), new ShardId("foo", "_na_", 1));
         assertEquals("type", ex.type());
         assertEquals("id", ex.id());
         assertNull(ex.getCause());
@@ -420,7 +422,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testSearchParseException() throws IOException {
-        SearchContext ctx = new TestSearchContext();
+        SearchContext ctx = new TestSearchContext(null);
         SearchParseException ex = serialize(new SearchParseException(ctx, "foo", new XContentLocation(66, 666)));
         assertEquals("foo", ex.getMessage());
         assertEquals(66, ex.getLineNumber());
@@ -429,7 +431,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testIllegalIndexShardStateException() throws IOException {
-        ShardId id = new ShardId("foo", 1);
+        ShardId id = new ShardId("foo", "_na_", 1);
         IndexShardState state = randomFrom(IndexShardState.values());
         IllegalIndexShardStateException ex = serialize(new IllegalIndexShardStateException(id, state, "come back later buddy"));
         assertEquals(id, ex.getShardId());
@@ -438,7 +440,8 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testConnectTransportException() throws IOException {
-        DiscoveryNode node = new DiscoveryNode("thenode", new LocalTransportAddress("dead.end:666"), Version.CURRENT);
+        DiscoveryNode node = new DiscoveryNode("thenode", new LocalTransportAddress("dead.end:666"),
+                emptyMap(), emptySet(), Version.CURRENT);
         ConnectTransportException ex = serialize(new ConnectTransportException(node, "msg", "action", null));
         assertEquals("[][local[dead.end:666]][action] msg", ex.getMessage());
         assertEquals(node, ex.node());
@@ -473,7 +476,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testRoutingMissingException() throws IOException {
         RoutingMissingException ex = serialize(new RoutingMissingException("idx", "type", "id"));
-        assertEquals("idx", ex.getIndex());
+        assertEquals("idx", ex.getIndex().getName());
         assertEquals("type", ex.getType());
         assertEquals("id", ex.getId());
         assertEquals("routing is required for [idx]/[type]/[id]", ex.getMessage());
@@ -489,12 +492,6 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals("[_na] msg", ex.getMessage());
     }
 
-    public void testIndexWarmerMissingException() throws IOException {
-        IndexWarmerMissingException ex = serialize(new IndexWarmerMissingException("w1", "w2"));
-        assertEquals("index_warmer [w1, w2] missing", ex.getMessage());
-        assertArrayEquals(new String[]{"w1", "w2"}, ex.names());
-    }
-
     public void testIndexTemplateMissingException() throws IOException {
         IndexTemplateMissingException ex = serialize(new IndexTemplateMissingException("name"));
         assertEquals("index_template [name] missing", ex.getMessage());
@@ -507,7 +504,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
 
     public void testRecoveryEngineException() throws IOException {
-        ShardId id = new ShardId("foo", 1);
+        ShardId id = new ShardId("foo", "_na_", 1);
         RecoveryEngineException ex = serialize(new RecoveryEngineException(id, 10, "total failure", new NullPointerException()));
         assertEquals(id, ex.getShardId());
         assertEquals("Phase[10] total failure", ex.getMessage());
@@ -545,31 +542,36 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testNotSerializableExceptionWrapper() throws IOException {
         NotSerializableExceptionWrapper ex = serialize(new NotSerializableExceptionWrapper(new NullPointerException()));
-        assertEquals("{\"type\":\"null_pointer_exception\",\"reason\":null}", toXContent(ex));
+        assertEquals("{\"type\":\"null_pointer_exception\",\"reason\":\"null_pointer_exception: null\"}", toXContent(ex));
         ex = serialize(new NotSerializableExceptionWrapper(new IllegalArgumentException("nono!")));
-        assertEquals("{\"type\":\"illegal_argument_exception\",\"reason\":\"nono!\"}", toXContent(ex));
+        assertEquals("{\"type\":\"illegal_argument_exception\",\"reason\":\"illegal_argument_exception: nono!\"}", toXContent(ex));
 
-        Throwable[] unknowns = new Throwable[]{
-                new JsonParseException("foobar", new JsonLocation(new Object(), 1, 2, 3, 4)),
+        class UnknownException extends Exception {
+
+            public UnknownException(final String message) {
+                super(message);
+            }
+
+        }
+
+        Exception[] unknowns = new Exception[]{
+                new Exception("foobar"),
                 new ClassCastException("boom boom boom"),
-                new IOException("booom")
+                new UnknownException("boom")
         };
-        for (Throwable t : unknowns) {
+        for (Exception t : unknowns) {
             if (randomBoolean()) {
-                t.addSuppressed(new IOException("suppressed"));
+                t.addSuppressed(new UnsatisfiedLinkError("suppressed"));
                 t.addSuppressed(new NullPointerException());
             }
             Throwable deserialized = serialize(t);
-            assertTrue(deserialized instanceof NotSerializableExceptionWrapper);
-            // TODO: fix this test for more java 9 differences
-            if (!Constants.JRE_IS_MINIMUM_JAVA9) {
-                assertArrayEquals(t.getStackTrace(), deserialized.getStackTrace());
-                assertEquals(t.getSuppressed().length, deserialized.getSuppressed().length);
-                if (t.getSuppressed().length > 0) {
-                    assertTrue(deserialized.getSuppressed()[0] instanceof NotSerializableExceptionWrapper);
-                    assertArrayEquals(t.getSuppressed()[0].getStackTrace(), deserialized.getSuppressed()[0].getStackTrace());
-                    assertTrue(deserialized.getSuppressed()[1] instanceof NullPointerException);
-                }
+            assertTrue(deserialized.getClass().toString(), deserialized instanceof NotSerializableExceptionWrapper);
+            assertArrayEquals(t.getStackTrace(), deserialized.getStackTrace());
+            assertEquals(t.getSuppressed().length, deserialized.getSuppressed().length);
+            if (t.getSuppressed().length > 0) {
+                assertTrue(deserialized.getSuppressed()[0] instanceof NotSerializableExceptionWrapper);
+                assertArrayEquals(t.getSuppressed()[0].getStackTrace(), deserialized.getSuppressed()[0].getStackTrace());
+                assertTrue(deserialized.getSuppressed()[1] instanceof NullPointerException);
             }
         }
     }
@@ -591,12 +593,19 @@ public class ExceptionSerializationTests extends ESTestCase {
         ElasticsearchException serialize = serialize((ElasticsearchException) uhe);
         assertTrue(serialize instanceof NotSerializableExceptionWrapper);
         NotSerializableExceptionWrapper e = (NotSerializableExceptionWrapper) serialize;
-        assertEquals("msg", e.getMessage());
+        assertEquals("unknown_header_exception: msg", e.getMessage());
         assertEquals(2, e.getHeader("foo").size());
         assertEquals("foo", e.getHeader("foo").get(0));
         assertEquals("bar", e.getHeader("foo").get(1));
         assertSame(status, e.status());
+    }
 
+    public void testNoLongerPrimaryShardException() throws IOException {
+        ShardId shardId = new ShardId(new Index(randomAsciiOfLength(4), randomAsciiOfLength(4)), randomIntBetween(0, Integer.MAX_VALUE));
+        String msg = randomAsciiOfLength(4);
+        ShardStateAction.NoLongerPrimaryShardException ex = serialize(new ShardStateAction.NoLongerPrimaryShardException(shardId, msg));
+        assertEquals(shardId, ex.getShardId());
+        assertEquals(msg, ex.getMessage());
     }
 
     public static class UnknownHeaderException extends ElasticsearchException {
@@ -666,7 +675,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(22, null); // was CreateFailedEngineException
         ids.put(23, org.elasticsearch.index.shard.IndexShardStartedException.class);
         ids.put(24, org.elasticsearch.search.SearchContextMissingException.class);
-        ids.put(25, org.elasticsearch.script.ScriptException.class);
+        ids.put(25, org.elasticsearch.script.GeneralScriptException.class);
         ids.put(26, org.elasticsearch.index.shard.TranslogRecoveryPerformer.BatchOperationException.class);
         ids.put(27, org.elasticsearch.snapshots.SnapshotCreationException.class);
         ids.put(28, org.elasticsearch.index.engine.DeleteFailedEngineException.class);
@@ -702,7 +711,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(58, org.elasticsearch.transport.SendRequestTransportException.class);
         ids.put(59, org.elasticsearch.common.util.concurrent.EsRejectedExecutionException.class);
         ids.put(60, org.elasticsearch.common.lucene.Lucene.EarlyTerminationException.class);
-        ids.put(61, org.elasticsearch.cluster.routing.RoutingValidationException.class);
+        ids.put(61, null); // RoutingValidationException was removed in 5.0
         ids.put(62, org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper.class);
         ids.put(63, org.elasticsearch.indices.AliasFilterParsingException.class);
         ids.put(64, null); // DeleteByQueryFailedEngineException was removed in 3.0
@@ -728,13 +737,10 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(84, org.elasticsearch.transport.NodeDisconnectedException.class);
         ids.put(85, org.elasticsearch.index.AlreadyExpiredException.class);
         ids.put(86, org.elasticsearch.search.aggregations.AggregationExecutionException.class);
-        ids.put(87, org.elasticsearch.index.mapper.MergeMappingException.class);
         ids.put(88, org.elasticsearch.indices.InvalidIndexTemplateException.class);
-        ids.put(89, org.elasticsearch.percolator.PercolateException.class);
         ids.put(90, org.elasticsearch.index.engine.RefreshFailedEngineException.class);
         ids.put(91, org.elasticsearch.search.aggregations.AggregationInitializationException.class);
         ids.put(92, org.elasticsearch.indices.recovery.DelayRecoveryException.class);
-        ids.put(93, org.elasticsearch.search.warmer.IndexWarmerMissingException.class);
         ids.put(94, org.elasticsearch.client.transport.NoNodeAvailableException.class);
         ids.put(95, null);
         ids.put(96, org.elasticsearch.snapshots.InvalidSnapshotNameException.class);
@@ -749,7 +755,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(105, org.elasticsearch.cluster.routing.RoutingException.class);
         ids.put(106, org.elasticsearch.index.shard.IndexShardRecoveryException.class);
         ids.put(107, org.elasticsearch.repositories.RepositoryMissingException.class);
-        ids.put(108, org.elasticsearch.index.percolator.PercolatorException.class);
+        ids.put(108, null);
         ids.put(109, org.elasticsearch.index.engine.DocumentSourceMissingException.class);
         ids.put(110, org.elasticsearch.index.engine.FlushNotAllowedEngineException.class);
         ids.put(111, org.elasticsearch.common.settings.NoClassSettingsException.class);
@@ -758,7 +764,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(114, org.elasticsearch.index.shard.IndexShardRecoveringException.class);
         ids.put(115, org.elasticsearch.index.translog.TranslogException.class);
         ids.put(116, org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException.class);
-        ids.put(117, org.elasticsearch.action.support.replication.TransportReplicationAction.RetryOnPrimaryException.class);
+        ids.put(117, ReplicationOperation.RetryOnPrimaryException.class);
         ids.put(118, org.elasticsearch.ElasticsearchTimeoutException.class);
         ids.put(119, org.elasticsearch.search.query.QueryPhaseExecutionException.class);
         ids.put(120, org.elasticsearch.repositories.RepositoryVerificationException.class);
@@ -766,7 +772,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(122, null);
         ids.put(123, org.elasticsearch.indices.IndexAlreadyExistsException.class);
         ids.put(124, org.elasticsearch.script.Script.ScriptParseException.class);
-        ids.put(125, org.elasticsearch.transport.netty.SizeHeaderFrameDecoder.HttpOnTransportException.class);
+        ids.put(125, TcpTransport.HttpOnTransportException.class);
         ids.put(126, org.elasticsearch.index.mapper.MapperParsingException.class);
         ids.put(127, org.elasticsearch.search.SearchContextException.class);
         ids.put(128, org.elasticsearch.search.builder.SearchSourceBuilderException.class);
@@ -783,6 +789,8 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(139, null);
         ids.put(140, org.elasticsearch.discovery.Discovery.FailedToCommitClusterStateException.class);
         ids.put(141, org.elasticsearch.index.query.QueryShardException.class);
+        ids.put(142, ShardStateAction.NoLongerPrimaryShardException.class);
+        ids.put(143, org.elasticsearch.script.ScriptException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {
@@ -798,6 +806,38 @@ public class ExceptionSerializationTests extends ESTestCase {
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {
             if (entry.getValue() != null) {
                 assertEquals((int) entry.getKey(), ElasticsearchException.getId(entry.getValue()));
+            }
+        }
+    }
+
+    public void testIOException() throws IOException {
+        IOException serialize = serialize(new IOException("boom", new NullPointerException()));
+        assertEquals("boom", serialize.getMessage());
+        assertTrue(serialize.getCause() instanceof NullPointerException);
+    }
+
+
+    public void testFileSystemExceptions() throws IOException {
+        for (FileSystemException ex : Arrays.asList(new FileSystemException("a", "b", "c"),
+            new NoSuchFileException("a", "b", "c"),
+            new NotDirectoryException("a"),
+            new DirectoryNotEmptyException("a"),
+            new AtomicMoveNotSupportedException("a", "b", "c"),
+            new FileAlreadyExistsException("a", "b", "c"),
+            new AccessDeniedException("a", "b", "c"),
+            new FileSystemLoopException("a"))) {
+
+            FileSystemException serialize = serialize(ex);
+            assertEquals(serialize.getClass(), ex.getClass());
+            assertEquals("a", serialize.getFile());
+            if (serialize.getClass() == NotDirectoryException.class ||
+                serialize.getClass() == FileSystemLoopException.class ||
+                serialize.getClass() == DirectoryNotEmptyException.class) {
+                assertNull(serialize.getOtherFile());
+                assertNull(serialize.getReason());
+            } else {
+                assertEquals(serialize.getClass().toString(), "b", serialize.getOtherFile());
+                assertEquals(serialize.getClass().toString(), "c", serialize.getReason());
             }
         }
     }

@@ -24,21 +24,25 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.*;
-import org.apache.lucene.search.*;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.search.highlight.HighlightUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class CustomPostingsHighlighterTests extends ESTestCase {
-
-    @Test
     public void testCustomPostingsHighlighter() throws Exception {
-
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
@@ -106,7 +110,6 @@ public class CustomPostingsHighlighterTests extends ESTestCase {
         dir.close();
     }
 
-    @Test
     public void testNoMatchSize() throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));

@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResp
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -33,16 +32,14 @@ import static org.hamcrest.Matchers.hasSize;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class IndexTemplateBlocksIT extends ESIntegTestCase {
-
-    @Test
     public void testIndexTemplatesWithBlocks() throws IOException {
         // creates a simple index template
         client().admin().indices().preparePutTemplate("template_blocks")
                 .setTemplate("te*")
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field1").field("type", "string").field("store", "yes").endObject()
-                        .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+                        .startObject("field1").field("type", "text").field("store", true).endObject()
+                        .startObject("field2").field("type", "keyword").field("store", true).endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 

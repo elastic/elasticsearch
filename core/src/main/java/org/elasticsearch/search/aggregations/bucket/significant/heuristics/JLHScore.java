@@ -22,38 +22,36 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
 public class JLHScore extends SignificanceHeuristic {
+    public static final ParseField NAMES_FIELD = new ParseField("jlh");
 
-    public static final JLHScore INSTANCE = new JLHScore();
+    public JLHScore() {
+    }
 
-    protected static final String[] NAMES = {"jlh"};
+    /**
+     * Read from a stream.
+     */
+    public JLHScore(StreamInput in) {
+        // Nothing to read.
+    }
 
-    private JLHScore() {}
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+    }
 
-    public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {
-        @Override
-        public SignificanceHeuristic readResult(StreamInput in) throws IOException {
-            return readFrom(in);
-        }
-
-        @Override
-        public String getName() {
-            return NAMES[0];
-        }
-    };
-
-    public static SignificanceHeuristic readFrom(StreamInput in) throws IOException {
-        return INSTANCE;
+    @Override
+    public String getWriteableName() {
+        return NAMES_FIELD.getPreferredName();
     }
 
     /**
@@ -102,33 +100,40 @@ public class JLHScore extends SignificanceHeuristic {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(STREAM.getName());
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(NAMES_FIELD.getPreferredName()).endObject();
+        return builder;
     }
 
-    public static class JLHScoreParser implements SignificanceHeuristicParser {
-
-        @Override
-        public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, SearchContext context)
-                throws IOException, QueryShardException {
-            // move to the closing bracket
-            if (!parser.nextToken().equals(XContentParser.Token.END_OBJECT)) {
-                throw new ElasticsearchParseException("failed to parse [jhl] significance heuristic. expected an empty object, but found [{}] instead", parser.currentToken());
-            }
-            return new JLHScore();
+    public static SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher)
+            throws IOException, QueryShardException {
+        // move to the closing bracket
+        if (!parser.nextToken().equals(XContentParser.Token.END_OBJECT)) {
+            throw new ElasticsearchParseException(
+                    "failed to parse [jlh] significance heuristic. expected an empty object, but found [{}] instead",
+                    parser.currentToken());
         }
+        return new JLHScore();
+    }
 
-        @Override
-        public String[] getNames() {
-            return NAMES;
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
         }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
     }
 
     public static class JLHScoreBuilder implements SignificanceHeuristicBuilder {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(STREAM.getName()).endObject();
+            builder.startObject(NAMES_FIELD.getPreferredName()).endObject();
             return builder;
         }
     }

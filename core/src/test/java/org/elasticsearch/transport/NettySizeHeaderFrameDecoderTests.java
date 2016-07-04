@@ -19,31 +19,29 @@
 
 package org.elasticsearch.transport;
 
-import java.nio.charset.StandardCharsets;
-
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty.NettyTransport;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -52,7 +50,11 @@ import static org.hamcrest.Matchers.is;
  */
 public class NettySizeHeaderFrameDecoderTests extends ESTestCase {
 
-    private final Settings settings = settingsBuilder().put("name", "foo").put("transport.host", "127.0.0.1").build();
+    private final Settings settings = Settings.builder()
+            .put("node.name", "NettySizeHeaderFrameDecoderTests")
+            .put(TransportSettings.BIND_HOST.getKey(), "127.0.0.1")
+            .put(TransportSettings.PORT.getKey(), "0")
+            .build();
 
     private ThreadPool threadPool;
     private NettyTransport nettyTransport;
@@ -62,15 +64,16 @@ public class NettySizeHeaderFrameDecoderTests extends ESTestCase {
     @Before
     public void startThreadPool() {
         threadPool = new ThreadPool(settings);
-        threadPool.setNodeSettingsService(new NodeSettingsService(settings));
         NetworkService networkService = new NetworkService(settings);
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(settings, threadPool), new NoneCircuitBreakerService());
-        nettyTransport = new NettyTransport(settings, threadPool, networkService, bigArrays, Version.CURRENT, new NamedWriteableRegistry());
+        BigArrays bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
+        nettyTransport = new NettyTransport(settings, threadPool, networkService, bigArrays, new NamedWriteableRegistry(),
+            new NoneCircuitBreakerService());
         nettyTransport.start();
-        TransportService transportService = new TransportService(nettyTransport, threadPool);
+        TransportService transportService = new TransportService(settings, nettyTransport, threadPool);
         nettyTransport.transportServiceAdapter(transportService.createAdapter());
 
-        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) randomFrom(nettyTransport.boundAddress().boundAddresses());
+        TransportAddress[] boundAddresses = nettyTransport.boundAddress().boundAddresses();
+        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) randomFrom(boundAddresses);
         port = transportAddress.address().getPort();
         host = transportAddress.address().getAddress();
 
@@ -80,9 +83,9 @@ public class NettySizeHeaderFrameDecoderTests extends ESTestCase {
     public void terminateThreadPool() throws InterruptedException {
         nettyTransport.stop();
         terminate(threadPool);
+        threadPool = null;
     }
 
-    @Test
     public void testThatTextMessageIsReturnedOnHTTPLikeRequest() throws Exception {
         String randomMethod = randomFrom("GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH");
         String data = randomMethod + " / HTTP/1.1";
@@ -97,7 +100,6 @@ public class NettySizeHeaderFrameDecoderTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testThatNothingIsReturnedForOtherInvalidPackets() throws Exception {
         try (Socket socket = new Socket(host, port)) {
             socket.getOutputStream().write("FOOBAR".getBytes(StandardCharsets.UTF_8));

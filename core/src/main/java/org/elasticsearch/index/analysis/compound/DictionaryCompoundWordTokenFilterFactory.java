@@ -21,16 +21,9 @@ package org.elasticsearch.index.analysis.compound;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.compound.DictionaryCompoundWordTokenFilter;
-import org.apache.lucene.analysis.compound.Lucene43DictionaryCompoundWordTokenFilter;
-import org.apache.lucene.util.Version;
-
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.analysis.AnalysisSettingsRequired;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 
 
 /**
@@ -38,22 +31,15 @@ import org.elasticsearch.index.settings.IndexSettings;
  *
  * @see org.apache.lucene.analysis.compound.DictionaryCompoundWordTokenFilter
  */
-@AnalysisSettingsRequired
 public class DictionaryCompoundWordTokenFilterFactory extends AbstractCompoundWordTokenFilterFactory {
 
-    @Inject
-    public DictionaryCompoundWordTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, env, name, settings);
+    public DictionaryCompoundWordTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+        super(indexSettings, env, name, settings);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        if (version.onOrAfter(Version.LUCENE_4_4_0)) {
-            return new DictionaryCompoundWordTokenFilter(tokenStream, wordList, minWordSize, 
-                                                         minSubwordSize, maxSubwordSize, onlyLongestMatch);
-        } else {
-            return new Lucene43DictionaryCompoundWordTokenFilter(tokenStream, wordList, minWordSize,
-                                                                 minSubwordSize, maxSubwordSize, onlyLongestMatch);
-        }
+        return new DictionaryCompoundWordTokenFilter(tokenStream, wordList, minWordSize,
+                                                     minSubwordSize, maxSubwordSize, onlyLongestMatch);
     }
 }

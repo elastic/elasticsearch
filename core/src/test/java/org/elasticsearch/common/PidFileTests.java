@@ -19,22 +19,21 @@
 
 package org.elasticsearch.common;
 
-import java.nio.charset.StandardCharsets;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * UnitTest for {@link org.elasticsearch.common.PidFile}
  */
 public class PidFileTests extends ESTestCase {
-
-    @Test(expected = IllegalArgumentException.class)
     public void testParentIsFile() throws IOException {
         Path dir = createTempDir();
         Path parent = dir.resolve("foo");
@@ -42,10 +41,14 @@ public class PidFileTests extends ESTestCase {
             stream.write("foo");
         }
 
-        PidFile.create(parent.resolve("bar.pid"), false);
+        try {
+            PidFile.create(parent.resolve("bar.pid"), false);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("exists but is not a directory"));
+        }
     }
 
-    @Test
     public void testPidFile() throws IOException {
         Path dir = createTempDir();
         Path parent = dir.resolve("foo");

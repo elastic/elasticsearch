@@ -22,11 +22,14 @@ package org.elasticsearch.rest.action.admin.indices.mapping.put;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import static org.elasticsearch.client.Requests.putMappingRequest;
@@ -40,8 +43,8 @@ public class RestPutMappingAction extends BaseRestHandler {
 
 
     @Inject
-    public RestPutMappingAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestPutMappingAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(PUT, "/{index}/_mapping/", this);
         controller.registerHandler(PUT, "/{index}/{type}/_mapping", this);
         controller.registerHandler(PUT, "/{index}/_mapping/{type}", this);
@@ -51,7 +54,7 @@ public class RestPutMappingAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/{type}/_mapping", this);
         controller.registerHandler(POST, "/{index}/_mapping/{type}", this);
         controller.registerHandler(POST, "/_mapping/{type}", this);
-        
+
         //register the same paths, but with plural form _mappings
         controller.registerHandler(PUT, "/{index}/_mappings/", this);
         controller.registerHandler(PUT, "/{index}/{type}/_mappings", this);
@@ -65,10 +68,10 @@ public class RestPutMappingAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
         putMappingRequest.type(request.param("type"));
-        putMappingRequest.source(request.content().toUtf8());
+        putMappingRequest.source(request.content().utf8ToString());
         putMappingRequest.updateAllTypes(request.paramAsBoolean("update_all_types", false));
         putMappingRequest.timeout(request.paramAsTime("timeout", putMappingRequest.timeout()));
         putMappingRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putMappingRequest.masterNodeTimeout()));

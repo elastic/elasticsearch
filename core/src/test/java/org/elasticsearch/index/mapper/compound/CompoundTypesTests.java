@@ -19,31 +19,45 @@
 
 package org.elasticsearch.index.mapper.compound;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.InternalSettingsPlugin;
+
+import java.util.Collection;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CompoundTypesTests extends ESSingleNodeTestCase {
 
-    @Test
-    public void testStringType() throws Exception {
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
+
+    private static final Settings BW_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_0_0).build();
+
+    public void testBackCompatStringType() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                 .startObject("field1").field("type", "string").endObject()
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test", BW_SETTINGS).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field1", "value1")
                 .field("field2", "value2")
+                .endObject()
                 .bytes());
 
         assertThat(doc.rootDoc().get("field1"), equalTo("value1"));
@@ -54,6 +68,7 @@ public class CompoundTypesTests extends ESSingleNodeTestCase {
                 .startObject()
                 .startObject("field1").field("value", "value1").field("boost", 2.0f).endObject()
                 .field("field2", "value2")
+                .endObject()
                 .bytes());
 
         assertThat(doc.rootDoc().get("field1"), equalTo("value1"));
@@ -64,6 +79,7 @@ public class CompoundTypesTests extends ESSingleNodeTestCase {
                 .startObject()
                 .field("field1", "value1")
                 .field("field2", "value2")
+                .endObject()
                 .bytes());
 
         assertThat(doc.rootDoc().get("field1"), equalTo("value1"));

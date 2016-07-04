@@ -23,91 +23,27 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
 /**
  * A channel used to construct bytes / builder based outputs, and send responses.
  */
-public abstract class RestChannel {
+public interface RestChannel {
+    XContentBuilder newBuilder() throws IOException;
 
-    protected final RestRequest request;
-    protected final boolean detailedErrorsEnabled;
+    XContentBuilder newErrorBuilder() throws IOException;
 
-    private BytesStreamOutput bytesOut;
+    XContentBuilder newBuilder(@Nullable BytesReference autoDetectSource, boolean useFiltering) throws IOException;
 
-    protected RestChannel(RestRequest request, boolean detailedErrorsEnabled) {
-        this.request = request;
-        this.detailedErrorsEnabled = detailedErrorsEnabled;
-    }
+    BytesStreamOutput bytesOutput();
 
-    public XContentBuilder newBuilder() throws IOException {
-        return newBuilder(request.hasContent() ? request.content() : null, request.hasParam("filter_path"));
-    }
-
-    public XContentBuilder newErrorBuilder() throws IOException {
-        // Disable filtering when building error responses
-        return newBuilder(request.hasContent() ? request.content() : null, false);
-    }
-
-    public XContentBuilder newBuilder(@Nullable BytesReference autoDetectSource, boolean useFiltering) throws IOException {
-        XContentType contentType = XContentType.fromRestContentType(request.param("format", request.header("Content-Type")));
-        if (contentType == null) {
-            // try and guess it from the auto detect source
-            if (autoDetectSource != null) {
-                contentType = XContentFactory.xContentType(autoDetectSource);
-            }
-        }
-        if (contentType == null) {
-            // default to JSON
-            contentType = XContentType.JSON;
-        }
-
-        String[] filters = useFiltering ? request.paramAsStringArrayOrEmptyIfAll("filter_path") :  null;
-        XContentBuilder builder = new XContentBuilder(XContentFactory.xContent(contentType), bytesOutput(), filters);
-        if (request.paramAsBoolean("pretty", false)) {
-            builder.prettyPrint().lfAtEnd();
-        }
-
-        builder.humanReadable(request.paramAsBoolean("human", builder.humanReadable()));
-
-        String casing = request.param("case");
-        if (casing != null && "camelCase".equals(casing)) {
-            builder.fieldCaseConversion(XContentBuilder.FieldCaseConversion.CAMELCASE);
-        } else {
-            // we expect all REST interfaces to write results in underscore casing, so
-            // no need for double casing
-            builder.fieldCaseConversion(XContentBuilder.FieldCaseConversion.NONE);
-        }
-        return builder;
-    }
+    RestRequest request();
 
     /**
-     * A channel level bytes output that can be reused. It gets reset on each call to this
-     * method.
+     * @return true iff an error response should contain additional details like exception traces.
      */
-    public final BytesStreamOutput bytesOutput() {
-        if (bytesOut == null) {
-            bytesOut = newBytesOutput();
-        } else {
-            bytesOut.reset();
-        }
-        return bytesOut;
-    }
+    boolean detailedErrorsEnabled();
 
-    protected BytesStreamOutput newBytesOutput() {
-        return new BytesStreamOutput();
-    }
-
-    public RestRequest request() {
-        return this.request;
-    }
-
-    public boolean detailedErrorsEnabled() {
-        return detailedErrorsEnabled;
-    }
-
-    public abstract void sendResponse(RestResponse response);
+    void sendResponse(RestResponse response);
 }

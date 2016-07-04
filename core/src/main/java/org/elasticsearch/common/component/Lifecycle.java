@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.component;
 
-
 /**
  * Lifecycle state. Allows the following transitions:
  * <ul>
@@ -33,7 +32,7 @@ package org.elasticsearch.common.component;
  * following logic can be applied:
  * <pre>
  * public void stop() {
- *  if (!lifeccycleState.moveToStopped()) {
+ *  if (!lifecycleState.moveToStopped()) {
  *      return;
  *  }
  * // continue with stop logic
@@ -50,13 +49,13 @@ package org.elasticsearch.common.component;
  *  if (!lifecycleState.moveToClosed()) {
  *      return;
  *  }
- *  // perofrm close logic here
+ *  // perform close logic here
  * }
  * </pre>
  */
 public class Lifecycle {
 
-    public static enum State {
+    public enum State {
         INITIALIZED,
         STOPPED,
         STARTED,
@@ -141,9 +140,9 @@ public class Lifecycle {
             return false;
         }
         if (localState == State.CLOSED) {
-            throw new IllegalStateException("Can't move to started state when closed");
+            throw new IllegalStateException("Can't move to stopped state when closed");
         }
-        throw new IllegalStateException("Can't move to started with unknown state");
+        throw new IllegalStateException("Can't move to stopped with unknown state");
     }
 
     public boolean moveToStopped() throws IllegalStateException {
@@ -156,9 +155,9 @@ public class Lifecycle {
             return false;
         }
         if (localState == State.CLOSED) {
-            throw new IllegalStateException("Can't move to started state when closed");
+            throw new IllegalStateException("Can't move to stopped state when closed");
         }
-        throw new IllegalStateException("Can't move to started with unknown state");
+        throw new IllegalStateException("Can't move to stopped with unknown state");
     }
 
     public boolean canMoveToClosed() throws IllegalStateException {
@@ -171,7 +170,6 @@ public class Lifecycle {
         }
         return true;
     }
-
 
     public boolean moveToClosed() throws IllegalStateException {
         State localState = state;
@@ -189,4 +187,5 @@ public class Lifecycle {
     public String toString() {
         return state.toString();
     }
+
 }

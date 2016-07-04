@@ -20,20 +20,17 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
@@ -47,24 +44,18 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
 public abstract class DocValuesIndexFieldData {
 
     protected final Index index;
-    protected final Names fieldNames;
-    protected final FieldDataType fieldDataType;
+    protected final String fieldName;
     protected final ESLogger logger;
 
-    public DocValuesIndexFieldData(Index index, Names fieldNames, FieldDataType fieldDataType) {
+    public DocValuesIndexFieldData(Index index, String fieldName) {
         super();
         this.index = index;
-        this.fieldNames = fieldNames;
-        this.fieldDataType = fieldDataType;
+        this.fieldName = fieldName;
         this.logger = Loggers.getLogger(getClass());
     }
 
-    public final Names getFieldNames() {
-        return fieldNames;
-    }
-
-    public final FieldDataType getFieldDataType() {
-        return fieldDataType;
+    public final String getFieldName() {
+        return fieldName;
     }
 
     public final void clear() {
@@ -90,29 +81,17 @@ public abstract class DocValuesIndexFieldData {
         }
 
         @Override
-        public IndexFieldData<?> build(Index index, Settings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
+        public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             // Ignore Circuit Breaker
-            final Names fieldNames = fieldType.names();
-            final Settings fdSettings = fieldType.fieldDataType().getSettings();
-            final Map<String, Settings> filter = fdSettings.getGroups("filter");
-            if (filter != null && !filter.isEmpty()) {
-                throw new IllegalArgumentException("Doc values field data doesn't support filters [" + fieldNames.fullName() + "]");
-            }
-
-            if (BINARY_INDEX_FIELD_NAMES.contains(fieldNames.indexName())) {
+            final String fieldName = fieldType.name();
+            if (BINARY_INDEX_FIELD_NAMES.contains(fieldName)) {
                 assert numericType == null;
-                return new BinaryDVIndexFieldData(index, fieldNames, fieldType.fieldDataType());
+                return new BinaryDVIndexFieldData(indexSettings.getIndex(), fieldName);
             } else if (numericType != null) {
-                if (TimestampFieldMapper.NAME.equals(fieldNames.indexName())
-                        || Version.indexCreated(indexSettings).onOrAfter(Version.V_1_4_0_Beta1)) {
-                    return new SortedNumericDVIndexFieldData(index, fieldNames, numericType, fieldType.fieldDataType());
-                } else {
-                    // prior to ES 1.4: multi-valued numerics were boxed inside a byte[] as BINARY
-                    return new BinaryDVNumericIndexFieldData(index, fieldNames, numericType, fieldType.fieldDataType());
-                }
+                return new SortedNumericDVIndexFieldData(indexSettings.getIndex(), fieldName, numericType);
             } else {
-                return new SortedSetDVOrdinalsIndexFieldData(index, cache, indexSettings, fieldNames, breakerService, fieldType.fieldDataType());
+                return new SortedSetDVOrdinalsIndexFieldData(indexSettings, cache, fieldName, breakerService);
             }
         }
 

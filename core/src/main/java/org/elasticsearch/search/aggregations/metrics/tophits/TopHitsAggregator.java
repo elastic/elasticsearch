@@ -24,7 +24,6 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
@@ -33,10 +32,7 @@ import org.apache.lucene.search.TopScoreDocCollector;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
-import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -48,6 +44,7 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.SubSearchContext;
+import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
 import java.util.List;
@@ -81,9 +78,9 @@ public class TopHitsAggregator extends MetricsAggregator {
 
     @Override
     public boolean needsScores() {
-        Sort sort = subSearchContext.sort();
+        SortAndFormats sort = subSearchContext.sort();
         if (sort != null) {
-            return sort.needsScores() || subSearchContext.trackScores();
+            return sort.sort.needsScores() || subSearchContext.trackScores();
         } else {
             // sort by score
             return true;
@@ -115,12 +112,12 @@ public class TopHitsAggregator extends MetricsAggregator {
             public void collect(int docId, long bucket) throws IOException {
                 TopDocsAndLeafCollector collectors = topDocsCollectors.get(bucket);
                 if (collectors == null) {
-                    Sort sort = subSearchContext.sort();
+                    SortAndFormats sort = subSearchContext.sort();
                     int topN = subSearchContext.from() + subSearchContext.size();
                     // In the QueryPhase we don't need this protection, because it is build into the IndexSearcher,
                     // but here we create collectors ourselves and we need prevent OOM because of crazy an offset and size.
                     topN = Math.min(topN, subSearchContext.searcher().getIndexReader().maxDoc());
-                    TopDocsCollector<?> topLevelCollector = sort != null ? TopFieldCollector.create(sort, topN, true, subSearchContext.trackScores(), subSearchContext.trackScores()) : TopScoreDocCollector.create(topN);
+                    TopDocsCollector<?> topLevelCollector = sort != null ? TopFieldCollector.create(sort.sort, topN, true, subSearchContext.trackScores(), subSearchContext.trackScores()) : TopScoreDocCollector.create(topN);
                     collectors = new TopDocsAndLeafCollector(topLevelCollector);
                     collectors.leafCollector = collectors.topLevelCollector.getLeafCollector(ctx);
                     collectors.leafCollector.setScorer(scorer);
@@ -140,7 +137,7 @@ public class TopHitsAggregator extends MetricsAggregator {
         } else {
             final TopDocs topDocs = topDocsCollector.topLevelCollector.topDocs();
 
-            subSearchContext.queryResult().topDocs(topDocs);
+            subSearchContext.queryResult().topDocs(topDocs, subSearchContext.sort() == null ? null : subSearchContext.sort().formats);
             int[] docIdsToLoad = new int[topDocs.scoreDocs.length];
             for (int i = 0; i < topDocs.scoreDocs.length; i++) {
                 docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
@@ -156,7 +153,7 @@ public class TopHitsAggregator extends MetricsAggregator {
                 searchHitFields.score(scoreDoc.score);
                 if (scoreDoc instanceof FieldDoc) {
                     FieldDoc fieldDoc = (FieldDoc) scoreDoc;
-                    searchHitFields.sortValues(fieldDoc.fields);
+                    searchHitFields.sortValues(fieldDoc.fields, subSearchContext.sort().formats);
                 }
             }
             topHits = new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocs, fetchResult.hits(), pipelineAggregators(),
@@ -169,7 +166,7 @@ public class TopHitsAggregator extends MetricsAggregator {
     public InternalTopHits buildEmptyAggregation() {
         TopDocs topDocs;
         if (subSearchContext.sort() != null) {
-            topDocs = new TopFieldDocs(0, new FieldDoc[0], subSearchContext.sort().getSort(), Float.NaN);
+            topDocs = new TopFieldDocs(0, new FieldDoc[0], subSearchContext.sort().sort.getSort(), Float.NaN);
         } else {
             topDocs = Lucene.EMPTY_TOP_DOCS;
         }
@@ -179,28 +176,5 @@ public class TopHitsAggregator extends MetricsAggregator {
     @Override
     protected void doClose() {
         Releasables.close(topDocsCollectors);
-    }
-
-    public static class Factory extends AggregatorFactory {
-
-        private final FetchPhase fetchPhase;
-        private final SubSearchContext subSearchContext;
-
-        public Factory(String name, FetchPhase fetchPhase, SubSearchContext subSearchContext) {
-            super(name, InternalTopHits.TYPE.name());
-            this.fetchPhase = fetchPhase;
-            this.subSearchContext = subSearchContext;
-        }
-
-        @Override
-        public Aggregator createInternal(AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new TopHitsAggregator(fetchPhase, subSearchContext, name, aggregationContext, parent, pipelineAggregators, metaData);
-        }
-
-        @Override
-        public AggregatorFactory subFactories(AggregatorFactories subFactories) {
-            throw new AggregationInitializationException("Aggregator [" + name + "] of type [" + type + "] cannot accept sub-aggregations");
-        }
     }
 }

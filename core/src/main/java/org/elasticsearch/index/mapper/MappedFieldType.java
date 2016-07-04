@@ -21,20 +21,28 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.*;
-import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.search.DocValueFormat;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.List;
@@ -45,109 +53,7 @@ import java.util.Objects;
  */
 public abstract class MappedFieldType extends FieldType {
 
-    public static class Names {
-
-        private final String indexName;
-
-        private final String originalIndexName;
-
-        private final String fullName;
-
-        public Names(String name) {
-            this(name, name, name);
-        }
-
-        public Names(String indexName, String originalIndexName, String fullName) {
-            this.indexName = indexName;
-            this.originalIndexName = originalIndexName;
-            this.fullName = fullName;
-        }
-
-        /**
-         * The indexed name of the field. This is the name under which we will
-         * store it in the index.
-         */
-        public String indexName() {
-            return indexName;
-        }
-
-        /**
-         * The original index name, before any "path" modifications performed on it.
-         */
-        public String originalIndexName() {
-            return originalIndexName;
-        }
-
-        /**
-         * The full name, including dot path.
-         */
-        public String fullName() {
-            return fullName;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (o == null || getClass() != o.getClass()) return false;
-
-            Names names = (Names) o;
-
-            if (!fullName.equals(names.fullName)) return false;
-            if (!indexName.equals(names.indexName)) return false;
-            if (!originalIndexName.equals(names.originalIndexName)) return false;
-
-            return true;
-        }
-
-        @Override
-        public int hashCode() {
-            int result = indexName.hashCode();
-            result = 31 * result + originalIndexName.hashCode();
-            result = 31 * result + fullName.hashCode();
-            return result;
-        }
-    }
-
-    public enum Loading {
-        LAZY {
-            @Override
-            public String toString() {
-                return LAZY_VALUE;
-            }
-        },
-        EAGER {
-            @Override
-            public String toString() {
-                return EAGER_VALUE;
-            }
-        },
-        EAGER_GLOBAL_ORDINALS {
-            @Override
-            public String toString() {
-                return EAGER_GLOBAL_ORDINALS_VALUE;
-            }
-        };
-
-        public static final String KEY = "loading";
-        public static final String EAGER_GLOBAL_ORDINALS_VALUE = "eager_global_ordinals";
-        public static final String EAGER_VALUE = "eager";
-        public static final String LAZY_VALUE = "lazy";
-
-        public static Loading parse(String loading, Loading defaultValue) {
-            if (Strings.isNullOrEmpty(loading)) {
-                return defaultValue;
-            } else if (EAGER_GLOBAL_ORDINALS_VALUE.equalsIgnoreCase(loading)) {
-                return EAGER_GLOBAL_ORDINALS;
-            } else if (EAGER_VALUE.equalsIgnoreCase(loading)) {
-                return EAGER;
-            } else if (LAZY_VALUE.equalsIgnoreCase(loading)) {
-                return LAZY;
-            } else {
-                throw new MapperParsingException("Unknown [" + KEY + "] value: [" + loading + "]");
-            }
-        }
-    }
-
-    private Names names;
+    private String name;
     private float boost;
     // TODO: remove this docvalues flag and use docValuesType
     private boolean docValues;
@@ -155,24 +61,22 @@ public abstract class MappedFieldType extends FieldType {
     private NamedAnalyzer searchAnalyzer;
     private NamedAnalyzer searchQuoteAnalyzer;
     private SimilarityProvider similarity;
-    private Loading normsLoading;
-    private FieldDataType fieldDataType;
     private Object nullValue;
     private String nullValueAsString; // for sending null value to _all field
+    private boolean eagerGlobalOrdinals;
 
     protected MappedFieldType(MappedFieldType ref) {
         super(ref);
-        this.names = ref.names();
+        this.name = ref.name();
         this.boost = ref.boost();
         this.docValues = ref.hasDocValues();
         this.indexAnalyzer = ref.indexAnalyzer();
         this.searchAnalyzer = ref.searchAnalyzer();
         this.searchQuoteAnalyzer = ref.searchQuoteAnalyzer();
         this.similarity = ref.similarity();
-        this.normsLoading = ref.normsLoading();
-        this.fieldDataType = ref.fieldDataType();
         this.nullValue = ref.nullValue();
         this.nullValueAsString = ref.nullValueAsString();
+        this.eagerGlobalOrdinals = ref.eagerGlobalOrdinals;
     }
 
     public MappedFieldType() {
@@ -182,11 +86,19 @@ public abstract class MappedFieldType extends FieldType {
         setOmitNorms(false);
         setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
         setBoost(1.0f);
-        fieldDataType = new FieldDataType(typeName());
     }
 
     @Override
     public abstract MappedFieldType clone();
+
+    /** Return a fielddata builder for this field
+     *  @throws IllegalArgumentException if the fielddata is not supported on this type.
+     *  An IllegalArgumentException is needed in order to return an http error 400
+     *  when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
+     **/
+    public IndexFieldData.Builder fielddataBuilder() {
+        throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
+    }
 
     @Override
     public boolean equals(Object o) {
@@ -206,20 +118,19 @@ public abstract class MappedFieldType extends FieldType {
 
         return boost == fieldType.boost &&
             docValues == fieldType.docValues &&
-            Objects.equals(names, fieldType.names) &&
+            Objects.equals(name, fieldType.name) &&
             Objects.equals(indexAnalyzer, fieldType.indexAnalyzer) &&
             Objects.equals(searchAnalyzer, fieldType.searchAnalyzer) &&
             Objects.equals(searchQuoteAnalyzer(), fieldType.searchQuoteAnalyzer()) &&
-            Objects.equals(normsLoading, fieldType.normsLoading) &&
-            Objects.equals(fieldDataType, fieldType.fieldDataType) &&
+            Objects.equals(eagerGlobalOrdinals, fieldType.eagerGlobalOrdinals) &&
             Objects.equals(nullValue, fieldType.nullValue) &&
             Objects.equals(nullValueAsString, fieldType.nullValueAsString);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), names, boost, docValues, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer,
-            similarity == null ? null : similarity.name(), normsLoading, fieldDataType, nullValue, nullValueAsString);
+        return Objects.hash(super.hashCode(), name, boost, docValues, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer,
+            eagerGlobalOrdinals, similarity == null ? null : similarity.name(), nullValue, nullValueAsString);
     }
 
     // norelease: we need to override freeze() and add safety checks that all settings are actually set
@@ -228,9 +139,9 @@ public abstract class MappedFieldType extends FieldType {
     public abstract String typeName();
 
     /** Checks this type is the same type as other. Adds a conflict if they are different. */
-    public final void checkTypeName(MappedFieldType other, List<String> conflicts) {
+    private void checkTypeName(MappedFieldType other) {
         if (typeName().equals(other.typeName()) == false) {
-            conflicts.add("mapper [" + names().fullName() + "] cannot be changed from type [" + typeName() + "] to [" + other.typeName() + "]");
+            throw new IllegalArgumentException("mapper [" + name + "] cannot be changed from type [" + typeName() + "] to [" + other.typeName() + "]");
         } else if (getClass() != other.getClass()) {
             throw new IllegalStateException("Type names equal for class " + getClass().getSimpleName() + " and " + other.getClass().getSimpleName());
         }
@@ -242,94 +153,80 @@ public abstract class MappedFieldType extends FieldType {
      * Otherwise, only properties which must never change in an index are checked.
      */
     public void checkCompatibility(MappedFieldType other, List<String> conflicts, boolean strict) {
+        checkTypeName(other);
+
         boolean indexed =  indexOptions() != IndexOptions.NONE;
         boolean mergeWithIndexed = other.indexOptions() != IndexOptions.NONE;
         // TODO: should be validating if index options go "up" (but "down" is ok)
         if (indexed != mergeWithIndexed || tokenized() != other.tokenized()) {
-            conflicts.add("mapper [" + names().fullName() + "] has different [index] values");
+            conflicts.add("mapper [" + name() + "] has different [index] values");
         }
         if (stored() != other.stored()) {
-            conflicts.add("mapper [" + names().fullName() + "] has different [store] values");
+            conflicts.add("mapper [" + name() + "] has different [store] values");
         }
-        if (hasDocValues() == false && other.hasDocValues()) {
-            // don't add conflict if this mapper has doc values while the mapper to merge doesn't since doc values are implicitly set
-            // when the doc_values field data format is configured
-            conflicts.add("mapper [" + names().fullName() + "] has different [doc_values] values, cannot change from disabled to enabled");
+        if (hasDocValues() != other.hasDocValues()) {
+            conflicts.add("mapper [" + name() + "] has different [doc_values] values");
         }
         if (omitNorms() && !other.omitNorms()) {
-            conflicts.add("mapper [" + names().fullName() + "] has different [omit_norms] values, cannot change from disable to enabled");
+            conflicts.add("mapper [" + name() + "] has different [norms] values, cannot change from disable to enabled");
         }
         if (storeTermVectors() != other.storeTermVectors()) {
-            conflicts.add("mapper [" + names().fullName() + "] has different [store_term_vector] values");
+            conflicts.add("mapper [" + name() + "] has different [store_term_vector] values");
         }
         if (storeTermVectorOffsets() != other.storeTermVectorOffsets()) {
-            conflicts.add("mapper [" + names().fullName() + "] has different [store_term_vector_offsets] values");
+            conflicts.add("mapper [" + name() + "] has different [store_term_vector_offsets] values");
         }
         if (storeTermVectorPositions() != other.storeTermVectorPositions()) {
-            conflicts.add("mapper [" + names().fullName() + "] has different [store_term_vector_positions] values");
+            conflicts.add("mapper [" + name() + "] has different [store_term_vector_positions] values");
         }
         if (storeTermVectorPayloads() != other.storeTermVectorPayloads()) {
-            conflicts.add("mapper [" + names().fullName() + "] has different [store_term_vector_payloads] values");
+            conflicts.add("mapper [" + name() + "] has different [store_term_vector_payloads] values");
         }
 
         // null and "default"-named index analyzers both mean the default is used
         if (indexAnalyzer() == null || "default".equals(indexAnalyzer().name())) {
             if (other.indexAnalyzer() != null && "default".equals(other.indexAnalyzer().name()) == false) {
-                conflicts.add("mapper [" + names().fullName() + "] has different [analyzer]");
+                conflicts.add("mapper [" + name() + "] has different [analyzer]");
             }
         } else if (other.indexAnalyzer() == null || "default".equals(other.indexAnalyzer().name())) {
-            conflicts.add("mapper [" + names().fullName() + "] has different [analyzer]");
+            conflicts.add("mapper [" + name() + "] has different [analyzer]");
         } else if (indexAnalyzer().name().equals(other.indexAnalyzer().name()) == false) {
-            conflicts.add("mapper [" + names().fullName() + "] has different [analyzer]");
+            conflicts.add("mapper [" + name() + "] has different [analyzer]");
         }
 
-        if (!names().indexName().equals(other.names().indexName())) {
-            conflicts.add("mapper [" + names().fullName() + "] has different [index_name]");
-        }
         if (Objects.equals(similarity(), other.similarity()) == false) {
-            conflicts.add("mapper [" + names().fullName() + "] has different [similarity]");
+            conflicts.add("mapper [" + name() + "] has different [similarity]");
         }
 
         if (strict) {
             if (omitNorms() != other.omitNorms()) {
-                conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [omit_norms] across all types.");
+                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [omit_norms] across all types.");
             }
             if (boost() != other.boost()) {
-                conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [boost] across all types.");
-            }
-            if (normsLoading() != other.normsLoading()) {
-                conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [norms.loading] across all types.");
+                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [boost] across all types.");
             }
             if (Objects.equals(searchAnalyzer(), other.searchAnalyzer()) == false) {
-                conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [search_analyzer] across all types.");
+                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [search_analyzer] across all types.");
             }
             if (Objects.equals(searchQuoteAnalyzer(), other.searchQuoteAnalyzer()) == false) {
-                conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [search_quote_analyzer] across all types.");
-            }
-            if (Objects.equals(fieldDataType(), other.fieldDataType()) == false) {
-                conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [fielddata] across all types.");
+                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [search_quote_analyzer] across all types.");
             }
             if (Objects.equals(nullValue(), other.nullValue()) == false) {
-                conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [null_value] across all types.");
+                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [null_value] across all types.");
+            }
+            if (eagerGlobalOrdinals() != other.eagerGlobalOrdinals()) {
+                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [eager_global_ordinals] across all types.");
             }
         }
     }
 
-    public boolean isNumeric() {
-        return false;
+    public String name() {
+        return name;
     }
 
-    public boolean isSortable() {
-        return true;
-    }
-
-    public Names names() {
-        return names;
-    }
-
-    public void setNames(Names names) {
+    public void setName(String name) {
         checkIfFrozen();
-        this.names = names;
+        this.name = name;
     }
 
     public float boost() {
@@ -341,15 +238,6 @@ public abstract class MappedFieldType extends FieldType {
         this.boost = boost;
     }
 
-    public FieldDataType fieldDataType() {
-        return fieldDataType;
-    }
-
-    public void setFieldDataType(FieldDataType fieldDataType) {
-        checkIfFrozen();
-        this.fieldDataType = fieldDataType;
-    }
-
     public boolean hasDocValues() {
         return docValues;
     }
@@ -357,15 +245,6 @@ public abstract class MappedFieldType extends FieldType {
     public void setHasDocValues(boolean hasDocValues) {
         checkIfFrozen();
         this.docValues = hasDocValues;
-    }
-
-    public Loading normsLoading() {
-        return normsLoading;
-    }
-
-    public void setNormsLoading(Loading normsLoading) {
-        checkIfFrozen();
-        this.normsLoading = normsLoading;
     }
 
     public NamedAnalyzer indexAnalyzer() {
@@ -421,71 +300,63 @@ public abstract class MappedFieldType extends FieldType {
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }
 
-    /** Returns the actual value of the field. */
-    public Object value(Object value) {
-        return value;
-    }
-
-    /** Returns the value that will be used as a result for search. Can be only of specific types... */
+    /** Given a value that comes from the stored fields API, convert it to the
+     *  expected type. For instance a date field would store dates as longs and
+     *  format it back to a string in this method. */
     public Object valueForSearch(Object value) {
         return value;
     }
 
-    /** Returns the indexed value used to construct search "values". */
-    public BytesRef indexedValueForSearch(Object value) {
-        return BytesRefs.toBytesRef(value);
-    }
-
-    /**
-     * Should the field query {@link #termQuery(Object, org.elasticsearch.index.query.QueryShardContext)}  be used when detecting this
-     * field in query string.
+    /** Returns true if the field is searchable.
+     *
      */
-    public boolean useTermQueryWithQueryString() {
-        return false;
+    protected boolean isSearchable() {
+        return indexOptions() != IndexOptions.NONE;
     }
 
-    /** Creates a term associated with the field of this mapper for the given value */
-    protected Term createTerm(Object value) {
-        return new Term(names().indexName(), indexedValueForSearch(value));
-    }
-
-    public Query termQuery(Object value, @Nullable QueryShardContext context) {
-        return new TermQuery(createTerm(value));
-    }
-
-    public Query termsQuery(List values, @Nullable QueryShardContext context) {
-        BytesRef[] bytesRefs = new BytesRef[values.size()];
-        for (int i = 0; i < bytesRefs.length; i++) {
-            bytesRefs[i] = indexedValueForSearch(values.get(i));
+    /** Returns true if the field is aggregatable.
+     *
+     */
+    protected boolean isAggregatable() {
+        try {
+            fielddataBuilder();
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
         }
-        return new TermsQuery(names.indexName(), bytesRefs);
+    }
+
+    /** Generates a query that will only match documents that contain the given value.
+     *  The default implementation returns a {@link TermQuery} over the value bytes,
+     *  boosted by {@link #boost()}.
+     *  @throws IllegalArgumentException if {@code value} cannot be converted to the expected data type */
+    public abstract Query termQuery(Object value, @Nullable QueryShardContext context);
+
+    /** Build a constant-scoring query that matches all values. The default implementation uses a
+     * {@link ConstantScoreQuery} around a {@link BooleanQuery} whose {@link Occur#SHOULD} clauses
+     * are generated with {@link #termQuery}. */
+    public Query termsQuery(List<?> values, @Nullable QueryShardContext context) {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        for (Object value : values) {
+            builder.add(termQuery(value, context), Occur.SHOULD);
+        }
+        return new ConstantScoreQuery(builder.build());
     }
 
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
-        return new TermRangeQuery(names().indexName(),
-            lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-            upperTerm == null ? null : indexedValueForSearch(upperTerm),
-            includeLower, includeUpper);
+        throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support range queries");
     }
 
     public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-        return new FuzzyQuery(createTerm(value), fuzziness.asDistance(BytesRefs.toString(value)), prefixLength, maxExpansions, transpositions);
+        throw new IllegalArgumentException("Can only use fuzzy queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
     }
 
-    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
-        PrefixQuery query = new PrefixQuery(createTerm(value));
-        if (method != null) {
-            query.setRewriteMethod(method);
-        }
-        return query;
+    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        throw new QueryShardException(context, "Can only use prefix queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
     }
 
-    public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
-        RegexpQuery query = new RegexpQuery(createTerm(value), flags, maxDeterminizedStates);
-        if (method != null) {
-            query.setRewriteMethod(method);
-        }
-        return query;
+    public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        throw new QueryShardException(context, "Can only use regexp queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
     }
 
     public Query nullValueQuery() {
@@ -496,17 +367,105 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     /**
-     * @return a {@link FieldStats} instance that maps to the type of this field based on the provided {@link Terms} instance.
+     * @return a {@link FieldStats} instance that maps to the type of this
+     * field or {@code null} if the provided index has no stats about the
+     * current field
      */
-    public FieldStats stats(Terms terms, int maxDoc) throws IOException {
-        return new FieldStats.Text(
-            maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), terms.getMin(), terms.getMax()
-        );
+    public FieldStats stats(IndexReader reader) throws IOException {
+        int maxDoc = reader.maxDoc();
+        Terms terms = MultiFields.getTerms(reader, name());
+        if (terms == null) {
+            return null;
+        }
+        FieldStats stats = new FieldStats.Text(maxDoc, terms.getDocCount(),
+            terms.getSumDocFreq(), terms.getSumTotalTermFreq(),
+            isSearchable(), isAggregatable(),
+            terms.getMin(), terms.getMax());
+        return stats;
+    }
+
+    /**
+     * An enum used to describe the relation between the range of terms in a
+     * shard when compared with a query range
+     */
+    public static enum Relation {
+        WITHIN,
+        INTERSECTS,
+        DISJOINT;
+    }
+
+    /** Return whether all values of the given {@link IndexReader} are within the range,
+     *  outside the range or cross the range. The default implementation returns
+     *  {@link Relation#INTERSECTS}, which is always fine to return when there is
+     *  no way to check whether values are actually within bounds. */
+    public Relation isFieldWithinQuery(
+            IndexReader reader,
+            Object from, Object to,
+            boolean includeLower, boolean includeUpper,
+            DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
+        return Relation.INTERSECTS;
     }
 
     /** A term query to use when parsing a query string. Can return <tt>null</tt>. */
     @Nullable
     public Query queryStringTermQuery(Term term) {
         return null;
+    }
+
+    /** @throws IllegalArgumentException if the fielddata is not supported on this type.
+     *  An IllegalArgumentException is needed in order to return an http error 400
+     *  when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
+     **/
+    protected final void failIfNoDocValues() {
+        if (hasDocValues() == false) {
+            throw new IllegalArgumentException("Can't load fielddata on [" + name()
+                + "] because fielddata is unsupported on fields of type ["
+                + typeName() + "]. Use doc values instead.");
+        }
+    }
+
+    protected final void failIfNotIndexed() {
+        if (indexOptions() == IndexOptions.NONE && pointDimensionCount() == 0) {
+            // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
+            throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed.");
+        }
+    }
+
+    public boolean eagerGlobalOrdinals() {
+        return eagerGlobalOrdinals;
+    }
+
+    public void setEagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
+        checkIfFrozen();
+        this.eagerGlobalOrdinals = eagerGlobalOrdinals;
+    }
+
+    /** Return a {@link DocValueFormat} that can be used to display and parse
+     *  values as returned by the fielddata API.
+     *  The default implementation returns a {@link DocValueFormat#RAW}. */
+    public DocValueFormat docValueFormat(@Nullable String format, DateTimeZone timeZone) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
+        }
+        if (timeZone != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones");
+        }
+        return DocValueFormat.RAW;
+    }
+
+    /**
+     * Extract a {@link Term} from a query created with {@link #termQuery} by
+     * recursively removing {@link BoostQuery} wrappers.
+     * @throws IllegalArgumentException if the wrapped query is not a {@link TermQuery}
+     */
+    public static Term extractTerm(Query termQuery) {
+        while (termQuery instanceof BoostQuery) {
+            termQuery = ((BoostQuery) termQuery).getQuery();
+        }
+        if (termQuery instanceof TermQuery == false) {
+            throw new IllegalArgumentException("Cannot extract a term from a query of type "
+                    + termQuery.getClass() + ": " + termQuery);
+        }
+        return ((TermQuery) termQuery).getTerm();
     }
 }

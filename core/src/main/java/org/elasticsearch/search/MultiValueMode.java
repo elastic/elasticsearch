@@ -20,8 +20,12 @@
 
 package org.elasticsearch.search;
 
-import org.apache.lucene.index.*;
-import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
@@ -41,7 +45,7 @@ import java.util.Locale;
 /**
  * Defines what values to pick in the case a document contains multiple values for a particular field.
  */
-public enum MultiValueMode implements Writeable<MultiValueMode> {
+public enum MultiValueMode implements Writeable {
 
     /**
      * Pick the sum of all the values.
@@ -515,7 +519,7 @@ public enum MultiValueMode implements Writeable<MultiValueMode> {
     public static MultiValueMode fromString(String sortMode) {
         try {
             return valueOf(sortMode.toUpperCase(Locale.ROOT));
-        } catch (Throwable t) {
+        } catch (Exception e) {
             throw new IllegalArgumentException("Illegal sort mode: " + sortMode);
         }
     }
@@ -571,12 +575,8 @@ public enum MultiValueMode implements Writeable<MultiValueMode> {
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
      */
-    public NumericDocValues select(final SortedNumericDocValues values, final long missingValue, final BitSet rootDocs, final DocIdSet innerDocSet, int maxDoc) throws IOException {
-        if (rootDocs == null || innerDocSet == null) {
-            return select(DocValues.emptySortedNumeric(maxDoc), missingValue);
-        }
-        final DocIdSetIterator innerDocs = innerDocSet.iterator();
-        if (innerDocs == null) {
+    public NumericDocValues select(final SortedNumericDocValues values, final long missingValue, final BitSet rootDocs, final DocIdSetIterator innerDocs, int maxDoc) throws IOException {
+        if (rootDocs == null || innerDocs == null) {
             return select(DocValues.emptySortedNumeric(maxDoc), missingValue);
         }
 
@@ -666,12 +666,8 @@ public enum MultiValueMode implements Writeable<MultiValueMode> {
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
      */
-    public NumericDoubleValues select(final SortedNumericDoubleValues values, final double missingValue, final BitSet rootDocs, final DocIdSet innerDocSet, int maxDoc) throws IOException {
-        if (rootDocs == null || innerDocSet == null) {
-            return select(FieldData.emptySortedNumericDoubles(maxDoc), missingValue);
-        }
-        final DocIdSetIterator innerDocs = innerDocSet.iterator();
-        if (innerDocs == null) {
+    public NumericDoubleValues select(final SortedNumericDoubleValues values, final double missingValue, final BitSet rootDocs, final DocIdSetIterator innerDocs, int maxDoc) throws IOException {
+        if (rootDocs == null || innerDocs == null) {
             return select(FieldData.emptySortedNumericDoubles(maxDoc), missingValue);
         }
 
@@ -761,12 +757,8 @@ public enum MultiValueMode implements Writeable<MultiValueMode> {
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
      */
-    public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue, final BitSet rootDocs, final DocIdSet innerDocSet, int maxDoc) throws IOException {
-        if (rootDocs == null || innerDocSet == null) {
-            return select(FieldData.emptySortedBinary(maxDoc), missingValue);
-        }
-        final DocIdSetIterator innerDocs = innerDocSet.iterator();
-        if (innerDocs == null) {
+    public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue, final BitSet rootDocs, final DocIdSetIterator innerDocs, int maxDoc) throws IOException {
+        if (rootDocs == null || innerDocs == null) {
             return select(FieldData.emptySortedBinary(maxDoc), missingValue);
         }
         final BinaryDocValues selectedValues = select(values, null);
@@ -861,12 +853,8 @@ public enum MultiValueMode implements Writeable<MultiValueMode> {
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
      */
-    public SortedDocValues select(final RandomAccessOrds values, final BitSet rootDocs, final DocIdSet innerDocSet) throws IOException {
-        if (rootDocs == null || innerDocSet == null) {
-            return select(DocValues.emptySortedSet());
-        }
-        final DocIdSetIterator innerDocs = innerDocSet.iterator();
-        if (innerDocs == null) {
+    public SortedDocValues select(final RandomAccessOrds values, final BitSet rootDocs, final DocIdSetIterator innerDocs) throws IOException {
+        if (rootDocs == null || innerDocs == null) {
             return select(DocValues.emptySortedSet());
         }
         final SortedDocValues selectedValues = select(values);
@@ -951,11 +939,6 @@ public enum MultiValueMode implements Writeable<MultiValueMode> {
     }
 
     public static MultiValueMode readMultiValueModeFrom(StreamInput in) throws IOException {
-        return MultiValueMode.AVG.readFrom(in);
-    }
-
-    @Override
-    public MultiValueMode readFrom(StreamInput in) throws IOException {
         int ordinal = in.readVInt();
         if (ordinal < 0 || ordinal >= values().length) {
             throw new IOException("Unknown MultiValueMode ordinal [" + ordinal + "]");

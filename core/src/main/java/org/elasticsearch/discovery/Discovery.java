@@ -22,11 +22,10 @@ package org.elasticsearch.discovery;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.node.service.NodeService;
 
 import java.io.IOException;
 
@@ -35,26 +34,17 @@ import java.io.IOException;
  * state to all nodes, electing a master of the cluster that raises cluster state change
  * events.
  */
-public interface Discovery extends LifecycleComponent<Discovery> {
+public interface Discovery extends LifecycleComponent {
 
     DiscoveryNode localNode();
 
-    void addListener(InitialStateDiscoveryListener listener);
-
-    void removeListener(InitialStateDiscoveryListener listener);
-
     String nodeDescription();
-
-    /**
-     * Here as a hack to solve dep injection problem...
-     */
-    void setNodeService(@Nullable NodeService nodeService);
 
     /**
      * Another hack to solve dep injection problem..., note, this will be called before
      * any start is called.
      */
-    void setRoutingService(RoutingService routingService);
+    void setAllocationService(AllocationService allocationService);
 
     /**
      * Publish all the changes to the cluster from the master (can be called just by the master). The publish
@@ -69,7 +59,7 @@ public interface Discovery extends LifecycleComponent<Discovery> {
     void publish(ClusterChangedEvent clusterChangedEvent, AckListener ackListener);
 
     interface AckListener {
-        void onNodeAck(DiscoveryNode node, @Nullable Throwable t);
+        void onNodeAck(DiscoveryNode node, @Nullable Exception e);
         void onTimeout();
     }
 
@@ -87,4 +77,22 @@ public interface Discovery extends LifecycleComponent<Discovery> {
             super(msg, cause, args);
         }
     }
+
+    /**
+     * @return stats about the discovery
+     */
+    DiscoveryStats stats();
+
+    DiscoverySettings getDiscoverySettings();
+
+    /**
+     * Triggers the first join cycle
+     */
+    void startInitialJoin();
+
+    /***
+     * @return the current value of minimum master nodes, or -1 for not set
+     */
+    int getMinimumMasterNodes();
+
 }

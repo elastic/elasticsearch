@@ -19,36 +19,27 @@
 
 package org.elasticsearch.plugin.analysis.stempel;
 
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.index.analysis.AnalysisModule;
-import org.elasticsearch.index.analysis.pl.PolishAnalysisBinderProcessor;
-import org.elasticsearch.indices.analysis.pl.PolishIndicesAnalysisModule;
+import org.apache.lucene.analysis.Analyzer;
+import org.elasticsearch.index.analysis.AnalyzerProvider;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.pl.PolishAnalyzerProvider;
+import org.elasticsearch.index.analysis.pl.PolishStemTokenFilterFactory;
+import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 
-import java.util.Collection;
-import java.util.Collections;
+import java.util.Map;
 
-/**
- *
- */
-public class AnalysisStempelPlugin extends Plugin {
+import static java.util.Collections.singletonMap;
 
+public class AnalysisStempelPlugin extends Plugin implements AnalysisPlugin {
     @Override
-    public String name() {
-        return "analysis-stempel";
+    public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
+        return singletonMap("polish_stem", PolishStemTokenFilterFactory::new);
     }
 
     @Override
-    public String description() {
-        return "Stempel (Polish) analysis support";
-    }
-
-    @Override
-    public Collection<Module> nodeModules() {
-        return Collections.<Module>singletonList(new PolishIndicesAnalysisModule());
-    }
-
-    public void onModule(AnalysisModule module) {
-        module.addProcessor(new PolishAnalysisBinderProcessor());
+    public Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
+        return singletonMap("polish", PolishAnalyzerProvider::new);
     }
 }

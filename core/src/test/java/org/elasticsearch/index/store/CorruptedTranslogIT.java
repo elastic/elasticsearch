@@ -27,17 +27,20 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.engine.MockEngineSupport;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -51,6 +54,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -62,16 +66,11 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 @ESIntegTestCase.ClusterScope(scope= ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
 public class CorruptedTranslogIT extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        // we really need local GW here since this also checks for corruption etc.
-        // and we need to make sure primaries are not just trashed if we don't have replicas
-        return pluginList(MockTransportService.TestPlugin.class);
+        return pluginList(MockTransportService.TestPlugin.class, MockEngineFactoryPlugin.class);
     }
 
-    @Test
-    @TestLogging("index.translog:TRACE,index.gateway:TRACE")
     public void testCorruptTranslogFiles() throws Exception {
         internalCluster().startNodesAsync(1, Settings.EMPTY).get();
 
@@ -79,9 +78,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
                 .put("index.refresh_interval", "-1")
-                .put(MockEngineSupport.FLUSH_ON_CLOSE_RATIO, 0.0d) // never flush - always recover from translog
-                .put(IndexShard.INDEX_FLUSH_ON_CLOSE, false) // never flush - always recover from translog
-                .put(TranslogConfig.INDEX_TRANSLOG_SYNC_INTERVAL, "1s") // fsync the translog every second
+                .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true) // never flush - always recover from translog
         ));
         ensureYellow();
 
@@ -99,9 +96,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
 
         // Restart the single node
         internalCluster().fullRestart();
-        // node needs time to start recovery and discover the translog corruption
-        Thread.sleep(1000);
-        enableTranslogFlush("test");
+        client().admin().cluster().prepareHealth().setWaitForYellowStatus().setTimeout(new TimeValue(1000, TimeUnit.MILLISECONDS)).setWaitForEvents(Priority.LANGUID).get();
 
         try {
             client().prepareSearch("test").setQuery(matchAllQuery()).get();
@@ -115,9 +110,10 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
 
     private void corruptRandomTranslogFiles() throws IOException {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        GroupShardsIterator shardIterators = state.getRoutingNodes().getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
+        GroupShardsIterator shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
+        final Index test = state.metaData().index("test").getIndex();
         List<ShardIterator> iterators = iterableAsArrayList(shardIterators);
-        ShardIterator shardIterator = RandomPicks.randomFrom(getRandom(), iterators);
+        ShardIterator shardIterator = RandomPicks.randomFrom(random(), iterators);
         ShardRouting shardRouting = shardIterator.nextOrNull();
         assertNotNull(shardRouting);
         assertTrue(shardRouting.primary());
@@ -125,9 +121,9 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
         String nodeId = shardRouting.currentNodeId();
         NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(nodeId).setFs(true).get();
         Set<Path> files = new TreeSet<>(); // treeset makes sure iteration order is deterministic
-        for (FsInfo.Path fsPath : nodeStatses.getNodes()[0].getFs()) {
+        for (FsInfo.Path fsPath : nodeStatses.getNodes().get(0).getFs()) {
             String path = fsPath.getPath();
-            final String relativeDataLocationPath =  "indices/test/" + Integer.toString(shardRouting.getId()) + "/translog";
+            final String relativeDataLocationPath =  "indices/"+ test.getUUID() +"/" + Integer.toString(shardRouting.getId()) + "/translog";
             Path file = PathUtils.get(path).resolve(relativeDataLocationPath);
             if (Files.exists(file)) {
                 logger.info("--> path: {}", file);
@@ -145,7 +141,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
         if (!files.isEmpty()) {
             int corruptions = randomIntBetween(5, 20);
             for (int i = 0; i < corruptions; i++) {
-                fileToCorrupt = RandomPicks.randomFrom(getRandom(), files);
+                fileToCorrupt = RandomPicks.randomFrom(random(), files);
                 try (FileChannel raf = FileChannel.open(fileToCorrupt, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
                     // read
                     raf.position(randomIntBetween(0, (int) Math.min(Integer.MAX_VALUE, raf.size() - 1)));
@@ -153,12 +149,12 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
                     ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
                     raf.read(bb);
                     bb.flip();
-                    
+
                     // corrupt
                     byte oldValue = bb.get(0);
                     byte newValue = (byte) (oldValue + 1);
                     bb.put(0, newValue);
-                    
+
                     // rewrite
                     raf.position(filePointer);
                     raf.write(bb);
@@ -169,5 +165,17 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
             }
         }
         assertThat("no file corrupted", fileToCorrupt, notNullValue());
+    }
+
+    /** Disables translog flushing for the specified index */
+    private static void disableTranslogFlush(String index) {
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)).build();
+        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+    }
+
+    /** Enables translog flushing for the specified index */
+    private static void enableTranslogFlush(String index) {
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB)).build();
+        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
     }
 }

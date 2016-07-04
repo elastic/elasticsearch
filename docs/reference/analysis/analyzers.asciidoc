@@ -1,67 +1,60 @@
 [[analysis-analyzers]]
 == Analyzers
 
-Analyzers are composed of a single <<analysis-tokenizers,Tokenizer>> 
-and zero or more <<analysis-tokenfilters,TokenFilters>>. The tokenizer may 
-be preceded by one or more <<analysis-charfilters,CharFilters>>.
-The analysis module allows you to register `Analyzers` under logical
-names which can then be referenced either in mapping definitions or in
-certain APIs. 
+Elasticsearch ships with a wide range of built-in analyzers, which can be used
+in any index without further configuration:
 
-Elasticsearch comes with a number of prebuilt analyzers which are
-ready to use.  Alternatively, you can combine the built in
-character filters, tokenizers and token filters to create 
-<<analysis-custom-analyzer,custom analyzers>>.
+<<analysis-standard-analyzer,Standard Analyzer>>::
+
+The `standard` analyzer divides text into terms on word boundaries, as defined
+by the Unicode Text Segmentation algorithm. It removes most punctuation,
+lowercases terms, and supports removing stop words.
+
+<<analysis-simple-analyzer,Simple Analyzer>>::
+
+The `simple` analyzer divides text into terms whenever it encounters a
+character which is not a letter.  It lowercases all terms.
+
+<<analysis-whitespace-analyzer,Whitespace Analyzer>>::
+
+The `whitespace` analyzer divides text into terms whenever it encounters any
+whitespace character.  It does not lowercase terms.
+
+<<analysis-stop-analyzer,Stop Analyzer>>::
+
+The `stop` analyzer is like the `simple` analyzer, but also supports removal
+of stop words.
+
+<<analysis-keyword-analyzer,Keyword Analyzer>>::
+
+The `keyword` analyzer is a ``noop'' analyzer that accepts whatever text it is
+given and outputs the exact same text as a single term.
+
+<<analysis-pattern-analyzer,Pattern Analyzer>>::
+
+The `pattern` analyzer uses a regular expression to split the text into terms.
+It supports lower-casing and stop words.
+
+<<analysis-lang-analyzer,Language Analyzers>>::
+
+Elasticsearch provides many language-specific analyzers like `english` or
+`french`.
+
+<<analysis-fingerprint-analyzer,Fingerprint Analyzer>>::
+
+The `fingerprint` analyzer is a specialist analyzer which creates a
+fingerprint which can be used for duplicate detection.
 
 [float]
-[[default-analyzers]]
-=== Default Analyzers
+=== Custom analyzers
 
-An analyzer is registered under a logical name. It can then be
-referenced from mapping definitions or certain APIs. When none are
-defined, defaults are used. There is an option to define which analyzers
-will be used by default when none can be derived.
-
-The `default` logical name allows one to configure an analyzer that will
-be used both for indexing and for searching APIs. The `default_search`
-logical name can be used to configure a default analyzer that will be
-used just when searching (the `default` analyzer would still be used for
-indexing).
-
-For instance, the following settings could be used to perform exact matching
-only by default:
-
-[source,js]
---------------------------------------------------
-index :
-  analysis :
-    analyzer :
-      default :
-        tokenizer : keyword
---------------------------------------------------
-
-[float]
-[[aliasing-analyzers]]
-=== Aliasing Analyzers
-
-Analyzers can be aliased to have several registered lookup names
-associated with them. For example, the following will allow 
-the `standard` analyzer to also be referenced with `alias1`
-and `alias2` values.
+If you do not find an analyzer suitable for your needs, you can create a
+<<analysis-custom-analyzer,`custom`>> analyzer which combines the appropriate
+<<analysis-charfilters, character filters>>,
+<<analysis-tokenizers,tokenizer>>, and <<analysis-tokenfilters,token filters>>.
 
 
-[source,js]
---------------------------------------------------
-index :
-  analysis :
-    analyzer :
-      standard :
-        alias: [alias1, alias2]
-        type : standard
-        stopwords : [test1, test2, test3]
---------------------------------------------------
-
-Below is a list of the built in analyzers.
+include::analyzers/configuring.asciidoc[]
 
 include::analyzers/standard-analyzer.asciidoc[]
 
@@ -77,7 +70,7 @@ include::analyzers/pattern-analyzer.asciidoc[]
 
 include::analyzers/lang-analyzer.asciidoc[]
 
-include::analyzers/snowball-analyzer.asciidoc[]
+include::analyzers/fingerprint-analyzer.asciidoc[]
 
 include::analyzers/custom-analyzer.asciidoc[]
 

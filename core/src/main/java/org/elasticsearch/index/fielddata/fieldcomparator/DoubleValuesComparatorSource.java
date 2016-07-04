@@ -21,7 +21,7 @@ package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
@@ -65,7 +65,7 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
 
     @Override
     public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-        assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldNames().indexName());
+        assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final double dMissingValue = (Double) missingObject(missingValue, reversed);
         // NOTE: it's important to pass null as a missing value in the constructor so that
@@ -79,7 +79,7 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
                     selectedValues = sortMode.select(values, dMissingValue);
                 } else {
                     final BitSet rootDocs = nested.rootDocs(context);
-                    final DocIdSet innerDocs = nested.innerDocs(context);
+                    final DocIdSetIterator innerDocs = nested.innerDocs(context);
                     selectedValues = sortMode.select(values, dMissingValue, rootDocs, innerDocs, context.reader().maxDoc());
                 }
                 return selectedValues.getRawDoubleValues();

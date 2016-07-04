@@ -21,11 +21,10 @@ package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -33,8 +32,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
  * Unit tests for the {@link ClusterStateRequest}.
  */
 public class ClusterStateRequestTests extends ESTestCase {
-
-    @Test
     public void testSerialization() throws Exception {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {
@@ -48,7 +45,7 @@ public class ClusterStateRequestTests extends ESTestCase {
             output.setVersion(testVersion);
             clusterStateRequest.writeTo(output);
 
-            StreamInput streamInput = StreamInput.wrap(output.bytes());
+            StreamInput streamInput = output.bytes().streamInput();
             streamInput.setVersion(testVersion);
             ClusterStateRequest deserializedCSRequest = new ClusterStateRequest();
             deserializedCSRequest.readFrom(streamInput);
@@ -58,13 +55,7 @@ public class ClusterStateRequestTests extends ESTestCase {
             assertThat(deserializedCSRequest.nodes(), equalTo(clusterStateRequest.nodes()));
             assertThat(deserializedCSRequest.blocks(), equalTo(clusterStateRequest.blocks()));
             assertThat(deserializedCSRequest.indices(), equalTo(clusterStateRequest.indices()));
-
-            if (testVersion.onOrAfter(Version.V_1_5_0)) {
-                assertOptionsMatch(deserializedCSRequest.indicesOptions(), clusterStateRequest.indicesOptions());
-            } else {
-                // versions before V_1_5_0 use IndicesOptions.lenientExpandOpen()
-                assertOptionsMatch(deserializedCSRequest.indicesOptions(), IndicesOptions.lenientExpandOpen());
-            }
+            assertOptionsMatch(deserializedCSRequest.indicesOptions(), clusterStateRequest.indicesOptions());
         }
     }
 

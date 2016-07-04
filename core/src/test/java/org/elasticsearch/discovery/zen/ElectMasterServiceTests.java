@@ -22,58 +22,57 @@ package org.elasticsearch.discovery.zen;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 public class ElectMasterServiceTests extends ESTestCase {
 
     ElectMasterService electMasterService() {
-        return new ElectMasterService(Settings.EMPTY, Version.CURRENT);
+        return new ElectMasterService(Settings.EMPTY);
     }
 
     List<DiscoveryNode> generateRandomNodes() {
         int count = scaledRandomIntBetween(1, 100);
         ArrayList<DiscoveryNode> nodes = new ArrayList<>(count);
-
-        Map<String, String> master = new HashMap<>();
-        master.put("master", "true");
-        Map<String, String> nonMaster = new HashMap<>();
-        nonMaster.put("master", "false");
-
         for (int i = 0; i < count; i++) {
-            Map<String, String> attributes = randomBoolean() ? master : nonMaster;
-            DiscoveryNode node = new DiscoveryNode("n_" + i, "n_" + i, DummyTransportAddress.INSTANCE, attributes, Version.CURRENT);
+            Set<DiscoveryNode.Role> roles = new HashSet<>();
+            if (randomBoolean()) {
+                roles.add(DiscoveryNode.Role.MASTER);
+            }
+            DiscoveryNode node = new DiscoveryNode("n_" + i, "n_" + i, LocalTransportAddress.buildUnique(), Collections.emptyMap(),
+                    roles, Version.CURRENT);
             nodes.add(node);
         }
 
-        Collections.shuffle(nodes, getRandom());
+        Collections.shuffle(nodes, random());
         return nodes;
     }
 
-    @Test
-    public void sortByMasterLikelihood() {
+    public void testSortByMasterLikelihood() {
         List<DiscoveryNode> nodes = generateRandomNodes();
         List<DiscoveryNode> sortedNodes = electMasterService().sortByMasterLikelihood(nodes);
         assertEquals(nodes.size(), sortedNodes.size());
         DiscoveryNode prevNode = sortedNodes.get(0);
         for (int i = 1; i < sortedNodes.size(); i++) {
             DiscoveryNode node = sortedNodes.get(i);
-            if (!prevNode.masterNode()) {
-                assertFalse(node.masterNode());
-            } else if (node.masterNode()) {
-                assertTrue(prevNode.id().compareTo(node.id()) < 0);
+            if (!prevNode.isMasterNode()) {
+                assertFalse(node.isMasterNode());
+            } else if (node.isMasterNode()) {
+                assertTrue(prevNode.getId().compareTo(node.getId()) < 0);
             }
             prevNode = node;
         }
 
     }
 
-    @Test
-    public void electMaster() {
+    public void testElectMaster() {
         List<DiscoveryNode> nodes = generateRandomNodes();
         ElectMasterService service = electMasterService();
         int min_master_nodes = randomIntBetween(0, nodes.size());
@@ -81,7 +80,7 @@ public class ElectMasterServiceTests extends ESTestCase {
 
         int master_nodes = 0;
         for (DiscoveryNode node : nodes) {
-            if (node.masterNode()) {
+            if (node.isMasterNode()) {
                 master_nodes++;
             }
         }
@@ -95,9 +94,10 @@ public class ElectMasterServiceTests extends ESTestCase {
         } else if (min_master_nodes > 0 && master_nodes < min_master_nodes) {
             assertNull(master);
         } else {
+            assertNotNull(master);
             for (DiscoveryNode node : nodes) {
-                if (node.masterNode()) {
-                    assertTrue(master.id().compareTo(node.id()) <= 0);
+                if (node.isMasterNode()) {
+                    assertTrue(master.getId().compareTo(node.getId()) <= 0);
                 }
             }
         }

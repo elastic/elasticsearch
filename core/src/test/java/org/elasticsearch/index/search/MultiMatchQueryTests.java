@@ -20,15 +20,24 @@
 package org.elasticsearch.index.search;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.queries.BlendedTermQuery;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.mapper.MockFieldMapper.FakeFieldType;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.search.MultiMatchQuery.FieldAndFieldType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
@@ -39,7 +48,6 @@ import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 
 public class MultiMatchQueryTests extends ESSingleNodeTestCase {
 
-    private IndexQueryParserService queryParser;
     private IndexService indexService;
 
     @Before
@@ -52,23 +60,22 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
                 "            \"name\":{\n" +
                 "                  \"properties\":{\n" +
                 "                        \"first\": {\n" +
-                "                            \"type\":\"string\"\n" +
+                "                            \"type\":\"text\"\n" +
                 "                        }," +
                 "                        \"last\": {\n" +
-                "                            \"type\":\"string\"\n" +
+                "                            \"type\":\"text\"\n" +
                 "                        }" +
                 "                   }" +
                 "            }\n" +
                 "        }\n" +
                 "    }\n" +
                 "}";
-        mapperService.merge("person", new CompressedXContent(mapping), true, false);
+        mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
         this.indexService = indexService;
-        queryParser = indexService.queryParserService();
     }
 
     public void testCrossFieldMultiMatchQuery() throws IOException {
-        QueryShardContext queryShardContext = new QueryShardContext(new Index("test"), queryParser);
+        QueryShardContext queryShardContext = indexService.newQueryShardContext();
         queryShardContext.setAllowUnmappedFields(true);
         Query parsedQuery = multiMatchQuery("banon").field("name.first", 2).field("name.last", 3).field("foobar").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS).toQuery(queryShardContext);
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
@@ -81,5 +88,70 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
             expected.add(new DisjunctionMaxQuery(Arrays.<Query>asList(tq1, tq2), 0f), BooleanClause.Occur.SHOULD);
             assertEquals(expected.build(), rewrittenQuery);
         }
+    }
+
+    public void testBlendTerms() {
+        FakeFieldType ft1 = new FakeFieldType();
+        ft1.setName("foo");
+        FakeFieldType ft2 = new FakeFieldType();
+        ft2.setName("bar");
+        Term[] terms = new Term[] { new Term("foo", "baz"), new Term("bar", "baz") };
+        float[] boosts = new float[] {2, 3};
+        Query expected = BlendedTermQuery.booleanBlendedQuery(terms, boosts, false);
+        Query actual = MultiMatchQuery.blendTerm(new BytesRef("baz"), null, 1f, new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
+        assertEquals(expected, actual);
+    }
+
+    public void testBlendTermsWithFieldBoosts() {
+        FakeFieldType ft1 = new FakeFieldType();
+        ft1.setName("foo");
+        ft1.setBoost(100);
+        FakeFieldType ft2 = new FakeFieldType();
+        ft2.setName("bar");
+        ft2.setBoost(10);
+        Term[] terms = new Term[] { new Term("foo", "baz"), new Term("bar", "baz") };
+        float[] boosts = new float[] {200, 30};
+        Query expected = BlendedTermQuery.booleanBlendedQuery(terms, boosts, false);
+        Query actual = MultiMatchQuery.blendTerm(new BytesRef("baz"), null, 1f, new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
+        assertEquals(expected, actual);
+    }
+
+    public void testBlendTermsUnsupportedValue() {
+        FakeFieldType ft1 = new FakeFieldType();
+        ft1.setName("foo");
+        FakeFieldType ft2 = new FakeFieldType() {
+            @Override
+            public Query termQuery(Object value, QueryShardContext context) {
+                throw new IllegalArgumentException();
+            }
+        };
+        ft2.setName("bar");
+        Term[] terms = new Term[] { new Term("foo", "baz") };
+        float[] boosts = new float[] {2};
+        Query expected = BlendedTermQuery.booleanBlendedQuery(terms, boosts, false);
+        Query actual = MultiMatchQuery.blendTerm(new BytesRef("baz"), null, 1f, new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
+        assertEquals(expected, actual);
+    }
+
+    public void testBlendNoTermQuery() {
+        FakeFieldType ft1 = new FakeFieldType();
+        ft1.setName("foo");
+        FakeFieldType ft2 = new FakeFieldType() {
+            @Override
+            public Query termQuery(Object value, QueryShardContext context) {
+                return new MatchAllDocsQuery();
+            }
+        };
+        ft2.setName("bar");
+        Term[] terms = new Term[] { new Term("foo", "baz") };
+        float[] boosts = new float[] {2};
+        Query expectedClause1 = BlendedTermQuery.booleanBlendedQuery(terms, boosts, false);
+        Query expectedClause2 = new BoostQuery(new MatchAllDocsQuery(), 3);
+        Query expected = new BooleanQuery.Builder().setDisableCoord(true)
+                .add(expectedClause1, Occur.SHOULD)
+                .add(expectedClause2, Occur.SHOULD)
+                .build();
+        Query actual = MultiMatchQuery.blendTerm(new BytesRef("baz"), null, 1f, new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
+        assertEquals(expected, actual);
     }
 }

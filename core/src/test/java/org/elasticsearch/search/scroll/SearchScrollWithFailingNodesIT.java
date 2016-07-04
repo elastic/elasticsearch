@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,13 +33,14 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class SearchScrollWithFailingNodesIT extends ESIntegTestCase {
-
     @Override
     protected int numberOfShards() {
         return 2;
@@ -51,14 +51,13 @@ public class SearchScrollWithFailingNodesIT extends ESIntegTestCase {
         return 0;
     }
 
-    @Test
     public void testScanScrollWithShardExceptions() throws Exception {
         internalCluster().startNode();
         internalCluster().startNode();
         assertAcked(
                 prepareCreate("test")
                         // Enforces that only one shard can only be allocated to a single node
-                        .setSettings(Settings.builder().put(indexSettings()).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE, 1))
+                        .setSettings(Settings.builder().put(indexSettings()).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1))
         );
 
         List<IndexRequestBuilder> writes = new ArrayList<>();
@@ -85,7 +84,7 @@ public class SearchScrollWithFailingNodesIT extends ESIntegTestCase {
                     .get();
             assertAllSuccessful(searchResponse);
         } while (searchResponse.getHits().hits().length > 0);
-        assertThat(numHits, equalTo(100l));
+        assertThat(numHits, equalTo(100L));
         clearScroll("_all");
 
         internalCluster().stopRandomNonMasterNode();
@@ -105,7 +104,7 @@ public class SearchScrollWithFailingNodesIT extends ESIntegTestCase {
                     .get();
             assertThat(searchResponse.getSuccessfulShards(), equalTo(numberOfSuccessfulShards));
         } while (searchResponse.getHits().hits().length > 0);
-        assertThat(numHits, greaterThan(0l));
+        assertThat(numHits, greaterThan(0L));
 
         clearScroll(searchResponse.getScrollId());
     }

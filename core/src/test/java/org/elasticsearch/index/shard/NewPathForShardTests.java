@@ -20,14 +20,16 @@ package org.elasticsearch.index.shard;
 
 
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment.NodePath;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.NodeEnvironment.NodePath;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -46,6 +48,8 @@ import java.util.Map;
 
 /** Separate test class from ShardPathTests because we need static (BeforeClass) setup to install mock filesystems... */
 public class NewPathForShardTests extends ESTestCase {
+
+    private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
 
     // Sneakiness to install mock file stores so we can pretend how much free space we have on each path.data:
     private static MockFileStore aFileStore = new MockFileStore("mocka");
@@ -71,7 +75,7 @@ public class NewPathForShardTests extends ESTestCase {
 
     /** Mock file system that fakes usable space for each FileStore */
     static class MockUsableSpaceFileSystemProvider extends FilterFileSystemProvider {
-    
+
         public MockUsableSpaceFileSystemProvider(FileSystem inner) {
             super("mockusablespace://", inner);
             final List<FileStore> fileStores = new ArrayList<>();
@@ -98,7 +102,7 @@ public class NewPathForShardTests extends ESTestCase {
         public MockFileStore(String desc) {
             this.desc = desc;
         }
-    
+
         @Override
         public String type() {
             return "mock";
@@ -163,8 +167,8 @@ public class NewPathForShardTests extends ESTestCase {
                                        path.resolve("b").toString()};
 
         Settings settings = Settings.builder()
-            .put("path.home", path)
-            .putArray("path.data", paths).build();
+            .put(Environment.PATH_HOME_SETTING.getKey(), path)
+            .putArray(Environment.PATH_DATA_SETTING.getKey(), paths).build();
         NodeEnvironment nodeEnv = new NodeEnvironment(settings, new Environment(settings));
 
         // Make sure all our mocking above actually worked:
@@ -178,16 +182,16 @@ public class NewPathForShardTests extends ESTestCase {
         aFileStore.usableSpace = 100000;
         bFileStore.usableSpace = 1000;
 
-        ShardId shardId = new ShardId("index", 0);
-        ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, Settings.EMPTY, 100, Collections.<Path,Integer>emptyMap());
+        ShardId shardId = new ShardId("index", "_na_", 0);
+        ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path,Integer>emptyMap());
         assertTrue(result.getDataPath().toString().contains(aPathPart));
 
         // Test the reverse: b has lots of free space, but a has little, so new shard should go to b:
         aFileStore.usableSpace = 1000;
         bFileStore.usableSpace = 100000;
 
-        shardId = new ShardId("index", 0);
-        result = ShardPath.selectNewPathForShard(nodeEnv, shardId, Settings.EMPTY, 100, Collections.<Path,Integer>emptyMap());
+        shardId = new ShardId("index", "_na_", 0);
+        result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path,Integer>emptyMap());
         assertTrue(result.getDataPath().toString().contains(bPathPart));
 
         // Now a and be have equal usable space; we allocate two shards to the node, and each should go to different paths:
@@ -195,16 +199,16 @@ public class NewPathForShardTests extends ESTestCase {
         bFileStore.usableSpace = 100000;
 
         Map<Path,Integer> dataPathToShardCount = new HashMap<>();
-        ShardPath result1 = ShardPath.selectNewPathForShard(nodeEnv, shardId, Settings.EMPTY, 100, dataPathToShardCount);
+        ShardPath result1 = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, dataPathToShardCount);
         dataPathToShardCount.put(NodeEnvironment.shardStatePathToDataPath(result1.getDataPath()), 1);
-        ShardPath result2 = ShardPath.selectNewPathForShard(nodeEnv, shardId, Settings.EMPTY, 100, dataPathToShardCount);
+        ShardPath result2 = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, dataPathToShardCount);
 
         // #11122: this was the original failure: on a node with 2 disks that have nearly equal
         // free space, we would always allocate all N incoming shards to the one path that
         // had the most free space, never using the other drive unless new shards arrive
         // after the first shards started using storage:
         assertNotEquals(result1.getDataPath(), result2.getDataPath());
-        
+
         nodeEnv.close();
     }
 }

@@ -6,10 +6,14 @@ in the inverted index.  For instance:
 
 [source,js]
 --------------------------------------------------
+POST _search
 {
+  "query": {
     "term" : { "user" : "Kimchy" } <1>
+  }
 }
 --------------------------------------------------
+// CONSOLE
 <1> Finds documents which contain the exact term `Kimchy` in the inverted index
     of the `user` field.
 
@@ -18,7 +22,7 @@ relevance score than another query, for instance:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET _search
 {
   "query": {
     "bool": {
@@ -41,6 +45,7 @@ GET /_search
   }
 }
 --------------------------------------------------
+// CONSOLE
 
 <1> The `urgent` query clause has a boost of `2.0`, meaning it is twice as important
     as the query clause for `normal`.
@@ -49,13 +54,13 @@ GET /_search
 .Why doesn't the `term` query match my document?
 **************************************************
 
-String fields can be `analyzed` (treated as full text, like the body of an
-email), or `not_analyzed` (treated as exact values, like an email address or a
-zip code).  Exact values (like numbers, dates, and `not_analyzed` strings) have
+String fields can be of type `text` (treated as full text, like the body of an
+email), or `keyword` (treated as exact values, like an email address or a
+zip code).  Exact values (like numbers, dates, and keywords) have
 the exact value specified in the field added to the inverted index in order
 to make them searchable.
 
-By default, however, `string` fields are `analyzed`. This means that their
+However, `text` fields are `analyzed`. This means that their
 values are first passed through an <<analysis,analyzer>> to produce a list of
 terms, which are then added to the inverted index.
 
@@ -70,7 +75,7 @@ within a big block of full text.
 
 The `term` query looks for the *exact* term in the field's inverted index --
 it doesn't know anything about the field's analyzer.  This makes it useful for
-looking up values in `not_analyzed` string fields, or in numeric or date
+looking up values in keyword fields, or in numeric or date
 fields.  When querying full text fields, use the
 <<query-dsl-match-query,`match` query>> instead, which understands how the field
 has been analyzed.
@@ -86,11 +91,10 @@ PUT my_index
     "my_type": {
       "properties": {
         "full_text": {
-          "type":  "string" <1>
+          "type":  "text" <1>
         },
         "exact_value": {
-          "type":  "string",
-          "index": "not_analyzed" <2>
+          "type":  "keyword" <2>
         }
       }
     }
@@ -103,10 +107,10 @@ PUT my_index/my_type/1
   "exact_value": "Quick Foxes!"  <4>
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
-<1> The `full_text` field is `analyzed` by default.
-<2> The `exact_value` field is set to be `not_analyzed`.
+<1> The `full_text` field is of type `text` and will be analyzed.
+<2> The `exact_value` field is of type `keyword` and will NOT be analyzed.
 <3> The `full_text` inverted index will contain the terms: [`quick`, `foxes`].
 <4> The `exact_value` inverted index will contain the exact term: [`Quick Foxes!`].
 
@@ -114,7 +118,6 @@ Now, compare the results for the `term` query and the `match` query:
 
 [source,js]
 --------------------------------------------------
-
 GET my_index/my_type/_search
 {
   "query": {
@@ -137,7 +140,7 @@ GET my_index/my_type/_search
 {
   "query": {
     "term": {
-      "exact_value": "foxes" <3>
+      "full_text": "foxes" <3>
     }
   }
 }
@@ -151,7 +154,8 @@ GET my_index/my_type/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[continued]
 
 <1> This query matches because the `exact_value` field contains the exact
     term `Quick Foxes!`.
@@ -162,5 +166,3 @@ GET my_index/my_type/_search
 <4> This `match` query on the `full_text` field first analyzes the query string,
     then looks for documents containing `quick` or `foxes` or both.
 **************************************************
-
-

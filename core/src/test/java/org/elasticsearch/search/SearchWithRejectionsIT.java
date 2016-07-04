@@ -24,12 +24,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -37,14 +35,12 @@ import static org.hamcrest.Matchers.equalTo;
 public class SearchWithRejectionsIT extends ESIntegTestCase {
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
-                .put("threadpool.search.type", "fixed")
-                .put("threadpool.search.size", 1)
-                .put("threadpool.search.queue_size", 1)
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+                .put("thread_pool.search.size", 1)
+                .put("thread_pool.search.queue_size", 1)
                 .build();
     }
 
-    @Test
     public void testOpenContextsAfterRejections() throws InterruptedException {
         createIndex("test");
         ensureGreen("test");
@@ -53,7 +49,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
             client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();
         }
         IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().execute().actionGet();
-        assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0l));
+        assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0L));
         refresh();
 
         int numSearches = 10;
@@ -69,11 +65,11 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         for (int i = 0; i < numSearches; i++) {
             try {
                 responses[i].get();
-            } catch (Throwable t) {
+            } catch (Exception t) {
             }
         }
         awaitBusy(() -> client().admin().indices().prepareStats().execute().actionGet().getTotal().getSearch().getOpenContexts() == 0, 1, TimeUnit.SECONDS);
         indicesStats = client().admin().indices().prepareStats().execute().actionGet();
-        assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0l));
+        assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0L));
     }
 }

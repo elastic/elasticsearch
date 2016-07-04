@@ -20,23 +20,27 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.*;
-import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocumentRequest;
+import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.TimestampParsingException;
+import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 
 import java.io.IOException;
@@ -63,7 +67,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Requests#indexRequest(String)
  * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
-public class IndexRequest extends ReplicationRequest<IndexRequest> implements DocumentRequest<IndexRequest> {
+public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocumentRequest<IndexRequest> {
 
     /**
      * Operation type controls if the type of the index operation.
@@ -134,47 +138,21 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     private String parent;
     @Nullable
     private String timestamp;
-    private long ttl = -1;
+    @Nullable
+    private TimeValue ttl;
 
     private BytesReference source;
 
     private OpType opType = OpType.INDEX;
 
-    private boolean refresh = false;
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
 
     private XContentType contentType = Requests.INDEX_CONTENT_TYPE;
 
+    private String pipeline;
+
     public IndexRequest() {
-    }
-
-    /**
-     * Creates an index request caused by some other request, which is provided as an
-     * argument so that its headers and context can be copied to the new request
-     */
-    public IndexRequest(ActionRequest request) {
-        super(request);
-    }
-
-    /**
-     * Copy constructor that creates a new index request that is a copy of the one provided as an argument.
-     * The new request will inherit though headers and context from the original request that caused it.
-     */
-    public IndexRequest(IndexRequest indexRequest, ActionRequest originalRequest) {
-        super(indexRequest, originalRequest);
-        this.type = indexRequest.type;
-        this.id = indexRequest.id;
-        this.routing = indexRequest.routing;
-        this.parent = indexRequest.parent;
-        this.timestamp = indexRequest.timestamp;
-        this.ttl = indexRequest.ttl;
-        this.source = indexRequest.source;
-        this.opType = indexRequest.opType;
-        this.refresh = indexRequest.refresh;
-        this.version = indexRequest.version;
-        this.versionType = indexRequest.versionType;
-        this.contentType = indexRequest.contentType;
     }
 
     /**
@@ -227,7 +205,25 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         if (!versionType.validateVersionForWrites(version)) {
             validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
         }
+
+        if (ttl != null) {
+            if (ttl.millis() < 0) {
+                validationException = addValidationError("ttl must not be negative", validationException);
+            }
+        }
+
+        if (id != null && id.getBytes(StandardCharsets.UTF_8).length > 512) {
+            validationException = addValidationError("id is too long, must be no longer than 512 bytes but was: " +
+                            id.getBytes(StandardCharsets.UTF_8).length, validationException);
+        }
         return validationException;
+    }
+
+    /**
+     * The content type that will be used when generating a document from user provided objects like Maps.
+     */
+    public XContentType getContentType() {
+        return contentType;
     }
 
     /**
@@ -294,17 +290,14 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     }
 
     /**
-     * Sets the parent id of this document. If routing is not set, automatically set it as the
-     * routing as well.
+     * Sets the parent id of this document.
      */
     public IndexRequest parent(String parent) {
         this.parent = parent;
-        if (routing == null) {
-            routing = parent;
-        }
         return this;
     }
 
+    @Override
     public String parent() {
         return this.parent;
     }
@@ -322,27 +315,53 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     }
 
     /**
-     * Sets the relative ttl value. It musts be &gt; 0 as it makes little sense otherwise. Setting it
-     * to <tt>null</tt> will reset to have no ttl.
+     * Sets the ttl value as a time value expression.
      */
-    public IndexRequest ttl(Long ttl) throws ElasticsearchGenerationException {
-        if (ttl == null) {
-            this.ttl = -1;
-            return this;
-        }
-        if (ttl <= 0) {
-            throw new IllegalArgumentException("TTL value must be > 0. Illegal value provided [" + ttl + "]");
-        }
+    public IndexRequest ttl(String ttl) {
+        this.ttl = TimeValue.parseTimeValue(ttl, null, "ttl");
+        return this;
+    }
+
+    /**
+     * Sets the ttl as a {@link TimeValue} instance.
+     */
+    public IndexRequest ttl(TimeValue ttl) {
         this.ttl = ttl;
         return this;
     }
 
-    public long ttl() {
+    /**
+     * Sets the relative ttl value in milliseconds. It musts be greater than 0 as it makes little sense otherwise.
+     */
+    public IndexRequest ttl(long ttl) {
+        this.ttl = new TimeValue(ttl);
+        return this;
+    }
+
+    /**
+     * Returns the ttl as a {@link TimeValue}
+     */
+    public TimeValue ttl() {
         return this.ttl;
     }
 
     /**
-     * The source of the document to index, recopied to a new array if it is unsage.
+     * Sets the ingest pipeline to be executed before indexing the document
+     */
+    public IndexRequest setPipeline(String pipeline) {
+        this.pipeline = pipeline;
+        return this;
+    }
+
+    /**
+     * Returns the ingest pipeline to be executed before indexing the document
+     */
+    public String getPipeline() {
+        return this.pipeline;
+    }
+
+    /**
+     * The source of the document to index, recopied to a new array if it is unsafe.
      */
     public BytesReference source() {
         return source;
@@ -523,20 +542,6 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     }
 
     /**
-     * Should a refresh be executed post this index operation causing the operation to
-     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
-     * to <tt>false</tt>.
-     */
-    public IndexRequest refresh(boolean refresh) {
-        this.refresh = refresh;
-        return this;
-    }
-
-    public boolean refresh() {
-        return this.refresh;
-    }
-
-    /**
      * Sets the version, which will cause the index operation to only be performed if a matching
      * version exists and no changes happened on the doc since then.
      */
@@ -561,52 +566,14 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         return this.versionType;
     }
 
-    public void process(MetaData metaData, @Nullable MappingMetaData mappingMd, boolean allowIdGeneration, String concreteIndex) {
-        // resolve the routing if needed
-        routing(metaData.resolveIndexRouting(routing, index));
+
+    public void process(@Nullable MappingMetaData mappingMd, boolean allowIdGeneration, String concreteIndex) {
         // resolve timestamp if provided externally
         if (timestamp != null) {
-            Version version = Version.indexCreated(metaData.getIndices().get(concreteIndex).getSettings());
             timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp,
-                    mappingMd != null ? mappingMd.timestamp().dateTimeFormatter() : TimestampFieldMapper.Defaults.DATE_TIME_FORMATTER,
-                    version);
+                    mappingMd != null ? mappingMd.timestamp().dateTimeFormatter() : TimestampFieldMapper.Defaults.DATE_TIME_FORMATTER);
         }
-        // extract values if needed
         if (mappingMd != null) {
-            MappingMetaData.ParseContext parseContext = mappingMd.createParseContext(id, routing, timestamp);
-
-            if (parseContext.shouldParse()) {
-                XContentParser parser = null;
-                try {
-                    parser = XContentHelper.createParser(source);
-                    mappingMd.parse(parser, parseContext);
-                    if (parseContext.shouldParseId()) {
-                        id = parseContext.id();
-                    }
-                    if (parseContext.shouldParseRouting()) {
-                        if (routing != null && !routing.equals(parseContext.routing())) {
-                            throw new MapperParsingException("The provided routing value [" + routing + "] doesn't match the routing key stored in the document: [" + parseContext.routing() + "]");
-                        }
-                        routing = parseContext.routing();
-                    }
-                    if (parseContext.shouldParseTimestamp()) {
-                        timestamp = parseContext.timestamp();
-                        if (timestamp != null) {
-                            Version version = Version.indexCreated(metaData.getIndices().get(concreteIndex).getSettings());
-                            timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp, mappingMd.timestamp().dateTimeFormatter(), version);
-                        }
-                    }
-                } catch (MapperParsingException e) {
-                    throw e;
-                } catch (Exception e) {
-                    throw new ElasticsearchParseException("failed to parse doc to extract routing/timestamp/id", e);
-                } finally {
-                    if (parser != null) {
-                        parser.close();
-                    }
-                }
-            }
-
             // might as well check for routing here
             if (mappingMd.routing().required() && routing == null) {
                 throw new RoutingMissingException(concreteIndex, type, id);
@@ -624,7 +591,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         // generate id if not already provided and id generation is allowed
         if (allowIdGeneration) {
             if (id == null) {
-                id(Strings.base64UUID());
+                id(UUIDs.base64UUID());
             }
         }
 
@@ -642,43 +609,52 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
             if (defaultTimestamp.equals(TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP)) {
                 timestamp = Long.toString(System.currentTimeMillis());
             } else {
-                Version version = Version.indexCreated(metaData.getIndices().get(concreteIndex).getSettings());
-                timestamp = MappingMetaData.Timestamp.parseStringTimestamp(defaultTimestamp, mappingMd.timestamp().dateTimeFormatter(), version);
+                // if we are here, the defaultTimestamp is not
+                // TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP but
+                // this can only happen if defaultTimestamp was
+                // assigned again because mappingMd and
+                // mappingMd#timestamp() are not null
+                assert mappingMd != null;
+                timestamp = MappingMetaData.Timestamp.parseStringTimestamp(defaultTimestamp, mappingMd.timestamp().dateTimeFormatter());
             }
         }
+    }
+
+    /* resolve the routing if needed */
+    public void resolveRouting(MetaData metaData) {
+        routing(metaData.resolveIndexRouting(parent, routing, index));
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        type = in.readString();
+        type = in.readOptionalString();
         id = in.readOptionalString();
         routing = in.readOptionalString();
         parent = in.readOptionalString();
         timestamp = in.readOptionalString();
-        ttl = in.readLong();
+        ttl = in.readOptionalWriteable(TimeValue::new);
         source = in.readBytesReference();
-
         opType = OpType.fromId(in.readByte());
-        refresh = in.readBoolean();
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
+        pipeline = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(type);
+        out.writeOptionalString(type);
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(parent);
         out.writeOptionalString(timestamp);
-        out.writeLong(ttl);
+        out.writeOptionalWriteable(ttl);
         out.writeBytesReference(source);
         out.writeByte(opType.id());
-        out.writeBoolean(refresh);
         out.writeLong(version);
         out.writeByte(versionType.getValue());
+        out.writeOptionalString(pipeline);
     }
 
     @Override

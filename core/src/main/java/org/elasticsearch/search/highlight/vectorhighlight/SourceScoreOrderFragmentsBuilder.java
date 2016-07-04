@@ -20,16 +20,14 @@ package org.elasticsearch.search.highlight.vectorhighlight;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
 import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -44,14 +42,11 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
 
     private final SearchContext searchContext;
 
-    private final FetchSubPhase.HitContext hitContext;
-
-    public SourceScoreOrderFragmentsBuilder(FieldMapper mapper, SearchContext searchContext,
-                                            FetchSubPhase.HitContext hitContext, String[] preTags, String[] postTags, BoundaryScanner boundaryScanner) {
+    public SourceScoreOrderFragmentsBuilder(FieldMapper mapper, SearchContext searchContext, String[] preTags, String[] postTags,
+                                            BoundaryScanner boundaryScanner) {
         super(preTags, postTags, boundaryScanner);
         this.mapper = mapper;
         this.searchContext = searchContext;
-        this.hitContext = hitContext;
     }
 
     @Override
@@ -60,14 +55,14 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
         SourceLookup sourceLookup = searchContext.lookup().source();
         sourceLookup.setSegmentAndDocument((LeafReaderContext) reader.getContext(), docId);
 
-        List<Object> values = sourceLookup.extractRawValues(hitContext.getSourcePath(mapper.fieldType().names().fullName()));
+        List<Object> values = sourceLookup.extractRawValues(mapper.fieldType().name());
         Field[] fields = new Field[values.size()];
         for (int i = 0; i < values.size(); i++) {
-            fields[i] = new Field(mapper.fieldType().names().indexName(), values.get(i).toString(), TextField.TYPE_NOT_STORED);
+            fields[i] = new Field(mapper.fieldType().name(), values.get(i).toString(), TextField.TYPE_NOT_STORED);
         }
         return fields;
     }
-    
+
     @Override
     protected String makeFragment( StringBuilder buffer, int[] index, Field[] values, WeightedFragInfo fragInfo,
             String[] preTags, String[] postTags, Encoder encoder ){

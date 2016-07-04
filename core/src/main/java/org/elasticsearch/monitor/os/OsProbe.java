@@ -20,10 +20,16 @@
 package org.elasticsearch.monitor.os;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.monitor.Probes;
 
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.util.List;
 
 public class OsProbe {
 
@@ -34,6 +40,7 @@ public class OsProbe {
     private static final Method getFreeSwapSpaceSize;
     private static final Method getTotalSwapSpaceSize;
     private static final Method getSystemLoadAverage;
+    private static final Method getSystemCpuLoad;
 
     static {
         getFreePhysicalMemorySize = getMethod("getFreePhysicalMemorySize");
@@ -41,6 +48,7 @@ public class OsProbe {
         getFreeSwapSpaceSize = getMethod("getFreeSwapSpaceSize");
         getTotalSwapSpaceSize = getMethod("getTotalSwapSpaceSize");
         getSystemLoadAverage = getMethod("getSystemLoadAverage");
+        getSystemCpuLoad = getMethod("getSystemCpuLoad");
     }
 
     /**
@@ -52,7 +60,7 @@ public class OsProbe {
         }
         try {
             return (long) getFreePhysicalMemorySize.invoke(osMxBean);
-        } catch (Throwable t) {
+        } catch (Exception e) {
             return -1;
         }
     }
@@ -66,7 +74,7 @@ public class OsProbe {
         }
         try {
             return (long) getTotalPhysicalMemorySize.invoke(osMxBean);
-        } catch (Throwable t) {
+        } catch (Exception e) {
             return -1;
         }
     }
@@ -80,7 +88,7 @@ public class OsProbe {
         }
         try {
             return (long) getFreeSwapSpaceSize.invoke(osMxBean);
-        } catch (Throwable t) {
+        } catch (Exception e) {
             return -1;
         }
     }
@@ -94,27 +102,58 @@ public class OsProbe {
         }
         try {
             return (long) getTotalSwapSpaceSize.invoke(osMxBean);
-        } catch (Throwable t) {
+        } catch (Exception e) {
             return -1;
         }
     }
 
     /**
-     * Returns the system load average for the last minute.
+     * Returns the system load averages
      */
-    public double getSystemLoadAverage() {
+    public double[] getSystemLoadAverage() {
+        if (Constants.LINUX || Constants.FREE_BSD) {
+            final String procLoadAvg = Constants.LINUX ? "/proc/loadavg" : "/compat/linux/proc/loadavg";
+            double[] loadAverage = readProcLoadavg(procLoadAvg);
+            if (loadAverage != null) {
+                return loadAverage;
+            }
+            // fallback
+        }
+        if (Constants.WINDOWS) {
+            return null;
+        }
         if (getSystemLoadAverage == null) {
-            return -1;
+            return null;
         }
         try {
-            return (double) getSystemLoadAverage.invoke(osMxBean);
-        } catch (Throwable t) {
-            return -1;
+            double oneMinuteLoadAverage = (double) getSystemLoadAverage.invoke(osMxBean);
+            return new double[] { oneMinuteLoadAverage >= 0 ? oneMinuteLoadAverage : -1, -1, -1 };
+        } catch (Exception e) {
+            return null;
         }
     }
 
+    @SuppressForbidden(reason = "access /proc")
+    private static double[] readProcLoadavg(String procLoadavg) {
+        try {
+            List<String> lines = Files.readAllLines(PathUtils.get(procLoadavg));
+            if (!lines.isEmpty()) {
+                String[] fields = lines.get(0).split("\\s+");
+                return new double[] { Double.parseDouble(fields[0]), Double.parseDouble(fields[1]), Double.parseDouble(fields[2]) };
+            }
+        } catch (IOException e) {
+            // do not fail Elasticsearch if something unexpected
+            // happens here
+        }
+        return null;
+    }
+
+    public short getSystemCpuPercent() {
+        return Probes.getLoadAndScaleToPercent(getSystemCpuLoad, osMxBean);
+    }
+
     private static class OsProbeHolder {
-        private final static OsProbe INSTANCE = new OsProbe();
+        private static final OsProbe INSTANCE = new OsProbe();
     }
 
     public static OsProbe getInstance() {
@@ -136,7 +175,9 @@ public class OsProbe {
     public OsStats osStats() {
         OsStats stats = new OsStats();
         stats.timestamp = System.currentTimeMillis();
-        stats.loadAverage = getSystemLoadAverage();
+        stats.cpu = new OsStats.Cpu();
+        stats.cpu.percent = getSystemCpuPercent();
+        stats.cpu.loadAverage = getSystemLoadAverage();
 
         OsStats.Mem mem = new OsStats.Mem();
         mem.total = getTotalPhysicalMemorySize();
@@ -158,7 +199,7 @@ public class OsProbe {
     private static Method getMethod(String methodName) {
         try {
             return Class.forName("com.sun.management.OperatingSystemMXBean").getMethod(methodName);
-        } catch (Throwable t) {
+        } catch (Exception e) {
             // not available
             return null;
         }

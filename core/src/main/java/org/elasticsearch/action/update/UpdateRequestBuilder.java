@@ -21,9 +21,11 @@ package org.elasticsearch.action.update;
 
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -31,9 +33,8 @@ import org.elasticsearch.script.Script;
 
 import java.util.Map;
 
-/**
- */
-public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<UpdateRequest, UpdateResponse, UpdateRequestBuilder> {
+public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<UpdateRequest, UpdateResponse, UpdateRequestBuilder>
+        implements WriteRequestBuilder<UpdateRequestBuilder> {
 
     public UpdateRequestBuilder(ElasticsearchClient client, UpdateAction action) {
         super(client, action, new UpdateRequest());
@@ -117,17 +118,6 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      */
     public UpdateRequestBuilder setVersionType(VersionType versionType) {
         request.versionType(versionType);
-        return this;
-    }
-
-
-    /**
-     * Should a refresh be executed post this update operation causing the operation to
-     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
-     * to <tt>false</tt>.
-     */
-    public UpdateRequestBuilder setRefresh(boolean refresh) {
-        request.refresh(refresh);
         return this;
     }
 
@@ -325,11 +315,31 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     }
 
     /**
-     * Set the new ttl of the document. Note that if detectNoop is true (the default)
+     * Set the new ttl of the document as a long. Note that if detectNoop is true (the default)
      * and the source of the document isn't changed then the ttl update won't take
      * effect.
      */
     public UpdateRequestBuilder setTtl(Long ttl) {
+        request.doc().ttl(ttl);
+        return this;
+    }
+
+    /**
+     * Set the new ttl of the document as a time value expression. Note that if detectNoop is true (the default)
+     * and the source of the document isn't changed then the ttl update won't take
+     * effect.
+     */
+    public UpdateRequestBuilder setTtl(String ttl) {
+        request.doc().ttl(ttl);
+        return this;
+    }
+
+    /**
+     * Set the new ttl of the document as a {@link TimeValue} instance. Note that if detectNoop is true (the default)
+     * and the source of the document isn't changed then the ttl update won't take
+     * effect.
+     */
+    public UpdateRequestBuilder setTtl(TimeValue ttl) {
         request.doc().ttl(ttl);
         return this;
     }

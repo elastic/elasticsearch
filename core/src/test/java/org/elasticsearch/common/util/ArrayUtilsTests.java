@@ -19,28 +19,20 @@
 
 package org.elasticsearch.common.util;
 
-import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
  *
  */
 public class ArrayUtilsTests extends ESTestCase {
-
-    @Test
-    public void binarySearch() throws Exception {
-
+    public void testBinarySearch() throws Exception {
         for (int j = 0; j < 100; j++) {
-
             int index = Math.min(randomInt(0, 10), 9);
             double tolerance = Math.random() * 0.01;
             double lookForValue = randomFreq(0.9) ? -1 : Double.NaN; // sometimes we'll look for NaN
@@ -110,5 +102,4 @@ public class ArrayUtilsTests extends ESTestCase {
         }
         assertArrayEquals(sourceOfTruth.toArray(new String[0]), ArrayUtils.concat(first, second));
     }
-
 }

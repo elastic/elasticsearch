@@ -19,55 +19,35 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingTableValidation;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterIndexHealth;
+import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.StatusToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-
-import static org.elasticsearch.action.admin.cluster.health.ClusterIndexHealth.readClusterIndexHealth;
 
 /**
  *
  */
-public class ClusterHealthResponse extends ActionResponse implements Iterable<ClusterIndexHealth>, StatusToXContent {
-
+public class ClusterHealthResponse extends ActionResponse implements StatusToXContent {
     private String clusterName;
-    int numberOfNodes = 0;
-    int numberOfDataNodes = 0;
-    int activeShards = 0;
-    int relocatingShards = 0;
-    int activePrimaryShards = 0;
-    int initializingShards = 0;
-    int unassignedShards = 0;
-    int numberOfPendingTasks = 0;
-    int numberOfInFlightFetch = 0;
-    int delayedUnassignedShards = 0;
-    TimeValue taskMaxWaitingTime = TimeValue.timeValueMillis(0);
-    double activeShardsPercent = 100;
-    boolean timedOut = false;
-    ClusterHealthStatus status = ClusterHealthStatus.RED;
-    private List<String> validationFailures;
-    Map<String, ClusterIndexHealth> indices = new HashMap<>();
+    private int numberOfPendingTasks = 0;
+    private int numberOfInFlightFetch = 0;
+    private int delayedUnassignedShards = 0;
+    private TimeValue taskMaxWaitingTime = TimeValue.timeValueMillis(0);
+    private boolean timedOut = false;
+    private ClusterStateHealth clusterStateHealth;
+    private ClusterHealthStatus clusterHealthStatus;
 
     ClusterHealthResponse() {
     }
@@ -87,107 +67,45 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         this.numberOfPendingTasks = numberOfPendingTasks;
         this.numberOfInFlightFetch = numberOfInFlightFetch;
         this.taskMaxWaitingTime = taskMaxWaitingTime;
-        RoutingTableValidation validation = clusterState.routingTable().validate(clusterState.metaData());
-        validationFailures = validation.failures();
-        numberOfNodes = clusterState.nodes().size();
-        numberOfDataNodes = clusterState.nodes().dataNodes().size();
-
-        for (String index : concreteIndices) {
-            IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
-            IndexMetaData indexMetaData = clusterState.metaData().index(index);
-            if (indexRoutingTable == null) {
-                continue;
-            }
-
-            ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetaData, indexRoutingTable);
-
-            indices.put(indexHealth.getIndex(), indexHealth);
-        }
-
-        status = ClusterHealthStatus.GREEN;
-
-        for (ClusterIndexHealth indexHealth : indices.values()) {
-            activePrimaryShards += indexHealth.getActivePrimaryShards();
-            activeShards += indexHealth.getActiveShards();
-            relocatingShards += indexHealth.getRelocatingShards();
-            initializingShards += indexHealth.getInitializingShards();
-            unassignedShards += indexHealth.getUnassignedShards();
-            if (indexHealth.getStatus() == ClusterHealthStatus.RED) {
-                status = ClusterHealthStatus.RED;
-            } else if (indexHealth.getStatus() == ClusterHealthStatus.YELLOW && status != ClusterHealthStatus.RED) {
-                status = ClusterHealthStatus.YELLOW;
-            }
-        }
-
-        if (!validationFailures.isEmpty()) {
-            status = ClusterHealthStatus.RED;
-        } else if (clusterState.blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
-            status = ClusterHealthStatus.RED;
-        }
-
-        // shortcut on green
-        if (status.equals(ClusterHealthStatus.GREEN)) {
-            this.activeShardsPercent = 100;
-        } else {
-            List<ShardRouting> shardRoutings = clusterState.getRoutingTable().allShards();
-            int activeShardCount = 0;
-            int totalShardCount = 0;
-            for (ShardRouting shardRouting : shardRoutings) {
-                if (shardRouting.active()) activeShardCount++;
-                totalShardCount++;
-            }
-            this.activeShardsPercent = (((double) activeShardCount) / totalShardCount) * 100;
-        }
+        this.clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices);
+        this.clusterHealthStatus = clusterStateHealth.getStatus();
     }
 
     public String getClusterName() {
         return clusterName;
     }
 
-    /**
-     * The validation failures on the cluster level (without index validation failures).
-     */
-    public List<String> getValidationFailures() {
-        return this.validationFailures;
-    }
-
-    /**
-     * All the validation failures, including index level validation failures.
-     */
-    public List<String> getAllValidationFailures() {
-        List<String> allFailures = new ArrayList<>(getValidationFailures());
-        for (ClusterIndexHealth indexHealth : indices.values()) {
-            allFailures.addAll(indexHealth.getValidationFailures());
-        }
-        return allFailures;
+    //package private for testing
+    ClusterStateHealth getClusterStateHealth() {
+        return clusterStateHealth;
     }
 
     public int getActiveShards() {
-        return activeShards;
+        return clusterStateHealth.getActiveShards();
     }
 
     public int getRelocatingShards() {
-        return relocatingShards;
+        return clusterStateHealth.getRelocatingShards();
     }
 
     public int getActivePrimaryShards() {
-        return activePrimaryShards;
+        return clusterStateHealth.getActivePrimaryShards();
     }
 
     public int getInitializingShards() {
-        return initializingShards;
+        return clusterStateHealth.getInitializingShards();
     }
 
     public int getUnassignedShards() {
-        return unassignedShards;
+        return clusterStateHealth.getUnassignedShards();
     }
 
     public int getNumberOfNodes() {
-        return this.numberOfNodes;
+        return clusterStateHealth.getNumberOfNodes();
     }
 
     public int getNumberOfDataNodes() {
-        return this.numberOfDataNodes;
+        return clusterStateHealth.getNumberOfDataNodes();
     }
 
     public int getNumberOfPendingTasks() {
@@ -214,12 +132,28 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         return this.timedOut;
     }
 
+    public void setTimedOut(boolean timedOut) {
+        this.timedOut = timedOut;
+    }
+
     public ClusterHealthStatus getStatus() {
-        return status;
+        return clusterHealthStatus;
+    }
+
+    /**
+     * Allows to explicitly override the derived cluster health status.
+     *
+     * @param status The override status. Must not be null.
+     */
+    public void setStatus(ClusterHealthStatus status) {
+        if (status == null) {
+            throw new IllegalArgumentException("'status' must not be null");
+        }
+        this.clusterHealthStatus = status;
     }
 
     public Map<String, ClusterIndexHealth> getIndices() {
-        return indices;
+        return clusterStateHealth.getIndices();
     }
 
     /**
@@ -234,14 +168,8 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
      * The percentage of active shards, should be 100% in a green system
      */
     public double getActiveShardsPercent() {
-        return activeShardsPercent;
+        return clusterStateHealth.getActiveShardsPercent();
     }
-
-    @Override
-    public Iterator<ClusterIndexHealth> iterator() {
-        return indices.values().iterator();
-    }
-
 
     public static ClusterHealthResponse readResponseFrom(StreamInput in) throws IOException {
         ClusterHealthResponse response = new ClusterHealthResponse();
@@ -253,68 +181,25 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         clusterName = in.readString();
-        activePrimaryShards = in.readVInt();
-        activeShards = in.readVInt();
-        relocatingShards = in.readVInt();
-        initializingShards = in.readVInt();
-        unassignedShards = in.readVInt();
-        numberOfNodes = in.readVInt();
-        numberOfDataNodes = in.readVInt();
+        clusterHealthStatus = ClusterHealthStatus.fromValue(in.readByte());
+        clusterStateHealth = new ClusterStateHealth(in);
         numberOfPendingTasks = in.readInt();
-        status = ClusterHealthStatus.fromValue(in.readByte());
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            ClusterIndexHealth indexHealth = readClusterIndexHealth(in);
-            indices.put(indexHealth.getIndex(), indexHealth);
-        }
         timedOut = in.readBoolean();
-        size = in.readVInt();
-        if (size == 0) {
-            validationFailures = Collections.emptyList();
-        } else {
-            for (int i = 0; i < size; i++) {
-                validationFailures.add(in.readString());
-            }
-        }
-
         numberOfInFlightFetch = in.readInt();
-        if (in.getVersion().onOrAfter(Version.V_1_7_0)) {
-            delayedUnassignedShards= in.readInt();
-        }
-
-        activeShardsPercent = in.readDouble();
-        taskMaxWaitingTime = TimeValue.readTimeValue(in);
+        delayedUnassignedShards= in.readInt();
+        taskMaxWaitingTime = new TimeValue(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(clusterName);
-        out.writeVInt(activePrimaryShards);
-        out.writeVInt(activeShards);
-        out.writeVInt(relocatingShards);
-        out.writeVInt(initializingShards);
-        out.writeVInt(unassignedShards);
-        out.writeVInt(numberOfNodes);
-        out.writeVInt(numberOfDataNodes);
+        out.writeByte(clusterHealthStatus.value());
+        clusterStateHealth.writeTo(out);
         out.writeInt(numberOfPendingTasks);
-        out.writeByte(status.value());
-        out.writeVInt(indices.size());
-        for (ClusterIndexHealth indexHealth : this) {
-            indexHealth.writeTo(out);
-        }
         out.writeBoolean(timedOut);
-
-        out.writeVInt(validationFailures.size());
-        for (String failure : validationFailures) {
-            out.writeString(failure);
-        }
-
         out.writeInt(numberOfInFlightFetch);
-        if (out.getVersion().onOrAfter(Version.V_1_7_0)) {
-            out.writeInt(delayedUnassignedShards);
-        }
-        out.writeDouble(activeShardsPercent);
+        out.writeInt(delayedUnassignedShards);
         taskMaxWaitingTime.writeTo(out);
     }
 
@@ -337,79 +222,50 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         return isTimedOut() ? RestStatus.REQUEST_TIMEOUT : RestStatus.OK;
     }
 
-    static final class Fields {
-        static final XContentBuilderString CLUSTER_NAME = new XContentBuilderString("cluster_name");
-        static final XContentBuilderString STATUS = new XContentBuilderString("status");
-        static final XContentBuilderString TIMED_OUT = new XContentBuilderString("timed_out");
-        static final XContentBuilderString NUMBER_OF_NODES = new XContentBuilderString("number_of_nodes");
-        static final XContentBuilderString NUMBER_OF_DATA_NODES = new XContentBuilderString("number_of_data_nodes");
-        static final XContentBuilderString NUMBER_OF_PENDING_TASKS = new XContentBuilderString("number_of_pending_tasks");
-        static final XContentBuilderString NUMBER_OF_IN_FLIGHT_FETCH = new XContentBuilderString("number_of_in_flight_fetch");
-        static final XContentBuilderString DELAYED_UNASSIGNED_SHARDS = new XContentBuilderString("delayed_unassigned_shards");
-        static final XContentBuilderString TASK_MAX_WAIT_TIME_IN_QUEUE = new XContentBuilderString("task_max_waiting_in_queue");
-        static final XContentBuilderString TASK_MAX_WAIT_TIME_IN_QUEUE_IN_MILLIS = new XContentBuilderString("task_max_waiting_in_queue_millis");
-        static final XContentBuilderString ACTIVE_SHARDS_PERCENT_AS_NUMBER = new XContentBuilderString("active_shards_percent_as_number");
-        static final XContentBuilderString ACTIVE_SHARDS_PERCENT = new XContentBuilderString("active_shards_percent");
-        static final XContentBuilderString ACTIVE_PRIMARY_SHARDS = new XContentBuilderString("active_primary_shards");
-        static final XContentBuilderString ACTIVE_SHARDS = new XContentBuilderString("active_shards");
-        static final XContentBuilderString RELOCATING_SHARDS = new XContentBuilderString("relocating_shards");
-        static final XContentBuilderString INITIALIZING_SHARDS = new XContentBuilderString("initializing_shards");
-        static final XContentBuilderString UNASSIGNED_SHARDS = new XContentBuilderString("unassigned_shards");
-        static final XContentBuilderString VALIDATION_FAILURES = new XContentBuilderString("validation_failures");
-        static final XContentBuilderString INDICES = new XContentBuilderString("indices");
-    }
+    private static final String CLUSTER_NAME = "cluster_name";
+    private static final String STATUS = "status";
+    private static final String TIMED_OUT = "timed_out";
+    private static final String NUMBER_OF_NODES = "number_of_nodes";
+    private static final String NUMBER_OF_DATA_NODES = "number_of_data_nodes";
+    private static final String NUMBER_OF_PENDING_TASKS = "number_of_pending_tasks";
+    private static final String NUMBER_OF_IN_FLIGHT_FETCH = "number_of_in_flight_fetch";
+    private static final String DELAYED_UNASSIGNED_SHARDS = "delayed_unassigned_shards";
+    private static final String TASK_MAX_WAIT_TIME_IN_QUEUE = "task_max_waiting_in_queue";
+    private static final String TASK_MAX_WAIT_TIME_IN_QUEUE_IN_MILLIS = "task_max_waiting_in_queue_millis";
+    private static final String ACTIVE_SHARDS_PERCENT_AS_NUMBER = "active_shards_percent_as_number";
+    private static final String ACTIVE_SHARDS_PERCENT = "active_shards_percent";
+    private static final String ACTIVE_PRIMARY_SHARDS = "active_primary_shards";
+    private static final String ACTIVE_SHARDS = "active_shards";
+    private static final String RELOCATING_SHARDS = "relocating_shards";
+    private static final String INITIALIZING_SHARDS = "initializing_shards";
+    private static final String UNASSIGNED_SHARDS = "unassigned_shards";
+    private static final String INDICES = "indices";
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(Fields.CLUSTER_NAME, getClusterName());
-        builder.field(Fields.STATUS, getStatus().name().toLowerCase(Locale.ROOT));
-        builder.field(Fields.TIMED_OUT, isTimedOut());
-        builder.field(Fields.NUMBER_OF_NODES, getNumberOfNodes());
-        builder.field(Fields.NUMBER_OF_DATA_NODES, getNumberOfDataNodes());
-        builder.field(Fields.ACTIVE_PRIMARY_SHARDS, getActivePrimaryShards());
-        builder.field(Fields.ACTIVE_SHARDS, getActiveShards());
-        builder.field(Fields.RELOCATING_SHARDS, getRelocatingShards());
-        builder.field(Fields.INITIALIZING_SHARDS, getInitializingShards());
-        builder.field(Fields.UNASSIGNED_SHARDS, getUnassignedShards());
-        builder.field(Fields.DELAYED_UNASSIGNED_SHARDS, getDelayedUnassignedShards());
-        builder.field(Fields.NUMBER_OF_PENDING_TASKS, getNumberOfPendingTasks());
-        builder.field(Fields.NUMBER_OF_IN_FLIGHT_FETCH, getNumberOfInFlightFetch());
-        builder.timeValueField(Fields.TASK_MAX_WAIT_TIME_IN_QUEUE_IN_MILLIS, Fields.TASK_MAX_WAIT_TIME_IN_QUEUE, getTaskMaxWaitingTime());
-        builder.percentageField(Fields.ACTIVE_SHARDS_PERCENT_AS_NUMBER, Fields.ACTIVE_SHARDS_PERCENT, getActiveShardsPercent());
+        builder.field(CLUSTER_NAME, getClusterName());
+        builder.field(STATUS, getStatus().name().toLowerCase(Locale.ROOT));
+        builder.field(TIMED_OUT, isTimedOut());
+        builder.field(NUMBER_OF_NODES, getNumberOfNodes());
+        builder.field(NUMBER_OF_DATA_NODES, getNumberOfDataNodes());
+        builder.field(ACTIVE_PRIMARY_SHARDS, getActivePrimaryShards());
+        builder.field(ACTIVE_SHARDS, getActiveShards());
+        builder.field(RELOCATING_SHARDS, getRelocatingShards());
+        builder.field(INITIALIZING_SHARDS, getInitializingShards());
+        builder.field(UNASSIGNED_SHARDS, getUnassignedShards());
+        builder.field(DELAYED_UNASSIGNED_SHARDS, getDelayedUnassignedShards());
+        builder.field(NUMBER_OF_PENDING_TASKS, getNumberOfPendingTasks());
+        builder.field(NUMBER_OF_IN_FLIGHT_FETCH, getNumberOfInFlightFetch());
+        builder.timeValueField(TASK_MAX_WAIT_TIME_IN_QUEUE_IN_MILLIS, TASK_MAX_WAIT_TIME_IN_QUEUE, getTaskMaxWaitingTime());
+        builder.percentageField(ACTIVE_SHARDS_PERCENT_AS_NUMBER, ACTIVE_SHARDS_PERCENT, getActiveShardsPercent());
 
         String level = params.param("level", "cluster");
         boolean outputIndices = "indices".equals(level) || "shards".equals(level);
 
-
-        if (!getValidationFailures().isEmpty()) {
-            builder.startArray(Fields.VALIDATION_FAILURES);
-            for (String validationFailure : getValidationFailures()) {
-                builder.value(validationFailure);
-            }
-            // if we don't print index level information, still print the index validation failures
-            // so we know why the status is red
-            if (!outputIndices) {
-                for (ClusterIndexHealth indexHealth : indices.values()) {
-                    builder.startObject(indexHealth.getIndex());
-
-                    if (!indexHealth.getValidationFailures().isEmpty()) {
-                        builder.startArray(Fields.VALIDATION_FAILURES);
-                        for (String validationFailure : indexHealth.getValidationFailures()) {
-                            builder.value(validationFailure);
-                        }
-                        builder.endArray();
-                    }
-
-                    builder.endObject();
-                }
-            }
-            builder.endArray();
-        }
-
         if (outputIndices) {
-            builder.startObject(Fields.INDICES);
-            for (ClusterIndexHealth indexHealth : indices.values()) {
-                builder.startObject(indexHealth.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(INDICES);
+            for (ClusterIndexHealth indexHealth : clusterStateHealth.getIndices().values()) {
+                builder.startObject(indexHealth.getIndex());
                 indexHealth.toXContent(builder, params);
                 builder.endObject();
             }

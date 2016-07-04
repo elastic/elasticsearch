@@ -23,35 +23,34 @@ import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalListener;
 import org.elasticsearch.common.cache.RemovalNotification;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexWarmer;
+import org.elasticsearch.index.IndexWarmer.TerminationHandle;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
-import org.elasticsearch.indices.IndicesWarmer;
-import org.elasticsearch.indices.IndicesWarmer.TerminationHandle;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -70,53 +69,27 @@ import java.util.concurrent.Executor;
  * and require that it should always be around should use this cache, otherwise the
  * {@link org.elasticsearch.index.cache.query.QueryCache} should be used instead.
  */
-public class BitsetFilterCache extends AbstractIndexComponent implements LeafReader.CoreClosedListener, RemovalListener<Object, Cache<Query, BitsetFilterCache.Value>>, Closeable {
+public final class BitsetFilterCache extends AbstractIndexComponent implements LeafReader.CoreClosedListener, RemovalListener<Object, Cache<Query, BitsetFilterCache.Value>>, Closeable {
 
-    public static final String LOAD_RANDOM_ACCESS_FILTERS_EAGERLY = "index.load_fixed_bitset_filters_eagerly";
-    private static final Listener DEFAULT_NOOP_LISTENER =  new Listener() {
-        @Override
-        public void onCache(ShardId shardId, Accountable accountable) {
-        }
-
-        @Override
-        public void onRemoval(ShardId shardId, Accountable accountable) {
-        }
-    };
+    public static final Setting<Boolean> INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING =
+        Setting.boolSetting("index.load_fixed_bitset_filters_eagerly", true, Property.IndexScope);
 
     private final boolean loadRandomAccessFiltersEagerly;
     private final Cache<Object, Cache<Query, Value>> loadedFilters;
-    private volatile Listener listener = DEFAULT_NOOP_LISTENER;
-    private final BitSetProducerWarmer warmer;
+    private final Listener listener;
 
-    private IndicesWarmer indicesWarmer;
-
-    @Inject
-    public BitsetFilterCache(Index index, @IndexSettings Settings indexSettings) {
-        super(index, indexSettings);
-        this.loadRandomAccessFiltersEagerly = indexSettings.getAsBoolean(LOAD_RANDOM_ACCESS_FILTERS_EAGERLY, true);
-        this.loadedFilters = CacheBuilder.<Object, Cache<Query, Value>>builder().removalListener(this).build();
-        this.warmer = new BitSetProducerWarmer();
-    }
-
-
-    @Inject(optional = true)
-    public void setIndicesWarmer(IndicesWarmer indicesWarmer) {
-        this.indicesWarmer = indicesWarmer;
-        indicesWarmer.addListener(warmer);
-    }
-
-    /**
-     * Sets a listener that is invoked for all subsequent cache and removal events.
-     * @throws IllegalStateException if the listener is set more than once
-     */
-    public void setListener(Listener listener) {
+    public BitsetFilterCache(IndexSettings indexSettings, Listener listener) {
+        super(indexSettings);
         if (listener == null) {
             throw new IllegalArgumentException("listener must not be null");
         }
-        if (this.listener != DEFAULT_NOOP_LISTENER) {
-            throw new IllegalStateException("can't set listener more than once");
-        }
+        this.loadRandomAccessFiltersEagerly = this.indexSettings.getValue(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING);
+        this.loadedFilters = CacheBuilder.<Object, Cache<Query, Value>>builder().removalListener(this).build();
         this.listener = listener;
+    }
+
+    public IndexWarmer.Listener createListener(ThreadPool threadPool) {
+        return new BitSetProducerWarmer(threadPool);
     }
 
 
@@ -131,9 +104,6 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
 
     @Override
     public void close() {
-        if (indicesWarmer != null) {
-            indicesWarmer.removeListener(warmer);
-        }
         clear("close");
     }
 
@@ -145,6 +115,12 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
     private BitSet getAndLoadIfNotPresent(final Query query, final LeafReaderContext context) throws IOException, ExecutionException {
         final Object coreCacheReader = context.reader().getCoreCacheKey();
         final ShardId shardId = ShardUtils.extractShardId(context.reader());
+        if (shardId != null // can't require it because of the percolator
+                && indexSettings.getIndex().equals(shardId.getIndex()) == false) {
+            // insanity
+            throw new IllegalStateException("Trying to load bit set for index " + shardId.getIndex()
+                    + " with cache of index " + indexSettings.getIndex());
+        }
         Cache<Query, Value> filterToFbs = loadedFilters.computeIfAbsent(coreCacheReader, key -> {
             context.reader().addCoreClosedListener(BitsetFilterCache.this);
             return CacheBuilder.<Query, Value>builder().build();
@@ -155,12 +131,12 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
             final IndexSearcher searcher = new IndexSearcher(topLevelContext);
             searcher.setQueryCache(null);
             final Weight weight = searcher.createNormalizedWeight(query, false);
-            final DocIdSetIterator it = weight.scorer(context);
+            Scorer s = weight.scorer(context);
             final BitSet bitSet;
-            if (it == null) {
+            if (s == null) {
                 bitSet = null;
             } else {
-                bitSet = BitSet.of(it, context.reader().maxDoc());
+                bitSet = BitSet.of(s.iterator(), context.reader().maxDoc());
             }
 
             Value value = new Value(bitSet, shardId);
@@ -231,10 +207,21 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
         }
     }
 
-    final class BitSetProducerWarmer extends IndicesWarmer.Listener {
+    final class BitSetProducerWarmer implements IndexWarmer.Listener {
+
+        private final Executor executor;
+
+        BitSetProducerWarmer(ThreadPool threadPool) {
+            this.executor = threadPool.executor(ThreadPool.Names.WARMER);
+        }
 
         @Override
-        public IndicesWarmer.TerminationHandle warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, IndicesWarmer.WarmerContext context, ThreadPool threadPool) {
+        public IndexWarmer.TerminationHandle warmReader(final IndexShard indexShard, final Engine.Searcher searcher) {
+            if (indexSettings.getIndex().equals(indexShard.indexSettings().getIndex()) == false) {
+                // this is from a different index
+                return TerminationHandle.NO_WAIT;
+            }
+
             if (!loadRandomAccessFiltersEagerly) {
                 return TerminationHandle.NO_WAIT;
             }
@@ -260,9 +247,8 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
                 warmUp.add(Queries.newNonNestedFilter());
             }
 
-            final Executor executor = threadPool.executor(executor());
-            final CountDownLatch latch = new CountDownLatch(context.searcher().reader().leaves().size() * warmUp.size());
-            for (final LeafReaderContext ctx : context.searcher().reader().leaves()) {
+            final CountDownLatch latch = new CountDownLatch(searcher.reader().leaves().size() * warmUp.size());
+            for (final LeafReaderContext ctx : searcher.reader().leaves()) {
                 for (final Query filterToWarm : warmUp) {
                     executor.execute(() -> {
                         try {
@@ -271,8 +257,8 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
                             if (indexShard.warmerService().logger().isTraceEnabled()) {
                                 indexShard.warmerService().logger().trace("warmed bitset for [{}], took [{}]", filterToWarm, TimeValue.timeValueNanos(System.nanoTime() - start));
                             }
-                        } catch (Throwable t) {
-                            indexShard.warmerService().logger().warn("failed to load bitset for [{}]", t, filterToWarm);
+                        } catch (Exception e) {
+                            indexShard.warmerService().logger().warn("failed to load bitset for [{}]", e, filterToWarm);
                         } finally {
                             latch.countDown();
                         }
@@ -282,17 +268,11 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
             return () -> latch.await();
         }
 
-        @Override
-        public TerminationHandle warmTopReader(IndexShard indexShard, IndexMetaData indexMetaData, IndicesWarmer.WarmerContext context, ThreadPool threadPool) {
-            return TerminationHandle.NO_WAIT;
-        }
-
     }
 
     Cache<Object, Cache<Query, Value>> getLoadedFilters() {
         return loadedFilters;
     }
-
 
     /**
      *  A listener interface that is executed for each onCache / onRemoval event
@@ -311,6 +291,4 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
          */
         void onRemoval(ShardId shardId, Accountable accountable);
     }
-
-
 }

@@ -23,7 +23,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusResponse;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -48,8 +49,8 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 public class RestUpgradeAction extends BaseRestHandler {
 
     @Inject
-    public RestUpgradeAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestUpgradeAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(POST, "/_upgrade", this);
         controller.registerHandler(POST, "/{index}/_upgrade", this);
 
@@ -58,7 +59,7 @@ public class RestUpgradeAction extends BaseRestHandler {
     }
 
     @Override
-    protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {
+    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (request.method().equals(RestRequest.Method.GET)) {
             handleGet(request, channel, client);
         } else if (request.method().equals(RestRequest.Method.POST)) {
@@ -66,7 +67,7 @@ public class RestUpgradeAction extends BaseRestHandler {
         }
     }
 
-    void handleGet(final RestRequest request, RestChannel channel, Client client) {
+    void handleGet(final RestRequest request, RestChannel channel, NodeClient client) {
         client.admin().indices().prepareUpgradeStatus(Strings.splitStringByCommaToArray(request.param("index")))
                 .execute(new RestBuilderListener<UpgradeStatusResponse>(channel) {
                     @Override
@@ -79,7 +80,7 @@ public class RestUpgradeAction extends BaseRestHandler {
                 });
     }
 
-    void handlePost(final RestRequest request, RestChannel channel, Client client) {
+    void handlePost(final RestRequest request, RestChannel channel, NodeClient client) {
         UpgradeRequest upgradeReq = new UpgradeRequest(Strings.splitStringByCommaToArray(request.param("index")));
         upgradeReq.upgradeOnlyAncientSegments(request.paramAsBoolean("only_ancient_segments", false));
         client.admin().indices().upgrade(upgradeReq, new RestBuilderListener<UpgradeResponse>(channel) {
@@ -89,7 +90,7 @@ public class RestUpgradeAction extends BaseRestHandler {
                 buildBroadcastShardsHeader(builder, request, response);
                 builder.startObject("upgraded_indices");
                 for (Map.Entry<String, Tuple<Version, String>> entry : response.versions().entrySet()) {
-                    builder.startObject(entry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
+                    builder.startObject(entry.getKey());
                     builder.field("upgrade_version", entry.getValue().v1());
                     builder.field("oldest_lucene_segment_version", entry.getValue().v2());
                     builder.endObject();

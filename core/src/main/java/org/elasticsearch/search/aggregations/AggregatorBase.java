@@ -133,7 +133,7 @@ public abstract class AggregatorBase extends Aggregator {
     }
 
     /**
-     * Can be overriden by aggregator implementation to be called back when the collection phase starts.
+     * Can be overridden by aggregator implementation to be called back when the collection phase starts.
      */
     protected void doPreCollection() throws IOException {
     }
@@ -165,7 +165,7 @@ public abstract class AggregatorBase extends Aggregator {
     public DeferringBucketCollector getDeferringCollector() {
         // Default impl is a collector that selects the best buckets
         // but an alternative defer policy may be based on best docs.
-        return new BestBucketsDeferringCollector();
+        return new BestBucketsDeferringCollector(context());
     }
 
     /**
@@ -252,7 +252,7 @@ public abstract class AggregatorBase extends Aggregator {
     protected void doClose() {}
 
     /**
-     * Can be overriden by aggregator implementation to be called back when the collection phase ends.
+     * Can be overridden by aggregator implementation to be called back when the collection phase ends.
      */
     protected void doPostCollection() throws IOException {
     }

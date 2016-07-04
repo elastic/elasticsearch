@@ -22,6 +22,6 @@ package org.elasticsearch.index.query;
 /**
  * Marker interface for a specific type of {@link QueryBuilder} that allows to build span queries
  */
-public interface SpanQueryBuilder<QB extends SpanQueryBuilder> extends QueryBuilder<QB> {
+public interface SpanQueryBuilder extends QueryBuilder {
 
 }

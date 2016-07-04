@@ -20,10 +20,13 @@ package org.elasticsearch.rest.action.admin.indices.template.delete;
 
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 /**
@@ -32,13 +35,13 @@ import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 public class RestDeleteIndexTemplateAction extends BaseRestHandler {
 
     @Inject
-    public RestDeleteIndexTemplateAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestDeleteIndexTemplateAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.DELETE, "/_template/{name}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         DeleteIndexTemplateRequest deleteIndexTemplateRequest = new DeleteIndexTemplateRequest(request.param("name"));
         deleteIndexTemplateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteIndexTemplateRequest.masterNodeTimeout()));
         client.admin().indices().deleteTemplate(deleteIndexTemplateRequest, new AcknowledgedRestListener<DeleteIndexTemplateResponse>(channel));

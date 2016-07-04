@@ -21,10 +21,10 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
@@ -58,9 +58,10 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
     UnmappedSignificantTerms() {} // for serialization
 
     public UnmappedSignificantTerms(String name, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        //We pass zero for index/subset sizes because for the purpose of significant term analysis 
-        // we assume an unmapped index's size is irrelevant to the proceedings. 
-        super(0, 0, name, requiredSize, minDocCount, JLHScore.INSTANCE, BUCKETS, pipelineAggregators, metaData);
+        //We pass zero for index/subset sizes because for the purpose of significant term analysis
+        // we assume an unmapped index's size is irrelevant to the proceedings.
+        super(0, 0, name, DocValueFormat.RAW, requiredSize, minDocCount, SignificantTermsAggregationBuilder.DEFAULT_SIGNIFICANCE_HEURISTIC,
+                BUCKETS, pipelineAggregators, metaData);
     }
 
     @Override

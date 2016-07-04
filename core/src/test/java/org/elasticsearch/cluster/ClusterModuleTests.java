@@ -22,24 +22,27 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.IndexTemplateFilter;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
-import org.elasticsearch.cluster.settings.DynamicSettings;
-import org.elasticsearch.cluster.settings.Validator;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.ModuleTestCase;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.settings.IndexDynamicSettings;
+import org.elasticsearch.common.settings.SettingsModule;
 
+import java.util.HashMap;
+import java.util.Map;
 public class ClusterModuleTests extends ModuleTestCase {
-
+    private ClusterService clusterService = new ClusterService(Settings.EMPTY,
+        new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null);
     public static class FakeAllocationDecider extends AllocationDecider {
         protected FakeAllocationDecider(Settings settings) {
             super(settings);
@@ -48,20 +51,13 @@ public class ClusterModuleTests extends ModuleTestCase {
 
     static class FakeShardsAllocator implements ShardsAllocator {
         @Override
-        public void applyStartedShards(StartedRerouteAllocation allocation) {}
-        @Override
-        public void applyFailedShards(FailedRerouteAllocation allocation) {}
-        @Override
-        public boolean allocateUnassigned(RoutingAllocation allocation) {
+        public boolean allocate(RoutingAllocation allocation) {
             return false;
         }
+
         @Override
-        public boolean rebalance(RoutingAllocation allocation) {
-            return false;
-        }
-        @Override
-        public boolean move(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return false;
+        public Map<DiscoveryNode, Float> weighShard(RoutingAllocation allocation, ShardRouting shard) {
+            return new HashMap<>();
         }
     }
 
@@ -73,59 +69,60 @@ public class ClusterModuleTests extends ModuleTestCase {
     }
 
     public void testRegisterClusterDynamicSettingDuplicate() {
-        ClusterModule module = new ClusterModule(Settings.EMPTY);
         try {
-            module.registerClusterDynamicSetting(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, Validator.EMPTY);
+            new SettingsModule(Settings.EMPTY, EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING);
         } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "Cannot register setting [" + EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE + "] twice");
+            assertEquals(e.getMessage(),
+                "Cannot register setting [" + EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey() + "] twice");
         }
     }
 
     public void testRegisterClusterDynamicSetting() {
-        ClusterModule module = new ClusterModule(Settings.EMPTY);
-        module.registerClusterDynamicSetting("foo.bar", Validator.EMPTY);
-        assertInstanceBindingWithAnnotation(module, DynamicSettings.class, dynamicSettings -> dynamicSettings.hasDynamicSetting("foo.bar"), ClusterDynamicSettings.class);
+        SettingsModule module = new SettingsModule(Settings.EMPTY,
+            Setting.boolSetting("foo.bar", false, Property.Dynamic, Property.NodeScope));
+        assertInstanceBinding(module, ClusterSettings.class, service -> service.hasDynamicSetting("foo.bar"));
     }
 
     public void testRegisterIndexDynamicSettingDuplicate() {
-        ClusterModule module = new ClusterModule(Settings.EMPTY);
         try {
-            module.registerIndexDynamicSetting(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, Validator.EMPTY);
+            new SettingsModule(Settings.EMPTY, EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING);
         } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "Cannot register setting [" + EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE + "] twice");
+            assertEquals(e.getMessage(),
+                "Cannot register setting [" + EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey() + "] twice");
         }
     }
 
     public void testRegisterIndexDynamicSetting() {
-        ClusterModule module = new ClusterModule(Settings.EMPTY);
-        module.registerIndexDynamicSetting("foo.bar", Validator.EMPTY);
-        assertInstanceBindingWithAnnotation(module, DynamicSettings.class, dynamicSettings -> dynamicSettings.hasDynamicSetting("foo.bar"), IndexDynamicSettings.class);
+        SettingsModule module = new SettingsModule(Settings.EMPTY,
+            Setting.boolSetting("index.foo.bar", false, Property.Dynamic, Property.IndexScope));
+        assertInstanceBinding(module, IndexScopedSettings.class, service -> service.hasDynamicSetting("index.foo.bar"));
     }
 
     public void testRegisterAllocationDeciderDuplicate() {
-        ClusterModule module = new ClusterModule(Settings.EMPTY);
+        ClusterModule module = new ClusterModule(Settings.EMPTY, clusterService);
         try {
             module.registerAllocationDecider(EnableAllocationDecider.class);
         } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "Can't register the same [allocation_decider] more than once for [" + EnableAllocationDecider.class.getName() + "]");
+            assertEquals(e.getMessage(),
+                "Can't register the same [allocation_decider] more than once for [" + EnableAllocationDecider.class.getName() + "]");
         }
     }
 
     public void testRegisterAllocationDecider() {
-        ClusterModule module = new ClusterModule(Settings.EMPTY);
+        ClusterModule module = new ClusterModule(Settings.EMPTY, clusterService);
         module.registerAllocationDecider(FakeAllocationDecider.class);
         assertSetMultiBinding(module, AllocationDecider.class, FakeAllocationDecider.class);
     }
 
     public void testRegisterShardsAllocator() {
-        Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_KEY, "custom").build();
-        ClusterModule module = new ClusterModule(settings);
+        Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), "custom").build();
+        ClusterModule module = new ClusterModule(settings, clusterService);
         module.registerShardsAllocator("custom", FakeShardsAllocator.class);
         assertBinding(module, ShardsAllocator.class, FakeShardsAllocator.class);
     }
 
     public void testRegisterShardsAllocatorAlreadyRegistered() {
-        ClusterModule module = new ClusterModule(Settings.EMPTY);
+        ClusterModule module = new ClusterModule(Settings.EMPTY, clusterService);
         try {
             module.registerShardsAllocator(ClusterModule.BALANCED_ALLOCATOR, FakeShardsAllocator.class);
         } catch (IllegalArgumentException e) {
@@ -134,30 +131,31 @@ public class ClusterModuleTests extends ModuleTestCase {
     }
 
     public void testUnknownShardsAllocator() {
-        Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_KEY, "dne").build();
-        ClusterModule module = new ClusterModule(settings);
+        Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), "dne").build();
+        ClusterModule module = new ClusterModule(settings, clusterService);
         assertBindingFailure(module, "Unknown [shards_allocator]");
     }
 
     public void testEvenShardsAllocatorBackcompat() {
         Settings settings = Settings.builder()
-            .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_KEY, ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR).build();
-        ClusterModule module = new ClusterModule(settings);
+            .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR).build();
+        ClusterModule module = new ClusterModule(settings, clusterService);
         assertBinding(module, ShardsAllocator.class, BalancedShardsAllocator.class);
     }
 
     public void testRegisterIndexTemplateFilterDuplicate() {
-        ClusterModule module = new ClusterModule(Settings.EMPTY);
+        ClusterModule module = new ClusterModule(Settings.EMPTY, clusterService);
         try {
             module.registerIndexTemplateFilter(FakeIndexTemplateFilter.class);
             module.registerIndexTemplateFilter(FakeIndexTemplateFilter.class);
         } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "Can't register the same [index_template_filter] more than once for [" + FakeIndexTemplateFilter.class.getName() + "]");
+            assertEquals(e.getMessage(),
+                "Can't register the same [index_template_filter] more than once for [" + FakeIndexTemplateFilter.class.getName() + "]");
         }
     }
 
     public void testRegisterIndexTemplateFilter() {
-        ClusterModule module = new ClusterModule(Settings.EMPTY);
+        ClusterModule module = new ClusterModule(Settings.EMPTY, clusterService);
         module.registerIndexTemplateFilter(FakeIndexTemplateFilter.class);
         assertSetMultiBinding(module, IndexTemplateFilter.class, FakeIndexTemplateFilter.class);
     }

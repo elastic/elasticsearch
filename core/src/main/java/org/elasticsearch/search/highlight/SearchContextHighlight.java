@@ -53,6 +53,10 @@ public class SearchContextHighlight {
         this.globalForceSource = globalForceSource;
     }
 
+    boolean globalForceSource() {
+        return this.globalForceSource;
+    }
+
     public boolean forceSource(Field field) {
         if (globalForceSource) {
             return true;
@@ -350,7 +354,6 @@ public class SearchContextHighlight {
                 if (fieldOptions.phraseLimit == -1) {
                     fieldOptions.phraseLimit = globalOptions.phraseLimit;
                 }
-
                 return this;
             }
         }

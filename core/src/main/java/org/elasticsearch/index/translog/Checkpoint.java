@@ -22,7 +22,6 @@ import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.InputStreamDataInput;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.Channels;
 
 import java.io.IOException;
@@ -36,9 +35,9 @@ import java.nio.file.Path;
  */
 class Checkpoint {
 
-   static final int BUFFER_SIZE = RamUsageEstimator.NUM_BYTES_INT  // ops
-            + RamUsageEstimator.NUM_BYTES_LONG // offset
-            + RamUsageEstimator.NUM_BYTES_LONG;// generation
+   static final int BUFFER_SIZE = Integer.BYTES  // ops
+            + Long.BYTES // offset
+            + Long.BYTES;// generation
     final long offset;
     final int numOps;
     final long generation;
@@ -83,11 +82,31 @@ class Checkpoint {
         }
     }
 
-    public static void write(Path checkpointFile, Checkpoint checkpoint, OpenOption... options) throws IOException {
-        try (FileChannel channel = FileChannel.open(checkpointFile, options)) {
+    public static void write(ChannelFactory factory, Path checkpointFile, Checkpoint checkpoint, OpenOption... options) throws IOException {
+        try (FileChannel channel = factory.open(checkpointFile, options)) {
             checkpoint.write(channel);
             channel.force(false);
         }
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Checkpoint that = (Checkpoint) o;
+
+        if (offset != that.offset) return false;
+        if (numOps != that.numOps) return false;
+        return generation == that.generation;
+
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Long.hashCode(offset);
+        result = 31 * result + numOps;
+        result = 31 * result + Long.hashCode(generation);
+        return result;
+    }
 }

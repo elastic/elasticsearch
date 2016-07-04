@@ -13,7 +13,7 @@ This means that, by default, newer indices will be recovered before older indice
 Use the per-index dynamically updateable `index.priority` setting to customise
 the index prioritization order.  For instance:
 
-[source,json]
+[source,js]
 ------------------------------
 PUT index_1
 
@@ -33,7 +33,7 @@ PUT index_4
   }
 }
 ------------------------------
-// AUTOSENSE
+// CONSOLE
 
 In the above example:
 
@@ -45,11 +45,12 @@ In the above example:
 This setting accepts an integer, and can be updated on a live index with the
 <<indices-update-settings,update index settings API>>:
 
-[source,json]
+[source,js]
 ------------------------------
 PUT index_4/_settings
 {
   "index.priority": 1
 }
 ------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[continued]

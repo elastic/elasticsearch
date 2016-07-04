@@ -20,28 +20,28 @@ package org.elasticsearch.index.mapper.geo;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyDoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.junit.Before;
 
 public class GeoPointFieldTypeTests extends FieldTypeTestCase {
     @Override
     protected MappedFieldType createDefaultFieldType() {
-        return new GeoPointFieldMapper.GeoPointFieldType();
+        return new BaseGeoPointFieldMapper.GeoPointFieldType();
     }
 
     @Before
     public void setupProperties() {
-        addModifier(new Modifier("geohash", false, true) {
+        addModifier(new Modifier("geohash", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((GeoPointFieldMapper.GeoPointFieldType)ft).setGeohashEnabled(new StringFieldMapper.StringFieldType(), 1, true);
+                ((BaseGeoPointFieldMapper.GeoPointFieldType)ft).setGeoHashEnabled(new StringFieldMapper.StringFieldType(), 1, true);
             }
         });
-        addModifier(new Modifier("lat_lon", false, true) {
+        addModifier(new Modifier("lat_lon", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((GeoPointFieldMapper.GeoPointFieldType)ft).setLatLonEnabled(new DoubleFieldMapper.DoubleFieldType(), new DoubleFieldMapper.DoubleFieldType());
+                ((BaseGeoPointFieldMapper.GeoPointFieldType)ft).setLatLonEnabled(new LegacyDoubleFieldMapper.DoubleFieldType(), new LegacyDoubleFieldMapper.DoubleFieldType());
             }
         });
     }

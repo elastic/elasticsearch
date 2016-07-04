@@ -26,11 +26,11 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
-import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -166,7 +166,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      *
      * @see org.elasticsearch.index.query.QueryBuilders
      */
-    public SearchRequestBuilder setQuery(QueryBuilder<?> queryBuilder) {
+    public SearchRequestBuilder setQuery(QueryBuilder queryBuilder) {
         sourceBuilder().query(queryBuilder);
         return this;
     }
@@ -175,7 +175,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
      * (not aggregations). This filter is always executed as last filtering mechanism.
      */
-    public SearchRequestBuilder setPostFilter(QueryBuilder<?> postFilter) {
+    public SearchRequestBuilder setPostFilter(QueryBuilder postFilter) {
         sourceBuilder().postFilter(postFilter);
         return this;
     }
@@ -223,7 +223,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Sets the boost a specific index will receive when the query is executeed against it.
+     * Sets the boost a specific index will receive when the query is executed against it.
      *
      * @param index      The index to apply the boost against
      * @param indexBoost The boost to apply to the index
@@ -252,8 +252,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     /**
      * Sets no fields to be loaded, resulting in only id and type to be returned per field.
      */
-    public SearchRequestBuilder setNoFields() {
-        sourceBuilder().noFields();
+    public SearchRequestBuilder setNoStoredFields() {
+        sourceBuilder().noStoredFields();
         return this;
     }
 
@@ -289,13 +289,23 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
+    /**
+     * Adds a docvalue based field to load and return. The field does not have to be stored,
+     * but its recommended to use non analyzed or numeric fields.
+     *
+     * @param name The field to get from the docvalue
+     */
+    public SearchRequestBuilder addDocValueField(String name) {
+        sourceBuilder().docValueField(name);
+        return this;
+    }
 
     /**
-     * Adds a field to load and return (note, it must be stored) as part of the search request.
+     * Adds a stored field to load and return (note, it must be stored) as part of the search request.
      * If none are specified, the source of the document will be return.
      */
-    public SearchRequestBuilder addField(String field) {
-        sourceBuilder().field(field);
+    public SearchRequestBuilder addStoredField(String field) {
+        sourceBuilder().storedField(field);
         return this;
     }
 
@@ -304,11 +314,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * but its recommended to use non analyzed or numeric fields.
      *
      * @param name The field to get from the field data cache
+     * @deprecated Use {@link SearchRequestBuilder#addDocValueField(String)} instead.
      */
+    @Deprecated
     public SearchRequestBuilder addFieldDataField(String name) {
-        sourceBuilder().fieldDataField(name);
+        sourceBuilder().docValueField(name);
         return this;
     }
+
 
     /**
      * Adds a script based field to load and return. The field does not have to be stored,
@@ -344,6 +357,20 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Set the sort values that indicates which docs this request should "search after".
+     *
+     */
+    public SearchRequestBuilder searchAfter(Object[] values) {
+        sourceBuilder().searchAfter(values);
+        return this;
+    }
+
+    public SearchRequestBuilder slice(SliceBuilder builder) {
+        sourceBuilder().slice(builder);
+        return this;
+    }
+
+    /**
      * Applies when sorting, and controls if scores will be tracked as well. Defaults to
      * <tt>false</tt>.
      */
@@ -353,18 +380,38 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Sets the fields to load and return as part of the search request. If none
+     * Sets the stored fields to load and return as part of the search request. If none
      * are specified, the source of the document will be returned.
+     *
+     * @deprecated Use {@link SearchRequestBuilder#storedFields(String...)} instead.
      */
+    @Deprecated
     public SearchRequestBuilder fields(String... fields) {
-        sourceBuilder().fields(Arrays.asList(fields));
+        sourceBuilder().storedFields(Arrays.asList(fields));
         return this;
     }
 
     /**
-     * Adds an get to the search operation.
+     * Sets the fields to load and return as part of the search request. If none
+     * are specified, the source of the document will be returned.
      */
-    public SearchRequestBuilder addAggregation(AbstractAggregationBuilder aggregation) {
+    public SearchRequestBuilder storedFields(String... fields) {
+        sourceBuilder().storedFields(Arrays.asList(fields));
+        return this;
+    }
+
+    /**
+     * Adds an aggregation to the search operation.
+     */
+    public SearchRequestBuilder addAggregation(AggregationBuilder aggregation) {
+        sourceBuilder().aggregation(aggregation);
+        return this;
+    }
+
+    /**
+     * Adds an aggregation to the search operation.
+     */
+    public SearchRequestBuilder addAggregation(PipelineAggregationBuilder aggregation) {
         sourceBuilder().aggregation(aggregation);
         return this;
     }
@@ -375,43 +422,36 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Delegates to
-     * {@link org.elasticsearch.search.suggest.SuggestBuilder#addSuggestion(org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder)}
-     * .
+     * Delegates to {@link SearchSourceBuilder#suggest(SuggestBuilder)}
      */
     public SearchRequestBuilder suggest(SuggestBuilder suggestBuilder) {
         sourceBuilder().suggest(suggestBuilder);
         return this;
     }
 
-    public SearchRequestBuilder innerHits(InnerHitsBuilder innerHitsBuilder) {
-        sourceBuilder().innerHits(innerHitsBuilder);
-        return this;
-    }
-
     /**
      * Clears all rescorers on the builder and sets the first one.  To use multiple rescore windows use
-     * {@link #addRescorer(org.elasticsearch.search.rescore.RescoreBuilder.Rescorer, int)}.
+     * {@link #addRescorer(org.elasticsearch.search.rescore.RescoreBuilder, int)}.
      *
      * @param rescorer rescorer configuration
      * @return this for chaining
      */
-    public SearchRequestBuilder setRescorer(RescoreBuilder.Rescorer rescorer) {
+    public SearchRequestBuilder setRescorer(RescoreBuilder<?> rescorer) {
         sourceBuilder().clearRescorers();
         return addRescorer(rescorer);
     }
 
     /**
      * Clears all rescorers on the builder and sets the first one.  To use multiple rescore windows use
-     * {@link #addRescorer(org.elasticsearch.search.rescore.RescoreBuilder.Rescorer, int)}.
+     * {@link #addRescorer(org.elasticsearch.search.rescore.RescoreBuilder, int)}.
      *
      * @param rescorer rescorer configuration
      * @param window   rescore window
      * @return this for chaining
      */
-    public SearchRequestBuilder setRescorer(RescoreBuilder.Rescorer rescorer, int window) {
+    public SearchRequestBuilder setRescorer(RescoreBuilder rescorer, int window) {
         sourceBuilder().clearRescorers();
-        return addRescorer(rescorer, window);
+        return addRescorer(rescorer.windowSize(window));
     }
 
     /**
@@ -420,8 +460,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @param rescorer rescorer configuration
      * @return this for chaining
      */
-    public SearchRequestBuilder addRescorer(RescoreBuilder.Rescorer rescorer) {
-        sourceBuilder().addRescorer(new RescoreBuilder().rescorer(rescorer));
+    public SearchRequestBuilder addRescorer(RescoreBuilder<?> rescorer) {
+        sourceBuilder().addRescorer(rescorer);
         return this;
     }
 
@@ -432,8 +472,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @param window   rescore window
      * @return this for chaining
      */
-    public SearchRequestBuilder addRescorer(RescoreBuilder.Rescorer rescorer, int window) {
-        sourceBuilder().addRescorer(new RescoreBuilder().rescorer(rescorer).windowSize(window));
+    public SearchRequestBuilder addRescorer(RescoreBuilder<?> rescorer, int window) {
+        sourceBuilder().addRescorer(rescorer.windowSize(window));
         return this;
     }
 
@@ -456,20 +496,20 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * template stuff
-     */
-    public SearchRequestBuilder setTemplate(Template template) {
-        request.template(template);
-        return this;
-    }
-
-    /**
      * Sets if this request should use the request cache or not, assuming that it can (for
      * example, if "now" is used, it will never be cached). By default (not set, or null,
      * will default to the index level setting if request cache is enabled or not).
      */
     public SearchRequestBuilder setRequestCache(Boolean requestCache) {
         request.requestCache(requestCache);
+        return this;
+    }
+
+    /**
+     * Should the query be profiled. Defaults to <code>false</code>
+     */
+    public SearchRequestBuilder setProfile(boolean profile) {
+        sourceBuilder().profile(profile);
         return this;
     }
 

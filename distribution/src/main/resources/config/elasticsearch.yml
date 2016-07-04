@@ -40,16 +40,17 @@
 #
 # Lock the memory on startup:
 #
-# bootstrap.mlockall: true
+# bootstrap.memory_lock: true
 #
-# Make sure that the `ES_HEAP_SIZE` environment variable is set to about half the memory
-# available on the system and that the owner of the process is allowed to use this limit.
+# Make sure that the heap size is set to about half the memory available
+# on the system and that the owner of the process is allowed to use this
+# limit.
 #
 # Elasticsearch performs poorly when the system is swapping the memory.
 #
 # ---------------------------------- Network -----------------------------------
 #
-# Set the bind adress to a specific IP (IPv4 or IPv6):
+# Set the bind address to a specific IP (IPv4 or IPv6):
 #
 # network.host: 192.168.0.1
 #
@@ -60,18 +61,7 @@
 # For more information, see the documentation at:
 # <http://www.elastic.co/guide/en/elasticsearch/reference/current/modules-network.html>
 #
-# ---------------------------------- Gateway -----------------------------------
-#
-# Block initial recovery after a full cluster restart until N nodes are started:
-#
-# gateway.recover_after_nodes: 3
-#
-# For more information, see the documentation at:
-# <http://www.elastic.co/guide/en/elasticsearch/reference/current/modules-gateway.html>
-#
 # --------------------------------- Discovery ----------------------------------
-#
-# Elasticsearch nodes will find each other via unicast, by default.
 #
 # Pass an initial list of hosts to perform discovery when new node is started:
 # The default list of hosts is ["127.0.0.1", "[::1]"]
@@ -84,6 +74,15 @@
 #
 # For more information, see the documentation at:
 # <http://www.elastic.co/guide/en/elasticsearch/reference/current/modules-discovery.html>
+#
+# ---------------------------------- Gateway -----------------------------------
+#
+# Block initial recovery after a full cluster restart until N nodes are started:
+#
+# gateway.recover_after_nodes: 3
+#
+# For more information, see the documentation at:
+# <http://www.elastic.co/guide/en/elasticsearch/reference/current/modules-gateway.html>
 #
 # ---------------------------------- Various -----------------------------------
 #

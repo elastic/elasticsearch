@@ -18,22 +18,35 @@
  */
 package org.elasticsearch.search.aggregations.metrics.min;
 
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.metrics.NumericValuesSourceMetricsAggregatorParser;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
+import java.io.IOException;
+import java.util.Map;
 
 /**
  *
  */
-public class MinParser extends NumericValuesSourceMetricsAggregatorParser<InternalMin> {
+public class MinParser extends NumericValuesSourceParser {
 
     public MinParser() {
-        super(InternalMin.TYPE);
+        super(true, true, false);
     }
 
     @Override
-    protected AggregatorFactory createFactory(String aggregationName, ValuesSourceConfig<ValuesSource.Numeric> config) {
-        return new MinAggregator.Factory(aggregationName, config);
+    protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
+            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+        return false;
+    }
+
+    @Override
+    protected MinAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                  ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        return new MinAggregationBuilder(aggregationName);
     }
 }

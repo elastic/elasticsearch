@@ -21,7 +21,11 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.search.lookup.*;
+import org.elasticsearch.search.lookup.LeafDocLookup;
+import org.elasticsearch.search.lookup.LeafFieldsLookup;
+import org.elasticsearch.search.lookup.LeafIndexLookup;
+import org.elasticsearch.search.lookup.LeafSearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Map;
@@ -30,7 +34,7 @@ import java.util.Map;
  * A base class for any script type that is used during the search process (custom score, aggs, and so on).
  * <p>
  * If the script returns a specific numeric type, consider overriding the type specific base classes
- * such as {@link AbstractDoubleSearchScript}, {@link AbstractFloatSearchScript} and {@link AbstractLongSearchScript}
+ * such as {@link AbstractDoubleSearchScript} and {@link AbstractLongSearchScript}
  * for better performance.
  * <p>
  * The use is required to implement the {@link #run()} method.
@@ -82,7 +86,7 @@ public abstract class AbstractSearchScript extends AbstractExecutableScript impl
     protected final SourceLookup source() {
         return lookup.source();
     }
-    
+
     /**
      * Allows to access statistics on terms and fields.
      */
@@ -114,11 +118,6 @@ public abstract class AbstractSearchScript extends AbstractExecutableScript impl
     @Override
     public void setSource(Map<String, Object> source) {
         lookup.source().setSource(source);
-    }
-
-    @Override
-    public float runAsFloat() {
-        return ((Number) run()).floatValue();
     }
 
     @Override

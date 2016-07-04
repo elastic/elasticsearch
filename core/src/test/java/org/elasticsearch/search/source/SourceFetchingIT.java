@@ -21,15 +21,12 @@ package org.elasticsearch.search.source;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class SourceFetchingIT extends ESIntegTestCase {
-
-    @Test
     public void testSourceDefaultBehavior() {
         createIndex("test");
         ensureGreen();
@@ -40,15 +37,14 @@ public class SourceFetchingIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("test").get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
 
-        response = client().prepareSearch("test").addField("bla").get();
+        response = client().prepareSearch("test").addStoredField("bla").get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
 
-        response = client().prepareSearch("test").addField("_source").get();
+        response = client().prepareSearch("test").addStoredField("_source").get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
 
     }
 
-    @Test
     public void testSourceFiltering() {
         createIndex("test");
         ensureGreen();
@@ -80,9 +76,8 @@ public class SourceFetchingIT extends ESIntegTestCase {
 
     /**
      * Test Case for #5132: Source filtering with wildcards broken when given multiple patterns
-     * https://github.com/elasticsearch/elasticsearch/issues/5132
+     * https://github.com/elastic/elasticsearch/issues/5132
      */
-    @Test
     public void testSourceWithWildcardFiltering() {
         createIndex("test");
         ensureGreen();

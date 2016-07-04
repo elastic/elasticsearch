@@ -19,10 +19,13 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.spans.SpanBoostQuery;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
-import org.junit.Test;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
@@ -30,7 +33,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMultiTermQueryBuilder> {
-
     @Override
     protected SpanMultiTermQueryBuilder doCreateTestQueryBuilder() {
         MultiTermQueryBuilder multiTermQueryBuilder = RandomQueryBuilder.createMultiTermQuery(random());
@@ -39,21 +41,26 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
 
     @Override
     protected void doAssertLuceneQuery(SpanMultiTermQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+        if (queryBuilder.innerQuery().boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
+            assertThat(query, instanceOf(SpanBoostQuery.class));
+            SpanBoostQuery boostQuery = (SpanBoostQuery) query;
+            assertThat(boostQuery.getBoost(), equalTo(queryBuilder.innerQuery().boost()));
+            query = boostQuery.getQuery();
+        }
         assertThat(query, instanceOf(SpanMultiTermQueryWrapper.class));
         SpanMultiTermQueryWrapper spanMultiTermQueryWrapper = (SpanMultiTermQueryWrapper) query;
         Query multiTermQuery = queryBuilder.innerQuery().toQuery(context);
+        if (queryBuilder.innerQuery().boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
+            assertThat(multiTermQuery, instanceOf(BoostQuery.class));
+            BoostQuery boostQuery = (BoostQuery) multiTermQuery;
+            multiTermQuery = boostQuery.getQuery();
+        }
         assertThat(multiTermQuery, instanceOf(MultiTermQuery.class));
         assertThat(spanMultiTermQueryWrapper.getWrappedQuery(), equalTo(new SpanMultiTermQueryWrapper<>((MultiTermQuery)multiTermQuery).getWrappedQuery()));
     }
 
-    @Test
     public void testIllegalArgument() {
-        try {
-            new SpanMultiTermQueryBuilder(null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> new SpanMultiTermQueryBuilder((MultiTermQueryBuilder) null));
     }
 
     /**
@@ -62,7 +69,6 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
      * This is currently the case for {@link RangeQueryBuilder} when the target field is mapped
      * to a date.
      */
-    @Test
     public void testUnsupportedInnerQueryType() throws IOException {
         QueryShardContext context = createShardContext();
         // test makes only sense if we have at least one type registered with date field mapping
@@ -75,5 +81,34 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
                 assert(e.getMessage().contains("unsupported inner query, should be " + MultiTermQuery.class.getName()));
             }
         }
+    }
+
+    public void testToQueryInnerSpanMultiTerm() throws IOException {
+        Query query = new SpanOrQueryBuilder(createTestQueryBuilder()).toQuery(createShardContext());
+        //verify that the result is still a span query, despite the boost that might get set (SpanBoostQuery rather than BoostQuery)
+        assertThat(query, instanceOf(SpanQuery.class));
+    }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" +
+                "  \"span_multi\" : {\n" +
+                "    \"match\" : {\n" +
+                "      \"prefix\" : {\n" +
+                "        \"user\" : {\n" +
+                "          \"value\" : \"ki\",\n" +
+                "          \"boost\" : 1.08\n" +
+                "        }\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+
+        SpanMultiTermQueryBuilder parsed = (SpanMultiTermQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "ki", ((PrefixQueryBuilder) parsed.innerQuery()).value());
+        assertEquals(json, 1.08, parsed.innerQuery().boost(), 0.0001);
     }
 }

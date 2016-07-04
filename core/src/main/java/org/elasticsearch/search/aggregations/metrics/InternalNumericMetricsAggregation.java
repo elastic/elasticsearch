@@ -18,9 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -29,9 +31,11 @@ import java.util.Map;
  */
 public abstract class InternalNumericMetricsAggregation extends InternalMetricsAggregation {
 
-    protected ValueFormatter valueFormatter;
+    private static final DocValueFormat DEFAULT_FORMAT = DocValueFormat.RAW;
 
-    public static abstract class SingleValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.SingleValue {
+    protected DocValueFormat format = DEFAULT_FORMAT;
+
+    public abstract static class SingleValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.SingleValue {
 
         protected SingleValue() {}
 
@@ -39,9 +43,16 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
             super(name, pipelineAggregators, metaData);
         }
 
+        /**
+         * Read from a stream.
+         */
+        protected SingleValue(StreamInput in) throws IOException {
+            super(in);
+        }
+
         @Override
         public String getValueAsString() {
-            return valueFormatter.format(value());
+            return format.format(value());
         }
 
         @Override
@@ -57,7 +68,7 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
 
     }
 
-    public static abstract class MultiValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.MultiValue {
+    public abstract static class MultiValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.MultiValue {
 
         protected MultiValue() {}
 
@@ -65,10 +76,17 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
             super(name, pipelineAggregators, metaData);
         }
 
+        /**
+         * Read from a stream.
+         */
+        protected MultiValue(StreamInput in) throws IOException {
+            super(in);
+        }
+
         public abstract double value(String name);
 
         public String valueAsString(String name) {
-            return valueFormatter.format(value(name));
+            return format.format(value(name));
         }
 
         @Override
@@ -89,4 +107,10 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
         super(name, pipelineAggregators, metaData);
     }
 
+    /**
+     * Read from a stream.
+     */
+    protected InternalNumericMetricsAggregation(StreamInput in) throws IOException {
+        super(in);
+    }
 }

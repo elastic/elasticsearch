@@ -20,26 +20,21 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.common.io.Channels;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
 
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.channels.GatheringByteChannel;
 import java.util.Arrays;
 
 /**
  * A page based bytes reference, internally holding the bytes in a paged
  * data structure.
  */
-public class PagedBytesReference implements BytesReference {
+public class PagedBytesReference extends BytesReference {
 
     private static final int PAGE_SIZE = BigArrays.BYTE_PAGE_SIZE;
 
@@ -85,268 +80,11 @@ public class PagedBytesReference implements BytesReference {
     }
 
     @Override
-    public void writeTo(OutputStream os) throws IOException {
-        // nothing to do
-        if (length == 0) {
-            return;
-        }
-
-        BytesRef ref = new BytesRef();
-        int written = 0;
-
-        // are we a slice?
-        if (offset != 0) {
-            // remaining size of page fragment at offset
-            int fragmentSize = Math.min(length, PAGE_SIZE - (offset % PAGE_SIZE));
-            bytearray.get(offset, fragmentSize, ref);
-            os.write(ref.bytes, ref.offset, fragmentSize);
-            written += fragmentSize;
-        }
-
-        // handle remainder of pages + trailing fragment
-        while (written < length) {
-            int remaining = length - written;
-            int bulkSize = (remaining > PAGE_SIZE) ? PAGE_SIZE : remaining;
-            bytearray.get(offset + written, bulkSize, ref);
-            os.write(ref.bytes, ref.offset, bulkSize);
-            written += bulkSize;
-        }
-    }
-
-    @Override
-    public void writeTo(GatheringByteChannel channel) throws IOException {
-        // nothing to do
-        if (length == 0) {
-            return;
-        }
-
-        int currentLength = length;
-        int currentOffset = offset;
-        BytesRef ref = new BytesRef();
-
-        while (currentLength > 0) {
-            // try to align to the underlying pages while writing, so no new arrays will be created.
-            int fragmentSize = Math.min(currentLength, PAGE_SIZE - (currentOffset % PAGE_SIZE));
-            boolean newArray = bytearray.get(currentOffset, fragmentSize, ref);
-            assert !newArray : "PagedBytesReference failed to align with underlying bytearray. offset [" + currentOffset + "], size [" + fragmentSize + "]";
-            Channels.writeToChannel(ref.bytes, ref.offset, ref.length, channel);
-            currentLength -= ref.length;
-            currentOffset += ref.length;
-        }
-
-        assert currentLength == 0;
-    }
-
-    @Override
-    public byte[] toBytes() {
-        if (length == 0) {
-            return BytesRef.EMPTY_BYTES;
-        }
-
-        BytesRef ref = new BytesRef();
-        bytearray.get(offset, length, ref);
-
-        // undo the single-page optimization by ByteArray.get(), otherwise
-        // a materialized stream will contain traling garbage/zeros
-        byte[] result = ref.bytes;
-        if (result.length != length || ref.offset != 0) {
-            result = Arrays.copyOfRange(result, ref.offset, ref.offset + length);
-        }
-
-        return result;
-    }
-
-    @Override
-    public BytesArray toBytesArray() {
-        BytesRef ref = new BytesRef();
-        bytearray.get(offset, length, ref);
-        return new BytesArray(ref);
-    }
-
-    @Override
-    public BytesArray copyBytesArray() {
-        BytesRef ref = new BytesRef();
-        boolean copied = bytearray.get(offset, length, ref);
-
-        if (copied) {
-            // BigArray has materialized for us, no need to do it again
-            return new BytesArray(ref.bytes, ref.offset, ref.length);
-        } else {
-            // here we need to copy the bytes even when shared
-            byte[] copy = Arrays.copyOfRange(ref.bytes, ref.offset, ref.offset + ref.length);
-            return new BytesArray(copy);
-        }
-    }
-
-    @Override
-    public ChannelBuffer toChannelBuffer() {
-        // nothing to do
-        if (length == 0) {
-            return ChannelBuffers.EMPTY_BUFFER;
-        }
-
-        ChannelBuffer[] buffers;
-        ChannelBuffer currentBuffer = null;
-        BytesRef ref = new BytesRef();
-        int pos = 0;
-
-        // are we a slice?
-        if (offset != 0) {
-            // remaining size of page fragment at offset
-            int fragmentSize = Math.min(length, PAGE_SIZE - (offset % PAGE_SIZE));
-            bytearray.get(offset, fragmentSize, ref);
-            currentBuffer = ChannelBuffers.wrappedBuffer(ref.bytes, ref.offset, fragmentSize);
-            pos += fragmentSize;
-        }
-
-        // no need to create a composite buffer for a single page
-        if (pos == length && currentBuffer != null) {
-            return currentBuffer;
-        }
-
-        // a slice > pagesize will likely require extra buffers for initial/trailing fragments
-        int numBuffers = countRequiredBuffers((currentBuffer != null ? 1 : 0), length - pos);
-
-        buffers = new ChannelBuffer[numBuffers];
-        int bufferSlot = 0;
-
-        if (currentBuffer != null) {
-            buffers[bufferSlot] = currentBuffer;
-            bufferSlot++;
-        }
-
-        // handle remainder of pages + trailing fragment
-        while (pos < length) {
-            int remaining = length - pos;
-            int bulkSize = (remaining > PAGE_SIZE) ? PAGE_SIZE : remaining;
-            bytearray.get(offset + pos, bulkSize, ref);
-            currentBuffer = ChannelBuffers.wrappedBuffer(ref.bytes, ref.offset, bulkSize);
-            buffers[bufferSlot] = currentBuffer;
-            bufferSlot++;
-            pos += bulkSize;
-        }
-
-        // this would indicate that our numBuffer calculation is off by one.
-        assert (numBuffers == bufferSlot);
-
-        return ChannelBuffers.wrappedBuffer(NettyUtils.DEFAULT_GATHERING, buffers);
-    }
-
-    @Override
-    public boolean hasArray() {
-        return (offset + length <= PAGE_SIZE);
-    }
-
-    @Override
-    public byte[] array() {
-        if (hasArray()) {
-            if (length == 0) {
-                return BytesRef.EMPTY_BYTES;
-            }
-
-            BytesRef ref = new BytesRef();
-            bytearray.get(offset, length, ref);
-            return ref.bytes;
-        }
-
-        throw new IllegalStateException("array not available");
-    }
-
-    @Override
-    public int arrayOffset() {
-        if (hasArray()) {
-            BytesRef ref = new BytesRef();
-            bytearray.get(offset, length, ref);
-            return ref.offset;
-        }
-
-        throw new IllegalStateException("array not available");
-    }
-
-    @Override
-    public String toUtf8() {
-        if (length() == 0) {
-            return "";
-        }
-
-        byte[] bytes = toBytes();
-        final CharsRefBuilder ref = new CharsRefBuilder();
-        ref.copyUTF8Bytes(bytes, offset, length);
-        return ref.toString();
-    }
-
-    @Override
     public BytesRef toBytesRef() {
         BytesRef bref = new BytesRef();
         // if length <= pagesize this will dereference the page, or materialize the byte[]
         bytearray.get(offset, length, bref);
         return bref;
-    }
-
-    @Override
-    public BytesRef copyBytesRef() {
-        byte[] bytes = toBytes();
-        return new BytesRef(bytes, offset, length);
-    }
-
-    @Override
-    public int hashCode() {
-        if (hash == 0) {
-            // TODO: delegate to BigArrays via:
-            // hash = bigarrays.hashCode(bytearray);
-            // and for slices:
-            // hash = bigarrays.hashCode(bytearray, offset, length);
-            int tmphash = 1;
-            for (int i = 0; i < length; i++) {
-                tmphash = 31 * tmphash + bytearray.get(offset + i);
-            }
-            hash = tmphash;
-        }
-        return hash;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-
-        if (obj == null) {
-            return false;
-        }
-
-        if (!(obj instanceof PagedBytesReference)) {
-            return BytesReference.Helper.bytesEqual(this, (BytesReference) obj);
-        }
-
-        PagedBytesReference other = (PagedBytesReference) obj;
-        if (length != other.length) {
-            return false;
-        }
-
-        // TODO: delegate to BigArrays via:
-        // return bigarrays.equals(bytearray, other.bytearray);
-        // and for slices:
-        // return bigarrays.equals(bytearray, start, other.bytearray, otherstart, len);
-        ByteArray otherArray = other.bytearray;
-        int otherOffset = other.offset;
-        for (int i = 0; i < length; i++) {
-            if (bytearray.get(offset + i) != otherArray.get(otherOffset + i)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private int countRequiredBuffers(int initialCount, int numBytes) {
-        int numBuffers = initialCount;
-        // an "estimate" of how many pages remain - rounded down
-        int pages = numBytes / PAGE_SIZE;
-        // a remaining fragment < pagesize needs at least one buffer
-        numBuffers += (pages == 0) ? 1 : pages;
-        // a remainder that is not a multiple of pagesize also needs an extra buffer
-        numBuffers += (pages > 0 && numBytes % PAGE_SIZE > 0) ? 1 : 0;
-        return numBuffers;
     }
 
     private static class PagedBytesReferenceStreamInput extends StreamInput {
@@ -390,7 +128,7 @@ public class PagedBytesReference implements BytesReference {
 
         @Override
         public int read() throws IOException {
-            return (pos < length) ? bytearray.get(offset + pos++) : -1;
+            return (pos < length) ? Byte.toUnsignedInt(bytearray.get(offset + pos++)) : -1;
         }
 
         @Override
@@ -403,7 +141,7 @@ public class PagedBytesReference implements BytesReference {
                 return -1;
             }
 
-            final int numBytesToCopy = Math.min(len, length - pos); // copy the full lenth or the remaining part
+            final int numBytesToCopy = Math.min(len, length - pos); // copy the full length or the remaining part
 
             // current offset into the underlying ByteArray
             long byteArrayOffset = offset + pos;
@@ -445,5 +183,47 @@ public class PagedBytesReference implements BytesReference {
             // do nothing
         }
 
+        @Override
+        public int available() throws IOException {
+            return length - pos;
+        }
+
+    }
+
+    @Override
+    public final BytesRefIterator iterator() {
+        final int offset = this.offset;
+        final int length = this.length;
+        // this iteration is page aligned to ensure we do NOT materialize the pages from the ByteArray
+        // we calculate the initial fragment size here to ensure that if this reference is a slice we are still page aligned
+        // across the entire iteration. The first page is smaller if our offset != 0 then we start in the middle of the page
+        // otherwise we iterate full pages until we reach the last chunk which also might end within a page.
+        final int initialFragmentSize = offset != 0 ? PAGE_SIZE - (offset % PAGE_SIZE) : PAGE_SIZE;
+        return new BytesRefIterator() {
+            int position = 0;
+            int nextFragmentSize = Math.min(length, initialFragmentSize);
+            // this BytesRef is reused across the iteration on purpose - BytesRefIterator interface was designed for this
+            final BytesRef slice = new BytesRef();
+
+            @Override
+            public BytesRef next() throws IOException {
+                if (nextFragmentSize != 0) {
+                    final boolean materialized = bytearray.get(offset + position, nextFragmentSize, slice);
+                    assert materialized == false : "iteration should be page aligned but array got materialized";
+                    position += nextFragmentSize;
+                    final int remaining = length - position;
+                    nextFragmentSize = Math.min(remaining, PAGE_SIZE);
+                    return slice;
+                } else {
+                    assert nextFragmentSize == 0 : "fragmentSize expected [0] but was: [" + nextFragmentSize + "]";
+                    return null; // we are done with this iteration
+                }
+            }
+        };
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return bytearray.ramBytesUsed();
     }
 }

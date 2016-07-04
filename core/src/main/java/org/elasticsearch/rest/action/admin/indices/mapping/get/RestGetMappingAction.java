@@ -23,18 +23,22 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.TypeMissingException;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -46,8 +50,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetMappingAction extends BaseRestHandler {
 
     @Inject
-    public RestGetMappingAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestGetMappingAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/{index}/{type}/_mapping", this);
         controller.registerHandler(GET, "/{index}/_mappings/{type}", this);
         controller.registerHandler(GET, "/{index}/_mapping/{type}", this);
@@ -55,7 +59,7 @@ public class RestGetMappingAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
         GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
@@ -73,7 +77,7 @@ public class RestGetMappingAction extends BaseRestHandler {
                     } else if (indices.length != 0) {
                         return new BytesRestResponse(channel, new IndexNotFoundException(indices[0]));
                     } else if (types.length != 0) {
-                        return new BytesRestResponse(channel, new TypeMissingException(new Index("_all"), types[0]));
+                        return new BytesRestResponse(channel, new TypeMissingException("_all", types[0]));
                     } else {
                         return new BytesRestResponse(OK, builder.endObject());
                     }
@@ -83,7 +87,7 @@ public class RestGetMappingAction extends BaseRestHandler {
                     if (indexEntry.value.isEmpty()) {
                         continue;
                     }
-                    builder.startObject(indexEntry.key, XContentBuilder.FieldCaseConversion.NONE);
+                    builder.startObject(indexEntry.key);
                     builder.startObject(Fields.MAPPINGS);
                     for (ObjectObjectCursor<String, MappingMetaData> typeEntry : indexEntry.value) {
                         builder.field(typeEntry.key);
@@ -100,6 +104,6 @@ public class RestGetMappingAction extends BaseRestHandler {
     }
 
     static class Fields {
-        static final XContentBuilderString MAPPINGS = new XContentBuilderString("mappings");
+        static final String MAPPINGS = "mappings";
     }
 }

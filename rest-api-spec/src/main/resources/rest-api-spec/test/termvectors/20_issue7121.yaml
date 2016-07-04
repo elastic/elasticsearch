@@ -5,7 +5,7 @@
           body:
             settings:
               index:
-                translog.disable_flush: true
+                translog.flush_threshold_size: "512MB"
                 number_of_shards: 1
                 number_of_replicas: 0
                 refresh_interval: -1
@@ -13,7 +13,7 @@
               doc:
                 properties:
                   text:
-                     type : "string"
+                     type : "text"
                      term_vector : "with_positions_offsets"
 
   - do:

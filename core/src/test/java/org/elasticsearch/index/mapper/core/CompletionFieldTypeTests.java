@@ -20,52 +20,40 @@ package org.elasticsearch.index.mapper.core;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.suggest.completion.AnalyzingCompletionLookupProvider;
-import org.elasticsearch.search.suggest.context.ContextBuilder;
-import org.elasticsearch.search.suggest.context.ContextMapping;
+import org.elasticsearch.search.suggest.completion.context.ContextBuilder;
+import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 import org.junit.Before;
 
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.Arrays;
 
 public class CompletionFieldTypeTests extends FieldTypeTestCase {
     @Override
     protected MappedFieldType createDefaultFieldType() {
-        CompletionFieldMapper.CompletionFieldType ft = new CompletionFieldMapper.CompletionFieldType();
-        ft.setProvider(new AnalyzingCompletionLookupProvider(true, false, true, false));
-        return ft;
+        return new CompletionFieldMapper.CompletionFieldType();
     }
 
     @Before
     public void setupProperties() {
-        addModifier(new Modifier("preserve_separators", false, true) {
+        addModifier(new Modifier("preserve_separators", false) {
             @Override
             public void modify(MappedFieldType ft) {
                 CompletionFieldMapper.CompletionFieldType cft = (CompletionFieldMapper.CompletionFieldType)ft;
-                cft.setProvider(new AnalyzingCompletionLookupProvider(false, false, true, false));
+                cft.setPreserveSep(false);
             }
         });
-        addModifier(new Modifier("preserve_position_increments", false, true) {
+        addModifier(new Modifier("preserve_position_increments", false) {
             @Override
             public void modify(MappedFieldType ft) {
                 CompletionFieldMapper.CompletionFieldType cft = (CompletionFieldMapper.CompletionFieldType)ft;
-                cft.setProvider(new AnalyzingCompletionLookupProvider(true, false, false, false));
+                cft.setPreservePositionIncrements(false);
             }
         });
-        addModifier(new Modifier("payload", false, true) {
+        addModifier(new Modifier("context_mappings", false) {
             @Override
             public void modify(MappedFieldType ft) {
                 CompletionFieldMapper.CompletionFieldType cft = (CompletionFieldMapper.CompletionFieldType)ft;
-                cft.setProvider(new AnalyzingCompletionLookupProvider(true, false, true, true));
-            }
-        });
-        addModifier(new Modifier("context_mapping", false, true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                CompletionFieldMapper.CompletionFieldType cft = (CompletionFieldMapper.CompletionFieldType)ft;
-                SortedMap<String, ContextMapping> contextMapping = new TreeMap<>();
-                contextMapping.put("foo", ContextBuilder.location("foo").build());
-                cft.setContextMapping(contextMapping);
+                ContextMappings contextMappings = new ContextMappings(Arrays.asList(ContextBuilder.category("foo").build(), ContextBuilder.geo("geo").build()));
+                cft.setContextMappings(contextMappings);
             }
         });
     }

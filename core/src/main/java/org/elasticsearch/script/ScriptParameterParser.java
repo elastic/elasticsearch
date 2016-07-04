@@ -27,7 +27,12 @@ import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 
 public class ScriptParameterParser {
 
@@ -87,7 +92,7 @@ public class ScriptParameterParser {
                 for (ParseField parameter : indexedParameters) {
                     if (parseFieldMatcher.match(currentFieldName, parameter)) {
                         String coreParameterName = parameter.getPreferredName().replace(INDEXED_SUFFIX, "");
-                        putParameterValue(coreParameterName, parser.textOrNull(), ScriptType.INDEXED);
+                        putParameterValue(coreParameterName, parser.textOrNull(), ScriptType.STORED);
                         return true;
                     }
                 }
@@ -150,7 +155,7 @@ public class ScriptParameterParser {
                         } else {
                             throw new ScriptParseException("Value must be of type String: [" + parameterName + "]");
                         }
-                        putParameterValue(coreParameterName, stringValue, ScriptType.INDEXED);
+                        putParameterValue(coreParameterName, stringValue, ScriptType.STORED);
                         if (removeMatchedEntries) {
                             itr.remove();
                         }
@@ -176,7 +181,7 @@ public class ScriptParameterParser {
             if (value != null) {
                 String coreParameterName = parameter.getPreferredName();
                 putParameterValue(coreParameterName, value, ScriptType.INLINE);
-                
+
             }
         }
         for (ParseField parameter : fileParameters) {
@@ -184,15 +189,15 @@ public class ScriptParameterParser {
             if (value != null) {
                 String coreParameterName = parameter.getPreferredName().replace(FILE_SUFFIX, "");
                 putParameterValue(coreParameterName, value, ScriptType.FILE);
-                
+
             }
         }
         for (ParseField parameter : indexedParameters) {
             String value = params.param(parameter.getPreferredName());
             if (value != null) {
                 String coreParameterName = parameter.getPreferredName().replace(INDEXED_SUFFIX, "");
-                putParameterValue(coreParameterName, value, ScriptType.INDEXED);
-                
+                putParameterValue(coreParameterName, value, ScriptType.STORED);
+
             }
         }
     }

@@ -19,49 +19,28 @@
 
 package org.elasticsearch.common.path;
 
-import org.elasticsearch.common.Strings;
-
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
-/**
- *
- */
 public class PathTrie<T> {
 
-    public static interface Decoder {
+    public interface Decoder {
         String decode(String value);
     }
 
-    public static final Decoder NO_DECODER = new Decoder() {
-        @Override
-        public String decode(String value) {
-            return value;
-        }
-    };
-
     private final Decoder decoder;
     private final TrieNode root;
-    private final char separator;
     private T rootValue;
 
-    public PathTrie() {
-        this('/', "*", NO_DECODER);
-    }
+    private static final String SEPARATOR = "/";
+    private static final String WILDCARD = "*";
 
     public PathTrie(Decoder decoder) {
-        this('/', "*", decoder);
-    }
-
-    public PathTrie(char separator, String wildcard, Decoder decoder) {
         this.decoder = decoder;
-        this.separator = separator;
-        root = new TrieNode(new String(new char[]{separator}), null, wildcard);
+        root = new TrieNode(SEPARATOR, null, WILDCARD);
     }
 
     public class TrieNode {
@@ -198,7 +177,7 @@ public class PathTrie<T> {
 
         private void put(Map<String, String> params, TrieNode node, String value) {
             if (params != null && node.isNamedWildcard()) {
-                params.put(node.namedWildcard(), value);
+                params.put(node.namedWildcard(), decoder.decode(value));
             }
         }
 
@@ -209,7 +188,7 @@ public class PathTrie<T> {
     }
 
     public void insert(String path, T value) {
-        String[] strings = Strings.splitStringToArray(path, separator);
+        String[] strings = path.split(SEPARATOR);
         if (strings.length == 0) {
             rootValue = value;
             return;
@@ -230,7 +209,7 @@ public class PathTrie<T> {
         if (path.length() == 0) {
             return rootValue;
         }
-        String[] strings = splitPath(decoder.decode(path));
+        String[] strings = path.split(SEPARATOR);
         if (strings.length == 0) {
             return rootValue;
         }
@@ -240,51 +219,5 @@ public class PathTrie<T> {
             index = 1;
         }
         return root.retrieve(strings, index, params);
-    }
-
-    /*
-      Splits up the url path up by '/' and is aware of
-      index name expressions that appear between '<' and '>'.
-     */
-    String[] splitPath(final String path) {
-        if (path == null || path.length() == 0) {
-            return Strings.EMPTY_ARRAY;
-        }
-        int count = 1;
-        boolean splitAllowed = true;
-        for (int i = 0; i < path.length(); i++) {
-            final char currentC = path.charAt(i);
-            if ('<' == currentC) {
-                splitAllowed = false;
-            } else if (currentC == '>') {
-                splitAllowed = true;
-            } else if (splitAllowed && currentC == separator) {
-                count++;
-            }
-        }
-
-        final List<String> result = new ArrayList<>(count);
-        final StringBuilder builder = new StringBuilder();
-
-        splitAllowed = true;
-        for (int i = 0; i < path.length(); i++) {
-            final char currentC = path.charAt(i);
-            if ('<' == currentC) {
-                splitAllowed = false;
-            } else if (currentC == '>') {
-                splitAllowed = true;
-            } else  if (splitAllowed && currentC == separator) {
-                if (builder.length() > 0) {
-                    result.add(builder.toString());
-                    builder.setLength(0);
-                }
-                continue;
-            }
-            builder.append(currentC);
-        }
-        if (builder.length() > 0) {
-            result.add(builder.toString());
-        }
-        return result.toArray(new String[result.size()]);
     }
 }

@@ -48,17 +48,17 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
     }
 
     public DefaultShardOperationFailedException(ElasticsearchException e) {
-        this.index = e.getIndex();
+        this.index = e.getIndex() == null ? null : e.getIndex().getName();
         this.shardId = e.getShardId().id();
         this.reason = e;
         this.status = e.status();
     }
 
-    public DefaultShardOperationFailedException(String index, int shardId, Throwable t) {
+    public DefaultShardOperationFailedException(String index, int shardId, Throwable reason) {
         this.index = index;
         this.shardId = shardId;
-        this.reason = t;
-        status = ExceptionsHelper.status(t);
+        this.reason = reason;
+        this.status = ExceptionsHelper.status(reason);
     }
 
     @Override
@@ -98,7 +98,7 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
             index = in.readString();
         }
         shardId = in.readVInt();
-        reason = in.readThrowable();
+        reason = in.readException();
         status = RestStatus.readFrom(in);
     }
 

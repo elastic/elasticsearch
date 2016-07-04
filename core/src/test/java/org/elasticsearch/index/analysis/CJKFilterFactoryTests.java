@@ -22,16 +22,13 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.StringReader;
 
 public class CJKFilterFactoryTests extends ESTokenStreamTestCase {
-
     private static final String RESOURCE = "/org/elasticsearch/index/analysis/cjk_analysis.json";
 
-    @Test
     public void testDefault() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("cjk_bigram");
@@ -42,7 +39,6 @@ public class CJKFilterFactoryTests extends ESTokenStreamTestCase {
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
-    @Test
     public void testNoFlags() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("cjk_no_flags");
@@ -52,8 +48,7 @@ public class CJKFilterFactoryTests extends ESTokenStreamTestCase {
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
-    
-    @Test
+
     public void testHanOnly() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("cjk_han_only");
@@ -63,8 +58,7 @@ public class CJKFilterFactoryTests extends ESTokenStreamTestCase {
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
-    
-    @Test
+
     public void testHanUnigramOnly() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("cjk_han_unigram_only");
@@ -74,7 +68,4 @@ public class CJKFilterFactoryTests extends ESTokenStreamTestCase {
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
-    
-
-
 }

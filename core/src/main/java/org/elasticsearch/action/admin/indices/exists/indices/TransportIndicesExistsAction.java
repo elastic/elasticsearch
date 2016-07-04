@@ -23,11 +23,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -60,7 +60,7 @@ public class TransportIndicesExistsAction extends TransportMasterNodeReadAction<
     protected ClusterBlockException checkBlock(IndicesExistsRequest request, ClusterState state) {
         //make sure through indices options that the concrete indices call never throws IndexMissingException
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, true, request.indicesOptions().expandWildcardsOpen(), request.indicesOptions().expandWildcardsClosed());
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndices(state, indicesOptions, request.indices()));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request.indices()));
     }
 
     @Override
@@ -68,7 +68,7 @@ public class TransportIndicesExistsAction extends TransportMasterNodeReadAction<
         boolean exists;
         try {
             // Similar as the previous behaviour, but now also aliases and wildcards are supported.
-            indexNameExpressionResolver.concreteIndices(state, request);
+            indexNameExpressionResolver.concreteIndexNames(state, request);
             exists = true;
         } catch (IndexNotFoundException e) {
             exists = false;

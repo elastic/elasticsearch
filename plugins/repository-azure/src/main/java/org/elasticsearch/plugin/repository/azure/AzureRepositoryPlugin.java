@@ -20,19 +20,21 @@
 package org.elasticsearch.plugin.repository.azure;
 
 import org.elasticsearch.cloud.azure.AzureRepositoryModule;
+import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.azure.AzureRepository;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-
-import static org.elasticsearch.cloud.azure.AzureRepositoryModule.isSnapshotReady;
+import java.util.List;
 
 /**
  *
@@ -48,23 +50,29 @@ public class AzureRepositoryPlugin extends Plugin {
     }
 
     @Override
-    public String name() {
-        return "repository-azure";
-    }
-
-    @Override
-    public String description() {
-        return "Azure Repository Plugin";
-    }
-
-    @Override
     public Collection<Module> nodeModules() {
         return Collections.singletonList((Module) new AzureRepositoryModule(settings));
     }
 
     public void onModule(RepositoriesModule module) {
-        if (isSnapshotReady(settings, logger)) {
-            module.registerRepository(AzureRepository.TYPE, AzureRepository.class, BlobStoreIndexShardRepository.class);
-        }
+        logger.debug("registering repository type [{}]", AzureRepository.TYPE);
+        module.registerRepository(AzureRepository.TYPE, AzureRepository.class, BlobStoreIndexShardRepository.class);
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Arrays.asList(AzureStorageService.Storage.STORAGE_ACCOUNTS,
+                AzureStorageService.Storage.ACCOUNT_SETTING,
+                AzureStorageService.Storage.COMPRESS_SETTING,
+                AzureStorageService.Storage.CONTAINER_SETTING,
+                AzureStorageService.Storage.BASE_PATH_SETTING,
+                AzureStorageService.Storage.CHUNK_SIZE_SETTING,
+                AzureStorageService.Storage.LOCATION_MODE_SETTING);
+    }
+
+    @Override
+    public List<String> getSettingsFilter() {
+        // Cloud storage API settings using a pattern needed to be hidden
+        return Arrays.asList(AzureStorageService.Storage.PREFIX + "*.account", AzureStorageService.Storage.PREFIX + "*.key");
     }
 }

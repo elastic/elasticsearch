@@ -19,14 +19,8 @@
 
 package org.elasticsearch.rest.action.support;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
-
-import java.io.IOException;
 
 /**
  * A REST enabled action listener that has a basic onFailure implementation, and requires

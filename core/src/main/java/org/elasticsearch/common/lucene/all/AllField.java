@@ -24,60 +24,26 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.ElasticsearchException;
 
-import java.io.IOException;
-import java.io.Reader;
-
-/**
- *
- */
 public class AllField extends Field {
+    private final float boost;
 
-    private final AllEntries allEntries;
-
-    private final Analyzer analyzer;
-
-    public AllField(String name, AllEntries allEntries, Analyzer analyzer, FieldType fieldType) {
-        super(name, fieldType);
-        this.allEntries = allEntries;
-        this.analyzer = analyzer;
+    public AllField(String name, String value, float boost, FieldType fieldType) {
+        super(name, value, fieldType);
+        this.boost = boost;
     }
 
     @Override
-    public String stringValue() {
-        if (fieldType().stored()) {
-            return allEntries.buildText();
+    public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) {
+        TokenStream ts = analyzer.tokenStream(name(), stringValue());
+        if (boost != 1.0f && fieldType().indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0) {
+            // TODO: we should be able to reuse "previous" if its instanceof AllTokenStream?
+            // but we need to be careful this optimization is safe (and tested)...
+
+            // AllTokenStream maps boost to 4-byte payloads, so we only need to use it any field had non-default (!= 1.0f) boost and if
+            // positions are indexed:
+            return new AllTokenStream(ts, boost);
         }
-        return null;
-    }
-
-    @Override
-    public Reader readerValue() {
-        return null;
-    }
-
-    /** Returns the {@link AllEntries} containing the original text fields for the document. */
-    public AllEntries getAllEntries() {
-        return allEntries;
-    }
-
-    @Override
-    public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
-        try {
-            allEntries.reset(); // reset the all entries, just in case it was read already
-            if (allEntries.customBoost() && fieldType().indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0) {
-                // TODO: we should be able to reuse "previous" if its instanceof AllTokenStream?
-                // but we need to be careful this optimization is safe (and tested)...
-                
-                // AllTokenStream maps boost to 4-byte payloads, so we only need to use it any field had non-default (!= 1.0f) boost and if
-                // positions are indexed:
-                return AllTokenStream.allTokenStream(name, allEntries, analyzer);
-            } else {
-                return analyzer.tokenStream(name, allEntries);
-            }
-        } catch (IOException e) {
-            throw new ElasticsearchException("Failed to create token stream");
-        }
+        return ts;
     }
 }

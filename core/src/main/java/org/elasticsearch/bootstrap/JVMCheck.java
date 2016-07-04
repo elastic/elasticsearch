@@ -21,17 +21,19 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.lang.management.ManagementFactory;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /** Checks that the JVM is ok and won't cause index corruption */
 final class JVMCheck {
     /** no instantiation */
     private JVMCheck() {}
-    
+
     /**
      * URL with latest JVM recommendations
      */
@@ -43,23 +45,59 @@ final class JVMCheck {
     static final String JVM_BYPASS = "es.bypass.vm.check";
 
     /**
+     * Metadata and messaging for checking and reporting HotSpot
+     * issues.
+     */
+    interface HotSpotCheck {
+        /**
+         * If this HotSpot check should be executed.
+         *
+         * @return true if this HotSpot check should be executed
+         */
+        boolean check();
+
+        /**
+         * The error message to display when this HotSpot issue is
+         * present.
+         *
+         * @return the error message for this HotSpot issue
+         */
+        String getErrorMessage();
+
+        /**
+         * The warning message for this HotSpot issue if a workaround
+         * exists and is used.
+         *
+         * @return the warning message for this HotSpot issue
+         */
+        Optional<String> getWarningMessage();
+
+        /**
+         * The workaround for this HotSpot issue, if one exists.
+         *
+         * @return the workaround for this HotSpot issue, if one exists
+         */
+        Optional<String> getWorkaround();
+    }
+
+    /**
      * Metadata and messaging for hotspot bugs.
      */
-    static final class HotspotBug {
-        
+    static class HotspotBug implements HotSpotCheck {
+
         /** OpenJDK bug URL */
         final String bugUrl;
-        
+
         /** Compiler workaround flag (null if there is no workaround) */
         final String workAround;
-        
+
         HotspotBug(String bugUrl, String workAround) {
             this.bugUrl = bugUrl;
             this.workAround = workAround;
         }
-        
+
         /** Returns an error message to the user for a broken version */
-        String getErrorMessage() {
+        public String getErrorMessage() {
             StringBuilder sb = new StringBuilder();
             sb.append("Java version: ").append(fullVersion());
             sb.append(" suffers from critical bug ").append(bugUrl);
@@ -70,15 +108,15 @@ final class JVMCheck {
             if (workAround != null) {
                 sb.append(System.lineSeparator());
                 sb.append("If you absolutely cannot upgrade, please add ").append(workAround);
-                sb.append(" to the JAVA_OPTS environment variable.");
+                sb.append(" to the ES_JAVA_OPTS environment variable.");
                 sb.append(System.lineSeparator());
                 sb.append("Upgrading is preferred, this workaround will result in degraded performance.");
             }
             return sb.toString();
         }
-        
+
         /** Warns the user when a workaround is being used to dodge the bug */
-        String getWarningMessage() {
+        public Optional<String> getWarningMessage() {
             StringBuilder sb = new StringBuilder();
             sb.append("Workaround flag ").append(workAround);
             sb.append(" for bug ").append(bugUrl);
@@ -88,23 +126,67 @@ final class JVMCheck {
             sb.append(System.lineSeparator());
             sb.append("Upgrading is preferred, see ").append(JVM_RECOMMENDATIONS);
             sb.append(" for current recommendations.");
-            return sb.toString();
+            return Optional.of(sb.toString());
+        }
+
+        public boolean check() {
+            return true;
+        }
+
+        @Override
+        public Optional<String> getWorkaround() {
+            return Optional.of(workAround);
         }
     }
-    
+
+    static class G1GCCheck implements HotSpotCheck {
+        @Override
+        public boolean check() {
+            return JvmInfo.jvmInfo().useG1GC().equals("true");
+        }
+
+        /** Returns an error message to the user for a broken version */
+        public String getErrorMessage() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("Java version: ").append(fullVersion());
+            sb.append(" can cause data corruption");
+            sb.append(" when used with G1GC.");
+            sb.append(System.lineSeparator());
+            sb.append("Please upgrade the JVM, see ").append(JVM_RECOMMENDATIONS);
+            sb.append(" for current recommendations.");
+            return sb.toString();
+        }
+
+        @Override
+        public Optional<String> getWarningMessage() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> getWorkaround() {
+            return Optional.empty();
+        }
+    }
+
     /** mapping of hotspot version to hotspot bug information for the most serious bugs */
-    static final Map<String,HotspotBug> JVM_BROKEN_HOTSPOT_VERSIONS;
-    
+    static final Map<String, HotSpotCheck> JVM_BROKEN_HOTSPOT_VERSIONS;
+
     static {
-        Map<String,HotspotBug> bugs = new HashMap<>();
-        
+        Map<String, HotSpotCheck> bugs = new HashMap<>();
+
         // 1.7.0: loop optimizer bug
         bugs.put("21.0-b17",  new HotspotBug("https://bugs.openjdk.java.net/browse/JDK-7070134", "-XX:-UseLoopPredicate"));
         // register allocation issues (technically only x86/amd64). This impacted update 40, 45, and 51
         bugs.put("24.0-b56",  new HotspotBug("https://bugs.openjdk.java.net/browse/JDK-8024830", "-XX:-UseSuperWord"));
         bugs.put("24.45-b08", new HotspotBug("https://bugs.openjdk.java.net/browse/JDK-8024830", "-XX:-UseSuperWord"));
         bugs.put("24.51-b03", new HotspotBug("https://bugs.openjdk.java.net/browse/JDK-8024830", "-XX:-UseSuperWord"));
-        
+        G1GCCheck g1GcCheck = new G1GCCheck();
+        bugs.put("25.0-b70", g1GcCheck);
+        bugs.put("25.11-b03", g1GcCheck);
+        bugs.put("25.20-b23", g1GcCheck);
+        bugs.put("25.25-b02", g1GcCheck);
+        bugs.put("25.31-b07", g1GcCheck);
+
         JVM_BROKEN_HOTSPOT_VERSIONS = Collections.unmodifiableMap(bugs);
     }
 
@@ -115,10 +197,10 @@ final class JVMCheck {
         if (Boolean.parseBoolean(System.getProperty(JVM_BYPASS))) {
             Loggers.getLogger(JVMCheck.class).warn("bypassing jvm version check for version [{}], this can result in data corruption!", fullVersion());
         } else if ("Oracle Corporation".equals(Constants.JVM_VENDOR)) {
-            HotspotBug bug = JVM_BROKEN_HOTSPOT_VERSIONS.get(Constants.JVM_VERSION);
-            if (bug != null) {
-                if (bug.workAround != null && ManagementFactory.getRuntimeMXBean().getInputArguments().contains(bug.workAround)) {
-                    Loggers.getLogger(JVMCheck.class).warn(bug.getWarningMessage());
+            HotSpotCheck bug = JVM_BROKEN_HOTSPOT_VERSIONS.get(Constants.JVM_VERSION);
+            if (bug != null && bug.check()) {
+                if (bug.getWorkaround().isPresent() && ManagementFactory.getRuntimeMXBean().getInputArguments().contains(bug.getWorkaround().get())) {
+                    Loggers.getLogger(JVMCheck.class).warn("{}", bug.getWarningMessage().get());
                 } else {
                     throw new RuntimeException(bug.getErrorMessage());
                 }
@@ -144,8 +226,8 @@ final class JVMCheck {
             }
         }
     }
-    
-    /** 
+
+    /**
      * Returns java + jvm version, looks like this:
      * {@code Oracle Corporation 1.8.0_45 [Java HotSpot(TM) 64-Bit Server VM 25.45-b02]}
      */

@@ -21,40 +21,24 @@ package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.indices.analysis.IndicesAnalysisService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.IndexSettingsModule;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.test.ESTestCase.createAnalysisService;
 
 public class StopAnalyzerTests extends ESTokenStreamTestCase {
-
-    @Test
     public void testDefaultsCompoundAnalysis() throws Exception {
         String json = "/org/elasticsearch/index/analysis/stop.json";
-        Index index = new Index("test");
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
             .loadFromStream(json, getClass().getResourceAsStream(json))
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings))).createInjector();
-        Injector injector = new ModulesBuilder().add(
-                new IndexSettingsModule(index, settings),
-                new IndexNameModule(index),
-                new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class)))
-                .createChildInjector(parentInjector);
-
-        AnalysisService analysisService = injector.getInstance(AnalysisService.class);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        AnalysisService analysisService = createAnalysisService(idxSettings, settings);
 
         NamedAnalyzer analyzer1 = analysisService.analyzer("analyzer1");
 
@@ -64,5 +48,4 @@ public class StopAnalyzerTests extends ESTokenStreamTestCase {
 
         assertTokenStreamContents(analyzer2.tokenStream("test", "to be or not to be"), new String[0]);
     }
-
 }

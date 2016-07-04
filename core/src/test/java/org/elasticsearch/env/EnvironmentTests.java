@@ -20,12 +20,10 @@ package org.elasticsearch.env;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.net.URL;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -34,7 +32,6 @@ import static org.hamcrest.CoreMatchers.nullValue;
  * Simple unit-tests for Environment.java
  */
 public class EnvironmentTests extends ESTestCase {
-
     public Environment newEnvironment() throws IOException {
         return newEnvironment(Settings.EMPTY);
     }
@@ -42,17 +39,16 @@ public class EnvironmentTests extends ESTestCase {
     public Environment newEnvironment(Settings settings) throws IOException {
         Settings build = Settings.builder()
                 .put(settings)
-                .put("path.home", createTempDir().toAbsolutePath())
-                .putArray("path.data", tmpPaths()).build();
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+                .putArray(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
         return new Environment(build);
     }
 
-    @Test
     public void testRepositoryResolution() throws IOException {
         Environment environment = newEnvironment();
         assertThat(environment.resolveRepoFile("/test/repos/repo1"), nullValue());
         assertThat(environment.resolveRepoFile("test/repos/repo1"), nullValue());
-        environment = newEnvironment(settingsBuilder().putArray("path.repo", "/test/repos", "/another/repos", "/test/repos/../other").build());
+        environment = newEnvironment(Settings.builder().putArray(Environment.PATH_REPO_SETTING.getKey(), "/test/repos", "/another/repos", "/test/repos/../other").build());
         assertThat(environment.resolveRepoFile("/test/repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("test/repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("/another/repos/repo1"), notNullValue());

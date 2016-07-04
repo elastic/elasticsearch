@@ -127,7 +127,7 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
 
     @Override
     protected int numBytesPerElement() {
-        return RamUsageEstimator.NUM_BYTES_BYTE;
+        return 1;
     }
 
     /** Change the size of this array. Content between indexes <code>0</code> and <code>min(size(), newSize)</code> will be preserved. */

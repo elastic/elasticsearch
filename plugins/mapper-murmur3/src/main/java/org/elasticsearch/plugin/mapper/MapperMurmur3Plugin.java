@@ -19,28 +19,18 @@
 
 package org.elasticsearch.plugin.mapper;
 
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.Settings;
+import java.util.Collections;
+import java.util.Map;
+
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.murmur3.Murmur3FieldMapper;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 
-import java.util.Collection;
-import java.util.Collections;
-
-public class MapperMurmur3Plugin extends Plugin {
+public class MapperMurmur3Plugin extends Plugin implements MapperPlugin {
 
     @Override
-    public String name() {
-        return "mapper-murmur3";
+    public Map<String, Mapper.TypeParser> getMappers() {
+        return Collections.singletonMap(Murmur3FieldMapper.CONTENT_TYPE, new Murmur3FieldMapper.TypeParser());
     }
-
-    @Override
-    public String description() {
-        return "A mapper that allows to precompute murmur3 hashes of values at index-time and store them in the index";
-    }
-
-    @Override
-    public Collection<Module> indexModules(Settings settings) {
-        return Collections.<Module>singletonList(new MapperMurmur3IndexModule());
-    }
-
 }

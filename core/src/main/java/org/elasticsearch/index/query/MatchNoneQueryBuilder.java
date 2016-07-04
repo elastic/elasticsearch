@@ -20,12 +20,16 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * A query that matches no document.
@@ -33,23 +37,64 @@ import java.io.IOException;
 public class MatchNoneQueryBuilder extends AbstractQueryBuilder<MatchNoneQueryBuilder> {
 
     public static final String NAME = "match_none";
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
-    public static final MatchNoneQueryBuilder PROTOTYPE = new MatchNoneQueryBuilder();
+    public MatchNoneQueryBuilder() {
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public MatchNoneQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        // all state is in the superclass
+    }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
+        printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    public static Optional<MatchNoneQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+
+        String currentFieldName = null;
+        XContentParser.Token token;
+        String queryName = null;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        while (((token = parser.nextToken()) != XContentParser.Token.END_OBJECT && token != XContentParser.Token.END_ARRAY)) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                    queryName = parser.text();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                    boost = parser.floatValue();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "["+MatchNoneQueryBuilder.NAME +
+                            "] query does not support [" + currentFieldName + "]");
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "[" + MatchNoneQueryBuilder.NAME +
+                        "] unknown token [" + token + "] after [" + currentFieldName + "]");
+            }
+        }
+
+        MatchNoneQueryBuilder matchNoneQueryBuilder = new MatchNoneQueryBuilder();
+        matchNoneQueryBuilder.boost(boost);
+        matchNoneQueryBuilder.queryName(queryName);
+        return Optional.of(matchNoneQueryBuilder);
     }
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        return Queries.newMatchNoDocsQuery();
-    }
-
-    @Override
-    protected void setFinalBoost(Query query) {
-        //no-op this query doesn't support boost
+        return Queries.newMatchNoDocsQuery("User requested \"" + this.getName() + "\" query.");
     }
 
     @Override
@@ -60,16 +105,6 @@ public class MatchNoneQueryBuilder extends AbstractQueryBuilder<MatchNoneQueryBu
     @Override
     protected int doHashCode() {
         return 0;
-    }
-
-    @Override
-    protected MatchNoneQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        return new MatchNoneQueryBuilder();
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        //nothing to write really
     }
 
     @Override

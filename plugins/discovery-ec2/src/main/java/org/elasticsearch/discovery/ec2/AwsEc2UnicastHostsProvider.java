@@ -21,38 +21,43 @@ package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.ec2.AmazonEC2;
-import com.amazonaws.services.ec2.model.*;
+import com.amazonaws.services.ec2.model.DescribeInstancesRequest;
+import com.amazonaws.services.ec2.model.DescribeInstancesResult;
+import com.amazonaws.services.ec2.model.Filter;
+import com.amazonaws.services.ec2.model.GroupIdentifier;
+import com.amazonaws.services.ec2.model.Instance;
+import com.amazonaws.services.ec2.model.Reservation;
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static java.util.Collections.disjoint;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 
 /**
  *
  */
 public class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
 
-    private static enum HostType {
-        PRIVATE_IP,
-        PUBLIC_IP,
-        PRIVATE_DNS,
-        PUBLIC_DNS
-    }
-
     private final TransportService transportService;
 
     private final AmazonEC2 client;
-
-    private final Version version;
 
     private final boolean bindAnyGroup;
 
@@ -62,38 +67,41 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
 
     private final Set<String> availabilityZones;
 
-    private final HostType hostType;
+    private final DISCOVERY_EC2.HostType hostType;
+
+    private final DiscoNodesCache discoNodes;
 
     @Inject
-    public AwsEc2UnicastHostsProvider(Settings settings, TransportService transportService, AwsEc2Service awsEc2Service, Version version) {
+    public AwsEc2UnicastHostsProvider(Settings settings, TransportService transportService, AwsEc2Service awsEc2Service) {
         super(settings);
         this.transportService = transportService;
         this.client = awsEc2Service.client();
-        this.version = version;
 
-        this.hostType = HostType.valueOf(settings.get(DISCOVERY_EC2.HOST_TYPE, "private_ip")
-                .toUpperCase(Locale.ROOT));
+        this.hostType = DISCOVERY_EC2.HOST_TYPE_SETTING.get(settings);
+        this.discoNodes = new DiscoNodesCache(DISCOVERY_EC2.NODE_CACHE_TIME_SETTING.get(settings));
 
-        this.bindAnyGroup = settings.getAsBoolean(DISCOVERY_EC2.ANY_GROUP, true);
+        this.bindAnyGroup = DISCOVERY_EC2.ANY_GROUP_SETTING.get(settings);
         this.groups = new HashSet<>();
-        groups.addAll(Arrays.asList(settings.getAsArray(DISCOVERY_EC2.GROUPS)));
+        this.groups.addAll(DISCOVERY_EC2.GROUPS_SETTING.get(settings));
 
-        this.tags = settings.getByPrefix(DISCOVERY_EC2.TAG_PREFIX).getAsMap();
+        this.tags = DISCOVERY_EC2.TAG_SETTING.get(settings).getAsMap();
 
-        Set<String> availabilityZones = new HashSet<>();
-        availabilityZones.addAll(Arrays.asList(settings.getAsArray(DISCOVERY_EC2.AVAILABILITY_ZONES)));
-        if (settings.get(DISCOVERY_EC2.AVAILABILITY_ZONES) != null) {
-            availabilityZones.addAll(Strings.commaDelimitedListToSet(settings.get(DISCOVERY_EC2.AVAILABILITY_ZONES)));
-        }
-        this.availabilityZones = availabilityZones;
+        this.availabilityZones = new HashSet<>();
+        availabilityZones.addAll(DISCOVERY_EC2.AVAILABILITY_ZONES_SETTING.get(settings));
 
         if (logger.isDebugEnabled()) {
-            logger.debug("using host_type [{}], tags [{}], groups [{}] with any_group [{}], availability_zones [{}]", hostType, tags, groups, bindAnyGroup, availabilityZones);
+            logger.debug("using host_type [{}], tags [{}], groups [{}] with any_group [{}], availability_zones [{}]", hostType, tags,
+                    groups, bindAnyGroup, availabilityZones);
         }
     }
 
     @Override
     public List<DiscoveryNode> buildDynamicNodes() {
+        return discoNodes.getOrRefresh();
+    }
+
+    protected List<DiscoveryNode> fetchDynamicNodes() {
+
         List<DiscoveryNode> discoNodes = new ArrayList<>();
 
         DescribeInstancesResult descInstances;
@@ -124,16 +132,18 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
                     }
                     if (bindAnyGroup) {
                         // We check if we can find at least one group name or one group id in groups.
-                        if (Collections.disjoint(securityGroupNames, groups)
-                                && Collections.disjoint(securityGroupIds, groups)) {
-                            logger.trace("filtering out instance {} based on groups {}, not part of {}", instance.getInstanceId(), instanceSecurityGroups, groups);
+                        if (disjoint(securityGroupNames, groups)
+                                && disjoint(securityGroupIds, groups)) {
+                            logger.trace("filtering out instance {} based on groups {}, not part of {}", instance.getInstanceId(),
+                                    instanceSecurityGroups, groups);
                             // continue to the next instance
                             continue;
                         }
                     } else {
                         // We need tp match all group names or group ids, otherwise we ignore this instance
                         if (!(securityGroupNames.containsAll(groups) || securityGroupIds.containsAll(groups))) {
-                            logger.trace("filtering out instance {} based on groups {}, does not include all of {}", instance.getInstanceId(), instanceSecurityGroups, groups);
+                            logger.trace("filtering out instance {} based on groups {}, does not include all of {}",
+                                    instance.getInstanceId(), instanceSecurityGroups, groups);
                             // continue to the next instance
                             continue;
                         }
@@ -161,7 +171,8 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
                         TransportAddress[] addresses = transportService.addressesFromString(address, 1);
                         for (int i = 0; i < addresses.length; i++) {
                             logger.trace("adding {}, address {}, transport_address {}", instance.getInstanceId(), address, addresses[i]);
-                            discoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceId() + "-" + i, addresses[i], version.minimumCompatibilityVersion()));
+                            discoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceId() + "-" + i, addresses[i],
+                                    emptyMap(), emptySet(), Version.CURRENT.minimumCompatibilityVersion()));
                         }
                     } catch (Exception e) {
                         logger.warn("failed ot add {}, address {}", e, instance.getInstanceId(), address);
@@ -198,5 +209,26 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
         }
 
         return describeInstancesRequest;
+    }
+
+    private final class DiscoNodesCache extends SingleObjectCache<List<DiscoveryNode>> {
+
+        private boolean empty = true;
+
+        protected DiscoNodesCache(TimeValue refreshInterval) {
+            super(refreshInterval,  new ArrayList<>());
+        }
+
+        @Override
+        protected boolean needsRefresh() {
+            return (empty || super.needsRefresh());
+        }
+
+        @Override
+        protected List<DiscoveryNode> refresh() {
+            List<DiscoveryNode> nodes = fetchDynamicNodes();
+            empty = nodes.isEmpty();
+            return nodes;
+        }
     }
 }

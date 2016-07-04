@@ -28,8 +28,19 @@ import org.apache.lucene.analysis.payloads.TypeAsPayloadTokenFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.util.CharArraySet;
-import org.apache.lucene.document.*;
-import org.apache.lucene.index.*;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
@@ -43,7 +54,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -52,10 +68,10 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
 
     protected static class TestFieldSetting {
-        final public String name;
-        final public boolean storedOffset;
-        final public boolean storedPayloads;
-        final public boolean storedPositions;
+        public final String name;
+        public final boolean storedOffset;
+        public final boolean storedPayloads;
+        public final boolean storedPositions;
 
         public TestFieldSetting(String name, boolean storedOffset, boolean storedPayloads, boolean storedPositions) {
             this.name = name;
@@ -66,7 +82,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
 
         public void addToMappings(XContentBuilder mappingsBuilder) throws IOException {
             mappingsBuilder.startObject(name);
-            mappingsBuilder.field("type", "string");
+            mappingsBuilder.field("type", "text");
             String tv_settings;
             if (storedPositions && storedOffset && storedPayloads) {
                 tv_settings = "with_positions_offsets_payloads";
@@ -108,9 +124,9 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
     }
 
     protected static class TestDoc {
-        final public String id;
-        final public TestFieldSetting[] fieldSettings;
-        final public String[] fieldContent;
+        public final String id;
+        public final TestFieldSetting[] fieldSettings;
+        public final String[] fieldContent;
         public String index = "test";
         public String alias = "alias";
         public String type = "type1";
@@ -147,11 +163,11 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
     }
 
     protected static class TestConfig {
-        final public TestDoc doc;
-        final public String[] selectedFields;
-        final public boolean requestPositions;
-        final public boolean requestOffsets;
-        final public boolean requestPayloads;
+        public final TestDoc doc;
+        public final String[] selectedFields;
+        public final boolean requestPositions;
+        public final boolean requestOffsets;
+        public final boolean requestPayloads;
         public Class expectedException = null;
 
         public TestConfig(TestDoc doc, String[] selectedFields, boolean requestPositions, boolean requestOffsets, boolean requestPayloads) {
@@ -192,7 +208,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
             field.addToMappings(mappingBuilder);
         }
         mappingBuilder.endObject().endObject().endObject();
-        Settings.Builder settings = Settings.settingsBuilder()
+        Settings.Builder settings = Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase");
@@ -222,7 +238,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
                 contentArray[j] = fieldContentOptions[randomInt(fieldContentOptions.length - 1)];
                 docSource.put(fieldSettings[j].name, contentArray[j]);
             }
-            final String id = routingKeyForShard(index, "type", i);
+            final String id = routingKeyForShard(index, i);
             TestDoc doc = new TestDoc(id, fieldSettings, contentArray.clone());
             index(doc.index, doc.type, doc.id, docSource);
             testDocs[i] = doc;
@@ -395,7 +411,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
     protected TermVectorsRequestBuilder getRequestForConfig(TestConfig config) {
         return client().prepareTermVectors(randomBoolean() ? config.doc.index : config.doc.alias, config.doc.type, config.doc.id).setPayloads(config.requestPayloads)
                 .setOffsets(config.requestOffsets).setPositions(config.requestPositions).setFieldStatistics(true).setTermStatistics(true)
-                .setSelectedFields(config.selectedFields);
+                .setSelectedFields(config.selectedFields).setRealtime(false);
     }
 
     protected Fields getTermVectorsFromLucene(DirectoryReader directoryReader, TestDoc doc) throws IOException {

@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
@@ -43,6 +45,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,7 +54,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  */
-public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> implements DocumentRequest<UpdateRequest> {
+public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
+        implements DocumentRequest<UpdateRequest>, WriteRequest<UpdateRequest> {
 
     private String type;
     private String id;
@@ -70,7 +74,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     private VersionType versionType = VersionType.INTERNAL;
     private int retryOnConflict = 0;
 
-    private boolean refresh = false;
+    private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
 
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
@@ -88,7 +92,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     }
 
     public UpdateRequest(String index, String type, String id) {
-        this.index = index;
+        super(index);
         this.type = type;
         this.id = id;
     }
@@ -184,13 +188,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     }
 
     /**
-     * The parent id is used for the upsert request and also implicitely sets the routing if not already set.
+     * The parent id is used for the upsert request.
      */
     public UpdateRequest parent(String parent) {
         this.parent = parent;
-        if (routing == null) {
-            routing = parent;
-        }
         return this;
     }
 
@@ -198,7 +199,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return parent;
     }
 
-    int shardId() {
+    public ShardId getShardId() {
         return this.shardId;
     }
 
@@ -423,18 +424,15 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return this.versionType;
     }
 
-    /**
-     * Should a refresh be executed post this update operation causing the operation to
-     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
-     * to <tt>false</tt>.
-     */
-    public UpdateRequest refresh(boolean refresh) {
-        this.refresh = refresh;
+    @Override
+    public UpdateRequest setRefreshPolicy(RefreshPolicy refreshPolicy) {
+        this.refreshPolicy = refreshPolicy;
         return this;
     }
 
-    public boolean refresh() {
-        return this.refresh;
+    @Override
+    public RefreshPolicy getRefreshPolicy() {
+        return refreshPolicy;
     }
 
     public WriteConsistencyLevel consistencyLevel() {
@@ -642,8 +640,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
         Map<String, Object> scriptParams = null;
         Script script = null;
-        XContentType xContentType = XContentFactory.xContentType(source);
-        try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(source)) {
+        try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
             XContentParser.Token token = parser.nextToken();
             if (token == null) {
                 return this;
@@ -660,10 +657,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                 } else if ("scripted_upsert".equals(currentFieldName)) {
                     scriptedUpsert = parser.booleanValue();
                 } else if ("upsert".equals(currentFieldName)) {
+                    XContentType xContentType = XContentFactory.xContentType(source);
                     XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
                     builder.copyCurrentStructure(parser);
                     safeUpsertRequest().source(builder);
                 } else if ("doc".equals(currentFieldName)) {
+                    XContentType xContentType = XContentFactory.xContentType(source);
                     XContentBuilder docBuilder = XContentFactory.contentBuilder(xContentType);
                     docBuilder.copyCurrentStructure(parser);
                     safeDoc().source(docBuilder);
@@ -672,9 +671,15 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                 } else if ("detect_noop".equals(currentFieldName)) {
                     detectNoop(parser.booleanValue());
                 } else if ("fields".equals(currentFieldName)) {
-                    List<Object> values = parser.list();
-                    String[] fields = values.toArray(new String[values.size()]);
-                    fields(fields);
+                    List<Object> fields = null;
+                    if (token == XContentParser.Token.START_ARRAY) {
+                        fields = (List) parser.list();
+                    } else if (token.isValue()) {
+                        fields = Collections.singletonList(parser.text());
+                    }
+                    if (fields != null) {
+                        fields(fields.toArray(new String[fields.size()]));
+                    }
                 } else {
                     //here we don't have settings available, unable to throw deprecation exceptions
                     scriptParameterParser.token(currentFieldName, token, parser, ParseFieldMatcher.EMPTY);
@@ -721,10 +726,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         routing = in.readOptionalString();
         parent = in.readOptionalString();
         if (in.readBoolean()) {
-            script = Script.readScript(in);
+            script = new Script(in);
         }
         retryOnConflict = in.readVInt();
-        refresh = in.readBoolean();
+        refreshPolicy = RefreshPolicy.readFrom(in);
         if (in.readBoolean()) {
             doc = new IndexRequest();
             doc.readFrom(in);
@@ -761,7 +766,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             script.writeTo(out);
         }
         out.writeVInt(retryOnConflict);
-        out.writeBoolean(refresh);
+        refreshPolicy.writeTo(out);
         if (doc == null) {
             out.writeBoolean(false);
         } else {

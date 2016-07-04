@@ -19,14 +19,13 @@
 
 package org.elasticsearch.common.breaker;
 
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -39,14 +38,12 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * Tests for the Memory Aggregating Circuit Breaker
  */
 public class MemoryCircuitBreakerTests extends ESTestCase {
-
-    @Test
     public void testThreadedUpdatesToBreaker() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(3, 15);
         final int BYTES_PER_THREAD = scaledRandomIntBetween(500, 4500);
         final Thread[] threads = new Thread[NUM_THREADS];
         final AtomicBoolean tripped = new AtomicBoolean(false);
-        final AtomicReference<Throwable> lastException = new AtomicReference<>(null);
+        final AtomicReference<Exception> lastException = new AtomicReference<>(null);
 
         final MemoryCircuitBreaker breaker = new MemoryCircuitBreaker(new ByteSizeValue((BYTES_PER_THREAD * NUM_THREADS) - 1), 1.0, logger);
 
@@ -63,8 +60,8 @@ public class MemoryCircuitBreakerTests extends ESTestCase {
                             } else {
                                 assertThat(tripped.compareAndSet(false, true), equalTo(true));
                             }
-                        } catch (Throwable e2) {
-                            lastException.set(e2);
+                        } catch (Exception e) {
+                            lastException.set(e);
                         }
                     }
                 }
@@ -82,7 +79,6 @@ public class MemoryCircuitBreakerTests extends ESTestCase {
         assertThat("breaker was tripped at least once", breaker.getTrippedCount(), greaterThanOrEqualTo(1L));
     }
 
-    @Test
     public void testThreadedUpdatesToChildBreaker() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(3, 15);
         final int BYTES_PER_THREAD = scaledRandomIntBetween(500, 4500);
@@ -91,7 +87,7 @@ public class MemoryCircuitBreakerTests extends ESTestCase {
         final AtomicReference<Throwable> lastException = new AtomicReference<>(null);
 
         final AtomicReference<ChildMemoryCircuitBreaker> breakerRef = new AtomicReference<>(null);
-        final CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY, new NodeSettingsService(Settings.EMPTY)) {
+        final CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)) {
 
             @Override
             public CircuitBreaker getBreaker(String name) {
@@ -121,8 +117,8 @@ public class MemoryCircuitBreakerTests extends ESTestCase {
                             } else {
                                 assertThat(tripped.compareAndSet(false, true), equalTo(true));
                             }
-                        } catch (Throwable e2) {
-                            lastException.set(e2);
+                        } catch (Exception e) {
+                            lastException.set(e);
                         }
                     }
                 }
@@ -140,7 +136,6 @@ public class MemoryCircuitBreakerTests extends ESTestCase {
         assertThat("breaker was tripped at least once", breaker.getTrippedCount(), greaterThanOrEqualTo(1L));
     }
 
-    @Test
     public void testThreadedUpdatesToChildBreakerWithParentLimit() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(3, 15);
         final int BYTES_PER_THREAD = scaledRandomIntBetween(500, 4500);
@@ -152,7 +147,7 @@ public class MemoryCircuitBreakerTests extends ESTestCase {
 
         final AtomicInteger parentTripped = new AtomicInteger(0);
         final AtomicReference<ChildMemoryCircuitBreaker> breakerRef = new AtomicReference<>(null);
-        final CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY, new NodeSettingsService(Settings.EMPTY)) {
+        final CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)) {
 
             @Override
             public CircuitBreaker getBreaker(String name) {
@@ -183,8 +178,8 @@ public class MemoryCircuitBreakerTests extends ESTestCase {
                             breaker.addEstimateBytesAndMaybeBreak(1L, "test");
                         } catch (CircuitBreakingException e) {
                             tripped.incrementAndGet();
-                        } catch (Throwable e2) {
-                            lastException.set(e2);
+                        } catch (Exception e) {
+                            lastException.set(e);
                         }
                     }
                 }
@@ -212,7 +207,6 @@ public class MemoryCircuitBreakerTests extends ESTestCase {
         assertThat("total breaker was tripped at least once", tripped.get(), greaterThanOrEqualTo(1));
     }
 
-    @Test
     public void testConstantFactor() throws Exception {
         final MemoryCircuitBreaker breaker = new MemoryCircuitBreaker(new ByteSizeValue(15), 1.6, logger);
         String field = "myfield";

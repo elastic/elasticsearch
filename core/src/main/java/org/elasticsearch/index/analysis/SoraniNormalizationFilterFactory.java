@@ -20,25 +20,27 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ckb.SoraniNormalizationFilter;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 
 /**
  * Factory for {@link SoraniNormalizationFilter}
  */
-public class SoraniNormalizationFilterFactory extends AbstractTokenFilterFactory {
+public class SoraniNormalizationFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
-    @Inject
-    public SoraniNormalizationFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public SoraniNormalizationFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+        super(indexSettings, name, settings);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new SoraniNormalizationFilter(tokenStream);
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
     }
 
 }

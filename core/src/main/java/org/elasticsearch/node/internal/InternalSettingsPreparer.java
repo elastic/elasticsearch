@@ -19,11 +19,10 @@
 
 package org.elasticsearch.node.internal;
 
-import java.nio.charset.StandardCharsets;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
@@ -33,17 +32,19 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.Strings.cleanPath;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
  *
@@ -51,19 +52,18 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 public class InternalSettingsPreparer {
 
     private static final String[] ALLOWED_SUFFIXES = {".yml", ".yaml", ".json", ".properties"};
-    static final String[] PROPERTY_PREFIXES = {"es.", "elasticsearch."};
-    static final String[] PROPERTY_DEFAULTS_PREFIXES = {"es.default.", "elasticsearch.default."};
+    static final String PROPERTY_DEFAULTS_PREFIX = "default.";
+    static final Predicate<String> PROPERTY_DEFAULTS_PREDICATE = key -> key.startsWith(PROPERTY_DEFAULTS_PREFIX);
 
     public static final String SECRET_PROMPT_VALUE = "${prompt.secret}";
     public static final String TEXT_PROMPT_VALUE = "${prompt.text}";
-    public static final String IGNORE_SYSTEM_PROPERTIES_SETTING = "config.ignore_system_properties";
 
     /**
      * Prepares the settings by gathering all elasticsearch system properties and setting defaults.
      */
     public static Settings prepareSettings(Settings input) {
-        Settings.Builder output = settingsBuilder();
-        initializeSettings(output, input, true);
+        Settings.Builder output = Settings.builder();
+        initializeSettings(output, input, true, Collections.emptyMap());
         finalizeSettings(output, null, null);
         return output.build();
     }
@@ -78,9 +78,23 @@ public class InternalSettingsPreparer {
      * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
      */
     public static Environment prepareEnvironment(Settings input, Terminal terminal) {
+        return prepareEnvironment(input, terminal, Collections.emptyMap());
+    }
+
+    /**
+     * Prepares the settings by gathering all elasticsearch system properties, optionally loading the configuration settings,
+     * and then replacing all property placeholders. If a {@link Terminal} is provided and configuration settings are loaded,
+     * settings with a value of <code>${prompt.text}</code> or <code>${prompt.secret}</code> will result in a prompt for
+     * the setting to the user.
+     * @param input The custom settings to use. These are not overwritten by settings in the configuration file.
+     * @param terminal the Terminal to use for input/output
+     * @param properties Map of properties key/value pairs (usually from the command-line)
+     * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
+     */
+    public static Environment prepareEnvironment(Settings input, Terminal terminal, Map<String, String> properties) {
         // just create enough settings to build the environment, to get the config dir
-        Settings.Builder output = settingsBuilder();
-        initializeSettings(output, input, true);
+        Settings.Builder output = Settings.builder();
+        initializeSettings(output, input, true, properties);
         Environment environment = new Environment(output.build());
 
         boolean settingsFileFound = false;
@@ -89,7 +103,11 @@ public class InternalSettingsPreparer {
             Path path = environment.configFile().resolve("elasticsearch" + allowedSuffix);
             if (Files.exists(path)) {
                 if (!settingsFileFound) {
-                    output.loadFromPath(path);
+                    try {
+                        output.loadFromPath(path);
+                    } catch (IOException e) {
+                        throw new SettingsException("Failed to settings from " + path.toString(), e);
+                    }
                 }
                 settingsFileFound = true;
                 foundSuffixes.add(allowedSuffix);
@@ -101,37 +119,26 @@ public class InternalSettingsPreparer {
 
         // re-initialize settings now that the config file has been loaded
         // TODO: only re-initialize if a config file was actually loaded
-        initializeSettings(output, input, false);
+        initializeSettings(output, input, false, properties);
         finalizeSettings(output, terminal, environment.configFile());
 
         environment = new Environment(output.build());
 
         // we put back the path.logs so we can use it in the logging configuration file
-        output.put("path.logs", cleanPath(environment.logsFile().toAbsolutePath().toString()));
-
+        output.put(Environment.PATH_LOGS_SETTING.getKey(), cleanPath(environment.logsFile().toAbsolutePath().toString()));
         return new Environment(output.build());
-    }
-
-    private static boolean useSystemProperties(Settings input) {
-        return !input.getAsBoolean(IGNORE_SYSTEM_PROPERTIES_SETTING, false);
     }
 
     /**
      * Initializes the builder with the given input settings, and loads system properties settings if allowed.
      * If loadDefaults is true, system property default settings are loaded.
      */
-    private static void initializeSettings(Settings.Builder output, Settings input, boolean loadDefaults) {
+    private static void initializeSettings(Settings.Builder output, Settings input, boolean loadDefaults, Map<String, String> esSettings) {
         output.put(input);
-        if (useSystemProperties(input)) {
-            if (loadDefaults) {
-                for (String prefix : PROPERTY_DEFAULTS_PREFIXES) {
-                    output.putProperties(prefix, System.getProperties());
-                }
-            }
-            for (String prefix : PROPERTY_PREFIXES) {
-                output.putProperties(prefix, System.getProperties(), PROPERTY_DEFAULTS_PREFIXES);
-            }
+        if (loadDefaults) {
+            output.putProperties(esSettings, PROPERTY_DEFAULTS_PREDICATE, key -> key.substring(PROPERTY_DEFAULTS_PREFIX.length()));
         }
+        output.putProperties(esSettings, PROPERTY_DEFAULTS_PREDICATE.negate(), Function.identity());
         output.replacePropertyPlaceholders();
     }
 
@@ -154,33 +161,18 @@ public class InternalSettingsPreparer {
         }
         output.replacePropertyPlaceholders();
 
-        // check if name is set in settings, if not look for system property and set it
-        if (output.get("name") == null) {
-            String name = System.getProperty("name");
-            if (name != null) {
-                output.put("name", name);
-            }
-        }
-
         // put the cluster name
-        if (output.get(ClusterName.SETTING) == null) {
-            output.put(ClusterName.SETTING, ClusterName.DEFAULT.value());
-        }
-
-        String v = output.get(Settings.SETTINGS_REQUIRE_UNITS);
-        if (v != null) {
-            Settings.setSettingsRequireUnits(Booleans.parseBoolean(v, true));
+        if (output.get(ClusterName.CLUSTER_NAME_SETTING.getKey()) == null) {
+            output.put(ClusterName.CLUSTER_NAME_SETTING.getKey(), ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY).value());
         }
 
         replacePromptPlaceholders(output, terminal);
         // all settings placeholders have been resolved. resolve the value for the name setting by checking for name,
         // then looking for node.name, and finally generate one if needed
-        if (output.get("name") == null) {
-            String name = output.get("node.name");
-            if (name == null || name.isEmpty()) {
-                name = randomNodeName(configDir);
-            }
-            output.put("name", name);
+        String name = output.get("node.name");
+        if (name == null || name.isEmpty()) {
+            name = randomNodeName(configDir);
+            output.put("node.name", name);
         }
     }
 
@@ -206,7 +198,7 @@ public class InternalSettingsPreparer {
                     name = reader.readLine();
                 }
             }
-            int index = ThreadLocalRandom.current().nextInt(names.size());
+            int index = Randomness.get().nextInt(names.size());
             return names.get(index);
         } catch (IOException e) {
             throw new RuntimeException("Could not read node names list", e);
@@ -252,8 +244,8 @@ public class InternalSettingsPreparer {
         }
 
         if (secret) {
-            return new String(terminal.readSecret("Enter value for [%s]: ", key));
+            return new String(terminal.readSecret("Enter value for [" + key + "]: "));
         }
-        return terminal.readText("Enter value for [%s]: ", key);
+        return terminal.readText("Enter value for [" + key + "]: ");
     }
 }

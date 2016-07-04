@@ -6,9 +6,9 @@ The `nodes` command shows the cluster topology.
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
 % curl 192.168.56.10:9200/_cat/nodes
-SP4H 4727 192.168.56.30 9300 {version} {jdk} 72.1gb 35.4 93.9mb 79 239.1mb 0.45 3.4h d m Boneyard
-_uhJ 5134 192.168.56.10 9300 {version} {jdk} 72.1gb 33.3 93.9mb 85 239.1mb 0.06 3.4h d * Athena
-HfDp 4562 192.168.56.20 9300 {version} {jdk} 72.2gb 74.5 93.9mb 83 239.1mb 0.12 3.4h d m Zarek
+SP4H 4727 192.168.56.30 9300 {version} {jdk} 72.1gb 35.4 93.9mb 79 239.1mb 0.45 3.4h mdi - Boneyard
+_uhJ 5134 192.168.56.10 9300 {version} {jdk} 72.1gb 33.3 93.9mb 85 239.1mb 0.06 3.4h mdi * Athena
+HfDp 4562 192.168.56.20 9300 {version} {jdk} 72.2gb 74.5 93.9mb 83 239.1mb 0.12 3.4h mdi - Zarek
 --------------------------------------------------
 
 The first few columns tell you where your nodes live.  For sanity it
@@ -16,10 +16,10 @@ also tells you what version of ES and the JVM each one runs.
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-nodeId pid  ip            port version jdk
-u2PZ   4234 192.168.56.30 9300 {version}   {jdk}
-URzf   5443 192.168.56.10 9300 {version}   {jdk}
-ActN   3806 192.168.56.20 9300 {version}   {jdk}
+nodeId pid  ip            port version     jdk
+u2PZ   4234 192.168.56.30 9300 {version} {jdk}
+URzf   5443 192.168.56.10 9300 {version} {jdk}
+ActN   3806 192.168.56.20 9300 {version} {jdk}
 --------------------------------------------------
 
 
@@ -41,10 +41,10 @@ it?
 
 [source,sh]
 --------------------------------------------------
-uptime data/client master name
-  3.5h d           m      Boneyard
-  3.5h d           *      Athena
-  3.5h d           m      Zarek
+uptime node.role master name
+  3.5h di        -      Boneyard
+  3.5h md        *      Athena
+  3.5h i         -      Zarek
 --------------------------------------------------
 
 [float]
@@ -68,13 +68,13 @@ mode (`v`). The header name will match the supplied value (e.g.,
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
 % curl 192.168.56.10:9200/_cat/nodes?v&h=id,ip,port,v,m
-id   ip            port version m
-pLSN 192.168.56.30 9300 {version}   m
-k0zy 192.168.56.10 9300 {version}   m
-6Tyi 192.168.56.20 9300 {version}   *
+id   ip            port v           m
+pLSN 192.168.56.30 9300 {version} -
+k0zy 192.168.56.10 9300 {version} -
+6Tyi 192.168.56.20 9300 {version} *
 % curl 192.168.56.10:9200/_cat/nodes?h=id,ip,port,v,m
-pLSN 192.168.56.30 9300 {version} m
-k0zy 192.168.56.10 9300 {version} m
+pLSN 192.168.56.30 9300 {version} -
+k0zy 192.168.56.10 9300 {version} -
 6Tyi 192.168.56.20 9300 {version} *
 --------------------------------------------------
 
@@ -83,9 +83,9 @@ k0zy 192.168.56.10 9300 {version} m
 |Header |Alias |Appear by Default |Description |Example
 |`id` |`nodeId` |No |Unique node ID |k0zy
 |`pid` |`p` |No |Process ID |13061
-|`host` |`h` |Yes |Host name |n1
 |`ip` |`i` |Yes |IP address |127.0.1.1
 |`port` |`po` |No |Bound transport port |9300
+|`http_address` |`http`| No | bound http address | 127.0.0.1:9200
 |`version` |`v` |No |Elasticsearch version |{version}
 |`build` |`b` |No |Elasticsearch Build hash |5c03844
 |`jdk` |`j` |No |Running Java version |1.8.0
@@ -103,20 +103,29 @@ descriptors percentage |1
 |`file_desc.max` |`fdm`, `fileDescriptorMax` |No |Maximum number of file
 descriptors |1024
 |`load` |`l` |No |Most recent load average |0.22
+|`cpu` | |No |Recent system CPU usage as percent |12
 |`uptime` |`u` |No |Node uptime |17.3m
-|`node.role` |`r`, `role`, `dc`, `nodeRole` |Yes |Data node (d); Client
-node (c) |d
-|`master` |`m` |Yes |Current master (*); master eligible (m) |m
+|`node.role` |`r`, `role`, `nodeRole` |Yes |Master eligible node (m);
+Data node (d); Ingest node (i); Coordinating node only (-) |mdi
+|`master` |`m` |Yes |Elected master (*); Not elected master (-) |*
 |`name` |`n` |Yes |Node name |Venom
 |`completion.size` |`cs`, `completionSize` |No |Size of completion |0b
 |`fielddata.memory_size` |`fm`, `fielddataMemory` |No |Used fielddata
 cache memory |0b
 |`fielddata.evictions` |`fe`, `fielddataEvictions` |No |Fielddata cache
 evictions |0
-|`filter_cache.memory_size` |`fcm`, `filterCacheMemory` |No |Used filter
+|`query_cache.memory_size` |`qcm`, `queryCacheMemory` |No |Used query
 cache memory |0b
-|`filter_cache.evictions` |`fce`, `filterCacheEvictions` |No |Filter
+|`query_cache.evictions` |`qce`, `queryCacheEvictions` |No |Query
 cache evictions |0
+|`request_cache.memory_size` |`rcm`, `requestCacheMemory` |No | Used request
+cache memory |0b
+|`request_cache.evictions` |`rce`, `requestCacheEvictions` |No |Request
+cache evictions |0
+|`request_cache.hit_count` |`rchc`, `requestCacheHitCount` |No | Request
+cache hit count |0
+|`request_cache.miss_count` |`rcmc`, `requestCacheMissCount` |No | Request
+cache miss count |0
 |`flush.total` |`ft`, `flushTotal` |No |Number of flushes |1
 |`flush.total_time` |`ftt`, `flushTotalTime` |No |Time spent in flush |1
 |`get.current` |`gc`, `getCurrent` |No |Number of current get
@@ -192,8 +201,6 @@ operations |9
 segments |1.4kb
 |`segments.index_writer_memory` |`siwm`, `segmentsIndexWriterMemory` |No
 |Memory used by index writer |18mb
-|`segments.index_writer_max_memory` |`siwmx`, `segmentsIndexWriterMaxMemory` |No
-|Maximum memory index writer may use before it must write buffered documents to a new segment |32mb
 |`segments.version_map_memory` |`svmm`, `segmentsVersionMapMemory` |No
 |Memory used by version map |1.0kb
 |=======================================================================

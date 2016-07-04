@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.termvectors;
 
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -48,8 +48,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestTermVectorsAction extends BaseRestHandler {
 
     @Inject
-    public RestTermVectorsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestTermVectorsAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/{index}/{type}/_termvectors", this);
         controller.registerHandler(POST, "/{index}/{type}/_termvectors", this);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_termvectors", this);
@@ -63,7 +63,7 @@ public class RestTermVectorsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         TermVectorsRequest termVectorsRequest = new TermVectorsRequest(request.param("index"), request.param("type"), request.param("id"));
         if (RestActions.hasBodyContent(request)) {
             try (XContentParser parser = XContentFactory.xContent(RestActions.guessBodyContentType(request)).createParser(RestActions.getRestContent(request))){
@@ -75,14 +75,14 @@ public class RestTermVectorsAction extends BaseRestHandler {
         client.termVectors(termVectorsRequest, new RestToXContentListener<TermVectorsResponse>(channel));
     }
 
-    static public void readURIParameters(TermVectorsRequest termVectorsRequest, RestRequest request) {
+    public static void readURIParameters(TermVectorsRequest termVectorsRequest, RestRequest request) {
         String fields = request.param("fields");
         addFieldStringsFromParameter(termVectorsRequest, fields);
         termVectorsRequest.offsets(request.paramAsBoolean("offsets", termVectorsRequest.offsets()));
         termVectorsRequest.positions(request.paramAsBoolean("positions", termVectorsRequest.positions()));
         termVectorsRequest.payloads(request.paramAsBoolean("payloads", termVectorsRequest.payloads()));
         termVectorsRequest.routing(request.param("routing"));
-        termVectorsRequest.realtime(request.paramAsBoolean("realtime", null));
+        termVectorsRequest.realtime(request.paramAsBoolean("realtime", termVectorsRequest.realtime()));
         termVectorsRequest.version(RestActions.parseVersion(request, termVectorsRequest.version()));
         termVectorsRequest.versionType(VersionType.fromString(request.param("version_type"), termVectorsRequest.versionType()));
         termVectorsRequest.parent(request.param("parent"));
@@ -91,10 +91,9 @@ public class RestTermVectorsAction extends BaseRestHandler {
         termVectorsRequest.termStatistics(request.paramAsBoolean("term_statistics", termVectorsRequest.termStatistics()));
         termVectorsRequest.fieldStatistics(request.paramAsBoolean("fieldStatistics", termVectorsRequest.fieldStatistics()));
         termVectorsRequest.fieldStatistics(request.paramAsBoolean("field_statistics", termVectorsRequest.fieldStatistics()));
-        termVectorsRequest.dfs(request.paramAsBoolean("dfs", termVectorsRequest.dfs()));
     }
 
-    static public void addFieldStringsFromParameter(TermVectorsRequest termVectorsRequest, String fields) {
+    public static void addFieldStringsFromParameter(TermVectorsRequest termVectorsRequest, String fields) {
         Set<String> selectedFields = termVectorsRequest.selectedFields();
         if (fields != null) {
             String[] paramFieldStrings = Strings.commaDelimitedListToStringArray(fields);

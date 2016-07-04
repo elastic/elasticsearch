@@ -1,0 +1,83 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+apply plugin: 'elasticsearch.docs-test'
+
+integTest {
+  cluster {
+    setting 'script.inline', 'true'
+    setting 'script.stored', 'true'
+    Closure configFile = {
+      extraConfigFile it, "src/test/cluster/config/$it"
+    }
+    configFile 'scripts/my_script.js'
+    configFile 'scripts/my_script.py'
+    configFile 'userdict_ja.txt'
+    configFile 'KeywordTokenizer.rbbi'
+  }
+}
+
+// Build the cluser with all plugins
+project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
+  /* Skip repositories. We just aren't going to be able to test them so it
+   * doesn't make sense to waste time installing them. */
+  if (subproj.path.startsWith(':plugins:repository-')) {
+    return
+  }
+  integTest {
+    cluster {
+      // We need a non-decorated project object, so we lookup the project by path
+      plugin subproj.name, project(subproj.path)
+    }
+  }
+}
+
+buildRestTests.docs = fileTree(projectDir) {
+  // No snippets in here!
+  exclude 'build.gradle'
+  // That is where the snippets go, not where they come from!
+  exclude 'build'
+  // This file simply doesn't pass yet. We should figure out how to fix it.
+  exclude 'reference/modules/snapshots.asciidoc'
+}
+
+Closure setupTwitter = { String name, int count ->
+  buildRestTests.setups[name] = '''
+  - do:
+      bulk:
+        index: twitter
+        type: tweet
+        refresh: true
+        body: |'''
+    for (int i = 0; i < count; i++) {
+      String user, text
+      if (i == 0) {
+        user = 'kimchy'
+        text = 'trying out Elasticsearch'
+      } else {
+        user = 'test'
+        text = "some message with the number $i"
+      }
+      buildRestTests.setups[name] += """
+          {"index":{"_id": "$i"}}
+          {"user": "$user", "message": "$text", "date": "2009-11-15T14:12:12", "likes": $i}"""
+    }
+  }
+setupTwitter('twitter', 5)
+setupTwitter('big_twitter', 120)

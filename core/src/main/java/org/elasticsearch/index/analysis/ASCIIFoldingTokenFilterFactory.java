@@ -21,26 +21,32 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 
 /**
  * Factory for ASCIIFoldingFilter.
  */
-public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory {
+public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
+    public static ParseField PRESERVE_ORIGINAL = new ParseField("preserve_original");
+    public static boolean DEFAULT_PRESERVE_ORIGINAL = false;
+
     private final boolean preserveOriginal;
 
-    @Inject
-    public ASCIIFoldingTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
-        preserveOriginal = settings.getAsBoolean("preserve_original", false);
+    public ASCIIFoldingTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+        super(indexSettings, name, settings);
+        preserveOriginal = settings.getAsBoolean(PRESERVE_ORIGINAL.getPreferredName(), DEFAULT_PRESERVE_ORIGINAL);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new ASCIIFoldingFilter(tokenStream, preserveOriginal);
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
     }
 }

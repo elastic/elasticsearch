@@ -21,47 +21,35 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
+import java.util.Objects;
 
-/**
- *
- */
-public class ClusterName implements Streamable {
+public class ClusterName implements Writeable {
 
-    public static final String SETTING = "cluster.name";
+    public static final Setting<ClusterName> CLUSTER_NAME_SETTING = new Setting<>("cluster.name", "elasticsearch", (s) -> {
+        if (s.isEmpty()) {
+            throw new IllegalArgumentException("[cluster.name] must not be empty");
+        }
+        return new ClusterName(s);
+    }, Setting.Property.NodeScope);
 
-    public static final ClusterName DEFAULT = new ClusterName("elasticsearch".intern());
+    public static final ClusterName DEFAULT = CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
 
-    private String value;
+    private final String value;
 
-    public static ClusterName clusterNameFromSettings(Settings settings) {
-        return new ClusterName(settings.get("cluster.name", ClusterName.DEFAULT.value()));
+    public ClusterName(StreamInput input) throws IOException {
+        this(input.readString());
     }
-
-    private ClusterName() {
-
-    }
-
     public ClusterName(String value) {
         this.value = value.intern();
     }
 
     public String value() {
         return this.value;
-    }
-
-    public static ClusterName readClusterName(StreamInput in) throws IOException {
-        ClusterName clusterName = new ClusterName();
-        clusterName.readFrom(in);
-        return clusterName;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        value = in.readString().intern();
     }
 
     @Override
@@ -83,7 +71,7 @@ public class ClusterName implements Streamable {
 
     @Override
     public int hashCode() {
-        return value != null ? value.hashCode() : 0;
+        return Objects.hash(value);
     }
 
     @Override

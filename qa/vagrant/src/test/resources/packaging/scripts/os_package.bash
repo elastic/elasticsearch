@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # This file contains some utilities to test the elasticsearch scripts with
 # the .deb/.rpm packages.
@@ -30,6 +30,7 @@
 export_elasticsearch_paths() {
     export ESHOME="/usr/share/elasticsearch"
     export ESPLUGINS="$ESHOME/plugins"
+    export ESMODULES="$ESHOME/modules"
     export ESCONFIG="/etc/elasticsearch"
     export ESSCRIPTS="$ESCONFIG/scripts"
     export ESDATA="/var/lib/elasticsearch"
@@ -47,6 +48,7 @@ install_package() {
         case $opt in
             u)
                 rpmCommand='-U'
+                dpkgCommand='--force-confnew'
                 ;;
             v)
                 version=$OPTARG
@@ -59,7 +61,7 @@ install_package() {
     if is_rpm; then
         rpm $rpmCommand elasticsearch-$version.rpm
     elif is_dpkg; then
-        dpkg -i elasticsearch-$version.deb
+        dpkg $dpkgCommand -i elasticsearch-$version.deb
     else
         skip "Only rpm or deb supported"
     fi
@@ -81,7 +83,8 @@ verify_package_installation() {
     assert_file "$ESSCRIPTS" d root elasticsearch 750
     assert_file "$ESDATA" d elasticsearch elasticsearch 755
     assert_file "$ESLOG" d elasticsearch elasticsearch 755
-    assert_file "$ESPLUGINS" d elasticsearch elasticsearch 755
+    assert_file "$ESPLUGINS" d root root 755
+    assert_file "$ESMODULES" d root root 755
     assert_file "$ESPIDDIR" d elasticsearch elasticsearch 755
     assert_file "$ESHOME/NOTICE.txt" f root root 644
     assert_file "$ESHOME/README.textile" f root root 644

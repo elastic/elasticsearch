@@ -21,19 +21,21 @@ package org.elasticsearch.repositories.azure;
 
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.cloud.azure.AbstractAzureWithThirdPartyTestCase;
+import org.elasticsearch.cloud.azure.AbstractAzureWithThirdPartyIntegTestCase;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
@@ -44,28 +46,27 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.net.URISyntaxException;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.cloud.azure.AzureTestUtils.readSettingsFromFile;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * This test needs Azure to run and -Dtests.thirdparty=true to be set
  * and -Dtests.config=/path/to/elasticsearch.yml
- * @see AbstractAzureWithThirdPartyTestCase
+ * @see AbstractAzureWithThirdPartyIntegTestCase
  */
 @ClusterScope(
         scope = ESIntegTestCase.Scope.SUITE,
-        numDataNodes = 1,
+        supportsDedicatedMasters = false, numDataNodes = 1,
         transportClientRatio = 0.0)
-public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCase {
-
+public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyIntegTestCase {
     private String getRepositoryPath() {
-        String testName = "it-".concat(Strings.toUnderscoreCase(getTestName()).replaceAll("_", "-"));
+        String testName = "it-" + getTestName();
         return testName.contains(" ") ? Strings.split(testName, " ")[0] : testName;
     }
 
@@ -78,7 +79,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 // In snapshot tests, we explicitly disable cloud discovery
-                .put("discovery.type", "local")
+                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local")
                 .build();
     }
 
@@ -87,8 +88,8 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         // During restore we frequently restore index to exactly the same state it was before, that might cause the same
         // checksum file to be written twice during restore operation
         return Settings.builder().put(super.indexSettings())
-                .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE, false)
-                .put(MockFSDirectoryService.RANDOM_NO_DELETE_OPEN_FILE, false)
+                .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE_SETTING.getKey(), false)
+                .put(MockFSDirectoryService.RANDOM_NO_DELETE_OPEN_FILE_SETTING.getKey(), false)
                 .build();
     }
 
@@ -101,15 +102,14 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
             getContainerName().concat("-2"));
     }
 
-    @Test
     public void testSimpleWorkflow() {
         Client client = client();
         logger.info("-->  creating azure repository with path [{}]", getRepositoryPath());
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("azure").setSettings(Settings.settingsBuilder()
-                        .put(Repository.CONTAINER, getContainerName())
-                        .put(Repository.BASE_PATH, getRepositoryPath())
-                        .put(Repository.CHUNK_SIZE, randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
+                .setType("azure").setSettings(Settings.builder()
+                        .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
+                        .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
+                        .put(Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
@@ -123,16 +123,19 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
             index("test-idx-3", "doc", Integer.toString(i), "foo", "baz" + i);
         }
         refresh();
-        assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(100L));
-        assertThat(client.prepareCount("test-idx-2").get().getCount(), equalTo(100L));
-        assertThat(client.prepareCount("test-idx-3").get().getCount(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-1").setSize(0).get().getHits().totalHits(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-2").setSize(0).get().getHits().totalHits(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-3").setSize(0).get().getHits().totalHits(), equalTo(100L));
 
         logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-3").get();
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-3").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
-        assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get().getSnapshots()
+            .get(0).state(), equalTo(SnapshotState.SUCCESS));
 
         logger.info("--> delete some data");
         for (int i = 0; i < 50; i++) {
@@ -145,39 +148,40 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
             client.prepareDelete("test-idx-3", "doc", Integer.toString(i)).get();
         }
         refresh();
-        assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(50L));
-        assertThat(client.prepareCount("test-idx-2").get().getCount(), equalTo(50L));
-        assertThat(client.prepareCount("test-idx-3").get().getCount(), equalTo(50L));
+        assertThat(client.prepareSearch("test-idx-1").setSize(0).get().getHits().totalHits(), equalTo(50L));
+        assertThat(client.prepareSearch("test-idx-2").setSize(0).get().getHits().totalHits(), equalTo(50L));
+        assertThat(client.prepareSearch("test-idx-3").setSize(0).get().getHits().totalHits(), equalTo(50L));
 
         logger.info("--> close indices");
         client.admin().indices().prepareClose("test-idx-1", "test-idx-2").get();
 
         logger.info("--> restore all indices from the snapshot");
-        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         ensureGreen();
-        assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(100L));
-        assertThat(client.prepareCount("test-idx-2").get().getCount(), equalTo(100L));
-        assertThat(client.prepareCount("test-idx-3").get().getCount(), equalTo(50L));
+        assertThat(client.prepareSearch("test-idx-1").setSize(0).get().getHits().totalHits(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-2").setSize(0).get().getHits().totalHits(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-3").setSize(0).get().getHits().totalHits(), equalTo(50L));
 
         // Test restore after index deletion
         logger.info("--> delete indices");
         cluster().wipeIndices("test-idx-1", "test-idx-2");
         logger.info("--> restore one index after deletion");
-        restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-2").execute().actionGet();
+        restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true)
+            .setIndices("test-idx-*", "-test-idx-2").get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         ensureGreen();
-        assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-1").setSize(0).get().getHits().totalHits(), equalTo(100L));
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
         assertThat(clusterState.getMetaData().hasIndex("test-idx-1"), equalTo(true));
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
     }
 
     /**
-     * For issue #51: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/51
+     * For issue #51: https://github.com/elastic/elasticsearch-cloud-azure/issues/51
      */
-    @Test
     public void testMultipleSnapshots() throws URISyntaxException, StorageException {
         final String indexName = "test-idx-1";
         final String typeName = "doc";
@@ -194,62 +198,68 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         logger.info("indexing first document");
         index(indexName, typeName, Integer.toString(1), "foo", "bar " + Integer.toString(1));
         refresh();
-        assertThat(client.prepareCount(indexName).get().getCount(), equalTo(1L));
+        assertThat(client.prepareSearch(indexName).setSize(0).get().getHits().totalHits(), equalTo(1L));
 
         logger.info("creating Azure repository with path [{}]", getRepositoryPath());
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository(repositoryName)
-                .setType("azure").setSettings(Settings.settingsBuilder()
-                                .put(Repository.CONTAINER, getContainerName())
-                                .put(Repository.BASE_PATH, getRepositoryPath())
-                                .put(Repository.BASE_PATH, randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
+                .setType("azure").setSettings(Settings.builder()
+                                .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
+                                .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
+                                .put(Repository.BASE_PATH_SETTING.getKey(), randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("creating snapshot [{}]", snapshot1Name);
-        CreateSnapshotResponse createSnapshotResponse1 = client.admin().cluster().prepareCreateSnapshot(repositoryName, snapshot1Name).setWaitForCompletion(true).setIndices(indexName).get();
+        CreateSnapshotResponse createSnapshotResponse1 = client.admin().cluster().prepareCreateSnapshot(repositoryName, snapshot1Name)
+            .setWaitForCompletion(true).setIndices(indexName).get();
         assertThat(createSnapshotResponse1.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse1.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse1.getSnapshotInfo().totalShards()));
+        assertThat(createSnapshotResponse1.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse1.getSnapshotInfo().totalShards()));
 
-        assertThat(client.admin().cluster().prepareGetSnapshots(repositoryName).setSnapshots(snapshot1Name).get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(client.admin().cluster().prepareGetSnapshots(repositoryName).setSnapshots(snapshot1Name).get().getSnapshots()
+            .get(0).state(), equalTo(SnapshotState.SUCCESS));
 
         logger.info("indexing second document");
         index(indexName, typeName, Integer.toString(2), "foo", "bar " + Integer.toString(2));
         refresh();
-        assertThat(client.prepareCount(indexName).get().getCount(), equalTo(2L));
+        assertThat(client.prepareSearch(indexName).setSize(0).get().getHits().totalHits(), equalTo(2L));
 
         logger.info("creating snapshot [{}]", snapshot2Name);
-        CreateSnapshotResponse createSnapshotResponse2 = client.admin().cluster().prepareCreateSnapshot(repositoryName, snapshot2Name).setWaitForCompletion(true).setIndices(indexName).get();
+        CreateSnapshotResponse createSnapshotResponse2 = client.admin().cluster().prepareCreateSnapshot(repositoryName, snapshot2Name)
+            .setWaitForCompletion(true).setIndices(indexName).get();
         assertThat(createSnapshotResponse2.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse2.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse2.getSnapshotInfo().totalShards()));
+        assertThat(createSnapshotResponse2.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse2.getSnapshotInfo().totalShards()));
 
-        assertThat(client.admin().cluster().prepareGetSnapshots(repositoryName).setSnapshots(snapshot2Name).get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(client.admin().cluster().prepareGetSnapshots(repositoryName).setSnapshots(snapshot2Name).get().getSnapshots()
+            .get(0).state(), equalTo(SnapshotState.SUCCESS));
 
         logger.info("closing index [{}]", indexName);
         client.admin().indices().prepareClose(indexName).get();
 
         logger.info("attempting restore from snapshot [{}]", snapshot1Name);
-        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot(repositoryName, snapshot1Name).setWaitForCompletion(true).execute().actionGet();
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot(repositoryName, snapshot1Name)
+            .setWaitForCompletion(true).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         ensureGreen();
-        assertThat(client.prepareCount(indexName).get().getCount(), equalTo(1L));
+        assertThat(client.prepareSearch(indexName).setSize(0).get().getHits().totalHits(), equalTo(1L));
     }
 
-    @Test
     public void testMultipleRepositories() {
         Client client = client();
         logger.info("-->  creating azure repository with path [{}]", getRepositoryPath());
         PutRepositoryResponse putRepositoryResponse1 = client.admin().cluster().preparePutRepository("test-repo1")
-                .setType("azure").setSettings(Settings.settingsBuilder()
-                        .put(Repository.CONTAINER, getContainerName().concat("-1"))
-                        .put(Repository.BASE_PATH, getRepositoryPath())
-                        .put(Repository.CHUNK_SIZE, randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
+                .setType("azure").setSettings(Settings.builder()
+                        .put(Repository.CONTAINER_SETTING.getKey(), getContainerName().concat("-1"))
+                        .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
+                        .put(Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
                 ).get();
         assertThat(putRepositoryResponse1.isAcknowledged(), equalTo(true));
         PutRepositoryResponse putRepositoryResponse2 = client.admin().cluster().preparePutRepository("test-repo2")
-                .setType("azure").setSettings(Settings.settingsBuilder()
-                        .put(Repository.CONTAINER, getContainerName().concat("-2"))
-                        .put(Repository.BASE_PATH, getRepositoryPath())
-                        .put(Repository.CHUNK_SIZE, randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
+                .setType("azure").setSettings(Settings.builder()
+                        .put(Repository.CONTAINER_SETTING.getKey(), getContainerName().concat("-2"))
+                        .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
+                        .put(Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
                 ).get();
         assertThat(putRepositoryResponse2.isAcknowledged(), equalTo(true));
 
@@ -262,48 +272,55 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
             index("test-idx-2", "doc", Integer.toString(i), "foo", "baz" + i);
         }
         refresh();
-        assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(100L));
-        assertThat(client.prepareCount("test-idx-2").get().getCount(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-1").setSize(0).get().getHits().totalHits(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-2").setSize(0).get().getHits().totalHits(), equalTo(100L));
 
         logger.info("--> snapshot 1");
-        CreateSnapshotResponse createSnapshotResponse1 = client.admin().cluster().prepareCreateSnapshot("test-repo1", "test-snap").setWaitForCompletion(true).setIndices("test-idx-1").get();
+        CreateSnapshotResponse createSnapshotResponse1 = client.admin().cluster().prepareCreateSnapshot("test-repo1", "test-snap")
+            .setWaitForCompletion(true).setIndices("test-idx-1").get();
         assertThat(createSnapshotResponse1.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse1.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse1.getSnapshotInfo().totalShards()));
+        assertThat(createSnapshotResponse1.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse1.getSnapshotInfo().totalShards()));
 
         logger.info("--> snapshot 2");
-        CreateSnapshotResponse createSnapshotResponse2 = client.admin().cluster().prepareCreateSnapshot("test-repo2", "test-snap").setWaitForCompletion(true).setIndices("test-idx-2").get();
+        CreateSnapshotResponse createSnapshotResponse2 = client.admin().cluster().prepareCreateSnapshot("test-repo2", "test-snap")
+            .setWaitForCompletion(true).setIndices("test-idx-2").get();
         assertThat(createSnapshotResponse2.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse2.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse2.getSnapshotInfo().totalShards()));
+        assertThat(createSnapshotResponse2.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse2.getSnapshotInfo().totalShards()));
 
-        assertThat(client.admin().cluster().prepareGetSnapshots("test-repo1").setSnapshots("test-snap").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
-        assertThat(client.admin().cluster().prepareGetSnapshots("test-repo2").setSnapshots("test-snap").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(client.admin().cluster().prepareGetSnapshots("test-repo1").setSnapshots("test-snap").get().getSnapshots().get(0).state(),
+            equalTo(SnapshotState.SUCCESS));
+        assertThat(client.admin().cluster().prepareGetSnapshots("test-repo2").setSnapshots("test-snap").get().getSnapshots().get(0).state(),
+            equalTo(SnapshotState.SUCCESS));
 
         // Test restore after index deletion
         logger.info("--> delete indices");
         cluster().wipeIndices("test-idx-1", "test-idx-2");
         logger.info("--> restore one index after deletion from snapshot 1");
-        RestoreSnapshotResponse restoreSnapshotResponse1 = client.admin().cluster().prepareRestoreSnapshot("test-repo1", "test-snap").setWaitForCompletion(true).setIndices("test-idx-1").execute().actionGet();
+        RestoreSnapshotResponse restoreSnapshotResponse1 = client.admin().cluster().prepareRestoreSnapshot("test-repo1", "test-snap")
+            .setWaitForCompletion(true).setIndices("test-idx-1").get();
         assertThat(restoreSnapshotResponse1.getRestoreInfo().totalShards(), greaterThan(0));
         ensureGreen();
-        assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-1").setSize(0).get().getHits().totalHits(), equalTo(100L));
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
         assertThat(clusterState.getMetaData().hasIndex("test-idx-1"), equalTo(true));
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
 
         logger.info("--> restore other index after deletion from snapshot 2");
-        RestoreSnapshotResponse restoreSnapshotResponse2 = client.admin().cluster().prepareRestoreSnapshot("test-repo2", "test-snap").setWaitForCompletion(true).setIndices("test-idx-2").execute().actionGet();
+        RestoreSnapshotResponse restoreSnapshotResponse2 = client.admin().cluster().prepareRestoreSnapshot("test-repo2", "test-snap")
+            .setWaitForCompletion(true).setIndices("test-idx-2").get();
         assertThat(restoreSnapshotResponse2.getRestoreInfo().totalShards(), greaterThan(0));
         ensureGreen();
-        assertThat(client.prepareCount("test-idx-2").get().getCount(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-2").setSize(0).get().getHits().totalHits(), equalTo(100L));
         clusterState = client.admin().cluster().prepareState().get().getState();
         assertThat(clusterState.getMetaData().hasIndex("test-idx-1"), equalTo(true));
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(true));
     }
 
     /**
-     * For issue #26: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/26
+     * For issue #26: https://github.com/elastic/elasticsearch-cloud-azure/issues/26
      */
-    @Test
     public void testListBlobs_26() throws StorageException, URISyntaxException {
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
         ensureGreen();
@@ -319,8 +336,8 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         ClusterAdminClient client = client().admin().cluster();
         logger.info("-->  creating azure repository without any path");
         PutRepositoryResponse putRepositoryResponse = client.preparePutRepository("test-repo").setType("azure")
-                .setSettings(Settings.settingsBuilder()
-                        .put(Repository.CONTAINER, getContainerName())
+                .setSettings(Settings.builder()
+                        .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
@@ -328,7 +345,8 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         assertThat(client.prepareGetSnapshots("test-repo").get().getSnapshots().size(), equalTo(0));
 
         logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.prepareCreateSnapshot("test-repo", "test-snap-26").setWaitForCompletion(true).setIndices("test-idx-*").get();
+        CreateSnapshotResponse createSnapshotResponse = client.prepareCreateSnapshot("test-repo", "test-snap-26")
+            .setWaitForCompletion(true).setIndices("test-idx-*").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
 
         // Get all snapshots - should have one
@@ -340,9 +358,9 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
 
         logger.info("-->  creating azure repository path [{}]", getRepositoryPath());
         putRepositoryResponse = client.preparePutRepository("test-repo").setType("azure")
-                .setSettings(Settings.settingsBuilder()
-                        .put(Repository.CONTAINER, getContainerName())
-                        .put(Repository.BASE_PATH, getRepositoryPath())
+                .setSettings(Settings.builder()
+                        .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
+                        .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
         ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
@@ -350,7 +368,8 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         assertThat(client.prepareGetSnapshots("test-repo").get().getSnapshots().size(), equalTo(0));
 
         logger.info("--> snapshot");
-        createSnapshotResponse = client.prepareCreateSnapshot("test-repo", "test-snap-26").setWaitForCompletion(true).setIndices("test-idx-*").get();
+        createSnapshotResponse = client.prepareCreateSnapshot("test-repo", "test-snap-26").setWaitForCompletion(true)
+            .setIndices("test-idx-*").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
 
         // Get all snapshots - should have one
@@ -360,15 +379,14 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
     }
 
     /**
-     * For issue #28: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/28
+     * For issue #28: https://github.com/elastic/elasticsearch-cloud-azure/issues/28
      */
-    @Test
     public void testGetDeleteNonExistingSnapshot_28() throws StorageException, URISyntaxException {
         ClusterAdminClient client = client().admin().cluster();
         logger.info("-->  creating azure repository without any path");
         PutRepositoryResponse putRepositoryResponse = client.preparePutRepository("test-repo").setType("azure")
-                .setSettings(Settings.settingsBuilder()
-                        .put(Repository.CONTAINER, getContainerName())
+                .setSettings(Settings.builder()
+                        .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
@@ -388,9 +406,8 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
     }
 
     /**
-     * For issue #21: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/21
+     * For issue #21: https://github.com/elastic/elasticsearch-cloud-azure/issues/21
      */
-    @Test
     public void testForbiddenContainerName() throws Exception {
         checkContainerName("", false);
         checkContainerName("es", false);
@@ -413,52 +430,48 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         logger.info("-->  creating azure repository with container name [{}]", container);
         // It could happen that we just removed from a previous test the same container so
         // we can not create it yet.
-        assertBusy(new Runnable() {
-
-            public void run() {
+        assertBusy(() -> {
+            try {
+                PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
+                        .setType("azure").setSettings(Settings.builder()
+                                        .put(Repository.CONTAINER_SETTING.getKey(), container)
+                                        .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
+                                        .put(Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
+                        ).get();
+                client().admin().cluster().prepareDeleteRepository("test-repo").get();
                 try {
-                    PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
-                            .setType("azure").setSettings(Settings.settingsBuilder()
-                                            .put(Repository.CONTAINER, container)
-                                            .put(Repository.BASE_PATH, getRepositoryPath())
-                                            .put(Repository.CHUNK_SIZE, randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
-                            ).get();
-                    client().admin().cluster().prepareDeleteRepository("test-repo").get();
-                    try {
-                        logger.info("--> remove container [{}]", container);
-                        cleanRepositoryFiles(container);
-                    } catch (StorageException | URISyntaxException e) {
-                        // We can ignore that as we just try to clean after the test
-                    }
-                    assertTrue(putRepositoryResponse.isAcknowledged() == correct);
-                } catch (RepositoryVerificationException e) {
-                    if (correct) {
-                        logger.debug(" -> container is being removed. Let's wait a bit...");
-                        fail();
-                    }
+                    logger.info("--> remove container [{}]", container);
+                    cleanRepositoryFiles(container);
+                } catch (StorageException | URISyntaxException e) {
+                    // We can ignore that as we just try to clean after the test
+                }
+                assertTrue(putRepositoryResponse.isAcknowledged() == correct);
+            } catch (RepositoryVerificationException e) {
+                if (correct) {
+                    logger.debug(" -> container is being removed. Let's wait a bit...");
+                    fail();
                 }
             }
         }, 5, TimeUnit.MINUTES);
     }
 
     /**
-     * Test case for issue #23: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/23
+     * Test case for issue #23: https://github.com/elastic/elasticsearch-cloud-azure/issues/23
      */
-    @Test
     public void testNonExistingRepo_23() {
         Client client = client();
         logger.info("-->  creating azure repository with path [{}]", getRepositoryPath());
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("azure").setSettings(Settings.settingsBuilder()
-                        .put(Repository.CONTAINER, getContainerName())
-                        .put(Repository.BASE_PATH, getRepositoryPath())
-                        .put(Repository.CHUNK_SIZE, randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
+                .setType("azure").setSettings(Settings.builder()
+                        .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
+                        .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
+                        .put(Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> restore non existing snapshot");
         try {
-            client.admin().cluster().prepareRestoreSnapshot("test-repo", "no-existing-snapshot").setWaitForCompletion(true).execute().actionGet();
+            client.admin().cluster().prepareRestoreSnapshot("test-repo", "no-existing-snapshot").setWaitForCompletion(true).get();
             fail("Shouldn't be here");
         } catch (SnapshotMissingException ex) {
             // Expected
@@ -468,37 +481,33 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
     /**
      * When a user remove a container you can not immediately create it again.
      */
-    @Test
     public void testRemoveAndCreateContainer() throws Exception {
         final String container = getContainerName().concat("-testremove");
         final AzureStorageService storageService = internalCluster().getInstance(AzureStorageService.class);
 
         // It could happen that we run this test really close to a previous one
         // so we might need some time to be able to create the container
-        assertBusy(new Runnable() {
-
-            public void run()  {
-                try {
-                    storageService.createContainer(container);
-                    logger.debug(" -> container created...");
-                } catch (URISyntaxException e) {
-                    // Incorrect URL. This should never happen.
-                    fail();
-                } catch (StorageException e) {
-                    // It could happen. Let's wait for a while.
-                    logger.debug(" -> container is being removed. Let's wait a bit...");
-                    fail();
-                }
+        assertBusy(() -> {
+            try {
+                storageService.createContainer(null, LocationMode.PRIMARY_ONLY, container);
+                logger.debug(" -> container created...");
+            } catch (URISyntaxException e) {
+                // Incorrect URL. This should never happen.
+                fail();
+            } catch (StorageException e) {
+                // It could happen. Let's wait for a while.
+                logger.debug(" -> container is being removed. Let's wait a bit...");
+                fail();
             }
         }, 30, TimeUnit.SECONDS);
-        storageService.removeContainer(container);
+        storageService.removeContainer(null, LocationMode.PRIMARY_ONLY, container);
 
         ClusterAdminClient client = client().admin().cluster();
         logger.info("-->  creating azure repository while container is being removed");
         try {
             client.preparePutRepository("test-repo").setType("azure")
-                    .setSettings(Settings.settingsBuilder()
-                            .put(Repository.CONTAINER, container)
+                    .setSettings(Settings.builder()
+                            .put(Repository.CONTAINER_SETTING.getKey(), container)
                     ).get();
             fail("we should get a RepositoryVerificationException");
         } catch (RepositoryVerificationException e) {
@@ -516,7 +525,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         }
         for (String repository : repositories) {
             try {
-                client().admin().cluster().prepareDeleteRepository(repository).execute().actionGet();
+                client().admin().cluster().prepareDeleteRepository(repository).get();
             } catch (RepositoryMissingException ex) {
                 // ignore
             }
@@ -530,7 +539,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         Settings settings = readSettingsFromFile();
         AzureStorageService client = new AzureStorageServiceImpl(settings);
         for (String container : containers) {
-            client.removeContainer(container);
+            client.removeContainer(null, LocationMode.PRIMARY_ONLY, container);
         }
     }
 }

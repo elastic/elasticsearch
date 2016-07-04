@@ -19,24 +19,23 @@
 
 package org.elasticsearch.rest.action.bulk;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
-import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -57,8 +56,8 @@ public class RestBulkAction extends BaseRestHandler {
     private final boolean allowExplicitIndex;
 
     @Inject
-    public RestBulkAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestBulkAction(Settings settings, RestController controller) {
+        super(settings);
 
         controller.registerHandler(POST, "/_bulk", this);
         controller.registerHandler(PUT, "/_bulk", this);
@@ -67,16 +66,17 @@ public class RestBulkAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/{type}/_bulk", this);
         controller.registerHandler(PUT, "/{index}/{type}/_bulk", this);
 
-        this.allowExplicitIndex = settings.getAsBoolean("rest.action.multi.allow_explicit_index", true);
+        this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         BulkRequest bulkRequest = Requests.bulkRequest();
         String defaultIndex = request.param("index");
         String defaultType = request.param("type");
         String defaultRouting = request.param("routing");
         String fieldsParam = request.param("fields");
+        String defaultPipeline = request.param("pipeline");
         String[] defaultFields = fieldsParam != null ? Strings.commaDelimitedListToStringArray(fieldsParam) : null;
 
         String consistencyLevel = request.param("consistency");
@@ -84,64 +84,22 @@ public class RestBulkAction extends BaseRestHandler {
             bulkRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
-        bulkRequest.refresh(request.paramAsBoolean("refresh", bulkRequest.refresh()));
-        bulkRequest.add(request.content(), defaultIndex, defaultType, defaultRouting, defaultFields, null, allowExplicitIndex);
+        bulkRequest.setRefreshPolicy(request.param("refresh"));
+        bulkRequest.add(request.content(), defaultIndex, defaultType, defaultRouting, defaultFields, defaultPipeline, null, allowExplicitIndex);
 
         client.bulk(bulkRequest, new RestBuilderListener<BulkResponse>(channel) {
             @Override
             public RestResponse buildResponse(BulkResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 builder.field(Fields.TOOK, response.getTookInMillis());
+                if (response.getIngestTookInMillis() != BulkResponse.NO_INGEST_TOOK) {
+                    builder.field(Fields.INGEST_TOOK, response.getIngestTookInMillis());
+                }
                 builder.field(Fields.ERRORS, response.hasFailures());
                 builder.startArray(Fields.ITEMS);
                 for (BulkItemResponse itemResponse : response) {
                     builder.startObject();
-                    builder.startObject(itemResponse.getOpType());
-                    builder.field(Fields._INDEX, itemResponse.getIndex());
-                    builder.field(Fields._TYPE, itemResponse.getType());
-                    builder.field(Fields._ID, itemResponse.getId());
-                    long version = itemResponse.getVersion();
-                    if (version != -1) {
-                        builder.field(Fields._VERSION, itemResponse.getVersion());
-                    }
-                    if (itemResponse.isFailed()) {
-                        builder.field(Fields.STATUS, itemResponse.getFailure().getStatus().getStatus());
-                        builder.startObject(Fields.ERROR);
-                        ElasticsearchException.toXContent(builder, request, itemResponse.getFailure().getCause());
-                        builder.endObject();
-                    } else {
-                        ActionWriteResponse.ShardInfo shardInfo = itemResponse.getResponse().getShardInfo();
-                        shardInfo.toXContent(builder, request);
-                        if (itemResponse.getResponse() instanceof DeleteResponse) {
-                            DeleteResponse deleteResponse = itemResponse.getResponse();
-                            if (deleteResponse.isFound()) {
-                                builder.field(Fields.STATUS, shardInfo.status().getStatus());
-                            } else {
-                                builder.field(Fields.STATUS, RestStatus.NOT_FOUND.getStatus());
-                            }
-                            builder.field(Fields.FOUND, deleteResponse.isFound());
-                        } else if (itemResponse.getResponse() instanceof IndexResponse) {
-                            IndexResponse indexResponse = itemResponse.getResponse();
-                            if (indexResponse.isCreated()) {
-                                builder.field(Fields.STATUS, RestStatus.CREATED.getStatus());
-                            } else {
-                                builder.field(Fields.STATUS, shardInfo.status().getStatus());
-                            }
-                        } else if (itemResponse.getResponse() instanceof UpdateResponse) {
-                            UpdateResponse updateResponse = itemResponse.getResponse();
-                            if (updateResponse.isCreated()) {
-                                builder.field(Fields.STATUS, RestStatus.CREATED.getStatus());
-                            } else {
-                                builder.field(Fields.STATUS, shardInfo.status().getStatus());
-                            }
-                            if (updateResponse.getGetResult() != null) {
-                                builder.startObject(Fields.GET);
-                                updateResponse.getGetResult().toXContentEmbedded(builder, request);
-                                builder.endObject();
-                            }
-                        }
-                    }
-                    builder.endObject();
+                    itemResponse.toXContent(builder, request);
                     builder.endObject();
                 }
                 builder.endArray();
@@ -153,17 +111,10 @@ public class RestBulkAction extends BaseRestHandler {
     }
 
     static final class Fields {
-        static final XContentBuilderString ITEMS = new XContentBuilderString("items");
-        static final XContentBuilderString ERRORS = new XContentBuilderString("errors");
-        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        static final XContentBuilderString STATUS = new XContentBuilderString("status");
-        static final XContentBuilderString ERROR = new XContentBuilderString("error");
-        static final XContentBuilderString TOOK = new XContentBuilderString("took");
-        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        static final XContentBuilderString FOUND = new XContentBuilderString("found");
-        static final XContentBuilderString GET = new XContentBuilderString("get");
+        static final String ITEMS = "items";
+        static final String ERRORS = "errors";
+        static final String TOOK = "took";
+        static final String INGEST_TOOK = "ingest_took";
     }
 
 }

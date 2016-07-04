@@ -18,9 +18,13 @@
  */
 package org.elasticsearch.action.termvectors;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.TermStatistics;
-import org.apache.lucene.search.similarities.DefaultSimilarity;
+import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
@@ -63,7 +67,7 @@ public class TermVectorsFilter {
 
         this.dfs = dfs;
         this.scoreTerms = new HashMap<>();
-        this.similarity = new DefaultSimilarity();
+        this.similarity = new ClassicSimilarity();
     }
 
     public void setSettings(TermVectorsRequest.FilterSettings settings) {
@@ -204,21 +208,21 @@ public class TermVectorsFilter {
                 BytesRef termBytesRef = termsEnum.term();
                 boolean foundTerm = topLevelTermsEnum.seekExact(termBytesRef);
                 assert foundTerm : "Term: " + termBytesRef.utf8ToString() + " not found!";
-                
+
                 Term term = new Term(fieldName, termBytesRef);
-                
+
                 // remove noise words
                 int freq = getTermFreq(termsEnum, docsEnum);
                 if (isNoise(term.bytes().utf8ToString(), freq)) {
                     continue;
                 }
-                
+
                 // now call on docFreq
                 long docFreq = getTermStatistics(topLevelTermsEnum, term).docFreq();
                 if (!isAccepted(docFreq)) {
                     continue;
                 }
-                
+
                 // filter based on score
                 float score = computeScore(docFreq, freq, numDocs);
                 queue.addOrUpdate(new ScoreTerm(term.field(), term.bytes().utf8ToString(), score));

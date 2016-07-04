@@ -21,10 +21,8 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.bootstrap.Elasticsearch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -42,15 +40,11 @@ public class BytesRestResponse extends RestResponse {
     private final BytesReference content;
     private final String contentType;
 
-    public BytesRestResponse(RestStatus status) {
-        this(status, TEXT_CONTENT_TYPE, BytesArray.EMPTY);
-    }
-
     /**
      * Creates a new response based on {@link XContentBuilder}.
      */
     public BytesRestResponse(RestStatus status, XContentBuilder builder) {
-        this(status, builder.contentType().restContentType(), builder.bytes());
+        this(status, builder.contentType().mediaType(), builder.bytes());
     }
 
     /**
@@ -83,22 +77,22 @@ public class BytesRestResponse extends RestResponse {
         this.contentType = contentType;
     }
 
-    public BytesRestResponse(RestChannel channel, Throwable t) throws IOException {
-        this(channel, ExceptionsHelper.status(t), t);
+    public BytesRestResponse(RestChannel channel, Exception e) throws IOException {
+        this(channel, ExceptionsHelper.status(e), e);
     }
 
-    public BytesRestResponse(RestChannel channel, RestStatus status, Throwable t) throws IOException {
+    public BytesRestResponse(RestChannel channel, RestStatus status, Exception e) throws IOException {
         this.status = status;
         if (channel.request().method() == RestRequest.Method.HEAD) {
             this.content = BytesArray.EMPTY;
             this.contentType = TEXT_CONTENT_TYPE;
         } else {
-            XContentBuilder builder = convert(channel, status, t);
+            XContentBuilder builder = convert(channel, status, e);
             this.content = builder.bytes();
-            this.contentType = builder.contentType().restContentType();
+            this.contentType = builder.contentType().mediaType();
         }
-        if (t instanceof ElasticsearchException) {
-            copyHeaders(((ElasticsearchException) t));
+        if (e instanceof ElasticsearchException) {
+            copyHeaders(((ElasticsearchException) e));
         }
     }
 
@@ -119,21 +113,25 @@ public class BytesRestResponse extends RestResponse {
 
     private static final ESLogger SUPPRESSED_ERROR_LOGGER = ESLoggerFactory.getLogger("rest.suppressed");
 
-    private static XContentBuilder convert(RestChannel channel, RestStatus status, Throwable t) throws IOException {
+    private static XContentBuilder convert(RestChannel channel, RestStatus status, Exception e) throws IOException {
         XContentBuilder builder = channel.newErrorBuilder().startObject();
-        if (t == null) {
+        if (e == null) {
             builder.field("error", "unknown");
         } else if (channel.detailedErrorsEnabled()) {
             final ToXContent.Params params;
             if (channel.request().paramAsBoolean("error_trace", !ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT)) {
                 params =  new ToXContent.DelegatingMapParams(Collections.singletonMap(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false"), channel.request());
             } else {
-                SUPPRESSED_ERROR_LOGGER.info("{} Params: {}", t, channel.request().path(), channel.request().params());
+                if (status.getStatus() < 500) {
+                    SUPPRESSED_ERROR_LOGGER.debug("path: {}, params: {}", e, channel.request().rawPath(), channel.request().params());
+                } else {
+                    SUPPRESSED_ERROR_LOGGER.warn("path: {}, params: {}", e, channel.request().rawPath(), channel.request().params());
+                }
                 params = channel.request();
             }
             builder.field("error");
             builder.startObject();
-            final ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(t);
+            final ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(e);
             builder.field("root_cause");
             builder.startArray();
             for (ElasticsearchException rootCause : rootCauses){
@@ -143,10 +141,10 @@ public class BytesRestResponse extends RestResponse {
             }
             builder.endArray();
 
-            ElasticsearchException.toXContent(builder, params, t);
+            ElasticsearchException.toXContent(builder, params, e);
             builder.endObject();
         } else {
-            builder.field("error", simpleMessage(t));
+            builder.field("error", simpleMessage(e));
         }
         builder.field("status", status.getStatus());
         builder.endObject();

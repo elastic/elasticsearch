@@ -23,7 +23,10 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 
-import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.*;
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.GT;
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.GTE;
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.LT;
+import static org.elasticsearch.action.fieldstats.IndexConstraint.Comparison.LTE;
 import static org.elasticsearch.action.fieldstats.IndexConstraint.Property.MAX;
 import static org.elasticsearch.action.fieldstats.IndexConstraint.Property.MIN;
 import static org.hamcrest.Matchers.equalTo;
@@ -31,7 +34,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class FieldStatsRequestTests extends ESTestCase {
 
     public void testFieldsParsing() throws Exception {
-        byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/fieldstats/fieldstats-index-constraints-request.json");
+        byte[] data =
+            StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/fieldstats/" +
+                "fieldstats-index-constraints-request.json");
         FieldStatsRequest request = new FieldStatsRequest();
         request.source(new BytesArray(data));
 
@@ -42,7 +47,7 @@ public class FieldStatsRequestTests extends ESTestCase {
         assertThat(request.getFields()[3], equalTo("field4"));
         assertThat(request.getFields()[4], equalTo("field5"));
 
-        assertThat(request.getIndexConstraints().length, equalTo(6));
+        assertThat(request.getIndexConstraints().length, equalTo(8));
         assertThat(request.getIndexConstraints()[0].getField(), equalTo("field2"));
         assertThat(request.getIndexConstraints()[0].getValue(), equalTo("9"));
         assertThat(request.getIndexConstraints()[0].getProperty(), equalTo(MAX));
@@ -67,6 +72,16 @@ public class FieldStatsRequestTests extends ESTestCase {
         assertThat(request.getIndexConstraints()[5].getValue(), equalTo("9"));
         assertThat(request.getIndexConstraints()[5].getProperty(), equalTo(MAX));
         assertThat(request.getIndexConstraints()[5].getComparison(), equalTo(LT));
+        assertThat(request.getIndexConstraints()[6].getField(), equalTo("field1"));
+        assertThat(request.getIndexConstraints()[6].getValue(), equalTo("2014-01-01"));
+        assertThat(request.getIndexConstraints()[6].getProperty(), equalTo(MIN));
+        assertThat(request.getIndexConstraints()[6].getComparison(), equalTo(GTE));
+        assertThat(request.getIndexConstraints()[6].getOptionalFormat(), equalTo("date_optional_time"));
+        assertThat(request.getIndexConstraints()[7].getField(), equalTo("field1"));
+        assertThat(request.getIndexConstraints()[7].getValue(), equalTo("2015-01-01"));
+        assertThat(request.getIndexConstraints()[7].getProperty(), equalTo(MAX));
+        assertThat(request.getIndexConstraints()[7].getComparison(), equalTo(LT));
+        assertThat(request.getIndexConstraints()[7].getOptionalFormat(), equalTo("date_optional_time"));
     }
 
 }

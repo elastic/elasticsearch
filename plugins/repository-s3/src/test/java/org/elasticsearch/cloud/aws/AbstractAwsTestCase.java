@@ -23,14 +23,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugin.repository.s3.S3RepositoryPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ThirdParty;
-import org.junit.After;
-import org.junit.Before;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.io.IOException;
+import java.util.Collection;
 
 /**
  * Base class for AWS tests that require credentials.
@@ -41,41 +41,11 @@ import java.util.Map;
 @ThirdParty
 public abstract class AbstractAwsTestCase extends ESIntegTestCase {
 
-    /**
-     * Those properties are set by the AWS SDK v1.9.4 and if not ignored,
-     * lead to tests failure (see AbstractRandomizedTest#IGNORED_INVARIANT_PROPERTIES)
-     */
-    private static final String[] AWS_INVARIANT_PROPERTIES = {
-            "com.sun.org.apache.xml.internal.dtm.DTMManager",
-            "javax.xml.parsers.DocumentBuilderFactory"
-    };
-
-    private Map<String, String> properties = new HashMap<>();
-
-    @Before
-    public void saveProperties() {
-        for (String p : AWS_INVARIANT_PROPERTIES) {
-            properties.put(p, System.getProperty(p));
-        }
-    }
-
-    @After
-    public void restoreProperties() {
-        for (String p : AWS_INVARIANT_PROPERTIES) {
-            if (properties.get(p) != null) {
-                System.setProperty(p, properties.get(p));
-            } else {
-                System.clearProperty(p);
-            }
-        }
-    }
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-                Settings.Builder settings = Settings.builder()
+        Settings.Builder settings = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("path.home", createTempDir())
-                .extendArray("plugin.types", S3RepositoryPlugin.class.getName(), TestAwsS3Service.TestPlugin.class.getName())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("cloud.aws.test.random", randomInt())
                 .put("cloud.aws.test.write_failures", 0.1)
                 .put("cloud.aws.test.read_failures", 0.1);
@@ -83,13 +53,22 @@ public abstract class AbstractAwsTestCase extends ESIntegTestCase {
         // if explicit, just load it and don't load from env
         try {
             if (Strings.hasText(System.getProperty("tests.config"))) {
-                settings.loadFromPath(PathUtils.get(System.getProperty("tests.config")));
+                try {
+                    settings.loadFromPath(PathUtils.get(System.getProperty("tests.config")));
+                } catch (IOException e) {
+                    throw new IllegalArgumentException("could not load aws tests config", e);
+                }
             } else {
-                throw new IllegalStateException("to run integration tests, you need to set -Dtest.thirdparty=true and -Dtests.config=/path/to/elasticsearch.yml");
+                throw new IllegalStateException("to run integration tests, you need to set -Dtests.thirdparty=true and -Dtests.config=/path/to/elasticsearch.yml");
             }
         } catch (SettingsException exception) {
             throw new IllegalStateException("your test configuration file is incorrect: " + System.getProperty("tests.config"), exception);
         }
         return settings.build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(S3RepositoryPlugin.class);
     }
 }

@@ -20,14 +20,13 @@
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
@@ -37,9 +36,8 @@ import java.util.Arrays;
 
 public class BigArraysTests extends ESSingleNodeTestCase {
 
-    public static BigArrays randombigArrays() {
-        final PageCacheRecycler recycler = randomBoolean() ? null : ESSingleNodeTestCase.getInstanceFromNode(PageCacheRecycler.class);
-        return new MockBigArrays(recycler, new NoneCircuitBreakerService());
+    private BigArrays randombigArrays() {
+        return new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
     }
 
     private BigArrays bigArrays;
@@ -235,7 +233,7 @@ public class BigArraysTests extends ESSingleNodeTestCase {
 
     public void testByteArrayBulkGet() {
         final byte[] array1 = new byte[randomIntBetween(1, 4000000)];
-        getRandom().nextBytes(array1);
+        random().nextBytes(array1);
         final ByteArray array2 = bigArrays.newByteArray(array1.length, randomBoolean());
         for (int i = 0; i < array1.length; ++i) {
             array2.set(i, array1[i]);
@@ -252,7 +250,7 @@ public class BigArraysTests extends ESSingleNodeTestCase {
 
     public void testByteArrayBulkSet() {
         final byte[] array1 = new byte[randomIntBetween(1, 4000000)];
-        getRandom().nextBytes(array1);
+        random().nextBytes(array1);
         final ByteArray array2 = bigArrays.newByteArray(array1.length, randomBoolean());
         for (int i = 0; i < array1.length; ) {
             final int len = Math.min(array1.length - i, randomBoolean() ? randomInt(10) : randomInt(3 * BigArrays.BYTE_PAGE_SIZE));
@@ -315,7 +313,7 @@ public class BigArraysTests extends ESSingleNodeTestCase {
 
         // large arrays should be different
         final byte[] array1 = new byte[randomIntBetween(1, 4000000)];
-        getRandom().nextBytes(array1);
+        random().nextBytes(array1);
         final int array1Hash = Arrays.hashCode(array1);
         final ByteArray array2 = byteArrayWithBytes(array1);
         final int array2Hash = bigArrays.hashCode(array2);
@@ -336,10 +334,10 @@ public class BigArraysTests extends ESSingleNodeTestCase {
         for (String type : Arrays.asList("Byte", "Int", "Long", "Float", "Double", "Object")) {
             HierarchyCircuitBreakerService hcbs = new HierarchyCircuitBreakerService(
                     Settings.builder()
-                            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, size - 1, ByteSizeUnit.BYTES)
+                            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), size - 1, ByteSizeUnit.BYTES)
                             .build(),
-                    new NodeSettingsService(Settings.EMPTY));
-            BigArrays bigArrays = new BigArrays(null, hcbs).withCircuitBreaking();
+                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+            BigArrays bigArrays = new BigArrays(null, hcbs, false).withCircuitBreaking();
             Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
             try {
                 create.invoke(bigArrays, size);
@@ -356,10 +354,10 @@ public class BigArraysTests extends ESSingleNodeTestCase {
             final long maxSize = randomIntBetween(1 << 10, 1 << 22);
             HierarchyCircuitBreakerService hcbs = new HierarchyCircuitBreakerService(
                     Settings.builder()
-                            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, maxSize, ByteSizeUnit.BYTES)
+                            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
                             .build(),
-                    new NodeSettingsService(Settings.EMPTY));
-            BigArrays bigArrays = new BigArrays(null, hcbs).withCircuitBreaking();
+                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+            BigArrays bigArrays = new BigArrays(null, hcbs, false).withCircuitBreaking();
             Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
             final int size = scaledRandomIntBetween(1, 20);
             BigArray array = (BigArray) create.invoke(bigArrays, size);

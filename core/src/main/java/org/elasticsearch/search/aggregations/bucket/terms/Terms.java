@@ -62,7 +62,7 @@ public interface Terms extends MultiBucketsAggregation {
     /**
      * A bucket that is associated with a single term
      */
-    static abstract class Bucket extends InternalMultiBucketAggregation.InternalBucket {
+    abstract static class Bucket extends InternalMultiBucketAggregation.InternalBucket {
 
         public abstract Number getKeyAsNumber();
 
@@ -82,7 +82,7 @@ public interface Terms extends MultiBucketsAggregation {
      * Get the bucket for the given term, or null if there is no such bucket.
      */
     Bucket getBucketByKey(String term);
-    
+
     /**
      * Get an upper bound of the error on document counts in this aggregation.
      */
@@ -97,7 +97,7 @@ public interface Terms extends MultiBucketsAggregation {
     /**
      * Determines the order by which the term buckets will be sorted
      */
-    static abstract class Order implements ToXContent {
+    abstract static class Order implements ToXContent {
 
         /**
          * @return a bucket ordering strategy that sorts buckets by their document counts (ascending or descending)
@@ -165,6 +165,12 @@ public interface Terms extends MultiBucketsAggregation {
         protected abstract Comparator<Bucket> comparator(Aggregator aggregator);
 
         abstract byte id();
+
+        @Override
+        public abstract int hashCode();
+
+        @Override
+        public abstract boolean equals(Object obj);
 
     }
 }

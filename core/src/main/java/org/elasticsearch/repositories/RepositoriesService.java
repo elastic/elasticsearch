@@ -22,7 +22,6 @@ package org.elasticsearch.repositories;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
@@ -31,6 +30,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
@@ -77,7 +77,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
         this.clusterService = clusterService;
         // Doesn't make sense to maintain repositories on non-master and non-data nodes
         // Nothing happens there anyway
-        if (DiscoveryNode.dataNode(settings) || DiscoveryNode.masterNode(settings)) {
+        if (DiscoveryNode.isDataNode(settings) || DiscoveryNode.isMasterNode(settings)) {
             clusterService.add(this);
         }
         this.verifyAction = new VerifyNodeRepositoryAction(settings, transportService, clusterService, this);
@@ -147,14 +147,14 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                logger.warn("failed to create repository [{}]", t, request.name);
-                super.onFailure(source, t);
+            public void onFailure(String source, Exception e) {
+                logger.warn("failed to create repository [{}]", e, request.name);
+                super.onFailure(source, e);
             }
 
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
-                return discoveryNode.masterNode();
+                return discoveryNode.isMasterNode();
             }
         });
     }
@@ -205,7 +205,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
                 // Since operation occurs only on masters, it's enough that only master-eligible nodes acked
-                return discoveryNode.masterNode();
+                return discoveryNode.isMasterNode();
             }
         });
     }
@@ -221,32 +221,33 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                         public void onResponse(VerifyResponse verifyResponse) {
                             try {
                                 repository.endVerification(verificationToken);
-                            } catch (Throwable t) {
-                                logger.warn("[{}] failed to finish repository verification", t, repositoryName);
-                                listener.onFailure(t);
+                            } catch (Exception e) {
+                                logger.warn("[{}] failed to finish repository verification", e, repositoryName);
+                                listener.onFailure(e);
                                 return;
                             }
                             listener.onResponse(verifyResponse);
                         }
 
                         @Override
-                        public void onFailure(Throwable e) {
+                        public void onFailure(Exception e) {
                             listener.onFailure(e);
                         }
                     });
-                } catch (Throwable t) {
+                } catch (Exception e) {
                     try {
                         repository.endVerification(verificationToken);
-                    } catch (Throwable t1) {
-                        logger.warn("[{}] failed to finish repository verification", t1, repositoryName);
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        logger.warn("[{}] failed to finish repository verification", inner, repositoryName);
                     }
-                    listener.onFailure(t);
+                    listener.onFailure(e);
                 }
             } else {
                 listener.onResponse(new VerifyResponse(new DiscoveryNode[0], new VerificationFailure[0]));
             }
-        } catch (Throwable t) {
-            listener.onFailure(t);
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
     }
 
@@ -313,7 +314,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                 }
             }
             repositories = unmodifiableMap(builder);
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             logger.warn("failure updating cluster state ", ex);
         }
     }
@@ -409,10 +410,10 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
             Repository repository = repositoryInjector.getInstance(Repository.class);
             IndexShardRepository indexShardRepository = repositoryInjector.getInstance(IndexShardRepository.class);
             repository.start();
-            return new RepositoryHolder(repositoryMetaData.type(), repositoryMetaData.settings(), repositoryInjector, repository, indexShardRepository);
-        } catch (Throwable t) {
-            logger.warn("failed to create repository [{}][{}]", t, repositoryMetaData.type(), repositoryMetaData.name());
-            throw new RepositoryException(repositoryMetaData.name(), "failed to create repository", t);
+            return new RepositoryHolder(repositoryMetaData.type(), repositoryMetaData.settings(), repository, indexShardRepository);
+        } catch (Exception e) {
+            logger.warn("failed to create repository [{}][{}]", e, repositoryMetaData.type(), repositoryMetaData.name());
+            throw new RepositoryException(repositoryMetaData.name(), "failed to create repository", e);
         }
     }
 
@@ -448,7 +449,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         listener.onFailure(e);
                     }
                 });
@@ -458,7 +459,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
         }
 
         @Override
-        public void onFailure(Throwable e) {
+        public void onFailure(Exception e) {
             listener.onFailure(e);
         }
     }
@@ -473,7 +474,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
         private final Repository repository;
         private final IndexShardRepository indexShardRepository;
 
-        public RepositoryHolder(String type, Settings settings, Injector injector, Repository repository, IndexShardRepository indexShardRepository) {
+        public RepositoryHolder(String type, Settings settings,Repository repository, IndexShardRepository indexShardRepository) {
             this.type = type;
             this.settings = settings;
             this.repository = repository;

@@ -303,8 +303,8 @@ The `catalan` analyzer could be reimplemented as a `custom` analyzer as follows:
     "analysis": {
       "filter": {
         "catalan_elision": {
-        "type":         "elision",
-            "articles": [ "d", "l", "m", "n", "s", "t"]
+          "type":       "elision",
+          "articles":   [ "d", "l", "m", "n", "s", "t"]
         },
         "catalan_stop": {
           "type":       "stop",
@@ -621,11 +621,13 @@ The `french` analyzer could be reimplemented as a `custom` analyzer as follows:
     "analysis": {
       "filter": {
         "french_elision": {
-        "type":         "elision",
-            "articles": [ "l", "m", "t", "qu", "n", "s",
-                          "j", "d", "c", "jusqu", "quoiqu",
-                          "lorsqu", "puisqu"
-                        ]
+          "type":         "elision",
+          "articles_case": true,
+          "articles": [
+              "l", "m", "t", "qu", "n", "s",
+              "j", "d", "c", "jusqu", "quoiqu",
+              "lorsqu", "puisqu"
+            ]
         },
         "french_stop": {
           "type":       "stop",
@@ -998,13 +1000,13 @@ The `italian` analyzer could be reimplemented as a `custom` analyzer as follows:
     "analysis": {
       "filter": {
         "italian_elision": {
-        "type":         "elision",
-            "articles": [
+          "type": "elision",
+          "articles": [
                 "c", "l", "all", "dall", "dell",
                 "nell", "sull", "coll", "pell",
                 "gl", "agl", "dagl", "degl", "negl",
                 "sugl", "un", "m", "t", "s", "v", "d"
-            ]
+          ]
         },
         "italian_stop": {
           "type":       "stop",

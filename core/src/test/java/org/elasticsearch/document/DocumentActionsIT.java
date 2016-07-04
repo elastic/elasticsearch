@@ -19,54 +19,52 @@
 
 package org.elasticsearch.document;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.search.MultiMatchQuery;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.client.Requests.clearIndicesCacheRequest;
+import static org.elasticsearch.client.Requests.getRequest;
+import static org.elasticsearch.client.Requests.indexRequest;
+import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- *
+ * Integration test for document action like index, bulk, and get. It has a very long history: it was in the second commit of Elasticsearch.
  */
 public class DocumentActionsIT extends ESIntegTestCase {
-
     protected void createIndex() {
         createIndex(getConcreteIndexName());
     }
-
 
     protected String getConcreteIndexName() {
         return "test";
     }
 
-    @Test
     public void testIndexActions() throws Exception {
         createIndex();
         NumShards numShards = getNumShards(getConcreteIndexName());
         logger.info("Running Cluster Health");
         ensureGreen();
         logger.info("Indexing [type1/1]");
-        IndexResponse indexResponse = client().prepareIndex().setIndex("test").setType("type1").setId("1").setSource(source("1", "test")).setRefresh(true).execute().actionGet();
+        IndexResponse indexResponse = client().prepareIndex().setIndex("test").setType("type1").setId("1").setSource(source("1", "test"))
+                .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         assertThat(indexResponse.getIndex(), equalTo(getConcreteIndexName()));
         assertThat(indexResponse.getId(), equalTo("1"));
         assertThat(indexResponse.getType(), equalTo("type1"));
@@ -84,10 +82,10 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertNoFailures(clearIndicesCacheResponse);
         assertThat(clearIndicesCacheResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
-        logger.info("Optimizing");
+        logger.info("Force Merging");
         waitForRelocation(ClusterHealthStatus.GREEN);
-        OptimizeResponse optimizeResponse = optimize();
-        assertThat(optimizeResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
+        ForceMergeResponse mergeResponse = forceMerge();
+        assertThat(mergeResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
         GetResponse getResult;
 
@@ -159,22 +157,21 @@ public class DocumentActionsIT extends ESIntegTestCase {
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            CountResponse countResponse = client().prepareCount("test").setQuery(termQuery("_type", "type1")).execute().actionGet();
+            SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(termQuery("_type", "type1")).execute().actionGet();
             assertNoFailures(countResponse);
-            assertThat(countResponse.getCount(), equalTo(2l));
+            assertThat(countResponse.getHits().totalHits(), equalTo(2L));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
 
             // count with no query is a match all one
-            countResponse = client().prepareCount("test").execute().actionGet();
+            countResponse = client().prepareSearch("test").setSize(0).execute().actionGet();
             assertThat("Failures " + countResponse.getShardFailures(), countResponse.getShardFailures() == null ? 0 : countResponse.getShardFailures().length, equalTo(0));
-            assertThat(countResponse.getCount(), equalTo(2l));
+            assertThat(countResponse.getHits().totalHits(), equalTo(2L));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
         }
     }
 
-    @Test
     public void testBulk() throws Exception {
         createIndex();
         NumShards numShards = getNumShards(getConcreteIndexName());

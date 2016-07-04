@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # This file contains some utilities to test the elasticsearch scripts,
 # the .deb/.rpm packages and the SysV/Systemd scripts.
@@ -33,7 +33,7 @@ install_archive() {
     echo "Unpacking tarball to $ESHOME"
     rm -rf /tmp/untar
     mkdir -p /tmp/untar
-    tar -xzf elasticsearch*.tar.gz -C /tmp/untar
+    tar -xzpf elasticsearch*.tar.gz -C /tmp/untar
 
     find /tmp/untar -depth -type d -name 'elasticsearch*' -exec mv {} "$ESHOME" \; > /dev/null
 
@@ -68,6 +68,7 @@ move_elasticsearch() {
 
 # Export some useful paths.
 export_elasticsearch_paths() {
+    export ESMODULES="$ESHOME/modules"
     export ESPLUGINS="$ESHOME/plugins"
     export ESCONFIG="$ESHOME/config"
     export ESSCRIPTS="$ESCONFIG/scripts"
@@ -82,7 +83,7 @@ verify_archive_installation() {
     assert_file "$ESHOME/bin" d
     assert_file "$ESHOME/bin/elasticsearch" f
     assert_file "$ESHOME/bin/elasticsearch.in.sh" f
-    assert_file "$ESHOME/bin/plugin" f
+    assert_file "$ESHOME/bin/elasticsearch-plugin" f
     assert_file "$ESCONFIG" d
     assert_file "$ESCONFIG/elasticsearch.yml" f
     assert_file "$ESCONFIG/logging.yml" f

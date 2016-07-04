@@ -26,16 +26,16 @@ package org.elasticsearch.cluster;
 public interface ClusterInfoService {
 
     /** The latest cluster information */
-    public ClusterInfo getClusterInfo();
+    ClusterInfo getClusterInfo();
 
     /** Add a listener that will be called every time new information is gathered */
-    public void addListener(Listener listener);
+    void addListener(Listener listener);
 
     /**
      * Interface for listeners to implement in order to perform actions when
      * new information about the cluster has been gathered
      */
-    public interface Listener {
-        public void onNewInfo(ClusterInfo info);
+    interface Listener {
+        void onNewInfo(ClusterInfo info);
     }
 }

@@ -1,10 +1,10 @@
 [[position-increment-gap]]
 === `position_increment_gap`
 
-<<mapping-index,Analyzed>> string fields take term <<index-options,positions>>
+<<mapping-index,Analyzed>> text fields take term <<index-options,positions>>
 into account, in order to be able to support
 <<query-dsl-match-query-phrase,proximity or phrase queries>>.
-When indexing string fields with multiple values a "fake" gap is added between
+When indexing text fields with multiple values a "fake" gap is added between
 the values to prevent most phrase queries from matching across the values. The
 size of this gap is configured using `position_increment_gap` and defaults to
 `100`.
@@ -13,12 +13,12 @@ For example:
 
 [source,js]
 --------------------------------------------------
-PUT /my_index/groups/1
+PUT my_index/groups/1
 {
     "names": [ "John Abraham", "Lincoln Smith"]
 }
 
-GET /my_index/groups/_search
+GET my_index/groups/_search
 {
     "query": {
         "match_phrase": {
@@ -29,7 +29,7 @@ GET /my_index/groups/_search
     }
 }
 
-GET /my_index/groups/_search
+GET my_index/groups/_search
 {
     "query": {
         "match_phrase": {
@@ -41,7 +41,7 @@ GET /my_index/groups/_search
     }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> This phrase query doesn't match our document which is totally expected.
 <2> This phrase query matches our document, even though `Abraham` and `Lincoln`
     are in separate strings, because `slop` > `position_increment_gap`.
@@ -57,7 +57,7 @@ PUT my_index
     "groups": {
       "properties": {
         "names": {
-          "type": "string",
+          "type": "text",
           "position_increment_gap": 0 <1>
         }
       }
@@ -65,12 +65,12 @@ PUT my_index
   }
 }
 
-PUT /my_index/groups/1
+PUT my_index/groups/1
 {
     "names": [ "John Abraham", "Lincoln Smith"]
 }
 
-GET /my_index/groups/_search
+GET my_index/groups/_search
 {
     "query": {
         "match_phrase": {
@@ -79,7 +79,7 @@ GET /my_index/groups/_search
     }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The first term in the next array element will be 0 terms apart from the
     last term in the previous array element.
 <2> The phrase query matches our document which is weird, but its what we asked

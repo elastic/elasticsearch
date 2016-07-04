@@ -20,17 +20,20 @@
 package org.elasticsearch.common.xcontent.yaml;
 
 import com.fasterxml.jackson.core.JsonEncoding;
-import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.common.xcontent.json.BaseJsonGenerator;
-import org.elasticsearch.common.xcontent.support.filtering.FilteringJsonGenerator;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Reader;
 
 /**
  * A YAML based content implementation using Jackson.
@@ -41,8 +44,8 @@ public class YamlXContent implements XContent {
         return XContentBuilder.builder(yamlXContent);
     }
 
-    final static YAMLFactory yamlFactory;
-    public final static YamlXContent yamlXContent;
+    static final YAMLFactory yamlFactory;
+    public static final YamlXContent yamlXContent;
 
     static {
         yamlFactory = new YAMLFactory();
@@ -62,27 +65,9 @@ public class YamlXContent implements XContent {
         throw new ElasticsearchParseException("yaml does not support stream parsing...");
     }
 
-    private XContentGenerator newXContentGenerator(JsonGenerator jsonGenerator) {
-        return new YamlXContentGenerator(new BaseJsonGenerator(jsonGenerator));
-    }
-
     @Override
-    public XContentGenerator createGenerator(OutputStream os) throws IOException {
-        return newXContentGenerator(yamlFactory.createGenerator(os, JsonEncoding.UTF8));
-    }
-
-    @Override
-    public XContentGenerator createGenerator(OutputStream os, String[] filters) throws IOException {
-        if (CollectionUtils.isEmpty(filters)) {
-            return createGenerator(os);
-        }
-        FilteringJsonGenerator yamlGenerator = new FilteringJsonGenerator(yamlFactory.createGenerator(os, JsonEncoding.UTF8), filters);
-        return new YamlXContentGenerator(yamlGenerator);
-    }
-
-    @Override
-    public XContentGenerator createGenerator(Writer writer) throws IOException {
-        return newXContentGenerator(yamlFactory.createGenerator(writer));
+    public XContentGenerator createGenerator(OutputStream os, String[] filters, boolean inclusive) throws IOException {
+        return new YamlXContentGenerator(yamlFactory.createGenerator(os, JsonEncoding.UTF8), os, filters, inclusive);
     }
 
     @Override
@@ -107,9 +92,6 @@ public class YamlXContent implements XContent {
 
     @Override
     public XContentParser createParser(BytesReference bytes) throws IOException {
-        if (bytes.hasArray()) {
-            return createParser(bytes.array(), bytes.arrayOffset(), bytes.length());
-        }
         return createParser(bytes.streamInput());
     }
 

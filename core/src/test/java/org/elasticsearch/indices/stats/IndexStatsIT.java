@@ -19,12 +19,7 @@
 
 package org.elasticsearch.indices.stats;
 
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.cache.IndexCacheModule;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -35,30 +30,35 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.MergeSchedulerConfig;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.indices.cache.request.IndicesRequestCache;
+import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.IndicesQueryCache;
+import org.elasticsearch.indices.IndicesRequestCache;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Random;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
@@ -73,83 +73,94 @@ import static org.hamcrest.Matchers.nullValue;
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 2, numClientNodes = 0, randomDynamicTemplates = false)
 @SuppressCodecs("*") // requires custom completion format
 public class IndexStatsIT extends ESIntegTestCase {
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         //Filter/Query cache is cleaned periodically, default is 60s, so make sure it runs often. Thread.sleep for 60s is bad
-        return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
-                .put(IndicesRequestCache.INDICES_CACHE_REQUEST_CLEAN_INTERVAL, "1ms")
-                .put(IndexCacheModule.QUERY_CACHE_EVERYTHING, true)
-                .put(IndexCacheModule.QUERY_CACHE_TYPE, IndexCacheModule.INDEX_QUERY_CACHE)
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+                .put(IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), "1ms")
+                .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
                 .build();
     }
 
-    @Test
+    @Override
+    public Settings indexSettings() {
+        return Settings.builder().put(super.indexSettings())
+            .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
+            .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), true)
+            .build();
+    }
+
+    private Settings.Builder settingsBuilder() {
+        return Settings.builder().put(indexSettings());
+    }
+
     public void testFieldDataStats() {
-        client().admin().indices().prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.number_of_shards", 2)).execute().actionGet();
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder().put("index.number_of_shards", 2))
+                .addMapping("type", "field", "type=text,fielddata=true",
+                        "field2", "type=text,fielddata=true").get());
         ensureGreen();
         client().prepareIndex("test", "type", "1").setSource("field", "value1", "field2", "value1").execute().actionGet();
         client().prepareIndex("test", "type", "2").setSource("field", "value2", "field2", "value2").execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
-        NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
-        assertThat(nodesStats.getNodes()[0].getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0l));
+        NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
+        assertThat(nodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes().get(1).getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0L));
         IndicesStatsResponse indicesStats = client().admin().indices().prepareStats("test").clear().setFieldData(true).execute().actionGet();
-        assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0L));
 
         // sort to load it to field data...
         client().prepareSearch().addSort("field", SortOrder.ASC).execute().actionGet();
         client().prepareSearch().addSort("field", SortOrder.ASC).execute().actionGet();
 
-        nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
-        assertThat(nodesStats.getNodes()[0].getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
+        nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
+        assertThat(nodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes().get(1).getIndices().getFieldData().getMemorySizeInBytes(), greaterThan(0L));
         indicesStats = client().admin().indices().prepareStats("test").clear().setFieldData(true).execute().actionGet();
-        assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), greaterThan(0L));
 
         // sort to load it to field data...
         client().prepareSearch().addSort("field2", SortOrder.ASC).execute().actionGet();
         client().prepareSearch().addSort("field2", SortOrder.ASC).execute().actionGet();
 
         // now check the per field stats
-        nodesStats = client().admin().cluster().prepareNodesStats().setIndices(new CommonStatsFlags().set(CommonStatsFlags.Flag.FieldData, true).fieldDataFields("*")).execute().actionGet();
-        assertThat(nodesStats.getNodes()[0].getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
-        assertThat(nodesStats.getNodes()[0].getIndices().getFieldData().getFields().get("field") + nodesStats.getNodes()[1].getIndices().getFieldData().getFields().get("field"), greaterThan(0l));
-        assertThat(nodesStats.getNodes()[0].getIndices().getFieldData().getFields().get("field") + nodesStats.getNodes()[1].getIndices().getFieldData().getFields().get("field"), lessThan(nodesStats.getNodes()[0].getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getFieldData().getMemorySizeInBytes()));
+        nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(new CommonStatsFlags().set(CommonStatsFlags.Flag.FieldData, true).fieldDataFields("*")).execute().actionGet();
+        assertThat(nodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes().get(1).getIndices().getFieldData().getMemorySizeInBytes(), greaterThan(0L));
+        assertThat(nodesStats.getNodes().get(0).getIndices().getFieldData().getFields().get("field") + nodesStats.getNodes().get(1).getIndices().getFieldData().getFields().get("field"), greaterThan(0L));
+        assertThat(nodesStats.getNodes().get(0).getIndices().getFieldData().getFields().get("field") + nodesStats.getNodes().get(1).getIndices().getFieldData().getFields().get("field"), lessThan(nodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes().get(1).getIndices().getFieldData().getMemorySizeInBytes()));
 
         indicesStats = client().admin().indices().prepareStats("test").clear().setFieldData(true).setFieldDataFields("*").execute().actionGet();
-        assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
-        assertThat(indicesStats.getTotal().getFieldData().getFields().get("field"), greaterThan(0l));
+        assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), greaterThan(0L));
+        assertThat(indicesStats.getTotal().getFieldData().getFields().get("field"), greaterThan(0L));
         assertThat(indicesStats.getTotal().getFieldData().getFields().get("field"), lessThan(indicesStats.getTotal().getFieldData().getMemorySizeInBytes()));
 
         client().admin().indices().prepareClearCache().setFieldDataCache(true).execute().actionGet();
-        nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
-        assertThat(nodesStats.getNodes()[0].getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0l));
+        nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
+        assertThat(nodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes().get(1).getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0L));
         indicesStats = client().admin().indices().prepareStats("test").clear().setFieldData(true).execute().actionGet();
-        assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0L));
 
     }
 
-    @Test
     public void testClearAllCaches() throws Exception {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.settingsBuilder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
-                .execute().actionGet();
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
+                .addMapping("type", "field", "type=text,fielddata=true").get());
         ensureGreen();
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         client().prepareIndex("test", "type", "1").setSource("field", "value1").execute().actionGet();
         client().prepareIndex("test", "type", "2").setSource("field", "value2").execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
-        NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true)
+        NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true)
                 .execute().actionGet();
-        assertThat(nodesStats.getNodes()[0].getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0l));
-        assertThat(nodesStats.getNodes()[0].getIndices().getQueryCache().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getQueryCache().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(nodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes().get(1).getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0L));
+        assertThat(nodesStats.getNodes().get(0).getIndices().getQueryCache().getMemorySizeInBytes() + nodesStats.getNodes().get(1).getIndices().getQueryCache().getMemorySizeInBytes(), equalTo(0L));
 
         IndicesStatsResponse indicesStats = client().admin().indices().prepareStats("test")
                 .clear().setFieldData(true).setQueryCache(true)
                 .execute().actionGet();
-        assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
-        assertThat(indicesStats.getTotal().getQueryCache().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0L));
+        assertThat(indicesStats.getTotal().getQueryCache().getMemorySizeInBytes(), equalTo(0L));
 
         // sort to load it to field data and filter to load filter cache
         client().prepareSearch()
@@ -161,34 +172,33 @@ public class IndexStatsIT extends ESIntegTestCase {
                 .addSort("field", SortOrder.ASC)
                 .execute().actionGet();
 
-        nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true)
+        nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true)
                 .execute().actionGet();
-        assertThat(nodesStats.getNodes()[0].getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
-        assertThat(nodesStats.getNodes()[0].getIndices().getQueryCache().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getQueryCache().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(nodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes().get(1).getIndices().getFieldData().getMemorySizeInBytes(), greaterThan(0L));
+        assertThat(nodesStats.getNodes().get(0).getIndices().getQueryCache().getMemorySizeInBytes() + nodesStats.getNodes().get(1).getIndices().getQueryCache().getMemorySizeInBytes(), greaterThan(0L));
 
         indicesStats = client().admin().indices().prepareStats("test")
                 .clear().setFieldData(true).setQueryCache(true)
                 .execute().actionGet();
-        assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
-        assertThat(indicesStats.getTotal().getQueryCache().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), greaterThan(0L));
+        assertThat(indicesStats.getTotal().getQueryCache().getMemorySizeInBytes(), greaterThan(0L));
 
         client().admin().indices().prepareClearCache().execute().actionGet();
         Thread.sleep(100); // Make sure the filter cache entries have been removed...
-        nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true)
+        nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true)
                 .execute().actionGet();
-        assertThat(nodesStats.getNodes()[0].getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0l));
-        assertThat(nodesStats.getNodes()[0].getIndices().getQueryCache().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getQueryCache().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(nodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes().get(1).getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0L));
+        assertThat(nodesStats.getNodes().get(0).getIndices().getQueryCache().getMemorySizeInBytes() + nodesStats.getNodes().get(1).getIndices().getQueryCache().getMemorySizeInBytes(), equalTo(0L));
 
         indicesStats = client().admin().indices().prepareStats("test")
                 .clear().setFieldData(true).setQueryCache(true)
                 .execute().actionGet();
-        assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
-        assertThat(indicesStats.getTotal().getQueryCache().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0L));
+        assertThat(indicesStats.getTotal().getQueryCache().getMemorySizeInBytes(), equalTo(0L));
     }
 
-    @Test
     public void testQueryCache() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx").setSettings(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED, true).get());
+        assertAcked(client().admin().indices().prepareCreate("idx").setSettings(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true).get());
         ensureGreen();
 
         // index docs until we have at least one doc on each shard, otherwise, our tests will not work
@@ -221,15 +231,15 @@ public class IndexStatsIT extends ESIntegTestCase {
             }
         }
 
-        assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), equalTo(0l));
-        assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(), equalTo(0l));
-        assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(), equalTo(0l));
+        assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(), equalTo(0L));
         for (int i = 0; i < 10; i++) {
             assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits(), equalTo((long) numDocs));
-            assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), greaterThan(0l));
+            assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), greaterThan(0L));
         }
-        assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(), greaterThan(0l));
-        assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(), greaterThan(0l));
+        assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(), greaterThan(0L));
+        assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(), greaterThan(0L));
 
         // index the data again...
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
@@ -245,50 +255,48 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), equalTo(0l));
+                assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), equalTo(0L));
             }
         });
 
         for (int i = 0; i < 10; i++) {
             assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits(), equalTo((long) numDocs));
-            assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), greaterThan(0l));
+            assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), greaterThan(0L));
         }
 
         client().admin().indices().prepareClearCache().setRequestCache(true).get(); // clean the cache
-        assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), equalTo(0L));
 
         // test explicit request parameter
 
         assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).setRequestCache(false).get().getHits().getTotalHits(), equalTo((long) numDocs));
-        assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), equalTo(0L));
 
         assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).setRequestCache(true).get().getHits().getTotalHits(), equalTo((long) numDocs));
-        assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), greaterThan(0L));
 
         // set the index level setting to false, and see that the reverse works
 
         client().admin().indices().prepareClearCache().setRequestCache(true).get(); // clean the cache
-        assertAcked(client().admin().indices().prepareUpdateSettings("idx").setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED, false)));
+        assertAcked(client().admin().indices().prepareUpdateSettings("idx").setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), false)));
 
         assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits(), equalTo((long) numDocs));
-        assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), equalTo(0L));
 
         assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).setRequestCache(true).get().getHits().getTotalHits(), equalTo((long) numDocs));
-        assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), greaterThan(0L));
     }
 
-
-    @Test
-    public void nonThrottleStats() throws Exception {
+    public void testNonThrottleStats() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(Settings.builder()
-                                .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
+                .setSettings(settingsBuilder()
+                                .put(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey(), "merge")
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-                                .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
-                                .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
-                                .put(MergeSchedulerConfig.MAX_THREAD_COUNT, "1")
-                                .put(MergeSchedulerConfig.MAX_MERGE_COUNT, "10000")
+                                .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
+                                .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
+                                .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
+                                .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "10000")
                 ));
         ensureGreen();
         long termUpto = 0;
@@ -308,22 +316,20 @@ public class IndexStatsIT extends ESIntegTestCase {
         //nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
 
         stats = client().admin().indices().prepareStats().execute().actionGet();
-        assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis(), equalTo(0l));
+        assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis(), equalTo(0L));
     }
 
-    @Test
-    public void throttleStats() throws Exception {
+    public void testThrottleStats() throws Exception {
         assertAcked(prepareCreate("test")
-                    .setSettings(Settings.builder()
-                                 .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
+                    .setSettings(settingsBuilder()
+                                 .put(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING.getKey(), "merge")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-                                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
-                                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
-                                 .put(MergeSchedulerConfig.MAX_THREAD_COUNT, "1")
-                                 .put(MergeSchedulerConfig.MAX_MERGE_COUNT, "1")
-                                 .put("index.merge.policy.type", "tiered")
-
+                                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
+                                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
+                                 .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
+                                 .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "1")
+                                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC.name())
                                  ));
         ensureGreen();
         long termUpto = 0;
@@ -347,7 +353,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             refresh();
             stats = client().admin().indices().prepareStats().execute().actionGet();
             //nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
-            done = stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis() > 0;
+            done = stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis() > 0;
             if (System.currentTimeMillis() - start > 300*1000) { //Wait 5 minutes for throttling to kick in
                 fail("index throttling didn't kick in after 5 minutes of intense merging");
             }
@@ -356,13 +362,12 @@ public class IndexStatsIT extends ESIntegTestCase {
         // Optimize & flush and wait; else we sometimes get a "Delete Index failed - not acked"
         // when ESIntegTestCase.after tries to remove indices created by the test:
         logger.info("test: now optimize");
-        client().admin().indices().prepareOptimize("test").get();
+        client().admin().indices().prepareForceMerge("test").get();
         flush();
         logger.info("test: test done");
     }
 
-    @Test
-    public void simpleStats() throws Exception {
+    public void testSimpleStats() throws Exception {
         createIndex("test1", "test2");
         ensureGreen();
 
@@ -378,33 +383,33 @@ public class IndexStatsIT extends ESIntegTestCase {
         long totalExpectedWrites = test1ExpectedWrites + test2ExpectedWrites;
 
         IndicesStatsResponse stats = client().admin().indices().prepareStats().execute().actionGet();
-        assertThat(stats.getPrimaries().getDocs().getCount(), equalTo(3l));
+        assertThat(stats.getPrimaries().getDocs().getCount(), equalTo(3L));
         assertThat(stats.getTotal().getDocs().getCount(), equalTo(totalExpectedWrites));
-        assertThat(stats.getPrimaries().getIndexing().getTotal().getIndexCount(), equalTo(3l));
-        assertThat(stats.getPrimaries().getIndexing().getTotal().getIndexFailedCount(), equalTo(0l));
+        assertThat(stats.getPrimaries().getIndexing().getTotal().getIndexCount(), equalTo(3L));
+        assertThat(stats.getPrimaries().getIndexing().getTotal().getIndexFailedCount(), equalTo(0L));
         assertThat(stats.getPrimaries().getIndexing().getTotal().isThrottled(), equalTo(false));
-        assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis(), equalTo(0l));
+        assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis(), equalTo(0L));
         assertThat(stats.getTotal().getIndexing().getTotal().getIndexCount(), equalTo(totalExpectedWrites));
         assertThat(stats.getTotal().getStore(), notNullValue());
         assertThat(stats.getTotal().getMerge(), notNullValue());
         assertThat(stats.getTotal().getFlush(), notNullValue());
         assertThat(stats.getTotal().getRefresh(), notNullValue());
 
-        assertThat(stats.getIndex("test1").getPrimaries().getDocs().getCount(), equalTo(2l));
+        assertThat(stats.getIndex("test1").getPrimaries().getDocs().getCount(), equalTo(2L));
         assertThat(stats.getIndex("test1").getTotal().getDocs().getCount(), equalTo(test1ExpectedWrites));
         assertThat(stats.getIndex("test1").getPrimaries().getStore(), notNullValue());
         assertThat(stats.getIndex("test1").getPrimaries().getMerge(), notNullValue());
         assertThat(stats.getIndex("test1").getPrimaries().getFlush(), notNullValue());
         assertThat(stats.getIndex("test1").getPrimaries().getRefresh(), notNullValue());
 
-        assertThat(stats.getIndex("test2").getPrimaries().getDocs().getCount(), equalTo(1l));
+        assertThat(stats.getIndex("test2").getPrimaries().getDocs().getCount(), equalTo(1L));
         assertThat(stats.getIndex("test2").getTotal().getDocs().getCount(), equalTo(test2ExpectedWrites));
 
         // make sure that number of requests in progress is 0
-        assertThat(stats.getIndex("test1").getTotal().getIndexing().getTotal().getIndexCurrent(), equalTo(0l));
-        assertThat(stats.getIndex("test1").getTotal().getIndexing().getTotal().getDeleteCurrent(), equalTo(0l));
-        assertThat(stats.getIndex("test1").getTotal().getSearch().getTotal().getFetchCurrent(), equalTo(0l));
-        assertThat(stats.getIndex("test1").getTotal().getSearch().getTotal().getQueryCurrent(), equalTo(0l));
+        assertThat(stats.getIndex("test1").getTotal().getIndexing().getTotal().getIndexCurrent(), equalTo(0L));
+        assertThat(stats.getIndex("test1").getTotal().getIndexing().getTotal().getDeleteCurrent(), equalTo(0L));
+        assertThat(stats.getIndex("test1").getTotal().getSearch().getTotal().getFetchCurrent(), equalTo(0L));
+        assertThat(stats.getIndex("test1").getTotal().getSearch().getTotal().getQueryCurrent(), equalTo(0L));
 
         // check flags
         stats = client().admin().indices().prepareStats().clear()
@@ -422,32 +427,32 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         // check types
         stats = client().admin().indices().prepareStats().setTypes("type1", "type").execute().actionGet();
-        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getIndexCount(), equalTo(1l));
-        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type").getIndexCount(), equalTo(1l));
-        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getIndexFailedCount(), equalTo(0l));
+        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getIndexCount(), equalTo(1L));
+        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type").getIndexCount(), equalTo(1L));
+        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getIndexFailedCount(), equalTo(0L));
         assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type2"), nullValue());
-        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getIndexCurrent(), equalTo(0l));
-        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getDeleteCurrent(), equalTo(0l));
+        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getIndexCurrent(), equalTo(0L));
+        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getDeleteCurrent(), equalTo(0L));
 
 
-        assertThat(stats.getTotal().getGet().getCount(), equalTo(0l));
+        assertThat(stats.getTotal().getGet().getCount(), equalTo(0L));
         // check get
         GetResponse getResponse = client().prepareGet("test1", "type1", "1").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
 
         stats = client().admin().indices().prepareStats().execute().actionGet();
-        assertThat(stats.getTotal().getGet().getCount(), equalTo(1l));
-        assertThat(stats.getTotal().getGet().getExistsCount(), equalTo(1l));
-        assertThat(stats.getTotal().getGet().getMissingCount(), equalTo(0l));
+        assertThat(stats.getTotal().getGet().getCount(), equalTo(1L));
+        assertThat(stats.getTotal().getGet().getExistsCount(), equalTo(1L));
+        assertThat(stats.getTotal().getGet().getMissingCount(), equalTo(0L));
 
         // missing get
         getResponse = client().prepareGet("test1", "type1", "2").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
 
         stats = client().admin().indices().prepareStats().execute().actionGet();
-        assertThat(stats.getTotal().getGet().getCount(), equalTo(2l));
-        assertThat(stats.getTotal().getGet().getExistsCount(), equalTo(1l));
-        assertThat(stats.getTotal().getGet().getMissingCount(), equalTo(1l));
+        assertThat(stats.getTotal().getGet().getCount(), equalTo(2L));
+        assertThat(stats.getTotal().getGet().getExistsCount(), equalTo(1L));
+        assertThat(stats.getTotal().getGet().getMissingCount(), equalTo(1L));
 
         // clear all
         stats = client().admin().indices().prepareStats()
@@ -484,14 +489,13 @@ public class IndexStatsIT extends ESIntegTestCase {
         } catch (VersionConflictEngineException e) {}
 
         stats = client().admin().indices().prepareStats().setTypes("type1", "type2").execute().actionGet();
-        assertThat(stats.getIndex("test1").getTotal().getIndexing().getTotal().getIndexFailedCount(), equalTo(2l));
-        assertThat(stats.getIndex("test2").getTotal().getIndexing().getTotal().getIndexFailedCount(), equalTo(1l));
+        assertThat(stats.getIndex("test1").getTotal().getIndexing().getTotal().getIndexFailedCount(), equalTo(2L));
+        assertThat(stats.getIndex("test2").getTotal().getIndexing().getTotal().getIndexFailedCount(), equalTo(1L));
         assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getIndexFailedCount(), equalTo(1L));
         assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type2").getIndexFailedCount(), equalTo(1L));
         assertThat(stats.getTotal().getIndexing().getTotal().getIndexFailedCount(), equalTo(3L));
     }
 
-    @Test
     public void testMergeStats() {
         createIndex("test1");
 
@@ -519,16 +523,15 @@ public class IndexStatsIT extends ESIntegTestCase {
             client().prepareIndex("test1", "type2", Integer.toString(i)).setSource("field", "value").execute().actionGet();
             client().admin().indices().prepareFlush().execute().actionGet();
         }
-        client().admin().indices().prepareOptimize().setMaxNumSegments(1).execute().actionGet();
+        client().admin().indices().prepareForceMerge().setMaxNumSegments(1).execute().actionGet();
         stats = client().admin().indices().prepareStats()
                 .setMerge(true)
                 .execute().actionGet();
 
         assertThat(stats.getTotal().getMerge(), notNullValue());
-        assertThat(stats.getTotal().getMerge().getTotal(), greaterThan(0l));
+        assertThat(stats.getTotal().getMerge().getTotal(), greaterThan(0L));
     }
 
-    @Test
     public void testSegmentsStats() {
         assertAcked(prepareCreate("test1", 2, settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
         ensureGreen();
@@ -541,21 +544,18 @@ public class IndexStatsIT extends ESIntegTestCase {
         }
 
         IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
-        assertThat(stats.getTotal().getSegments().getIndexWriterMemoryInBytes(), greaterThan(0l));
-        assertThat(stats.getTotal().getSegments().getIndexWriterMaxMemoryInBytes(), greaterThan(0l));
-        assertThat(stats.getTotal().getSegments().getVersionMapMemoryInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().getSegments().getIndexWriterMemoryInBytes(), greaterThan(0L));
+        assertThat(stats.getTotal().getSegments().getVersionMapMemoryInBytes(), greaterThan(0L));
 
         client().admin().indices().prepareFlush().get();
-        client().admin().indices().prepareOptimize().setMaxNumSegments(1).execute().actionGet();
+        client().admin().indices().prepareForceMerge().setMaxNumSegments(1).execute().actionGet();
         stats = client().admin().indices().prepareStats().setSegments(true).get();
 
         assertThat(stats.getTotal().getSegments(), notNullValue());
         assertThat(stats.getTotal().getSegments().getCount(), equalTo((long) test1.totalNumShards));
-        assumeTrue("test doesn't work with 4.6.0", org.elasticsearch.Version.CURRENT.luceneVersion != Version.LUCENE_4_6_0);
-        assertThat(stats.getTotal().getSegments().getMemoryInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().getSegments().getMemoryInBytes(), greaterThan(0L));
     }
 
-    @Test
     public void testAllFlags() throws Exception {
         // rely on 1 replica for this tests
         createIndex("test1");
@@ -576,6 +576,10 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         IndicesStatsResponse stats = builder.execute().actionGet();
         for (Flag flag : values) {
+            if (flag == Flag.Suggest) {
+                // suggest flag is unused
+                continue;
+            }
             assertThat(isSet(flag, stats.getPrimaries()), equalTo(false));
             assertThat(isSet(flag, stats.getTotal()), equalTo(false));
         }
@@ -588,7 +592,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             assertThat(isSet(flag, stats.getPrimaries()), equalTo(true));
             assertThat(isSet(flag, stats.getTotal()), equalTo(true));
         }
-        Random random = getRandom();
+        Random random = random();
         EnumSet<Flag> flags = EnumSet.noneOf(Flag.class);
         for (Flag flag : values) {
             if (random.nextBoolean()) {
@@ -611,13 +615,16 @@ public class IndexStatsIT extends ESIntegTestCase {
         }
 
         for (Flag flag : EnumSet.complementOf(flags)) { // check the complement
+            if (flag == Flag.Suggest) {
+                // suggest flag is unused
+                continue;
+            }
             assertThat(isSet(flag, stats.getPrimaries()), equalTo(false));
             assertThat(isSet(flag, stats.getTotal()), equalTo(false));
         }
 
     }
 
-    @Test
     public void testEncodeDecodeCommonStats() throws IOException {
         CommonStatsFlags flags = new CommonStatsFlags();
         Flag[] values = CommonStatsFlags.Flag.values();
@@ -631,7 +638,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             flags.set(flag, true);
         }
         assertThat(flags.anySet(), equalTo(true));
-        Random random = getRandom();
+        Random random = random();
         flags.set(values[random.nextInt(values.length)], false);
         assertThat(flags.anySet(), equalTo(true));
 
@@ -640,7 +647,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             flags.writeTo(out);
             out.close();
             BytesReference bytes = out.bytes();
-            CommonStatsFlags readStats = CommonStatsFlags.readCommonStatsFlags(StreamInput.wrap(bytes));
+            CommonStatsFlags readStats = CommonStatsFlags.readCommonStatsFlags(bytes.streamInput());
             for (Flag flag : values) {
                 assertThat(flags.isSet(flag), equalTo(readStats.isSet(flag)));
             }
@@ -654,17 +661,16 @@ public class IndexStatsIT extends ESIntegTestCase {
             flags.writeTo(out);
             out.close();
             BytesReference bytes = out.bytes();
-            CommonStatsFlags readStats = CommonStatsFlags.readCommonStatsFlags(StreamInput.wrap(bytes));
+            CommonStatsFlags readStats = CommonStatsFlags.readCommonStatsFlags(bytes.streamInput());
             for (Flag flag : values) {
                 assertThat(flags.isSet(flag), equalTo(readStats.isSet(flag)));
             }
         }
     }
 
-    @Test
     public void testFlagOrdinalOrder() {
         Flag[] flags = new Flag[]{Flag.Store, Flag.Indexing, Flag.Get, Flag.Search, Flag.Merge, Flag.Flush, Flag.Refresh,
-                Flag.QueryCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Percolate, Flag.Completion, Flag.Segments,
+                Flag.QueryCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Completion, Flag.Segments,
                 Flag.Translog, Flag.Suggest, Flag.RequestCache, Flag.Recovery};
 
         assertThat(flags.length, equalTo(Flag.values().length));
@@ -673,9 +679,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testMultiIndex() throws Exception {
-
         createIndex("test1");
         createIndex("test2");
 
@@ -714,10 +718,10 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testFieldDataFieldsParam() throws Exception {
-
-        createIndex("test1");
+        assertAcked(client().admin().indices().prepareCreate("test1")
+                .addMapping("type", "bar", "type=text,fielddata=true",
+                        "baz", "type=text,fielddata=true").get());
 
         ensureGreen();
 
@@ -730,44 +734,42 @@ public class IndexStatsIT extends ESIntegTestCase {
         IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
         IndicesStatsResponse stats = builder.execute().actionGet();
 
-        assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0L));
         assertThat(stats.getTotal().fieldData.getFields(), is(nullValue()));
 
         stats = builder.setFieldDataFields("bar").execute().actionGet();
-        assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0L));
         assertThat(stats.getTotal().fieldData.getFields().containsKey("bar"), is(true));
-        assertThat(stats.getTotal().fieldData.getFields().get("bar"), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getFields().get("bar"), greaterThan(0L));
         assertThat(stats.getTotal().fieldData.getFields().containsKey("baz"), is(false));
 
         stats = builder.setFieldDataFields("bar", "baz").execute().actionGet();
-        assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0L));
         assertThat(stats.getTotal().fieldData.getFields().containsKey("bar"), is(true));
-        assertThat(stats.getTotal().fieldData.getFields().get("bar"), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getFields().get("bar"), greaterThan(0L));
         assertThat(stats.getTotal().fieldData.getFields().containsKey("baz"), is(true));
-        assertThat(stats.getTotal().fieldData.getFields().get("baz"), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getFields().get("baz"), greaterThan(0L));
 
         stats = builder.setFieldDataFields("*").execute().actionGet();
-        assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0L));
         assertThat(stats.getTotal().fieldData.getFields().containsKey("bar"), is(true));
-        assertThat(stats.getTotal().fieldData.getFields().get("bar"), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getFields().get("bar"), greaterThan(0L));
         assertThat(stats.getTotal().fieldData.getFields().containsKey("baz"), is(true));
-        assertThat(stats.getTotal().fieldData.getFields().get("baz"), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getFields().get("baz"), greaterThan(0L));
 
         stats = builder.setFieldDataFields("*r").execute().actionGet();
-        assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0L));
         assertThat(stats.getTotal().fieldData.getFields().containsKey("bar"), is(true));
-        assertThat(stats.getTotal().fieldData.getFields().get("bar"), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getFields().get("bar"), greaterThan(0L));
         assertThat(stats.getTotal().fieldData.getFields().containsKey("baz"), is(false));
 
     }
 
-    @Test
     public void testCompletionFieldsParam() throws Exception {
-
         assertAcked(prepareCreate("test1")
                 .addMapping(
                         "bar",
-                        "{ \"properties\": { \"bar\": { \"type\": \"string\", \"fields\": { \"completion\": { \"type\": \"completion\" }}},\"baz\": { \"type\": \"string\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}}}"));
+                        "{ \"properties\": { \"bar\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}},\"baz\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}}}"));
         ensureGreen();
 
         client().prepareIndex("test1", "bar", Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}").execute().actionGet();
@@ -777,40 +779,38 @@ public class IndexStatsIT extends ESIntegTestCase {
         IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
         IndicesStatsResponse stats = builder.execute().actionGet();
 
-        assertThat(stats.getTotal().completion.getSizeInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getSizeInBytes(), greaterThan(0L));
         assertThat(stats.getTotal().completion.getFields(), is(nullValue()));
 
         stats = builder.setCompletionFields("bar.completion").execute().actionGet();
-        assertThat(stats.getTotal().completion.getSizeInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getSizeInBytes(), greaterThan(0L));
         assertThat(stats.getTotal().completion.getFields().containsKey("bar.completion"), is(true));
-        assertThat(stats.getTotal().completion.getFields().get("bar.completion"), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getFields().get("bar.completion"), greaterThan(0L));
         assertThat(stats.getTotal().completion.getFields().containsKey("baz.completion"), is(false));
 
         stats = builder.setCompletionFields("bar.completion", "baz.completion").execute().actionGet();
-        assertThat(stats.getTotal().completion.getSizeInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getSizeInBytes(), greaterThan(0L));
         assertThat(stats.getTotal().completion.getFields().containsKey("bar.completion"), is(true));
-        assertThat(stats.getTotal().completion.getFields().get("bar.completion"), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getFields().get("bar.completion"), greaterThan(0L));
         assertThat(stats.getTotal().completion.getFields().containsKey("baz.completion"), is(true));
-        assertThat(stats.getTotal().completion.getFields().get("baz.completion"), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getFields().get("baz.completion"), greaterThan(0L));
 
         stats = builder.setCompletionFields("*").execute().actionGet();
-        assertThat(stats.getTotal().completion.getSizeInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getSizeInBytes(), greaterThan(0L));
         assertThat(stats.getTotal().completion.getFields().containsKey("bar.completion"), is(true));
-        assertThat(stats.getTotal().completion.getFields().get("bar.completion"), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getFields().get("bar.completion"), greaterThan(0L));
         assertThat(stats.getTotal().completion.getFields().containsKey("baz.completion"), is(true));
-        assertThat(stats.getTotal().completion.getFields().get("baz.completion"), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getFields().get("baz.completion"), greaterThan(0L));
 
         stats = builder.setCompletionFields("*r*").execute().actionGet();
-        assertThat(stats.getTotal().completion.getSizeInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getSizeInBytes(), greaterThan(0L));
         assertThat(stats.getTotal().completion.getFields().containsKey("bar.completion"), is(true));
-        assertThat(stats.getTotal().completion.getFields().get("bar.completion"), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getFields().get("bar.completion"), greaterThan(0L));
         assertThat(stats.getTotal().completion.getFields().containsKey("baz.completion"), is(false));
 
     }
 
-    @Test
     public void testGroupsParam() throws Exception {
-
         createIndex("test1");
 
         ensureGreen();
@@ -823,30 +823,28 @@ public class IndexStatsIT extends ESIntegTestCase {
         IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
         IndicesStatsResponse stats = builder.execute().actionGet();
 
-        assertThat(stats.getTotal().search.getTotal().getQueryCount(), greaterThan(0l));
+        assertThat(stats.getTotal().search.getTotal().getQueryCount(), greaterThan(0L));
         assertThat(stats.getTotal().search.getGroupStats(), is(nullValue()));
 
         stats = builder.setGroups("bar").execute().actionGet();
-        assertThat(stats.getTotal().search.getGroupStats().get("bar").getQueryCount(), greaterThan(0l));
+        assertThat(stats.getTotal().search.getGroupStats().get("bar").getQueryCount(), greaterThan(0L));
         assertThat(stats.getTotal().search.getGroupStats().containsKey("baz"), is(false));
 
         stats = builder.setGroups("bar", "baz").execute().actionGet();
-        assertThat(stats.getTotal().search.getGroupStats().get("bar").getQueryCount(), greaterThan(0l));
-        assertThat(stats.getTotal().search.getGroupStats().get("baz").getQueryCount(), greaterThan(0l));
+        assertThat(stats.getTotal().search.getGroupStats().get("bar").getQueryCount(), greaterThan(0L));
+        assertThat(stats.getTotal().search.getGroupStats().get("baz").getQueryCount(), greaterThan(0L));
 
         stats = builder.setGroups("*").execute().actionGet();
-        assertThat(stats.getTotal().search.getGroupStats().get("bar").getQueryCount(), greaterThan(0l));
-        assertThat(stats.getTotal().search.getGroupStats().get("baz").getQueryCount(), greaterThan(0l));
+        assertThat(stats.getTotal().search.getGroupStats().get("bar").getQueryCount(), greaterThan(0L));
+        assertThat(stats.getTotal().search.getGroupStats().get("baz").getQueryCount(), greaterThan(0L));
 
         stats = builder.setGroups("*r").execute().actionGet();
-        assertThat(stats.getTotal().search.getGroupStats().get("bar").getQueryCount(), greaterThan(0l));
+        assertThat(stats.getTotal().search.getGroupStats().get("bar").getQueryCount(), greaterThan(0L));
         assertThat(stats.getTotal().search.getGroupStats().containsKey("baz"), is(false));
 
     }
 
-    @Test
     public void testTypesParam() throws Exception {
-
         createIndex("test1");
         createIndex("test2");
 
@@ -859,23 +857,23 @@ public class IndexStatsIT extends ESIntegTestCase {
         IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
         IndicesStatsResponse stats = builder.execute().actionGet();
 
-        assertThat(stats.getTotal().indexing.getTotal().getIndexCount(), greaterThan(0l));
+        assertThat(stats.getTotal().indexing.getTotal().getIndexCount(), greaterThan(0L));
         assertThat(stats.getTotal().indexing.getTypeStats(), is(nullValue()));
 
         stats = builder.setTypes("bar").execute().actionGet();
-        assertThat(stats.getTotal().indexing.getTypeStats().get("bar").getIndexCount(), greaterThan(0l));
+        assertThat(stats.getTotal().indexing.getTypeStats().get("bar").getIndexCount(), greaterThan(0L));
         assertThat(stats.getTotal().indexing.getTypeStats().containsKey("baz"), is(false));
 
         stats = builder.setTypes("bar", "baz").execute().actionGet();
-        assertThat(stats.getTotal().indexing.getTypeStats().get("bar").getIndexCount(), greaterThan(0l));
-        assertThat(stats.getTotal().indexing.getTypeStats().get("baz").getIndexCount(), greaterThan(0l));
+        assertThat(stats.getTotal().indexing.getTypeStats().get("bar").getIndexCount(), greaterThan(0L));
+        assertThat(stats.getTotal().indexing.getTypeStats().get("baz").getIndexCount(), greaterThan(0L));
 
         stats = builder.setTypes("*").execute().actionGet();
-        assertThat(stats.getTotal().indexing.getTypeStats().get("bar").getIndexCount(), greaterThan(0l));
-        assertThat(stats.getTotal().indexing.getTypeStats().get("baz").getIndexCount(), greaterThan(0l));
+        assertThat(stats.getTotal().indexing.getTypeStats().get("bar").getIndexCount(), greaterThan(0L));
+        assertThat(stats.getTotal().indexing.getTypeStats().get("baz").getIndexCount(), greaterThan(0L));
 
         stats = builder.setTypes("*r").execute().actionGet();
-        assertThat(stats.getTotal().indexing.getTypeStats().get("bar").getIndexCount(), greaterThan(0l));
+        assertThat(stats.getTotal().indexing.getTypeStats().get("bar").getIndexCount(), greaterThan(0L));
         assertThat(stats.getTotal().indexing.getTypeStats().containsKey("baz"), is(false));
 
     }
@@ -915,9 +913,6 @@ public class IndexStatsIT extends ESIntegTestCase {
             case Warmer:
                 builder.setWarmer(set);
                 break;
-            case Percolate:
-                builder.setPercolate(set);
-                break;
             case Completion:
                 builder.setCompletion(set);
                 break;
@@ -927,8 +922,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             case Translog:
                 builder.setTranslog(set);
                 break;
-            case Suggest:
-                builder.setSuggest(set);
+            case Suggest: // unused
                 break;
             case RequestCache:
                 builder.setRequestCache(set);
@@ -966,16 +960,14 @@ public class IndexStatsIT extends ESIntegTestCase {
                 return response.getStore() != null;
             case Warmer:
                 return response.getWarmer() != null;
-            case Percolate:
-                return response.getPercolate() != null;
             case Completion:
                 return response.getCompletion() != null;
             case Segments:
                 return response.getSegments() != null;
             case Translog:
                 return response.getTranslog() != null;
-            case Suggest:
-                return response.getSuggest() != null;
+            case Suggest: // unused
+                return true;
             case RequestCache:
                 return response.getRequestCache() != null;
             case Recovery:
@@ -1012,7 +1004,7 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     public void testFilterCacheStats() throws Exception {
-        assertAcked(prepareCreate("index").setSettings("number_of_replicas", 0).get());
+        assertAcked(prepareCreate("index").setSettings(Settings.builder().put(indexSettings()).put("number_of_replicas", 0).build()).get());
         indexRandom(true,
                 client().prepareIndex("index", "type", "1").setSource("foo", "bar"),
                 client().prepareIndex("index", "type", "2").setSource("foo", "baz"));
@@ -1022,22 +1014,27 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertCumulativeQueryCacheStats(response);
         assertEquals(0, response.getTotal().queryCache.getCacheSize());
 
-        SearchResponse r;
-        assertSearchResponse(r = client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))).get());
-        response = client().admin().indices().prepareStats("index").setQueryCache(true).get();
-        assertCumulativeQueryCacheStats(response);
-        assertThat(response.getTotal().queryCache.getHitCount(), equalTo(0L));
-        assertThat(response.getTotal().queryCache.getEvictions(), equalTo(0L));
-        assertThat(response.getTotal().queryCache.getMissCount(), greaterThan(0L));
-        assertThat(response.getTotal().queryCache.getCacheSize(), greaterThan(0L));
+        // the query cache has an optimization that disables it automatically if there is contention,
+        // so we run it in an assertBusy block which should eventually succeed
+        assertBusy(() -> {
+            assertSearchResponse(client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))).get());
+            IndicesStatsResponse stats = client().admin().indices().prepareStats("index").setQueryCache(true).get();
+            assertCumulativeQueryCacheStats(stats);
+            assertThat(stats.getTotal().queryCache.getHitCount(), equalTo(0L));
+            assertThat(stats.getTotal().queryCache.getEvictions(), equalTo(0L));
+            assertThat(stats.getTotal().queryCache.getMissCount(), greaterThan(0L));
+            assertThat(stats.getTotal().queryCache.getCacheSize(), greaterThan(0L));
+        });
 
-        assertSearchResponse(client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))).get());
-        response = client().admin().indices().prepareStats("index").setQueryCache(true).get();
-        assertCumulativeQueryCacheStats(response);
-        assertThat(response.getTotal().queryCache.getHitCount(), greaterThan(0L));
-        assertThat(response.getTotal().queryCache.getEvictions(), equalTo(0L));
-        assertThat(response.getTotal().queryCache.getMissCount(), greaterThan(0L));
-        assertThat(response.getTotal().queryCache.getCacheSize(), greaterThan(0L));
+        assertBusy(() -> {
+            assertSearchResponse(client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))).get());
+            IndicesStatsResponse stats = client().admin().indices().prepareStats("index").setQueryCache(true).get();
+            assertCumulativeQueryCacheStats(stats);
+            assertThat(stats.getTotal().queryCache.getHitCount(), greaterThan(0L));
+            assertThat(stats.getTotal().queryCache.getEvictions(), equalTo(0L));
+            assertThat(stats.getTotal().queryCache.getMissCount(), greaterThan(0L));
+            assertThat(stats.getTotal().queryCache.getCacheSize(), greaterThan(0L));
+        });
 
         assertTrue(client().prepareDelete("index", "type", "1").get().isFound());
         assertTrue(client().prepareDelete("index", "type", "2").get().isFound());
@@ -1052,15 +1049,17 @@ public class IndexStatsIT extends ESIntegTestCase {
         indexRandom(true,
                 client().prepareIndex("index", "type", "1").setSource("foo", "bar"),
                 client().prepareIndex("index", "type", "2").setSource("foo", "baz"));
-        assertSearchResponse(client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))).get());
 
-        response = client().admin().indices().prepareStats("index").setQueryCache(true).get();
-        assertCumulativeQueryCacheStats(response);
-        assertThat(response.getTotal().queryCache.getHitCount(), greaterThan(0L));
-        assertThat(response.getTotal().queryCache.getEvictions(), greaterThan(0L));
-        assertThat(response.getTotal().queryCache.getMissCount(), greaterThan(0L));
-        assertThat(response.getTotal().queryCache.getCacheSize(), greaterThan(0L));
-        assertThat(response.getTotal().queryCache.getMemorySizeInBytes(), greaterThan(0L));
+        assertBusy(() -> {
+            assertSearchResponse(client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))).get());
+            IndicesStatsResponse stats = client().admin().indices().prepareStats("index").setQueryCache(true).get();
+            assertCumulativeQueryCacheStats(stats);
+            assertThat(stats.getTotal().queryCache.getHitCount(), greaterThan(0L));
+            assertThat(stats.getTotal().queryCache.getEvictions(), greaterThan(0L));
+            assertThat(stats.getTotal().queryCache.getMissCount(), greaterThan(0L));
+            assertThat(stats.getTotal().queryCache.getCacheSize(), greaterThan(0L));
+            assertThat(stats.getTotal().queryCache.getMemorySizeInBytes(), greaterThan(0L));
+        });
 
         assertAllSuccessful(client().admin().indices().prepareClearCache("index").setQueryCache(true).get());
         response = client().admin().indices().prepareStats("index").setQueryCache(true).get();

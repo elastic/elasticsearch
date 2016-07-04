@@ -25,13 +25,11 @@ import java.io.IOException;
 
 /**
  * A failure to handle the response of a transaction action.
- *
- *
  */
 public class ResponseHandlerFailureTransportException extends TransportException {
 
     public ResponseHandlerFailureTransportException(Throwable cause) {
-        super(cause.getMessage(), cause);
+        super(cause);
     }
 
     public ResponseHandlerFailureTransportException(StreamInput in) throws IOException {

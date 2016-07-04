@@ -12,7 +12,7 @@
         },
         "metric": {
           "type": "list",
-          "options": ["settings", "os", "process", "jvm", "thread_pool", "transport", "http", "plugins"],
+          "options": ["settings", "os", "process", "jvm", "thread_pool", "transport", "http", "plugins", "ingest"],
           "description": "A comma-separated list of metrics you wish returned. Leave empty to return all."
         }
       },

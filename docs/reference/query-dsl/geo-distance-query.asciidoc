@@ -2,10 +2,29 @@
 === Geo Distance Query
 
 Filters documents that include only hits that exists within a specific
-distance from a geo point. Assuming the following indexed json:
+distance from a geo point. Assuming the following mapping and indexed
+document:
 
 [source,js]
 --------------------------------------------------
+PUT /my_locations
+{
+    "mappings": {
+        "location": {
+            "properties": {
+                "pin": {
+                    "properties": {
+                        "location": {
+                            "type": "geo_point"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+PUT /my_locations/location/1
 {
     "pin" : {
         "location" : {
@@ -15,29 +34,36 @@ distance from a geo point. Assuming the following indexed json:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TESTSETUP
+
 
 Then the following simple query can be executed with a `geo_distance`
 filter:
 
 [source,js]
 --------------------------------------------------
+GET /my_locations/location/_search
 {
-    "bool" : {
-        "must" : {
-            "match_all" : {}
-        },
-        "filter" : {
-            "geo_distance" : {
-                "distance" : "200km",
-                "pin.location" : {
-                    "lat" : 40,
-                    "lon" : -70
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_distance" : {
+                    "distance" : "200km",
+                    "pin.location" : {
+                        "lat" : 40,
+                        "lon" : -70
+                    }
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ==== Accepted Formats
@@ -50,23 +76,27 @@ representation of the geo point, the filter can accept it as well:
 
 [source,js]
 --------------------------------------------------
+GET /my_locations/location/_search
 {
-    "bool" : {
-        "must" : {
-            "match_all" : {}
-        },
-        "filter" : {
-            "geo_distance" : {
-                "distance" : "12km",
-                "pin.location" : {
-                    "lat" : 40,
-                    "lon" : -70
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_distance" : {
+                    "distance" : "12km",
+                    "pin.location" : {
+                        "lat" : 40,
+                        "lon" : -70
+                    }
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ===== Lat Lon As Array
@@ -76,20 +106,25 @@ conform with http://geojson.org/[GeoJSON].
 
 [source,js]
 --------------------------------------------------
+GET /my_locations/location/_search
 {
-    "bool" : {
-        "must" : {
-            "match_all" : {}
-        },
-        "filter" : {
-            "geo_distance" : {
-                "distance" : "12km",
-                "pin.location" : [-70, 40]
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_distance" : {
+                    "distance" : "12km",
+                    "pin.location" : [-70, 40]
+                }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
+
 
 [float]
 ===== Lat Lon As String
@@ -98,40 +133,48 @@ Format in `lat,lon`.
 
 [source,js]
 --------------------------------------------------
+GET /my_locations/location/_search
 {
-    "bool" : {
-        "must" : {
-            "match_all" : {}
-        },
-        "filter" : {
-            "geo_distance" : {
-                "distance" : "12km",
-                "pin.location" : "40,-70"
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_distance" : {
+                    "distance" : "12km",
+                    "pin.location" : "40,-70"
+                }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ===== Geohash
 
 [source,js]
 --------------------------------------------------
+GET /my_locations/location/_search
 {
-    "bool" : {
-        "must" : {
-            "match_all" : {}
-        },
-        "filter" : {
-            "geo_distance" : {
-                "distance" : "12km",
-                "pin.location" : "drm3btev3e86"
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_distance" : {
+                    "distance" : "12km",
+                    "pin.location" : "drm3btev3e86"
+                }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ==== Options
@@ -162,15 +205,16 @@ The following are options allowed on the filter:
 
     Optional name field to identify the query
 
-`coerce`::
-
-    Set to `true` to normalize longitude and latitude values to a standard -180:180 / -90:90
-    coordinate system. (default is `false`).
-
 `ignore_malformed`::
-
-    Set to `true` to accept geo points with invalid latitude or
+   
+    deprecated[5.0.0,Use `validation_method` instead] Set to `true` to accept geo points with invalid latitude or
     longitude (default is `false`).
+
+`validation_method`::
+
+    Set to `IGNORE_MALFORMED` to accept geo points with invalid latitude or
+    longitude, set to `COERCE` to additionally try and infer correct
+    coordinates (default is `STRICT`).
 
 [float]
 ==== geo_point Type
@@ -185,3 +229,11 @@ The `geo_distance` filter can work with multiple locations / points per
 document. Once a single location / point matches the filter, the
 document will be included in the filter.
 
+[float]
+==== Ignore Unmapped
+
+When set to `true` the `ignore_unmapped` option will ignore an unmapped field
+and will not match any documents for this query. This can be useful when
+querying multiple indexes which might have different mappings. When set to
+`false` (the default value) the query will throw an exception if the field
+is not mapped.

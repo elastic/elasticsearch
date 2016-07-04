@@ -19,18 +19,39 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import java.io.IOException;
-
-import org.elasticsearch.common.xcontent.XContentBuilder;
-
-import com.spatial4j.core.shape.Point;
+import org.locationtech.spatial4j.shape.Point;
 import com.vividsolutions.jts.geom.Coordinate;
 
-public class PointBuilder extends ShapeBuilder {
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
+import java.io.IOException;
+import java.util.Objects;
+
+public class PointBuilder extends ShapeBuilder {
     public static final GeoShapeType TYPE = GeoShapeType.POINT;
 
     private Coordinate coordinate;
+
+    /**
+     * Create a point at [0.0,0.0]
+     */
+    public PointBuilder() {
+        this.coordinate = ZERO_ZERO;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public PointBuilder(StreamInput in) throws IOException {
+        coordinate = readFromStream(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        writeCoordinateTo(coordinate, out);
+    }
 
     public PointBuilder coordinate(Coordinate coordinate) {
         this.coordinate = coordinate;
@@ -48,10 +69,10 @@ public class PointBuilder extends ShapeBuilder {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
        builder.startObject();
-       builder.field(FIELD_TYPE, TYPE.shapename);
+       builder.field(FIELD_TYPE, TYPE.shapeName());
        builder.field(FIELD_COORDINATES);
        toXContent(builder, coordinate);
-       return builder.endObject(); 
+       return builder.endObject();
     }
 
     @Override
@@ -62,5 +83,22 @@ public class PointBuilder extends ShapeBuilder {
     @Override
     public GeoShapeType type() {
         return TYPE;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(coordinate);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        PointBuilder other = (PointBuilder) obj;
+        return Objects.equals(coordinate, other.coordinate);
     }
 }

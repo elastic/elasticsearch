@@ -11,9 +11,9 @@
            test:
              properties:
                foo:
-                 type : "string"
+                 type : "text"
                title:
-                 type : "string"
+                 type : "text"
 
   - do:
       index:

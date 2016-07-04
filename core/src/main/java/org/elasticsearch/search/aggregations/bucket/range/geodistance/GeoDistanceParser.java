@@ -18,31 +18,20 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range.geodistance;
 
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.geo.GeoDistance;
-import org.elasticsearch.common.geo.GeoDistance.FixedSourceDistance;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
-import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.GeoPointValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.GeoPointParser;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,196 +41,134 @@ import java.util.Map;
 /**
  *
  */
-public class GeoDistanceParser implements Aggregator.Parser {
+public class GeoDistanceParser extends GeoPointValuesSourceParser {
 
-    private static final ParseField ORIGIN_FIELD = new ParseField("origin", "center", "point", "por");
+    static final ParseField ORIGIN_FIELD = new ParseField("origin", "center", "point", "por");
+    static final ParseField UNIT_FIELD = new ParseField("unit");
+    static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
 
-    @Override
-    public String type() {
-        return InternalGeoDistance.TYPE.name();
+    private GeoPointParser geoPointParser = new GeoPointParser(InternalGeoDistance.TYPE, ORIGIN_FIELD);
+
+    public GeoDistanceParser() {
+        super(true, false);
     }
 
-    private static String key(String key, double from, double to) {
-        if (key != null) {
-            return key;
-        }
-        StringBuilder sb = new StringBuilder();
-        sb.append(from == 0 ? "*" : from);
-        sb.append("-");
-        sb.append(Double.isInfinite(to) ? "*" : to);
-        return sb.toString();
-    }
-
-    @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
-
-        ValuesSourceParser<ValuesSource.GeoPoint> vsParser = ValuesSourceParser.geoPoint(aggregationName, InternalGeoDistance.TYPE, context).build();
-
-        GeoPointParser geoPointParser = new GeoPointParser(aggregationName, InternalGeoDistance.TYPE, context, ORIGIN_FIELD);
-
-        List<RangeAggregator.Range> ranges = null;
-        DistanceUnit unit = DistanceUnit.DEFAULT;
-        GeoDistance distanceType = GeoDistance.DEFAULT;
-        boolean keyed = false;
-
-        XContentParser.Token token;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (vsParser.token(currentFieldName, token, parser)) {
-                continue;
-            } else if (geoPointParser.token(currentFieldName, token, parser)) {
-                continue;
-            } else if (token == XContentParser.Token.VALUE_STRING) {
-                if ("unit".equals(currentFieldName)) {
-                    unit = DistanceUnit.fromString(parser.text());
-                } else if ("distance_type".equals(currentFieldName) || "distanceType".equals(currentFieldName)) {
-                    distanceType = GeoDistance.fromString(parser.text());
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
-                }
-            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                if ("keyed".equals(currentFieldName)) {
-                    keyed = parser.booleanValue();
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
-                }
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("ranges".equals(currentFieldName)) {
-                    ranges = new ArrayList<>();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        String fromAsStr = null;
-                        String toAsStr = null;
-                        double from = 0.0;
-                        double to = Double.POSITIVE_INFINITY;
-                        String key = null;
-                        String toOrFromOrKey = null;
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            if (token == XContentParser.Token.FIELD_NAME) {
-                                toOrFromOrKey = parser.currentName();
-                            } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                                if ("from".equals(toOrFromOrKey)) {
-                                    from = parser.doubleValue();
-                                } else if ("to".equals(toOrFromOrKey)) {
-                                    to = parser.doubleValue();
-                                }
-                            } else if (token == XContentParser.Token.VALUE_STRING) {
-                                if ("key".equals(toOrFromOrKey)) {
-                                    key = parser.text();
-                                } else if ("from".equals(toOrFromOrKey)) {
-                                    fromAsStr = parser.text();
-                                } else if ("to".equals(toOrFromOrKey)) {
-                                    toAsStr = parser.text();
-                                }
-                            }
-                        }
-                        ranges.add(new RangeAggregator.Range(key(key, from, to), from, fromAsStr, to, toAsStr));
-                    }
-                } else  {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
-                }
-            } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "]: ["
-                        + currentFieldName + "].", parser.getTokenLocation());
-            }
+    public static class Range extends RangeAggregator.Range {
+        public Range(String key, Double from, Double to) {
+            super(key(key, from, to), from == null ? 0 : from, to);
         }
 
-        if (ranges == null) {
-            throw new SearchParseException(context, "Missing [ranges] in geo_distance aggregator [" + aggregationName + "]",
-                    parser.getTokenLocation());
-        }
-
-        GeoPoint origin = geoPointParser.geoPoint();
-        if (origin == null) {
-            throw new SearchParseException(context, "Missing [origin] in geo_distance aggregator [" + aggregationName + "]",
-                    parser.getTokenLocation());
-        }
-
-        return new GeoDistanceFactory(aggregationName, vsParser.config(), InternalGeoDistance.FACTORY, origin, unit, distanceType, ranges, keyed);
-    }
-
-    private static class GeoDistanceFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
-
-        private final GeoPoint origin;
-        private final DistanceUnit unit;
-        private final GeoDistance distanceType;
-        private final InternalRange.Factory rangeFactory;
-        private final List<RangeAggregator.Range> ranges;
-        private final boolean keyed;
-
-        public GeoDistanceFactory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> valueSourceConfig,
-                                  InternalRange.Factory rangeFactory, GeoPoint origin, DistanceUnit unit, GeoDistance distanceType,
-                                  List<RangeAggregator.Range> ranges, boolean keyed) {
-            super(name, rangeFactory.type(), valueSourceConfig);
-            this.origin = origin;
-            this.unit = unit;
-            this.distanceType = distanceType;
-            this.rangeFactory = rangeFactory;
-            this.ranges = ranges;
-            this.keyed = keyed;
+        /**
+         * Read from a stream.
+         */
+        public Range(StreamInput in) throws IOException {
+            super(in.readOptionalString(), in.readDouble(), in.readDouble());
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                Map<String, Object> metaData) throws IOException {
-            return new Unmapped(name, ranges, keyed, config.format(), aggregationContext, parent, rangeFactory, pipelineAggregators,
-                    metaData);
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(key);
+            out.writeDouble(from);
+            out.writeDouble(to);
         }
 
-        @Override
-        protected Aggregator doCreateInternal(final ValuesSource.GeoPoint valuesSource, AggregationContext aggregationContext,
-                Aggregator parent, boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
-                Map<String, Object> metaData)
-                throws IOException {
-            DistanceSource distanceSource = new DistanceSource(valuesSource, distanceType, origin, unit);
-            return new RangeAggregator(name, factories, distanceSource, config.format(), rangeFactory, ranges, keyed, aggregationContext,
-                    parent,
-                    pipelineAggregators, metaData);
-        }
-
-        private static class DistanceSource extends ValuesSource.Numeric {
-
-            private final ValuesSource.GeoPoint source;
-            private final GeoDistance distanceType;
-            private final DistanceUnit unit;
-            private final org.elasticsearch.common.geo.GeoPoint origin;
-
-            public DistanceSource(ValuesSource.GeoPoint source, GeoDistance distanceType, org.elasticsearch.common.geo.GeoPoint origin, DistanceUnit unit) {
-                this.source = source;
-                // even if the geo points are unique, there's no guarantee the distances are
-                this.distanceType = distanceType;
-                this.unit = unit;
-                this.origin = origin;
+        private static String key(String key, Double from, Double to) {
+            if (key != null) {
+                return key;
             }
+            StringBuilder sb = new StringBuilder();
+            sb.append((from == null || from == 0) ? "*" : from);
+            sb.append("-");
+            sb.append((to == null || Double.isInfinite(to)) ? "*" : to);
+            return sb.toString();
+        }
+    }
 
-            @Override
-            public boolean isFloatingPoint() {
+    @Override
+    protected GeoDistanceAggregationBuilder createFactory(
+            String aggregationName, ValuesSourceType valuesSourceType, ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        GeoPoint origin = (GeoPoint) otherOptions.get(ORIGIN_FIELD);
+        GeoDistanceAggregationBuilder factory = new GeoDistanceAggregationBuilder(aggregationName, origin);
+        @SuppressWarnings("unchecked")
+        List<Range> ranges = (List<Range>) otherOptions.get(RangeAggregator.RANGES_FIELD);
+        for (Range range : ranges) {
+            factory.addRange(range);
+        }
+        Boolean keyed = (Boolean) otherOptions.get(RangeAggregator.KEYED_FIELD);
+        if (keyed != null) {
+            factory.keyed(keyed);
+        }
+        DistanceUnit unit = (DistanceUnit) otherOptions.get(UNIT_FIELD);
+        if (unit != null) {
+            factory.unit(unit);
+        }
+        GeoDistance distanceType = (GeoDistance) otherOptions.get(DISTANCE_TYPE_FIELD);
+        if (distanceType != null) {
+            factory.distanceType(distanceType);
+        }
+        return factory;
+    }
+
+    @Override
+    protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
+            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+        if (geoPointParser.token(aggregationName, currentFieldName, token, parser, parseFieldMatcher, otherOptions)) {
+            return true;
+        } else if (token == XContentParser.Token.VALUE_STRING) {
+            if (parseFieldMatcher.match(currentFieldName, UNIT_FIELD)) {
+                DistanceUnit unit = DistanceUnit.fromString(parser.text());
+                otherOptions.put(UNIT_FIELD, unit);
+                return true;
+            } else if (parseFieldMatcher.match(currentFieldName, DISTANCE_TYPE_FIELD)) {
+                GeoDistance distanceType = GeoDistance.fromString(parser.text());
+                otherOptions.put(DISTANCE_TYPE_FIELD, distanceType);
                 return true;
             }
-
-            @Override
-            public SortedNumericDocValues longValues(LeafReaderContext ctx) {
-                throw new UnsupportedOperationException();
+        } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+            if (parseFieldMatcher.match(currentFieldName, RangeAggregator.KEYED_FIELD)) {
+                boolean keyed = parser.booleanValue();
+                otherOptions.put(RangeAggregator.KEYED_FIELD, keyed);
+                return true;
             }
-
-            @Override
-            public SortedNumericDoubleValues doubleValues(LeafReaderContext ctx) {
-                final MultiGeoPointValues geoValues = source.geoPointValues(ctx);
-                final FixedSourceDistance distance = distanceType.fixedSourceDistance(origin.getLat(), origin.getLon(), unit);
-                return GeoDistance.distanceValues(geoValues, distance);
+        } else if (token == XContentParser.Token.START_ARRAY) {
+            if (parseFieldMatcher.match(currentFieldName, RangeAggregator.RANGES_FIELD)) {
+                List<Range> ranges = new ArrayList<>();
+                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    String fromAsStr = null;
+                    String toAsStr = null;
+                    double from = 0.0;
+                    double to = Double.POSITIVE_INFINITY;
+                    String key = null;
+                    String toOrFromOrKey = null;
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            toOrFromOrKey = parser.currentName();
+                        } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                            if (parseFieldMatcher.match(toOrFromOrKey, Range.FROM_FIELD)) {
+                                from = parser.doubleValue();
+                            } else if (parseFieldMatcher.match(toOrFromOrKey, Range.TO_FIELD)) {
+                                to = parser.doubleValue();
+                            }
+                        } else if (token == XContentParser.Token.VALUE_STRING) {
+                            if (parseFieldMatcher.match(toOrFromOrKey, Range.KEY_FIELD)) {
+                                key = parser.text();
+                            } else if (parseFieldMatcher.match(toOrFromOrKey, Range.FROM_FIELD)) {
+                                fromAsStr = parser.text();
+                            } else if (parseFieldMatcher.match(toOrFromOrKey, Range.TO_FIELD)) {
+                                toAsStr = parser.text();
+                            }
+                        }
+                    }
+                    if (fromAsStr != null || toAsStr != null) {
+                        ranges.add(new Range(key, Double.parseDouble(fromAsStr), Double.parseDouble(toAsStr)));
+                    } else {
+                        ranges.add(new Range(key, from, to));
+                    }
+                }
+                otherOptions.put(RangeAggregator.RANGES_FIELD, ranges);
+                return true;
             }
-
-            @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext ctx) {
-                throw new UnsupportedOperationException();
-            }
-
         }
-
+        return false;
     }
-
 }

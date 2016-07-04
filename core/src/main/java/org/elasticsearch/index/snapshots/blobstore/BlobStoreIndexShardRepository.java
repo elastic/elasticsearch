@@ -23,6 +23,8 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -30,12 +32,11 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -50,7 +51,6 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
@@ -104,8 +104,6 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
     private RateLimiter snapshotRateLimiter;
 
     private RateLimiter restoreRateLimiter;
-
-    private RateLimiterListener rateLimiterListener;
 
     private RateLimitingInputStream.Listener snapshotThrottleListener;
 
@@ -163,7 +161,6 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         this.chunkSize = chunkSize;
         this.snapshotRateLimiter = snapshotRateLimiter;
         this.restoreRateLimiter = restoreRateLimiter;
-        this.rateLimiterListener = rateLimiterListener;
         this.snapshotThrottleListener = nanos -> rateLimiterListener.onSnapshotPause(nanos);
         this.restoreThrottleListener = nanos -> rateLimiterListener.onRestorePause(nanos);
         this.compress = compress;
@@ -184,14 +181,14 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             snapshotContext.snapshot(snapshotIndexCommit);
             snapshotStatus.time(System.currentTimeMillis() - snapshotStatus.startTime());
             snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.DONE);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             snapshotStatus.time(System.currentTimeMillis() - snapshotStatus.startTime());
             snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FAILURE);
             snapshotStatus.failure(ExceptionsHelper.detailedMessage(e));
             if (e instanceof IndexShardSnapshotFailedException) {
                 throw (IndexShardSnapshotFailedException) e;
             } else {
-                throw new IndexShardSnapshotFailedException(shardId, e.getMessage(), e);
+                throw new IndexShardSnapshotFailedException(shardId, e);
             }
         }
     }
@@ -204,8 +201,8 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         final RestoreContext snapshotContext = new RestoreContext(snapshotId, version, shardId, snapshotShardId, recoveryState);
         try {
             snapshotContext.restore();
-        } catch (Throwable e) {
-            throw new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId.getSnapshot() + "]", e);
+        } catch (Exception e) {
+            throw new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e);
         }
     }
 
@@ -300,7 +297,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             this.snapshotId = snapshotId;
             this.version = version;
             this.shardId = shardId;
-            blobContainer = blobStore.blobContainer(basePath.add("indices").add(snapshotShardId.getIndex()).add(Integer.toString(snapshotShardId.getId())));
+            blobContainer = blobStore.blobContainer(basePath.add("indices").add(snapshotShardId.getIndexName()).add(Integer.toString(snapshotShardId.getId())));
         }
 
         /**
@@ -319,7 +316,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             int fileListGeneration = tuple.v2();
 
             try {
-                indexShardSnapshotFormat(version).delete(blobContainer, snapshotId.getSnapshot());
+                indexShardSnapshotFormat(version).delete(blobContainer, snapshotId.getName());
             } catch (IOException e) {
                 logger.debug("[{}] [{}] failed to delete shard snapshot file", shardId, snapshotId);
             }
@@ -327,7 +324,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             // Build a list of snapshots that should be preserved
             List<SnapshotFiles> newSnapshotsList = new ArrayList<>();
             for (SnapshotFiles point : snapshots) {
-                if (!point.snapshot().equals(snapshotId.getSnapshot())) {
+                if (!point.snapshot().equals(snapshotId.getName())) {
                     newSnapshotsList.add(point);
                 }
             }
@@ -340,7 +337,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          */
         public BlobStoreIndexShardSnapshot loadSnapshot() {
             try {
-                return indexShardSnapshotFormat(version).read(blobContainer, snapshotId.getSnapshot());
+                return indexShardSnapshotFormat(version).read(blobContainer, snapshotId.getName());
             } catch (IOException ex) {
                 throw new IndexShardRestoreFailedException(shardId, "failed to read shard snapshot file", ex);
             }
@@ -373,7 +370,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             } catch (IOException e) {
                 // We cannot delete index file - this is fatal, we cannot continue, otherwise we might end up
                 // with references to non-existing files
-                throw new IndexShardSnapshotFailedException(shardId, "error deleting index files during cleanup, reason: " + e.getMessage(), e);
+                throw new IndexShardSnapshotFailedException(shardId, "error deleting index files during cleanup", e);
             }
 
             blobsToDelete = new ArrayList<>();
@@ -459,7 +456,9 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             }
             if (latest >= 0) {
                 try {
-                    return new Tuple<>(indexShardSnapshotsFormat.read(blobContainer, Integer.toString(latest)), latest);
+                    final BlobStoreIndexShardSnapshots shardSnapshots =
+                        indexShardSnapshotsFormat.read(blobContainer, Integer.toString(latest));
+                    return new Tuple<>(shardSnapshots, latest);
                 } catch (IOException e) {
                     logger.warn("failed to read index file  [{}]", e, SNAPSHOT_INDEX_PREFIX + latest);
                 }
@@ -504,10 +503,8 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          */
         public SnapshotContext(SnapshotId snapshotId, ShardId shardId, IndexShardSnapshotStatus snapshotStatus) {
             super(snapshotId, Version.CURRENT, shardId);
-            IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-            store = indexService.getShardOrNull(shardId.id()).store();
             this.snapshotStatus = snapshotStatus;
-
+            store = indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id()).store();
         }
 
         /**
@@ -562,7 +559,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                                 // don't have this hash we try to read that hash from the blob store
                                 // in a bwc compatible way.
                                 maybeRecalculateMetadataHash(blobContainer, fileInfo, metadata);
-                            } catch (Throwable e) {
+                            } catch (Exception e) {
                                 logger.warn("{} Can't calculate hash from blob for file [{}] [{}]", e, shardId, fileInfo.physicalName(), fileInfo.metadata());
                             }
                             if (fileInfo.isSame(md) && snapshotFileExistsInBlobs(fileInfo, blobs)) {
@@ -606,14 +603,14 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 // now create and write the commit point
                 snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FINALIZE);
 
-                BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getSnapshot(),
+                BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(),
                         snapshotIndexCommit.getGeneration(), indexCommitPointFiles, snapshotStatus.startTime(),
                         // snapshotStatus.startTime() is assigned on the same machine, so it's safe to use with VLong
                         System.currentTimeMillis() - snapshotStatus.startTime(), indexNumberOfFiles, indexTotalFilesSize);
                 //TODO: The time stored in snapshot doesn't include cleanup time.
                 logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
                 try {
-                    indexShardSnapshotFormat.write(snapshot, blobContainer, snapshotId.getSnapshot());
+                    indexShardSnapshotFormat.write(snapshot, blobContainer, snapshotId.getName());
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
                 }
@@ -654,19 +651,20 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 }
                 Store.verify(indexInput);
                 snapshotStatus.addProcessedFile(fileInfo.length());
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 failStoreIfCorrupted(t);
                 snapshotStatus.addProcessedFile(0);
                 throw t;
             }
         }
 
-        private void failStoreIfCorrupted(Throwable t) {
-            if (t instanceof CorruptIndexException || t instanceof IndexFormatTooOldException || t instanceof IndexFormatTooNewException) {
+        private void failStoreIfCorrupted(Exception e) {
+            if (e instanceof CorruptIndexException || e instanceof IndexFormatTooOldException || e instanceof IndexFormatTooNewException) {
                 try {
-                    store.markStoreCorrupted((IOException) t);
-                } catch (IOException e) {
-                    logger.warn("store cannot be marked as corrupted", e);
+                    store.markStoreCorrupted((IOException) e);
+                } catch (IOException inner) {
+                    inner.addSuppressed(e);
+                    logger.warn("store cannot be marked as corrupted", inner);
                 }
             }
         }
@@ -729,11 +727,11 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
     }
 
     /**
-     * This is a BWC layer to ensure we update the snapshots metdata with the corresponding hashes before we compare them.
+     * This is a BWC layer to ensure we update the snapshots metadata with the corresponding hashes before we compare them.
      * The new logic for StoreFileMetaData reads the entire <tt>.si</tt> and <tt>segments.n</tt> files to strengthen the
      * comparison of the files on a per-segment / per-commit level.
      */
-    private static void maybeRecalculateMetadataHash(final BlobContainer blobContainer, final FileInfo fileInfo, Store.MetadataSnapshot snapshot) throws Throwable {
+    private static void maybeRecalculateMetadataHash(final BlobContainer blobContainer, final FileInfo fileInfo, Store.MetadataSnapshot snapshot) throws Exception {
         final StoreFileMetaData metadata;
         if (fileInfo != null && (metadata = snapshot.get(fileInfo.physicalName())) != null) {
             if (metadata.hash().length > 0 && fileInfo.metadata().hash().length == 0) {
@@ -789,8 +787,8 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          */
         public RestoreContext(SnapshotId snapshotId, Version version, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState) {
             super(snapshotId, version, shardId, snapshotShardId);
-            store = indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id()).store();
             this.recoveryState = recoveryState;
+            store = indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id()).store();
         }
 
         /**
@@ -801,6 +799,25 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             try {
                 logger.debug("[{}] [{}] restoring to [{}] ...", snapshotId, repositoryName, shardId);
                 BlobStoreIndexShardSnapshot snapshot = loadSnapshot();
+
+                if (snapshot.indexFiles().size() == 1
+                    && snapshot.indexFiles().get(0).physicalName().startsWith("segments_")
+                    && snapshot.indexFiles().get(0).hasUnknownChecksum()) {
+                    // If the shard has no documents, it will only contain a single segments_N file for the
+                    // shard's snapshot.  If we are restoring a snapshot created by a previous supported version,
+                    // it is still possible that in that version, an empty shard has a segments_N file with an unsupported
+                    // version (and no checksum), because we don't know the Lucene version to assign segments_N until we
+                    // have written some data.  Since the segments_N for an empty shard could have an incompatible Lucene
+                    // version number and no checksum, even though the index itself is perfectly fine to restore, this
+                    // empty shard would cause exceptions to be thrown.  Since there is no data to restore from an empty
+                    // shard anyway, we just create the empty shard here and then exit.
+                    IndexWriter writer = new IndexWriter(store.directory(), new IndexWriterConfig(null)
+                                                                                .setOpenMode(IndexWriterConfig.OpenMode.CREATE)
+                                                                                .setCommitOnClose(true));
+                    writer.close();
+                    return;
+                }
+
                 SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles());
                 final Store.MetadataSnapshot recoveryTargetMetadata;
                 try {
@@ -820,7 +837,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                         // don't have this hash we try to read that hash from the blob store
                         // in a bwc compatible way.
                         maybeRecalculateMetadataHash(blobContainer, fileInfo, recoveryTargetMetadata);
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         // if the index is broken we might not be able to read it
                         logger.warn("{} Can't calculate hash from blog for file [{}] [{}]", e, shardId, fileInfo.physicalName(), fileInfo.metadata());
                     }
@@ -927,13 +944,6 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     }
                     Store.verify(indexOutput);
                     indexOutput.close();
-                    // write the checksum
-                    if (fileInfo.metadata().hasLegacyChecksum()) {
-                        Store.LegacyChecksums legacyChecksums = new Store.LegacyChecksums();
-                        legacyChecksums.add(fileInfo.metadata());
-                        legacyChecksums.write(store);
-
-                    }
                     store.directory().sync(Collections.singleton(fileInfo.physicalName()));
                     success = true;
                 } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {

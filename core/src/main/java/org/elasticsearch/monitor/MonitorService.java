@@ -20,39 +20,32 @@
 package org.elasticsearch.monitor;
 
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.fs.FsService;
-import org.elasticsearch.monitor.jvm.JvmMonitorService;
+import org.elasticsearch.monitor.jvm.JvmGcMonitorService;
 import org.elasticsearch.monitor.jvm.JvmService;
 import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.monitor.process.ProcessService;
+import org.elasticsearch.threadpool.ThreadPool;
 
-/**
- *
- */
-public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
+import java.io.IOException;
 
-    private final JvmMonitorService jvmMonitorService;
+public class MonitorService extends AbstractLifecycleComponent {
 
+    private final JvmGcMonitorService jvmGcMonitorService;
     private final OsService osService;
-
     private final ProcessService processService;
-
     private final JvmService jvmService;
-
     private final FsService fsService;
 
-    @Inject
-    public MonitorService(Settings settings, JvmMonitorService jvmMonitorService,
-                          OsService osService, ProcessService processService, JvmService jvmService,
-                          FsService fsService) {
+    public MonitorService(Settings settings, NodeEnvironment nodeEnvironment, ThreadPool threadPool) throws IOException {
         super(settings);
-        this.jvmMonitorService = jvmMonitorService;
-        this.osService = osService;
-        this.processService = processService;
-        this.jvmService = jvmService;
-        this.fsService = fsService;
+        this.jvmGcMonitorService = new JvmGcMonitorService(settings, threadPool);
+        this.osService = new OsService(settings);
+        this.processService = new ProcessService(settings);
+        this.jvmService = new JvmService(settings);
+        this.fsService = new FsService(settings, nodeEnvironment);
     }
 
     public OsService osService() {
@@ -73,16 +66,17 @@ public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
 
     @Override
     protected void doStart() {
-        jvmMonitorService.start();
+        jvmGcMonitorService.start();
     }
 
     @Override
     protected void doStop() {
-        jvmMonitorService.stop();
+        jvmGcMonitorService.stop();
     }
 
     @Override
     protected void doClose() {
-        jvmMonitorService.close();
+        jvmGcMonitorService.close();
     }
+
 }

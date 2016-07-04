@@ -20,20 +20,17 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.fa.PersianNormalizationFilter;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 
 /**
  *
  */
-public class PersianNormalizationFilterFactory extends AbstractTokenFilterFactory {
+public class PersianNormalizationFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
-    @Inject
-    public PersianNormalizationFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public PersianNormalizationFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+        super(indexSettings, name, settings);
     }
 
     @Override
@@ -41,4 +38,8 @@ public class PersianNormalizationFilterFactory extends AbstractTokenFilterFactor
         return new PersianNormalizationFilter(tokenStream);
     }
 
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
+    }
 }

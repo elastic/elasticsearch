@@ -22,18 +22,21 @@ package org.elasticsearch.rest.action.explain;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
-import org.elasticsearch.action.support.QuerySourceBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.query.Operator;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryStringQueryBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -50,37 +53,29 @@ import static org.elasticsearch.rest.RestStatus.OK;
  */
 public class RestExplainAction extends BaseRestHandler {
 
+    private final IndicesQueriesRegistry indicesQueriesRegistry;
+
     @Inject
-    public RestExplainAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestExplainAction(Settings settings, RestController controller, IndicesQueriesRegistry indicesQueriesRegistry) {
+        super(settings);
+        this.indicesQueriesRegistry = indicesQueriesRegistry;
         controller.registerHandler(GET, "/{index}/{type}/{id}/_explain", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_explain", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final ExplainRequest explainRequest = new ExplainRequest(request.param("index"), request.param("type"), request.param("id"));
         explainRequest.parent(request.param("parent"));
         explainRequest.routing(request.param("routing"));
         explainRequest.preference(request.param("preference"));
         String queryString = request.param("q");
         if (RestActions.hasBodyContent(request)) {
-            explainRequest.source(RestActions.getRestContent(request));
+            BytesReference restContent = RestActions.getRestContent(request);
+            explainRequest.query(RestActions.getQueryContent(restContent, indicesQueriesRegistry, parseFieldMatcher));
         } else if (queryString != null) {
-            QueryStringQueryBuilder queryStringBuilder = QueryBuilders.queryStringQuery(queryString);
-            queryStringBuilder.defaultField(request.param("df"));
-            queryStringBuilder.analyzer(request.param("analyzer"));
-            queryStringBuilder.analyzeWildcard(request.paramAsBoolean("analyze_wildcard", false));
-            queryStringBuilder.lowercaseExpandedTerms(request.paramAsBoolean("lowercase_expanded_terms", true));
-            queryStringBuilder.lenient(request.paramAsBoolean("lenient", null));
-            String defaultOperator = request.param("default_operator");
-            if (defaultOperator != null) {
-                queryStringBuilder.defaultOperator(Operator.fromString(defaultOperator));
-            }
-
-            QuerySourceBuilder querySourceBuilder = new QuerySourceBuilder();
-            querySourceBuilder.setQuery(queryStringBuilder);
-            explainRequest.source(querySourceBuilder);
+            QueryBuilder query = RestActions.urlParamsToQueryBuilder(request);
+            explainRequest.query(query);
         }
 
         String sField = request.param("fields");
@@ -135,15 +130,15 @@ public class RestExplainAction extends BaseRestHandler {
     }
 
     static class Fields {
-        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        static final XContentBuilderString MATCHED = new XContentBuilderString("matched");
-        static final XContentBuilderString EXPLANATION = new XContentBuilderString("explanation");
-        static final XContentBuilderString VALUE = new XContentBuilderString("value");
-        static final XContentBuilderString DESCRIPTION = new XContentBuilderString("description");
-        static final XContentBuilderString DETAILS = new XContentBuilderString("details");
-        static final XContentBuilderString GET = new XContentBuilderString("get");
+        static final String _INDEX = "_index";
+        static final String _TYPE = "_type";
+        static final String _ID = "_id";
+        static final String MATCHED = "matched";
+        static final String EXPLANATION = "explanation";
+        static final String VALUE = "value";
+        static final String DESCRIPTION = "description";
+        static final String DETAILS = "details";
+        static final String GET = "get";
 
     }
 }

@@ -23,7 +23,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.junit.Test;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -32,7 +32,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBuilder> {
-
     @Override
     protected ScriptQueryBuilder doCreateTestQueryBuilder() {
         String script = "5";
@@ -45,13 +44,27 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
         assertThat(query, instanceOf(ScriptQueryBuilder.ScriptQuery.class));
     }
 
-    @Test
     public void testIllegalConstructorArg() {
-        try {
-            new ScriptQueryBuilder(null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> new ScriptQueryBuilder((Script) null));
+    }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" +
+                "  \"script\" : {\n" +
+                "    \"script\" : {\n" +
+                "      \"inline\" : \"5\",\n" +
+                "      \"lang\" : \"mockscript\",\n" +
+                "      \"params\" : { }\n" +
+                "    },\n" +
+                "    \"boost\" : 1.0,\n" +
+                "    \"_name\" : \"PcKdEyPOmR\"\n" +
+                "  }\n" +
+                "}";
+
+        ScriptQueryBuilder parsed = (ScriptQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "mockscript", parsed.script().getLang());
     }
 }

@@ -22,25 +22,23 @@ package org.elasticsearch.search.basic;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.GeohashCellQuery;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.client.Requests.searchRequest;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
@@ -48,16 +46,14 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class TransportSearchFailuresIT extends ESIntegTestCase {
-
     @Override
     protected int maximumNumberOfReplicas() {
         return 1;
     }
 
-    @Test
     public void testFailedSearchWithWrongQuery() throws Exception {
         logger.info("Start Testing failed search with wrong query");
-        assertAcked(prepareCreate("test", 1, settingsBuilder().put("routing.hash.type", "simple")));
+        assertAcked(prepareCreate("test", 1));
         ensureYellow();
 
         NumShards test = getNumShards("test");
@@ -94,7 +90,7 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
                 .cluster()
                 .health(clusterHealthRequest("test").waitForYellowStatus().waitForRelocatingShards(0)
                         .waitForActiveShards(test.totalNumShards)).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), anyOf(equalTo(ClusterHealthStatus.YELLOW), equalTo(ClusterHealthStatus.GREEN)));
         assertThat(clusterHealth.getActiveShards(), equalTo(test.totalNumShards));

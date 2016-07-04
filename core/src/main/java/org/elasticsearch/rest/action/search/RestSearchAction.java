@@ -22,8 +22,9 @@ package org.elasticsearch.rest.action.search;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -32,22 +33,22 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.exists.RestExistsAction;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.Suggesters;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -63,63 +64,54 @@ import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 public class RestSearchAction extends BaseRestHandler {
 
     private final IndicesQueriesRegistry queryRegistry;
+    private final AggregatorParsers aggParsers;
+    private final Suggesters suggesters;
 
     @Inject
-    public RestSearchAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry queryRegistry) {
-        super(settings, controller, client);
+    public RestSearchAction(Settings settings, RestController controller, IndicesQueriesRegistry queryRegistry,
+            AggregatorParsers aggParsers, Suggesters suggesters) {
+        super(settings);
         this.queryRegistry = queryRegistry;
+        this.aggParsers = aggParsers;
+        this.suggesters = suggesters;
         controller.registerHandler(GET, "/_search", this);
         controller.registerHandler(POST, "/_search", this);
         controller.registerHandler(GET, "/{index}/_search", this);
         controller.registerHandler(POST, "/{index}/_search", this);
         controller.registerHandler(GET, "/{index}/{type}/_search", this);
         controller.registerHandler(POST, "/{index}/{type}/_search", this);
-        controller.registerHandler(GET, "/_search/template", this);
-        controller.registerHandler(POST, "/_search/template", this);
-        controller.registerHandler(GET, "/{index}/_search/template", this);
-        controller.registerHandler(POST, "/{index}/_search/template", this);
-        controller.registerHandler(GET, "/{index}/{type}/_search/template", this);
-        controller.registerHandler(POST, "/{index}/{type}/_search/template", this);
-
-        RestExistsAction restExistsAction = new RestExistsAction(settings, controller, client);
-        controller.registerHandler(GET, "/_search/exists", restExistsAction);
-        controller.registerHandler(POST, "/_search/exists", restExistsAction);
-        controller.registerHandler(GET, "/{index}/_search/exists", restExistsAction);
-        controller.registerHandler(POST, "/{index}/_search/exists", restExistsAction);
-        controller.registerHandler(GET, "/{index}/{type}/_search/exists", restExistsAction);
-        controller.registerHandler(POST, "/{index}/{type}/_search/exists", restExistsAction);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws IOException {
-        SearchRequest searchRequest;
-        searchRequest = RestSearchAction.parseSearchRequest(queryRegistry, request, parseFieldMatcher);
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws IOException {
+        SearchRequest searchRequest = new SearchRequest();
+        BytesReference restContent = RestActions.hasBodyContent(request) ? RestActions.getRestContent(request) : null;
+        parseSearchRequest(searchRequest, queryRegistry, request, parseFieldMatcher, aggParsers, suggesters, restContent);
         client.search(searchRequest, new RestStatusToXContentListener<>(channel));
     }
 
-    public static SearchRequest parseSearchRequest(IndicesQueriesRegistry indicesQueriesRegistry,  RestRequest request, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        SearchRequest searchRequest = new SearchRequest(indices);
-        // get the content, and put it in the body
-        // add content/source as template if template flag is set
-        boolean isTemplateRequest = request.path().endsWith("/template");
-        final SearchSourceBuilder builder;
-        if (RestActions.hasBodyContent(request)) {
-            BytesReference restContent = RestActions.getRestContent(request);
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-            if (isTemplateRequest) {
-                try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
-                    context.reset(parser);
-                    context.parseFieldMatcher(parseFieldMatcher);
-                    Template template = TemplateQueryParser.parse(parser, context.parseFieldMatcher(), "params", "template");
-                    searchRequest.template(template);
-                }
-                builder = null;
-            } else {
-                builder = RestActions.getRestSearchSource(restContent, indicesQueriesRegistry, parseFieldMatcher);
+    /**
+     * Parses the rest request on top of the SearchRequest, preserving values
+     * that are not overridden by the rest request.
+     *
+     * @param restContent
+     *            override body content to use for the request. If null body
+     *            content is read from the request using
+     *            RestAction.hasBodyContent.
+     */
+    public static void parseSearchRequest(SearchRequest searchRequest, IndicesQueriesRegistry indicesQueriesRegistry, RestRequest request,
+            ParseFieldMatcher parseFieldMatcher, AggregatorParsers aggParsers, Suggesters suggesters, BytesReference restContent)
+        throws IOException {
+
+        if (searchRequest.source() == null) {
+            searchRequest.source(new SearchSourceBuilder());
+        }
+        searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
+        if (restContent != null) {
+            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+                QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, parseFieldMatcher);
+                searchRequest.source().parseXContent(context, aggParsers, suggesters);
             }
-        } else {
-            builder = null;
         }
 
         // do not allow 'query_and_fetch' or 'dfs_query_and_fetch' search types
@@ -132,15 +124,7 @@ public class RestSearchAction extends BaseRestHandler {
         } else {
             searchRequest.searchType(searchType);
         }
-        if (builder == null) {
-            SearchSourceBuilder extraBuilder = new SearchSourceBuilder();
-            if (parseSearchSource(extraBuilder, request)) {
-                searchRequest.source(extraBuilder);
-            }
-        } else {
-            parseSearchSource(builder, request);
-            searchRequest.source(builder);
-        }
+        parseSearchSource(searchRequest.source(), request);
         searchRequest.requestCache(request.paramAsBoolean("request_cache", null));
 
         String scroll = request.param("scroll");
@@ -152,41 +136,35 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
-
-        return searchRequest;
     }
 
-    private static boolean parseSearchSource(final SearchSourceBuilder searchSourceBuilder, RestRequest request) {
-
-        boolean modified = false;
-        QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
+    /**
+     * Parses the rest request on top of the SearchSourceBuilder, preserving
+     * values that are not overridden by the rest request.
+     */
+    private static void parseSearchSource(final SearchSourceBuilder searchSourceBuilder, RestRequest request) {
+        QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
         if (queryBuilder != null) {
             searchSourceBuilder.query(queryBuilder);
-            modified = true;
         }
 
         int from = request.paramAsInt("from", -1);
         if (from != -1) {
             searchSourceBuilder.from(from);
-            modified = true;
         }
         int size = request.paramAsInt("size", -1);
         if (size != -1) {
             searchSourceBuilder.size(size);
-            modified = true;
         }
 
         if (request.hasParam("explain")) {
             searchSourceBuilder.explain(request.paramAsBoolean("explain", null));
-            modified = true;
         }
         if (request.hasParam("version")) {
             searchSourceBuilder.version(request.paramAsBoolean("version", null));
-            modified = true;
         }
         if (request.hasParam("timeout")) {
             searchSourceBuilder.timeout(request.paramAsTime("timeout", null));
-            modified = true;
         }
         if (request.hasParam("terminate_after")) {
             int terminateAfter = request.paramAsInt("terminate_after",
@@ -195,46 +173,48 @@ public class RestSearchAction extends BaseRestHandler {
                 throw new IllegalArgumentException("terminateAfter must be > 0");
             } else if (terminateAfter > 0) {
                 searchSourceBuilder.terminateAfter(terminateAfter);
-                modified = true;
             }
         }
 
-        String sField = request.param("fields");
+        if (request.param("fields") != null) {
+            throw new IllegalArgumentException("The parameter [" +
+                SearchSourceBuilder.FIELDS_FIELD + "] is not longer supported, please use [" +
+                SearchSourceBuilder.STORED_FIELDS_FIELD + "] to retrieve stored fields or _source filtering " +
+                "if the field is not stored");
+        }
+
+        String sField = request.param("stored_fields");
         if (sField != null) {
             if (!Strings.hasText(sField)) {
-                searchSourceBuilder.noFields();
-                modified = true;
+                searchSourceBuilder.noStoredFields();
             } else {
                 String[] sFields = Strings.splitStringByCommaToArray(sField);
                 if (sFields != null) {
                     for (String field : sFields) {
-                        searchSourceBuilder.field(field);
-                        modified = true;
+                        searchSourceBuilder.storedField(field);
                     }
                 }
             }
         }
-        String sFieldDataFields = request.param("fielddata_fields");
-        if (sFieldDataFields != null) {
-            if (Strings.hasText(sFieldDataFields)) {
-                String[] sFields = Strings.splitStringByCommaToArray(sFieldDataFields);
-                if (sFields != null) {
-                    for (String field : sFields) {
-                        searchSourceBuilder.fieldDataField(field);
-                        modified = true;
-                    }
+        String sDocValueFields = request.param("docvalue_fields");
+        if (sDocValueFields == null) {
+            sDocValueFields = request.param("fielddata_fields");
+        }
+        if (sDocValueFields != null) {
+            if (Strings.hasText(sDocValueFields)) {
+                String[] sFields = Strings.splitStringByCommaToArray(sDocValueFields);
+                for (String field : sFields) {
+                    searchSourceBuilder.docValueField(field);
                 }
             }
         }
         FetchSourceContext fetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
         if (fetchSourceContext != null) {
             searchSourceBuilder.fetchSource(fetchSourceContext);
-            modified = true;
         }
 
         if (request.hasParam("track_scores")) {
             searchSourceBuilder.trackScores(request.paramAsBoolean("track_scores", false));
-            modified = true;
         }
 
         String sSorts = request.param("sort");
@@ -247,14 +227,11 @@ public class RestSearchAction extends BaseRestHandler {
                     String reverse = sort.substring(delimiter + 1);
                     if ("asc".equals(reverse)) {
                         searchSourceBuilder.sort(sortField, SortOrder.ASC);
-                        modified = true;
                     } else if ("desc".equals(reverse)) {
                         searchSourceBuilder.sort(sortField, SortOrder.DESC);
-                        modified = true;
                     }
                 } else {
                     searchSourceBuilder.sort(sort);
-                    modified = true;
                 }
             }
         }
@@ -262,7 +239,6 @@ public class RestSearchAction extends BaseRestHandler {
         String sStats = request.param("stats");
         if (sStats != null) {
             searchSourceBuilder.stats(Arrays.asList(Strings.splitStringByCommaToArray(sStats)));
-            modified = true;
         }
 
         String suggestField = request.param("suggest_field");
@@ -270,10 +246,10 @@ public class RestSearchAction extends BaseRestHandler {
             String suggestText = request.param("suggest_text", request.param("q"));
             int suggestSize = request.paramAsInt("suggest_size", 5);
             String suggestMode = request.param("suggest_mode");
-            searchSourceBuilder.suggest(new SuggestBuilder().addSuggestion(
-                    termSuggestion(suggestField).field(suggestField).text(suggestText).size(suggestSize).suggestMode(suggestMode)));
-            modified = true;
+            searchSourceBuilder.suggest(new SuggestBuilder().addSuggestion(suggestField,
+                    termSuggestion(suggestField)
+                        .text(suggestText).size(suggestSize)
+                        .suggestMode(SuggestMode.resolve(suggestMode))));
         }
-        return modified;
     }
 }

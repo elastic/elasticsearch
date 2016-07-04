@@ -11,4 +11,3 @@
         nodes.info: {}
 
     - match:  { nodes.$master.plugins.0.name: repository-s3  }
-    - match:  { nodes.$master.plugins.0.jvm: true  }

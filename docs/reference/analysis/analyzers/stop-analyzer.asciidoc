@@ -1,22 +1,244 @@
 [[analysis-stop-analyzer]]
 === Stop Analyzer
 
-An analyzer of type `stop` that is built using a
-<<analysis-lowercase-tokenizer,Lower
-Case Tokenizer>>, with
-<<analysis-stop-tokenfilter,Stop
-Token Filter>>.
+The `stop` analyzer is the same as the <<analysis-simple-analyzer,`simple` analyzer>>
+but adds support for removing stop words.  It defaults to using the
+`_english_` stop words.
 
-The following are settings that can be set for a `stop` analyzer type:
+[float]
+=== Definition
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|`stopwords` |A list of stopwords to initialize the stop filter with.
-Defaults to the english stop words.
-|`stopwords_path` |A path (either relative to `config` location, or
-absolute) to a stopwords file configuration.
-|=======================================================================
+It consists of:
 
-Use `stopwords: _none_` to explicitly specify an 'empty' stopword list.
+Tokenizer::
+* <<analysis-lowercase-tokenizer,Lower Case Tokenizer>>
+
+Token filters::
+* <<analysis-stop-tokenfilter,Stop Token Filter>>
+
+[float]
+=== Example output
+
+[source,js]
+---------------------------
+POST _analyze
+{
+  "analyzer": "stop",
+  "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
+}
+---------------------------
+// CONSOLE
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "quick",
+      "start_offset": 6,
+      "end_offset": 11,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "brown",
+      "start_offset": 12,
+      "end_offset": 17,
+      "type": "word",
+      "position": 2
+    },
+    {
+      "token": "foxes",
+      "start_offset": 18,
+      "end_offset": 23,
+      "type": "word",
+      "position": 3
+    },
+    {
+      "token": "jumped",
+      "start_offset": 24,
+      "end_offset": 30,
+      "type": "word",
+      "position": 4
+    },
+    {
+      "token": "over",
+      "start_offset": 31,
+      "end_offset": 35,
+      "type": "word",
+      "position": 5
+    },
+    {
+      "token": "lazy",
+      "start_offset": 40,
+      "end_offset": 44,
+      "type": "word",
+      "position": 7
+    },
+    {
+      "token": "dog",
+      "start_offset": 45,
+      "end_offset": 48,
+      "type": "word",
+      "position": 8
+    },
+    {
+      "token": "s",
+      "start_offset": 49,
+      "end_offset": 50,
+      "type": "word",
+      "position": 9
+    },
+    {
+      "token": "bone",
+      "start_offset": 51,
+      "end_offset": 55,
+      "type": "word",
+      "position": 10
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
+The above sentence would produce the following terms:
+
+[source,text]
+---------------------------
+[ quick, brown, foxes, jumped, over, lazy, dog, s, bone ]
+---------------------------
+
+[float]
+=== Configuration
+
+The `stop` analyzer accepts the following parameters:
+
+[horizontal]
+`stopwords`::
+
+    A pre-defined stop words list like `_english_` or an array  containing a
+    list of stop words.  Defaults to `_english_`.
+
+`stopwords_path`::
+
+    The path to a file containing stop words.
+
+
+See the <<analysis-stop-tokenfilter,Stop Token Filter>> for more information
+about stop word configuration.
+
+[float]
+=== Example configuration
+
+In this example, we configure the `stop` analyzer to use a specified list of
+words as stop words:
+
+[source,js]
+----------------------------
+PUT my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_stop_analyzer": {
+          "type": "stop",
+          "stopwords": ["the", "over"]
+        }
+      }
+    }
+  }
+}
+
+GET _cluster/health?wait_for_status=yellow
+
+POST my_index/_analyze
+{
+  "analyzer": "my_stop_analyzer",
+  "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
+}
+----------------------------
+// CONSOLE
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "quick",
+      "start_offset": 6,
+      "end_offset": 11,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "brown",
+      "start_offset": 12,
+      "end_offset": 17,
+      "type": "word",
+      "position": 2
+    },
+    {
+      "token": "foxes",
+      "start_offset": 18,
+      "end_offset": 23,
+      "type": "word",
+      "position": 3
+    },
+    {
+      "token": "jumped",
+      "start_offset": 24,
+      "end_offset": 30,
+      "type": "word",
+      "position": 4
+    },
+    {
+      "token": "lazy",
+      "start_offset": 40,
+      "end_offset": 44,
+      "type": "word",
+      "position": 7
+    },
+    {
+      "token": "dog",
+      "start_offset": 45,
+      "end_offset": 48,
+      "type": "word",
+      "position": 8
+    },
+    {
+      "token": "s",
+      "start_offset": 49,
+      "end_offset": 50,
+      "type": "word",
+      "position": 9
+    },
+    {
+      "token": "bone",
+      "start_offset": 51,
+      "end_offset": 55,
+      "type": "word",
+      "position": 10
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
+The above example produces the following terms:
+
+[source,text]
+---------------------------
+[ quick, brown, foxes, jumped, lazy, dog, s, bone ]
+---------------------------
+
 

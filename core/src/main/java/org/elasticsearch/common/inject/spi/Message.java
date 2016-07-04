@@ -20,9 +20,6 @@ import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.SourceProvider;
 
-import java.io.ObjectStreamException;
-import java.io.Serializable;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -40,7 +37,7 @@ import java.util.Objects;
  *
  * @author crazybob@google.com (Bob Lee)
  */
-public final class Message implements Serializable, Element {
+public final class Message implements Element {
     private final String message;
     private final Throwable cause;
     private final List<Object> sources;
@@ -56,6 +53,10 @@ public final class Message implements Serializable, Element {
 
     public Message(Object source, String message) {
         this(Collections.singletonList(source), message, null);
+    }
+
+    public Message(Object source, Throwable cause) {
+        this(Collections.singletonList(source), null, cause);
     }
 
     public Message(String message) {
@@ -127,18 +128,4 @@ public final class Message implements Serializable, Element {
     public void applyTo(Binder binder) {
         binder.withSource(getSource()).addError(this);
     }
-
-    /**
-     * When serialized, we eagerly convert sources to strings. This hurts our formatting, but it
-     * guarantees that the receiving end will be able to read the message.
-     */
-    private Object writeReplace() throws ObjectStreamException {
-        Object[] sourcesAsStrings = sources.toArray();
-        for (int i = 0; i < sourcesAsStrings.length; i++) {
-            sourcesAsStrings[i] = Errors.convert(sourcesAsStrings[i]).toString();
-        }
-        return new Message(Arrays.asList(sourcesAsStrings), message, cause);
-    }
-
-    private static final long serialVersionUID = 0;
 }

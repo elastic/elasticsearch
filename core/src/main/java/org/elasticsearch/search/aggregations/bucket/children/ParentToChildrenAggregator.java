@@ -18,10 +18,16 @@
  */
 package org.elasticsearch.search.aggregations.bucket.children;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.LongArray;
@@ -30,24 +36,21 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 // The RecordingPerReaderBucketCollector assumes per segment recording which isn't the case for this
 // aggregation, for this reason that collector can't be used
 public class ParentToChildrenAggregator extends SingleBucketAggregator {
+
+    static final ParseField TYPE_FIELD = new ParseField("type");
 
     private final String parentType;
     private final Weight childFilter;
@@ -64,11 +67,8 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
     private final LongObjectPagedHashMap<long[]> parentOrdToOtherBuckets;
     private boolean multipleBucketsPerParentOrd = false;
 
-    // This needs to be a Set to avoid duplicate reader context entries via (#setNextReader(...), it can get invoked multiple times with the same reader context)
-    private Set<LeafReaderContext> replay = new LinkedHashSet<>();
-
     public ParentToChildrenAggregator(String name, AggregatorFactories factories, AggregationContext aggregationContext,
-                                      Aggregator parent, String parentType, Filter childFilter, Filter parentFilter,
+                                      Aggregator parent, String parentType, Query childFilter, Query parentFilter,
                                       ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource,
             long maxOrd, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
@@ -99,17 +99,11 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        if (replay == null) {
-            throw new IllegalStateException();
-        }
 
         final SortedDocValues globalOrdinals = valuesSource.globalOrdinalsValues(parentType, ctx);
         assert globalOrdinals != null;
         Scorer parentScorer = parentFilter.scorer(ctx);
         final Bits parentDocs = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), parentScorer);
-        if (childFilter.scorer(ctx) != null) {
-            replay.add(ctx);
-        }
         return new LeafBucketCollector() {
 
             @Override
@@ -138,14 +132,13 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
 
     @Override
     protected void doPostCollection() throws IOException {
-        final Set<LeafReaderContext> replay = this.replay;
-        this.replay = null;
-
-        for (LeafReaderContext ctx : replay) {
-            DocIdSetIterator childDocsIter = childFilter.scorer(ctx);
-            if (childDocsIter == null) {
+        IndexReader indexReader = context().searchContext().searcher().getIndexReader();
+        for (LeafReaderContext ctx : indexReader.leaves()) {
+            Scorer childDocsScorer = childFilter.scorer(ctx);
+            if (childDocsScorer == null) {
                 continue;
             }
+            DocIdSetIterator childDocsIter = childDocsScorer.iterator();
 
             final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(ctx);
             final SortedDocValues globalOrdinals = valuesSource.globalOrdinalsValues(parentType, ctx);
@@ -180,42 +173,5 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
     @Override
     protected void doClose() {
         Releasables.close(parentOrdToBuckets, parentOrdToOtherBuckets);
-    }
-
-    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.Bytes.WithOrdinals.ParentChild> {
-
-        private final String parentType;
-        private final Filter parentFilter;
-        private final Filter childFilter;
-
-        public Factory(String name, ValuesSourceConfig<ValuesSource.Bytes.WithOrdinals.ParentChild> config, String parentType, Filter parentFilter, Filter childFilter) {
-            super(name, InternalChildren.TYPE.name(), config);
-            this.parentType = parentType;
-            this.parentFilter = parentFilter;
-            this.childFilter = childFilter;
-        }
-
-        @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                Map<String, Object> metaData) throws IOException {
-            return new NonCollectingAggregator(name, aggregationContext, parent, pipelineAggregators, metaData) {
-
-                @Override
-                public InternalAggregation buildEmptyAggregation() {
-                    return new InternalChildren(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
-                }
-
-            };
-        }
-
-        @Override
-        protected Aggregator doCreateInternal(ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource,
-                AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
-                Map<String, Object> metaData) throws IOException {
-            long maxOrd = valuesSource.globalMaxOrd(aggregationContext.searchContext().searcher(), parentType);
-            return new ParentToChildrenAggregator(name, factories, aggregationContext, parent, parentType, childFilter, parentFilter,
-                    valuesSource, maxOrd, pipelineAggregators, metaData);
-        }
-
     }
 }

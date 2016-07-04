@@ -1,0 +1,218 @@
+[[repository-gcs]]
+=== Google Cloud Storage Repository Plugin
+
+The GCS repository plugin adds support for using the https://cloud.google.com/storage/[Google Cloud Storage]
+service as a repository for {ref}/modules-snapshots.html[Snapshot/Restore].
+
+[[repository-gcs-install]]
+[float]
+==== Installation
+
+This plugin can be installed using the plugin manager:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/elasticsearch-plugin install repository-gcs
+----------------------------------------------------------------
+
+NOTE: The plugin requires new permission to be installed in order to work
+
+The plugin must be installed on every node in the cluster, and each node must
+be restarted after installation.
+
+[[repository-gcs-remove]]
+[float]
+==== Removal
+
+The plugin can be removed with the following command:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/elasticsearch-plugin remove repository-gcs
+----------------------------------------------------------------
+
+The node must be stopped before removing the plugin.
+
+[[repository-gcs-usage]]
+==== Getting started
+
+The plugin uses the https://cloud.google.com/storage/docs/json_api/[Google Cloud Storage JSON API] (v1)
+to connect to the Storage service. If this is the first time you use Google Cloud Storage, you first
+need to connect to the https://console.cloud.google.com/[Google Cloud Platform Console] and create a new
+project. Once your project is created, you must enable the Cloud Storage Service for your project.
+
+[[repository-gcs-creating-bucket]]
+===== Creating a Bucket
+
+Google Cloud Storage service uses the concept of https://cloud.google.com/storage/docs/key-terms[Bucket]
+as a container for all the data. Buckets are usually created using the
+https://console.cloud.google.com/[Google Cloud Platform Console]. The plugin will not automatically
+create buckets.
+
+To create a new bucket:
+
+1. Connect to the https://console.cloud.google.com/[Google Cloud Platform Console]
+2. Select your project
+3. Got to the https://console.cloud.google.com/storage/browser[Storage Browser]
+4. Click the "Create Bucket" button
+5. Enter a the name of the new bucket
+6. Select a storage class
+7. Select a location
+8. Click the "Create" button
+
+The bucket should now be created.
+
+[[repository-gcs-service-authentication]]
+===== Service Authentication
+
+The plugin supports two authentication modes:
+
+* the built-in <<repository-gcs-using-compute-engine, Compute Engine authentication>>. This mode is
+recommended if your elasticsearch node is running on a Compute Engine virtual machine.
+
+* the <<repository-gcs-using-service-account, Service Account>> authentication mode.
+
+[[repository-gcs-using-compute-engine]]
+===== Using Compute Engine
+When running on Compute Engine, the plugin use the Google's built-in authentication mechanism to
+authenticate on the Storage service. Compute Engine virtual machines are usually associated to a
+default service account. This service account can be found in the VM instance details in the
+https://console.cloud.google.com/compute/[Compute Engine console].
+
+To indicate that a repository should use the built-in authentication,
+the repository `service_account` setting must be set to `_default_`:
+
+[source,js]
+----
+PUT _snapshot/my_gcs_repository_on_compute_engine
+{
+  "type": "gcs",
+  "settings": {
+    "bucket": "my_bucket",
+    "service_account": "_default_"
+  }
+}
+----
+// CONSOLE
+// TEST[skip:we don't have gcs setup while testing this]
+
+NOTE: The Compute Engine VM must be allowed to use the Storage service. This can be done only at VM
+creation time, when "Storage" access can be configured to "Read/Write" permission. Check your
+instance details at the section "Cloud API access scopes".
+
+[[repository-gcs-using-service-account]]
+===== Using a Service Account
+If your elasticsearch node is not running on Compute Engine, or if you don't want to use Google
+built-in authentication mechanism, you can authenticate on the Storage service using a
+https://cloud.google.com/iam/docs/overview#service_account[Service Account] file.
+
+To create a service account file:
+1. Connect to the https://console.cloud.google.com/[Google Cloud Platform Console]
+2. Select your project
+3. Got to the https://console.cloud.google.com/permissions[Permission] tab
+4. Select the https://console.cloud.google.com/permissions/serviceaccounts[Service Accounts] tab
+5. Click on "Create service account"
+6. Once created, select the new service account and download a JSON key file
+
+A service account file looks like this:
+
+[source,js]
+----
+{
+  "type": "service_account",
+  "project_id": "your-project-id",
+  "private_key_id": "...",
+  "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+  "client_email": "service-account-for-your-repository@your-project-id.iam.gserviceaccount.com",
+  "client_id": "...",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://accounts.google.com/o/oauth2/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "..."
+}
+----
+
+This file must be copied in the `config` directory of the elasticsearch installation and on
+every node of the cluster.
+
+To indicate that a repository should use a service account file:
+
+[source,js]
+----
+PUT _snapshot/my_gcs_repository
+{
+  "type": "gcs",
+  "settings": {
+    "bucket": "my_bucket",
+    "service_account": "service_account.json"
+  }
+}
+----
+// CONSOLE
+// TEST[skip:we don't have gcs setup while testing this]
+
+[[repository-gcs-bucket-permission]]
+===== Set Bucket Permission
+
+The service account used to access the bucket must have the "Writer" access to the bucket:
+
+1. Connect to the https://console.cloud.google.com/[Google Cloud Platform Console]
+2. Select your project
+3. Got to the https://console.cloud.google.com/storage/browser[Storage Browser]
+4. Select the bucket and "Edit bucket permission"
+5. The service account must be configured as a "User" with "Writer" access
+
+
+[[repository-gcs-repository]]
+==== Create a Repository
+
+Once everything is installed and every node is started, you can create a new repository that
+uses Google Cloud Storage to store snapshots:
+
+[source,js]
+----
+PUT _snapshot/my_gcs_repository
+{
+  "type": "gcs",
+  "settings": {
+    "bucket": "my_bucket",
+    "service_account": "service_account.json"
+  }
+}
+----
+// CONSOLE
+// TEST[skip:we don't have gcs setup while testing this]
+
+The following settings are supported:
+
+`bucket`::
+
+    The name of the bucket to be used for snapshots. (Mandatory)
+
+`service_account`::
+
+    The service account to use. It can be a relative path to a service account JSON file
+    or the value `_default_` that indicate to use built-in Compute Engine service account.
+
+`base_path`::
+
+    Specifies the path within bucket to repository data. Defaults to
+    the root of the bucket.
+
+`chunk_size`::
+
+    Big files can be broken down into chunks during snapshotting if needed.
+    The chunk size can be specified in bytes or by using size value notation,
+    i.e. `1g`, `10m`, `5k`. Defaults to `100m`.
+
+`compress`::
+
+    When set to `true` metadata files are stored in compressed format. This
+    setting doesn't affect index files that are already compressed by default.
+    Defaults to `false`.
+
+`application_name`::
+
+    Name used by the plugin when it uses the Google Cloud JSON API. Setting
+    a custom name can be useful to authenticate your cluster when requests
+    statistics are logged in the Google Cloud Platform. Default to `repository-gcs`

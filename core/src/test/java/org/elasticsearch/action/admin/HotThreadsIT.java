@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.action.admin;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -42,7 +42,6 @@ import static org.hamcrest.Matchers.lessThan;
 
 public class HotThreadsIT extends ESIntegTestCase {
 
-    @Test
     public void testHotThreadsDontFail() throws ExecutionException, InterruptedException {
         /**
          * This test just checks if nothing crashes or gets stuck etc.
@@ -87,7 +86,7 @@ public class HotThreadsIT extends ESIntegTestCase {
                         assertThat(nodeHotThreads, notNullValue());
                         Map<String, NodeHotThreads> nodesMap = nodeHotThreads.getNodesMap();
                         assertThat(nodesMap.size(), equalTo(cluster().size()));
-                        for (NodeHotThreads ht : nodeHotThreads) {
+                        for (NodeHotThreads ht : nodeHotThreads.getNodes()) {
                             assertNotNull(ht.getHotThreads());
                             //logger.info(ht.getHotThreads());
                         }
@@ -101,7 +100,7 @@ public class HotThreadsIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     logger.error("FAILED", e);
                     hasErrors.set(true);
                     latch.countDown();
@@ -120,7 +119,7 @@ public class HotThreadsIT extends ESIntegTestCase {
                                 .setQuery(matchAllQuery())
                                 .setPostFilter(boolQuery().must(matchAllQuery()).mustNot(boolQuery().must(termQuery("field1", "value1")).must(termQuery("field1", "value2"))))
                                 .get(),
-                        3l);
+                        3L);
             }
             latch.await();
             assertThat(hasErrors.get(), is(false));
@@ -128,6 +127,7 @@ public class HotThreadsIT extends ESIntegTestCase {
     }
 
     public void testIgnoreIdleThreads() throws ExecutionException, InterruptedException {
+        assumeTrue("no support for hot_threads on FreeBSD", Constants.FREE_BSD == false);
 
         // First time, don't ignore idle threads:
         NodesHotThreadsRequestBuilder builder = client().admin().cluster().prepareNodesHotThreads();
@@ -161,12 +161,19 @@ public class HotThreadsIT extends ESIntegTestCase {
 
         NodesHotThreadsResponse response = client().admin().cluster().prepareNodesHotThreads().execute().get();
 
-        for (NodeHotThreads node : response.getNodesMap().values()) {
-            String result = node.getHotThreads();
-            assertTrue(result.indexOf("Hot threads at") != -1);
-            assertTrue(result.indexOf("interval=500ms") != -1);
-            assertTrue(result.indexOf("busiestThreads=3") != -1);
-            assertTrue(result.indexOf("ignoreIdleThreads=true") != -1);
+        if (Constants.FREE_BSD) {
+            for (NodeHotThreads node : response.getNodesMap().values()) {
+                String result = node.getHotThreads();
+                assertTrue(result.indexOf("hot_threads is not supported") != -1);
+            }
+        } else {
+            for (NodeHotThreads node : response.getNodesMap().values()) {
+                String result = node.getHotThreads();
+                assertTrue(result.indexOf("Hot threads at") != -1);
+                assertTrue(result.indexOf("interval=500ms") != -1);
+                assertTrue(result.indexOf("busiestThreads=3") != -1);
+                assertTrue(result.indexOf("ignoreIdleThreads=true") != -1);
+            }
         }
     }
 }

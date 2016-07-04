@@ -20,10 +20,8 @@
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
@@ -32,17 +30,19 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -52,17 +52,17 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptySet;
+import static java.util.Collections.singletonList;
 import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -75,20 +75,10 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ClusterInfoServiceIT extends ESIntegTestCase {
 
-    public static class TestPlugin extends Plugin {
-
+    public static class TestPlugin extends Plugin implements ActionPlugin {
         @Override
-        public String name() {
-            return "ClusterInfoServiceIT";
-        }
-
-        @Override
-        public String description() {
-            return "ClusterInfoServiceIT";
-        }
-
-        public void onModule(ActionModule module) {
-            module.registerFilter(BlockingActionFilter.class);
+        public List<Class<? extends ActionFilter>> getActionFilters() {
+            return singletonList(BlockingActionFilter.class);
         }
     }
 
@@ -101,7 +91,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         }
 
         @Override
-        protected boolean apply(String action, ActionRequest request, ActionListener listener) {
+        protected boolean apply(String action, ActionRequest<?> request, ActionListener<?> listener) {
             if (blockedActions.contains(action)) {
                 throw new ElasticsearchException("force exception on [" + action + "]");
             }
@@ -109,7 +99,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         }
 
         @Override
-        protected boolean apply(String action, ActionResponse response, ActionListener listener) {
+        protected boolean apply(String action, ActionResponse response, ActionListener<?> listener) {
             return true;
         }
 
@@ -127,7 +117,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 // manual collection or upon cluster forming.
-                .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT, "1s")
+                .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), "1s")
                 .build();
     }
 
@@ -137,18 +127,17 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
                 MockTransportService.TestPlugin.class);
     }
 
-    @Test
     public void testClusterInfoServiceCollectsInformation() throws Exception {
-        internalCluster().startNodesAsync(2,
-                Settings.builder().put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, "200ms").build())
-                .get();
-        assertAcked(prepareCreate("test").setSettings(settingsBuilder()
-                .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, 0)
-                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE).build()));
+        internalCluster().startNodesAsync(2).get();
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
+                .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)
+                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE).build()));
         ensureGreen("test");
         InternalTestCluster internalTestCluster = internalCluster();
         // Get the cluster info service on the master node
         final InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster.getInstance(ClusterInfoService.class, internalTestCluster.getMasterName());
+        infoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
+        infoService.onMaster();
         ClusterInfo info = infoService.refresh();
         assertNotNull("info should not be null", info);
         ImmutableOpenMap<String, DiskUsage> leastUsages = info.getNodeLeastAvailableDiskUsages();
@@ -172,8 +161,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         }
         ClusterService clusterService = internalTestCluster.getInstance(ClusterService.class, internalTestCluster.getMasterName());
         ClusterState state = clusterService.state();
-        RoutingNodes routingNodes = state.getRoutingNodes();
-        for (ShardRouting shard : routingNodes.getRoutingTable().allShards()) {
+        for (ShardRouting shard : state.routingTable().allShards()) {
             String dataPath = info.getDataPath(shard);
             assertNotNull(dataPath);
 
@@ -187,11 +175,10 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testClusterInfoServiceInformationClearOnError() throws InterruptedException, ExecutionException {
         internalCluster().startNodesAsync(2,
                 // manually control publishing
-                Settings.builder().put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, "60m").build())
+                Settings.builder().put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), "60m").build())
                 .get();
         prepareCreate("test").setSettings(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).get();
         ensureGreen("test");
@@ -210,7 +197,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         final Set<String> blockedActions = newHashSet(NodesStatsAction.NAME, NodesStatsAction.NAME + "[n]", IndicesStatsAction.NAME, IndicesStatsAction.NAME + "[n]");
         // drop all outgoing stats requests to force a timeout.
         for (DiscoveryNode node : internalTestCluster.clusterService().state().getNodes()) {
-            mockTransportService.addDelegate(node, new MockTransportService.DelegateTransport(mockTransportService.original()) {
+            mockTransportService.addDelegate(internalTestCluster.getInstance(TransportService.class, node.getName()), new MockTransportService.DelegateTransport(mockTransportService.original()) {
                 @Override
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
                                         TransportRequestOptions options) throws IOException, TransportException {

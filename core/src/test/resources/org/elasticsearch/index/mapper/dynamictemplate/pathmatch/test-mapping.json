@@ -5,7 +5,7 @@
                 "template_1":{
                     "path_match":"obj1.obj2.*",
                     "mapping":{
-                        "store":"no"
+                        "store":false
                     }
                 }
             },
@@ -13,7 +13,7 @@
                 "template_2":{
                     "path_match":"obj1.*",
                     "mapping":{
-                        "store":"yes"
+                        "store":true
                     }
                 }
             },
@@ -21,7 +21,7 @@
                 "template_3":{
                     "path_match":"*.obj4.*",
                     "mapping":{
-                        "type":"string"
+                        "type":"text"
                     }
                 }
             }

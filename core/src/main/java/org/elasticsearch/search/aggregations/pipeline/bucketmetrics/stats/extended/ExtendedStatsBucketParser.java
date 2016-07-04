@@ -20,38 +20,36 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
-import java.text.ParseException;
+import java.io.IOException;
 import java.util.Map;
 
 public class ExtendedStatsBucketParser extends BucketMetricsParser {
     static final ParseField SIGMA = new ParseField("sigma");
 
     @Override
-    public String type() {
-        return ExtendedStatsBucketPipelineAggregator.TYPE.name();
+    protected ExtendedStatsBucketPipelineAggregationBuilder buildFactory(String pipelineAggregatorName,
+            String bucketsPath, Map<String, Object> params) {
+        ExtendedStatsBucketPipelineAggregationBuilder factory =
+            new ExtendedStatsBucketPipelineAggregationBuilder(pipelineAggregatorName, bucketsPath);
+        Double sigma = (Double) params.get(SIGMA.getPreferredName());
+        if (sigma != null) {
+            factory.sigma(sigma);
+        }
+
+        return factory;
     }
 
     @Override
-    protected PipelineAggregatorFactory buildFactory(String pipelineAggregatorName, String[] bucketsPaths, GapPolicy gapPolicy,
-            ValueFormatter formatter, Map<String, Object> unparsedParams) throws ParseException {
-
-        double sigma = 2.0;
-        Object param = unparsedParams.get(SIGMA.getPreferredName());
-
-        if (param != null) {
-            if (param instanceof Double) {
-                sigma = (Double) param;
-                unparsedParams.remove(SIGMA.getPreferredName());
-            } else {
-                throw new ParseException("Parameter [" + SIGMA.getPreferredName() + "] must be a Double, type `"
-                        + param.getClass().getSimpleName() + "` provided instead", 0);
-            }
+    protected boolean token(XContentParser parser, QueryParseContext context, String field,
+                            XContentParser.Token token, Map<String, Object> params) throws IOException {
+        if (context.getParseFieldMatcher().match(field, SIGMA) && token == XContentParser.Token.VALUE_NUMBER) {
+            params.put(SIGMA.getPreferredName(), parser.doubleValue());
+            return true;
         }
-        return new ExtendedStatsBucketPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths, sigma, gapPolicy, formatter);
+        return false;
     }
 }

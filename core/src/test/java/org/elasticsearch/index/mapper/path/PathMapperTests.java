@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.mapper.path;
 
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -33,11 +33,9 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class PathMapperTests extends ESSingleNodeTestCase {
-
-    @Test
     public void testPathMapping() throws IOException {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/path/test-mapping.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
 
         // test full name
         assertThat(docMapper.mappers().getMapper("first1"), nullValue());

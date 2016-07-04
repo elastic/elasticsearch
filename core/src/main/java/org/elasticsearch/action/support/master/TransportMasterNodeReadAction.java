@@ -21,8 +21,10 @@ package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -33,24 +35,30 @@ import java.util.function.Supplier;
  * A base class for read operations that needs to be performed on the master node.
  * Can also be executed on the local node if needed.
  */
-public abstract class TransportMasterNodeReadAction<Request extends MasterNodeReadRequest, Response extends ActionResponse> extends TransportMasterNodeAction<Request, Response> {
+public abstract class TransportMasterNodeReadAction<Request extends MasterNodeReadRequest<Request>, Response extends ActionResponse>
+        extends TransportMasterNodeAction<Request, Response> {
 
-    public static final String FORCE_LOCAL_SETTING = "action.master.force_local";
+    public static final Setting<Boolean> FORCE_LOCAL_SETTING =
+        Setting.boolSetting("action.master.force_local", false, Property.NodeScope);
 
-    private Boolean forceLocal;
+    private final boolean forceLocal;
 
     protected TransportMasterNodeReadAction(Settings settings, String actionName, TransportService transportService,
                                             ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
                                             IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
-        super(settings, actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,request);
-        this.forceLocal = settings.getAsBoolean(FORCE_LOCAL_SETTING, null);
+        this(settings, actionName, true, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,request);
+    }
+
+    protected TransportMasterNodeReadAction(Settings settings, String actionName, boolean checkSizeLimit, TransportService transportService,
+                                            ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
+                                            IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
+        super(settings, actionName, checkSizeLimit, transportService, clusterService, threadPool, actionFilters,
+            indexNameExpressionResolver,request);
+        this.forceLocal = FORCE_LOCAL_SETTING.get(settings);
     }
 
     @Override
     protected final boolean localExecute(Request request) {
-        if (forceLocal != null) {
-            return forceLocal;
-        }
-        return request.local();
+        return forceLocal || request.local();
     }
 }

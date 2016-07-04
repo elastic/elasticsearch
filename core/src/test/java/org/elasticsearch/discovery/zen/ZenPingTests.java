@@ -22,19 +22,19 @@ package org.elasticsearch.discovery.zen;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collections;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ZenPingTests extends ESTestCase {
-
-    @Test
     public void testPingCollection() {
         DiscoveryNode[] nodes = new DiscoveryNode[randomIntBetween(1, 30)];
         long maxIdPerNode[] = new long[nodes.length];
@@ -42,7 +42,7 @@ public class ZenPingTests extends ESTestCase {
         boolean hasJoinedOncePerNode[] = new boolean[nodes.length];
         ArrayList<ZenPing.PingResponse> pings = new ArrayList<>();
         for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = new DiscoveryNode("" + i, DummyTransportAddress.INSTANCE, Version.CURRENT);
+            nodes[i] = new DiscoveryNode("" + i, LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
         }
 
         for (int pingCount = scaledRandomIntBetween(10, nodes.length * 10); pingCount > 0; pingCount--) {
@@ -52,7 +52,8 @@ public class ZenPingTests extends ESTestCase {
                 masterNode = nodes[randomInt(nodes.length - 1)];
             }
             boolean hasJoinedOnce = randomBoolean();
-            ZenPing.PingResponse ping = new ZenPing.PingResponse(nodes[node], masterNode, ClusterName.DEFAULT, hasJoinedOnce);
+            ZenPing.PingResponse ping = new ZenPing.PingResponse(nodes[node], masterNode, ClusterName.CLUSTER_NAME_SETTING.
+                getDefault(Settings.EMPTY), hasJoinedOnce);
             if (rarely()) {
                 // ignore some pings
                 continue;
@@ -65,7 +66,7 @@ public class ZenPingTests extends ESTestCase {
         }
 
         // shuffle
-        Collections.shuffle(pings);
+        Collections.shuffle(pings, random());
 
         ZenPing.PingCollection collection = new ZenPing.PingCollection();
         collection.addPings(pings.toArray(new ZenPing.PingResponse[pings.size()]));
@@ -73,7 +74,7 @@ public class ZenPingTests extends ESTestCase {
         ZenPing.PingResponse[] aggregate = collection.toArray();
 
         for (ZenPing.PingResponse ping : aggregate) {
-            int nodeId = Integer.parseInt(ping.node().id());
+            int nodeId = Integer.parseInt(ping.node().getId());
             assertThat(maxIdPerNode[nodeId], equalTo(ping.id()));
             assertThat(masterPerNode[nodeId], equalTo(ping.master()));
             assertThat(hasJoinedOncePerNode[nodeId], equalTo(ping.hasJoinedOnce()));

@@ -20,52 +20,81 @@
 package org.elasticsearch.common;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.List;
 import java.util.Map;
 
-public class TableTests extends ESTestCase {
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
-    @Test(expected = IllegalStateException.class)
+public class TableTests extends ESTestCase {
     public void testFailOnStartRowWithoutHeader() {
         Table table = new Table();
-        table.startRow();
+        try {
+            table.startRow();
+            fail("Expected IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), is("no headers added..."));
+        }
     }
 
-    @Test(expected = IllegalStateException.class)
     public void testFailOnEndHeadersWithoutStart() {
         Table table = new Table();
-        table.endHeaders();
+        try {
+            table.endHeaders();
+            fail("Expected IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), is("no headers added..."));
+        }
+
     }
 
-    @Test(expected = IllegalStateException.class)
     public void testFailOnAddCellWithoutHeader() {
         Table table = new Table();
-        table.addCell("error");
+        try {
+            table.addCell("error");
+            fail("Expected IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), is("no block started..."));
+        }
+
     }
 
-    @Test(expected = IllegalStateException.class)
     public void testFailOnAddCellWithoutRow() {
         Table table = this.getTableWithHeaders();
-        table.addCell("error");
+        try {
+            table.addCell("error");
+            fail("Expected IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), is("no block started..."));
+        }
+
     }
 
-    @Test(expected = IllegalStateException.class)
     public void testFailOnEndRowWithoutStart() {
         Table table = this.getTableWithHeaders();
-        table.endRow();
+        try {
+            table.endRow();
+            fail("Expected IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), is("no row started..."));
+        }
+
     }
 
-    @Test(expected = IllegalStateException.class)
     public void testFailOnLessCellsThanDeclared() {
         Table table = this.getTableWithHeaders();
         table.startRow();
         table.addCell("foo");
-        table.endRow(true);
+        try {
+            table.endRow(true);
+            fail("Expected IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), is("mismatch on number of cells 1 in a row compared to header 2"));
+        }
+
     }
 
-    @Test
     public void testOnLessCellsThanDeclaredUnchecked() {
         Table table = this.getTableWithHeaders();
         table.startRow();
@@ -73,16 +102,20 @@ public class TableTests extends ESTestCase {
         table.endRow(false);
     }
 
-    @Test(expected = IllegalStateException.class)
     public void testFailOnMoreCellsThanDeclared() {
         Table table = this.getTableWithHeaders();
         table.startRow();
         table.addCell("foo");
         table.addCell("bar");
-        table.addCell("foobar");
+        try {
+            table.addCell("foobar");
+            fail("Expected IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), is("can't add more cells to a row than the header"));
+        }
+
     }
 
-    @Test
     public void testSimple() {
         Table table = this.getTableWithHeaders();
         table.startRow();
@@ -139,6 +172,32 @@ public class TableTests extends ESTestCase {
         assertEquals("foo", cell.value.toString());
         cell = table.findHeaderByName("missing");
         assertNull(cell);
+    }
+
+    public void testWithTimestamp() {
+        Table table = new Table();
+        table.startHeadersWithTimestamp();
+        table.endHeaders();
+
+        List<Table.Cell> headers = table.getHeaders();
+        assertEquals(2, headers.size());
+        assertEquals(Table.EPOCH, headers.get(0).value.toString());
+        assertEquals(Table.TIMESTAMP, headers.get(1).value.toString());
+        assertEquals(2, headers.get(0).attr.size());
+        assertEquals("t,time", headers.get(0).attr.get("alias"));
+        assertEquals("seconds since 1970-01-01 00:00:00", headers.get(0).attr.get("desc"));
+        assertEquals(2, headers.get(1).attr.size());
+        assertEquals("ts,hms,hhmmss", headers.get(1).attr.get("alias"));
+        assertEquals("time in HH:MM:SS", headers.get(1).attr.get("desc"));
+
+        // check row's timestamp
+        table.startRow();
+        table.endRow();
+        List<List<Table.Cell>> rows = table.getRows();
+        assertEquals(1, rows.size());
+        assertEquals(2, rows.get(0).size());
+        assertThat(rows.get(0).get(0).value, instanceOf(Long.class));
+
     }
 
     private Table getTableWithHeaders() {

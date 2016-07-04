@@ -2,7 +2,7 @@
 == Clear Cache
 
 The clear cache API allows to clear either all caches or specific cached
-associated with one ore more indices.
+associated with one or more indices.
 
 [source,js]
 --------------------------------------------------

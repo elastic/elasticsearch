@@ -25,7 +25,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Many APIs which support date values also support <<date-math,date math>>
 expressions, such as `now-1m/d` -- the current time, minus one month, rounded
@@ -57,16 +57,14 @@ The following tables lists all the defaults ISO formats supported:
 `epoch_millis`::
 
     A formatter for the number of milliseconds since the epoch. Note, that
-    this timestamp allows a max length of 13 chars, so dates older than 1653
-    and 2286 are not supported. You should use a different date formatter in
-    that case.
+    this timestamp is subject to the limits of a Java `Long.MIN_VALUE` and
+    `Long.MAX_VALUE`.
 
 `epoch_second`::
 
     A formatter for the number of seconds since the epoch. Note, that this
-    timestamp allows a max length of 10 chars, so dates older than 1653 and
-    2286 are not supported. You should use a different date formatter in that
-    case.
+    timestamp is subject to the limits of a Java `Long.MIN_VALUE` and `Long.
+    MAX_VALUE` divided by 1000 (the number of milliseconds in a second).
 
 [[strict-date-time]]`date_optional_time` or `strict_date_optional_time`::
 

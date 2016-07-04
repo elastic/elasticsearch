@@ -42,22 +42,28 @@ POM_FILE = 'pom.xml'
 MAIL_TEMPLATE = """
 Hi all
 
-The new release candidate for %(version)s based on this commit[1]  is now available, including the x-plugins, and RPM/deb repos:
+The new release candidate for %(version)s is now available, including the x-plugins and RPM/deb repos.  This release is based on:
 
-   - ZIP [2]
-   - tar.gz [3]
-   - RPM [4]
-   - deb [5]
+ * Elasticsearch commit: %(hash)s - https://github.com/elastic/elasticsearch/commit/%(hash)s
+ * X-Plugins commit:     FILL_IN_X-PLUGINS_HASH - https://github.com/elastic/x-plugins/commit/FILL_IN_X-PLUGINS_HASH
 
-Plugins can be installed as follows,
+The packages may be downloaded from the following URLs:
 
-    bin/plugin -Des.plugins.staging=true install cloud-aws
+ * ZIP    - http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/zip/elasticsearch/%(version)s/elasticsearch-%(version)s.zip
+ * tar.gz - http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/tar/elasticsearch/%(version)s/elasticsearch-%(version)s.tar.gz
+ * RPM    - http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/rpm/elasticsearch/%(version)s/elasticsearch-%(version)s.rpm
+ * deb    - http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/deb/elasticsearch/%(version)s/elasticsearch-%(version)s.deb
+
+Plugins can be installed as follows:
+
+    ES_JAVA_OPTS="-Des.plugins.staging=true" bin/elasticsearch-plugin install cloud-aws
 
 The same goes for the x-plugins:
 
-    bin/plugin -Des.plugins.staging=true install license
-    bin/plugin -Des.plugins.staging=true install shield
-    bin/plugin -Des.plugins.staging=true install watcher
+    ES_JAVA_OPTS="-Des.plugins.staging=true" bin/elasticsearch-plugin install license
+    ES_JAVA_OPTS="-Des.plugins.staging=true" bin/elasticsearch-plugin install marvel-agent
+    ES_JAVA_OPTS="-Des.plugins.staging=true" bin/elasticsearch-plugin install shield
+    ES_JAVA_OPTS="-Des.plugins.staging=true" bin/elasticsearch-plugin install watcher
 
 To install the deb from an APT repo:
 
@@ -82,13 +88,8 @@ To smoke-test the release please run:
 
  python3 -B ./dev-tools/smoke_test_rc.py --version %(version)s --hash %(hash)s --plugins license,shield,watcher
 
-NOTE: this script requires JAVA_HOME to point to a Java 7 Runtime 
+NOTE: this script requires JAVA_HOME to point to a Java 7 Runtime
 
-[1] https://github.com/elastic/elasticsearch/commit/%(hash)s
-[2] http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/zip/elasticsearch/%(version)s/elasticsearch-%(version)s.zip
-[3] http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/tar/elasticsearch/%(version)s/elasticsearch-%(version)s.tar.gz
-[4] http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/rpm/elasticsearch/%(version)s/elasticsearch-%(version)s.rpm
-[5] http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/deb/elasticsearch/%(version)s/elasticsearch-%(version)s.deb
 """
 
 # console colors
@@ -259,7 +260,7 @@ if __name__ == "__main__":
   parser.add_argument('--check', dest='check', action='store_true',
                       help='Checks and reports for all requirements and then exits')
 
-  # by default, we only run mvn install and dont push anything repo
+  # by default, we only run mvn install and don't push anything repo
   parser.set_defaults(deploy_sonatype=False)
   parser.set_defaults(deploy_s3=False)
   parser.set_defaults(deploy_s3_repos=False)
@@ -355,7 +356,8 @@ if __name__ == "__main__":
   debs3_list_cmd = 'deb-s3 list -b %s --prefix %s' % (bucket, debs3_prefix)
   debs3_verify_cmd = 'deb-s3 verify -b %s --prefix %s' % (bucket, debs3_prefix)
   rpms3_prefix = 'elasticsearch/staging/%s-%s/repos/%s/centos' % (release_version, shortHash, package_repo_version)
-  rpms3_upload_cmd = 'rpm-s3 -v -b %s -p %s --sign --visibility public-read -k 0 %s' % (bucket, rpms3_prefix, rpm)
+  # external-1 is the alias name for the us-east-1 region. This is used by rpm-s3 to construct the hostname
+  rpms3_upload_cmd = 'rpm-s3 -v -b %s -p %s --sign --visibility public-read -k 100 %s -r external-1' % (bucket, rpms3_prefix, rpm)
 
   if deploy_s3:
     run(s3cmd_sync_to_staging_bucket_cmd)

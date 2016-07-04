@@ -29,7 +29,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.CompositeTestCluster;
 import org.elasticsearch.test.ESBackcompatTestCase;
-import org.junit.Test;
 
 import java.util.concurrent.ExecutionException;
 
@@ -38,12 +37,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class TransportClientBackwardsCompatibilityIT extends ESBackcompatTestCase {
-
-    @Test
     public void testSniffMode() throws ExecutionException, InterruptedException {
-
         Settings settings = Settings.builder().put(requiredSettings()).put("client.transport.nodes_sampler_interval", "1s")
-                .put("name", "transport_client_sniff_mode").put(ClusterName.SETTING, cluster().getClusterName())
+                .put("name", "transport_client_sniff_mode").put(ClusterName.CLUSTER_NAME_SETTING.getKey(), cluster().getClusterName())
                 .put("client.transport.sniff", true).build();
 
         CompositeTestCluster compositeTestCluster = backwardsCluster();

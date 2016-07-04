@@ -5,10 +5,10 @@ See {ref}/query-dsl-boosting-query.html[Boosting Query]
 
 [source,java]
 --------------------------------------------------
-QueryBuilder qb = boostingQuery()
-    .positive(termQuery("name","kimchy"))   <1>
-    .negative(termQuery("name","dadoonet")) <2>
-    .negativeBoost(0.2f);                   <3>
+QueryBuilder qb = boostingQuery(
+        termQuery("name","kimchy"),    <1> 
+        termQuery("name","dadoonet"))  <2>
+    .negativeBoost(0.2f);              <3>
 --------------------------------------------------
 <1> query that will promote documents
 <2> query that will demote documents

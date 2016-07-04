@@ -6,8 +6,8 @@ See {ref}/query-dsl-geo-bounding-box-query.html[Geo Bounding Box Query]
 [source,java]
 --------------------------------------------------
 QueryBuilder qb = geoBoundingBoxQuery("pin.location") <1>
-    .topLeft(40.73, -74.1)                            <2>
-    .bottomRight(40.717, -73.99);                     <3>
+    .setCorners(40.73, -74.1,                         <2>
+                40.717, -73.99);                      <3>
 --------------------------------------------------
 <1> field
 <2> bounding box top left point

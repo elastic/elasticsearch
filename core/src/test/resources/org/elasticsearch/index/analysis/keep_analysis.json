@@ -9,9 +9,7 @@
                 },
                 "my_case_sensitive_keep_filter":{
                     "type":"keep",
-                    "keep_words" : ["Hello", "worlD"],
-                    "enable_position_increments" : false,
-                    "version" : "4.2"
+                    "keep_words" : ["Hello", "worlD"]
                 }
             }
         }

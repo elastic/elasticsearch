@@ -22,16 +22,19 @@ package org.elasticsearch.monitor.process;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.monitor.jvm.JvmInfo.jvmInfo;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ProcessProbeTests extends ESTestCase {
-
     ProcessProbe probe = ProcessProbe.getInstance();
 
-    @Test
     public void testProcessInfo() {
         ProcessInfo info = probe.processInfo();
         assertNotNull(info);
@@ -40,7 +43,6 @@ public class ProcessProbeTests extends ESTestCase {
         assertThat(info.isMlockall(), equalTo(BootstrapInfo.isMemoryLocked()));
     }
 
-    @Test
     public void testProcessStats() {
         ProcessStats stats = probe.processStats();
         assertNotNull(stats);
@@ -61,7 +63,7 @@ public class ProcessProbeTests extends ESTestCase {
         // CPU percent can be negative if the system recent cpu usage is not available
         assertThat(cpu.getPercent(), anyOf(lessThan((short) 0), allOf(greaterThanOrEqualTo((short) 0), lessThanOrEqualTo((short) 100))));
 
-        // CPU time can return -1 if the the platform does not support this operation, let's see which platforms fail
+        // CPU time can return -1 if the platform does not support this operation, let's see which platforms fail
         assertThat(cpu.total, greaterThan(0L));
 
         ProcessStats.Mem mem = stats.getMem();

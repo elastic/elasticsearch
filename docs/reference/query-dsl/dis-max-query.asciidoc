@@ -27,18 +27,22 @@ This query maps to Lucene `DisjunctionMaxQuery`.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "dis_max" : {
-        "tie_breaker" : 0.7,
-        "boost" : 1.2,
-        "queries" : [
-            {
-                "term" : { "age" : 34 }
-            },
-            {
-                "term" : { "age" : 35 }
-            }
-        ]
+    "query": {
+        "dis_max" : {
+            "tie_breaker" : 0.7,
+                "boost" : 1.2,
+                "queries" : [
+                {
+                    "term" : { "age" : 34 }
+                },
+                {
+                    "term" : { "age" : 35 }
+                }
+                ]
+        }
     }
 }    
 --------------------------------------------------
+// CONSOLE

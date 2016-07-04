@@ -22,12 +22,17 @@ package org.elasticsearch.rest.action.admin.indices.flush;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -41,8 +46,8 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 public class RestFlushAction extends BaseRestHandler {
 
     @Inject
-    public RestFlushAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestFlushAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(POST, "/_flush", this);
         controller.registerHandler(POST, "/{index}/_flush", this);
 
@@ -51,7 +56,7 @@ public class RestFlushAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         FlushRequest flushRequest = new FlushRequest(Strings.splitStringByCommaToArray(request.param("index")));
         flushRequest.indicesOptions(IndicesOptions.fromRequest(request, flushRequest.indicesOptions()));
         flushRequest.force(request.paramAsBoolean("force", flushRequest.force()));

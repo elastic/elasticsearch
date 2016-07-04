@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
@@ -50,6 +49,10 @@ public class RefreshStats implements Streamable, ToXContent {
     }
 
     public void add(RefreshStats refreshStats) {
+        addTotals(refreshStats);
+    }
+
+    public void addTotals(RefreshStats refreshStats) {
         if (refreshStats == null) {
             return;
         }
@@ -94,10 +97,10 @@ public class RefreshStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString REFRESH = new XContentBuilderString("refresh");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString TOTAL_TIME = new XContentBuilderString("total_time");
-        static final XContentBuilderString TOTAL_TIME_IN_MILLIS = new XContentBuilderString("total_time_in_millis");
+        static final String REFRESH = "refresh";
+        static final String TOTAL = "total";
+        static final String TOTAL_TIME = "total_time";
+        static final String TOTAL_TIME_IN_MILLIS = "total_time_in_millis";
     }
 
     @Override

@@ -137,17 +137,27 @@ def start_node(version, release_dir, data_dir, repo_dir, tcp_port=DEFAULT_TRANSP
     
   cmd = [
     os.path.join(release_dir, 'bin/elasticsearch'),
-    '-Des.path.data=%s' % data_dir,
-    '-Des.path.logs=logs',
-    '-Des.cluster.name=%s' % cluster_name,
-    '-Des.network.host=localhost',
-    '-Des.transport.tcp.port=%s' % tcp_port,
-    '-Des.http.port=%s' % http_port,
-    '-Des.path.repo=%s' % repo_dir
+    '-Epath.data=%s' % data_dir,
+    '-Epath.logs=logs',
+    '-Ecluster.name=%s' % cluster_name,
+    '-Enetwork.host=localhost',
+    '-Etransport.tcp.port=%s' % tcp_port,
+    '-Ehttp.port=%s' % http_port,
+    '-Epath.repo=%s' % repo_dir
   ]
   if version.startswith('0.') or version.startswith('1.0.0.Beta') :
     cmd.append('-f') # version before 1.0 start in background automatically
   return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+def install_plugin(version, release_dir, plugin_name):
+  run_plugin(version, release_dir, 'install', [plugin_name])
+
+def remove_plugin(version, release_dir, plugin_name):
+  run_plugin(version, release_dir, 'remove', [plugin_name])
+
+def run_plugin(version, release_dir, plugin_cmd, args):
+  cmd = [os.path.join(release_dir, 'bin/elasticsearch-plugin'), plugin_cmd] + args
+  subprocess.check_call(cmd)
 
 def create_client(http_port=DEFAULT_HTTP_TCP_PORT, timeout=30):
   logging.info('Waiting for node to startup')
@@ -237,6 +247,34 @@ def generate_index(client, version, index_name):
       }
     }
 
+  mappings['norms'] = {
+    'properties': {
+      'string_with_norms_disabled': {
+        'type': 'string',
+        'norms': {
+          'enabled': False
+        }
+      },
+      'string_with_norms_enabled': {
+        'type': 'string',
+        'index': 'not_analyzed',
+        'norms': {
+          'enabled': True,
+          'loading': 'eager'
+        }
+      }
+    }
+  }
+
+  mappings['doc'] = {
+    'properties': {
+      'string': {
+        'type': 'string',
+        'boost': 4
+      }
+    }
+  }
+
   settings = {
     'number_of_shards': 1,
     'number_of_replicas': 0,
@@ -247,10 +285,19 @@ def generate_index(client, version, index_name):
     # Same as ES default (5 GB), but missing the units to make sure they are inserted on upgrade:
     settings['merge.policy.max_merged_segment'] = '5368709120'
     
+  warmers = {}
+  warmers['warmer1'] = {
+    'source': {
+      'query': {
+        'match_all': {}
+      }
+    }
+  }
 
   client.indices.create(index=index_name, body={
       'settings': settings,
-      'mappings': mappings
+      'mappings': mappings,
+      'warmers': warmers
   })
   health = client.cluster.health(wait_for_status='green', wait_for_relocating_shards=0)
   assert health['timed_out'] == False, 'cluster health timed out %s' % health

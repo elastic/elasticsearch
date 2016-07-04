@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
-import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportBroadcastReplicationAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
@@ -36,7 +36,7 @@ import java.util.List;
 /**
  * Flush Action.
  */
-public class TransportFlushAction extends TransportBroadcastReplicationAction<FlushRequest, FlushResponse, ShardFlushRequest, ActionWriteResponse> {
+public class TransportFlushAction extends TransportBroadcastReplicationAction<FlushRequest, FlushResponse, ShardFlushRequest, ReplicationResponse> {
 
     @Inject
     public TransportFlushAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
@@ -47,13 +47,13 @@ public class TransportFlushAction extends TransportBroadcastReplicationAction<Fl
     }
 
     @Override
-    protected ActionWriteResponse newShardResponse() {
-        return new ActionWriteResponse();
+    protected ReplicationResponse newShardResponse() {
+        return new ReplicationResponse();
     }
 
     @Override
     protected ShardFlushRequest newShardRequest(FlushRequest request, ShardId shardId) {
-        return new ShardFlushRequest(request).setShardId(shardId);
+        return new ShardFlushRequest(request, shardId);
     }
 
     @Override

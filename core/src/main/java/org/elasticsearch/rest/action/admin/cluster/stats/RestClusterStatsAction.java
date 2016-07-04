@@ -20,13 +20,14 @@
 package org.elasticsearch.rest.action.admin.cluster.stats;
 
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestToXContentListener;
-
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.support.RestActions.NodesResponseRestListener;
 
 /**
  *
@@ -34,16 +35,21 @@ import org.elasticsearch.rest.action.support.RestToXContentListener;
 public class RestClusterStatsAction extends BaseRestHandler {
 
     @Inject
-    public RestClusterStatsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestClusterStatsAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/stats", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/stats/nodes/{nodeId}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         ClusterStatsRequest clusterStatsRequest = new ClusterStatsRequest().nodesIds(request.paramAsStringArray("nodeId", null));
         clusterStatsRequest.timeout(request.param("timeout"));
-        client.admin().cluster().clusterStats(clusterStatsRequest, new RestToXContentListener<ClusterStatsResponse>(channel));
+        client.admin().cluster().clusterStats(clusterStatsRequest, new NodesResponseRestListener<>(channel));
+    }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
     }
 }

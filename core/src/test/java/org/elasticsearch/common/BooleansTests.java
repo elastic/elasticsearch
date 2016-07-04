@@ -21,7 +21,6 @@ package org.elasticsearch.common;
 
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.Locale;
 
@@ -29,8 +28,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class BooleansTests extends ESTestCase {
-
-    @Test
     public void testIsBoolean() {
         String[] booleans = new String[]{"true", "false", "on", "off", "yes", "no", "0", "1"};
         String[] notBooleans = new String[]{"11", "00", "sdfsdfsf", "F", "T"};
@@ -46,17 +43,17 @@ public class BooleansTests extends ESTestCase {
             assertThat("recognized [" + nb + "] as boolean", Booleans.isBoolean(t.toCharArray(), "prefix".length(), nb.length()), Matchers.equalTo(false));
         }
     }
-    @Test
-    public void parseBoolean() {
+
+    public void testParseBoolean() {
         assertThat(Booleans.parseBoolean(randomFrom("true", "on", "yes", "1"), randomBoolean()), is(true));
         assertThat(Booleans.parseBoolean(randomFrom("false", "off", "no", "0"), randomBoolean()), is(false));
         assertThat(Booleans.parseBoolean(randomFrom("true", "on", "yes").toUpperCase(Locale.ROOT), randomBoolean()), is(true));
         assertThat(Booleans.parseBoolean(null, false), is(false));
         assertThat(Booleans.parseBoolean(null, true), is(true));
 
-        assertThat(Booleans.parseBoolean(randomFrom("true", "on", "yes", "1"), randomFrom(null, Boolean.TRUE, Boolean.FALSE)), is(true));
-        assertThat(Booleans.parseBoolean(randomFrom("false", "off", "no", "0"), randomFrom(null, Boolean.TRUE, Boolean.FALSE)), is(false));
-        assertThat(Booleans.parseBoolean(randomFrom("true", "on", "yes").toUpperCase(Locale.ROOT),randomFrom(null, Boolean.TRUE, Boolean.FALSE)), is(true));
+        assertThat(Booleans.parseBoolean(randomFrom("true", "on", "yes", "1"), randomFrom(Boolean.TRUE, Boolean.FALSE, null)), is(true));
+        assertThat(Booleans.parseBoolean(randomFrom("false", "off", "no", "0"), randomFrom(Boolean.TRUE, Boolean.FALSE, null)), is(false));
+        assertThat(Booleans.parseBoolean(randomFrom("true", "on", "yes").toUpperCase(Locale.ROOT),randomFrom(Boolean.TRUE, Boolean.FALSE, null)), is(true));
         assertThat(Booleans.parseBoolean(null, Boolean.FALSE), is(false));
         assertThat(Booleans.parseBoolean(null, Boolean.TRUE), is(true));
         assertThat(Booleans.parseBoolean(null, null), nullValue());
@@ -69,12 +66,11 @@ public class BooleansTests extends ESTestCase {
         assertThat(Booleans.parseBoolean(chars,0, chars.length, randomBoolean()), is(true));
     }
 
-    @Test
-    public void parseBooleanExact() {
+    public void testParseBooleanExact() {
         assertThat(Booleans.parseBooleanExact(randomFrom("true", "on", "yes", "1")), is(true));
         assertThat(Booleans.parseBooleanExact(randomFrom("false", "off", "no", "0")), is(false));
         try {
-            Booleans.parseBooleanExact(randomFrom(null, "fred", "foo", "barney"));
+            Booleans.parseBooleanExact(randomFrom("fred", "foo", "barney", null));
             fail("Expected exception while parsing invalid boolean value ");
         } catch (Exception ex) {
             assertTrue(ex instanceof IllegalArgumentException);

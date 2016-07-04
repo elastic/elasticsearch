@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,16 +43,14 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  *
  */
 public class IndexActionIT extends ESIntegTestCase {
-
     /**
      * This test tries to simulate load while creating an index and indexing documents
      * while the index is being created.
      */
-    @Test
     public void testAutoGenerateIdNoDuplicates() throws Exception {
         int numberOfIterations = scaledRandomIntBetween(10, 50);
         for (int i = 0; i < numberOfIterations; i++) {
-            Throwable firstError = null;
+            Exception firstError = null;
             createIndex("test");
             int numOfDocs = randomIntBetween(10, 100);
             logger.info("indexing [{}] docs", numOfDocs);
@@ -69,19 +66,19 @@ public class IndexActionIT extends ESIntegTestCase {
                 try {
                     logger.debug("running search with all types");
                     assertHitCount(client().prepareSearch("test").get(), numOfDocs);
-                } catch (Throwable t) {
-                    logger.error("search for all docs types failed", t);
+                } catch (Exception e) {
+                    logger.error("search for all docs types failed", e);
                     if (firstError == null) {
-                        firstError = t;
+                        firstError = e;
                     }
                 }
                 try {
                     logger.debug("running search with a specific type");
                     assertHitCount(client().prepareSearch("test").setTypes("type").get(), numOfDocs);
-                } catch (Throwable t) {
-                    logger.error("search for all docs of a specific type failed", t);
+                } catch (Exception e) {
+                    logger.error("search for all docs of a specific type failed", e);
                     if (firstError == null) {
-                        firstError = t;
+                        firstError = e;
                     }
                 }
             }
@@ -92,7 +89,6 @@ public class IndexActionIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testCreatedFlag() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -110,7 +106,6 @@ public class IndexActionIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testCreatedFlagWithFlush() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -126,7 +121,6 @@ public class IndexActionIT extends ESIntegTestCase {
         assertTrue(indexResponse.isCreated());
     }
 
-    @Test
     public void testCreatedFlagParallelExecution() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -138,7 +132,7 @@ public class IndexActionIT extends ESIntegTestCase {
         final AtomicIntegerArray createdCounts = new AtomicIntegerArray(docCount);
         ExecutorService threadPool = Executors.newFixedThreadPool(threadCount);
         List<Callable<Void>> tasks = new ArrayList<>(taskCount);
-        final Random random = getRandom();
+        final Random random = random();
         for (int i=0;i< taskCount; i++ ) {
             tasks.add(new Callable<Void>() {
                 @Override
@@ -159,7 +153,6 @@ public class IndexActionIT extends ESIntegTestCase {
         terminate(threadPool);
     }
 
-    @Test
     public void testCreatedFlagWithExternalVersioning() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -169,7 +162,6 @@ public class IndexActionIT extends ESIntegTestCase {
         assertTrue(indexResponse.isCreated());
     }
 
-    @Test
     public void testCreateFlagWithBulk() {
         createIndex("test");
         ensureGreen();
@@ -181,7 +173,6 @@ public class IndexActionIT extends ESIntegTestCase {
         assertTrue(indexResponse.isCreated());
     }
 
-    @Test
     public void testCreateIndexWithLongName() {
         int min = MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES + 1;
         int max = MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES * 2;

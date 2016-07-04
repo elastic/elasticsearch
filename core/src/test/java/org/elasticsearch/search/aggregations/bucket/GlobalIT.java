@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -28,7 +25,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
@@ -72,8 +71,7 @@ public class GlobalIT extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    @Test
-    public void withStatsSubAggregator() throws Exception {
+    public void testWithStatsSubAggregator() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.termQuery("tag", "tag1"))
                 .addAggregation(global("global")
@@ -105,11 +103,8 @@ public class GlobalIT extends ESIntegTestCase {
         assertThat(stats.getSum(), equalTo((double) sum));
     }
 
-    @Test
-    public void nonTopLevel() throws Exception {
-
+    public void testNonTopLevel() throws Exception {
         try {
-
             client().prepareSearch("idx")
                     .setQuery(QueryBuilders.termQuery("tag", "tag1"))
                     .addAggregation(global("global")
@@ -119,7 +114,8 @@ public class GlobalIT extends ESIntegTestCase {
             fail("expected to fail executing non-top-level global aggregator. global aggregations are only allowed as top level" +
                     "aggregations");
 
-        } catch (ElasticsearchException ese) {
+        } catch (ElasticsearchException e) {
+            assertThat(e.getMessage(), is("all shards failed"));
         }
     }
 }

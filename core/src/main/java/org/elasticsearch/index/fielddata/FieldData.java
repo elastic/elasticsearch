@@ -19,7 +19,12 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -497,7 +502,7 @@ public enum FieldData {
         };
     }
 
-    private static interface ToStringValues {
+    private interface ToStringValues {
 
         void get(int docID, List<CharSequence> values);
 

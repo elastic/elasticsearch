@@ -19,10 +19,11 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -45,11 +46,12 @@ import static org.hamcrest.Matchers.is;
  */
 public class PrioritizedExecutorsTests extends ESTestCase {
 
-    @Test
+    private final ThreadContext holder = new ThreadContext(Settings.EMPTY);
+
     public void testPriorityQueue() throws Exception {
         PriorityBlockingQueue<Priority> queue = new PriorityBlockingQueue<>();
         List<Priority> priorities = Arrays.asList(Priority.values());
-        Collections.shuffle(priorities);
+        Collections.shuffle(priorities, random());
 
         for (Priority priority : priorities) {
             queue.add(priority);
@@ -65,9 +67,8 @@ public class PrioritizedExecutorsTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testSubmitPrioritizedExecutorWithRunnables() throws Exception {
-        ExecutorService executor = EsExecutors.newSinglePrioritizing(getTestName(), EsExecutors.daemonThreadFactory(getTestName()));
+        ExecutorService executor = EsExecutors.newSinglePrioritizing(getTestName(), EsExecutors.daemonThreadFactory(getTestName()), holder);
         List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(8);
@@ -95,9 +96,8 @@ public class PrioritizedExecutorsTests extends ESTestCase {
         terminate(executor);
     }
 
-    @Test
     public void testExecutePrioritizedExecutorWithRunnables() throws Exception {
-        ExecutorService executor = EsExecutors.newSinglePrioritizing(getTestName(), EsExecutors.daemonThreadFactory(getTestName()));
+        ExecutorService executor = EsExecutors.newSinglePrioritizing(getTestName(), EsExecutors.daemonThreadFactory(getTestName()), holder);
         List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(8);
@@ -125,9 +125,8 @@ public class PrioritizedExecutorsTests extends ESTestCase {
         terminate(executor);
     }
 
-    @Test
     public void testSubmitPrioritizedExecutorWithCallables() throws Exception {
-        ExecutorService executor = EsExecutors.newSinglePrioritizing(getTestName(), EsExecutors.daemonThreadFactory(getTestName()));
+        ExecutorService executor = EsExecutors.newSinglePrioritizing(getTestName(), EsExecutors.daemonThreadFactory(getTestName()), holder);
         List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(8);
@@ -155,9 +154,8 @@ public class PrioritizedExecutorsTests extends ESTestCase {
         terminate(executor);
     }
 
-    @Test
     public void testSubmitPrioritizedExecutorWithMixed() throws Exception {
-        ExecutorService executor = EsExecutors.newSinglePrioritizing(getTestName(), EsExecutors.daemonThreadFactory(getTestName()));
+        ExecutorService executor = EsExecutors.newSinglePrioritizing(getTestName(), EsExecutors.daemonThreadFactory(getTestName()), holder);
         List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(8);
@@ -185,10 +183,9 @@ public class PrioritizedExecutorsTests extends ESTestCase {
         terminate(executor);
     }
 
-    @Test
     public void testTimeout() throws Exception {
         ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(EsExecutors.daemonThreadFactory(getTestName()));
-        PrioritizedEsThreadPoolExecutor executor = EsExecutors.newSinglePrioritizing(getTestName(), EsExecutors.daemonThreadFactory(getTestName()));
+        PrioritizedEsThreadPoolExecutor executor = EsExecutors.newSinglePrioritizing(getTestName(), EsExecutors.daemonThreadFactory(getTestName()), holder);
         final CountDownLatch invoked = new CountDownLatch(1);
         final CountDownLatch block = new CountDownLatch(1);
         executor.execute(new Runnable() {
@@ -247,12 +244,11 @@ public class PrioritizedExecutorsTests extends ESTestCase {
         assertTrue(terminate(timer, executor));
     }
 
-    @Test
     public void testTimeoutCleanup() throws Exception {
-        ThreadPool threadPool = new ThreadPool("test");
+        ThreadPool threadPool = new TestThreadPool("test");
         final ScheduledThreadPoolExecutor timer = (ScheduledThreadPoolExecutor) threadPool.scheduler();
         final AtomicBoolean timeoutCalled = new AtomicBoolean();
-        PrioritizedEsThreadPoolExecutor executor = EsExecutors.newSinglePrioritizing(getTestName(), EsExecutors.daemonThreadFactory(getTestName()));
+        PrioritizedEsThreadPoolExecutor executor = EsExecutors.newSinglePrioritizing(getTestName(), EsExecutors.daemonThreadFactory(getTestName()), holder);
         final CountDownLatch invoked = new CountDownLatch(1);
         executor.execute(new Runnable() {
                              @Override

@@ -175,9 +175,7 @@ public class SizeValue implements Streamable {
         }
         long singles;
         try {
-            if (sValue.endsWith("b")) {
-                singles = Long.parseLong(sValue.substring(0, sValue.length() - 1));
-            } else if (sValue.endsWith("k") || sValue.endsWith("K")) {
+            if (sValue.endsWith("k") || sValue.endsWith("K")) {
                 singles = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * SizeUnit.C1);
             } else if (sValue.endsWith("m") || sValue.endsWith("M")) {
                 singles = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * SizeUnit.C2);
@@ -228,7 +226,7 @@ public class SizeValue implements Streamable {
 
     @Override
     public int hashCode() {
-        int result = (int) (size ^ (size >>> 32));
+        int result = Long.hashCode(size);
         result = 31 * result + (sizeUnit != null ? sizeUnit.hashCode() : 0);
         return result;
     }

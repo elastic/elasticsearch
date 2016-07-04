@@ -22,12 +22,18 @@ package org.elasticsearch.rest.action.admin.cluster.node.hotthreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 
 
@@ -36,8 +42,8 @@ import org.elasticsearch.rest.action.support.RestResponseListener;
 public class RestNodesHotThreadsAction extends BaseRestHandler {
 
     @Inject
-    public RestNodesHotThreadsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestNodesHotThreadsAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/hotthreads", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/hot_threads", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/{nodeId}/hotthreads", this);
@@ -50,7 +56,7 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         NodesHotThreadsRequest nodesHotThreadsRequest = new NodesHotThreadsRequest(nodesIds);
         nodesHotThreadsRequest.threads(request.paramAsInt("threads", nodesHotThreadsRequest.threads()));
@@ -63,7 +69,7 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(NodesHotThreadsResponse response) throws Exception {
                 StringBuilder sb = new StringBuilder();
-                for (NodeHotThreads node : response) {
+                for (NodeHotThreads node : response.getNodes()) {
                     sb.append("::: ").append(node.getNode().toString()).append("\n");
                     Strings.spaceify(3, node.getHotThreads(), sb);
                     sb.append('\n');
@@ -71,5 +77,10 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
                 return new BytesRestResponse(RestStatus.OK, sb.toString());
             }
         });
+    }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
     }
 }

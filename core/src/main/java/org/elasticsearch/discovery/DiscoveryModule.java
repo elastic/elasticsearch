@@ -22,6 +22,8 @@ package org.elasticsearch.discovery;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.discovery.local.LocalDiscovery;
@@ -33,20 +35,25 @@ import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * A module for loading classes for node discovery.
  */
 public class DiscoveryModule extends AbstractModule {
 
-    public static final String DISCOVERY_TYPE_KEY = "discovery.type";
-    public static final String ZEN_MASTER_SERVICE_TYPE_KEY = "discovery.zen.masterservice.type";
+    public static final Setting<String> DISCOVERY_TYPE_SETTING =
+        new Setting<>("discovery.type", settings -> DiscoveryNode.isLocalNode(settings) ? "local" : "zen", Function.identity(),
+            Property.NodeScope);
+    public static final Setting<String> ZEN_MASTER_SERVICE_TYPE_SETTING =
+        new Setting<>("discovery.zen.masterservice.type", "zen", Function.identity(), Property.NodeScope);
 
     private final Settings settings;
-    private final List<Class<? extends UnicastHostsProvider>> unicastHostProviders = new ArrayList<>();
+    private final Map<String, List<Class<? extends UnicastHostsProvider>>> unicastHostProviders = new HashMap<>();
     private final ExtensionPoint.ClassSet<ZenPing> zenPings = new ExtensionPoint.ClassSet<>("zen_ping", ZenPing.class);
     private final Map<String, Class<? extends Discovery>> discoveryTypes = new HashMap<>();
     private final Map<String, Class<? extends ElectMasterService>> masterServiceType = new HashMap<>();
@@ -62,9 +69,17 @@ public class DiscoveryModule extends AbstractModule {
 
     /**
      * Adds a custom unicast hosts provider to build a dynamic list of unicast hosts list when doing unicast discovery.
+     *
+     * @param type discovery for which this provider is relevant
+     * @param unicastHostProvider the host provider
      */
-    public void addUnicastHostProvider(Class<? extends UnicastHostsProvider> unicastHostProvider) {
-        unicastHostProviders.add(unicastHostProvider);
+    public void addUnicastHostProvider(String type, Class<? extends UnicastHostsProvider> unicastHostProvider) {
+        List<Class<? extends UnicastHostsProvider>> providerList = unicastHostProviders.get(type);
+        if (providerList == null) {
+            providerList = new ArrayList<>();
+            unicastHostProviders.put(type, providerList);
+        }
+        providerList.add(unicastHostProvider);
     }
 
     /**
@@ -93,15 +108,14 @@ public class DiscoveryModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        String defaultType = DiscoveryNode.localNode(settings) ? "local" : "zen";
-        String discoveryType = settings.get(DISCOVERY_TYPE_KEY, defaultType);
+        String discoveryType = DISCOVERY_TYPE_SETTING.get(settings);
         Class<? extends Discovery> discoveryClass = discoveryTypes.get(discoveryType);
         if (discoveryClass == null) {
             throw new IllegalArgumentException("Unknown Discovery type [" + discoveryType + "]");
         }
 
         if (discoveryType.equals("local") == false) {
-            String masterServiceTypeKey = settings.get(ZEN_MASTER_SERVICE_TYPE_KEY, "zen");
+            String masterServiceTypeKey = ZEN_MASTER_SERVICE_TYPE_SETTING.get(settings);
             final Class<? extends ElectMasterService> masterService = masterServiceType.get(masterServiceTypeKey);
             if (masterService == null) {
                 throw new IllegalArgumentException("Unknown master service type [" + masterServiceTypeKey + "]");
@@ -113,12 +127,12 @@ public class DiscoveryModule extends AbstractModule {
             }
             bind(ZenPingService.class).asEagerSingleton();
             Multibinder<UnicastHostsProvider> unicastHostsProviderMultibinder = Multibinder.newSetBinder(binder(), UnicastHostsProvider.class);
-            for (Class<? extends UnicastHostsProvider> unicastHostProvider : unicastHostProviders) {
+            for (Class<? extends UnicastHostsProvider> unicastHostProvider :
+                    unicastHostProviders.getOrDefault(discoveryType, Collections.emptyList())) {
                 unicastHostsProviderMultibinder.addBinding().to(unicastHostProvider);
             }
             zenPings.bind(binder());
         }
         bind(Discovery.class).to(discoveryClass).asEagerSingleton();
-        bind(DiscoveryService.class).asEagerSingleton();
     }
 }

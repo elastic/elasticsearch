@@ -21,7 +21,6 @@ package org.elasticsearch.watcher;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -32,13 +31,13 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class FileWatcherTests extends ESTestCase {
-
     private class RecordingChangeListener extends FileChangesListener {
-
         private Path rootDir;
 
         private RecordingChangeListener(Path rootDir) {
@@ -91,7 +90,6 @@ public class FileWatcherTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testSimpleFileOperations() throws IOException {
         Path tempDir = createTempDir();
         RecordingChangeListener changes = new RecordingChangeListener(tempDir);
@@ -120,7 +118,6 @@ public class FileWatcherTests extends ESTestCase {
 
     }
 
-    @Test
     public void testSimpleDirectoryOperations() throws IOException {
         Path tempDir = createTempDir();
         RecordingChangeListener changes = new RecordingChangeListener(tempDir);
@@ -210,7 +207,6 @@ public class FileWatcherTests extends ESTestCase {
 
     }
 
-    @Test
     public void testNestedDirectoryOperations() throws IOException {
         Path tempDir = createTempDir();
         RecordingChangeListener changes = new RecordingChangeListener(tempDir);
@@ -276,7 +272,6 @@ public class FileWatcherTests extends ESTestCase {
         ));
     }
 
-    @Test
     public void testFileReplacingDirectory() throws IOException {
         Path tempDir = createTempDir();
         RecordingChangeListener changes = new RecordingChangeListener(tempDir);
@@ -323,7 +318,6 @@ public class FileWatcherTests extends ESTestCase {
         ));
     }
 
-    @Test
     public void testEmptyDirectory() throws IOException {
         Path tempDir = createTempDir();
         RecordingChangeListener changes = new RecordingChangeListener(tempDir);
@@ -346,7 +340,6 @@ public class FileWatcherTests extends ESTestCase {
         ));
     }
 
-    @Test
     public void testNoDirectoryOnInit() throws IOException {
         Path tempDir = createTempDir();
         RecordingChangeListener changes = new RecordingChangeListener(tempDir);
@@ -370,7 +363,6 @@ public class FileWatcherTests extends ESTestCase {
         ));
     }
 
-    @Test
     public void testNoFileOnInit() throws IOException {
         Path tempDir = createTempDir();
         RecordingChangeListener changes = new RecordingChangeListener(tempDir);
@@ -389,11 +381,11 @@ public class FileWatcherTests extends ESTestCase {
                 equalTo("onFileCreated: testfile.txt")
         ));
     }
-    
+
     static void touch(Path path) throws IOException {
         Files.newOutputStream(path).close();
     }
-    
+
     static void append(String string, Path path, Charset cs) throws IOException {
         try (BufferedWriter writer = Files.newBufferedWriter(path, cs, StandardOpenOption.APPEND)) {
             writer.append(string);

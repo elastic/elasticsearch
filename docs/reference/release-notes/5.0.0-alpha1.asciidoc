@@ -1,0 +1,786 @@
+[[release-notes-5.0.0-alpha1]]
+== 5.0.0-alpha1 Release Notes
+
+The changes listed below have been released for the first time in
+Elasticsearch 5.0.0-alpha1.  Changes in this release which were first released
+in the 2.x series are listed in <<release-notes-5.0.0-alpha1-2x>>.
+
+Also see <<breaking-changes-5.0>>.
+
+IMPORTANT: This is an alpha release and is intended for _testing purposes only_. Indices created in this version will *not be compatible with Elasticsearch 5.0.0 GA*. Upgrading 5.0.0-alpha1 to any other version is not supported.
+
+[[breaking-5.0.0-alpha1]]
+[float]
+=== Breaking changes
+
+Aggregations::
+* getKeyAsString and key_as_string should be the same for terms aggregation on boolean field {pull}15393[#15393]
+
+Aliases::
+* make get alias expand to open and closed indices by default {pull}15954[#15954] (issue: {issue}14982[#14982])
+* Remove deprecated indices.get_aliases {pull}13906[#13906]
+
+Allocation::
+* Simplify shard balancer interface {pull}17028[#17028] (issue: {issue}8954[#8954])
+* Remove DisableAllocationDecider {pull}13313[#13313]
+
+Analysis::
+* Simplify Analysis registration and configuration {pull}14355[#14355]
+
+CAT API::
+* Add raw recovery progress to cat recovery API {pull}17064[#17064] (issue: {issue}17022[#17022])
+* Remove host from cat nodes API {pull}16656[#16656] (issues: {issue}12959[#12959], {issue}16575[#16575])
+* Using the accept header in the request instead of content-type in _cat API. {pull}14421[#14421] (issue: {issue}14195[#14195])
+
+CRUD::
+* Remove object notation for core types. {pull}15684[#15684] (issue: {issue}15388[#15388])
+
+Cache::
+* Refactor IndicesRequestCache to make it testable. {pull}16610[#16610]
+* Remove deprecated query cache settings {pull}15592[#15592]
+* Fold IndexCacheModule into IndexModule {pull}14293[#14293]
+
+Cluster::
+* Remove memory section {pull}17278[#17278] (issues: {issue}12049[#12049], {issue}16756[#16756])
+
+Core::
+* Bootstrap does not set system properties {pull}17088[#17088] (issues: {issue}16579[#16579], {issue}16791[#16791])
+* Add max number of processes check {pull}16919[#16919]
+* Add mlockall bootstrap check {pull}16909[#16909]
+* Remove es.useLinkedTransferQueue {pull}16786[#16786]
+* One log {pull}16703[#16703] (issue: {issue}16585[#16585])
+
+Discovery::
+* Include pings from client nodes in master election {pull}17329[#17329] (issue: {issue}17325[#17325])
+
+Engine::
+* Remove `index.compound_on_flush` setting and default to `true` {pull}15594[#15594] (issue: {issue}10778[#10778])
+
+Fielddata::
+* Remove "uninverted" and "binary" fielddata support for numeric and boolean fields. {pull}14082[#14082]
+
+Index APIs::
+* Remove `GET` option for /_forcemerge {pull}15223[#15223] (issue: {issue}15165[#15165])
+* Remove /_optimize REST API endpoint {pull}14226[#14226] (issue: {issue}13778[#13778])
+
+Internal::
+* Remove duplicate getters from DiscoveryNode and DiscoveryNodes {pull}17410[#17410] (issue: {issue}16963[#16963])
+* Cli: Switch to jopt-simple {pull}17024[#17024] (issue: {issue}11564[#11564])
+* Replace ContextAndHeaders with a ThreadPool based ThreadLocal implementation {pull}15776[#15776]
+* Remove NodeBuilder {pull}15354[#15354]
+* Fix IndexSearcherWrapper interface to not depend on the EngineConfig {pull}14654[#14654]
+* Cleanup query parsing and remove IndexQueryParserService {pull}14452[#14452]
+* Remove circular dependency between IndicesService and IndicesStore {pull}14285[#14285]
+* Remove guice injection from IndexStore and friends {pull}14279[#14279]
+* Replace IndicesLifecycle with a per-index IndexEventListener {pull}14217[#14217] (issue: {issue}13259[#13259])
+* Simplify similarity module and friends {pull}13942[#13942]
+* Refactor SearchRequest to be parsed on the coordinating node {pull}13859[#13859]
+* Remove support for pre 2.0 indices {pull}13799[#13799]
+
+Java API::
+* Remove the count api {pull}14166[#14166] (issue: {issue}13928[#13928])
+* IdsQueryBuilder to accept only non null ids and types {pull}13937[#13937]
+
+Mapping::
+* Change the field mapping index time boost into a query time boost. {pull}16900[#16900]
+* Deprecate string in favor of text/keyword. {pull}16877[#16877]
+* Term vector APIs should no longer update mappings {pull}16285[#16285]
+* [Mapping] Several MappingService cleanups {pull}16133[#16133] (issue: {issue}15924[#15924])
+* Remove the `format` option of the `_source` field. {pull}15398[#15398]
+* Remove transform {pull}13657[#13657] (issue: {issue}12674[#12674])
+
+Network::
+* Remove ability to disable Netty gathering writes {pull}16774[#16774] (issue: {issue}7811[#7811])
+
+Parent/Child::
+* Removed `total` score mode in favour for `sum` score mode. {pull}17174[#17174] (issues: {issue}13470[#13470], {issue}17083[#17083])
+* Cleanup ParentFieldMapper {pull}16045[#16045]
+* Several other parent/child cleanups {pull}13470[#13470]
+* Removed pre 2.x parent child implementation {pull}13376[#13376]
+
+Percolator::
+* Change the percolate api to not dynamically add fields to mapping {pull}16077[#16077] (issue: {issue}15751[#15751])
+
+Plugins::
+* Enforce isolated mode for all plugins {pull}17276[#17276]
+* Rename bin/plugin in bin/elasticsearch-plugin {pull}16454[#16454]
+* Change the inner structure of the plugins zip {pull}16453[#16453]
+* Remove multicast plugin {pull}16326[#16326] (issue: {issue}16310[#16310])
+* Plugins: Remove site plugins {pull}16038[#16038]
+* Don't use guice for QueryParsers {pull}15761[#15761]
+* Remove guice from the index level {pull}14518[#14518]
+* Remove shard-level injector {pull}13881[#13881]
+
+Query DSL::
+* Remove the MissingQueryBuilder which was deprecated in 2.2.0. {pull}15364[#15364] (issue: {issue}14112[#14112])
+* Remove NotQueryBuilder {pull}14204[#14204] (issue: {issue}13761[#13761])
+* Function score query: remove deprecated support for boost_factor {pull}13510[#13510]
+* Remove support for deprecated queries. {pull}13418[#13418] (issue: {issue}13326[#13326])
+
+REST::
+* Limit the accepted length of the _id {pull}16036[#16036] (issue: {issue}16034[#16034])
+
+Search::
+* Remove deprecated reverse option from sorting {pull}17282[#17282] (issue: {issue}17047[#17047])
+* Remove some deprecations {pull}14331[#14331]
+* Remove search exists api {pull}13911[#13911] (issues: {issue}13682[#13682], {issue}13910[#13910])
+* Query refactoring: split parse phase into fromXContent and toQuery for all queries {pull}13788[#13788] (issue: {issue}10217[#10217])
+* Remove the scan and count search types. {pull}13310[#13310]
+
+Search Refactoring::
+* Refactored inner hits parsing and intoduced InnerHitBuilder {pull}17291[#17291]
+* Remove deprecated parameter from field sort builder. {pull}16573[#16573] (issue: {issue}16127[#16127])
+* Remove support for query_binary and filter_binary {pull}14433[#14433] (issue: {issue}14308[#14308])
+* Validate query api: move query parsing to the coordinating node {pull}14384[#14384]
+* Remove "query" query and fix related parsing bugs {pull}14304[#14304] (issue: {issue}13326[#13326])
+
+Settings::
+* Remove ability to specify arbitrary node attributes with `node.` prefix {pull}17402[#17402] (issue: {issue}17280[#17280])
+* Enforce `discovery.zen.minimum_master_nodes` is set when bound to a public ip {pull}17288[#17288]
+* Prevent index level setting from being configured on a node level {pull}17144[#17144] (issue: {issue}16799[#16799])
+* Remove support for node.client setting {pull}16963[#16963] (issue: {issue}16565[#16565])
+* Remove es.max-open-files flag {pull}16757[#16757] (issues: {issue}16506[#16506], {issue}483[#483])
+* Enforce node level limits if node is started in production env {pull}16733[#16733] (issue: {issue}16727[#16727])
+* Move remaining settings in NettyHttpServerTransport to the new infra {pull}16531[#16531]
+* Make settings validation strict {pull}16365[#16365]
+* Remove the ability to fsync on every operation and only schedule fsync task if really needed {pull}16257[#16257] (issue: {issue}16152[#16152])
+* Script settings {pull}16197[#16197]
+* Remove index.flush_on_close entirely {pull}15977[#15977]
+* Restore chunksize of 512kb on recovery and remove configurability {pull}15235[#15235] (issue: {issue}15161[#15161])
+* Remove ancient deprecated and alternative recovery settings {pull}15234[#15234]
+* Replace IndexSettings annotation with a full-fledged class {pull}14251[#14251]
+* Fix ping timeout settings inconsistencies {pull}13701[#13701] (issue: {issue}6579[#6579])
+
+Similarities::
+* Renames `default` similarity into `classic` {pull}15446[#15446] (issue: {issue}15102[#15102])
+
+Snapshot/Restore::
+* Fail closing or deleting indices during a full snapshot {pull}17021[#17021] (issue: {issue}16321[#16321])
+
+Stats::
+* Modify load average format {pull}15932[#15932] (issue: {issue}15907[#15907])
+* Reintroduce five-minute and fifteen-minute load averages on Linux {pull}15907[#15907] (issues: {issue}12049[#12049], {issue}14741[#14741])
+* Add system CPU percent to OS stats {pull}14741[#14741]
+
+Store::
+* Standardize state format type for global and index level metadata {pull}17123[#17123]
+
+Suggesters::
+* Remove suggest threadpool {pull}17304[#17304] (issue: {issue}17198[#17198])
+* Remove suggest transport action {pull}17198[#17198] (issue: {issue}10217[#10217])
+
+Term Vectors::
+* Remove DFS support from TermVector API {pull}16452[#16452]
+
+Translog::
+* Drop support for simple translog and hard-wire buffer to 8kb {pull}15574[#15574]
+* Simplify translog-based flush settings {pull}15573[#15573]
+
+Warmers::
+* Remove query warmers and the warmer API. {pull}15614[#15614] (issue: {issue}15607[#15607])
+
+
+
+[[deprecation-5.0.0-alpha1]]
+[float]
+=== Deprecations
+
+Plugin Mapper Attachment::
+* Deprecate mapper-attachments plugin {pull}16948[#16948] (issue: {issue}16910[#16910])
+
+Search::
+* Deprecate fuzzy query {pull}16211[#16211] (issues: {issue}15760[#15760], {issue}16121[#16121])
+
+
+
+[[feature-5.0.0-alpha1]]
+[float]
+=== New features
+
+Allocation::
+* Add API to explain why a shard is or isn't assigned {pull}17305[#17305] (issue: {issue}14593[#14593])
+
+Discovery::
+* Add two phased commit to Cluster State publishing {pull}13062[#13062]
+
+Ingest::
+* Merge feature/ingest branch into master branch {pull}16049[#16049] (issue: {issue}14049[#14049])
+
+Mapping::
+* Add a text field. {pull}16637[#16637]
+* Add a new `keyword` field. {pull}16589[#16589]
+
+Percolator::
+* index the query terms from the percolator query {pull}13646[#13646] (issue: {issue}12664[#12664])
+
+Plugin Ingest Attachment::
+* Ingest: Add attachment processor {pull}16490[#16490] (issue: {issue}16303[#16303])
+
+Plugin Mapper Attachment::
+* Migrate mapper attachments plugin to main repository {pull}14605[#14605]
+
+Plugin Repository HDFS::
+* HDFS Snapshot/Restore plugin {pull}15192[#15192] (issue: {issue}15191[#15191])
+
+Query DSL::
+* Adds a rewrite phase to queries on the shard level {pull}16870[#16870] (issue: {issue}9526[#9526])
+
+Reindex API::
+* Merge reindex to master {pull}16861[#16861]
+
+Scripting::
+* Exceptions and Infinite Loop Checking {pull}15936[#15936]
+* Added a new scripting language (PlanA) {pull}15136[#15136] (issue: {issue}13084[#13084])
+
+Search::
+* Add `search_after` parameter in the SearchAPI {pull}16125[#16125] (issue: {issue}8192[#8192])
+
+Settings::
+* Add infrastructure to transactionally apply and reset dynamic settings {pull}15278[#15278]
+
+Stats::
+* API for listing index file sizes {pull}16661[#16661] (issue: {issue}16131[#16131])
+
+Suggesters::
+* Add document-oriented completion suggester {pull}14410[#14410] (issue: {issue}10746[#10746])
+
+Task Manager::
+* Add task cancellation mechanism {pull}16320[#16320]
+* Make the Task object available to the action caller {pull}16033[#16033]
+* Task Management: Add framework for registering and communicating with tasks {pull}15347[#15347] (issue: {issue}15117[#15117])
+
+
+
+[[enhancement-5.0.0-alpha1]]
+[float]
+=== Enhancements
+
+Aggregations::
+* Add tests and documentation for using `time_zone` in date range aggregation {pull}16955[#16955] (issue: {issue}10130[#10130])
+* Fixes serialisation of Ranges {pull}16674[#16674]
+
+Allocation::
+* Write shard state metadata as soon as shard is created / initializing {pull}16625[#16625] (issue: {issue}14739[#14739])
+* Reuse existing allocation id for primary shard allocation {pull}16530[#16530] (issue: {issue}14739[#14739])
+* Remove version in ShardRouting (now obsolete) {pull}16243[#16243] (issue: {issue}14739[#14739])
+* Prefer nodes that previously held primary shard for primary shard allocation {pull}16096[#16096] (issue: {issue}14739[#14739])
+* Extend reroute with an option to force assign stale primary shard copies {pull}15708[#15708] (issue: {issue}14739[#14739])
+* Allocate primary shards based on allocation IDs {pull}15281[#15281] (issue: {issue}14739[#14739])
+* Persist currently started allocation IDs to index metadata {pull}14964[#14964] (issue: {issue}14739[#14739])
+* Use ObjectParser to parse AllocationID {pull}14962[#14962] (issue: {issue}14831[#14831])
+* Persist allocation ID with shard state metadata on nodes {pull}14831[#14831] (issue: {issue}14739[#14739])
+
+Analysis::
+* Improve error message if resource files have illegal encoding {pull}17237[#17237] (issue: {issue}17212[#17212])
+
+CAT API::
+* Expose http address in cat/nodes {pull}16770[#16770]
+* [cat/recovery] Make recovery time a TimeValue() {pull}16743[#16743] (issue: {issue}9209[#9209])
+* :CAT API: remove space at the end of a line {pull}15250[#15250] (issue: {issue}9464[#9464])
+
+CRUD::
+* CRUD: Allow to get and set ttl as a time value/string {pull}15047[#15047]
+
+Cache::
+* Enable the indices request cache by default {pull}17162[#17162] (issues: {issue}16870[#16870], {issue}17134[#17134])
+
+Cluster::
+* Cluster Health should run on applied states, even if waitFor=0 {pull}17440[#17440]
+* Resolve index names to Index instances early {pull}17048[#17048]
+* Remove DiscoveryNode#shouldConnectTo method {pull}16898[#16898] (issue: {issue}16815[#16815])
+* Fail demoted primary shards and retry request {pull}16415[#16415] (issue: {issue}14252[#14252])
+* Illegal shard failure requests {pull}16275[#16275]
+* Shard failure requests for non-existent shards {pull}16089[#16089] (issue: {issue}14252[#14252])
+* Add handling of channel failures when starting a shard {pull}16041[#16041] (issue: {issue}15895[#15895])
+* Wait for new master when failing shard {pull}15748[#15748] (issue: {issue}14252[#14252])
+* Master should wait on cluster state publication when failing a shard {pull}15468[#15468] (issue: {issue}14252[#14252])
+* Split cluster state update tasks into roles {pull}14899[#14899] (issue: {issue}13627[#13627])
+* Add timeout mechanism for sending shard failures {pull}14707[#14707] (issue: {issue}14252[#14252])
+* Add listener mechanism for failures to send shard failed {pull}14295[#14295] (issue: {issue}14252[#14252])
+
+Core::
+* Remove PROTOTYPE from BulkItemResponse.Failure {pull}17433[#17433] (issue: {issue}17086[#17086])
+* Throw an exception if Writeable.Reader reads null {pull}17332[#17332]
+* Remove PROTOTYPE from RescorerBuilders {pull}17330[#17330]
+* Port Primary Terms to master {pull}17044[#17044] (issues: {issue}14062[#14062], {issue}14651[#14651], {issue}17038[#17038])
+* Use index UUID to lookup indices on IndicesService {pull}17001[#17001]
+* Add -XX+AlwaysPreTouch JVM flag {pull}16937[#16937]
+* Add max size virtual memory check {pull}16935[#16935]
+* Use and test relative time in TransportBulkAction {pull}16916[#16916]
+* Bump Elasticsearch version to 5.0.0-SNAPSHOT {pull}16862[#16862]
+* Assert that we can write in all data-path on startup {pull}16745[#16745]
+* Add G1GC check on startup {pull}16737[#16737] (issue: {issue}10740[#10740])
+* Shards with heavy indexing should get more of the indexing buffer {pull}14121[#14121]
+* Remove and ban ImmutableMap {pull}13939[#13939] (issue: {issue}13224[#13224])
+* Finish banning ImmutableSet {pull}13820[#13820] (issue: {issue}13224[#13224])
+* Removes and bans ImmutableSet {pull}13754[#13754] (issue: {issue}13224[#13224])
+* Remove and ban ImmutableMap#entrySet {pull}13724[#13724]
+* Forbid ForwardingSet {pull}13720[#13720] (issue: {issue}13224[#13224])
+
+Discovery::
+* Add a dedicate queue for incoming ClusterStates {pull}13303[#13303] (issue: {issue}13062[#13062])
+
+Engine::
+* Remove writeLockTimeout from InternalEngine {pull}16930[#16930]
+* Don't guard IndexShard#refresh calls by a check to isRefreshNeeded {pull}16118[#16118]
+* Never call a listerner under lock in InternalEngine {pull}15786[#15786]
+* Use System.nanoTime() to initialize Engine.lastWriteNanos {pull}14321[#14321]
+* Flush big merges automatically if shard is inactive {pull}14275[#14275]
+* Remove Engine.Create {pull}13955[#13955]
+* Remove the disabled autogenerated id optimization from InternalEngine {pull}13857[#13857]
+
+Exceptions::
+* Fix typos in exception/assert/log messages in core module. {pull}16649[#16649]
+* Add field names to several mapping errors {pull}16508[#16508] (issue: {issue}16378[#16378])
+* Add serialization support for more important IOExceptions {pull}15766[#15766]
+* Adds exception objects to log messages. {pull}14827[#14827] (issue: {issue}10021[#10021])
+* Add stack traces to logged exceptions where missing {pull}13825[#13825] (issue: {issue}10021[#10021])
+* Remove reflection hacks from ElasticsearchException {pull}13796[#13796]
+* Rename QueryParsingException to a more generic ParsingException {pull}13631[#13631]
+* Add *Exception(Throwable cause) constructors/ call where appropriate {pull}13544[#13544] (issue: {issue}10021[#10021])
+
+Geo::
+* Fix a potential parsing problem in GeoDistanceSortParser {pull}17111[#17111]
+* Geo: Add validation of shapes to ShapeBuilders {pull}15551[#15551] (issue: {issue}14416[#14416])
+* Make remaining ShapeBuilders implement Writeable {pull}15010[#15010] (issue: {issue}14416[#14416])
+* Geo: Remove internal `translated` flag from LineStringBuilder {pull}14969[#14969]
+* Make PointBuilder, CircleBuilder & EnvelopeBuilder implement Writable  {pull}14933[#14933] (issue: {issue}14416[#14416])
+* Merging BaseLineString and BasePolygonBuilder with subclass {pull}14887[#14887] (issue: {issue}14482[#14482])
+* Moving static factory methods to ShapeBuilders {pull}14529[#14529]
+* Remove InternalLineStringBuilder and InternalPolygonBuilder {pull}14482[#14482] (issue: {issue}14416[#14416])
+
+Highlighting::
+* Switch Highlighting to ObjectParser  {pull}17363[#17363]
+* Use HighlightBuilder in SearchSourceBuilder {pull}15376[#15376] (issue: {issue}15044[#15044])
+* Joint parsing of common global Hightlighter and subfield parameters {pull}15368[#15368] (issue: {issue}15285[#15285])
+* Enable HighlightBuilder to create SearchContextHighlight {pull}15324[#15324]
+*  Add fromXContent method to HighlightBuilder {pull}15157[#15157]
+
+Ingest::
+* add automatic type conversion support to ConvertProcessor {pull}17263[#17263] (issue: {issue}17139[#17139])
+* Give the foreach processor access to the rest of the document {pull}17172[#17172] (issue: {issue}17147[#17147])
+* Added ingest statistics to node stats API {pull}16915[#16915]
+* Add `ingest_took` to bulk response {pull}16876[#16876]
+* Add ingest info to node info API, which contains a list of available processors {pull}16865[#16865]
+* Use diffs for ingest metadata in cluster state {pull}16847[#16847]
+* hide null-valued metadata fields from WriteableIngestDocument#toXContent {pull}16557[#16557]
+* Ingest: use bulk thread pool for bulk request processing (was index before) {pull}16539[#16539] (issue: {issue}16503[#16503])
+* Add foreach processor {pull}16432[#16432]
+* revert PipelineFactoryError handling with throwing ElasticsearchParseException in ingest pipeline creation {pull}16355[#16355]
+* Add processor tags to on_failure metadata in ingest pipeline {pull}16324[#16324] (issue: {issue}16202[#16202])
+* catch processor/pipeline factory exceptions and return structured error responses {pull}16276[#16276] (issue: {issue}16010[#16010])
+* Ingest: move get/put/delete pipeline methods to ClusterAdminClient {pull}16242[#16242]
+* Geoip processor: remove redundant latitude and longitude fields and make location an object with lat and lon subfields {pull}16173[#16173]
+
+Internal::
+* Remove PROTOTYPE from MLT.Item {pull}17481[#17481] (issue: {issue}17085[#17085])
+* Remove PROTOTYPE from VersionType {pull}17480[#17480] (issue: {issue}17085[#17085])
+* Remove PROTOTYPEs from highlighting {pull}17466[#17466] (issue: {issue}17085[#17085])
+* Remove PROTOTYPEs from ingest {pull}17434[#17434] (issue: {issue}17085[#17085])
+* Start to rework query registration {pull}17424[#17424]
+* Factor out slow logs into Search and IndexingOperationListeners {pull}17398[#17398]
+* Remove PROTOTYPE from Suggesters {pull}17370[#17370]
+* Remove PROTOTYPE from SortBuilders {pull}17337[#17337] (issue: {issue}17085[#17085])
+* Remove PROTOTYPE from ShapeBuilders {pull}17336[#17336] (issue: {issue}17085[#17085])
+* Replace FieldStatsProvider with a method on MappedFieldType. {pull}17334[#17334]
+* Stop using PROTOTYPE in NamedWriteableRegistry {pull}17284[#17284] (issue: {issue}17085[#17085])
+* Support scheduled commands in current context {pull}17077[#17077]
+* Thread limits {pull}17003[#17003]
+* Remove leniency from segments info integrity checks {pull}16985[#16985] (issue: {issue}16973[#16973])
+* Rename SearchServiceTransportAction to SearchTransportService {pull}16880[#16880]
+* Decouple the TransportService and ClusterService {pull}16872[#16872] (issue: {issue}16788[#16788])
+* Refactor bootstrap checks {pull}16844[#16844] (issues: {issue}16733[#16733], {issue}16835[#16835])
+* Add LifecycleRunnable {pull}16752[#16752]
+* Hot inlined methods in your area {pull}16725[#16725]
+* Move IndicesQueryCache and IndicesRequestCache into IndicesService {pull}16603[#16603]
+* Forbid use of java.security.MessageDigest#clone() {pull}16543[#16543] (issue: {issue}16479[#16479])
+* Make IndicesWarmer a private class of IndexService {pull}16470[#16470]
+* Simplify IndicesFieldDataCache and detach from guice {pull}16469[#16469]
+* Uppercase ells ('L') in long literals {pull}16329[#16329] (issue: {issue}16279[#16279])
+* ShardId equality and hash code inconsistency {pull}16319[#16319] (issue: {issue}16217[#16217])
+* Ensure all resources are closed on Node#close() {pull}16316[#16316] (issue: {issue}13685[#13685])
+* Make index uuid available in Index, ShardRouting & ShardId {pull}16217[#16217]
+* Move RefreshTask into IndexService and use since task per index {pull}15933[#15933]
+* Make IndexingMemoryController private to IndicesService {pull}15877[#15877]
+* Cleanup IndexingOperationListeners infrastructure {pull}15875[#15875]
+* Remove and forbid use of j.u.c.ThreadLocalRandom {pull}15862[#15862] (issue: {issue}15294[#15294])
+* Fix IntelliJ query builder type inference issues {pull}15429[#15429]
+* Remove and forbid use of Collections#shuffle(List) and Random#<init>() {pull}15299[#15299] (issue: {issue}15287[#15287])
+* Remove and forbid use of the type-unsafe empty Collections fields {pull}15187[#15187]
+* Move IndicesService.canDeleteShardContent to use IndexSettings {pull}15150[#15150] (issue: {issue}15059[#15059])
+* Simplify MonitorService construction and detach from guice {pull}15035[#15035]
+* Use Supplier for StreamInput#readOptionalStreamable {pull}14806[#14806]
+* Add variable-length long encoding {pull}14780[#14780]
+* Extend usage of IndexSetting class {pull}14731[#14731] (issue: {issue}14251[#14251])
+* Fold SimilarityModule into IndexModule {pull}14284[#14284]
+* Move to lucene BoostQuery {pull}14264[#14264]
+* Use built-in method for computing hash code of longs {pull}14213[#14213]
+* Refactor ShardFailure listener infrastructure {pull}14206[#14206]
+* Add methods for variable-length encoding integral arrays {pull}14087[#14087]
+* Fold IndexAliasesService into IndexService {pull}14044[#14044]
+* Remove unneeded Module abstractions {pull}13944[#13944]
+* Query refactoring: simplify IndexQueryParserService parse methods {pull}13938[#13938] (issue: {issue}13859[#13859])
+* Remove and forbid use of com.google.common.collect.Iterators {pull}13916[#13916] (issue: {issue}13224[#13224])
+* Remove and forbid use of com.google.common.collect.ImmutableCollection {pull}13909[#13909] (issue: {issue}13224[#13224])
+* Remove and forbid use of com.google.common.io.Resources {pull}13908[#13908] (issue: {issue}13224[#13224])
+* Remove and forbid use of com.google.common.hash.* {pull}13907[#13907] (issue: {issue}13224[#13224])
+* Remove and forbid use of com.google.common.net.InetAddresses {pull}13905[#13905] (issue: {issue}13224[#13224])
+* Remove and forbid use of com.google.common.collect.EvictingQueue {pull}13903[#13903] (issue: {issue}13224[#13224])
+* Replace Guava cache with simple concurrent LRU cache {pull}13879[#13879]
+* Remove ClusterSerivce and IndexSettingsService dependency from IndexShard {pull}13853[#13853]
+* Start making RecoverySourceHandler unittestable {pull}13840[#13840]
+* Remove IndexService dep. from IndexShard {pull}13797[#13797]
+* Remove ES internal deletion policies in favour of Lucenes implementations {pull}13794[#13794]
+* Move ShardTermVectorService to be on indices level as TermVectorService {pull}13786[#13786]
+* Move ShardPercolateService creation into IndexShard {pull}13777[#13777]
+* Remove `ExpressionScriptCompilationException` and `ExpressionScriptExecutionException` {pull}13742[#13742]
+* Reduced the number of ClusterStateUpdateTask variants {pull}13735[#13735]
+* Add a BaseParser helper for stream parsing {pull}13615[#13615]
+* Remove and forbid use of com.google.common.primitives.Ints {pull}13596[#13596] (issue: {issue}13224[#13224])
+* Remove and forbid use of com.google.common.math.LongMath {pull}13575[#13575] (issue: {issue}13224[#13224])
+* Remove and forbid use of com.google.common.base.Joiner {pull}13572[#13572] (issue: {issue}13224[#13224])
+* Replace and ban next batch of Guava classes {pull}13562[#13562] (issue: {issue}13224[#13224])
+* Remove and forbid use of com.google.common.collect.Iterables {pull}13559[#13559] (issue: {issue}13224[#13224])
+* Replace LoadingCache usage with a simple ConcurrentHashMap {pull}13552[#13552] (issue: {issue}13224[#13224])
+* Use Supplier instead of Reflection {pull}13545[#13545]
+* Remove and forbid use of com.google.common.base.Preconditions {pull}13540[#13540] (issue: {issue}13224[#13224])
+* Remove and forbid use of guava Function, Charsets, Collections2 {pull}13533[#13533] (issue: {issue}13224[#13224])
+* Remove and forbid use of com.google.common.collect.ImmutableSortedMap {pull}13525[#13525] (issue: {issue}13224[#13224])
+* Remove and forbid use of several com.google.common.util. classes {pull}13524[#13524] (issue: {issue}13224[#13224])
+* Cleanup SearchRequest & SearchRequestBuilder {pull}13518[#13518]
+* Remove and forbid use of com.google.common.collect.Queues {pull}13498[#13498] (issue: {issue}13224[#13224])
+* Remove and forbid use of com.google.common.base.Preconditions#checkNotNull {pull}13493[#13493] (issue: {issue}13224[#13224])
+* Remove and forbid use of com.google.common.collect.Sets {pull}13463[#13463] (issue: {issue}13224[#13224])
+* Remove and forbid use of com.google.common.collect.Maps {pull}13438[#13438] (issue: {issue}13224[#13224])
+* Remove use of underscore as an identifier {pull}13353[#13353]
+* Remove and forbid the use of com.google.common.base.Predicate(s)? {pull}13349[#13349] (issues: {issue}13224[#13224], {issue}13314[#13314])
+* This commit removes com.google.common.io {pull}13302[#13302] (issue: {issue}13224[#13224])
+
+Java API::
+* Remove copy constructors from request classes and TransportMessage type {pull}16640[#16640] (issue: {issue}15776[#15776])
+
+Mapping::
+* Add a soft limit on the mapping depth. {pull}17400[#17400]
+* Disable fielddata on text fields by defaults. {pull}17386[#17386]
+* Add limit to total number of fields in mapping {pull}17357[#17357]
+* Make `parseMultiField` part of `parseField`. {pull}17313[#17313]
+* Automatically add a sub keyword field to string dynamic mappings. {pull}17188[#17188]
+* Remove friction from the mapping changes in 5.0. {pull}16991[#16991]
+* Rework norms parameters for 5.0. {pull}16987[#16987]
+* Moved dynamic field handling in doc parsing to end of parsing {pull}16798[#16798]
+* Remove the MapperBuilders utility class. {pull}16609[#16609]
+* Make the `index` property a boolean. {pull}16161[#16161]
+* Remove the ability to enable doc values with the `fielddata.format` setting. {pull}16147[#16147]
+* Be stricter about parsing boolean values in mappings. {pull}16146[#16146]
+* Fix default doc values to be enabled when a field is not indexed. {pull}16141[#16141]
+* Dynamically map floating-point numbers as floats instead of doubles. {pull}15319[#15319] (issue: {issue}13851[#13851])
+* Simplify MetaDataMappingService. {pull}15217[#15217]
+* Remove MergeMappingException. {pull}15177[#15177]
+
+Packaging::
+* Added RPM metadata {pull}17477[#17477]
+* Elasticsearch ownership for data, logs, and configs {pull}17197[#17197] (issue: {issue}12688[#12688])
+* Fail early on JDK with compiler bug {pull}16418[#16418] (issues: {issue}16097[#16097], {issue}16362[#16362])
+* Make security non-optional {pull}16176[#16176]
+* Remove RuntimePermission("accessDeclaredMembers") {pull}15378[#15378]
+* Remove Guava as a dependency {pull}14055[#14055] (issue: {issue}13224[#13224])
+* Remove Guava as a dependency {pull}14054[#14054] (issue: {issue}13224[#13224])
+
+Percolator::
+* Add scoring support to the percolator query {pull}17385[#17385] (issue: {issue}13827[#13827])
+* Add query extract support for the blended term query and the common terms query {pull}17347[#17347]
+* Add support for several span queries in ExtractQueryTermsService {pull}17323[#17323]
+* Add support for TermsQuery in ExtractQueryTermsService {pull}17316[#17316]
+* Replace percolate APIs with a percolator query {pull}16349[#16349] (issues: {issue}10741[#10741], {issue}11264[#11264], {issue}13176[#13176], {issue}13978[#13978], {issue}4317[#4317], {issue}7297[#7297])
+
+Plugin Analysis Kuromoji::
+* Add nbest options and NumberFilter {pull}17173[#17173]
+
+Plugin Discovery EC2::
+* Add support for proxy authentication for s3 and ec2 {pull}15293[#15293] (issue: {issue}15268[#15268])
+
+Plugin Ingest Attachment::
+* Minor attachment processor improvements {pull}16574[#16574]
+
+Plugin Lang Painless::
+* Painless Clean Up {pull}17428[#17428]
+* Make Painless a Module {pull}16755[#16755]
+* Minor Clean up {pull}16457[#16457]
+* Remove Extra String Concat Token {pull}16382[#16382]
+
+Plugin Mapper Attachment::
+* minor attachments cleanups: IDE test support and EPUB format {pull}14626[#14626]
+
+Plugin Repository Azure::
+* Support global `repositories.azure.` settings {pull}15141[#15141] (issue: {issue}13776[#13776])
+* Add timeout settings (default to 5 minutes) {pull}15080[#15080] (issue: {issue}14277[#14277])
+* Remove AbstractLegacyBlobContainer {pull}14650[#14650] (issue: {issue}13434[#13434])
+
+Plugin Repository HDFS::
+* merge current hdfs improvements to master {pull}15588[#15588]
+
+Plugin Repository S3::
+* Check that S3 setting `buffer_size` is always lower than `chunk_size` {pull}17274[#17274] (issue: {issue}17244[#17244])
+
+Plugins::
+* PluginManager: Add xpack as official plugin {pull}17227[#17227]
+* CliTool: Cleanup and document Terminal {pull}16443[#16443]
+* Plugin cli: Improve maven coordinates detection {pull}16384[#16384] (issue: {issue}16376[#16376])
+* Enforce plugin zip does not contain zip entries outside of the plugin dir {pull}16361[#16361]
+* CliTool: Allow unexpected exceptions to propagate {pull}16359[#16359]
+* Reduce complexity of plugin cli {pull}16336[#16336]
+* Remove Plugin.onIndexService. {pull}15029[#15029] (issue: {issue}14896[#14896])
+* Open up QueryCache and SearcherWrapper extension points {pull}14303[#14303]
+
+Query DSL::
+* An `exists` query on an object should query a single term. {pull}17186[#17186] (issue: {issue}17131[#17131])
+* Function Score Query: make parsing stricter {pull}16617[#16617] (issue: {issue}16583[#16583])
+* Parsers should throw exception on unknown objects {pull}14255[#14255] (issue: {issue}10974[#10974])
+* UNICODE_CHARACTER_CLASS fix {pull}11598[#11598] (issue: {issue}10146[#10146])
+
+Query Refactoring::
+* Add infrastructure to rewrite query builders {pull}16599[#16599]
+* Switch geo validation to enum {pull}13672[#13672] (issue: {issue}13608[#13608])
+
+REST::
+* More robust handling of CORS HTTP Access Control {pull}16092[#16092]
+* Add option to exclude based on paths in XContent {pull}16017[#16017]
+
+Recovery::
+* Recover broken IndexMetaData as closed {pull}17187[#17187]
+* Relocation source should be marked as relocating before starting recovery to primary relocation target {pull}16500[#16500]
+* Operation counter for IndexShard {pull}15956[#15956] (issue: {issue}15900[#15900])
+* Primary relocation handoff {pull}15900[#15900] (issue: {issue}15532[#15532])
+* Remove recovery threadpools and throttle outgoing recoveries on the master {pull}15372[#15372]
+* Refactor StoreRecoveryService to be a simple package private util class {pull}13766[#13766]
+
+Reindex API::
+* Make reindex throttling dynamic {pull}17262[#17262]
+* Throttling support for reindex {pull}17039[#17039]
+* Add ingest pipeline support to reindex {pull}16932[#16932]
+
+Scripting::
+* Skipping hidden files compilation for script service {pull}16286[#16286] (issue: {issue}15269[#15269])
+* Rename Plan A to Painless {pull}16245[#16245]
+* Add plumbing for script compile-time parameters {pull}15464[#15464]
+* Factor mustache -> modules/lang-mustache {pull}15328[#15328]
+
+Search::
+* Add a soft limit on the number of shards that can be queried in a single search request. {pull}17396[#17396]
+* Type filters should not have a performance impact when there is a single type. {pull}17350[#17350]
+* Store _all payloads on 1 byte instead of 4. {pull}16899[#16899]
+* Refuse to load fields from _source when using the `fields` option and support wildcards.  {pull}15017[#15017] (issues: {issue}10783[#10783], {issue}14489[#14489])
+* Add response into ClearScrollResponse {pull}13835[#13835] (issue: {issue}13817[#13817])
+* Shuffle shards for _only_nodes + support multiple specifications like cluster API  {pull}12575[#12575] (issues: {issue}12546[#12546], {issue}12700[#12700])
+
+Search Refactoring::
+* Remove RescoreParseElement {pull}17441[#17441]
+* Remove HighlighterParseElement {pull}17303[#17303]
+* Move top level parsing of sort element to SortBuilder {pull}17248[#17248]
+* Switch to using refactored SortBuilder instead of using BytesReference in serialization {pull}17205[#17205] (issues: {issue}17146[#17146], {issue}17257[#17257])
+* Add build() method to SortBuilder implementations {pull}17146[#17146] (issue: {issue}10217[#10217])
+* Refactoring of Suggestions {pull}17096[#17096] (issue: {issue}10217[#10217])
+* Move sort `order` field up into SortBuilder {pull}17035[#17035]
+* Moves SortParser:parse(...) to only require QueryShardContext {pull}16999[#16999] (issue: {issue}15178[#15178])
+* Change internal representation of suggesters  {pull}16873[#16873]
+* Make GeoDistanceSortBuilder serializable, 2nd try {pull}16572[#16572] (issues: {issue}15178[#15178], {issue}16151[#16151])
+* Move missing() from SortBuilder interface to class {pull}16225[#16225] (issues: {issue}15178[#15178], {issue}16151[#16151])
+* Remove deprecated parameters from ScriptSortBuilder {pull}16153[#16153] (issue: {issue}15178[#15178])
+* Refactor GeoSortBuilder {pull}16151[#16151] (issue: {issue}15178[#15178])
+* Refactor FieldSortBuilder {pull}16127[#16127] (issue: {issue}15178[#15178])
+* Make sort order enum writable. {pull}16124[#16124] (issue: {issue}15178[#15178])
+* Make DistanceUnit writable. {pull}16122[#16122] (issue: {issue}15178[#15178])
+* RescoreBuilder: Add parsing and creating of RescoreSearchContext {pull}16014[#16014] (issue: {issue}15559[#15559])
+* Make RescoreBuilder and nested QueryRescorer Writable {pull}15953[#15953] (issue: {issue}15559[#15559])
+* Explain api: move query parsing to the coordinating node {pull}14270[#14270]
+* Switch query parsers to use ParseField  {pull}14249[#14249] (issue: {issue}8964[#8964])
+* Refactoring of Aggregations {pull}14136[#14136]
+
+Settings::
+* Add guard against null-valued settings {pull}17310[#17310] (issue: {issue}17292[#17292])
+* Useful error message for null property placeholder {pull}17293[#17293] (issue: {issue}17292[#17292])
+* Archive cluster level settings if unknown or broken {pull}17246[#17246]
+* Improve error message if setting is not found {pull}17230[#17230]
+* Improve upgrade experience of node level index settings {pull}17223[#17223] (issue: {issue}17187[#17187])
+* Settings with complex matchers should not overlap {pull}16754[#16754]
+* Moves GCE settings to the new infra {pull}16722[#16722] (issue: {issue}16720[#16720])
+* Add filtering support within Setting class {pull}16629[#16629] (issue: {issue}16598[#16598])
+* Migrate AWS settings to new settings infrastructure {pull}16602[#16602] (issue: {issue}16293[#16293])
+* Remove `gateway.initial_meta` and always rely on min master nodes {pull}16446[#16446]
+* Rewrite SettingsFilter to be immutable {pull}16425[#16425]
+* Simplify azure settings {pull}16363[#16363]
+* Convert PageCacheRecycler settings {pull}16341[#16341]
+* Monitor settings {pull}16313[#16313]
+* Cut over tribe node settings to new settings infra {pull}16311[#16311]
+* Convert multcast plugin settings to the new infra {pull}16295[#16295]
+* Convert `request.headers.*` to the new settings infra {pull}16292[#16292]
+* Migrate Azure settings to new settings infrastructure {pull}16291[#16291]
+* Validate logger settings and allow them to be reset via API {pull}16289[#16289]
+* Switch NodeEnvironment's settings to new settings {pull}16273[#16273]
+* Simplify AutoCreateIndex and add more tests {pull}16270[#16270]
+* Convert several pending settings {pull}16269[#16269]
+* Migrate query caching settings to the new settings infra. {pull}16267[#16267]
+* Convert `action.auto_create_index` and `action.master.force_local` to the new settings infra {pull}16263[#16263]
+* Convert `cluster.routing.allocation.type` and `processors` to the new settings infra. {pull}16238[#16238]
+* Validate tribe node settings on startup {pull}16237[#16237]
+* Move node.client, node.data, node.master, node.local and node.mode to new settings infra {pull}16230[#16230]
+* Moved http settings to the new settings infrastructure {pull}16188[#16188]
+* Migrate network service to the new infra {pull}16187[#16187]
+* Convert client.transport settings to new infra {pull}16183[#16183]
+* Move discovery.* settings to new Setting infrastructure {pull}16182[#16182]
+* Change over to o.e.common.settings.Setting for http settings {pull}16181[#16181]
+* Convert "path.*" and "pidfile" to new settings infra {pull}16180[#16180]
+* Migrate repository settings to the new settings API {pull}16178[#16178]
+* Convert "indices.*" settings to new infra. {pull}16177[#16177]
+* Migrate gateway settings to the new settings API. {pull}16175[#16175]
+* Convert several node and test level settings {pull}16172[#16172]
+* Run Metadata upgrade tool on every version {pull}16168[#16168]
+* Check for invalid index settings on metadata upgrade {pull}16156[#16156]
+* Validate the settings key if it's simple chars separated by `.` {pull}16120[#16120]
+* Validate known global settings on startup {pull}16091[#16091]
+* Cut over all index scope settings to the new setting infrastrucuture {pull}16054[#16054] (issues: {issue}12790[#12790], {issue}12854[#12854], {issue}16032[#16032], {issue}6732[#6732])
+* Remove updatability of `index.flush_on_close` {pull}15964[#15964] (issue: {issue}15955[#15955])
+* Move all dynamic settings and their config classes to the index level {pull}15955[#15955] (issue: {issue}6732[#6732])
+* Always require units for bytes and time settings {pull}15948[#15948] (issue: {issue}11437[#11437])
+* Make MetaData parsing less lenient. {pull}15828[#15828]
+* Move async translog sync logic into IndexService {pull}15584[#15584]
+* Remove `index.merge.scheduler.notify_on_failure` and default to `true` {pull}15572[#15572] (issue: {issue}15570[#15570])
+* Remove cache concurrency level settings that no longer apply {pull}14210[#14210] (issues: {issue}13224[#13224], {issue}13717[#13717], {issue}7836[#7836])
+
+Similarities::
+* Defining a global default similarity {pull}16682[#16682] (issue: {issue}16594[#16594])
+
+Stats::
+* Normalize unavailable load average {pull}16061[#16061] (issues: {issue}12049[#12049], {issue}14741[#14741], {issue}15907[#15907], {issue}15932[#15932], {issue}15934[#15934])
+* Add load averages to OS stats on FreeBSD {pull}15934[#15934] (issue: {issue}15917[#15917])
+* Expose pending cluster state queue size in node stats {pull}14040[#14040] (issue: {issue}13610[#13610])
+
+Store::
+* Remove support for legacy checksums {pull}16931[#16931]
+* Rename index folder to index_uuid {pull}16442[#16442] (issues: {issue}13264[#13264], {issue}13265[#13265], {issue}14512[#14512], {issue}14932[#14932], {issue}15853[#15853])
+
+Task Manager::
+* Add ability to group tasks by common parent {pull}17341[#17341]
+* Add start time and duration to tasks {pull}16829[#16829]
+* Combine node name and task id into single string task id {pull}16744[#16744]
+* Add task status {pull}16356[#16356] (issue: {issue}16344[#16344])
+* Extend tracking of parent tasks to master node, replication and broadcast actions {pull}15931[#15931]
+
+Translog::
+* Remove ChannelReference and simplify Views {pull}15898[#15898]
+* Simplify TranslogWriter to always write to a stream {pull}15771[#15771]
+* Remove TranslogService and fold it into synchronous IndexShard API {pull}13707[#13707]
+
+
+
+[[bug-5.0.0-alpha1]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fixes the defaults for `keyed` in the percentiles aggregations {pull}17217[#17217]
+* Correct typo in class name of StatsAggregator {pull}15264[#15264] (issue: {issue}14730[#14730])
+
+Allocation::
+* Replica shards must be failed before primary shards {pull}15686[#15686]
+
+CRUD::
+* Prevent TransportReplicationAction to route request based on stale local routing table {pull}16274[#16274] (issues: {issue}12573[#12573], {issue}12574[#12574])
+* Resolves the conflict between alias routing and parent routing by applying the alias routing and ignoring the parent routing. {pull}15371[#15371] (issue: {issue}3068[#3068])
+
+Cluster::
+* Shard state action channel exceptions {pull}16057[#16057] (issue: {issue}15748[#15748])
+
+Core::
+* Handle RejectedExecution gracefully in TransportService during shutdown {pull}16965[#16965]
+
+Geo::
+* Fix multi-field support for GeoPoint types {pull}15702[#15702] (issue: {issue}15701[#15701])
+* Enforce distance in distance query is > 0 [ISSUE] {pull}15135[#15135]
+
+Ingest::
+* Handle regex parsing errors in Gsub and Grok Processors {pull}17260[#17260]
+* add on_failure exception metadata to ingest document for verbose simulate {pull}16562[#16562]
+* The IngestDocument copy constructor should make a deep copy {pull}16248[#16248] (issue: {issue}16246[#16246])
+
+Internal::
+* Enable unmap hack for java 9 {pull}16986[#16986] (issue: {issue}1[#1])
+* Fix issues with failed cache loads {pull}14315[#14315]
+* Allow parser to move on the START_OBJECT token when parsing search source {pull}14145[#14145]
+* Ensure searcher is release if wrapping fails {pull}14107[#14107]
+* Avoid deadlocks in Cache#computeIfAbsent {pull}14091[#14091] (issue: {issue}14090[#14090])
+
+Java API::
+* Fix potential NPE in SearchSourceBuilder {pull}16905[#16905] (issue: {issue}16902[#16902])
+
+Mapping::
+* Make dynamic template parsing less lenient. {pull}17249[#17249]
+* Fix dynamic mapper when its parent already has an update {pull}17065[#17065]
+* Fix copy_to when the target is a dynamic object field. {pull}15216[#15216] (issues: {issue}111237[#111237], {issue}11237[#11237])
+* Preserve existing mappings on batch mapping updates {pull}15130[#15130] (issues: {issue}14899[#14899], {issue}15129[#15129])
+
+Packaging::
+* Set MAX_OPEN_FILES to 65536 {pull}17431[#17431] (issue: {issue}17430[#17430])
+* [windows] Service command still had positional start command {pull}17391[#17391]
+* Do not pass double-dash arguments on startup {pull}17087[#17087] (issue: {issue}17084[#17084])
+
+Percolator::
+* Let PercolatorQuery's explain use the two phase iterator {pull}17315[#17315] (issue: {issue}17314[#17314])
+
+Plugin Store SMB::
+* Fix calling ensureOpen() on the wrong directory (master forwardport) {pull}16395[#16395] (issue: {issue}16383[#16383])
+
+Plugins::
+* CliTool: Messages printed in Terminal should have percent char escaped {pull}16367[#16367]
+
+Query DSL::
+* Resolve string dates and date math to millis before evaluating for rewrite in range query {pull}17239[#17239]
+* `constant_score` query should throw error on more than one filter {pull}17135[#17135] (issue: {issue}17126[#17126])
+* Single IPv4 addresses in IP field term queries {pull}16068[#16068] (issue: {issue}16058[#16058])
+* Make strategy optional in GeoShapeQueryBuilder readFrom and writeTo {pull}13963[#13963]
+
+Query Refactoring::
+* Query refactoring: set has_parent & has_child types context properly {pull}13863[#13863]
+* Make sure equivalent geohashCellQueries are equal after toQuery called {pull}13792[#13792]
+
+Recovery::
+* Invoke `IndexingOperationListeners` also when recovering from store or remote {pull}17406[#17406]
+* Prevent interruption while store checks lucene files for consistency {pull}16308[#16308]
+* Mark shard as recovering on the cluster state thread {pull}14276[#14276] (issues: {issue}13766[#13766], {issue}14115[#14115])
+
+Search::
+* Fix for search after {pull}16271[#16271]
+* Do not be lenient when parsing CIDRs {pull}14874[#14874] (issue: {issue}14862[#14862])
+
+Settings::
+* Register bootstrap settings {pull}16513[#16513]
+* Add settings filtering to node info requests {pull}16445[#16445]
+* Ban write access to system properties {pull}14914[#14914]
+
+Task Manager::
+* Take filterNodeIds into consideration while sending task requests to nodes {pull}17081[#17081]
+
+Translog::
+* Move translog recover outside of the engine {pull}17422[#17422]
+* Mark shard active during recovery; push settings after engine finally inits {pull}16250[#16250] (issues: {issue}14121[#14121], {issue}16209[#16209])
+
+
+
+[[upgrade-5.0.0-alpha1]]
+[float]
+=== Upgrades
+
+Core::
+* Upgrade to lucene-6.0.0-f0aa4fc. {pull}17075[#17075]
+* upgrade to lucene 6.0.0-snapshot-bea235f {pull}16964[#16964]
+* Upgrade to Jackson 2.7.1 {pull}16801[#16801] (issue: {issue}16294[#16294])
+
+Ingest::
+* Update MaxMind geoip2 version to 2.6 {pull}16837[#16837] (issue: {issue}16801[#16801])
+
+Internal::
+* Bump master (3.0-snapshot) to java 8 {pull}13314[#13314]
+
+Search Templates::
+* Update mustache.java to version 0.9.1 {pull}14053[#14053] (issue: {issue}13224[#13224])
+

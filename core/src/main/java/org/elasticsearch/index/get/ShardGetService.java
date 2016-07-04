@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
@@ -49,6 +50,7 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.search.fetch.parent.ParentFieldSubFetchPhase;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -72,9 +74,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     private final CounterMetric currentMetric = new CounterMetric();
     private final IndexShard indexShard;
 
-    public ShardGetService(IndexShard indexShard,
+    public ShardGetService(IndexSettings indexSettings, IndexShard indexShard,
                            MapperService mapperService) {
-        super(indexShard.shardId(), indexShard.indexSettings());
+        super(indexShard.shardId(), indexSettings);
         this.mapperService = mapperService;
         this.indexShard = indexShard;
     }
@@ -108,21 +110,16 @@ public final class ShardGetService extends AbstractIndexShardComponent {
      * <p>
      * Note: Call <b>must</b> release engine searcher associated with engineGetResult!
      */
-    public GetResult get(Engine.GetResult engineGetResult, String id, String type, String[] fields, FetchSourceContext fetchSourceContext, boolean ignoreErrorsOnGeneratedFields) {
+    public GetResult get(Engine.GetResult engineGetResult, String id, String type, String[] fields, FetchSourceContext fetchSourceContext) {
         if (!engineGetResult.exists()) {
-            return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
+            return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
         }
 
         currentMetric.inc();
         try {
             long now = System.nanoTime();
-            DocumentMapper docMapper = mapperService.documentMapper(type);
-            if (docMapper == null) {
-                missingMetric.inc(System.nanoTime() - now);
-                return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
-            }
             fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, fields);
-            GetResult getResult = innerGetLoadFromStoredFields(type, id, fields, fetchSourceContext, engineGetResult, docMapper, ignoreErrorsOnGeneratedFields);
+            GetResult getResult = innerGetLoadFromStoredFields(type, id, fields, fetchSourceContext, engineGetResult, mapperService);
             if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
             } else {
@@ -168,31 +165,25 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 }
             }
             if (get == null) {
-                return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
+                return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
             }
             if (!get.exists()) {
                 // no need to release here as well..., we release in the for loop for non exists
-                return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
+                return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
             }
         } else {
             get = indexShard.get(new Engine.Get(realtime, new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(type, id)))
                     .version(version).versionType(versionType));
             if (!get.exists()) {
                 get.release();
-                return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
+                return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
             }
-        }
-
-        DocumentMapper docMapper = mapperService.documentMapper(type);
-        if (docMapper == null) {
-            get.release();
-            return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
         }
 
         try {
             // break between having loaded it from translog (so we only have _source), and having a document to load
             if (get.docIdAndVersion() != null) {
-                return innerGetLoadFromStoredFields(type, id, gFields, fetchSourceContext, get, docMapper, ignoreErrorsOnGeneratedFields);
+                return innerGetLoadFromStoredFields(type, id, gFields, fetchSourceContext, get, mapperService);
             } else {
                 Translog.Source source = get.source();
 
@@ -203,6 +194,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 Set<String> neededFields = new HashSet<>();
                 // add meta fields
                 neededFields.add(RoutingFieldMapper.NAME);
+                DocumentMapper docMapper = mapperService.documentMapper(type);
                 if (docMapper.parentFieldMapper().active()) {
                     neededFields.add(ParentFieldMapper.NAME);
                 }
@@ -248,9 +240,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                         } else if (shouldGetFromSource(ignoreErrorsOnGeneratedFields, docMapper, fieldMapper)) {
                             List<Object> values = searchLookup.source().extractRawValues(field);
                             if (!values.isEmpty()) {
-                                for (int i = 0; i < values.size(); i++) {
-                                    values.set(i, fieldMapper.fieldType().valueForSearch(values.get(i)));
-                                }
                                 value = values;
                             }
 
@@ -281,14 +270,11 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
                     boolean sourceFieldFiltering = sourceFieldMapper.includes().length > 0 || sourceFieldMapper.excludes().length > 0;
                     boolean sourceFetchFiltering = fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0;
-                    if (fetchSourceContext.transformSource() || sourceFieldFiltering || sourceFetchFiltering) {
+                    if (sourceFieldFiltering || sourceFetchFiltering) {
                         // TODO: The source might parsed and available in the sourceLookup but that one uses unordered maps so different. Do we care?
                         Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source.source, true);
                         XContentType sourceContentType = typeMapTuple.v1();
                         Map<String, Object> sourceAsMap = typeMapTuple.v2();
-                        if (fetchSourceContext.transformSource()) {
-                            sourceAsMap = docMapper.transformSourceAsMap(sourceAsMap);
-                        }
                         if (sourceFieldFiltering) {
                             sourceAsMap = XContentMapValues.filter(sourceAsMap, sourceFieldMapper.includes(), sourceFieldMapper.excludes());
                         }
@@ -303,7 +289,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                     }
                 }
 
-                return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), sourceToBeReturned, fields);
+                return new GetResult(shardId.getIndexName(), type, id, get.version(), get.exists(), sourceToBeReturned, fields);
             }
         } finally {
             get.release();
@@ -330,7 +316,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
     }
 
-    private GetResult innerGetLoadFromStoredFields(String type, String id, String[] gFields, FetchSourceContext fetchSourceContext, Engine.GetResult get, DocumentMapper docMapper, boolean ignoreErrorsOnGeneratedFields) {
+    private GetResult innerGetLoadFromStoredFields(String type, String id, String[] gFields, FetchSourceContext fetchSourceContext, Engine.GetResult get, MapperService mapperService) {
         Map<String, GetField> fields = null;
         BytesReference source = null;
         Versions.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
@@ -344,12 +330,21 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             source = fieldVisitor.source();
 
             if (!fieldVisitor.fields().isEmpty()) {
-                fieldVisitor.postProcess(docMapper);
+                fieldVisitor.postProcess(mapperService);
                 fields = new HashMap<>(fieldVisitor.fields().size());
                 for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {
                     fields.put(entry.getKey(), new GetField(entry.getKey(), entry.getValue()));
                 }
             }
+        }
+
+        DocumentMapper docMapper = mapperService.documentMapper(type);
+        if (docMapper.parentFieldMapper().active()) {
+            String parentId = ParentFieldSubFetchPhase.getParentId(docMapper.parentFieldMapper(), docIdAndVersion.context.reader(), docIdAndVersion.docId);
+            if (fields == null) {
+                fields = new HashMap<>(1);
+            }
+            fields.put(ParentFieldMapper.NAME, new GetField(ParentFieldMapper.NAME, Collections.singletonList(parentId)));
         }
 
         // now, go and do the script thingy if needed
@@ -396,16 +391,13 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         if (!fetchSourceContext.fetchSource()) {
             source = null;
-        } else if (fetchSourceContext.transformSource() || fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
+        } else if (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
             Map<String, Object> sourceAsMap;
             XContentType sourceContentType = null;
             // TODO: The source might parsed and available in the sourceLookup but that one uses unordered maps so different. Do we care?
             Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source, true);
             sourceContentType = typeMapTuple.v1();
             sourceAsMap = typeMapTuple.v2();
-            if (fetchSourceContext.transformSource()) {
-                sourceAsMap = docMapper.transformSourceAsMap(sourceAsMap);
-            }
             sourceAsMap = XContentMapValues.filter(sourceAsMap, fetchSourceContext.includes(), fetchSourceContext.excludes());
             try {
                 source = XContentFactory.contentBuilder(sourceContentType).map(sourceAsMap).bytes();
@@ -414,7 +406,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
         }
 
-        return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), source, fields);
+        return new GetResult(shardId.getIndexName(), type, id, get.version(), get.exists(), source, fields);
     }
 
     private static FieldsVisitor buildFieldsVisitors(String[] fields, FetchSourceContext fetchSourceContext) {

@@ -27,7 +27,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineConfig;
 
 import java.io.IOException;
 
@@ -54,13 +53,11 @@ public class IndexSearcherWrapper {
     }
 
     /**
-     * @param engineConfig  The engine config which can be used to get the query cache and query cache policy from
-     *                      when creating a new index searcher
      * @param searcher      The provided index searcher to be wrapped to add custom functionality
      * @return a new index searcher wrapping the provided index searcher or if no wrapping was performed
      *         the provided index searcher
      */
-    protected IndexSearcher wrap(EngineConfig engineConfig, IndexSearcher searcher) throws IOException {
+    protected IndexSearcher wrap(IndexSearcher searcher) throws IOException {
         return searcher;
     }
     /**
@@ -69,7 +66,7 @@ public class IndexSearcherWrapper {
      *
      * This is invoked each time a {@link Engine.Searcher} is requested to do an operation. (for example search)
      */
-    public final Engine.Searcher wrap(EngineConfig engineConfig, Engine.Searcher engineSearcher) throws IOException {
+    public final Engine.Searcher wrap(Engine.Searcher engineSearcher) throws IOException {
         final ElasticsearchDirectoryReader elasticsearchDirectoryReader = ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(engineSearcher.getDirectoryReader());
         if (elasticsearchDirectoryReader == null) {
             throw new IllegalStateException("Can't wrap non elasticsearch directory reader");
@@ -87,14 +84,15 @@ public class IndexSearcherWrapper {
             }
         }
 
+        final IndexSearcher origIndexSearcher = engineSearcher.searcher();
         final IndexSearcher innerIndexSearcher = new IndexSearcher(reader);
-        innerIndexSearcher.setQueryCache(engineConfig.getQueryCache());
-        innerIndexSearcher.setQueryCachingPolicy(engineConfig.getQueryCachingPolicy());
-        innerIndexSearcher.setSimilarity(engineConfig.getSimilarity());
+        innerIndexSearcher.setQueryCache(origIndexSearcher.getQueryCache());
+        innerIndexSearcher.setQueryCachingPolicy(origIndexSearcher.getQueryCachingPolicy());
+        innerIndexSearcher.setSimilarity(origIndexSearcher.getSimilarity(true));
         // TODO: Right now IndexSearcher isn't wrapper friendly, when it becomes wrapper friendly we should revise this extension point
         // For example if IndexSearcher#rewrite() is overwritten than also IndexSearcher#createNormalizedWeight needs to be overwritten
         // This needs to be fixed before we can allow the IndexSearcher from Engine to be wrapped multiple times
-        final IndexSearcher indexSearcher = wrap(engineConfig, innerIndexSearcher);
+        final IndexSearcher indexSearcher = wrap(innerIndexSearcher);
         if (reader == nonClosingReaderWrapper && indexSearcher == innerIndexSearcher) {
             return engineSearcher;
         } else {

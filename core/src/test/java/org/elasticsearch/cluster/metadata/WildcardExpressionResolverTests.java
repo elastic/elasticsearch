@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.Arrays;
 
@@ -32,8 +31,6 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.equalTo;
 
 public class WildcardExpressionResolverTests extends ESTestCase {
-
-    @Test
     public void testConvertWildcardsJustIndicesTests() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("testXXX"))
@@ -50,9 +47,10 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("test*"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testX*"))), equalTo(newHashSet("testXXX", "testXYY")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testX*", "kuku"))), equalTo(newHashSet("testXXX", "testXYY", "kuku")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("*"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY", "kuku")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("*", "-kuku"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
     }
 
-    @Test
     public void testConvertWildcardsTests() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("testXXX").putAlias(AliasMetaData.builder("alias1")).putAlias(AliasMetaData.builder("alias2")))
@@ -63,14 +61,13 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
 
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testYY*", "alias*"))), equalTo(newHashSet("alias1", "alias2", "alias3", "testYYY")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testYY*", "alias*"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("-kuku"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("+test*", "-testYYY"))), equalTo(newHashSet("testXXX", "testXYY")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("+testX*", "+testYYY"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("+testYYY", "+testX*"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
     }
 
-    @Test
     public void testConvertWildcardsOpenClosedIndicesTests() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("testXXX").state(IndexMetaData.State.OPEN))
@@ -110,6 +107,18 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("*Y*"))), equalTo(newHashSet("testXXY", "testXYY", "testYYY", "kukuYYY")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("test*Y*X"))).size(), equalTo(0));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("*Y*X"))).size(), equalTo(0));
+    }
+
+    public void testAll() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+            .put(indexBuilder("testXXX"))
+            .put(indexBuilder("testXYY"))
+            .put(indexBuilder("testYYY"));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
+
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("_all"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
     }
 
     private IndexMetaData.Builder indexBuilder(String index) {

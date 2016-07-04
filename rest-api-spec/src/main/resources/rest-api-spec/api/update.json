@@ -41,8 +41,9 @@
           "description": "ID of the parent document. Is is only used for routing and when for the upsert request"
         },
         "refresh": {
-          "type": "boolean",
-          "description": "Refresh the index after performing the operation"
+          "type" : "enum",
+          "options": ["true", "false", "wait_for"],
+          "description" : "If `true` then refresh the effected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` (the default) then do nothing with refreshes."
         },
         "retry_on_conflict": {
           "type": "number",
@@ -82,10 +83,6 @@
           "type": "enum",
           "options": ["internal", "force"],
           "description": "Specific version type"
-        },
-        "detect_noop": {
-          "type": "boolean",
-          "description": "Specifying as true will cause Elasticsearch to check if there are changes and, if there aren’t, turn the update request into a noop."
         }
       }
     },

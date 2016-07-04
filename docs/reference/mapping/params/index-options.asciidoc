@@ -29,7 +29,7 @@ following settings:
     Offsets are used by the <<postings-highlighter,postings highlighter>>.
 
 <<mapping-index,Analyzed>> string fields use `positions` as the default, and
-<<all other fields use `docs` as the default.
+all other fields use `docs` as the default.
 
 [source,js]
 --------------------------------------------------
@@ -39,7 +39,7 @@ PUT my_index
     "my_type": {
       "properties": {
         "text": {
-          "type": "string",
+          "type": "text",
           "index_options": "offsets"
         }
       }
@@ -66,5 +66,5 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `text` field will use the postings highlighter by default because `offsets` are indexed.

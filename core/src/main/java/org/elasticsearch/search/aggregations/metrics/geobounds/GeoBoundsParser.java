@@ -19,52 +19,43 @@
 
 package org.elasticsearch.search.aggregations.metrics.geobounds;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.GeoPointValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.GeoPoint;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.util.Map;
 
-public class GeoBoundsParser implements Aggregator.Parser {
+public class GeoBoundsParser extends GeoPointValuesSourceParser {
 
-    @Override
-    public String type() {
-        return InternalGeoBounds.TYPE.name();
+    public GeoBoundsParser() {
+        super(false, false);
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
-        ValuesSourceParser<GeoPoint> vsParser = ValuesSourceParser.geoPoint(aggregationName, InternalGeoBounds.TYPE, context)
-                .targetValueType(ValueType.GEOPOINT)
-                .formattable(true)
-                .build();
-        boolean wrapLongitude = true;
-        XContentParser.Token token;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (vsParser.token(currentFieldName, token, parser)) {
-                continue;
-                
-            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                if ("wrap_longitude".equals(currentFieldName) || "wrapLongitude".equals(currentFieldName)) {
-                    wrapLongitude = parser.booleanValue();
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
-                }
-            } else {
-                throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: ["
-                        + currentFieldName + "].", parser.getTokenLocation());
+    protected GeoBoundsAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                        ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        GeoBoundsAggregationBuilder factory = new GeoBoundsAggregationBuilder(aggregationName);
+        Boolean wrapLongitude = (Boolean) otherOptions.get(GeoBoundsAggregator.WRAP_LONGITUDE_FIELD);
+        if (wrapLongitude != null) {
+            factory.wrapLongitude(wrapLongitude);
+        }
+        return factory;
+    }
+
+    @Override
+    protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
+            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+        if (token == XContentParser.Token.VALUE_BOOLEAN) {
+            if (parseFieldMatcher.match(currentFieldName, GeoBoundsAggregator.WRAP_LONGITUDE_FIELD)) {
+                otherOptions.put(GeoBoundsAggregator.WRAP_LONGITUDE_FIELD, parser.booleanValue());
+                return true;
             }
         }
-        return new GeoBoundsAggregator.Factory(aggregationName, vsParser.config(), wrapLongitude);
+        return false;
     }
-
 }

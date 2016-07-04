@@ -1,0 +1,59 @@
+[[breaking_50_allocation]]
+=== Allocation changes
+
+==== Primary shard allocation
+
+Previously, primary shards were only assigned if a quorum of shard copies were
+found (configurable using `index.recovery.initial_shards`, now deprecated). In
+case where a primary had only a single replica, quorum was defined to be a
+single shard. This meant that any shard copy of an index with replication
+factor 1 could become primary, even it was a stale copy of the data on disk.
+This is now fixed thanks to shard allocation IDs.
+
+Allocation IDs assign unique identifiers to shard copies. This allows the
+cluster to differentiate between multiple copies of the same data and track
+which shards have been active so that, after a cluster restart, only shard
+copies containing the most recent data can become primaries.
+
+==== Indices Shard Stores command
+
+By using allocation IDs instead of version numbers to identify shard copies
+for primary shard allocation, the former versioning scheme has become
+obsolete. This is reflected in the
+<<indices-shards-stores,Indices Shard Stores API>>.
+
+A new `allocation_id` field replaces the former `version` field in the result
+of the Indices Shard Stores command. This field is available for all shard
+copies that have been either created with the current version of Elasticsearch
+or have been active in a cluster running a current version of Elasticsearch.
+For legacy shard copies that have not been active in a current version of
+Elasticsearch, a `legacy_version` field is available instead (equivalent to
+the former `version` field).
+
+==== Reroute commands
+
+The reroute command `allocate` has been split into two distinct commands
+`allocate_replica` and `allocate_empty_primary`. This was done as we
+introduced a new `allocate_stale_primary` command. The new `allocate_replica`
+command corresponds to the old `allocate` command  with `allow_primary` set to
+false. The new `allocate_empty_primary` command corresponds to the old
+`allocate` command with `allow_primary` set to true.
+
+==== Custom Reroute Commands
+
+Elasticsearch no longer supports plugins registering custom allocation
+commands. It was unused and hopefully unneeded.
+
+==== `index.shared_filesystem.recover_on_any_node` changes
+
+The behavior of `index.shared_filesystem.recover_on_any_node: true` has been
+changed. Previously, in the case where no shard copies could be found, an
+arbitrary node was chosen by potentially ignoring allocation deciders. Now, we
+take balancing into account but don't assign the shard if the allocation
+deciders are not satisfied.
+
+The behavior has also changed in the case where shard copies can be found.
+Previously, a node not holding the shard copy was chosen if none of the nodes
+holding shard copies were satisfying the allocation deciders. Now, the shard
+will be assigned to a node having a shard copy, even if none of the nodes
+holding a shard copy satisfy the allocation deciders.

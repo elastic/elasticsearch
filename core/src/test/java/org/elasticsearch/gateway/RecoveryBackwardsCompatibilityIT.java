@@ -19,8 +19,8 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESBackcompatTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.HashMap;
 
@@ -40,13 +39,10 @@ import static org.hamcrest.Matchers.greaterThan;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST, numClientNodes = 0, transportClientRatio = 0.0)
 public class RecoveryBackwardsCompatibilityIT extends ESBackcompatTestCase {
-
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("action.admin.cluster.node.shutdown.delay", "10ms")
                 .put("gateway.recover_after_nodes", 2).build();
     }
 
@@ -60,11 +56,10 @@ public class RecoveryBackwardsCompatibilityIT extends ESBackcompatTestCase {
         return 3;
     }
 
-    @Test
     public void testReusePeerRecovery() throws Exception {
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(indexSettings())
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)));
+                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)));
         logger.info("--> indexing docs");
         int numDocs = scaledRandomIntBetween(100, 1000);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
@@ -83,15 +78,15 @@ public class RecoveryBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
         logger.info("--> upgrade cluster");
         logClusterState();
-        CountResponse countResponse = client().prepareCount().get();
+        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
 
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")).execute().actionGet();
         backwardsCluster().upgradeAllNodes();
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "all")).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all")).execute().actionGet();
         ensureGreen();
 
-        countResponse = client().prepareCount().get();
+        countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
 
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").setDetailed(true).get();
@@ -102,8 +97,8 @@ public class RecoveryBackwardsCompatibilityIT extends ESBackcompatTestCase {
             final String recoverStateAsJSON = XContentHelper.toString(recoveryState, params);
             if (!recoveryState.getPrimary()) {
                 RecoveryState.Index index = recoveryState.getIndex();
-                assertThat(recoverStateAsJSON, index.recoveredBytes(), equalTo(0l));
-                assertThat(recoverStateAsJSON, index.reusedBytes(), greaterThan(0l));
+                assertThat(recoverStateAsJSON, index.recoveredBytes(), equalTo(0L));
+                assertThat(recoverStateAsJSON, index.reusedBytes(), greaterThan(0L));
                 assertThat(recoverStateAsJSON, index.reusedBytes(), equalTo(index.totalBytes()));
                 assertThat(recoverStateAsJSON, index.recoveredFileCount(), equalTo(0));
                 assertThat(recoverStateAsJSON, index.reusedFileCount(), equalTo(index.totalFileCount()));

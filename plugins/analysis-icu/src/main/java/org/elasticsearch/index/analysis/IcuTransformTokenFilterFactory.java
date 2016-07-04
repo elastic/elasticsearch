@@ -22,24 +22,21 @@ package org.elasticsearch.index.analysis;
 import com.ibm.icu.text.Transliterator;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.icu.ICUTransformFilter;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 
 
 /**
  */
-public class IcuTransformTokenFilterFactory extends AbstractTokenFilterFactory {
+public class IcuTransformTokenFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
     private final String id;
     private final int dir;
     private final Transliterator transliterator;
 
-    @Inject
-    public IcuTransformTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public IcuTransformTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+        super(indexSettings, name, settings);
         this.id = settings.get("id", "Null");
         String s = settings.get("dir", "forward");
         this.dir = "forward".equals(s) ? Transliterator.FORWARD : Transliterator.REVERSE;
@@ -49,5 +46,10 @@ public class IcuTransformTokenFilterFactory extends AbstractTokenFilterFactory {
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new ICUTransformFilter(tokenStream, transliterator);
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
     }
 }

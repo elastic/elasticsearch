@@ -15,6 +15,7 @@
                     ip                               .+   \n
                     id                               .+   \n
                     node                             .+   \n
+                    sync_id                          .+   \n
                     unassigned.reason                .+   \n
                     unassigned.at                    .+   \n
                     unassigned.for                   .+   \n
@@ -47,11 +48,6 @@
                     merges.total_docs                .+   \n
                     merges.total_size                .+   \n
                     merges.total_time                .+   \n
-                    percolate.current                .+   \n
-                    percolate.memory_size            .+   \n
-                    percolate.queries                .+   \n
-                    percolate.time                   .+   \n
-                    percolate.total                  .+   \n
                     refresh.total                    .+   \n
                     refresh.time                     .+   \n
                     search.fetch_current             .+   \n
@@ -67,7 +63,6 @@
                     segments.count                   .+   \n
                     segments.memory                  .+   \n
                     segments.index_writer_memory     .+   \n
-                    segments.index_writer_max_memory .+   \n
                     segments.version_map_memory      .+   \n
                     segments.fixed_bitset_memory     .+   \n
                     warmer.current                   .+   \n
@@ -83,6 +78,59 @@
   - match:
       $body: |
                /^$/
+
+  - do:
+      indices.create:
+        index: sync_id_test
+        body:
+          settings:
+            number_of_shards: 5
+            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+  - do:
+      indices.flush_synced:
+        index: sync_id_test
+
+  - is_false: _shards.failed
+
+  - do:
+      cat.shards:
+        index: sync_id_test
+        h: index,state,sync_id
+  - match:
+      $body: |
+               /^(sync_id_test\s+STARTED\s+[A-Za-z0-9_\-]{20}\n){5}$/
+
+  - do:
+      indices.delete:
+        index: sync_id_test
+
+  - do:
+      indices.create:
+        index: sync_id_no_flush_test
+        body:
+          settings:
+            number_of_shards: 5
+            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      cat.shards:
+        index: sync_id_no_flush_test
+        h: index,state,sync_id
+  - match:
+      $body: |
+               /^(sync_id_no_flush_test\s+STARTED\s+\n){5}$/
+
+  - do:
+      indices.delete:
+        index: sync_id_no_flush_test
 
   - do:
       indices.create:

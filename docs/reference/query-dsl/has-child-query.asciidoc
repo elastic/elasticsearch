@@ -7,23 +7,27 @@ an example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "has_child" : {
-        "type" : "blog_tag",
-        "query" : {
-            "term" : {
-                "tag" : "something"
-            }
+    "query": {
+        "has_child" : {
+            "type" : "blog_tag",
+                "query" : {
+                    "term" : {
+                        "tag" : "something"
+                    }
+                }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ==== Scoring capabilities
 
 The `has_child` also has scoring support. The
-supported score modes are `min`, `max`, `total`, `avg` or `none`. The default is
+supported score modes are `min`, `max`, `sum`, `avg` or `none`. The default is
 `none` and yields the same behaviour as in previous versions. If the
 score mode is set to another value than `none`, the scores of all the
 matching child documents are aggregated into the associated parent
@@ -32,18 +36,22 @@ inside the `has_child` query:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "has_child" : {
-        "type" : "blog_tag",
-        "score_mode" : "sum",
-        "query" : {
-            "term" : {
-                "tag" : "something"
-            }
+    "query": {
+        "has_child" : {
+            "type" : "blog_tag",
+                "score_mode" : "min",
+                "query" : {
+                    "term" : {
+                        "tag" : "something"
+                    }
+                }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ==== Min/Max Children
@@ -54,21 +62,34 @@ a match:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "has_child" : {
-        "type" : "blog_tag",
-        "score_mode" : "sum",
-        "min_children": 2, <1>
-        "max_children": 10, <1>
-        "query" : {
-            "term" : {
-                "tag" : "something"
+    "query": {
+        "has_child" : {
+            "type" : "blog_tag",
+            "score_mode" : "min",
+            "min_children": 2, <1>
+            "max_children": 10, <1>
+            "query" : {
+                "term" : {
+                    "tag" : "something"
+                }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 <1> Both `min_children` and `max_children` are optional.
 
 The  `min_children` and `max_children` parameters can be combined with
 the `score_mode` parameter.
+
+[float]
+==== Ignore Unmapped
+
+When set to `true` the `ignore_unmapped` option will ignore an unmapped `type`
+and will not match any documents for this query. This can be useful when
+querying multiple indexes which might have different mappings. When set to
+`false` (the default value) the query will throw an exception if the `type`
+is not mapped.

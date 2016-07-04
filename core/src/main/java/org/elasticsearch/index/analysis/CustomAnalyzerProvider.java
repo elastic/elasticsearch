@@ -20,12 +20,9 @@
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,10 +37,9 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
 
     private CustomAnalyzer customAnalyzer;
 
-    @Inject
-    public CustomAnalyzerProvider(Index index, @IndexSettings Settings indexSettings,
-                                  @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public CustomAnalyzerProvider(IndexSettings indexSettings,
+                                  String name, Settings settings) {
+        super(indexSettings, name, settings);
         this.analyzerSettings = settings;
     }
 
@@ -78,10 +74,10 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
             tokenFilters.add(tokenFilter);
         }
 
-        int positionIncrementGap = StringFieldMapper.Defaults.positionIncrementGap(Version.indexCreated(indexSettings));
+        int positionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
 
         if (analyzerSettings.getAsMap().containsKey("position_offset_gap")){
-            if (Version.indexCreated(indexSettings).before(Version.V_2_0_0)){
+            if (indexSettings.getIndexVersionCreated().before(Version.V_2_0_0)){
                 if (analyzerSettings.getAsMap().containsKey("position_increment_gap")){
                     throw new IllegalArgumentException("Custom Analyzer [" + name() +
                             "] defined both [position_offset_gap] and [position_increment_gap], use only [position_increment_gap]");

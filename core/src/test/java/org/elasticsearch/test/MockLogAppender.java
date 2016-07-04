@@ -34,7 +34,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
  */
 public class MockLogAppender extends AppenderSkeleton {
 
-    private final static String COMMON_PREFIX = System.getProperty("es.logger.prefix", "org.elasticsearch.");
+    private static final String COMMON_PREFIX = System.getProperty("es.logger.prefix", "org.elasticsearch.");
 
     private List<LoggingExpectation> expectations;
 
@@ -75,12 +75,12 @@ public class MockLogAppender extends AppenderSkeleton {
         void assertMatched();
     }
 
-    public static abstract class AbstractEventExpectation implements LoggingExpectation {
+    public abstract static class AbstractEventExpectation implements LoggingExpectation {
         protected final String name;
         protected final String logger;
         protected final Level level;
         protected final String message;
-        protected boolean saw;
+        volatile boolean saw;
 
         public AbstractEventExpectation(String name, String logger, Level level, String message) {
             this.name = name;

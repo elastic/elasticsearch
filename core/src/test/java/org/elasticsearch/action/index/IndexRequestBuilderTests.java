@@ -23,11 +23,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.NoOpClient;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpClient;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.util.HashMap;
@@ -55,7 +54,6 @@ public class IndexRequestBuilderTests extends ESTestCase {
     /**
      * test setting the source for the request with different available setters
      */
-    @Test
     public void testSetSource() throws Exception {
         IndexRequestBuilder indexRequestBuilder = new IndexRequestBuilder(this.testClient, IndexAction.INSTANCE);
         Map<String, String> source = new HashMap<>();

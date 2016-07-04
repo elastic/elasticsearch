@@ -18,98 +18,76 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
+import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
  */
-public class RangeParser implements Aggregator.Parser {
+public class RangeParser extends NumericValuesSourceParser {
 
-    @Override
-    public String type() {
-        return InternalRange.TYPE.name();
+    public RangeParser() {
+        this(true, true, false);
+    }
+
+    /**
+     * Used by subclasses that parse slightly different kinds of ranges.
+     */
+    protected RangeParser(boolean scriptable, boolean formattable, boolean timezoneAware) {
+        super(scriptable, formattable, timezoneAware);
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
+    protected AbstractRangeBuilder<?, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        RangeAggregationBuilder factory = new RangeAggregationBuilder(aggregationName);
+        @SuppressWarnings("unchecked")
+        List<? extends Range> ranges = (List<? extends Range>) otherOptions.get(RangeAggregator.RANGES_FIELD);
+        for (Range range : ranges) {
+            factory.addRange(range);
+        }
+        Boolean keyed = (Boolean) otherOptions.get(RangeAggregator.KEYED_FIELD);
+        if (keyed != null) {
+            factory.keyed(keyed);
+        }
+        return factory;
+    }
 
-        List<RangeAggregator.Range> ranges = null;
-        boolean keyed = false;
-
-        ValuesSourceParser<ValuesSource.Numeric> vsParser = ValuesSourceParser.numeric(aggregationName, InternalRange.TYPE, context)
-                .formattable(true)
-                .build();
-
-        XContentParser.Token token;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (vsParser.token(currentFieldName, token, parser)) {
-                continue;
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("ranges".equals(currentFieldName)) {
-                    ranges = new ArrayList<>();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        double from = Double.NEGATIVE_INFINITY;
-                        String fromAsStr = null;
-                        double to = Double.POSITIVE_INFINITY;
-                        String toAsStr = null;
-                        String key = null;
-                        String toOrFromOrKey = null;
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            if (token == XContentParser.Token.FIELD_NAME) {
-                                toOrFromOrKey = parser.currentName();
-                            } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                                if ("from".equals(toOrFromOrKey)) {
-                                    from = parser.doubleValue();
-                                } else if ("to".equals(toOrFromOrKey)) {
-                                    to = parser.doubleValue();
-                                }
-                            } else if (token == XContentParser.Token.VALUE_STRING) {
-                                if ("from".equals(toOrFromOrKey)) {
-                                    fromAsStr = parser.text();
-                                } else if ("to".equals(toOrFromOrKey)) {
-                                    toAsStr = parser.text();
-                                } else if ("key".equals(toOrFromOrKey)) {
-                                    key = parser.text();
-                                }
-                            }
-                        }
-                        ranges.add(new RangeAggregator.Range(key, from, fromAsStr, to, toAsStr));
-                    }
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
+    @Override
+    protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
+            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+        if (token == XContentParser.Token.START_ARRAY) {
+            if (parseFieldMatcher.match(currentFieldName, RangeAggregator.RANGES_FIELD)) {
+                List<Range> ranges = new ArrayList<>();
+                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    Range range = parseRange(parser, parseFieldMatcher);
+                    ranges.add(range);
                 }
-            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                if ("keyed".equals(currentFieldName)) {
-                    keyed = parser.booleanValue();
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
-                }
-            } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
-                        parser.getTokenLocation());
+                otherOptions.put(RangeAggregator.RANGES_FIELD, ranges);
+                return true;
+            }
+        } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+            if (parseFieldMatcher.match(currentFieldName, RangeAggregator.KEYED_FIELD)) {
+                boolean keyed = parser.booleanValue();
+                otherOptions.put(RangeAggregator.KEYED_FIELD, keyed);
+                return true;
             }
         }
+        return false;
+    }
 
-        if (ranges == null) {
-            throw new SearchParseException(context, "Missing [ranges] in ranges aggregator [" + aggregationName + "]",
-                    parser.getTokenLocation());
-        }
-
-        return new RangeAggregator.Factory(aggregationName, vsParser.config(), InternalRange.FACTORY, ranges, keyed);
+    protected Range parseRange(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+        return Range.fromXContent(parser, parseFieldMatcher);
     }
 }

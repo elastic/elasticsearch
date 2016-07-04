@@ -19,22 +19,20 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
-import org.junit.Test;
 
 import java.util.Collection;
 import java.util.List;
@@ -53,11 +51,11 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.SuppressLocalMode
 public class TransportIndexFailuresIT extends ESIntegTestCase {
 
-    private static final Settings nodeSettings = Settings.settingsBuilder()
+    private static final Settings nodeSettings = Settings.builder()
             .put("discovery.type", "zen") // <-- To override the local setting if set externally
-            .put(FaultDetection.SETTING_PING_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
-            .put(FaultDetection.SETTING_PING_RETRIES, "1") // <-- for hitting simulated network failures quickly
-            .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
+            .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
+            .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1") // <-- for hitting simulated network failures quickly
+            .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
             .put("discovery.zen.minimum_master_nodes", 1)
             .build();
 
@@ -76,7 +74,6 @@ public class TransportIndexFailuresIT extends ESIntegTestCase {
         return 1;
     }
 
-    @Test
     public void testNetworkPartitionDuringReplicaIndexOp() throws Exception {
         final String INDEX = "testidx";
 
@@ -117,12 +114,12 @@ public class TransportIndexFailuresIT extends ESIntegTestCase {
         logger.info("--> preventing index/replica operations");
         TransportService mockTransportService = internalCluster().getInstance(TransportService.class, primaryNode);
         ((MockTransportService) mockTransportService).addFailToSendNoConnectRule(
-                internalCluster().getInstance(Discovery.class, replicaNode).localNode(),
+                internalCluster().getInstance(TransportService.class, replicaNode),
                 singleton(IndexAction.NAME + "[r]")
         );
         mockTransportService = internalCluster().getInstance(TransportService.class, replicaNode);
         ((MockTransportService) mockTransportService).addFailToSendNoConnectRule(
-                internalCluster().getInstance(Discovery.class, primaryNode).localNode(),
+                internalCluster().getInstance(TransportService.class, primaryNode),
                 singleton(IndexAction.NAME + "[r]")
         );
 

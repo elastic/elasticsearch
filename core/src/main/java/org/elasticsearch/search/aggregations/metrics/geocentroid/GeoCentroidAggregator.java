@@ -20,8 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics.geocentroid;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.XGeoHashUtils;
-import org.apache.lucene.util.XGeoUtils;
+import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
@@ -32,12 +31,9 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
-import org.elasticsearch.search.aggregations.metrics.geobounds.InternalGeoBounds;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.List;
@@ -86,9 +82,9 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
                     counts.increment(bucket, valueCount);
                     // get the previous GeoPoint if a moving avg was computed
                     if (prevCounts > 0) {
-                        final GeoPoint centroid = GeoPoint.fromIndexLong(centroids.get(bucket));
-                        pt[0] = centroid.lon();
-                        pt[1] = centroid.lat();
+                        final long mortonCode = centroids.get(bucket);
+                        pt[0] = GeoPointField.decodeLongitude(mortonCode);
+                        pt[1] = GeoPointField.decodeLatitude(mortonCode);
                     }
                     // update the moving average
                     for (int i = 0; i < valueCount; ++i) {
@@ -96,7 +92,9 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
                         pt[0] = pt[0] + (value.getLon() - pt[0]) / ++prevCounts;
                         pt[1] = pt[1] + (value.getLat() - pt[1]) / prevCounts;
                     }
-                    centroids.set(bucket, XGeoUtils.mortonHash(pt[0], pt[1]));
+                    // TODO: we do not need to interleave the lat and lon bits here
+                    // should we just store them contiguously?
+                    centroids.set(bucket, GeoPointField.encodeLatLon(pt[1], pt[0]));
                 }
             }
         };
@@ -108,37 +106,20 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
             return buildEmptyAggregation();
         }
         final long bucketCount = counts.get(bucket);
-        final GeoPoint bucketCentroid = (bucketCount > 0) ? GeoPoint.fromIndexLong(centroids.get(bucket)) :
-                new GeoPoint(Double.NaN, Double.NaN);
+        final long mortonCode = centroids.get(bucket);
+        final GeoPoint bucketCentroid = (bucketCount > 0)
+                ? new GeoPoint(GeoPointField.decodeLatitude(mortonCode), GeoPointField.decodeLongitude(mortonCode))
+                : null;
         return new InternalGeoCentroid(name, bucketCentroid , bucketCount, pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalGeoCentroid(name, null, 0l, pipelineAggregators(), metaData());
+        return new InternalGeoCentroid(name, null, 0L, pipelineAggregators(), metaData());
     }
 
     @Override
     public void doClose() {
         Releasables.close(centroids, counts);
-    }
-
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.GeoPoint> {
-        protected Factory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> config) {
-            super(name, InternalGeoBounds.TYPE.name(), config);
-        }
-
-        @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new GeoCentroidAggregator(name, aggregationContext, parent, null, pipelineAggregators, metaData);
-        }
-
-        @Override
-        protected Aggregator doCreateInternal(ValuesSource.GeoPoint valuesSource, AggregationContext aggregationContext, Aggregator parent,
-                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                throws IOException {
-            return new GeoCentroidAggregator(name, aggregationContext, parent, valuesSource, pipelineAggregators, metaData);
-        }
     }
 }

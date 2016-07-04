@@ -18,20 +18,19 @@
  */
 package org.elasticsearch.search.internal;
 
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Counter;
-import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.ArrayList;
@@ -44,11 +43,13 @@ public class SubSearchContext extends FilteredSearchContext {
 
     // By default return 3 hits per bucket. A higher default would make the response really large by default, since
     // the to hits are returned per bucket.
-    private final static int DEFAULT_SIZE = 3;
+    private static final int DEFAULT_SIZE = 3;
 
     private int from;
     private int size = DEFAULT_SIZE;
-    private Sort sort;
+    private SortAndFormats sort;
+    private ParsedQuery parsedQuery;
+    private Query query;
 
     private final FetchSearchResult fetchSearchResult;
     private final QuerySearchResult querySearchResult;
@@ -66,8 +67,6 @@ public class SubSearchContext extends FilteredSearchContext {
     private boolean trackScores;
     private boolean version;
 
-    private InnerHitsContext innerHitsContext;
-
     public SubSearchContext(SearchContext context) {
         super(context);
         this.fetchSearchResult = new FetchSearchResult();
@@ -83,12 +82,7 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public Filter searchFilter(String[] types) {
-        throw new UnsupportedOperationException("this context should be read only");
-    }
-
-    @Override
-    public SearchContext searchType(SearchType searchType) {
+    public Query searchFilter(String[] types) {
         throw new UnsupportedOperationException("this context should be read only");
     }
 
@@ -162,7 +156,7 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public void timeoutInMillis(long timeoutInMillis) {
+    public void timeout(TimeValue timeout) {
         throw new UnsupportedOperationException("Not supported");
     }
 
@@ -177,14 +171,33 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public SearchContext sort(Sort sort) {
+    public SearchContext sort(SortAndFormats sort) {
         this.sort = sort;
         return this;
     }
 
     @Override
-    public Sort sort() {
+    public SortAndFormats sort() {
         return sort;
+    }
+
+    @Override
+    public SearchContext parsedQuery(ParsedQuery parsedQuery) {
+        this.parsedQuery = parsedQuery;
+        if (parsedQuery != null) {
+            this.query = parsedQuery.query();
+        }
+        return this;
+    }
+
+    @Override
+    public ParsedQuery parsedQuery() {
+        return parsedQuery;
+    }
+
+    @Override
+    public Query query() {
+        return query;
     }
 
     @Override
@@ -326,13 +339,4 @@ public class SubSearchContext extends FilteredSearchContext {
         throw new UnsupportedOperationException("Not supported");
     }
 
-    @Override
-    public void innerHits(InnerHitsContext innerHitsContext) {
-        this.innerHitsContext = innerHitsContext;
-    }
-
-    @Override
-    public InnerHitsContext innerHits() {
-        return innerHitsContext;
-    }
 }

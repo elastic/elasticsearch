@@ -19,6 +19,8 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.settings.Settings;
+
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -30,7 +32,8 @@ import static java.util.Collections.unmodifiableSet;
 
 /**
  * Registry for operations that use scripts as part of their execution. Can be standard operations of custom defined ones (via plugin).
- * Allows plugins to register custom operations that they use scripts for, via {@link ScriptModule#registerScriptContext(org.elasticsearch.script.ScriptContext.Plugin)}.
+ * Allows plugins to register custom operations that they use scripts for,
+ * via {@link org.elasticsearch.plugins.ScriptPlugin}
  * Scripts can be enabled/disabled via fine-grained settings for each single registered operation.
  */
 public final class ScriptContextRegistry {

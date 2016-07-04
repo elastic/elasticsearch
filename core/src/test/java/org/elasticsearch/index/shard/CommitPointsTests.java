@@ -19,12 +19,11 @@
 
 package org.elasticsearch.index.shard;
 
-import java.nio.charset.StandardCharsets;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -34,10 +33,8 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class CommitPointsTests extends ESTestCase {
-
     private final ESLogger logger = Loggers.getLogger(CommitPointsTests.class);
 
-    @Test
     public void testCommitPointXContent() throws Exception {
         ArrayList<CommitPoint.FileInfo> indexFiles = new ArrayList<>();
         indexFiles.add(new CommitPoint.FileInfo("file1", "file1_p", 100, "ck1"));

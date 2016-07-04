@@ -19,19 +19,18 @@
 
 package org.elasticsearch.script.python;
 
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
-import org.junit.Test;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -41,17 +40,9 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class PythonScriptMultiThreadedTests extends ESTestCase {
 
-    @After
-    public void close() {
-        // We need to clear some system properties
-        System.clearProperty("python.cachedir.skip");
-        System.clearProperty("python.console.encoding");
-    }
-
-    @Test
     public void testExecutableNoRuntimeParams() throws Exception {
         final PythonScriptEngineService se = new PythonScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
-        final Object compiled = se.compile("x + y");
+        final Object compiled = se.compile(null, "x + y", Collections.emptyMap());
         final CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, "testExecutableNoRuntimeParams", "python", compiled);
         final AtomicBoolean failed = new AtomicBoolean();
 
@@ -64,8 +55,8 @@ public class PythonScriptMultiThreadedTests extends ESTestCase {
                 public void run() {
                     try {
                         barrier.await();
-                        long x = ThreadLocalRandom.current().nextInt();
-                        long y = ThreadLocalRandom.current().nextInt();
+                        long x = Randomness.get().nextInt();
+                        long y = Randomness.get().nextInt();
                         long addition = x + y;
                         Map<String, Object> vars = new HashMap<String, Object>();
                         vars.put("x", x);
@@ -75,9 +66,9 @@ public class PythonScriptMultiThreadedTests extends ESTestCase {
                             long result = ((Number) script.run()).longValue();
                             assertThat(result, equalTo(addition));
                         }
-                    } catch (Throwable t) {
+                    } catch (Exception e) {
                         failed.set(true);
-                        logger.error("failed", t);
+                        logger.error("failed", e);
                     } finally {
                         latch.countDown();
                     }
@@ -93,7 +84,7 @@ public class PythonScriptMultiThreadedTests extends ESTestCase {
     }
 
 
-//    @Test public void testExecutableWithRuntimeParams() throws Exception {
+//    public void testExecutableWithRuntimeParams() throws Exception {
 //        final PythonScriptEngineService se = new PythonScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
 //        final Object compiled = se.compile("x + y");
 //        final AtomicBoolean failed = new AtomicBoolean();
@@ -106,21 +97,21 @@ public class PythonScriptMultiThreadedTests extends ESTestCase {
 //                @Override public void run() {
 //                    try {
 //                        barrier.await();
-//                        long x = ThreadLocalRandom.current().nextInt();
+//                        long x = Randomness.get().nextInt();
 //                        Map<String, Object> vars = new HashMap<String, Object>();
 //                        vars.put("x", x);
 //                        ExecutableScript script = se.executable(compiled, vars);
 //                        Map<String, Object> runtimeVars = new HashMap<String, Object>();
 //                        for (int i = 0; i < 100000; i++) {
-//                            long y = ThreadLocalRandom.current().nextInt();
+//                            long y = Randomness.get().nextInt();
 //                            long addition = x + y;
 //                            runtimeVars.put("y", y);
 //                            long result = ((Number) script.run(runtimeVars)).longValue();
 //                            assertThat(result, equalTo(addition));
 //                        }
-//                    } catch (Throwable t) {
+//                    } catch (Exception e) {
 //                        failed.set(true);
-//                        logger.error("failed", t);
+//                        logger.error("failed", e);
 //                    } finally {
 //                        latch.countDown();
 //                    }
@@ -135,10 +126,9 @@ public class PythonScriptMultiThreadedTests extends ESTestCase {
 //        assertThat(failed.get(), equalTo(false));
 //    }
 
-    @Test
     public void testExecute() throws Exception {
         final PythonScriptEngineService se = new PythonScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
-        final Object compiled = se.compile("x + y");
+        final Object compiled = se.compile(null, "x + y", Collections.emptyMap());
         final CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, "testExecute", "python", compiled);
         final AtomicBoolean failed = new AtomicBoolean();
 
@@ -153,17 +143,17 @@ public class PythonScriptMultiThreadedTests extends ESTestCase {
                         barrier.await();
                         Map<String, Object> runtimeVars = new HashMap<String, Object>();
                         for (int i = 0; i < 10000; i++) {
-                            long x = ThreadLocalRandom.current().nextInt();
-                            long y = ThreadLocalRandom.current().nextInt();
+                            long x = Randomness.get().nextInt();
+                            long y = Randomness.get().nextInt();
                             long addition = x + y;
                             runtimeVars.put("x", x);
                             runtimeVars.put("y", y);
                             long result = ((Number) se.executable(compiledScript, runtimeVars).run()).longValue();
                             assertThat(result, equalTo(addition));
                         }
-                    } catch (Throwable t) {
+                    } catch (Exception e) {
                         failed.set(true);
-                        logger.error("failed", t);
+                        logger.error("failed", e);
                     } finally {
                         latch.countDown();
                     }

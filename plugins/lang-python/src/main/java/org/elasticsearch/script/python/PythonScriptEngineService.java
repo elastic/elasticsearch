@@ -19,21 +19,13 @@
 
 package org.elasticsearch.script.python;
 
-import java.io.IOException;
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.Permissions;
-import java.security.PrivilegedAction;
-import java.security.ProtectionDomain;
-import java.util.Map;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
@@ -48,48 +40,69 @@ import org.python.core.PyObject;
 import org.python.core.PyStringMap;
 import org.python.util.PythonInterpreter;
 
+import java.io.IOException;
+import java.security.AccessControlContext;
+import java.security.AccessController;
+import java.security.Permissions;
+import java.security.PrivilegedAction;
+import java.security.ProtectionDomain;
+import java.util.Map;
+
 /**
  *
  */
 //TODO we can optimize the case for Map<String, Object> similar to PyStringMap
 public class PythonScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
+    public static final String NAME = "python";
+    public static final String EXTENSION = "py";
+
     private final PythonInterpreter interp;
 
-    @Inject
     public PythonScriptEngineService(Settings settings) {
         super(settings);
 
         // classloader created here
-        SecurityManager sm = System.getSecurityManager();
+        final SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());
         }
         this.interp = AccessController.doPrivileged(new PrivilegedAction<PythonInterpreter> () {
             @Override
             public PythonInterpreter run() {
-                return PythonInterpreter.threadLocalStateInterpreter(null);
+                // snapshot our context here for checks, as the script has no permissions
+                final AccessControlContext engineContext = AccessController.getContext();
+                PythonInterpreter interp = PythonInterpreter.threadLocalStateInterpreter(null);
+                if (sm != null) {
+                    interp.getSystemState().setClassLoader(new ClassLoader(getClass().getClassLoader()) {
+                        @Override
+                        protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+                            try {
+                                engineContext.checkPermission(new ClassPermission(name));
+                            } catch (SecurityException e) {
+                                throw new ClassNotFoundException(name, e);
+                            }
+                            return super.loadClass(name, resolve);
+                        }
+                    });
+                }
+                return interp;
             }
         });
     }
 
     @Override
-    public String[] types() {
-        return new String[]{"python", "py"};
+    public String getType() {
+        return NAME;
     }
 
     @Override
-    public String[] extensions() {
-        return new String[]{"py"};
+    public String getExtension() {
+        return EXTENSION;
     }
 
     @Override
-    public boolean sandboxed() {
-        return false;
-    }
-
-    @Override
-    public Object compile(String script) {
+    public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
         // classloader created here
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -98,7 +111,7 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
         return AccessController.doPrivileged(new PrivilegedAction<PyCode>() {
             @Override
             public PyCode run() {
-                return interp.compile(script);
+                return interp.compile(scriptSource);
             }
         });
     }
@@ -127,11 +140,6 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     @Override
     public void close() {
         interp.cleanup();
-    }
-
-    @Override
-    public void scriptRemoved(@Nullable CompiledScript compiledScript) {
-        // Nothing to do
     }
 
     public class PythonExecutableScript implements ExecutableScript {
@@ -226,11 +234,6 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
         }
 
         @Override
-        public float runAsFloat() {
-            return ((Number) run()).floatValue();
-        }
-
-        @Override
         public long runAsLong() {
             return ((Number) run()).longValue();
         }
@@ -258,7 +261,7 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     }
 
     /** Evaluates with reduced privileges */
-    private final PyObject evalRestricted(final PyCode code) {
+    private PyObject evalRestricted(final PyCode code) {
         // eval the script with reduced privileges
         return AccessController.doPrivileged(new PrivilegedAction<PyObject>() {
             @Override
@@ -272,7 +275,7 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
         if (value == null) {
             return null;
         } else if (value instanceof PyObject) {
-            // seems like this is enough, inner PyDictionary will do the conversion for us for example, so expose it directly 
+            // seems like this is enough, inner PyDictionary will do the conversion for us for example, so expose it directly
             return ((PyObject) value).__tojava__(Object.class);
         }
         return value;

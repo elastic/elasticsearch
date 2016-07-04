@@ -22,7 +22,6 @@ package org.elasticsearch.common.xcontent.support;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -51,9 +50,7 @@ public class XContentHelperTests extends ESTestCase {
         return Arrays.asList(values);
     }
 
-    @Test
     public void testMergingListValuesAreMapsOfOne() {
-
         Map<String, Object> defaults = getMap("test", getList(getNamedMap("name1", "t1", "1"), getNamedMap("name2", "t2", "2")));
         Map<String, Object> content = getMap("test", getList(getNamedMap("name2", "t3", "3"), getNamedMap("name4", "t4", "4")));
         Map<String, Object> expected = getMap("test",

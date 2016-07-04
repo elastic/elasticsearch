@@ -20,280 +20,212 @@
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.junit.Test;
 
 import java.lang.reflect.Field;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
-/**
- */
-public class UpdateThreadPoolSettingsTests extends ESTestCase {
+public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
 
-    private ThreadPool.Info info(ThreadPool threadPool, String name) {
-        for (ThreadPool.Info info : threadPool.info()) {
-            if (info.getName().equals(name)) {
-                return info;
-            }
-        }
-        return null;
-    }
-
-    @Test
-    public void testCachedExecutorType() throws InterruptedException {
-        ThreadPool threadPool = new ThreadPool(
-                Settings.settingsBuilder()
-                        .put("threadpool.search.type", "cached")
-                        .put("name","testCachedExecutorType").build());
-
-        assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("cached"));
-        assertThat(info(threadPool, Names.SEARCH).getKeepAlive().minutes(), equalTo(5L));
-        assertThat(threadPool.executor(Names.SEARCH), instanceOf(EsThreadPoolExecutor.class));
-
-        // Replace with different type
-        threadPool.updateSettings(settingsBuilder().put("threadpool.search.type", "same").build());
-        assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("same"));
-        assertThat(threadPool.executor(Names.SEARCH), is(ThreadPool.DIRECT_EXECUTOR));
-
-        // Replace with different type again
-        threadPool.updateSettings(settingsBuilder()
-                .put("threadpool.search.type", "scaling")
-                .put("threadpool.search.keep_alive", "10m")
+    public void testCorrectThreadPoolTypePermittedInSettings() throws InterruptedException {
+        String threadPoolName = randomThreadPoolName();
+        ThreadPool.ThreadPoolType correctThreadPoolType = ThreadPool.THREAD_POOL_TYPES.get(threadPoolName);
+        ThreadPool threadPool = null;
+        try {
+            threadPool = new ThreadPool(Settings.builder()
+                .put("node.name", "testCorrectThreadPoolTypePermittedInSettings")
+                .put("thread_pool." + threadPoolName + ".type", correctThreadPoolType.getType())
                 .build());
-        assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("scaling"));
-        assertThat(threadPool.executor(Names.SEARCH), instanceOf(EsThreadPoolExecutor.class));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getCorePoolSize(), equalTo(1));
-        // Make sure keep alive value changed
-        assertThat(info(threadPool, Names.SEARCH).getKeepAlive().minutes(), equalTo(10L));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(10L));
-
-        // Put old type back
-        threadPool.updateSettings(settingsBuilder().put("threadpool.search.type", "cached").build());
-        assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("cached"));
-        // Make sure keep alive value reused
-        assertThat(info(threadPool, Names.SEARCH).getKeepAlive().minutes(), equalTo(10L));
-        assertThat(threadPool.executor(Names.SEARCH), instanceOf(EsThreadPoolExecutor.class));
-
-        // Change keep alive
-        Executor oldExecutor = threadPool.executor(Names.SEARCH);
-        threadPool.updateSettings(settingsBuilder().put("threadpool.search.keep_alive", "1m").build());
-        // Make sure keep alive value changed
-        assertThat(info(threadPool, Names.SEARCH).getKeepAlive().minutes(), equalTo(1L));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(1L));
-        // Make sure executor didn't change
-        assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("cached"));
-        assertThat(threadPool.executor(Names.SEARCH), sameInstance(oldExecutor));
-
-        // Set the same keep alive
-        threadPool.updateSettings(settingsBuilder().put("threadpool.search.keep_alive", "1m").build());
-        // Make sure keep alive value didn't change
-        assertThat(info(threadPool, Names.SEARCH).getKeepAlive().minutes(), equalTo(1L));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(1L));
-        // Make sure executor didn't change
-        assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("cached"));
-        assertThat(threadPool.executor(Names.SEARCH), sameInstance(oldExecutor));
-        terminate(threadPool);
+            ThreadPool.Info info = info(threadPool, threadPoolName);
+            if (ThreadPool.Names.SAME.equals(threadPoolName)) {
+                assertNull(info); // we don't report on the "same" thread pool
+            } else {
+                // otherwise check we have the expected type
+                assertEquals(info.getThreadPoolType(), correctThreadPoolType);
+            }
+        } finally {
+            terminateThreadPoolIfNeeded(threadPool);
+        }
     }
 
-    @Test
+    public void testIndexingThreadPoolsMaxSize() throws InterruptedException {
+        final String name = randomFrom(Names.BULK, Names.INDEX);
+        final int maxSize = 1 + EsExecutors.boundedNumberOfProcessors(Settings.EMPTY);
+        final int tooBig = randomIntBetween(1 + maxSize, Integer.MAX_VALUE);
+
+        // try to create a too big thread pool
+        final IllegalArgumentException initial =
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> {
+                    ThreadPool tp = null;
+                    try {
+                        tp = new ThreadPool(Settings.builder()
+                            .put("node.name", "testIndexingThreadPoolsMaxSize")
+                            .put("thread_pool." + name + ".size", tooBig)
+                            .build());
+                    } finally {
+                        terminateThreadPoolIfNeeded(tp);
+                    }
+                });
+
+        assertThat(
+            initial,
+            hasToString(containsString(
+                "Failed to parse value [" + tooBig + "] for setting [thread_pool." + name + ".size] must be ")));
+    }
+
+    private static int getExpectedThreadPoolSize(Settings settings, String name, int size) {
+        if (name.equals(ThreadPool.Names.BULK) || name.equals(ThreadPool.Names.INDEX)) {
+            return Math.min(size, EsExecutors.boundedNumberOfProcessors(settings));
+        } else {
+            return size;
+        }
+    }
+
     public void testFixedExecutorType() throws InterruptedException {
-        ThreadPool threadPool = new ThreadPool(settingsBuilder()
-                .put("threadpool.search.type", "fixed")
-                .put("name","testCachedExecutorType").build());
+        String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.FIXED);
+        ThreadPool threadPool = null;
 
-        assertThat(threadPool.executor(Names.SEARCH), instanceOf(EsThreadPoolExecutor.class));
-
-        // Replace with different type
-        threadPool.updateSettings(settingsBuilder()
-                .put("threadpool.search.type", "scaling")
-                .put("threadpool.search.keep_alive", "10m")
-                .put("threadpool.search.min", "2")
-                .put("threadpool.search.size", "15")
-                .build());
-        assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("scaling"));
-        assertThat(threadPool.executor(Names.SEARCH), instanceOf(EsThreadPoolExecutor.class));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getCorePoolSize(), equalTo(2));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getMaximumPoolSize(), equalTo(15));
-        assertThat(info(threadPool, Names.SEARCH).getMin(), equalTo(2));
-        assertThat(info(threadPool, Names.SEARCH).getMax(), equalTo(15));
-        // Make sure keep alive value changed
-        assertThat(info(threadPool, Names.SEARCH).getKeepAlive().minutes(), equalTo(10L));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(10L));
-
-        // Put old type back
-        threadPool.updateSettings(settingsBuilder()
-                .put("threadpool.search.type", "fixed")
-                .build());
-        assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("fixed"));
-        // Make sure keep alive value is not used
-        assertThat(info(threadPool, Names.SEARCH).getKeepAlive(), nullValue());
-        // Make sure keep pool size value were reused
-        assertThat(info(threadPool, Names.SEARCH).getMin(), equalTo(15));
-        assertThat(info(threadPool, Names.SEARCH).getMax(), equalTo(15));
-        assertThat(threadPool.executor(Names.SEARCH), instanceOf(EsThreadPoolExecutor.class));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getCorePoolSize(), equalTo(15));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getMaximumPoolSize(), equalTo(15));
-
-        // Change size
-        Executor oldExecutor = threadPool.executor(Names.SEARCH);
-        threadPool.updateSettings(settingsBuilder().put("threadpool.search.size", "10").build());
-        // Make sure size values changed
-        assertThat(info(threadPool, Names.SEARCH).getMax(), equalTo(10));
-        assertThat(info(threadPool, Names.SEARCH).getMin(), equalTo(10));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getMaximumPoolSize(), equalTo(10));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getCorePoolSize(), equalTo(10));
-        // Make sure executor didn't change
-        assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("fixed"));
-        assertThat(threadPool.executor(Names.SEARCH), sameInstance(oldExecutor));
-
-        // Change queue capacity
-        threadPool.updateSettings(settingsBuilder()
-                .put("threadpool.search.queue", "500")
-                .build());
-
-        terminate(threadPool);
-    }
-
-
-    @Test
-    public void testScalingExecutorType() throws InterruptedException {
-        ThreadPool threadPool = new ThreadPool(settingsBuilder()
-                .put("threadpool.search.type", "scaling")
-                .put("threadpool.search.size", 10)
-                .put("name","testCachedExecutorType").build());
-
-        assertThat(info(threadPool, Names.SEARCH).getMin(), equalTo(1));
-        assertThat(info(threadPool, Names.SEARCH).getMax(), equalTo(10));
-        assertThat(info(threadPool, Names.SEARCH).getKeepAlive().minutes(), equalTo(5L));
-        assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("scaling"));
-        assertThat(threadPool.executor(Names.SEARCH), instanceOf(EsThreadPoolExecutor.class));
-
-        // Change settings that doesn't require pool replacement
-        Executor oldExecutor = threadPool.executor(Names.SEARCH);
-        threadPool.updateSettings(settingsBuilder()
-                .put("threadpool.search.type", "scaling")
-                .put("threadpool.search.keep_alive", "10m")
-                .put("threadpool.search.min", "2")
-                .put("threadpool.search.size", "15")
-                .build());
-        assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("scaling"));
-        assertThat(threadPool.executor(Names.SEARCH), instanceOf(EsThreadPoolExecutor.class));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getCorePoolSize(), equalTo(2));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getMaximumPoolSize(), equalTo(15));
-        assertThat(info(threadPool, Names.SEARCH).getMin(), equalTo(2));
-        assertThat(info(threadPool, Names.SEARCH).getMax(), equalTo(15));
-        // Make sure keep alive value changed
-        assertThat(info(threadPool, Names.SEARCH).getKeepAlive().minutes(), equalTo(10L));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(10L));
-        assertThat(threadPool.executor(Names.SEARCH), sameInstance(oldExecutor));
-
-        terminate(threadPool);
-    }
-
-    @Test(timeout = 10000)
-    public void testShutdownDownNowDoesntBlock() throws Exception {
-        ThreadPool threadPool = new ThreadPool(Settings.settingsBuilder()
-                .put("threadpool.search.type", "cached")
-                .put("name","testCachedExecutorType").build());
-
-        final CountDownLatch latch = new CountDownLatch(1);
-        Executor oldExecutor = threadPool.executor(Names.SEARCH);
-        threadPool.executor(Names.SEARCH).execute(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Thread.sleep(20000);
-                } catch (InterruptedException ex) {
-                    latch.countDown();
-                    Thread.currentThread().interrupt();
-                }
-            }
-        });
-        threadPool.updateSettings(settingsBuilder().put("threadpool.search.type", "fixed").build());
-        assertThat(threadPool.executor(Names.SEARCH), not(sameInstance(oldExecutor)));
-        assertThat(((ThreadPoolExecutor) oldExecutor).isShutdown(), equalTo(true));
-        assertThat(((ThreadPoolExecutor) oldExecutor).isTerminating(), equalTo(true));
-        assertThat(((ThreadPoolExecutor) oldExecutor).isTerminated(), equalTo(false));
-        threadPool.shutdownNow(); // interrupt the thread
-        latch.await();
-        terminate(threadPool);
-    }
-
-    @Test
-    public void testCustomThreadPool() throws Exception {
-        ThreadPool threadPool = new ThreadPool(Settings.settingsBuilder()
-                .put("threadpool.my_pool1.type", "cached")
-                .put("threadpool.my_pool2.type", "fixed")
-                .put("threadpool.my_pool2.size", "1")
-                .put("threadpool.my_pool2.queue_size", "1")
-                .put("name", "testCustomThreadPool").build());
-
-        ThreadPoolInfo groups = threadPool.info();
-        boolean foundPool1 = false;
-        boolean foundPool2 = false;
-        outer: for (ThreadPool.Info info : groups) {
-            if ("my_pool1".equals(info.getName())) {
-                foundPool1 = true;
-                assertThat(info.getType(), equalTo("cached"));
-            } else if ("my_pool2".equals(info.getName())) {
-                foundPool2 = true;
-                assertThat(info.getType(), equalTo("fixed"));
-                assertThat(info.getMin(), equalTo(1));
-                assertThat(info.getMax(), equalTo(1));
-                assertThat(info.getQueueSize().singles(), equalTo(1l));
-            } else {
-                for (Field field : Names.class.getFields()) {
-                    if (info.getName().equalsIgnoreCase(field.getName())) {
-                        // This is ok it is a default thread pool
-                        continue outer;
-                    }
-                }
-                fail("Unexpected pool name: " + info.getName());
-            }
-        }
-        assertThat(foundPool1, is(true));
-        assertThat(foundPool2, is(true));
-
-        // Updating my_pool2
-        Settings settings = Settings.builder()
-                .put("threadpool.my_pool2.size", "10")
+        try {
+            int expectedSize = getExpectedThreadPoolSize(Settings.EMPTY, threadPoolName, 15);
+            Settings nodeSettings = Settings.builder()
+                .put("node.name", "testFixedExecutorType")
+                .put("thread_pool." + threadPoolName + ".size", expectedSize)
                 .build();
-        threadPool.updateSettings(settings);
+            threadPool = new ThreadPool(nodeSettings);
+            assertThat(threadPool.executor(threadPoolName), instanceOf(EsThreadPoolExecutor.class));
 
-        groups = threadPool.info();
-        foundPool1 = false;
-        foundPool2 = false;
-        outer: for (ThreadPool.Info info : groups) {
-            if ("my_pool1".equals(info.getName())) {
-                foundPool1 = true;
-                assertThat(info.getType(), equalTo("cached"));
-            } else if ("my_pool2".equals(info.getName())) {
-                foundPool2 = true;
-                assertThat(info.getMax(), equalTo(10));
-                assertThat(info.getMin(), equalTo(10));
-                assertThat(info.getQueueSize().singles(), equalTo(1l));
-                assertThat(info.getType(), equalTo("fixed"));
-            } else {
-                for (Field field : Names.class.getFields()) {
-                    if (info.getName().equalsIgnoreCase(field.getName())) {
-                        // This is ok it is a default thread pool
-                        continue outer;
-                    }
-                }
-                fail("Unexpected pool name: " + info.getName());
-            }
+            assertEquals(info(threadPool, threadPoolName).getThreadPoolType(), ThreadPool.ThreadPoolType.FIXED);
+            assertThat(threadPool.executor(threadPoolName), instanceOf(EsThreadPoolExecutor.class));
+            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getCorePoolSize(), equalTo(expectedSize));
+            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getMaximumPoolSize(), equalTo(expectedSize));
+            assertThat(info(threadPool, threadPoolName).getMin(), equalTo(expectedSize));
+            assertThat(info(threadPool, threadPoolName).getMax(), equalTo(expectedSize));
+            // keep alive does not apply to fixed thread pools
+            assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(0L));
+        } finally {
+            terminateThreadPoolIfNeeded(threadPool);
         }
-        assertThat(foundPool1, is(true));
-        assertThat(foundPool2, is(true));
-        terminate(threadPool);
+    }
+
+    public void testScalingExecutorType() throws InterruptedException {
+        String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.SCALING);
+        ThreadPool threadPool = null;
+        try {
+            Settings nodeSettings = Settings.builder()
+                .put("thread_pool." + threadPoolName + ".max", 10)
+                .put("node.name", "testScalingExecutorType")
+                .build();
+            threadPool = new ThreadPool(nodeSettings);
+            final int expectedMinimum = "generic".equals(threadPoolName) ? 4 : 1;
+            assertThat(info(threadPool, threadPoolName).getMin(), equalTo(expectedMinimum));
+            assertThat(info(threadPool, threadPoolName).getMax(), equalTo(10));
+            final long expectedKeepAlive = "generic".equals(threadPoolName) ? 30 : 300;
+            assertThat(info(threadPool, threadPoolName).getKeepAlive().seconds(), equalTo(expectedKeepAlive));
+            assertEquals(info(threadPool, threadPoolName).getThreadPoolType(), ThreadPool.ThreadPoolType.SCALING);
+            assertThat(threadPool.executor(threadPoolName), instanceOf(EsThreadPoolExecutor.class));
+        } finally {
+            terminateThreadPoolIfNeeded(threadPool);
+        }
+    }
+
+    public void testShutdownNowInterrupts() throws Exception {
+        String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.FIXED);
+        ThreadPool threadPool = null;
+        try {
+            Settings nodeSettings = Settings.builder()
+                .put("thread_pool." + threadPoolName + ".queue_size", 1000)
+                .put("node.name", "testShutdownNowInterrupts")
+                .build();
+            threadPool = new ThreadPool(nodeSettings);
+            assertEquals(info(threadPool, threadPoolName).getQueueSize().getSingles(), 1000L);
+
+            final CountDownLatch shutDownLatch = new CountDownLatch(1);
+            final CountDownLatch latch = new CountDownLatch(1);
+            ThreadPoolExecutor oldExecutor = (ThreadPoolExecutor) threadPool.executor(threadPoolName);
+            threadPool.executor(threadPoolName).execute(() -> {
+                        try {
+                            shutDownLatch.countDown();
+                            new CountDownLatch(1).await();
+                        } catch (InterruptedException ex) {
+                            latch.countDown();
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+            );
+            shutDownLatch.await();
+            threadPool.shutdownNow();
+            latch.await(3, TimeUnit.SECONDS); // if this throws then ThreadPool#shutdownNow did not interrupt
+            assertThat(oldExecutor.isShutdown(), equalTo(true));
+            assertThat(oldExecutor.isTerminating() || oldExecutor.isTerminated(), equalTo(true));
+        } finally {
+            terminateThreadPoolIfNeeded(threadPool);
+        }
+    }
+
+    public void testCustomThreadPool() throws Exception {
+        ThreadPool threadPool = null;
+        try {
+
+
+            final ScalingExecutorBuilder scaling =
+                new ScalingExecutorBuilder(
+                    "my_pool1",
+                    1,
+                    EsExecutors.boundedNumberOfProcessors(Settings.EMPTY),
+                    TimeValue.timeValueMinutes(1));
+
+            final FixedExecutorBuilder fixed = new FixedExecutorBuilder(Settings.EMPTY, "my_pool2", 1, 1);
+
+            threadPool = new ThreadPool(Settings.builder().put("node.name", "testCustomThreadPool").build(), scaling, fixed);
+
+            ThreadPoolInfo groups = threadPool.info();
+            boolean foundPool1 = false;
+            boolean foundPool2 = false;
+            outer:
+            for (ThreadPool.Info info : groups) {
+                if ("my_pool1".equals(info.getName())) {
+                    foundPool1 = true;
+                    assertEquals(info.getThreadPoolType(), ThreadPool.ThreadPoolType.SCALING);
+                } else if ("my_pool2".equals(info.getName())) {
+                    foundPool2 = true;
+                    assertEquals(info.getThreadPoolType(), ThreadPool.ThreadPoolType.FIXED);
+                    assertThat(info.getMin(), equalTo(1));
+                    assertThat(info.getMax(), equalTo(1));
+                    assertThat(info.getQueueSize().singles(), equalTo(1L));
+                } else {
+                    for (Field field : Names.class.getFields()) {
+                        if (info.getName().equalsIgnoreCase(field.getName())) {
+                            // This is ok it is a default thread pool
+                            continue outer;
+                        }
+                    }
+                    fail("Unexpected pool name: " + info.getName());
+                }
+            }
+            assertThat(foundPool1, is(true));
+            assertThat(foundPool2, is(true));
+        } finally {
+            terminateThreadPoolIfNeeded(threadPool);
+        }
+    }
+
+    private String randomThreadPoolName() {
+        Set<String> threadPoolNames = ThreadPool.THREAD_POOL_TYPES.keySet();
+        return randomFrom(threadPoolNames.toArray(new String[threadPoolNames.size()]));
     }
 
 }

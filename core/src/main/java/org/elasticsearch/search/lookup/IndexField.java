@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.lookup;
 
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.CollectionStatistics;
 import org.elasticsearch.common.util.MinimalMap;
 
@@ -93,7 +92,7 @@ public class IndexField extends MinimalMap<String, IndexFieldTerm> {
     /*
      * Returns a TermInfo object that can be used to access information on
      * specific terms. flags can be set as described in TermInfo.
-     * 
+     *
      * TODO: here might be potential for running time improvement? If we knew in
      * advance which terms are requested, we could provide an array which the
      * user could then iterate over.

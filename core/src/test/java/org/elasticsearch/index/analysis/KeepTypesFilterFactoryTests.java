@@ -22,8 +22,8 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -31,11 +31,9 @@ import java.io.StringReader;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class KeepTypesFilterFactoryTests extends ESTokenStreamTestCase {
-
-    @Test
     public void testKeepTypes() throws IOException {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir().toString())
+        Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put("index.analysis.filter.keep_numbers.type", "keep_types")
                 .putArray("index.analysis.filter.keep_numbers.types", new String[] {"<NUM>", "<SOMETHINGELSE>"})
                 .build();

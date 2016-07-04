@@ -21,12 +21,11 @@ package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -37,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
@@ -58,55 +58,54 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         localAddress = null;
     }
 
-    @Test
-    public void nameMatch() {
-        Settings settings = Settings.settingsBuilder()
+    public void testNameMatch() {
+        Settings settings = Settings.builder()
                 .put("xxx.name", "name1")
                 .build();
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("name1", "id1", DummyTransportAddress.INSTANCE, emptyMap(), Version.CURRENT);
+        DiscoveryNode node = new DiscoveryNode("name1", "id1", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(),
+            Version.CURRENT);
         assertThat(filters.match(node), equalTo(true));
 
-        node = new DiscoveryNode("name2", "id2", DummyTransportAddress.INSTANCE, emptyMap(), Version.CURRENT);
+        node = new DiscoveryNode("name2", "id2", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
         assertThat(filters.match(node), equalTo(false));
     }
 
-    @Test
-    public void idMatch() {
-        Settings settings = Settings.settingsBuilder()
+    public void testIdMatch() {
+        Settings settings = Settings.builder()
                 .put("xxx._id", "id1")
                 .build();
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("name1", "id1", DummyTransportAddress.INSTANCE, emptyMap(), Version.CURRENT);
+        DiscoveryNode node = new DiscoveryNode("name1", "id1", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(),
+            Version.CURRENT);
         assertThat(filters.match(node), equalTo(true));
 
-        node = new DiscoveryNode("name2", "id2", DummyTransportAddress.INSTANCE, emptyMap(), Version.CURRENT);
+        node = new DiscoveryNode("name2", "id2", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
         assertThat(filters.match(node), equalTo(false));
     }
 
-    @Test
-    public void idOrNameMatch() {
-        Settings settings = shuffleSettings(Settings.settingsBuilder()
+    public void testIdOrNameMatch() {
+        Settings settings = shuffleSettings(Settings.builder()
                 .put("xxx._id", "id1,blah")
                 .put("xxx.name", "blah,name2")
                 .build());
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("name1", "id1", DummyTransportAddress.INSTANCE, emptyMap(), Version.CURRENT);
+        final Version version = Version.CURRENT;
+        DiscoveryNode node = new DiscoveryNode("name1", "id1", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), version);
         assertThat(filters.match(node), equalTo(true));
 
-        node = new DiscoveryNode("name2", "id2", DummyTransportAddress.INSTANCE, emptyMap(), Version.CURRENT);
+        node = new DiscoveryNode("name2", "id2", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), version);
         assertThat(filters.match(node), equalTo(true));
 
-        node = new DiscoveryNode("name3", "id3", DummyTransportAddress.INSTANCE, emptyMap(), Version.CURRENT);
+        node = new DiscoveryNode("name3", "id3", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), version);
         assertThat(filters.match(node), equalTo(false));
     }
 
-    @Test
-    public void tagAndGroupMatch() {
-        Settings settings = shuffleSettings(Settings.settingsBuilder()
+    public void testTagAndGroupMatch() {
+        Settings settings = shuffleSettings(Settings.builder()
                 .put("xxx.tag", "A")
                 .put("xxx.group", "B")
                 .build());
@@ -115,158 +114,147 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         Map<String, String> attributes = new HashMap<>();
         attributes.put("tag", "A");
         attributes.put("group", "B");
-        DiscoveryNode node = new DiscoveryNode("name1", "id1", DummyTransportAddress.INSTANCE,
-                attributes, Version.CURRENT);
+        DiscoveryNode node = new DiscoveryNode("name1", "id1", LocalTransportAddress.buildUnique(),
+                attributes, emptySet(), Version.CURRENT);
         assertThat(filters.match(node), equalTo(true));
 
         attributes = new HashMap<>();
         attributes.put("tag", "A");
         attributes.put("group", "B");
         attributes.put("name", "X");
-        node = new DiscoveryNode("name2", "id2", DummyTransportAddress.INSTANCE,
-                attributes, Version.CURRENT);
+        node = new DiscoveryNode("name2", "id2", LocalTransportAddress.buildUnique(),
+                attributes, emptySet(), Version.CURRENT);
         assertThat(filters.match(node), equalTo(true));
 
         attributes = new HashMap<>();
         attributes.put("tag", "A");
         attributes.put("group", "F");
         attributes.put("name", "X");
-        node = new DiscoveryNode("name3", "id3", DummyTransportAddress.INSTANCE,
-                attributes, Version.CURRENT);
+        node = new DiscoveryNode("name3", "id3", LocalTransportAddress.buildUnique(),
+                attributes, emptySet(), Version.CURRENT);
         assertThat(filters.match(node), equalTo(false));
 
-        node = new DiscoveryNode("name4", "id4", DummyTransportAddress.INSTANCE, emptyMap(), Version.CURRENT);
+        node = new DiscoveryNode("name4", "id4", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
         assertThat(filters.match(node), equalTo(false));
     }
 
-    @Test
-    public void starMatch() {
-        Settings settings = Settings.settingsBuilder()
+    public void testStarMatch() {
+        Settings settings = Settings.builder()
                 .put("xxx.name", "*")
                 .build();
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("name1", "id1", DummyTransportAddress.INSTANCE, emptyMap(), Version.CURRENT);
+        DiscoveryNode node = new DiscoveryNode("name1", "id1", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(),
+            Version.CURRENT);
         assertThat(filters.match(node), equalTo(true));
     }
 
-    @Test
-    public void ipBindFilteringMatchingAnd() {
-        Settings settings = shuffleSettings(Settings.settingsBuilder()
+    public void testIpBindFilteringMatchingAnd() {
+        Settings settings = shuffleSettings(Settings.builder()
                 .put("xxx.tag", "A")
                 .put("xxx." + randomFrom("_ip", "_host_ip", "_publish_ip"), "192.1.1.54")
                 .build());
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(AND, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), null);
+        DiscoveryNode node = new DiscoveryNode("", "", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), emptySet(), null);
         assertThat(filters.match(node), equalTo(true));
     }
 
-    @Test
-    public void ipBindFilteringNotMatching() {
-        Settings settings = shuffleSettings(Settings.settingsBuilder()
+    public void testIpBindFilteringNotMatching() {
+        Settings settings = shuffleSettings(Settings.builder()
                 .put("xxx.tag", "B")
                 .put("xxx." + randomFrom("_ip", "_host_ip", "_publish_ip"), "192.1.1.54")
                 .build());
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(AND, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), null);
+        DiscoveryNode node = new DiscoveryNode("", "", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), emptySet(), null);
         assertThat(filters.match(node), equalTo(false));
     }
 
-    @Test
-    public void ipBindFilteringNotMatchingAnd() {
-        Settings settings = shuffleSettings(Settings.settingsBuilder()
+    public void testIpBindFilteringNotMatchingAnd() {
+        Settings settings = shuffleSettings(Settings.builder()
                 .put("xxx.tag", "A")
                 .put("xxx." + randomFrom("_ip", "_host_ip", "_publish_ip"), "8.8.8.8")
                 .build());
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(AND, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), null);
+        DiscoveryNode node = new DiscoveryNode("", "", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), emptySet(), null);
         assertThat(filters.match(node), equalTo(false));
     }
 
-    @Test
-    public void ipBindFilteringMatchingOr() {
-        Settings settings = shuffleSettings(Settings.settingsBuilder()
+    public void testIpBindFilteringMatchingOr() {
+        Settings settings = shuffleSettings(Settings.builder()
                 .put("xxx." + randomFrom("_ip", "_host_ip", "_publish_ip"), "192.1.1.54")
                 .put("xxx.tag", "A")
                 .build());
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), null);
+        DiscoveryNode node = new DiscoveryNode("", "", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), emptySet(), null);
         assertThat(filters.match(node), equalTo(true));
     }
 
-    @Test
-    public void ipBindFilteringNotMatchingOr() {
-        Settings settings = shuffleSettings(Settings.settingsBuilder()
+    public void testIpBindFilteringNotMatchingOr() {
+        Settings settings = shuffleSettings(Settings.builder()
                 .put("xxx.tag", "A")
                 .put("xxx." + randomFrom("_ip", "_host_ip", "_publish_ip"), "8.8.8.8")
                 .build());
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), null);
+        DiscoveryNode node = new DiscoveryNode("", "", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), emptySet(), null);
         assertThat(filters.match(node), equalTo(true));
     }
 
-    @Test
-    public void ipPublishFilteringMatchingAnd() {
-        Settings settings = shuffleSettings(Settings.settingsBuilder()
+    public void testIpPublishFilteringMatchingAnd() {
+        Settings settings = shuffleSettings(Settings.builder()
                 .put("xxx.tag", "A")
                 .put("xxx._publish_ip", "192.1.1.54")
                 .build());
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(AND, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), null);
+        DiscoveryNode node = new DiscoveryNode("", "", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), emptySet(), null);
         assertThat(filters.match(node), equalTo(true));
     }
 
-    @Test
-    public void ipPublishFilteringNotMatchingAnd() {
-        Settings settings = shuffleSettings(Settings.settingsBuilder()
+    public void testIpPublishFilteringNotMatchingAnd() {
+        Settings settings = shuffleSettings(Settings.builder()
                 .put("xxx.tag", "A")
                 .put("xxx._publish_ip", "8.8.8.8")
                 .build());
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(AND, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), null);
+        DiscoveryNode node = new DiscoveryNode("", "", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), emptySet(), null);
         assertThat(filters.match(node), equalTo(false));
     }
 
-    @Test
-    public void ipPublishFilteringMatchingOr() {
-        Settings settings = shuffleSettings(Settings.settingsBuilder()
+    public void testIpPublishFilteringMatchingOr() {
+        Settings settings = shuffleSettings(Settings.builder()
                 .put("xxx._publish_ip", "192.1.1.54")
                 .put("xxx.tag", "A")
                 .build());
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), null);
+        DiscoveryNode node = new DiscoveryNode("", "", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), emptySet(), null);
         assertThat(filters.match(node), equalTo(true));
     }
 
-    @Test
-    public void ipPublishFilteringNotMatchingOr() {
-        Settings settings = shuffleSettings(Settings.settingsBuilder()
+    public void testIpPublishFilteringNotMatchingOr() {
+        Settings settings = shuffleSettings(Settings.builder()
                 .put("xxx.tag", "A")
                 .put("xxx._publish_ip", "8.8.8.8")
                 .build());
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), null);
+        DiscoveryNode node = new DiscoveryNode("", "", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), emptySet(), null);
         assertThat(filters.match(node), equalTo(true));
     }
 
     private Settings shuffleSettings(Settings source) {
-        Settings.Builder settings = Settings.settingsBuilder();
-        List<String> keys = new ArrayList(source.getAsMap().keySet());
-        Collections.shuffle(keys, getRandom());
+        Settings.Builder settings = Settings.builder();
+        List<String> keys = new ArrayList<>(source.getAsMap().keySet());
+        Collections.shuffle(keys, random());
         for (String o : keys) {
             settings.put(o, source.getAsMap().get(o));
         }
         return settings.build();
     }
-
-
 }

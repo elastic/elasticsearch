@@ -1,0 +1,192 @@
+[[cluster-allocation-explain]]
+== Cluster Allocation Explain API
+
+The cluster allocation explanation API is designed to assist in answering the
+question "why is this shard unassigned?". To explain the allocation (on
+unassigned state) of a shard, issue a request like:
+
+[source,js]
+--------------------------------------------------
+$ curl -XGET 'http://localhost:9200/_cluster/allocation/explain' -d'{
+  "index": "myindex",
+  "shard": 0,
+  "primary": false
+}'
+--------------------------------------------------
+
+Specify the `index` and `shard` id of the shard you would like an explanation
+for, as well as the `primary` flag to indicate whether to explain a primary or
+replica shard.
+
+The response looks like:
+
+[source,js]
+--------------------------------------------------
+{
+  "shard" : {
+    "index" : "myindex",
+    "index_uuid" : "KnW0-zELRs6PK84l0r38ZA",
+    "id" : 0,
+    "primary" : false
+  },
+  "assigned" : false,                             <1>
+  "shard_state_fetch_pending": false,             <2>
+  "unassigned_info" : {
+    "reason" : "INDEX_CREATED",                   <3>
+    "at" : "2016-03-22T20:04:23.620Z"
+  },
+  "allocation_delay_ms" : 0,                      <4>
+  "remaining_delay_ms" : 0,                       <5>
+  "nodes" : {
+    "V-Spi0AyRZ6ZvKbaI3691w" : {
+      "node_name" : "node1",
+      "node_attributes" : {                       <6>
+        "bar" : "baz"
+      },
+      "store" : {
+        "shard_copy" : "NONE"                     <7>
+      },
+      "final_decision" : "NO",                    <8>
+      "final_explanation" : "the shard cannot be assigned because one or more allocation decider returns a 'NO' decision",
+      "weight" : 0.06666675,                      <9>
+      "decisions" : [ {                           <10>
+        "decider" : "filter",
+        "decision" : "NO",
+        "explanation" : "node does not match index include filters [foo:\"bar\"]"
+      } ]
+    },
+    "Qc6VL8c5RWaw1qXZ0Rg57g" : {
+      "node_name" : "node2",
+      "node_attributes" : {
+        "bar" : "baz",
+        "foo" : "bar"
+      },
+      "store" : {
+        "shard_copy" : "AVAILABLE"
+      },
+      "final_decision" : "NO",
+      "final_explanation" : "the shard cannot be assigned because one or more allocation decider returns a 'NO' decision",
+      "weight" : -1.3833332,
+      "decisions" : [ {
+        "decider" : "same_shard",
+        "decision" : "NO",
+        "explanation" : "the shard cannot be allocated on the same node id [Qc6VL8c5RWaw1qXZ0Rg57g] on which it already exists"
+      } ]
+    },
+    "PzdyMZGXQdGhqTJHF_hGgA" : {
+      "node_name" : "node3",
+      "node_attributes" : { },
+      "store" : {
+        "shard_copy" : "NONE"
+      },
+      "final_decision" : "NO",
+      "final_explanation" : "the shard cannot be assigned because one or more allocation decider returns a 'NO' decision",
+      "weight" : 2.3166666,
+      "decisions" : [ {
+        "decider" : "filter",
+        "decision" : "NO",
+        "explanation" : "node does not match index include filters [foo:\"bar\"]"
+      } ]
+    }
+  }
+}
+--------------------------------------------------
+<1> Whether the shard is assigned or unassigned
+<2> Whether information about the shard is still being fetched
+<3> Reason for the shard originally becoming unassigned
+<4> Configured delay before the shard can be allocated
+<5> Remaining delay before the shard can be allocated
+<6> User-added attributes the node has
+<7> The shard copy information for this node and error (if applicable)
+<8> Final decision and explanation of whether the shard can be allocated to this node
+<9> Weight for how much the allocator would like to allocate the shard to this node
+<10> List of node decisions factoring into final decision about the shard
+
+For a shard that is already assigned, the output looks similar to:
+
+[source,js]
+--------------------------------------------------
+{
+  "shard" : {
+    "index" : "only-foo",
+    "index_uuid" : "KnW0-zELRs6PK84l0r38ZA",
+    "id" : 0,
+    "primary" : true
+  },
+  "assigned" : true,
+  "assigned_node_id" : "Qc6VL8c5RWaw1qXZ0Rg57g",      <1>
+  "shard_state_fetch_pending": false,
+  "allocation_delay_ms" : 0,
+  "remaining_delay_ms" : 0,
+  "nodes" : {
+    "V-Spi0AyRZ6ZvKbaI3691w" : {
+      "node_name" : "Susan Storm",
+      "node_attributes" : {
+        "bar" : "baz"
+      },
+      "store" : {
+        "shard_copy" : "NONE"
+      },
+      "final_decision" : "NO",
+      "final_explanation" : "the shard cannot be assigned because one or more allocation decider returns a 'NO' decision",
+      "weight" : 1.4499999,
+      "decisions" : [ {
+        "decider" : "filter",
+        "decision" : "NO",
+        "explanation" : "node does not match index include filters [foo:\"bar\"]"
+      } ]
+    },
+    "Qc6VL8c5RWaw1qXZ0Rg57g" : {
+      "node_name" : "Slipstream",
+      "node_attributes" : {
+        "bar" : "baz",
+        "foo" : "bar"
+      },
+      "store" : {
+        "shard_copy" : "AVAILABLE"
+      },
+      "final_decision" : "ALREADY_ASSIGNED",        <2>
+      "final_explanation" : "the shard is already assigned to this node",
+      "weight" : 0.0,
+      "decisions" : [ {
+        "decider" : "same_shard",
+        "decision" : "NO",
+        "explanation" : "the shard cannot be allocated on the same node id [Qc6VL8c5RWaw1qXZ0Rg57g] on which it already exists"
+      } ]
+    },
+    "PzdyMZGXQdGhqTJHF_hGgA" : {
+      "node_name" : "The Symbiote",
+      "node_attributes" : { },
+      "store" : {
+        "shard_copy" : "NONE"
+      },
+      "final_decision" : "NO",
+      "final_explanation" : "the shard cannot be assigned because one or more allocation decider returns a 'NO' decision",
+      "weight" : 3.6999998,
+      "decisions" : [ {
+        "decider" : "filter",
+        "decision" : "NO",
+        "explanation" : "node does not match index include filters [foo:\"bar\"]"
+      } ]
+    }
+  }
+}
+--------------------------------------------------
+<1> Node the shard is currently assigned to
+<2> The decision is "ALREADY_ASSIGNED" because the shard is currently assigned to this node
+
+You can also have Elasticsearch explain the allocation of the first unassigned
+shard it finds by sending an empty body, such as:
+
+[source,js]
+--------------------------------------------------
+$ curl -XGET 'http://localhost:9200/_cluster/allocation/explain'
+--------------------------------------------------
+
+And if you would like to include all decisions that were factored into the final
+decision, the `include_yes_decisions` parameter will return all decisions:
+
+[source,js]
+--------------------------------------------------
+$ curl -XGET 'http://localhost:9200/_cluster/allocation/explain?include_yes_decisions=true'
+--------------------------------------------------

@@ -19,39 +19,42 @@
 
 package org.elasticsearch.plugin.analysis.icu;
 
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.index.analysis.AnalysisModule;
-import org.elasticsearch.index.analysis.IcuAnalysisBinderProcessor;
-import org.elasticsearch.indices.analysis.IcuIndicesAnalysisModule;
+import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.IcuCollationTokenFilterFactory;
+import org.elasticsearch.index.analysis.IcuFoldingTokenFilterFactory;
+import org.elasticsearch.index.analysis.IcuNormalizerCharFilterFactory;
+import org.elasticsearch.index.analysis.IcuNormalizerTokenFilterFactory;
+import org.elasticsearch.index.analysis.IcuTokenizerFactory;
+import org.elasticsearch.index.analysis.IcuTransformTokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 
-import java.util.Collection;
-import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
-/**
- *
- */
-public class AnalysisICUPlugin extends Plugin {
+import static java.util.Collections.singletonMap;
 
+public class AnalysisICUPlugin extends Plugin implements AnalysisPlugin {
     @Override
-    public String name() {
-        return "analysis-icu";
+    public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
+        return singletonMap("icu_normalizer", IcuNormalizerCharFilterFactory::new);
     }
 
     @Override
-    public String description() {
-        return "UTF related ICU analysis support";
+    public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
+        Map<String, AnalysisProvider<TokenFilterFactory>> extra = new HashMap<>();
+        extra.put("icu_normalizer", IcuNormalizerTokenFilterFactory::new);
+        extra.put("icu_folding", IcuFoldingTokenFilterFactory::new);
+        extra.put("icu_collation", IcuCollationTokenFilterFactory::new);
+        extra.put("icu_transform", IcuTransformTokenFilterFactory::new);
+        return extra;
     }
 
     @Override
-    public Collection<Module> nodeModules() {
-        return Collections.<Module>singletonList(new IcuIndicesAnalysisModule());
-    }
-
-    /**
-     * Automatically called with the analysis module.
-     */
-    public void onModule(AnalysisModule module) {
-        module.addProcessor(new IcuAnalysisBinderProcessor());
+    public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
+        return singletonMap("icu_tokenizer", IcuTokenizerFactory::new);
     }
 }

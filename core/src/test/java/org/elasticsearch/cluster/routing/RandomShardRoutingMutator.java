@@ -31,33 +31,27 @@ public final class RandomShardRoutingMutator {
 
     }
 
-    public static void randomChange(ShardRouting shardRouting, String[] nodes) {
-        switch (randomInt(3)) {
+    public static ShardRouting randomChange(ShardRouting shardRouting, String[] nodes) {
+        switch (randomInt(2)) {
             case 0:
-                if (shardRouting.unassigned() == false) {
-                    shardRouting.moveToUnassigned(new UnassignedInfo(randomReason(), randomAsciiOfLength(10)));
+                if (shardRouting.unassigned() == false && shardRouting.primary() == false) {
+                    shardRouting = shardRouting.moveToUnassigned(new UnassignedInfo(randomReason(), randomAsciiOfLength(10)));
                 } else if (shardRouting.unassignedInfo() != null) {
-                    shardRouting.updateUnassignedInfo(new UnassignedInfo(randomReason(), randomAsciiOfLength(10)));
+                    shardRouting = shardRouting.updateUnassignedInfo(new UnassignedInfo(randomReason(), randomAsciiOfLength(10)));
                 }
                 break;
             case 1:
                 if (shardRouting.unassigned()) {
-                    shardRouting.initialize(randomFrom(nodes), -1);
+                    shardRouting = shardRouting.initialize(randomFrom(nodes), null, -1);
                 }
                 break;
             case 2:
-                if (shardRouting.primary()) {
-                    shardRouting.moveFromPrimary();
-                } else {
-                    shardRouting.moveToPrimary();
-                }
-                break;
-            case 3:
                 if (shardRouting.initializing()) {
-                    shardRouting.moveToStarted();
+                    shardRouting = shardRouting.moveToStarted();
                 }
                 break;
         }
+        return shardRouting;
     }
 
 

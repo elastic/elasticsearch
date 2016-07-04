@@ -22,7 +22,6 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -48,9 +47,9 @@ public final class ThreadedActionListener<Response> implements ActionListener<Re
         public Wrapper(ESLogger logger, Settings settings, ThreadPool threadPool) {
             this.logger = logger;
             this.threadPool = threadPool;
-             // Should the action listener be threaded or not by default. Action listeners are automatically threaded for client
-             // nodes and transport client in order to make sure client side code is not executed on IO threads.
-            this.threadedListener = DiscoveryNode.clientNode(settings) || TransportClient.CLIENT_TYPE.equals(settings.get(Client.CLIENT_TYPE_SETTING));
+             // Should the action listener be threaded or not by default. Action listeners are automatically threaded for
+            // the transport client in order to make sure client side code is not executed on IO threads.
+            this.threadedListener = TransportClient.CLIENT_TYPE.equals(Client.CLIENT_TYPE_SETTING_S.get(settings));
         }
 
         public <Response> ActionListener<Response> wrap(ActionListener<Response> listener) {
@@ -65,7 +64,7 @@ public final class ThreadedActionListener<Response> implements ActionListener<Re
             if (listener instanceof ThreadedActionListener) {
                 return listener;
             }
-            return new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.LISTENER, listener);
+            return new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.LISTENER, listener, false);
         }
     }
 
@@ -73,40 +72,53 @@ public final class ThreadedActionListener<Response> implements ActionListener<Re
     private final ThreadPool threadPool;
     private final String executor;
     private final ActionListener<Response> listener;
+    private final boolean forceExecution;
 
-    public ThreadedActionListener(ESLogger logger, ThreadPool threadPool, String executor, ActionListener<Response> listener) {
+    public ThreadedActionListener(ESLogger logger, ThreadPool threadPool, String executor, ActionListener<Response> listener,
+                                  boolean forceExecution) {
         this.logger = logger;
         this.threadPool = threadPool;
         this.executor = executor;
         this.listener = listener;
+        this.forceExecution = forceExecution;
     }
 
     @Override
     public void onResponse(final Response response) {
         threadPool.executor(executor).execute(new AbstractRunnable() {
             @Override
+            public boolean isForceExecution() {
+                return forceExecution;
+            }
+
+            @Override
             protected void doRun() throws Exception {
                 listener.onResponse(response);
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                listener.onFailure(t);
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
             }
         });
     }
 
     @Override
-    public void onFailure(final Throwable e) {
+    public void onFailure(final Exception e) {
         threadPool.executor(executor).execute(new AbstractRunnable() {
+            @Override
+            public boolean isForceExecution() {
+                return forceExecution;
+            }
+
             @Override
             protected void doRun() throws Exception {
                 listener.onFailure(e);
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                logger.warn("failed to execute failure callback on [{}], failure [{}]", t, listener, e);
+            public void onFailure(Exception e) {
+                logger.warn("failed to execute failure callback on [{}], failure [{}]", e, listener, e);
             }
         });
     }

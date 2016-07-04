@@ -93,7 +93,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         final String message = "[" + this.name + "] Data too large, data for [" +
                 fieldName + "] would be larger than limit of [" +
                 memoryBytesLimit + "/" + new ByteSizeValue(memoryBytesLimit) + "]";
-        logger.debug(message);
+        logger.debug("{}", message);
         throw new CircuitBreakingException(message,
                 bytesNeeded, this.memoryBytesLimit);
     }
@@ -118,37 +118,9 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         // .addAndGet() instead of looping (because we don't have to check a
         // limit), which makes the RamAccountingTermsEnum case faster.
         if (this.memoryBytesLimit == -1) {
-            newUsed = this.used.addAndGet(bytes);
-            if (logger.isTraceEnabled()) {
-                logger.trace("[{}] Adding [{}][{}] to used bytes [new used: [{}], limit: [-1b]]",
-                        this.name, new ByteSizeValue(bytes), label, new ByteSizeValue(newUsed));
-            }
+            newUsed = noLimit(bytes, label);
         } else {
-            // Otherwise, check the addition and commit the addition, looping if
-            // there are conflicts. May result in additional logging, but it's
-            // trace logging and shouldn't be counted on for additions.
-            long currentUsed;
-            do {
-                currentUsed = this.used.get();
-                newUsed = currentUsed + bytes;
-                long newUsedWithOverhead = (long) (newUsed * overheadConstant);
-                if (logger.isTraceEnabled()) {
-                    logger.trace("[{}] Adding [{}][{}] to used bytes [new used: [{}], limit: {} [{}], estimate: {} [{}]]",
-                            this.name,
-                            new ByteSizeValue(bytes), label, new ByteSizeValue(newUsed),
-                            memoryBytesLimit, new ByteSizeValue(memoryBytesLimit),
-                            newUsedWithOverhead, new ByteSizeValue(newUsedWithOverhead));
-                }
-                if (memoryBytesLimit > 0 && newUsedWithOverhead > memoryBytesLimit) {
-                    logger.warn("[{}] New used memory {} [{}] for data of [{}] would be larger than configured breaker: {} [{}], breaking",
-                            this.name,
-                            newUsedWithOverhead, new ByteSizeValue(newUsedWithOverhead), label,
-                            memoryBytesLimit, new ByteSizeValue(memoryBytesLimit));
-                    circuitBreak(label, newUsedWithOverhead);
-                }
-                // Attempt to set the new used value, but make sure it hasn't changed
-                // underneath us, if it has, keep trying until we are able to set it
-            } while (!this.used.compareAndSet(currentUsed, newUsed));
+            newUsed = limit(bytes, label);
         }
 
         // Additionally, we need to check that we haven't exceeded the parent's limit
@@ -161,6 +133,45 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
             this.addWithoutBreaking(-bytes);
             throw e;
         }
+        return newUsed;
+    }
+
+    private long noLimit(long bytes, String label) {
+        long newUsed;
+        newUsed = this.used.addAndGet(bytes);
+        if (logger.isTraceEnabled()) {
+            logger.trace("[{}] Adding [{}][{}] to used bytes [new used: [{}], limit: [-1b]]",
+                this.name, new ByteSizeValue(bytes), label, new ByteSizeValue(newUsed));
+        }
+        return newUsed;
+    }
+
+    private long limit(long bytes, String label) {
+        long newUsed;// Otherwise, check the addition and commit the addition, looping if
+        // there are conflicts. May result in additional logging, but it's
+        // trace logging and shouldn't be counted on for additions.
+        long currentUsed;
+        do {
+            currentUsed = this.used.get();
+            newUsed = currentUsed + bytes;
+            long newUsedWithOverhead = (long) (newUsed * overheadConstant);
+            if (logger.isTraceEnabled()) {
+                logger.trace("[{}] Adding [{}][{}] to used bytes [new used: [{}], limit: {} [{}], estimate: {} [{}]]",
+                        this.name,
+                        new ByteSizeValue(bytes), label, new ByteSizeValue(newUsed),
+                        memoryBytesLimit, new ByteSizeValue(memoryBytesLimit),
+                        newUsedWithOverhead, new ByteSizeValue(newUsedWithOverhead));
+            }
+            if (memoryBytesLimit > 0 && newUsedWithOverhead > memoryBytesLimit) {
+                logger.warn("[{}] New used memory {} [{}] for data of [{}] would be larger than configured breaker: {} [{}], breaking",
+                        this.name,
+                        newUsedWithOverhead, new ByteSizeValue(newUsedWithOverhead), label,
+                        memoryBytesLimit, new ByteSizeValue(memoryBytesLimit));
+                circuitBreak(label, newUsedWithOverhead);
+            }
+            // Attempt to set the new used value, but make sure it hasn't changed
+            // underneath us, if it has, keep trying until we are able to set it
+        } while (!this.used.compareAndSet(currentUsed, newUsed));
         return newUsed;
     }
 

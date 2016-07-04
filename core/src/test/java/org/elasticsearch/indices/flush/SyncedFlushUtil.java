@@ -20,7 +20,6 @@ package org.elasticsearch.indices.flush;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.engine.Engine;
@@ -37,25 +36,6 @@ public class SyncedFlushUtil {
     private SyncedFlushUtil() {
 
     }
-
-    /**
-     * Blocking single index version of {@link SyncedFlushService#attemptSyncedFlush(String[], IndicesOptions, ActionListener)}
-     */
-    public static IndicesSyncedFlushResult attemptSyncedFlush(InternalTestCluster cluster, String index) {
-        SyncedFlushService service = cluster.getInstance(SyncedFlushService.class);
-        LatchedListener<IndicesSyncedFlushResult> listener = new LatchedListener();
-        service.attemptSyncedFlush(new String[]{index}, IndicesOptions.lenientExpandOpen(), listener);
-        try {
-            listener.latch.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-        if (listener.error != null) {
-            throw ExceptionsHelper.convertToElastic(listener.error);
-        }
-        return listener.result;
-    }
-
 
     /**
      * Blocking version of {@link SyncedFlushService#attemptSyncedFlush(ShardId, ActionListener)}
@@ -77,7 +57,7 @@ public class SyncedFlushUtil {
 
     public static final class LatchedListener<T> implements ActionListener<T> {
         public volatile T result;
-        public volatile Throwable error;
+        public volatile Exception error;
         public final CountDownLatch latch = new CountDownLatch(1);
 
         @Override
@@ -87,7 +67,7 @@ public class SyncedFlushUtil {
         }
 
         @Override
-        public void onFailure(Throwable e) {
+        public void onFailure(Exception e) {
             error = e;
             latch.countDown();
         }
@@ -109,5 +89,4 @@ public class SyncedFlushUtil {
         }
         return listener.result;
     }
-
 }

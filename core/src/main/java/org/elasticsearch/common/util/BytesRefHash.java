@@ -20,7 +20,6 @@
 package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.BitMixer;
-
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;

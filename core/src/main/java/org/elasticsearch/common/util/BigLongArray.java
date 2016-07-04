@@ -70,7 +70,7 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
 
     @Override
     protected int numBytesPerElement() {
-        return RamUsageEstimator.NUM_BYTES_LONG;
+        return Long.BYTES;
     }
 
     /** Change the size of this array. Content between indexes <code>0</code> and <code>min(size(), newSize)</code> will be preserved. */

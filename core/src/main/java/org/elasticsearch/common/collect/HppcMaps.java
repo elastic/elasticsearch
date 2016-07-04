@@ -132,8 +132,8 @@ public final class HppcMaps {
         };
     }
 
-    public final static class Object {
-        public final static class Integer {
+    public static final class Object {
+        public static final class Integer {
             public static <V> ObjectIntHashMap<V> ensureNoNullKeys(int capacity, float loadFactor) {
                 return new ObjectIntHashMap<V>(capacity, loadFactor) {
                     @Override

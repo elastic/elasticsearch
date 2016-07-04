@@ -42,29 +42,30 @@ import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
-import org.elasticsearch.search.SearchParseElement;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.profile.query.CollectorResult;
+import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
-import org.elasticsearch.search.sort.SortParseElement;
-import org.elasticsearch.search.sort.TrackScoresParseElement;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
 
+import java.util.AbstractList;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Callable;
-
-import static java.util.Collections.unmodifiableMap;
 
 /**
  *
@@ -75,39 +76,10 @@ public class QueryPhase implements SearchPhase {
     private final SuggestPhase suggestPhase;
     private RescorePhase rescorePhase;
 
-    @Inject
-    public QueryPhase(AggregationPhase aggregationPhase, SuggestPhase suggestPhase, RescorePhase rescorePhase) {
-        this.aggregationPhase = aggregationPhase;
-        this.suggestPhase = suggestPhase;
-        this.rescorePhase = rescorePhase;
-    }
-
-    @Override
-    public Map<String, ? extends SearchParseElement> parseElements() {
-        Map<String, SearchParseElement> parseElements = new HashMap<>();
-        parseElements.put("from", new FromParseElement());
-        parseElements.put("size", new SizeParseElement());
-        parseElements.put("indices_boost", new IndicesBoostParseElement());
-        parseElements.put("indicesBoost", new IndicesBoostParseElement());
-        parseElements.put("query", new QueryParseElement());
-        parseElements.put("queryBinary", new QueryBinaryParseElement());
-        parseElements.put("query_binary", new QueryBinaryParseElement());
-        parseElements.put("filter", new PostFilterParseElement()); // For bw comp reason, should be removed in version 1.1
-        parseElements.put("post_filter", new PostFilterParseElement());
-        parseElements.put("postFilter", new PostFilterParseElement());
-        parseElements.put("filterBinary", new FilterBinaryParseElement());
-        parseElements.put("filter_binary", new FilterBinaryParseElement());
-        parseElements.put("sort", new SortParseElement());
-        parseElements.put("trackScores", new TrackScoresParseElement());
-        parseElements.put("track_scores", new TrackScoresParseElement());
-        parseElements.put("min_score", new MinScoreParseElement());
-        parseElements.put("minScore", new MinScoreParseElement());
-        parseElements.put("timeout", new TimeoutParseElement());
-        parseElements.put("terminate_after", new TerminateAfterParseElement());
-        parseElements.putAll(aggregationPhase.parseElements());
-        parseElements.putAll(suggestPhase.parseElements());
-        parseElements.putAll(rescorePhase.parseElements());
-        return unmodifiableMap(parseElements);
+    public QueryPhase(Settings settings) {
+        this.aggregationPhase = new AggregationPhase();
+        this.suggestPhase = new SuggestPhase(settings);
+        this.rescorePhase = new RescorePhase(settings);
     }
 
     @Override
@@ -117,6 +89,14 @@ public class QueryPhase implements SearchPhase {
 
     @Override
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
+        if (searchContext.hasOnlySuggest()) {
+            suggestPhase.execute(searchContext);
+            // TODO: fix this once we can fetch docs for suggestions
+            searchContext.queryResult().topDocs(
+                    new TopDocs(0, Lucene.EMPTY_SCORE_DOCS, 0),
+                    new DocValueFormat[0]);
+            return;
+        }
         // Pre-process aggregations as late as possible. In the case of a DFS_Q_T_F
         // request, preProcess is called on the DFS phase phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
@@ -129,17 +109,23 @@ public class QueryPhase implements SearchPhase {
         }
         suggestPhase.execute(searchContext);
         aggregationPhase.execute(searchContext);
+
+        if (searchContext.getProfilers() != null) {
+            ProfileShardResult shardResults = SearchProfileShardResults
+                    .buildShardResults(searchContext.getProfilers());
+            searchContext.queryResult().profileResults(shardResults);
+        }
     }
 
-    private static boolean returnsDocsInOrder(Query query, Sort sort) {
-        if (sort == null || Sort.RELEVANCE.equals(sort)) {
+    private static boolean returnsDocsInOrder(Query query, SortAndFormats sf) {
+        if (sf == null || Sort.RELEVANCE.equals(sf.sort)) {
             // sort by score
             // queries that return constant scores will return docs in index
             // order since Lucene tie-breaks on the doc id
             return query.getClass() == ConstantScoreQuery.class
                     || query.getClass() == MatchAllDocsQuery.class;
         } else {
-            return Sort.INDEXORDER.equals(sort);
+            return Sort.INDEXORDER.equals(sf.sort);
         }
     }
 
@@ -152,6 +138,7 @@ public class QueryPhase implements SearchPhase {
         QuerySearchResult queryResult = searchContext.queryResult();
         queryResult.searchTimedOut(false);
 
+        final boolean doProfile = searchContext.getProfilers() != null;
         final SearchType searchType = searchContext.searchType();
         boolean rescore = false;
         try {
@@ -165,11 +152,16 @@ public class QueryPhase implements SearchPhase {
 
             Collector collector;
             Callable<TopDocs> topDocsCallable;
+            DocValueFormat[] sortValueFormats = new DocValueFormat[0];
 
             assert query == searcher.rewrite(query); // already rewritten
+
             if (searchContext.size() == 0) { // no matter what the value of from is
                 final TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
                 collector = totalHitCountCollector;
+                if (searchContext.getProfilers() != null) {
+                    collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_COUNT, Collections.emptyList());
+                }
                 topDocsCallable = new Callable<TopDocs>() {
                     @Override
                     public TopDocs call() throws Exception {
@@ -181,10 +173,10 @@ public class QueryPhase implements SearchPhase {
                 final ScrollContext scrollContext = searchContext.scrollContext();
                 assert (scrollContext != null) == (searchContext.request().scroll() != null);
                 final TopDocsCollector<?> topDocsCollector;
-                ScoreDoc lastEmittedDoc;
+                ScoreDoc after = null;
                 if (searchContext.request().scroll() != null) {
                     numDocs = Math.min(searchContext.size(), totalNumDocs);
-                    lastEmittedDoc = scrollContext.lastEmittedDoc;
+                    after = scrollContext.lastEmittedDoc;
 
                     if (returnsDocsInOrder(query, searchContext.sort())) {
                         if (scrollContext.totalHits == -1) {
@@ -198,7 +190,7 @@ public class QueryPhase implements SearchPhase {
                             if (scrollContext.lastEmittedDoc != null) {
                                 BooleanQuery bq = new BooleanQuery.Builder()
                                     .add(query, BooleanClause.Occur.MUST)
-                                    .add(new MinDocQuery(lastEmittedDoc.doc + 1), BooleanClause.Occur.FILTER)
+                                    .add(new MinDocQuery(after.doc + 1), BooleanClause.Occur.FILTER)
                                     .build();
                                 query = bq;
                             }
@@ -206,7 +198,7 @@ public class QueryPhase implements SearchPhase {
                         }
                     }
                 } else {
-                    lastEmittedDoc = null;
+                    after = searchContext.searchAfter();
                 }
                 if (totalNumDocs == 0) {
                     // top collectors don't like a size of 0
@@ -214,16 +206,21 @@ public class QueryPhase implements SearchPhase {
                 }
                 assert numDocs > 0;
                 if (searchContext.sort() != null) {
-                    topDocsCollector = TopFieldCollector.create(searchContext.sort(), numDocs,
-                            (FieldDoc) lastEmittedDoc, true, searchContext.trackScores(), searchContext.trackScores());
+                    SortAndFormats sf = searchContext.sort();
+                    topDocsCollector = TopFieldCollector.create(sf.sort, numDocs,
+                            (FieldDoc) after, true, searchContext.trackScores(), searchContext.trackScores());
+                    sortValueFormats = sf.formats;
                 } else {
                     rescore = !searchContext.rescore().isEmpty();
                     for (RescoreSearchContext rescoreContext : searchContext.rescore()) {
                         numDocs = Math.max(rescoreContext.window(), numDocs);
                     }
-                    topDocsCollector = TopScoreDocCollector.create(numDocs, lastEmittedDoc);
+                    topDocsCollector = TopScoreDocCollector.create(numDocs, after);
                 }
                 collector = topDocsCollector;
+                if (doProfile) {
+                    collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_TOP_HITS, Collections.emptyList());
+                }
                 topDocsCallable = new Callable<TopDocs>() {
                     @Override
                     public TopDocs call() throws Exception {
@@ -259,27 +256,57 @@ public class QueryPhase implements SearchPhase {
 
             final boolean terminateAfterSet = searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER;
             if (terminateAfterSet) {
+                final Collector child = collector;
                 // throws Lucene.EarlyTerminationException when given count is reached
                 collector = Lucene.wrapCountBasedEarlyTerminatingCollector(collector, searchContext.terminateAfter());
+                if (doProfile) {
+                    collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_TERMINATE_AFTER_COUNT,
+                            Collections.singletonList((InternalProfileCollector) child));
+                }
             }
 
             if (searchContext.parsedPostFilter() != null) {
+                final Collector child = collector;
                 // this will only get applied to the actual search collector and not
                 // to any scoped collectors, also, it will only be applied to the main collector
                 // since that is where the filter should only work
                 final Weight filterWeight = searcher.createNormalizedWeight(searchContext.parsedPostFilter().query(), false);
                 collector = new FilteredCollector(collector, filterWeight);
+                if (doProfile) {
+                    collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_POST_FILTER,
+                            Collections.singletonList((InternalProfileCollector) child));
+                }
             }
 
             // plug in additional collectors, like aggregations
-            List<Collector> allCollectors = new ArrayList<>();
-            allCollectors.add(collector);
-            allCollectors.addAll(searchContext.queryCollectors().values());
-            collector = MultiCollector.wrap(allCollectors);
+            final List<Collector> subCollectors = new ArrayList<>();
+            subCollectors.add(collector);
+            subCollectors.addAll(searchContext.queryCollectors().values());
+            collector = MultiCollector.wrap(subCollectors);
+            if (doProfile && collector instanceof InternalProfileCollector == false) {
+                // When there is a single collector to wrap, MultiCollector returns it
+                // directly, so only wrap in the case that there are several sub collectors
+                final List<InternalProfileCollector> children = new AbstractList<InternalProfileCollector>() {
+                    @Override
+                    public InternalProfileCollector get(int index) {
+                        return (InternalProfileCollector) subCollectors.get(index);
+                    }
+                    @Override
+                    public int size() {
+                        return subCollectors.size();
+                    }
+                };
+                collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_MULTI, children);
+            }
 
             // apply the minimum score after multi collector so we filter aggs as well
             if (searchContext.minimumScore() != null) {
+                final Collector child = collector;
                 collector = new MinimumScoreCollector(collector, searchContext.minimumScore());
+                if (doProfile) {
+                    collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_MIN_SCORE,
+                            Collections.singletonList((InternalProfileCollector) child));
+                }
             }
 
             if (collector.getClass() == TotalHitCountCollector.class) {
@@ -322,15 +349,23 @@ public class QueryPhase implements SearchPhase {
                 }
             }
 
-            final boolean timeoutSet = searchContext.timeoutInMillis() != SearchService.NO_TIMEOUT.millis();
+            final boolean timeoutSet = searchContext.timeout() != null && !searchContext.timeout().equals(SearchService.NO_TIMEOUT);
             if (timeoutSet && collector != null) { // collector might be null if no collection is actually needed
+                final Collector child = collector;
                 // TODO: change to use our own counter that uses the scheduler in ThreadPool
                 // throws TimeLimitingCollector.TimeExceededException when timeout has reached
-                collector = Lucene.wrapTimeLimitingCollector(collector, searchContext.timeEstimateCounter(), searchContext.timeoutInMillis());
+                collector = Lucene.wrapTimeLimitingCollector(collector, searchContext.timeEstimateCounter(), searchContext.timeout().millis());
+                if (doProfile) {
+                    collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_TIMEOUT,
+                            Collections.singletonList((InternalProfileCollector) child));
+                }
             }
 
             try {
                 if (collector != null) {
+                    if (doProfile) {
+                        searchContext.getProfilers().getCurrentQueryProfiler().setCollector((InternalProfileCollector) collector);
+                    }
                     searcher.search(query, collector);
                 }
             } catch (TimeLimitingCollector.TimeExceededException e) {
@@ -346,10 +381,17 @@ public class QueryPhase implements SearchPhase {
                 queryResult.terminatedEarly(false);
             }
 
-            queryResult.topDocs(topDocsCallable.call());
+            queryResult.topDocs(topDocsCallable.call(), sortValueFormats);
+
+            if (searchContext.getProfilers() != null) {
+                ProfileShardResult shardResults = SearchProfileShardResults
+                        .buildShardResults(searchContext.getProfilers());
+                searchContext.queryResult().profileResults(shardResults);
+            }
 
             return rescore;
-        } catch (Throwable e) {
+
+        } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext, "Failed to execute main query", e);
         }
     }

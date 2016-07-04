@@ -74,18 +74,6 @@ public class JarHellTests extends ESTestCase {
         }
     }
 
-    public void testBootclasspathLeniency() throws Exception {
-        Path dir = createTempDir();
-        String previousJavaHome = System.getProperty("java.home");
-        System.setProperty("java.home", dir.toString());
-        URL[] jars = {makeJar(dir, "foo.jar", null, "DuplicateClass.class"), makeJar(dir, "bar.jar", null, "DuplicateClass.class")};
-        try {
-            JarHell.checkJarHell(jars);
-        } finally {
-            System.setProperty("java.home", previousJavaHome);
-        }
-    }
-
     public void testDuplicateClasspathLeniency() throws Exception {
         Path dir = createTempDir();
         URL jar = makeJar(dir, "foo.jar", null, "Foo.class");
@@ -179,40 +167,6 @@ public class JarHellTests extends ESTestCase {
         }
     }
 
-    public void testRequiredJDKVersionIsOK() throws Exception {
-        Path dir = createTempDir();
-        String previousJavaVersion = System.getProperty("java.specification.version");
-        System.setProperty("java.specification.version", "1.7");
-
-        Manifest manifest = new Manifest();
-        Attributes attributes = manifest.getMainAttributes();
-        attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
-        attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "1.7");
-        URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
-        try {
-            JarHell.checkJarHell(jars);
-        } finally {
-            System.setProperty("java.specification.version", previousJavaVersion);
-        }
-    }
-
-    public void testBadJDKVersionProperty() throws Exception {
-        Path dir = createTempDir();
-        String previousJavaVersion = System.getProperty("java.specification.version");
-        System.setProperty("java.specification.version", "bogus");
-
-        Manifest manifest = new Manifest();
-        Attributes attributes = manifest.getMainAttributes();
-        attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
-        attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "1.7");
-        URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
-        try {
-            JarHell.checkJarHell(jars);
-        } finally {
-            System.setProperty("java.specification.version", previousJavaVersion);
-        }
-    }
-
     public void testBadJDKVersionInJar() throws Exception {
         Path dir = createTempDir();
         Manifest manifest = new Manifest();
@@ -226,6 +180,17 @@ public class JarHellTests extends ESTestCase {
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage().equals("version string must be a sequence of nonnegative decimal integers separated by \".\"'s and may have leading zeros but was bogus"));
         }
+    }
+
+    public void testRequiredJDKVersionIsOK() throws Exception {
+        Path dir = createTempDir();
+        Manifest manifest = new Manifest();
+        Attributes attributes = manifest.getMainAttributes();
+        attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
+        attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "1.7");
+        URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
+
+        JarHell.checkJarHell(jars);
     }
 
     /** make sure if a plugin is compiled against the same ES version, it works */

@@ -28,9 +28,7 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.warmer.IndexWarmersMetaData.Entry;
 import org.elasticsearch.test.ESBackcompatTestCase;
-import org.junit.Test;
 
 import java.util.List;
 
@@ -40,8 +38,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class GetIndexBackwardsCompatibilityIT extends ESBackcompatTestCase {
-
-    @Test
     public void testGetAliases() throws Exception {
         CreateIndexResponse createIndexResponse = prepareCreate("test").addAlias(new Alias("testAlias")).execute().actionGet();
         assertAcked(createIndexResponse);
@@ -58,7 +54,6 @@ public class GetIndexBackwardsCompatibilityIT extends ESBackcompatTestCase {
         assertThat(alias.alias(), equalTo("testAlias"));
     }
 
-    @Test
     public void testGetMappings() throws Exception {
         CreateIndexResponse createIndexResponse = prepareCreate("test").addMapping("type1", "{\"type1\":{}}").execute().actionGet();
         assertAcked(createIndexResponse);
@@ -79,7 +74,6 @@ public class GetIndexBackwardsCompatibilityIT extends ESBackcompatTestCase {
         assertThat(mapping.type(), equalTo("type1"));
     }
 
-    @Test
     public void testGetSettings() throws Exception {
         CreateIndexResponse createIndexResponse = prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 1)).execute().actionGet();
         assertAcked(createIndexResponse);
@@ -93,22 +87,4 @@ public class GetIndexBackwardsCompatibilityIT extends ESBackcompatTestCase {
         assertThat(settings.get("index.number_of_shards"), equalTo("1"));
     }
 
-    @Test
-    public void testGetWarmers() throws Exception {
-        createIndex("test");
-        ensureSearchable("test");
-        assertAcked(client().admin().indices().preparePutWarmer("warmer1").setSearchRequest(client().prepareSearch("test")).get());
-        ensureSearchable("test");
-        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().addIndices("test").addFeatures(Feature.WARMERS)
-                .execute().actionGet();
-        ImmutableOpenMap<String, List<Entry>> warmersMap = getIndexResponse.warmers();
-        assertThat(warmersMap, notNullValue());
-        assertThat(warmersMap.size(), equalTo(1));
-        List<Entry> warmersList = warmersMap.get("test");
-        assertThat(warmersList, notNullValue());
-        assertThat(warmersList.size(), equalTo(1));
-        Entry warmer = warmersList.get(0);
-        assertThat(warmer, notNullValue());
-        assertThat(warmer.name(), equalTo("warmer1"));
-    }
 }

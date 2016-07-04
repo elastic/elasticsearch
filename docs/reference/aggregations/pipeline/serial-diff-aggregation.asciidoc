@@ -47,7 +47,7 @@ A `serial_diff` aggregation looks like this in isolation:
 }
 --------------------------------------------------
 
-.`moving_avg` Parameters
+.`serial_diff` Parameters
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |Path to the metric of interest (see <<buckets-path-syntax, `buckets_path` Syntax>> for more details |Required |
@@ -76,7 +76,7 @@ A `serial_diff` aggregation looks like this in isolation:
             },
             "thirtieth_difference": {
                "serial_diff": {                <3>
-                  "buckets_path": "lemmings",
+                  "buckets_path": "the_sum",
                   "lag" : 30
                }
             }

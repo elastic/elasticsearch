@@ -257,8 +257,8 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
                     } else {
                         listener.onFileCreated(file);
                     }
-                } catch (Throwable t) {
-                    logger.warn("cannot notify file changes listener", t);
+                } catch (Exception e) {
+                    logger.warn("cannot notify file changes listener", e);
                 }
             }
         }
@@ -267,8 +267,8 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
             for (FileChangesListener listener : listeners()) {
                 try {
                     listener.onFileDeleted(file);
-                } catch (Throwable t) {
-                    logger.warn("cannot notify file changes listener", t);
+                } catch (Exception e) {
+                    logger.warn("cannot notify file changes listener", e);
                 }
             }
         }
@@ -277,8 +277,8 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
             for (FileChangesListener listener : listeners()) {
                 try {
                     listener.onFileChanged(file);
-                } catch (Throwable t) {
-                    logger.warn("cannot notify file changes listener", t);
+                } catch (Exception e) {
+                    logger.warn("cannot notify file changes listener", e);
                 }
 
             }
@@ -292,8 +292,8 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
                     } else {
                         listener.onDirectoryCreated(file);
                     }
-                } catch (Throwable t) {
-                    logger.warn("cannot notify file changes listener", t);
+                } catch (Exception e) {
+                    logger.warn("cannot notify file changes listener", e);
                 }
             }
             children = listChildren(initial);
@@ -307,8 +307,8 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
             for (FileChangesListener listener : listeners()) {
                 try {
                     listener.onDirectoryDeleted(file);
-                } catch (Throwable t) {
-                    logger.warn("cannot notify file changes listener", t);
+                } catch (Exception e) {
+                    logger.warn("cannot notify file changes listener", e);
                 }
             }
         }

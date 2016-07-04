@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
@@ -44,7 +43,7 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class InternalAggregations implements Aggregations, ToXContent, Streamable {
 
-    public final static InternalAggregations EMPTY = new InternalAggregations();
+    public static final InternalAggregations EMPTY = new InternalAggregations();
 
     private List<InternalAggregation> aggregations = Collections.emptyList();
 
@@ -164,7 +163,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
 
     /** The fields required to write this addAggregation to xcontent */
     static class Fields {
-        public static final XContentBuilderString AGGREGATIONS = new XContentBuilderString("aggregations");
+        public static final String AGGREGATIONS = "aggregations";
     }
 
     @Override
@@ -194,7 +193,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
     }
 
     public static InternalAggregations readOptionalAggregations(StreamInput in) throws IOException {
-        return in.readOptionalStreamable(new InternalAggregations());
+        return in.readOptionalStreamable(InternalAggregations::new);
     }
 
     @Override
@@ -206,9 +205,14 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
         } else {
             aggregations = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                BytesReference type = in.readBytesReference();
-                InternalAggregation aggregation = AggregationStreams.stream(type).readResult(in);
-                aggregations.add(aggregation);
+                // NORELEASE temporary hack to support old style streams and new style NamedWriteable at the same time
+                if (in.readBoolean()) {
+                    aggregations.add(in.readNamedWriteable(InternalAggregation.class));
+                } else {
+                    BytesReference type = in.readBytesReference();
+                    InternalAggregation aggregation = AggregationStreams.stream(type).readResult(in);
+                    aggregations.add(aggregation);
+                }
             }
         }
     }
@@ -218,8 +222,16 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
         out.writeVInt(aggregations.size());
         for (Aggregation aggregation : aggregations) {
             InternalAggregation internal = (InternalAggregation) aggregation;
-            out.writeBytesReference(internal.type().stream());
-            internal.writeTo(out);
+            // NORELEASE Temporary hack to support old style streams and new style NamedWriteable at the same time
+            try {
+                internal.getWriteableName(); // Throws UnsupportedOperationException if we should use old style streams.
+                out.writeBoolean(true);
+                out.writeNamedWriteable(internal);
+            } catch (UnsupportedOperationException e) {
+                out.writeBoolean(false);
+                out.writeBytesReference(internal.type().stream());
+                internal.writeTo(out);
+            }
         }
     }
 

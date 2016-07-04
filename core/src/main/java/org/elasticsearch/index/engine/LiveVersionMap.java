@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
@@ -64,7 +65,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
      *
      *  NUM_BYTES_OBJECT_HEADER + 2*NUM_BYTES_INT + NUM_BYTES_OBJECT_REF + NUM_BYTES_ARRAY_HEADER [ + bytes.length] */
     private static final int BASE_BYTES_PER_BYTESREF = RamUsageEstimator.NUM_BYTES_OBJECT_HEADER +
-        2*RamUsageEstimator.NUM_BYTES_INT +
+        2*Integer.BYTES +
         RamUsageEstimator.NUM_BYTES_OBJECT_REF + 
         RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
 
@@ -76,7 +77,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
      *  CHM's pointer to CHM.Entry, double for approx load factor:
      *     + 2*NUM_BYTES_OBJECT_REF */
     private static final int BASE_BYTES_PER_CHM_ENTRY = RamUsageEstimator.NUM_BYTES_OBJECT_HEADER +
-        RamUsageEstimator.NUM_BYTES_INT +
+        Integer.BYTES +
         5*RamUsageEstimator.NUM_BYTES_OBJECT_REF;
 
     /** Tracks bytes used by current map, i.e. what is freed on refresh. For deletes, which are also added to tombstones, we only account
@@ -126,21 +127,21 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
     }
 
     /** Returns the live version (add or delete) for this uid. */
-    VersionValue getUnderLock(BytesRef uid) {
+    VersionValue getUnderLock(final Term uid) {
         Maps currentMaps = maps;
 
         // First try to get the "live" value:
-        VersionValue value = currentMaps.current.get(uid);
+        VersionValue value = currentMaps.current.get(uid.bytes());
         if (value != null) {
             return value;
         }
 
-        value = currentMaps.old.get(uid);
+        value = currentMaps.old.get(uid.bytes());
         if (value != null) {
             return value;
         }
 
-        return tombstones.get(uid);
+        return tombstones.get(uid.bytes());
     }
 
     /** Adds this uid/version to the pending adds map. */

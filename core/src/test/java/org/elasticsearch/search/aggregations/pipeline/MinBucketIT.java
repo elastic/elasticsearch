@@ -21,24 +21,25 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
+import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValue;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.minBucket;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.minBucket;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -59,7 +60,8 @@ public class MinBucketIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        createIndex("idx");
+        assertAcked(client().admin().indices().prepareCreate("idx")
+                .addMapping("type", "tag", "type=keyword").get());
         createIndex("idx_unmapped");
 
         numDocs = randomIntBetween(6, 20);
@@ -91,12 +93,11 @@ public class MinBucketIT extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    @Test
-    public void testDocCount_topLevel() throws Exception {
+    public void testDocCountTopLevel() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                        .extendedBounds((long) minRandomValue, (long) maxRandomValue))
-                .addAggregation(minBucket("min_bucket").setBucketsPaths("histo>_count")).execute().actionGet();
+                        .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue)))
+                .addAggregation(minBucket("min_bucket", "histo>_count")).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -129,8 +130,7 @@ public class MinBucketIT extends ESIntegTestCase {
         assertThat(minBucketValue.keys(), equalTo(minKeys.toArray(new String[minKeys.size()])));
     }
 
-    @Test
-    public void testDocCount_asSubAgg() throws Exception {
+    public void testDocCountAsSubAgg() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -139,8 +139,8 @@ public class MinBucketIT extends ESIntegTestCase {
                                 .order(Order.term(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds((long) minRandomValue, (long) maxRandomValue))
-                                .subAggregation(minBucket("min_bucket").setBucketsPaths("histo>_count"))).execute().actionGet();
+                                                .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue)))
+                                .subAggregation(minBucket("min_bucket", "histo>_count"))).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -183,12 +183,11 @@ public class MinBucketIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void testMetric_topLevel() throws Exception {
+    public void testMetricTopLevel() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .addAggregation(minBucket("min_bucket").setBucketsPaths("terms>sum")).execute().actionGet();
+                .addAggregation(minBucket("min_bucket", "terms>sum")).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -204,7 +203,7 @@ public class MinBucketIT extends ESIntegTestCase {
             Terms.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
             assertThat((String) bucket.getKey(), equalTo("tag" + (i % interval)));
-            assertThat(bucket.getDocCount(), greaterThan(0l));
+            assertThat(bucket.getDocCount(), greaterThan(0L));
             Sum sum = bucket.getAggregations().get("sum");
             assertThat(sum, notNullValue());
             if (sum.value() < minValue) {
@@ -223,8 +222,7 @@ public class MinBucketIT extends ESIntegTestCase {
         assertThat(minBucketValue.keys(), equalTo(minKeys.toArray(new String[minKeys.size()])));
     }
 
-    @Test
-    public void testMetric_asSubAgg() throws Exception {
+    public void testMetricAsSubAgg() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -233,9 +231,9 @@ public class MinBucketIT extends ESIntegTestCase {
                                 .order(Order.term(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds((long) minRandomValue, (long) maxRandomValue)
+                                                .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue))
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                                .subAggregation(minBucket("min_bucket").setBucketsPaths("histo>sum"))).execute().actionGet();
+                                .subAggregation(minBucket("min_bucket", "histo>sum"))).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -282,8 +280,7 @@ public class MinBucketIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void testMetric_asSubAggWithInsertZeros() throws Exception {
+    public void testMetricAsSubAggWithInsertZeros() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -292,9 +289,9 @@ public class MinBucketIT extends ESIntegTestCase {
                                 .order(Order.term(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds((long) minRandomValue, (long) maxRandomValue)
+                                                .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue))
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                                .subAggregation(minBucket("min_bucket").setBucketsPaths("histo>sum").gapPolicy(GapPolicy.INSERT_ZEROS)))
+                                .subAggregation(minBucket("min_bucket", "histo>sum").gapPolicy(GapPolicy.INSERT_ZEROS)))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -340,11 +337,11 @@ public class MinBucketIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testNoBuckets() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("terms").field("tag").exclude("tag.*").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .addAggregation(minBucket("min_bucket").setBucketsPaths("terms>sum")).execute().actionGet();
+                .addAggregation(terms("terms").field("tag").includeExclude(new IncludeExclude(null, "tag.*"))
+                        .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
+                .addAggregation(minBucket("min_bucket", "terms>sum")).execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -361,7 +358,6 @@ public class MinBucketIT extends ESIntegTestCase {
         assertThat(minBucketValue.keys(), equalTo(new String[0]));
     }
 
-    @Test
     public void testNested() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -371,9 +367,9 @@ public class MinBucketIT extends ESIntegTestCase {
                                 .order(Order.term(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds((long) minRandomValue, (long) maxRandomValue))
-                                .subAggregation(minBucket("min_histo_bucket").setBucketsPaths("histo>_count")))
-                .addAggregation(minBucket("min_terms_bucket").setBucketsPaths("terms>min_histo_bucket")).execute().actionGet();
+                                                .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue)))
+                                .subAggregation(minBucket("min_histo_bucket", "histo>_count")))
+                .addAggregation(minBucket("min_terms_bucket", "terms>min_histo_bucket")).execute().actionGet();
 
         assertSearchResponse(response);
 

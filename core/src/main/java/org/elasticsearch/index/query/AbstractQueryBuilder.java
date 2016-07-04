@@ -19,7 +19,10 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.spans.SpanBoostQuery;
+import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
@@ -33,13 +36,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
  * Base class for all classes producing lucene queries.
  * Supports conversion to BytesReference and creation of lucene Query objects.
  */
-public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> extends ToXContentToBytes implements QueryBuilder<QB> {
+public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> extends ToXContentToBytes implements QueryBuilder {
 
     /** Default for boost to apply to resulting Lucene query. Defaults to 1.0*/
     public static final float DEFAULT_BOOST = 1.0f;
@@ -53,6 +57,20 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
         super(XContentType.JSON);
     }
 
+    protected AbstractQueryBuilder(StreamInput in) throws IOException {
+        boost = in.readFloat();
+        queryName = in.readOptionalString();
+    }
+
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        out.writeFloat(boost);
+        out.writeOptionalString(queryName);
+        doWriteTo(out);
+    }
+
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -64,9 +82,9 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
 
     protected void printBoostAndQueryName(XContentBuilder builder) throws IOException {
-        builder.field("boost", boost);
+        builder.field(BOOST_FIELD.getPreferredName(), boost);
         if (queryName != null) {
-            builder.field("_name", queryName);
+            builder.field(NAME_FIELD.getPreferredName(), queryName);
         }
     }
 
@@ -74,7 +92,13 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
     public final Query toQuery(QueryShardContext context) throws IOException {
         Query query = doToQuery(context);
         if (query != null) {
-            setFinalBoost(query);
+            if (boost != DEFAULT_BOOST) {
+                if (query instanceof SpanQuery) {
+                    query = new SpanBoostQuery((SpanQuery) query, boost);
+                } else {
+                    query = new BoostQuery(query, boost);
+                }
+            }
             if (queryName != null) {
                 context.addNamedQuery(queryName, query);
             }
@@ -82,29 +106,15 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
         return query;
     }
 
-    /**
-     * Sets the main boost to the query obtained by converting the current query into a lucene query.
-     * The default behaviour is to set the main boost, after verifying that we are not overriding any non default boost
-     * value that was previously set to the lucene query. That case would require some manual decision on how to combine
-     * the main boost with the boost coming from lucene by overriding this method.
-     * @throws IllegalStateException if the lucene query boost has already been set
-     */
-    protected void setFinalBoost(Query query) {
-        if (query.getBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-            throw new IllegalStateException("lucene query boost is already set, override setFinalBoost to define how to combine lucene boost with main boost");
-        }
-        query.setBoost(boost);
-    }
-
     @Override
     public final Query toFilter(QueryShardContext context) throws IOException {
         Query result = null;
-            final boolean originalIsFilter = context.isFilter;
+            final boolean originalIsFilter = context.isFilter();
             try {
-                context.isFilter = true;
+                context.setIsFilter(true);
                 result = toQuery(context);
             } finally {
-                context.isFilter = originalIsFilter;
+                context.setIsFilter(originalIsFilter);
             }
         return result;
     }
@@ -112,7 +122,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
     protected abstract Query doToQuery(QueryShardContext context) throws IOException;
 
     /**
-     * Returns the query name for the query.
+     * Sets the query name for the query.
      */
     @SuppressWarnings("unchecked")
     @Override
@@ -122,7 +132,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
     }
 
     /**
-     * Sets the query name for the query.
+     * Returns the query name for the query.
      */
     @Override
     public final String queryName() {
@@ -147,25 +157,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
         this.boost = boost;
         return (QB) this;
     }
-
-    @Override
-    public final QB readFrom(StreamInput in) throws IOException {
-        QB queryBuilder = doReadFrom(in);
-        queryBuilder.boost = in.readFloat();
-        queryBuilder.queryName = in.readOptionalString();
-        return queryBuilder;
-    }
-
-    protected abstract QB doReadFrom(StreamInput in) throws IOException;
-
-    @Override
-    public final void writeTo(StreamOutput out) throws IOException {
-        doWriteTo(out);
-        out.writeFloat(boost);
-        out.writeOptionalString(queryName);
-    }
-
-    protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
     protected final QueryValidationException addValidationError(String validationError, QueryValidationException validationException) {
         return QueryValidationException.addValidationError(getName(), validationError, validationException);
@@ -248,19 +239,55 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
         return getWriteableName();
     }
 
-    protected final void writeQueries(StreamOutput out, List<? extends QueryBuilder> queries) throws IOException {
+    protected static final void writeQueries(StreamOutput out, List<? extends QueryBuilder> queries) throws IOException {
         out.writeVInt(queries.size());
         for (QueryBuilder query : queries) {
-            out.writeQuery(query);
+            out.writeNamedWriteable(query);
         }
     }
 
-    protected final List<QueryBuilder> readQueries(StreamInput in) throws IOException {
+    protected static final List<QueryBuilder> readQueries(StreamInput in) throws IOException {
         List<QueryBuilder> queries = new ArrayList<>();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            queries.add(in.readQuery());
+            queries.add(in.readNamedWriteable(QueryBuilder.class));
         }
         return queries;
+    }
+
+    @Override
+    public final QueryBuilder rewrite(QueryRewriteContext queryShardContext) throws IOException {
+        QueryBuilder rewritten = doRewrite(queryShardContext);
+        if (rewritten == this) {
+            return rewritten;
+        }
+        if (queryName() != null && rewritten.queryName() == null) { // we inherit the name
+            rewritten.queryName(queryName());
+        }
+        if (boost() != DEFAULT_BOOST && rewritten.boost() == DEFAULT_BOOST) {
+            rewritten.boost(boost());
+        }
+        return rewritten;
+    }
+
+    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+        return this;
+    }
+
+    /**
+     * For internal usage only!
+     *
+     * Extracts the inner hits from the query tree.
+     * While it extracts inner hits, child inner hits are inlined into the inner hit builder they belong to.
+     */
+    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
+    }
+
+    // Like Objects.requireNotNull(...) but instead throws a IllegalArgumentException
+    protected static <T> T requireValue(T value, String message) {
+        if (value == null) {
+            throw new IllegalArgumentException(message);
+        }
+        return value;
     }
 }

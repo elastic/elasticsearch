@@ -19,66 +19,59 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.*;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
 
 import java.io.IOException;
 
-/**
- */
 public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends AbstractIndexComponent implements IndexFieldData<FD> {
 
-    private final MappedFieldType.Names fieldNames;
-    protected final FieldDataType fieldDataType;
+    private final String fieldName;
     protected final IndexFieldDataCache cache;
 
-    public AbstractIndexFieldData(Index index, @IndexSettings Settings indexSettings, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
-        super(index, indexSettings);
-        this.fieldNames = fieldNames;
-        this.fieldDataType = fieldDataType;
+    public AbstractIndexFieldData(IndexSettings indexSettings, String fieldName, IndexFieldDataCache cache) {
+        super(indexSettings);
+        this.fieldName = fieldName;
         this.cache = cache;
     }
 
     @Override
-    public MappedFieldType.Names getFieldNames() {
-        return this.fieldNames;
-    }
-
-    @Override
-    public FieldDataType getFieldDataType() {
-        return fieldDataType;
+    public String getFieldName() {
+        return this.fieldName;
     }
 
     @Override
     public void clear() {
-        cache.clear(fieldNames.indexName());
+        cache.clear(fieldName);
     }
 
     @Override
     public FD load(LeafReaderContext context) {
-        if (context.reader().getFieldInfos().fieldInfo(fieldNames.indexName()) == null) {
-            // If the field doesn't exist, then don't bother with loading and adding an empty instance to the field data cache
+        if (context.reader().getFieldInfos().fieldInfo(fieldName) == null) {
+            // Some leaf readers may be wrapped and report different set of fields and use the same cache key.
+            // If a field can't be found then it doesn't mean it isn't there,
+            // so if a field doesn't exist then we don't cache it and just return an empty field data instance.
+            // The next time the field is found, we do cache.
             return empty(context.reader().maxDoc());
         }
 
         try {
             FD fd = cache.load(context, this);
             return fd;
-        } catch (Throwable e) {
+        } catch (Exception e) {
             if (e instanceof ElasticsearchException) {
                 throw (ElasticsearchException) e;
             } else {
-                throw new ElasticsearchException(e.getMessage(), e);
+                throw new ElasticsearchException(e);
             }
         }
     }
@@ -103,7 +96,7 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
         /**
          * @return the number of bytes for the given term
          */
-        public long bytesPerValue(BytesRef term);
+        long bytesPerValue(BytesRef term);
 
         /**
          * Execute any pre-loading estimations for the terms. May also
@@ -114,7 +107,7 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
          * @param terms terms to be estimated
          * @return A TermsEnum for the given terms
          */
-        public TermsEnum beforeLoad(Terms terms) throws IOException;
+        TermsEnum beforeLoad(Terms terms) throws IOException;
 
         /**
          * Possibly adjust a circuit breaker after field data has been loaded,
@@ -123,6 +116,6 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
          * @param termsEnum  terms that were loaded
          * @param actualUsed actual field data memory usage
          */
-        public void afterLoad(TermsEnum termsEnum, long actualUsed);
+        void afterLoad(TermsEnum termsEnum, long actualUsed);
     }
 }

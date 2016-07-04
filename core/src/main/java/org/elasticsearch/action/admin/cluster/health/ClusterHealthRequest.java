@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,8 +32,6 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 
 /**
  *
@@ -60,7 +59,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     }
 
     @Override
-    public ClusterHealthRequest indices(String[] indices) {
+    public ClusterHealthRequest indices(String... indices) {
         this.indices = indices;
         return this;
     }
@@ -159,7 +158,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
                 indices[i] = in.readString();
             }
         }
-        timeout = readTimeValue(in);
+        timeout = new TimeValue(in);
         if (in.readBoolean()) {
             waitForStatus = ClusterHealthStatus.fromValue(in.readByte());
         }

@@ -25,19 +25,15 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
 public class JacksonLocationTests extends ESTestCase {
-
-    @Test
     public void testLocationExtraction() throws IOException {
         // {
         //    "index" : "test",
@@ -60,8 +56,7 @@ public class JacksonLocationTests extends ESTestCase {
 
         gen.close();
 
-        byte[] data = os.bytes().toBytes();
-        JsonParser parser = new JsonFactory().createParser(data);
+        JsonParser parser = new JsonFactory().createParser(os.bytes().streamInput());
 
         assertThat(parser.nextToken(), equalTo(JsonToken.START_OBJECT));
         assertThat(parser.nextToken(), equalTo(JsonToken.FIELD_NAME)); // "index"

@@ -19,9 +19,8 @@
 
 package org.elasticsearch.search.aggregations;
 
-import com.carrotsearch.hppc.IntIntMap;
 import com.carrotsearch.hppc.IntIntHashMap;
-
+import com.carrotsearch.hppc.IntIntMap;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -30,7 +29,6 @@ import org.elasticsearch.search.aggregations.bucket.missing.Missing;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.Collection;
 
@@ -55,8 +53,7 @@ public class CombiIT extends ESIntegTestCase {
      * it as "numeric", it didn't work. Now we cache the Value Sources by a custom key (field name + ValueSource type)
      * so there's no conflict there.
      */
-    @Test
-    public void multipleAggs_OnSameField_WithDifferentRequiredValueSourceType() throws Exception {
+    public void testMultipleAggsOnSameField_WithDifferentRequiredValueSourceType() throws Exception {
 
         createIndex("idx");
         IndexRequestBuilder[] builders = new IndexRequestBuilder[randomInt(30)];
@@ -115,13 +112,12 @@ public class CombiIT extends ESIntegTestCase {
      * when the sub aggregator is then created, it will take this estimation into account. This used to cause
      * and an ArrayIndexOutOfBoundsException...
      */
-    @Test
-    public void subAggregationForTopAggregationOnUnmappedField() throws Exception {
+    public void testSubAggregationForTopAggregationOnUnmappedField() throws Exception {
 
         prepareCreate("idx").addMapping("type", jsonBuilder()
                 .startObject()
                 .startObject("type").startObject("properties")
-                    .startObject("name").field("type", "string").endObject()
+                    .startObject("name").field("type", "keyword").endObject()
                     .startObject("value").field("type", "integer").endObject()
                 .endObject().endObject()
                 .endObject()).execute().actionGet();
@@ -135,7 +131,7 @@ public class CombiIT extends ESIntegTestCase {
                                 .collectMode(aggCollectionMode )))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(0l));
+        assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(0L));
         Histogram values = searchResponse.getAggregations().get("values");
         assertThat(values, notNullValue());
         assertThat(values.getBuckets().isEmpty(), is(true));

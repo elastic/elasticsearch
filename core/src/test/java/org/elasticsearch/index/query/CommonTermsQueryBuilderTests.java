@@ -21,7 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.Query;
-import org.junit.Test;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
@@ -37,16 +37,20 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
     protected CommonTermsQueryBuilder doCreateTestQueryBuilder() {
         CommonTermsQueryBuilder query;
 
+        int numberOfTerms = randomIntBetween(0, 10);
+        StringBuilder text = new StringBuilder("");
+        for (int i = 0; i < numberOfTerms; i++) {
+            text.append(randomAsciiOfLengthBetween(1, 10)).append(" ");
+        }
         // mapped or unmapped field
-        String text = randomAsciiOfLengthBetween(1, 10);
         if (randomBoolean()) {
-            query = new CommonTermsQueryBuilder(STRING_FIELD_NAME, text);
+            query = new CommonTermsQueryBuilder(STRING_FIELD_NAME, text.toString());
         } else {
-            query = new CommonTermsQueryBuilder(randomAsciiOfLengthBetween(1, 10), text);
+            query = new CommonTermsQueryBuilder(randomAsciiOfLengthBetween(1, 10), text.toString());
         }
 
         if (randomBoolean()) {
-            query.cutoffFrequency((float) randomIntBetween(1, 10));
+            query.cutoffFrequency(randomIntBetween(1, 10));
         }
 
         if (randomBoolean()) {
@@ -85,7 +89,6 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
         assertThat(extendedCommonTermsQuery.getLowFreqMinimumNumberShouldMatchSpec(), equalTo(queryBuilder.lowFreqMinimumShouldMatch()));
     }
 
-    @Test
     public void testIllegalArguments() {
         try {
             if (randomBoolean()) {
@@ -106,15 +109,35 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
         }
     }
 
-    @Test
-    public void testNoTermsFromQueryString() throws IOException {
-        CommonTermsQueryBuilder builder = new CommonTermsQueryBuilder(STRING_FIELD_NAME, "");
-        QueryShardContext context = createShardContext();
-        context.setAllowUnmappedFields(true);
-        assertNull(builder.toQuery(context));
+    public void testFromJson() throws IOException {
+        String query =
+                "{\n" +
+                "  \"common\" : {\n" +
+                "    \"body\" : {\n" +
+                "      \"query\" : \"nelly the elephant not as a cartoon\",\n" +
+                "      \"disable_coord\" : true,\n" +
+                "      \"high_freq_operator\" : \"AND\",\n" +
+                "      \"low_freq_operator\" : \"OR\",\n" +
+                "      \"cutoff_frequency\" : 0.001,\n" +
+                "      \"minimum_should_match\" : {\n" +
+                "        \"low_freq\" : \"2\",\n" +
+                "        \"high_freq\" : \"3\"\n" +
+                "      },\n" +
+                "      \"boost\" : 42.0\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+
+        CommonTermsQueryBuilder queryBuilder = (CommonTermsQueryBuilder) parseQuery(query);
+        checkGeneratedJson(query, queryBuilder);
+
+        assertEquals(query, 42, queryBuilder.boost, 0.00001);
+        assertEquals(query, 0.001, queryBuilder.cutoffFrequency(), 0.0001);
+        assertEquals(query, Operator.OR, queryBuilder.lowFreqOperator());
+        assertEquals(query, Operator.AND, queryBuilder.highFreqOperator());
+        assertEquals(query, "nelly the elephant not as a cartoon", queryBuilder.value());
     }
 
-    @Test
     public void testCommonTermsQuery1() throws IOException {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/commonTerms-query1.json");
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
@@ -124,7 +147,6 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
         assertThat(ectQuery.getLowFreqMinimumNumberShouldMatchSpec(), equalTo("2"));
     }
 
-    @Test
     public void testCommonTermsQuery2() throws IOException {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/commonTerms-query2.json");
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
@@ -134,7 +156,6 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
         assertThat(ectQuery.getLowFreqMinimumNumberShouldMatchSpec(), equalTo("5<20%"));
     }
 
-    @Test
     public void testCommonTermsQuery3() throws IOException {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/commonTerms-query3.json");
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
@@ -144,7 +165,7 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
         assertThat(ectQuery.getLowFreqMinimumNumberShouldMatchSpec(), equalTo("2"));
     }
 
-    @Test // see #11730
+    // see #11730
     public void testCommonTermsQuery4() throws IOException {
         boolean disableCoord = randomBoolean();
         Query parsedQuery = parseQuery(commonTermsQuery("field", "text").disableCoord(disableCoord).buildAsBytes()).toQuery(createShardContext());
@@ -152,5 +173,4 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
         ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
         assertThat(ectQuery.isCoordDisabled(), equalTo(disableCoord));
     }
-
 }

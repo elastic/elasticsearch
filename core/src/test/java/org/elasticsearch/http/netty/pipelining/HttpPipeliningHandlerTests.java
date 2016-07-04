@@ -22,16 +22,31 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.bootstrap.ServerBootstrap;
-import org.jboss.netty.channel.*;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelFuture;
+import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.channel.ChannelPipeline;
+import org.jboss.netty.channel.ChannelPipelineFactory;
+import org.jboss.netty.channel.Channels;
+import org.jboss.netty.channel.MessageEvent;
+import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
-import org.jboss.netty.handler.codec.http.*;
+import org.jboss.netty.handler.codec.http.DefaultHttpChunk;
+import org.jboss.netty.handler.codec.http.DefaultHttpRequest;
+import org.jboss.netty.handler.codec.http.DefaultHttpResponse;
+import org.jboss.netty.handler.codec.http.HttpChunk;
+import org.jboss.netty.handler.codec.http.HttpClientCodec;
+import org.jboss.netty.handler.codec.http.HttpMethod;
+import org.jboss.netty.handler.codec.http.HttpRequest;
+import org.jboss.netty.handler.codec.http.HttpRequestDecoder;
+import org.jboss.netty.handler.codec.http.HttpResponse;
+import org.jboss.netty.handler.codec.http.HttpResponseEncoder;
 import org.jboss.netty.util.HashedWheelTimer;
 import org.jboss.netty.util.Timeout;
 import org.jboss.netty.util.TimerTask;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -43,7 +58,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.jboss.netty.buffer.ChannelBuffers.EMPTY_BUFFER;
 import static org.jboss.netty.buffer.ChannelBuffers.copiedBuffer;
-import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.*;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.CONNECTION;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.HOST;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.TRANSFER_ENCODING;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Values.CHUNKED;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Values.KEEP_ALIVE;
 import static org.jboss.netty.handler.codec.http.HttpResponseStatus.OK;
@@ -58,8 +76,6 @@ public class HttpPipeliningHandlerTests extends ESTestCase {
     private static final long RESPONSE_TIMEOUT = 10000L;
     private static final long CONNECTION_TIMEOUT = 10000L;
     private static final String CONTENT_TYPE_TEXT = "text/plain; charset=UTF-8";
-    // TODO make me random
-    private static final InetSocketAddress HOST_ADDR = new InetSocketAddress(InetAddress.getLoopbackAddress(), 9080);
     private static final String PATH1 = "/1";
     private static final String PATH2 = "/2";
     private static final String SOME_RESPONSE_TEXT = "some response for ";
@@ -71,6 +87,8 @@ public class HttpPipeliningHandlerTests extends ESTestCase {
     private final List<String> responses = new ArrayList<>(2);
 
     private HashedWheelTimer timer;
+
+    private InetSocketAddress boundAddress;
 
     @Before
     public void startBootstraps() {
@@ -100,7 +118,8 @@ public class HttpPipeliningHandlerTests extends ESTestCase {
             }
         });
 
-        serverBootstrap.bind(HOST_ADDR);
+        Channel channel = serverBootstrap.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
+        boundAddress = (InetSocketAddress) channel.getLocalAddress();
 
         timer = new HashedWheelTimer();
     }
@@ -115,24 +134,23 @@ public class HttpPipeliningHandlerTests extends ESTestCase {
         clientBootstrap.releaseExternalResources();
     }
 
-    @Test
-    public void shouldReturnMessagesInOrder() throws InterruptedException {
+    public void testShouldReturnMessagesInOrder() throws InterruptedException {
         responsesIn = new CountDownLatch(1);
         responses.clear();
 
-        final ChannelFuture connectionFuture = clientBootstrap.connect(HOST_ADDR);
+        final ChannelFuture connectionFuture = clientBootstrap.connect(boundAddress);
 
         assertTrue(connectionFuture.await(CONNECTION_TIMEOUT));
         final Channel clientChannel = connectionFuture.getChannel();
 
-        // NetworkAddress.formatAddress makes a proper HOST header.
+        // NetworkAddress.format makes a proper HOST header.
         final HttpRequest request1 = new DefaultHttpRequest(
                 HTTP_1_1, HttpMethod.GET, PATH1);
-        request1.headers().add(HOST, NetworkAddress.formatAddress(HOST_ADDR));
+        request1.headers().add(HOST, NetworkAddress.format(boundAddress));
 
         final HttpRequest request2 = new DefaultHttpRequest(
                 HTTP_1_1, HttpMethod.GET, PATH2);
-        request2.headers().add(HOST, NetworkAddress.formatAddress(HOST_ADDR));
+        request2.headers().add(HOST, NetworkAddress.format(boundAddress));
 
         clientChannel.write(request1);
         clientChannel.write(request2);

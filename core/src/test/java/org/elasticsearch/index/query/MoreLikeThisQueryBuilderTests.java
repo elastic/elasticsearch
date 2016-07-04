@@ -33,7 +33,6 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,8 +40,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -121,6 +120,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             for (String field : randomFields) {
                 doc.field(field, randomAsciiOfLength(10));
             }
+            doc.endObject();
         } catch (IOException e) {
             throw new ElasticsearchException("Unable to generate random artificial doc!");
         }
@@ -207,7 +207,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
                 response.setExists(true);
                 Fields generatedFields;
                 if (request.doc() != null) {
-                    generatedFields = generateFields(randomFields, request.doc().toUtf8());
+                    generatedFields = generateFields(randomFields, request.doc().utf8ToString());
                 } else {
                     generatedFields = generateFields(request.selectedFields().toArray(new String[request.selectedFields().size()]), request.id());
                 }
@@ -244,19 +244,26 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         }
     }
 
-    @Test(expected=IllegalArgumentException.class)
     public void testValidateEmptyFields() {
-        new MoreLikeThisQueryBuilder(new String[0], new String[]{"likeText"}, null);
+        try {
+            new MoreLikeThisQueryBuilder(new String[0], new String[]{"likeText"}, null);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("requires 'fields' to be specified"));
+        }
     }
 
-    @Test(expected=IllegalArgumentException.class)
     public void testValidateEmptyLike() {
         String[] likeTexts = randomBoolean() ? null : new String[0];
         Item[] likeItems = randomBoolean() ? null : new Item[0];
-        new MoreLikeThisQueryBuilder(likeTexts, likeItems);
+        try {
+            new MoreLikeThisQueryBuilder(likeTexts, likeItems);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("requires either 'like' texts or items to be specified"));
+        }
     }
 
-    @Test
     public void testUnsupportedFields() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String unsupportedField = randomFrom(INT_FIELD_NAME, DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
@@ -266,11 +273,10 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             queryBuilder.toQuery(createShardContext());
             fail("should have failed with IllegalArgumentException for field: " + unsupportedField);
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("more_like_this doesn't support binary/numeric fields"));
+            assertThat(e.getMessage(), containsString("more_like_this only supports text/keyword fields"));
         }
     }
 
-    @Test
     public void testMoreLikeThisBuilder() throws Exception {
         Query parsedQuery = parseQuery(moreLikeThisQuery(new String[]{"name.first", "name.last"}, new String[]{"something"}, null).minTermFreq(1).maxQueryTerms(12).buildAsBytes()).toQuery(createShardContext());
         assertThat(parsedQuery, instanceOf(MoreLikeThisQuery.class));
@@ -281,21 +287,91 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         assertThat(mltQuery.getMaxQueryTerms(), equalTo(12));
     }
 
-    @Test
     public void testItemSerialization() throws IOException {
         Item expectedItem = generateRandomItem();
         BytesStreamOutput output = new BytesStreamOutput();
         expectedItem.writeTo(output);
-        Item newItem = Item.readItemFrom(StreamInput.wrap(output.bytes()));
+        Item newItem = new Item(output.bytes().streamInput());
         assertEquals(expectedItem, newItem);
     }
 
-    @Test
     public void testItemFromXContent() throws IOException {
         Item expectedItem = generateRandomItem();
         String json = expectedItem.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS).string();
         XContentParser parser = XContentFactory.xContent(json).createParser(json);
         Item newItem = Item.parse(parser, ParseFieldMatcher.STRICT, new Item());
         assertEquals(expectedItem, newItem);
+    }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" +
+                "  \"more_like_this\" : {\n" +
+                "    \"fields\" : [ \"title\", \"description\" ],\n" +
+                "    \"like\" : [ \"and potentially some more text here as well\", {\n" +
+                "      \"_index\" : \"imdb\",\n" +
+                "      \"_type\" : \"movies\",\n" +
+                "      \"_id\" : \"1\"\n" +
+                "    }, {\n" +
+                "      \"_index\" : \"imdb\",\n" +
+                "      \"_type\" : \"movies\",\n" +
+                "      \"_id\" : \"2\"\n" +
+                "    } ],\n" +
+                "    \"max_query_terms\" : 12,\n" +
+                "    \"min_term_freq\" : 1,\n" +
+                "    \"min_doc_freq\" : 5,\n" +
+                "    \"max_doc_freq\" : 2147483647,\n" +
+                "    \"min_word_length\" : 0,\n" +
+                "    \"max_word_length\" : 0,\n" +
+                "    \"minimum_should_match\" : \"30%\",\n" +
+                "    \"boost_terms\" : 0.0,\n" +
+                "    \"include\" : false,\n" +
+                "    \"fail_on_unsupported_field\" : true,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+
+        MoreLikeThisQueryBuilder parsed = (MoreLikeThisQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, 2, parsed.fields().length);
+        assertEquals(json, "and potentially some more text here as well", parsed.likeTexts()[0]);
+
+        json =
+                "{\n" +
+                        "  \"mlt\" : {\n" +
+                        "    \"fields\" : [ \"title\", \"description\" ],\n" +
+                        "    \"like\" : [ \"and potentially some more text here as well\", {\n" +
+                        "      \"_index\" : \"imdb\",\n" +
+                        "      \"_type\" : \"movies\",\n" +
+                        "      \"_id\" : \"1\"\n" +
+                        "    }, {\n" +
+                        "      \"_index\" : \"imdb\",\n" +
+                        "      \"_type\" : \"movies\",\n" +
+                        "      \"_id\" : \"2\"\n" +
+                        "    } ],\n" +
+                        "    \"max_query_terms\" : 12,\n" +
+                        "    \"min_term_freq\" : 1,\n" +
+                        "    \"min_doc_freq\" : 5,\n" +
+                        "    \"max_doc_freq\" : 2147483647,\n" +
+                        "    \"min_word_length\" : 0,\n" +
+                        "    \"max_word_length\" : 0,\n" +
+                        "    \"minimum_should_match\" : \"30%\",\n" +
+                        "    \"boost_terms\" : 0.0,\n" +
+                        "    \"include\" : false,\n" +
+                        "    \"fail_on_unsupported_field\" : true,\n" +
+                        "    \"boost\" : 1.0\n" +
+                        "  }\n" +
+                        "}";
+
+        MoreLikeThisQueryBuilder parsedQueryMltShortcut = (MoreLikeThisQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
+        assertThat(parsedQueryMltShortcut, equalTo(parsed));
+
+        try {
+            parseQuery(json);
+            fail("parse query should have failed in strict mode");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Deprecated field [mlt] used, expected [more_like_this] instead"));
+        }
     }
 }

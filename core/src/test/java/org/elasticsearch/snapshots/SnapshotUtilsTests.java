@@ -20,7 +20,6 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.List;
@@ -30,12 +29,13 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 /**
  */
 public class SnapshotUtilsTests extends ESTestCase {
-    @Test
     public void testIndexNameFiltering() {
         assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{}, new String[]{"foo", "bar", "baz"});
         assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{"*"}, new String[]{"foo", "bar", "baz"});
+        assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{"_all"}, new String[]{"foo", "bar", "baz"});
         assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{"foo", "bar", "baz"}, new String[]{"foo", "bar", "baz"});
         assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{"foo"}, new String[]{"foo"});
+        assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{"baz", "not_available"}, new String[]{"baz"});
         assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{"ba*", "-bar", "-baz"}, new String[]{});
         assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{"-bar"}, new String[]{"foo", "baz"});
         assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{"-ba*"}, new String[]{"foo"});

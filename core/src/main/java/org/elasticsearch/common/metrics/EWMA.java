@@ -19,17 +19,17 @@
 
 package org.elasticsearch.common.metrics;
 
-import java.util.concurrent.atomic.LongAdder;
-
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * An exponentially-weighted moving average.
  *
+ * <p>
+ * Taken from codahale metric module, changed to use LongAdder
+ *
  * @see <a href="http://www.teamquest.com/pdfs/whitepaper/ldavg1.pdf">UNIX Load Average Part 1: How It Works</a>
  * @see <a href="http://www.teamquest.com/pdfs/whitepaper/ldavg2.pdf">UNIX Load Average Part 2: Not Your Average Average</a>
- *      <p>
- *      Taken from codahale metric module, changed to use LongAdder
  */
 public class EWMA {
     private static final double M1_ALPHA = 1 - Math.exp(-5 / 60.0);

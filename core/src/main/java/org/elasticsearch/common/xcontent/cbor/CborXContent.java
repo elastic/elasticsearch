@@ -25,12 +25,16 @@ import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.common.xcontent.json.BaseJsonGenerator;
-import org.elasticsearch.common.xcontent.support.filtering.FilteringJsonGenerator;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Reader;
 
 /**
  * A CBOR based content implementation using Jackson.
@@ -41,12 +45,14 @@ public class CborXContent implements XContent {
         return XContentBuilder.builder(cborXContent);
     }
 
-    final static CBORFactory cborFactory;
-    public final static CborXContent cborXContent;
+    static final CBORFactory cborFactory;
+    public static final CborXContent cborXContent;
 
     static {
         cborFactory = new CBORFactory();
         cborFactory.configure(CBORFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
+        // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.dataformat.cbor.CBORGenerator#close() method
+        cborFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         cborXContent = new CborXContent();
     }
 
@@ -63,27 +69,9 @@ public class CborXContent implements XContent {
         throw new ElasticsearchParseException("cbor does not support stream parsing...");
     }
 
-    private XContentGenerator newXContentGenerator(JsonGenerator jsonGenerator) {
-        return new CborXContentGenerator(new BaseJsonGenerator(jsonGenerator));
-    }
-
     @Override
-    public XContentGenerator createGenerator(OutputStream os) throws IOException {
-        return newXContentGenerator(cborFactory.createGenerator(os, JsonEncoding.UTF8));
-    }
-
-    @Override
-    public XContentGenerator createGenerator(OutputStream os, String[] filters) throws IOException {
-        if (CollectionUtils.isEmpty(filters)) {
-            return createGenerator(os);
-        }
-        FilteringJsonGenerator cborGenerator = new FilteringJsonGenerator(cborFactory.createGenerator(os, JsonEncoding.UTF8), filters);
-        return new CborXContentGenerator(cborGenerator);
-    }
-
-    @Override
-    public XContentGenerator createGenerator(Writer writer) throws IOException {
-        return newXContentGenerator(cborFactory.createGenerator(writer));
+    public XContentGenerator createGenerator(OutputStream os, String[] filters, boolean inclusive) throws IOException {
+        return new CborXContentGenerator(cborFactory.createGenerator(os, JsonEncoding.UTF8), os, filters, inclusive);
     }
 
     @Override
@@ -108,9 +96,6 @@ public class CborXContent implements XContent {
 
     @Override
     public XContentParser createParser(BytesReference bytes) throws IOException {
-        if (bytes.hasArray()) {
-            return createParser(bytes.array(), bytes.arrayOffset(), bytes.length());
-        }
         return createParser(bytes.streamInput());
     }
 
@@ -118,4 +103,5 @@ public class CborXContent implements XContent {
     public XContentParser createParser(Reader reader) throws IOException {
         return new CborXContentParser(cborFactory.createParser(reader));
     }
+
 }

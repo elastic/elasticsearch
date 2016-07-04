@@ -24,38 +24,32 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.HashMap;
 
-import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class UpdateMappingOnClusterIT extends ESIntegTestCase {
-
     private static final String INDEX = "index";
     private static final String TYPE = "type";
 
-
-    @Test
-    public void test_all_enabled() throws Exception {
+    public void testAllEnabled() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject().startObject("mappings").startObject(TYPE).startObject("_all").field("enabled", "false").endObject().endObject().endObject().endObject();
-        XContentBuilder mappingUpdate = jsonBuilder().startObject().startObject("_all").field("enabled", "true").endObject().startObject("properties").startObject("text").field("type", "string").endObject().endObject().endObject();
+        XContentBuilder mappingUpdate = jsonBuilder().startObject().startObject("_all").field("enabled", "true").endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject();
         String errorMessage = "[_all] enabled is false now encountering true";
         testConflict(mapping.string(), mappingUpdate.string(), errorMessage);
     }
 
-    @Test
-    public void test_all_conflicts() throws Exception {
+    public void testAllConflicts() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/all_mapping_create_index.json");
         String mappingUpdate = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/all_mapping_update_with_conflicts.json");
-        String[] errorMessage = {"[_all] enabled is true now encountering false",
-                "[_all] has different [omit_norms] values",
+        String[] errorMessage = {
+                "[_all] has different [norms] values",
                 "[_all] has different [store] values",
                 "[_all] has different [store_term_vector] values",
                 "[_all] has different [store_term_vector_offsets] values",
@@ -67,9 +61,14 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
         testConflict(mapping, mappingUpdate, errorMessage);
     }
 
+    public void testAllDisabled() throws Exception {
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("mappings").startObject(TYPE).startObject("_all").field("enabled", true).endObject().endObject().endObject().endObject();
+        XContentBuilder mappingUpdate = jsonBuilder().startObject().startObject("_all").field("enabled", false).endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject();
+        String errorMessage = "[_all] enabled is true now encountering false";
+        testConflict(mapping.string(), mappingUpdate.string(), errorMessage);
+    }
 
-    @Test
-    public void test_all_with_default() throws Exception {
+    public void testAllWithDefault() throws Exception {
         String defaultMapping = jsonBuilder().startObject().startObject("_default_")
                 .startObject("_all")
                 .field("enabled", false)
@@ -85,7 +84,7 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
         String docMappingUpdate = jsonBuilder().startObject().startObject("doc")
                 .startObject("properties")
                 .startObject("text")
-                .field("type", "string")
+                .field("type", "text")
                 .endObject()
                 .endObject()
                 .endObject()
@@ -115,8 +114,7 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
 
     }
 
-    @Test
-    public void test_doc_valuesInvalidMapping() throws Exception {
+    public void testDocValuesInvalidMapping() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("mappings").startObject(TYPE).startObject("_all").startObject("fielddata").field("format", "doc_values").endObject().endObject().endObject().endObject().endObject().string();
         try {
             prepareCreate(INDEX).setSource(mapping).get();
@@ -126,9 +124,8 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void test_doc_valuesInvalidMappingOnUpdate() throws Exception {
-        String mapping = jsonBuilder().startObject().startObject(TYPE).startObject("properties").startObject("text").field("type", "string").endObject().endObject().endObject().string();
+    public void testDocValuesInvalidMappingOnUpdate() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject(TYPE).startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject().endObject().string();
         prepareCreate(INDEX).addMapping(TYPE, mapping).get();
         String mappingUpdate = jsonBuilder().startObject().startObject(TYPE).startObject("_all").startObject("fielddata").field("format", "doc_values").endObject().endObject().endObject().endObject().string();
         GetMappingsResponse mappingsBeforeUpdateResponse = client().admin().indices().prepareGetMappings(INDEX).addTypes(TYPE).get();
@@ -142,17 +139,6 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
         compareMappingOnNodes(mappingsBeforeUpdateResponse);
     }
 
-    // checks if the setting for timestamp and size are kept even if disabled
-    @Test
-    public void testDisabledSizeTimestampIndexDoNotLooseMappings() throws Exception {
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/default_mapping_with_disabled_root_types.json");
-        prepareCreate(INDEX).addMapping(TYPE, mapping).get();
-        GetMappingsResponse mappingsBeforeGreen = client().admin().indices().prepareGetMappings(INDEX).addTypes(TYPE).get();
-        ensureGreen(INDEX);
-        // make sure all nodes have same cluster state
-        compareMappingOnNodes(mappingsBeforeGreen);
-    }
-
     protected void testConflict(String mapping, String mappingUpdate, String... errorMessages) throws InterruptedException {
         assertAcked(prepareCreate(INDEX).setSource(mapping).get());
         ensureGreen(INDEX);
@@ -160,9 +146,9 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
         try {
             client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(mappingUpdate).get();
             fail();
-        } catch (MergeMappingException e) {
+        } catch (IllegalArgumentException e) {
             for (String errorMessage : errorMessages) {
-                assertThat(e.getDetailedMessage(), containsString(errorMessage));
+                assertThat(e.getMessage(), containsString(errorMessage));
             }
         }
         compareMappingOnNodes(mappingsBeforeUpdateResponse);
@@ -171,7 +157,7 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
 
     private void compareMappingOnNodes(GetMappingsResponse previousMapping) {
         // make sure all nodes have same cluster state
-        for (Client client : cluster()) {
+        for (Client client : cluster().getClients()) {
             GetMappingsResponse currentMapping = client.admin().indices().prepareGetMappings(INDEX).addTypes(TYPE).setLocal(true).get();
             assertThat(previousMapping.getMappings().get(INDEX).get(TYPE).source(), equalTo(currentMapping.getMappings().get(INDEX).get(TYPE).source()));
         }

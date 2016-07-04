@@ -20,15 +20,22 @@
 package org.elasticsearch.index.mapper.string;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
@@ -38,6 +45,12 @@ import static org.hamcrest.Matchers.containsString;
  * expected in queries.
  */
 public class StringFieldMapperPositionIncrementGapTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
+
     /**
      * The default position_increment_gap should be large enough that most
      * "sensible" queries phrase slops won't match across values.
@@ -106,11 +119,12 @@ public class StringFieldMapperPositionIncrementGapTests extends ESSingleNodeTest
      * strange but not worth breaking some thought.
      */
     public void testDefaultDefaultsToAnalyzer() throws IOException {
-        XContentBuilder settings = XContentFactory.jsonBuilder().startObject().startObject("analysis").startObject("analyzer")
-                .startObject("gappy");
-        settings.field("type", "custom");
-        settings.field("tokenizer", "standard");
-        settings.field("position_increment_gap", 2);
+        Settings settings = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_0)
+                .put("analysis.analyzer.gappy.type", "custom")
+                .put("analysis.analyzer.gappy.tokenizer", "standard")
+                .put("analysis.analyzer.gappy.position_increment_gap", "2")
+                .build();
         setupAnalyzer(settings, "gappy");
         testGap(client(), "test", "test", 2);
     }
@@ -123,7 +137,11 @@ public class StringFieldMapperPositionIncrementGapTests extends ESSingleNodeTest
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties").startObject("string");
         mapping.field("type", "string");
         mapping.field("position_increment_gap", positionIncrementGap);
-        client().admin().indices().prepareCreate("test").addMapping("test", mapping).get();
+        mapping.endObject().endObject().endObject();
+        client().admin().indices().prepareCreate("test")
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_0).build())
+                .addMapping("test", mapping)
+                .get();
     }
 
     /**
@@ -131,27 +149,34 @@ public class StringFieldMapperPositionIncrementGapTests extends ESSingleNodeTest
      * named "string" that uses the specified analyzer and default
      * position_increment_gap.
      */
-    private void setupAnalyzer(XContentBuilder settings, String analyzer) throws IOException {
+    private void setupAnalyzer(Settings settings, String analyzer) throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties").startObject("string");
         mapping.field("type", "string");
         mapping.field("analyzer", analyzer);
-        client().admin().indices().prepareCreate("test").addMapping("test", mapping).setSettings(settings).get();
+        mapping.endObject().endObject().endObject();
+        client().admin().indices().prepareCreate("test")
+                .addMapping("test", mapping)
+                .setSettings(settings)
+                .get();
     }
 
     private static void testGap(Client client, String indexName, String type, int positionIncrementGap) throws IOException {
-        client.prepareIndex(indexName, type, "position_gap_test").setSource("string", Arrays.asList("one", "two three")).setRefresh(true).get();
+        client.prepareIndex(indexName, type, "position_gap_test").setSource("string", Arrays.asList("one", "two three"))
+                .setRefreshPolicy(IMMEDIATE).get();
 
         // Baseline - phrase query finds matches in the same field value
         assertHitCount(client.prepareSearch(indexName).setQuery(matchPhraseQuery("string", "two three")).get(), 1);
 
         if (positionIncrementGap > 0) {
             // No match across gaps when slop < position gap
-            assertHitCount(client.prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(positionIncrementGap - 1)).get(),
+            assertHitCount(
+                    client.prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(positionIncrementGap - 1)).get(),
                     0);
         }
 
         // Match across gaps when slop >= position gap
         assertHitCount(client.prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(positionIncrementGap)).get(), 1);
-        assertHitCount(client.prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(positionIncrementGap + 1)).get(), 1);
+        assertHitCount(client.prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(positionIncrementGap + 1)).get(),
+                1);
     }
 }

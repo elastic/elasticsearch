@@ -19,21 +19,17 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.commongrams.CommonGramsFilter;
 import org.apache.lucene.analysis.commongrams.CommonGramsQueryFilter;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
+import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 
 /**
  *
  */
-@AnalysisSettingsRequired
 public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final CharArraySet words;
@@ -42,15 +38,14 @@ public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final boolean queryMode;
 
-    @Inject
-    public CommonGramsTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public CommonGramsTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+        super(indexSettings, name, settings);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
         this.queryMode = settings.getAsBoolean("query_mode", false);
         this.words = Analysis.parseCommonWords(env, settings, null, ignoreCase);
 
         if (this.words == null) {
-            throw new IllegalArgumentException("mising or empty [common_words] or [common_words_path] configuration for common_grams token filter");
+            throw new IllegalArgumentException("missing or empty [common_words] or [common_words_path] configuration for common_grams token filter");
         }
     }
 

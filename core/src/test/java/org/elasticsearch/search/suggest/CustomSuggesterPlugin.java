@@ -21,23 +21,10 @@ package org.elasticsearch.search.suggest;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
 
-/**
- *
- */
 public class CustomSuggesterPlugin extends Plugin {
 
-    @Override
-    public String name() {
-        return "test-plugin-custom-suggester";
-    }
-
-    @Override
-    public String description() {
-        return "Custom suggester to test pluggable implementation";
-    }
-
     public void onModule(SearchModule searchModule) {
-        searchModule.registerSuggester("custom", CustomSuggester.class);
+        searchModule.registerSuggester("custom", CustomSuggester.INSTANCE);
     }
 
 }

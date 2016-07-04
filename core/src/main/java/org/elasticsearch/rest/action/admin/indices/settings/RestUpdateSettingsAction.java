@@ -20,9 +20,8 @@
 package org.elasticsearch.rest.action.admin.indices.settings;
 
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -48,28 +47,30 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
             "timeout",
             "master_timeout",
             "index",
+            "preserve_existing",
             "expand_wildcards",
             "ignore_unavailable",
             "allow_no_indices"));
 
     @Inject
-    public RestUpdateSettingsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestUpdateSettingsAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.PUT, "/{index}/_settings", this);
         controller.registerHandler(RestRequest.Method.PUT, "/_settings", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         UpdateSettingsRequest updateSettingsRequest = updateSettingsRequest(Strings.splitStringByCommaToArray(request.param("index")));
         updateSettingsRequest.timeout(request.paramAsTime("timeout", updateSettingsRequest.timeout()));
+        updateSettingsRequest.setPreserveExisting(request.paramAsBoolean("preserve_existing", updateSettingsRequest.isPreserveExisting()));
         updateSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", updateSettingsRequest.masterNodeTimeout()));
         updateSettingsRequest.indicesOptions(IndicesOptions.fromRequest(request, updateSettingsRequest.indicesOptions()));
 
-        Settings.Builder updateSettings = Settings.settingsBuilder();
-        String bodySettingsStr = request.content().toUtf8();
+        Settings.Builder updateSettings = Settings.builder();
+        String bodySettingsStr = request.content().utf8ToString();
         if (Strings.hasText(bodySettingsStr)) {
-            Settings buildSettings = Settings.settingsBuilder().loadFromSource(bodySettingsStr).build();
+            Settings buildSettings = Settings.builder().loadFromSource(bodySettingsStr).build();
             for (Map.Entry<String, String> entry : buildSettings.getAsMap().entrySet()) {
                 String key = entry.getKey();
                 String value = entry.getValue();
@@ -88,6 +89,6 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
         }
         updateSettingsRequest.settings(updateSettings);
 
-        client.admin().indices().updateSettings(updateSettingsRequest, new AcknowledgedRestListener<UpdateSettingsResponse>(channel));
+        client.admin().indices().updateSettings(updateSettingsRequest, new AcknowledgedRestListener<>(channel));
     }
 }

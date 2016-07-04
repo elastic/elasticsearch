@@ -31,7 +31,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.Directory;
@@ -41,10 +41,10 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -53,6 +53,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BitSetFilterCacheTests extends ESTestCase {
+
+    private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
 
     private static int matchCount(BitSetProducer producer, IndexReader reader) throws IOException {
         int count = 0;
@@ -65,7 +67,6 @@ public class BitSetFilterCacheTests extends ESTestCase {
         return count;
     }
 
-    @Test
     public void testInvalidateEntries() throws Exception {
         IndexWriter writer = new IndexWriter(
                 new RAMDirectory(),
@@ -86,11 +87,22 @@ public class BitSetFilterCacheTests extends ESTestCase {
         writer.addDocument(document);
         writer.commit();
 
-        IndexReader reader = DirectoryReader.open(writer, false);
+        DirectoryReader reader = DirectoryReader.open(writer);
+        reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId("test", "_na_", 0));
         IndexSearcher searcher = new IndexSearcher(reader);
 
-        BitsetFilterCache cache = new BitsetFilterCache(new Index("test"), Settings.EMPTY);
-        BitSetProducer filter = cache.getBitSetProducer(new QueryWrapperFilter(new TermQuery(new Term("field", "value"))));
+        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {
+
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {
+
+            }
+        });
+        BitSetProducer filter = cache.getBitSetProducer(new TermQuery(new Term("field", "value")));
         assertThat(matchCount(filter, reader), equalTo(3));
 
         // now cached
@@ -100,7 +112,8 @@ public class BitSetFilterCacheTests extends ESTestCase {
 
         writer.forceMerge(1);
         reader.close();
-        reader = DirectoryReader.open(writer, false);
+        reader = DirectoryReader.open(writer);
+        reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId("test", "_na_", 0));
         searcher = new IndexSearcher(reader);
 
         assertThat(matchCount(filter, reader), equalTo(3));
@@ -125,22 +138,21 @@ public class BitSetFilterCacheTests extends ESTestCase {
         document.add(new StringField("field", "value", Field.Store.NO));
         writer.addDocument(document);
         writer.commit();
-        final DirectoryReader writerReader = DirectoryReader.open(writer, false);
-        final IndexReader reader = randomBoolean() ? writerReader : ElasticsearchDirectoryReader.wrap(writerReader, new ShardId("test", 0));
+        final DirectoryReader writerReader = DirectoryReader.open(writer);
+        final IndexReader reader = ElasticsearchDirectoryReader.wrap(writerReader, new ShardId("test", "_na_", 0));
 
         final AtomicLong stats = new AtomicLong();
         final AtomicInteger onCacheCalls = new AtomicInteger();
         final AtomicInteger onRemoveCalls = new AtomicInteger();
 
-        final BitsetFilterCache cache = new BitsetFilterCache(new Index("test"), Settings.EMPTY);
-        cache.setListener(new BitsetFilterCache.Listener() {
+        final BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, new BitsetFilterCache.Listener() {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {
                 onCacheCalls.incrementAndGet();
                 stats.addAndGet(accountable.ramBytesUsed());
                 if (writerReader != reader) {
                     assertNotNull(shardId);
-                    assertEquals("test", shardId.index().name());
+                    assertEquals("test", shardId.getIndexName());
                     assertEquals(0, shardId.id());
                 } else {
                     assertNull(shardId);
@@ -153,14 +165,14 @@ public class BitSetFilterCacheTests extends ESTestCase {
                 stats.addAndGet(-accountable.ramBytesUsed());
                 if (writerReader != reader) {
                     assertNotNull(shardId);
-                    assertEquals("test", shardId.index().name());
+                    assertEquals("test", shardId.getIndexName());
                     assertEquals(0, shardId.id());
                 } else {
                     assertNull(shardId);
                 }
             }
         });
-        BitSetProducer filter = cache.getBitSetProducer(new QueryWrapperFilter(new TermQuery(new Term("field", "value"))));
+        BitSetProducer filter = cache.getBitSetProducer(new TermQuery(new Term("field", "value")));
         assertThat(matchCount(filter, reader), equalTo(1));
         assertTrue(stats.get() > 0);
         assertEquals(1, onCacheCalls.get());
@@ -170,10 +182,18 @@ public class BitSetFilterCacheTests extends ESTestCase {
         assertEquals(0, stats.get());
     }
 
-    public void testSetListenerTwice() {
-        final BitsetFilterCache cache = new BitsetFilterCache(new Index("test"), Settings.EMPTY);
-        cache.setListener(new BitsetFilterCache.Listener() {
+    public void testSetNullListener() {
+        try {
+            new BitsetFilterCache(INDEX_SETTINGS, null);
+            fail("listener can't be null");
+        } catch (IllegalArgumentException ex) {
+            assertEquals("listener must not be null", ex.getMessage());
+            // all is well
+        }
+    }
 
+    public void testRejectOtherIndex() throws IOException {
+        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, new BitsetFilterCache.Listener() {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {
 
@@ -184,22 +204,26 @@ public class BitSetFilterCacheTests extends ESTestCase {
 
             }
         });
+
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(
+                dir,
+                newIndexWriterConfig()
+        );
+        writer.addDocument(new Document());
+        DirectoryReader reader = DirectoryReader.open(writer);
+        writer.close();
+        reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId("test2", "_na_", 0));
+
+        BitSetProducer producer = cache.getBitSetProducer(new MatchAllDocsQuery());
+
         try {
-            cache.setListener(new BitsetFilterCache.Listener() {
-
-                @Override
-                public void onCache(ShardId shardId, Accountable accountable) {
-
-                }
-
-                @Override
-                public void onRemoval(ShardId shardId, Accountable accountable) {
-
-                }
-            });
-            fail("can't set it twice");
-        } catch (IllegalStateException ex) {
-            // all is well
+            producer.getBitSet(reader.leaves().get(0));
+            fail();
+        } catch (IllegalStateException expected) {
+            assertEquals("Trying to load bit set for index [test2] with cache of index [test]", expected.getMessage());
+        } finally {
+            IOUtils.close(reader, dir);
         }
     }
 

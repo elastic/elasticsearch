@@ -40,7 +40,7 @@ public class AggregationsIntegrationIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(prepareCreate("index").addMapping("type", "f", "type=string").get());
+        assertAcked(prepareCreate("index").addMapping("type", "f", "type=keyword").get());
         ensureYellow("index");
         numDocs = randomIntBetween(1, 20);
         List<IndexRequestBuilder> docs = new ArrayList<>();

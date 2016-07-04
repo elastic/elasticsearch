@@ -19,17 +19,41 @@
 
 package org.elasticsearch.deps.lucene;
 
-import org.apache.lucene.document.*;
-import org.apache.lucene.index.*;
-import org.apache.lucene.search.*;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.LegacyIntField;
+import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.SlowCompositeReaderWrapper;
+import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.LegacyNumericUtils;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,8 +64,6 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class SimpleLuceneTests extends ESTestCase {
-
-    @Test
     public void testSortValues() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
@@ -52,26 +74,25 @@ public class SimpleLuceneTests extends ESTestCase {
             document.add(new SortedDocValuesField("str", new BytesRef(text)));
             indexWriter.addDocument(document);
         }
-        IndexReader reader = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(indexWriter, true));
+        IndexReader reader = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(indexWriter));
         IndexSearcher searcher = new IndexSearcher(reader);
-        TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), null, 10, new Sort(new SortField("str", SortField.Type.STRING)));
+        TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField("str", SortField.Type.STRING)));
         for (int i = 0; i < 10; i++) {
             FieldDoc fieldDoc = (FieldDoc) docs.scoreDocs[i];
             assertThat((BytesRef) fieldDoc.fields[0], equalTo(new BytesRef(new String(new char[]{(char) (97 + i), (char) (97 + i)}))));
         }
     }
 
-    @Test
     public void testSimpleNumericOps() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         Document document = new Document();
         document.add(new TextField("_id", "1", Field.Store.YES));
-        document.add(new IntField("test", 2, IntField.TYPE_STORED));
+        document.add(new LegacyIntField("test", 2, LegacyIntField.TYPE_STORED));
         indexWriter.addDocument(document);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
         Document doc = searcher.doc(topDocs.scoreDocs[0].doc);
@@ -79,7 +100,7 @@ public class SimpleLuceneTests extends ESTestCase {
         assertThat(f.stringValue(), equalTo("2"));
 
         BytesRefBuilder bytes = new BytesRefBuilder();
-        NumericUtils.intToPrefixCoded(2, 0, bytes);
+        LegacyNumericUtils.intToPrefixCoded(2, 0, bytes);
         topDocs = searcher.search(new TermQuery(new Term("test", bytes.get())), 1);
         doc = searcher.doc(topDocs.scoreDocs[0].doc);
         f = doc.getField("test");
@@ -93,7 +114,6 @@ public class SimpleLuceneTests extends ESTestCase {
      * of the field. This means that heavily accessed fields that use field selector should be added
      * first (with load and break).
      */
-    @Test
     public void testOrdering() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
@@ -103,7 +123,7 @@ public class SimpleLuceneTests extends ESTestCase {
         document.add(new TextField("#id", "1", Field.Store.YES));
         indexWriter.addDocument(document);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
         final ArrayList<String> fieldsOrder = new ArrayList<>();
@@ -122,7 +142,6 @@ public class SimpleLuceneTests extends ESTestCase {
         indexWriter.close();
     }
 
-    @Test
     public void testBoost() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
@@ -143,7 +162,7 @@ public class SimpleLuceneTests extends ESTestCase {
             indexWriter.addDocument(document);
         }
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
         TermQuery query = new TermQuery(new Term("value", "value"));
         TopDocs topDocs = searcher.search(query, 100);
@@ -157,11 +176,10 @@ public class SimpleLuceneTests extends ESTestCase {
         indexWriter.close();
     }
 
-    @Test
     public void testNRTSearchOnClosedWriter() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
-        DirectoryReader reader = DirectoryReader.open(indexWriter, true);
+        DirectoryReader reader = DirectoryReader.open(indexWriter);
 
         for (int i = 0; i < 100; i++) {
             Document document = new Document();
@@ -182,32 +200,31 @@ public class SimpleLuceneTests extends ESTestCase {
      * A test just to verify that term freqs are not stored for numeric fields. <tt>int1</tt> is not storing termFreq
      * and <tt>int2</tt> does.
      */
-    @Test
     public void testNumericTermDocsFreqs() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         Document doc = new Document();
-        FieldType type = IntField.TYPE_NOT_STORED;
-        IntField field = new IntField("int1", 1, type);
+        FieldType type = LegacyIntField.TYPE_NOT_STORED;
+        LegacyIntField field = new LegacyIntField("int1", 1, type);
         doc.add(field);
 
-        type = new FieldType(IntField.TYPE_NOT_STORED);
+        type = new FieldType(LegacyIntField.TYPE_NOT_STORED);
         type.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
         type.freeze();
 
-        field = new IntField("int1", 1, type);
+        field = new LegacyIntField("int1", 1, type);
         doc.add(field);
 
-        field = new IntField("int2", 1, type);
+        field = new LegacyIntField("int2", 1, type);
         doc.add(field);
 
-        field = new IntField("int2", 1, type);
+        field = new LegacyIntField("int2", 1, type);
         doc.add(field);
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         LeafReader atomicReader = SlowCompositeReaderWrapper.wrap(reader);
 
         Terms terms = atomicReader.terms("int1");

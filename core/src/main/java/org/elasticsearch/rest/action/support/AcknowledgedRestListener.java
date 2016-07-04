@@ -19,14 +19,10 @@
 package org.elasticsearch.rest.action.support;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestActionListener;
-import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import java.io.IOException;
 
@@ -58,6 +54,6 @@ public class AcknowledgedRestListener<T extends AcknowledgedResponse> extends Re
     }
 
     static final class Fields {
-        static final XContentBuilderString ACKNOWLEDGED = new XContentBuilderString("acknowledged");
+        static final String ACKNOWLEDGED = "acknowledged";
     }
 }

@@ -33,10 +33,17 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.FromXContentBuilder;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.CorruptStateException;
 
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Locale;
 
 /**
@@ -160,7 +167,7 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
         BytesReference bytes = write(obj);
         try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
             final String resourceDesc = "ChecksumBlobStoreFormat.writeBlob(blob=\"" + blobName + "\")";
-            try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(resourceDesc, byteArrayOutputStream, BUFFER_SIZE)) {
+            try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(resourceDesc, blobName, byteArrayOutputStream, BUFFER_SIZE)) {
                 CodecUtil.writeHeader(indexOutput, codec, VERSION);
                 try (OutputStream indexOutputOutputStream = new IndexOutputOutputStream(indexOutput) {
                     @Override
@@ -188,7 +195,7 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
     protected BytesReference write(T obj) throws IOException {
         try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
             if (compress) {
-                try (StreamOutput compressedStreamOutput = CompressorFactory.defaultCompressor().streamOutput(bytesStreamOutput)) {
+                try (StreamOutput compressedStreamOutput = CompressorFactory.COMPRESSOR.streamOutput(bytesStreamOutput)) {
                     write(obj, compressedStreamOutput);
                 }
             } else {

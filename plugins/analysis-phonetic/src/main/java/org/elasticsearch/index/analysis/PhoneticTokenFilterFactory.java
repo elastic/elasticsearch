@@ -19,8 +19,17 @@
 
 package org.elasticsearch.index.analysis;
 
+import java.util.Arrays;
+import java.util.HashSet;
+
 import org.apache.commons.codec.Encoder;
-import org.apache.commons.codec.language.*;
+import org.apache.commons.codec.language.Caverphone1;
+import org.apache.commons.codec.language.Caverphone2;
+import org.apache.commons.codec.language.ColognePhonetic;
+import org.apache.commons.codec.language.DaitchMokotoffSoundex;
+import org.apache.commons.codec.language.Metaphone;
+import org.apache.commons.codec.language.RefinedSoundex;
+import org.apache.commons.codec.language.Soundex;
 import org.apache.commons.codec.language.bm.Languages.LanguageSet;
 import org.apache.commons.codec.language.bm.NameType;
 import org.apache.commons.codec.language.bm.PhoneticEngine;
@@ -29,17 +38,12 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.phonetic.BeiderMorseFilter;
 import org.apache.lucene.analysis.phonetic.DoubleMetaphoneFilter;
 import org.apache.lucene.analysis.phonetic.PhoneticFilter;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.phonetic.HaasePhonetik;
 import org.elasticsearch.index.analysis.phonetic.KoelnerPhonetik;
 import org.elasticsearch.index.analysis.phonetic.Nysiis;
-import org.elasticsearch.index.settings.IndexSettings;
-
-import java.util.Arrays;
-import java.util.HashSet;
 
 /**
  *
@@ -53,16 +57,15 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     private NameType nametype;
     private RuleType ruletype;
 
-    @Inject
-    public PhoneticTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public PhoneticTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+        super(indexSettings, name, settings);
         this.languageset = null;
         this.nametype = null;
         this.ruletype = null;
         this.maxcodelength = 0;
         this.replace = settings.getAsBoolean("replace", true);
         // weird, encoder is null at last step in SimplePhoneticAnalysisTests, so we set it to metaphone as default
-        String encodername = settings.get("encoder", "metaphone"); 
+        String encodername = settings.get("encoder", "metaphone");
         if ("metaphone".equalsIgnoreCase(encodername)) {
             this.encoder = new Metaphone();
         } else if ("soundex".equalsIgnoreCase(encodername)) {
@@ -105,6 +108,8 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             this.encoder = new HaasePhonetik();
         } else if ("nysiis".equalsIgnoreCase(encodername)) {
             this.encoder = new Nysiis();
+        } else if ("daitch_mokotoff".equalsIgnoreCase(encodername)) {
+            this.encoder = new DaitchMokotoffSoundex();
         } else {
             throw new IllegalArgumentException("unknown encoder [" + encodername + "] for phonetic token filter");
         }
@@ -115,7 +120,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         if (encoder == null) {
             if (ruletype != null && nametype != null) {
                 if (languageset != null) {
-                    final LanguageSet languages = LanguageSet.from(new HashSet(Arrays.asList(languageset)));
+                    final LanguageSet languages = LanguageSet.from(new HashSet<>(Arrays.asList(languageset)));
                     return new BeiderMorseFilter(tokenStream, new PhoneticEngine(nametype, ruletype, true), languages);
                 }
                 return new BeiderMorseFilter(tokenStream, new PhoneticEngine(nametype, ruletype, true));

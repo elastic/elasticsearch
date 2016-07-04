@@ -12,7 +12,7 @@ type, and fields will spring to life automatically:
 PUT data/counters/1 <1>
 { "count": 5 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> Creates the `data` index, the `counters` mapping type, and a field
     called `count` with datatype `long`.
 
@@ -33,7 +33,7 @@ purposes with:
     Custom rules to configure the mapping for dynamically added fields.
 
 TIP: <<indices-templates,Index templates>> allow you to configure the default
-mappings, settings, aliases, and warmers for new indices, whether created
+mappings, settings and aliases for new indices, whether created
 automatically or explicitly.
 
 
@@ -46,12 +46,14 @@ setting to `false`, either by setting the default value in the
 
 [source,js]
 --------------------------------------------------
-PUT /_settings <1>
+PUT data/_settings <1>
 {
   "index.mapper.dynamic":false
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[continued]
+
 <1> Disable automatic type creation for all indices.
 
 Regardless of the value of this setting, types can still be added explicitly
@@ -64,4 +66,3 @@ include::dynamic/default-mapping.asciidoc[]
 include::dynamic/field-mapping.asciidoc[]
 
 include::dynamic/templates.asciidoc[]
-

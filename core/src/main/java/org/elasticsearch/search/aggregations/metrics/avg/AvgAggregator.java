@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -32,9 +33,6 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.List;
@@ -49,14 +47,13 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     LongArray counts;
     DoubleArray sums;
-    ValueFormatter formatter;
+    DocValueFormat format;
 
-    public AvgAggregator(String name, ValuesSource.Numeric valuesSource, ValueFormatter formatter,
- AggregationContext context,
+    public AvgAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter, AggregationContext context,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
-        this.formatter = formatter;
+        this.format = formatter;
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
             counts = bigArrays.newLongArray(1, true);
@@ -97,7 +94,10 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public double metric(long owningBucketOrd) {
-        return valuesSource == null ? Double.NaN : sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
+        if (valuesSource == null || owningBucketOrd >= sums.size()) {
+            return Double.NaN;
+        }
+        return sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
     }
 
     @Override
@@ -105,33 +105,12 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || bucket >= sums.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalAvg(name, sums.get(bucket), counts.get(bucket), formatter, pipelineAggregators(), metaData());
+        return new InternalAvg(name, sums.get(bucket), counts.get(bucket), format, pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalAvg(name, 0.0, 0l, formatter, pipelineAggregators(), metaData());
-    }
-
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
-
-        public Factory(String name, String type, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig) {
-            super(name, type, valuesSourceConfig);
-        }
-
-        @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-                List<PipelineAggregator> pipelineAggregators,
-                Map<String, Object> metaData) throws IOException {
-            return new AvgAggregator(name, null, config.formatter(), aggregationContext, parent, pipelineAggregators, metaData);
-        }
-
-        @Override
-        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
-                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                throws IOException {
-            return new AvgAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, pipelineAggregators, metaData);
-        }
+        return new InternalAvg(name, 0.0, 0L, format, pipelineAggregators(), metaData());
     }
 
     @Override

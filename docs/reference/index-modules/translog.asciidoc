@@ -20,7 +20,6 @@ replaying its operations take a considerable amount of time during recovery.
 It is also exposed through an API, though its rarely needed to be performed
 manually.
 
-
 [float]
 === Flush settings
 
@@ -31,10 +30,6 @@ control how often the in-memory buffer is flushed to disk:
 
 Once the translog hits this size, a flush will happen. Defaults to `512mb`.
 
-`index.translog.flush_threshold_ops`::
-
-After how many operations to flush. Defaults to `unlimited`.
-
 [float]
 === Translog settings
 
@@ -42,8 +37,8 @@ The data in the transaction log is only persisted to disk when the translog is
 ++fsync++ed and committed.  In the event of hardware failure, any data written
 since the previous translog commit will be lost.
 
-By default, Elasticsearch ++fsync++s and commits the translog every 5 seconds
-and at the end of every <<docs-index_,index>>, <<docs-delete,delete>>,
+By default, Elasticsearch ++fsync++s and commits the translog every 5 seconds if `index.translog.durability` is set
+to `async` or if set to `request` (default) at the end of every <<docs-index_,index>>, <<docs-delete,delete>>,
 <<docs-update,update>>, or  <<docs-bulk,bulk>> request.  In fact, Elasticsearch
 will only report success of an index, delete, update, or bulk request to the
 client after the transaction log has been successfully ++fsync++ed and committed
@@ -55,7 +50,7 @@ control the behaviour of the transaction log:
 `index.translog.sync_interval`::
 
 How often the translog is ++fsync++ed to disk and committed, regardless of
-write operations. Defaults to `5s`.
+write operations. Defaults to `5s`. Values less than `100ms` are not allowed.
 
 `index.translog.durability`::
 +
@@ -68,32 +63,11 @@ update, or bulk request.  This setting accepts the following parameters:
 
     (default) `fsync` and commit after every request. In the event
     of hardware failure, all acknowledged writes will already have been
-    commited to disk.
+    committed to disk.
 
 `async`::
 
     `fsync` and commit in the background every `sync_interval`. In
     the event of hardware failure, all acknowledged writes since the last
     automatic commit will be discarded.
---
-
-`index.translog.fs.type`::
-+
---
-
-Whether to buffer writes to the transaction log in memory or not.  This
-setting accepts the following parameters:
-
-`buffered`::
-
-    (default) Translog writes first go to a 64kB buffer in memory,
-    and are only written to the disk when the buffer is full, or when an
-    `fsync` is triggered by a write request or the `sync_interval`.
-
-`simple`::
-
-    Translog writes are written to the file system immediately, without
-    buffering.  However, these writes will only be persisted to disk when an
-    `fsync` and commit is triggered by a write request or the `sync_interval`.
-
 --

@@ -38,8 +38,9 @@
           "description" : "ID of the parent document"
         },
         "refresh": {
-          "type" : "boolean",
-          "description" : "Refresh the index after performing the operation"
+          "type" : "enum",
+          "options": ["true", "false", "wait_for"],
+          "description" : "If `true` then refresh the effected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` (the default) then do nothing with refreshes."
         },
         "routing": {
           "type" : "string",
@@ -65,6 +66,10 @@
           "type" : "enum",
           "options" : ["internal", "external", "external_gte", "force"],
           "description" : "Specific version type"
+        },
+        "pipeline" : {
+          "type" : "string",
+          "description" : "The pipeline id to preprocess incoming documents with"
         }
       }
     },

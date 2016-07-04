@@ -21,14 +21,9 @@ package org.elasticsearch.index.fielddata;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Map;
@@ -56,16 +51,15 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
     }
 
     @Override
-    public void onCache(ShardId shardId, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, Accountable ramUsage) {
+    public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
         totalMetric.inc(ramUsage.ramBytesUsed());
-        String keyFieldName = fieldNames.indexName();
-        CounterMetric total = perFieldTotals.get(keyFieldName);
+        CounterMetric total = perFieldTotals.get(fieldName);
         if (total != null) {
             total.inc(ramUsage.ramBytesUsed());
         } else {
             total = new CounterMetric();
             total.inc(ramUsage.ramBytesUsed());
-            CounterMetric prev = perFieldTotals.putIfAbsent(keyFieldName, total);
+            CounterMetric prev = perFieldTotals.putIfAbsent(fieldName, total);
             if (prev != null) {
                 prev.inc(ramUsage.ramBytesUsed());
             }
@@ -73,15 +67,14 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
     }
 
     @Override
-    public void onRemoval(ShardId shardId, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
+    public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
         if (wasEvicted) {
             evictionsMetric.inc();
         }
         if (sizeInBytes != -1) {
             totalMetric.dec(sizeInBytes);
 
-            String keyFieldName = fieldNames.indexName();
-            CounterMetric total = perFieldTotals.get(keyFieldName);
+            CounterMetric total = perFieldTotals.get(fieldName);
             if (total != null) {
                 total.dec(sizeInBytes);
             }

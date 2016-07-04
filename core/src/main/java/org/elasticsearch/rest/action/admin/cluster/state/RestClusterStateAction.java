@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.cluster.state;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
@@ -30,8 +30,13 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import java.util.EnumSet;
@@ -45,8 +50,8 @@ public class RestClusterStateAction extends BaseRestHandler {
     private final SettingsFilter settingsFilter;
 
     @Inject
-    public RestClusterStateAction(Settings settings, RestController controller, Client client, SettingsFilter settingsFilter) {
-        super(settings, controller, client);
+    public RestClusterStateAction(Settings settings, RestController controller, SettingsFilter settingsFilter) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/state", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}/{indices}", this);
@@ -55,7 +60,7 @@ public class RestClusterStateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest();
         clusterStateRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterStateRequest.indicesOptions()));
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
@@ -91,7 +96,12 @@ public class RestClusterStateAction extends BaseRestHandler {
         });
     }
 
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
+
     static final class Fields {
-        static final XContentBuilderString CLUSTER_NAME = new XContentBuilderString("cluster_name");
+        static final String CLUSTER_NAME = "cluster_name";
     }
 }

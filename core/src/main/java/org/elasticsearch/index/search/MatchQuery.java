@@ -22,8 +22,15 @@ package org.elasticsearch.index.search;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
@@ -38,11 +45,10 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
-import java.util.List;
 
 public class MatchQuery {
 
-    public static enum Type implements Writeable<Type> {
+    public static enum Type implements Writeable {
         /**
          * The text is analyzed and terms are added to a boolean query.
          */
@@ -58,14 +64,11 @@ public class MatchQuery {
 
         private final int ordinal;
 
-        private static final Type PROTOTYPE = BOOLEAN;
-
         private Type(int ordinal) {
             this.ordinal = ordinal;
         }
 
-        @Override
-        public Type readFrom(StreamInput in) throws IOException {
+        public static Type readFromStream(StreamInput in) throws IOException {
             int ord = in.readVInt();
             for (Type type : Type.values()) {
                 if (type.ordinal == ord) {
@@ -75,30 +78,23 @@ public class MatchQuery {
             throw new ElasticsearchException("unknown serialized type [" + ord + "]");
         }
 
-        public static Type readTypeFrom(StreamInput in) throws IOException {
-            return PROTOTYPE.readFrom(in);
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(this.ordinal);
         }
     }
 
-    public static enum ZeroTermsQuery implements Writeable<ZeroTermsQuery> {
+    public static enum ZeroTermsQuery implements Writeable {
         NONE(0),
         ALL(1);
 
         private final int ordinal;
 
-        private static final ZeroTermsQuery PROTOTYPE = NONE;
-
         private ZeroTermsQuery(int ordinal) {
             this.ordinal = ordinal;
         }
 
-        @Override
-        public ZeroTermsQuery readFrom(StreamInput in) throws IOException {
+        public static ZeroTermsQuery readFromStream(StreamInput in) throws IOException {
             int ord = in.readVInt();
             for (ZeroTermsQuery zeroTermsQuery : ZeroTermsQuery.values()) {
                 if (zeroTermsQuery.ordinal == ord) {
@@ -106,10 +102,6 @@ public class MatchQuery {
                 }
             }
             throw new ElasticsearchException("unknown serialized type [" + ord + "]");
-        }
-
-        public static ZeroTermsQuery readZeroTermsQueryFrom(StreamInput in) throws IOException {
-            return PROTOTYPE.readFrom(in);
         }
 
         @Override
@@ -205,18 +197,14 @@ public class MatchQuery {
         this.zeroTermsQuery = zeroTermsQuery;
     }
 
-    protected boolean forceAnalyzeQueryString() {
-        return false;
-    }
-
     protected Analyzer getAnalyzer(MappedFieldType fieldType) {
         if (this.analyzer == null) {
             if (fieldType != null) {
                 return context.getSearchAnalyzer(fieldType);
             }
-            return context.mapperService().searchAnalyzer();
+            return context.getMapperService().searchAnalyzer();
         } else {
-            Analyzer analyzer = context.mapperService().analysisService().analyzer(this.analyzer);
+            Analyzer analyzer = context.getMapperService().analysisService().analyzer(this.analyzer);
             if (analyzer == null) {
                 throw new IllegalArgumentException("No analyzer found for [" + this.analyzer + "]");
             }
@@ -228,22 +216,24 @@ public class MatchQuery {
         final String field;
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType != null) {
-            field = fieldType.names().indexName();
+            field = fieldType.name();
         } else {
             field = fieldName;
         }
 
-        if (fieldType != null && fieldType.useTermQueryWithQueryString() && !forceAnalyzeQueryString()) {
-            try {
-                return fieldType.termQuery(value, context);
-            } catch (RuntimeException e) {
-                if (lenient) {
-                    return null;
-                }
-                throw e;
-            }
-
+        /*
+         * If the user forced an analyzer we really don't care if they are
+         * searching a type that wants term queries to be used with query string
+         * because the QueryBuilder will take care of it. If they haven't forced
+         * an analyzer then types like NumberFieldType that want terms with
+         * query string will blow up because their analyzer isn't capable of
+         * passing through QueryBuilder.
+         */
+        boolean noForcedAnalyzer = this.analyzer == null;
+        if (fieldType != null && fieldType.tokenized() == false && noForcedAnalyzer) {
+            return blendTermQuery(new Term(fieldName, value.toString()), fieldType);
         }
+
         Analyzer analyzer = getAnalyzer(fieldType);
         assert analyzer != null;
         MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, fieldType);
@@ -275,26 +265,41 @@ public class MatchQuery {
         }
     }
 
+    protected final Query termQuery(MappedFieldType fieldType, Object value, boolean lenient) {
+        try {
+            return fieldType.termQuery(value, context);
+        } catch (RuntimeException e) {
+            if (lenient) {
+                return null;
+            }
+            throw e;
+        }
+    }
+
     protected Query zeroTermsQuery() {
-        return zeroTermsQuery == DEFAULT_ZERO_TERMS_QUERY ? Queries.newMatchNoDocsQuery() : Queries.newMatchAllQuery();
+        if (zeroTermsQuery == DEFAULT_ZERO_TERMS_QUERY) {
+            return Queries.newMatchNoDocsQuery("Matching no documents because no terms present.");
+        }
+
+        return Queries.newMatchAllQuery();
     }
 
     private class MatchQueryBuilder extends QueryBuilder {
 
         private final MappedFieldType mapper;
+
         /**
          * Creates a new QueryBuilder using the given analyzer.
          */
         public MatchQueryBuilder(Analyzer analyzer, @Nullable MappedFieldType mapper) {
             super(analyzer);
             this.mapper = mapper;
-         }
+        }
 
         @Override
         protected Query newTermQuery(Term term) {
             return blendTermQuery(term, mapper);
         }
-
 
         public Query createPhrasePrefixQuery(String field, String queryText, int phraseSlop, int maxExpansions) {
             final Query query = createFieldQuery(getAnalyzer(), Occur.MUST, field, queryText, true, phraseSlop);
@@ -311,10 +316,10 @@ public class MatchQuery {
                 return prefixQuery;
             } else if (query instanceof MultiPhraseQuery) {
                 MultiPhraseQuery pq = (MultiPhraseQuery)query;
-                List<Term[]> terms = pq.getTermArrays();
+                Term[][] terms = pq.getTermArrays();
                 int[] positions = pq.getPositions();
-                for (int i = 0; i < terms.size(); i++) {
-                    prefixQuery.add(terms.get(i), positions[i]);
+                for (int i = 0; i < terms.length; i++) {
+                    prefixQuery.add(terms[i], positions[i]);
                 }
                 return prefixQuery;
             } else if (query instanceof TermQuery) {
@@ -345,11 +350,19 @@ public class MatchQuery {
     protected Query blendTermQuery(Term term, MappedFieldType fieldType) {
         if (fuzziness != null) {
             if (fieldType != null) {
-                Query query = fieldType.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions);
-                if (query instanceof FuzzyQuery) {
-                    QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
+                try {
+                    Query query = fieldType.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions);
+                    if (query instanceof FuzzyQuery) {
+                        QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
+                    }
+                    return query;
+                } catch (RuntimeException e) {
+                    if (lenient) {
+                        return new TermQuery(term);
+                    } else {
+                        throw e;
+                    }
                 }
-                return query;
             }
             int edits = fuzziness.asDistance(term.text());
             FuzzyQuery query = new FuzzyQuery(term, edits, fuzzyPrefixLength, maxExpansions, transpositions);
@@ -357,9 +370,9 @@ public class MatchQuery {
             return query;
         }
         if (fieldType != null) {
-            Query termQuery = fieldType.queryStringTermQuery(term);
-            if (termQuery != null) {
-                return termQuery;
+            Query query = termQuery(fieldType, term.bytes(), lenient);
+            if (query != null) {
+                return query;
             }
         }
         return new TermQuery(term);

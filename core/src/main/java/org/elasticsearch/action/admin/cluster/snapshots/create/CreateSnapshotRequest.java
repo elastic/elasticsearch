@@ -45,7 +45,7 @@ import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 
 /**
  * Create snapshot request
@@ -299,7 +299,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
      * @return this request
      */
     public CreateSnapshotRequest settings(String source) {
-        this.settings = Settings.settingsBuilder().loadFromSource(source).build();
+        this.settings = Settings.builder().loadFromSource(source).build();
         return this;
     }
 
@@ -379,14 +379,14 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
                     throw new IllegalArgumentException("malformed indices section, should be an array of strings");
                 }
             } else if (name.equals("partial")) {
-                partial(nodeBooleanValue(entry.getValue()));
+                partial(lenientNodeBooleanValue(entry.getValue()));
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
                     throw new IllegalArgumentException("malformed settings section, should indices an inner object");
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
-                includeGlobalState = nodeBooleanValue(entry.getValue());
+                includeGlobalState = lenientNodeBooleanValue(entry.getValue());
             }
         }
         indicesOptions(IndicesOptions.fromMap((Map<String, Object>) source, IndicesOptions.lenientExpandOpen()));

@@ -22,10 +22,10 @@ package org.elasticsearch.common.geo;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShapeRelationTests extends ESTestCase {
@@ -39,21 +39,21 @@ public class ShapeRelationTests extends ESTestCase {
     public void testwriteTo() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             ShapeRelation.INTERSECTS.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(0));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             ShapeRelation.DISJOINT.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(1));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             ShapeRelation.WITHIN.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(2));
             }
         }
@@ -62,31 +62,34 @@ public class ShapeRelationTests extends ESTestCase {
     public void testReadFrom() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(0);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(ShapeRelation.DISJOINT.readFrom(in), equalTo(ShapeRelation.INTERSECTS));
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertThat(ShapeRelation.readFromStream(in), equalTo(ShapeRelation.INTERSECTS));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(1);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(ShapeRelation.DISJOINT.readFrom(in), equalTo(ShapeRelation.DISJOINT));
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertThat(ShapeRelation.readFromStream(in), equalTo(ShapeRelation.DISJOINT));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(2);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(ShapeRelation.DISJOINT.readFrom(in), equalTo(ShapeRelation.WITHIN));
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertThat(ShapeRelation.readFromStream(in), equalTo(ShapeRelation.WITHIN));
             }
         }
     }
 
-    @Test(expected = IOException.class)
     public void testInvalidReadFrom() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(randomIntBetween(3, Integer.MAX_VALUE));
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                ShapeRelation.DISJOINT.readFrom(in);
+            try (StreamInput in = out.bytes().streamInput()) {
+                ShapeRelation.readFromStream(in);
+                fail("Expected IOException");
+            } catch(IOException e) {
+                assertThat(e.getMessage(), containsString("Unknown ShapeRelation ordinal ["));
             }
+
         }
     }
 }

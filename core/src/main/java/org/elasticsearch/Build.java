@@ -21,79 +21,129 @@ package org.elasticsearch;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.util.Properties;
+import java.net.URL;
+import java.util.jar.JarInputStream;
+import java.util.jar.Manifest;
 
 /**
+ * Information about a build of Elasticsearch.
  */
 public class Build {
-
+    /**
+     * The current build of Elasticsearch. Filled with information scanned at
+     * startup from the jar.
+     */
     public static final Build CURRENT;
 
     static {
-        String hash = "NA";
-        String hashShort = "NA";
-        String timestamp = "NA";
+        final String shortHash;
+        final String date;
+        final boolean isSnapshot;
 
-        try (InputStream is = Build.class.getResourceAsStream("/es-build.properties")){
-            Properties props = new Properties();
-            props.load(is);
-            hash = props.getProperty("hash", hash);
-            if (!hash.equals("NA")) {
-                hashShort = hash.substring(0, 7);
+        final URL url = getElasticsearchCodebase();
+        if (url.toString().endsWith(".jar")) {
+            try (JarInputStream jar = new JarInputStream(url.openStream())) {
+                Manifest manifest = jar.getManifest();
+                shortHash = manifest.getMainAttributes().getValue("Change");
+                date = manifest.getMainAttributes().getValue("Build-Date");
+                isSnapshot = "true".equals(manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Snapshot"));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
-            String gitTimestampRaw = props.getProperty("timestamp");
-            if (gitTimestampRaw != null) {
-                timestamp = ISODateTimeFormat.dateTimeNoMillis().withZone(DateTimeZone.UTC).print(Long.parseLong(gitTimestampRaw));
-            }
-        } catch (Exception e) {
-            // just ignore...
+        } else {
+            // not running from a jar (unit tests, IDE)
+            shortHash = "Unknown";
+            date = "Unknown";
+            isSnapshot = true;
+        }
+        if (shortHash == null) {
+            throw new IllegalStateException("Error finding the build shortHash. " +
+                "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
+        }
+        if (date == null) {
+            throw new IllegalStateException("Error finding the build date. " +
+                "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
         }
 
-        CURRENT = new Build(hash, hashShort, timestamp);
+        CURRENT = new Build(shortHash, date, isSnapshot);
     }
 
-    private String hash;
-    private String hashShort;
-    private String timestamp;
+    private final boolean isSnapshot;
 
-    Build(String hash, String hashShort, String timestamp) {
-        this.hash = hash;
-        this.hashShort = hashShort;
-        this.timestamp = timestamp;
+    /**
+     * Returns path to elasticsearch codebase path
+     */
+    static URL getElasticsearchCodebase() {
+        return Build.class.getProtectionDomain().getCodeSource().getLocation();
     }
 
-    public String hash() {
-        return hash;
+    private String shortHash;
+    private String date;
+
+    Build(String shortHash, String date, boolean isSnapshot) {
+        this.shortHash = shortHash;
+        this.date = date;
+        this.isSnapshot = isSnapshot;
     }
 
-    public String hashShort() {
-        return hashShort;
+    public String shortHash() {
+        return shortHash;
     }
 
-    public String timestamp() {
-        return timestamp;
+    public String date() {
+        return date;
     }
 
     public static Build readBuild(StreamInput in) throws IOException {
         String hash = in.readString();
-        String hashShort = in.readString();
-        String timestamp = in.readString();
-        return new Build(hash, hashShort, timestamp);
+        String date = in.readString();
+        boolean snapshot = in.readBoolean();
+        return new Build(hash, date, snapshot);
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
-        out.writeString(build.hash());
-        out.writeString(build.hashShort());
-        out.writeString(build.timestamp());
+        out.writeString(build.shortHash());
+        out.writeString(build.date());
+        out.writeBoolean(build.isSnapshot());
+    }
+
+    public boolean isSnapshot() {
+        return isSnapshot;
     }
 
     @Override
     public String toString() {
-        return "[" + hash + "][" + timestamp + "]";
+        return "[" + shortHash + "][" + date + "]";
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        Build build = (Build) o;
+
+        if (isSnapshot != build.isSnapshot) {
+            return false;
+        }
+        if (!shortHash.equals(build.shortHash)) {
+            return false;
+        }
+        return date.equals(build.date);
+
+    }
+
+    @Override
+    public int hashCode() {
+        int result = (isSnapshot ? 1 : 0);
+        result = 31 * result + shortHash.hashCode();
+        result = 31 * result + date.hashCode();
+        return result;
     }
 }

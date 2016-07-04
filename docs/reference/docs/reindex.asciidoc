@@ -1,0 +1,639 @@
+[[docs-reindex]]
+== Reindex API
+
+experimental[The reindex API is new and should still be considered experimental.  The API may change in ways that are not backwards compatible]
+
+The most basic form of `_reindex` just copies documents from one index to another.
+This will copy documents from the `twitter` index into the `new_twitter` index:
+
+[source,js]
+--------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "index": "twitter"
+  },
+  "dest": {
+    "index": "new_twitter"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:big_twitter]
+
+That will return something like this:
+
+[source,js]
+--------------------------------------------------
+{
+  "took" : 147,
+  "timed_out": false,
+  "created": 120,
+  "updated": 0,
+  "deleted": 0,
+  "batches": 1,
+  "version_conflicts": 0,
+  "noops": 0,
+  "retries": {
+    "bulk": 0,
+    "search": 0
+  },
+  "throttled_millis": 0,
+  "requests_per_second": "unlimited",
+  "throttled_until_millis": 0,
+  "total": 120,
+  "failures" : [ ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took" : 147/"took" : "$body.took"/]
+
+Just like <<docs-update-by-query,`_update_by_query`>>, `_reindex` gets a
+snapshot of the source index but its target must be a **different** index so
+version conflicts are unlikely. The `dest` element can be configured like the
+index API to control optimistic concurrency control. Just leaving out
+`version_type` (as above) or setting it to `internal` will cause Elasticsearch
+to blindly dump documents into the target, overwriting any that happen to have
+the same type and id:
+
+[source,js]
+--------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "index": "twitter"
+  },
+  "dest": {
+    "index": "new_twitter",
+    "version_type": "internal"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+Setting `version_type` to `external` will cause Elasticsearch to preserve the
+`version` from the source, create any documents that are missing, and update
+any documents that have an older version in the destination index than they do
+in the source index:
+
+[source,js]
+--------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "index": "twitter"
+  },
+  "dest": {
+    "index": "new_twitter",
+    "version_type": "external"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+Settings `op_type` to `create` will cause `_reindex` to only create missing
+documents in the target index. All existing documents will cause a version
+conflict:
+
+[source,js]
+--------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "index": "twitter"
+  },
+  "dest": {
+    "index": "new_twitter",
+    "op_type": "create"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+By default version conflicts abort the `_reindex` process but you can just
+count them by settings `"conflicts": "proceed"` in the request body:
+
+[source,js]
+--------------------------------------------------
+POST _reindex
+{
+  "conflicts": "proceed",
+  "source": {
+    "index": "twitter"
+  },
+  "dest": {
+    "index": "new_twitter",
+    "op_type": "create"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+You can limit the documents by adding a type to the `source` or by adding a
+query. This will only copy ++tweet++&apos;s made by `kimchy` into `new_twitter`:
+
+[source,js]
+--------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "index": "twitter",
+    "type": "tweet",
+    "query": {
+      "term": {
+        "user": "kimchy"
+      }
+    }
+  },
+  "dest": {
+    "index": "new_twitter"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+`index` and `type` in `source` can both be lists, allowing you to copy from
+lots of sources in one request. This will copy documents from the `tweet` and
+`post` types in the `twitter` and `blog` index. It'd include the `post` type in
+the `twitter` index and the `tweet` type in the `blog` index. If you want to be
+more specific you'll need to use the `query`. It also makes no effort to handle
+ID collisions. The target index will remain valid but it's not easy to predict
+which document will survive because the iteration order isn't well defined.
+
+[source,js]
+--------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "index": ["twitter", "blog"],
+    "type": ["tweet", "post"]
+  },
+  "dest": {
+    "index": "all_together"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT twitter\nPUT blog\nGET _cluster\/health?wait_for_status=yellow\n/]
+
+It's also possible to limit the number of processed documents by setting
+`size`. This will only copy a single document from `twitter` to
+`new_twitter`:
+
+[source,js]
+--------------------------------------------------
+POST _reindex
+{
+  "size": 1,
+  "source": {
+    "index": "twitter"
+  },
+  "dest": {
+    "index": "new_twitter"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+If you want a particular set of documents from the twitter index you'll
+need to sort. Sorting makes the scroll less efficient but in some contexts
+it's worth it. If possible, prefer a more selective query to `size` and `sort`.
+This will copy 10000 documents from `twitter` into `new_twitter`:
+
+[source,js]
+--------------------------------------------------
+POST _reindex
+{
+  "size": 10000,
+  "source": {
+    "index": "twitter",
+    "sort": { "date": "desc" }
+  },
+  "dest": {
+    "index": "new_twitter"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+Like `_update_by_query`, `_reindex` supports a script that modifies the
+document. Unlike `_update_by_query`, the script is allowed to modify the
+document's metadata. This example bumps the version of the source document:
+
+[source,js]
+--------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "index": "twitter"
+  },
+  "dest": {
+    "index": "new_twitter",
+    "version_type": "external"
+  },
+  "script": {
+    "inline": "if (ctx._source.foo == 'bar') {ctx._version++; ctx._source.remove('foo')}",
+    "lang": "painless"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+Just as in `_update_by_query`, you can set `ctx.op` to change the
+operation that is executed on the destination index:
+
+`noop`::
+
+Set `ctx.op = "noop"` if your script decides that the document doesn't have
+to be indexed in the destination index. This no operation will be reported
+in the `noop` counter in the <<docs-reindex-response-body, response body>>.
+
+`delete`::
+
+Set `ctx.op = "delete"` if your script decides that the document must be
+ deleted from the destination index. The deletion will be reported in the
+ `deleted` counter in the <<docs-reindex-response-body, response body>>.
+
+Setting `ctx.op` to anything else is an error. Setting any
+other field in `ctx` is an error.
+
+Think of the possibilities! Just be careful! With great power.... You can
+change:
+
+ * `_id`
+ * `_type`
+ * `_index`
+ * `_version`
+ * `_routing`
+ * `_parent`
+
+Setting `_version` to `null` or clearing it from the `ctx` map is just like not
+sending the version in an indexing request. It will cause that document to be
+overwritten in the target index regardless of the version on the target or the
+version type you use in the `_reindex` request.
+
+By default if `_reindex` sees a document with routing then the routing is
+preserved unless it's changed by the script. You can set `routing` on the
+`dest` request to change this:
+
+`keep`::
+
+Sets the routing on the bulk request sent for each match to the routing on
+the match. The default.
+
+`discard`::
+
+Sets the routing on the bulk request sent for each match to null.
+
+`=<some text>`::
+
+Sets the routing on the bulk request sent for each match to all text after
+the `=`.
+
+For example, you can use the following request to copy all documents from
+the `source` index with the company name `cat` into the `dest` index with
+routing set to `cat`.
+
+[source,js]
+--------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "index": "source",
+    "query": {
+      "match": {
+        "company": "cat"
+      }
+    }
+  },
+  "dest": {
+    "index": "dest",
+    "routing": "=cat"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT source\nGET _cluster\/health?wait_for_status=yellow\n/]
+
+By default `_reindex` uses scroll batches of 1000. You can change the
+batch size with the `size` field in the `source` element:
+
+[source,js]
+--------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "index": "source",
+    "size": 100
+  },
+  "dest": {
+    "index": "dest",
+    "routing": "=cat"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT source\nGET _cluster\/health?wait_for_status=yellow\n/]
+
+Reindex can also use the <<ingest>> feature by specifying a
+`pipeline` like this:
+
+[source,js]
+--------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "index": "source"
+  },
+  "dest": {
+    "index": "dest",
+    "pipeline": "some_ingest_pipeline"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT source\nGET _cluster\/health?wait_for_status=yellow\n/]
+
+[float]
+=== URL Parameters
+
+In addition to the standard parameters like `pretty`, the Reindex API also
+supports `refresh`, `wait_for_completion`, `consistency`, `timeout`, and
+`requests_per_second`.
+
+Sending the `refresh` url parameter will cause all indexes to which the request
+wrote to be refreshed. This is different than the Index API's `refresh`
+parameter which causes just the shard that received the new data to be indexed.
+
+If the request contains `wait_for_completion=false` then Elasticsearch will
+perform some preflight checks, launch the request, and then return a `task`
+which can be used with <<docs-reindex-task-api,Tasks APIs>>
+to cancel or get the status of the task. Elasticsearch will also create a
+record of this task as a document at `.tasks/task/${taskId}`. This is yours
+to keep or remove as you see fit. When you are done with it, delete it so
+Elasticsearch can reclaim the space it uses.
+
+`consistency` controls how many copies of a shard must respond to each write
+request. `timeout` controls how long each write request waits for unavailable
+shards to become available. Both work exactly how they work in the
+<<docs-bulk,Bulk API>>.
+
+`requests_per_second` can be set to any decimal number (`1.4`, `6`, `1000`, etc)
+and throttles the number of requests per second that the reindex issues. The
+throttling is done waiting between bulk batches so that it can manipulate the
+scroll timeout. The wait time is the difference between the time it took the
+batch to complete and the time `requests_per_second * requests_in_the_batch`.
+Since the batch isn't broken into multiple bulk requests large batch sizes will
+cause Elasticsearch to create many requests and then wait for a while before
+starting the next set. This is "bursty" instead of "smooth". The default is
+`unlimited` which is also the only non-number value that it accepts.
+
+[float]
+[[docs-reindex-response-body]]
+=== Response body
+
+The JSON response looks like this:
+
+[source,js]
+--------------------------------------------------
+{
+  "took" : 639,
+  "updated": 0,
+  "created": 123,
+  "batches": 1,
+  "version_conflicts": 2,
+  "retries": {
+    "bulk": 0,
+    "search": 0
+  }
+  "throttled_millis": 0,
+  "failures" : [ ]
+}
+--------------------------------------------------
+
+`took`::
+
+The number of milliseconds from start to end of the whole operation.
+
+`updated`::
+
+The number of documents that were successfully updated.
+
+`created`::
+
+The number of documents that were successfully created.
+
+`batches`::
+
+The number of scroll responses pulled back by the the reindex.
+
+`version_conflicts`::
+
+The number of version conflicts that reindex hit.
+
+`retries`::
+
+The number of retries attempted by reindex. `bulk` is the number of bulk
+actions retried and `search` is the number of search actions retried.
+
+`throttled_millis`::
+
+Number of milliseconds the request slept to conform to `requests_per_second`.
+
+`failures`::
+
+Array of all indexing failures. If this is non-empty then the request aborted
+because of those failures. See `conflicts` for how to prevent version conflicts
+from aborting the operation.
+
+[float]
+[[docs-reindex-task-api]]
+=== Works with the Task API
+
+You can fetch the status of all running reindex requests with the
+<<tasks,Task API>>:
+
+[source,js]
+--------------------------------------------------
+GET _tasks?detailed=true&actions=*reindex
+--------------------------------------------------
+// CONSOLE
+
+The responses looks like:
+
+[source,js]
+--------------------------------------------------
+{
+  "nodes" : {
+    "r1A2WoRbTwKZ516z6NEs5A" : {
+      "name" : "Tyrannus",
+      "transport_address" : "127.0.0.1:9300",
+      "host" : "127.0.0.1",
+      "ip" : "127.0.0.1:9300",
+      "attributes" : {
+        "testattr" : "test",
+        "portsfile" : "true"
+      },
+      "tasks" : {
+        "r1A2WoRbTwKZ516z6NEs5A:36619" : {
+          "node" : "r1A2WoRbTwKZ516z6NEs5A",
+          "id" : 36619,
+          "type" : "transport",
+          "action" : "indices:data/write/reindex",
+          "status" : {    <1>
+            "total" : 6154,
+            "updated" : 3500,
+            "created" : 0,
+            "deleted" : 0,
+            "batches" : 4,
+            "version_conflicts" : 0,
+            "noops" : 0,
+            "retries": {
+              "bulk": 0,
+              "search": 0
+            },
+            "throttled_millis": 0
+          },
+          "description" : ""
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+<1> this object contains the actual status. It is just like the response json
+with the important addition of the `total` field. `total` is the total number
+of operations that the reindex expects to perform. You can estimate the
+progress by adding the `updated`, `created`, and `deleted` fields. The request
+will finish when their sum is equal to the `total` field.
+
+With the task id you can look up the task directly:
+
+[source,js]
+--------------------------------------------------
+GET /_tasks/taskId:1
+--------------------------------------------------
+// CONSOLE
+// TEST[catch:missing]
+
+The advantage of this API is that it integrates with `wait_for_completion=false`
+to transparently return the status of completed tasks. If the task is completed
+and `wait_for_completion=false` was set on it them it'll come back with a
+`results` or an `error` field. The cost of this feature is the document that
+`wait_for_completion=false` creates at `.tasks/task/${taskId}`. It is up to
+you to delete that document.
+
+
+[float]
+[[docs-reindex-cancel-task-api]]
+=== Works with the Cancel Task API
+
+Any Reindex can be canceled using the <<tasks,Task Cancel API>>:
+
+[source,js]
+--------------------------------------------------
+POST _tasks/taskid:1/_cancel
+--------------------------------------------------
+// CONSOLE
+
+The `task_id` can be found using the tasks API above.
+
+Cancelation should happen quickly but might take a few seconds. The task status
+API above will continue to list the task until it is wakes to cancel itself.
+
+
+[float]
+[[docs-reindex-rethrottle]]
+=== Rethrottling
+
+The value of `requests_per_second` can be changed on a running reindex using
+the `_rethrottle` API:
+
+[source,js]
+--------------------------------------------------
+POST _reindex/taskid:1/_rethrottle?requests_per_second=unlimited
+--------------------------------------------------
+// CONSOLE
+
+The `task_id` can be found using the tasks API above.
+
+Just like when setting it on the `_reindex` API `requests_per_second` can be
+either `unlimited` to disable throttling or any decimal number like `1.7` or
+`12` to throttle to that level. Rethrottling that speeds up the query takes
+effect immediately but rethrotting that slows down the query will take effect
+on after completing the current batch. This prevents scroll timeouts.
+
+
+[float]
+=== Reindex to change the name of a field
+
+`_reindex` can be used to build a copy of an index with renamed fields. Say you
+create an index containing documents that look like this:
+
+[source,js]
+--------------------------------------------------
+POST test/test/1?refresh
+{
+  "text": "words words",
+  "flag": "foo"
+}
+--------------------------------------------------
+// CONSOLE
+
+But you don't like the name `flag` and want to replace it with `tag`.
+`_reindex` can create the other index for you:
+
+[source,js]
+--------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "index": "test"
+  },
+  "dest": {
+    "index": "test2"
+  },
+  "script": {
+    "inline": "ctx._source.tag = ctx._source.remove(\"flag\")"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Now you can get the new document:
+
+[source,js]
+--------------------------------------------------
+GET test2/test/1
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+and it'll look like:
+
+[source,js]
+--------------------------------------------------
+{
+  "found": true,
+  "_id": "1",
+  "_index": "test2",
+  "_type": "test",
+  "_version": 1,
+  "_source": {
+    "text": "words words",
+    "tag": "foo"
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+Or you can search by `tag` or whatever you want.

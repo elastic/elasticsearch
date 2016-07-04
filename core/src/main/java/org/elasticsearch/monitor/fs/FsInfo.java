@@ -22,11 +22,10 @@ package org.elasticsearch.monitor.fs;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -34,9 +33,9 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
-public class FsInfo implements Iterable<FsInfo.Path>, Streamable, ToXContent {
+public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
 
-    public static class Path implements Streamable, ToXContent {
+    public static class Path implements Writeable, ToXContent {
 
         String path;
         @Nullable
@@ -63,14 +62,10 @@ public class FsInfo implements Iterable<FsInfo.Path>, Streamable, ToXContent {
             this.available = available;
         }
 
-        static public Path readInfoFrom(StreamInput in) throws IOException {
-            Path i = new Path();
-            i.readFrom(in);
-            return i;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
+        /**
+         * Read from a stream.
+         */
+        public Path(StreamInput in) throws IOException {
             path = in.readOptionalString();
             mount = in.readOptionalString();
             type = in.readOptionalString();
@@ -150,29 +145,29 @@ public class FsInfo implements Iterable<FsInfo.Path>, Streamable, ToXContent {
         }
 
         static final class Fields {
-            static final XContentBuilderString PATH = new XContentBuilderString("path");
-            static final XContentBuilderString MOUNT = new XContentBuilderString("mount");
-            static final XContentBuilderString TYPE = new XContentBuilderString("type");
-            static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-            static final XContentBuilderString TOTAL_IN_BYTES = new XContentBuilderString("total_in_bytes");
-            static final XContentBuilderString FREE = new XContentBuilderString("free");
-            static final XContentBuilderString FREE_IN_BYTES = new XContentBuilderString("free_in_bytes");
-            static final XContentBuilderString AVAILABLE = new XContentBuilderString("available");
-            static final XContentBuilderString AVAILABLE_IN_BYTES = new XContentBuilderString("available_in_bytes");
-            static final XContentBuilderString SPINS = new XContentBuilderString("spins");
+            static final String PATH = "path";
+            static final String MOUNT = "mount";
+            static final String TYPE = "type";
+            static final String TOTAL = "total";
+            static final String TOTAL_IN_BYTES = "total_in_bytes";
+            static final String FREE = "free";
+            static final String FREE_IN_BYTES = "free_in_bytes";
+            static final String AVAILABLE = "available";
+            static final String AVAILABLE_IN_BYTES = "available_in_bytes";
+            static final String SPINS = "spins";
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             if (path != null) {
-                builder.field(Fields.PATH, path, XContentBuilder.FieldCaseConversion.NONE);
+                builder.field(Fields.PATH, path);
             }
             if (mount != null) {
-                builder.field(Fields.MOUNT, mount, XContentBuilder.FieldCaseConversion.NONE);
+                builder.field(Fields.MOUNT, mount);
             }
             if (type != null) {
-                builder.field(Fields.TYPE, type, XContentBuilder.FieldCaseConversion.NONE);
+                builder.field(Fields.TYPE, type);
             }
 
             if (total != -1) {
@@ -193,18 +188,260 @@ public class FsInfo implements Iterable<FsInfo.Path>, Streamable, ToXContent {
         }
     }
 
-    long timestamp;
-    Path total;
-    Path[] paths;
+    public static class DeviceStats implements Writeable, ToXContent {
 
-    FsInfo() {
+        final int majorDeviceNumber;
+        final int minorDeviceNumber;
+        final String deviceName;
+        final long currentReadsCompleted;
+        final long previousReadsCompleted;
+        final long currentSectorsRead;
+        final long previousSectorsRead;
+        final long currentWritesCompleted;
+        final long previousWritesCompleted;
+        final long currentSectorsWritten;
+        final long previousSectorsWritten;
+
+        public DeviceStats(
+                final int majorDeviceNumber,
+                final int minorDeviceNumber,
+                final String deviceName,
+                final long currentReadsCompleted,
+                final long currentSectorsRead,
+                final long currentWritesCompleted,
+                final long currentSectorsWritten,
+                final DeviceStats previousDeviceStats) {
+            this(
+                    majorDeviceNumber,
+                    minorDeviceNumber,
+                    deviceName,
+                    currentReadsCompleted,
+                    previousDeviceStats != null ? previousDeviceStats.currentReadsCompleted : -1,
+                    currentSectorsWritten,
+                    previousDeviceStats != null ? previousDeviceStats.currentSectorsWritten : -1,
+                    currentSectorsRead,
+                    previousDeviceStats != null ? previousDeviceStats.currentSectorsRead : -1,
+                    currentWritesCompleted,
+                    previousDeviceStats != null ? previousDeviceStats.currentWritesCompleted : -1);
+        }
+
+        private DeviceStats(
+                final int majorDeviceNumber,
+                final int minorDeviceNumber,
+                final String deviceName,
+                final long currentReadsCompleted,
+                final long previousReadsCompleted,
+                final long currentSectorsWritten,
+                final long previousSectorsWritten,
+                final long currentSectorsRead,
+                final long previousSectorsRead,
+                final long currentWritesCompleted,
+                final long previousWritesCompleted) {
+            this.majorDeviceNumber = majorDeviceNumber;
+            this.minorDeviceNumber = minorDeviceNumber;
+            this.deviceName = deviceName;
+            this.currentReadsCompleted = currentReadsCompleted;
+            this.previousReadsCompleted = previousReadsCompleted;
+            this.currentWritesCompleted = currentWritesCompleted;
+            this.previousWritesCompleted = previousWritesCompleted;
+            this.currentSectorsRead = currentSectorsRead;
+            this.previousSectorsRead = previousSectorsRead;
+            this.currentSectorsWritten = currentSectorsWritten;
+            this.previousSectorsWritten = previousSectorsWritten;
+        }
+
+        public DeviceStats(StreamInput in) throws IOException {
+            majorDeviceNumber = in.readVInt();
+            minorDeviceNumber = in.readVInt();
+            deviceName = in.readString();
+            currentReadsCompleted = in.readLong();
+            previousReadsCompleted = in.readLong();
+            currentWritesCompleted = in.readLong();
+            previousWritesCompleted = in.readLong();
+            currentSectorsRead = in.readLong();
+            previousSectorsRead = in.readLong();
+            currentSectorsWritten = in.readLong();
+            previousSectorsWritten = in.readLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(majorDeviceNumber);
+            out.writeVInt(minorDeviceNumber);
+            out.writeString(deviceName);
+            out.writeLong(currentReadsCompleted);
+            out.writeLong(previousReadsCompleted);
+            out.writeLong(currentWritesCompleted);
+            out.writeLong(previousWritesCompleted);
+            out.writeLong(currentSectorsRead);
+            out.writeLong(previousSectorsRead);
+            out.writeLong(currentSectorsWritten);
+            out.writeLong(previousSectorsWritten);
+        }
+
+        public long operations() {
+            if (previousReadsCompleted == -1 || previousWritesCompleted == -1) return -1;
+
+            return (currentReadsCompleted - previousReadsCompleted) +
+                (currentWritesCompleted - previousWritesCompleted);
+        }
+
+        public long readOperations() {
+            if (previousReadsCompleted == -1) return -1;
+
+            return (currentReadsCompleted - previousReadsCompleted);
+        }
+
+        public long writeOperations() {
+            if (previousWritesCompleted == -1) return -1;
+
+            return (currentWritesCompleted - previousWritesCompleted);
+        }
+
+        public long readKilobytes() {
+            if (previousSectorsRead == -1) return -1;
+
+            return (currentSectorsRead - previousSectorsRead) / 2;
+        }
+
+        public long writeKilobytes() {
+            if (previousSectorsWritten == -1) return -1;
+
+            return (currentSectorsWritten - previousSectorsWritten) / 2;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field("device_name", deviceName);
+            builder.field(IoStats.OPERATIONS, operations());
+            builder.field(IoStats.READ_OPERATIONS, readOperations());
+            builder.field(IoStats.WRITE_OPERATIONS, writeOperations());
+            builder.field(IoStats.READ_KILOBYTES, readKilobytes());
+            builder.field(IoStats.WRITE_KILOBYTES, writeKilobytes());
+            return builder;
+        }
 
     }
 
-    public FsInfo(long timestamp, Path[] paths) {
+    public static class IoStats implements Writeable, ToXContent {
+
+        private static final String OPERATIONS = "operations";
+        private static final String READ_OPERATIONS = "read_operations";
+        private static final String WRITE_OPERATIONS = "write_operations";
+        private static final String READ_KILOBYTES = "read_kilobytes";
+        private static final String WRITE_KILOBYTES = "write_kilobytes";
+
+        final DeviceStats[] devicesStats;
+        final long totalOperations;
+        final long totalReadOperations;
+        final long totalWriteOperations;
+        final long totalReadKilobytes;
+        final long totalWriteKilobytes;
+
+        public IoStats(final DeviceStats[] devicesStats) {
+            this.devicesStats = devicesStats;
+            long totalOperations = 0;
+            long totalReadOperations = 0;
+            long totalWriteOperations = 0;
+            long totalReadKilobytes = 0;
+            long totalWriteKilobytes = 0;
+            for (DeviceStats deviceStats : devicesStats) {
+                totalOperations += deviceStats.operations() != -1 ? deviceStats.operations() : 0;
+                totalReadOperations += deviceStats.readOperations() != -1 ? deviceStats.readOperations() : 0;
+                totalWriteOperations += deviceStats.writeOperations() != -1 ? deviceStats.writeOperations() : 0;
+                totalReadKilobytes += deviceStats.readKilobytes() != -1 ? deviceStats.readKilobytes() : 0;
+                totalWriteKilobytes += deviceStats.writeKilobytes() != -1 ? deviceStats.writeKilobytes() : 0;
+            }
+            this.totalOperations = totalOperations;
+            this.totalReadOperations = totalReadOperations;
+            this.totalWriteOperations = totalWriteOperations;
+            this.totalReadKilobytes = totalReadKilobytes;
+            this.totalWriteKilobytes = totalWriteKilobytes;
+        }
+
+        public IoStats(StreamInput in) throws IOException {
+            final int length = in.readVInt();
+            final DeviceStats[] devicesStats = new DeviceStats[length];
+            for (int i = 0; i < length; i++) {
+                devicesStats[i] = new DeviceStats(in);
+            }
+            this.devicesStats = devicesStats;
+            this.totalOperations = in.readLong();
+            this.totalReadOperations = in.readLong();
+            this.totalWriteOperations = in.readLong();
+            this.totalReadKilobytes = in.readLong();
+            this.totalWriteKilobytes = in.readLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(devicesStats.length);
+            for (int i = 0; i < devicesStats.length; i++) {
+                devicesStats[i].writeTo(out);
+            }
+            out.writeLong(totalOperations);
+            out.writeLong(totalReadOperations);
+            out.writeLong(totalWriteOperations);
+            out.writeLong(totalReadKilobytes);
+            out.writeLong(totalWriteKilobytes);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            if (devicesStats.length > 0) {
+                builder.startArray("devices");
+                for (DeviceStats deviceStats : devicesStats) {
+                    builder.startObject();
+                    deviceStats.toXContent(builder, params);
+                    builder.endObject();
+                }
+                builder.endArray();
+
+                builder.startObject("total");
+                builder.field(OPERATIONS, totalOperations);
+                builder.field(READ_OPERATIONS, totalReadOperations);
+                builder.field(WRITE_OPERATIONS, totalWriteOperations);
+                builder.field(READ_KILOBYTES, totalReadKilobytes);
+                builder.field(WRITE_KILOBYTES, totalWriteKilobytes);
+                builder.endObject();
+            }
+            return builder;
+        }
+
+    }
+
+    final long timestamp;
+    final Path[] paths;
+    final IoStats ioStats;
+    Path total;
+
+    public FsInfo(long timestamp, IoStats ioStats, Path[] paths) {
         this.timestamp = timestamp;
+        this.ioStats = ioStats;
         this.paths = paths;
         this.total = null;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public FsInfo(StreamInput in) throws IOException {
+        timestamp = in.readVLong();
+        ioStats = in.readOptionalWriteable(IoStats::new);
+        paths = new Path[in.readVInt()];
+        for (int i = 0; i < paths.length; i++) {
+            paths[i] = new Path(in);
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(timestamp);
+        out.writeOptionalWriteable(ioStats);
+        out.writeVInt(paths.length);
+        for (Path path : paths) {
+            path.writeTo(out);
+        }
     }
 
     public Path getTotal() {
@@ -233,40 +470,13 @@ public class FsInfo implements Iterable<FsInfo.Path>, Streamable, ToXContent {
         return timestamp;
     }
 
+    public IoStats getIoStats() {
+        return ioStats;
+    }
+
     @Override
     public Iterator<Path> iterator() {
         return Arrays.stream(paths).iterator();
-    }
-
-    public static FsInfo readFsInfo(StreamInput in) throws IOException {
-        FsInfo stats = new FsInfo();
-        stats.readFrom(in);
-        return stats;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        timestamp = in.readVLong();
-        paths = new Path[in.readVInt()];
-        for (int i = 0; i < paths.length; i++) {
-            paths[i] = Path.readInfoFrom(in);
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(timestamp);
-        out.writeVInt(paths.length);
-        for (Path path : paths) {
-            path.writeTo(out);
-        }
-    }
-
-    static final class Fields {
-        static final XContentBuilderString FS = new XContentBuilderString("fs");
-        static final XContentBuilderString TIMESTAMP = new XContentBuilderString("timestamp");
-        static final XContentBuilderString DATA = new XContentBuilderString("data");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
     }
 
     @Override
@@ -280,7 +490,21 @@ public class FsInfo implements Iterable<FsInfo.Path>, Streamable, ToXContent {
             path.toXContent(builder, params);
         }
         builder.endArray();
+        if (ioStats != null) {
+            builder.startObject(Fields.IO_STATS);
+            ioStats.toXContent(builder, params);
+            builder.endObject();
+        }
         builder.endObject();
         return builder;
     }
+
+    static final class Fields {
+        static final String FS = "fs";
+        static final String TIMESTAMP = "timestamp";
+        static final String DATA = "data";
+        static final String TOTAL = "total";
+        static final String IO_STATS = "io_stats";
+    }
+
 }

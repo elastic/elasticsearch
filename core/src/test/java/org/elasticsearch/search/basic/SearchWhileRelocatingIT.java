@@ -25,17 +25,16 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
@@ -45,19 +44,6 @@ import static org.hamcrest.Matchers.is;
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class SearchWhileRelocatingIT extends ESIntegTestCase {
 
-    @Test
-    @Nightly
-    public void testSearchAndRelocateConcurrently0Replicas() throws Exception {
-        testSearchAndRelocateConcurrently(0);
-    }
-
-    @Test
-    @Nightly
-    public void testSearchAndRelocateConcurrently1Replicas() throws Exception {
-        testSearchAndRelocateConcurrently(1);
-    }
-
-    @Test
     public void testSearchAndRelocateConcurrentlyRanodmReplicas() throws Exception {
         testSearchAndRelocateConcurrently(randomIntBetween(0, 1));
     }
@@ -65,8 +51,8 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
     private void testSearchAndRelocateConcurrently(final int numberOfReplicas) throws Exception {
         final int numShards = between(1, 20);
         client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder().put("index.number_of_shards", numShards).put("index.number_of_replicas", numberOfReplicas))
-                .addMapping("type1", "loc", "type=geo_point", "test", "type=string").execute().actionGet();
+                .setSettings(Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", numberOfReplicas))
+                .addMapping("type", "loc", "type=geo_point", "test", "type=text").execute().actionGet();
         ensureGreen();
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         final int numDocs = between(10, 20);
@@ -77,7 +63,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                                     .endObject().endObject()));
         }
         indexRandom(true, indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]));
-        assertHitCount(client().prepareSearch().get(), (long) (numDocs));
+        assertHitCount(client().prepareSearch().get(), (numDocs));
         final int numIters = scaledRandomIntBetween(5, 20);
         for (int i = 0; i < numIters; i++) {
             final AtomicBoolean stop = new AtomicBoolean(false);
@@ -98,7 +84,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                                 // request comes in. It's a small window but a known limitation.
                                 //
                                 criticalException = sr.getTotalShards() == sr.getSuccessfulShards() || sr.getFailedShards() > 0;
-                                assertHitCount(sr, (long) (numDocs));
+                                assertHitCount(sr, (numDocs));
                                 criticalException = true;
                                 final SearchHits sh = sr.getHits();
                                 assertThat("Expected hits to be the same size the actual hits array", sh.getTotalHits(),
@@ -112,11 +98,11 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                             if (numberOfReplicas == 1 || !ex.getMessage().contains("all shards failed")) {
                                 thrownExceptions.add(ex);
                             }
-                        } catch (Throwable t) {
+                        } catch (Exception ex) {
                             if (!criticalException) {
-                                nonCriticalExceptions.add(t);
+                                nonCriticalExceptions.add(ex);
                             } else {
-                                thrownExceptions.add(t);
+                                thrownExceptions.add(ex);
                             }
                         }
                     }
@@ -147,7 +133,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                 }
                 assertThat("numberOfReplicas: " + numberOfReplicas + " failed in iteration " + i + ", verification: " + verified, thrownExceptions, Matchers.emptyIterable());
                 // if we hit only non-critical exceptions we only make sure that the post search works
-                logger.info("Non-CriticalExceptions: " + nonCriticalExceptions.toString());
+                logger.info("Non-CriticalExceptions: {}", nonCriticalExceptions);
                 assertThat("numberOfReplicas: " + numberOfReplicas + " failed in iteration " + i + ", verification: " + verified, postSearchOK, is(true));
             }
         }

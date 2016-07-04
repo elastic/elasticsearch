@@ -1021,7 +1021,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     private BytesReference buildMessage(long requestId, byte status, Version nodeVersion, TransportMessage message, StreamOutput stream,
                                         ReleasableBytesStream writtenBytes) throws IOException {
         final BytesReference zeroCopyBuffer;
-        if (message instanceof BytesTransportRequest) {
+        if (message instanceof BytesTransportRequest) { // what a shitty optimization - we should use a direct send method instead
             BytesTransportRequest bRequest = (BytesTransportRequest) message;
             assert nodeVersion.equals(bRequest.version());
             bRequest.writeThin(stream);
@@ -1030,7 +1030,11 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             message.writeTo(stream);
             zeroCopyBuffer = BytesArray.EMPTY;
         }
-        stream.flush();
+        // we have to close the stream here - flush is not enough since we might be compressing the content
+        // and if we do that the close method will write some marker bytes (EOS marker) and otherwise
+        // we barf on the decompressing end when we read past EOF on purpose in the #validateRequest method.
+        // this might be a problem in deflate after all but it's important to close it for now.
+        stream.close();
         final BytesReference messageBody = writtenBytes.bytes();
         final BytesReference header = buildHeader(requestId, status, stream.getVersion(), messageBody.length() + zeroCopyBuffer.length());
         return new CompositeBytesReference(header, messageBody, zeroCopyBuffer);

@@ -94,7 +94,7 @@ final class BytesReferenceStreamInput extends StreamInput {
         int destOffset = bOffset;
         while (remaining > 0) {
             maybeNextSlice();
-            int currentLen = Math.min(remaining, slice.length - (slice.offset + sliceOffset));
+            final int currentLen = Math.min(remaining, slice.length - sliceOffset);
             System.arraycopy(slice.bytes, slice.offset + sliceOffset, b, destOffset, currentLen);
             destOffset += currentLen;
             remaining -= currentLen;
@@ -129,5 +129,9 @@ final class BytesReferenceStreamInput extends StreamInput {
             assert remaining >= 0 : "remaining: " + remaining;
         }
         return numBytesSkipped;
+    }
+
+    int getOffset() {
+        return offset;
     }
 }

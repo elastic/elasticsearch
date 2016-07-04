@@ -216,7 +216,7 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
      */
     private static final class MarkSupportingStreamInputWrapper extends StreamInput {
         private final BytesReference reference;
-        private StreamInput input;
+        private BytesReferenceStreamInput input;
         private int mark = 0;
 
         private MarkSupportingStreamInputWrapper(BytesReference reference) throws IOException {
@@ -231,7 +231,12 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
 
         @Override
         public void readBytes(byte[] b, int offset, int len) throws IOException {
-            input.read(b, offset, len);
+            input.readBytes(b, offset, len);
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            return input.read(b, off, len);
         }
 
         @Override
@@ -250,8 +255,9 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
         }
 
         @Override
-        public synchronized void reset() throws IOException {
-            input = reference.slice(mark, reference.length() - mark).streamInput();
+        public void reset() throws IOException {
+            BytesReference slice = reference.slice(mark, reference.length() - mark);
+            input = new BytesReferenceStreamInput(slice.iterator(), slice.length());
         }
 
         @Override
@@ -260,8 +266,10 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
         }
 
         @Override
-        public synchronized void mark(int readlimit) {
-            this.mark = readlimit;
+        public void mark(int readLimit) {
+            // readLimit is optional it only guarantees that the stream remembers data upto this limit but it can remember more
+            // which we do in our case
+            this.mark = input.getOffset();
         }
 
         @Override

@@ -256,8 +256,8 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
 
         @Override
         public void reset() throws IOException {
-            BytesReference slice = reference.slice(mark, reference.length() - mark);
-            input = new BytesReferenceStreamInput(slice.iterator(), slice.length());
+            input = new BytesReferenceStreamInput(reference.iterator(), reference.length());
+            input.skip(mark);
         }
 
         @Override

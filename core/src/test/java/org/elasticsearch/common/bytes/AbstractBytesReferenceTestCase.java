@@ -130,6 +130,29 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
             si.readBytes(targetBuf, 0, length * 2));
     }
 
+    public void testStreamInputMarkAndReset() throws IOException {
+        int length = randomIntBetween(10, scaledRandomIntBetween(PAGE_SIZE * 2, PAGE_SIZE * 20));
+        BytesReference pbr = newBytesReference(length);
+        StreamInput si = pbr.streamInput();
+        assertNotNull(si);
+
+        StreamInput wrap = StreamInput.wrap(BytesReference.toBytes(pbr));
+        while(wrap.available() > 0) {
+            if (rarely()) {
+                wrap.mark(Integer.MAX_VALUE);
+                si.mark(Integer.MAX_VALUE);
+            } else if (rarely()) {
+                wrap.reset();
+                si.reset();
+            }
+            assertEquals(si.readByte(), wrap.readByte());
+            assertEquals(si.available(), wrap.available());
+
+        }
+
+
+    }
+
     public void testStreamInputBulkReadWithOffset() throws IOException {
         final int length = randomIntBetween(10, scaledRandomIntBetween(PAGE_SIZE * 2, PAGE_SIZE * 20));
         BytesReference pbr = newBytesReference(length);

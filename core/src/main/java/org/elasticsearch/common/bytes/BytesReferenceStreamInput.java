@@ -31,11 +31,9 @@ import java.io.IOException;
  * underlying bytes reference.
  */
 final class BytesReferenceStreamInput extends StreamInput {
-
     private final BytesRefIterator iterator;
     private int sliceOffset;
     private BytesRef slice;
-
     private final int length; // the total size of the stream
     private int offset; // the current position of the stream
 
@@ -95,6 +93,7 @@ final class BytesReferenceStreamInput extends StreamInput {
         while (remaining > 0) {
             maybeNextSlice();
             final int currentLen = Math.min(remaining, slice.length - sliceOffset);
+            assert currentLen > 0 : "length has to be > 0 to make progress but was: " + currentLen;
             System.arraycopy(slice.bytes, slice.offset + sliceOffset, b, destOffset, currentLen);
             destOffset += currentLen;
             remaining -= currentLen;

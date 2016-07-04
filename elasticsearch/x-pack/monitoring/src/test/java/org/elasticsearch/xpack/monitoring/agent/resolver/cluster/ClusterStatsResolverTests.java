@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -63,7 +63,7 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
         ClusterStatsMonitoringDoc doc = new ClusterStatsMonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2));
         doc.setClusterUUID(randomAsciiOfLength(5));
         doc.setTimestamp(Math.abs(randomLong()));
-        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT));
+        doc.setSourceNode(new DiscoveryNode("id", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT));
         doc.setClusterStats(randomClusterStats());
         return doc;
     }
@@ -94,7 +94,7 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
      */
     private ClusterStatsResponse randomClusterStats() {
         List<ClusterStatsNodeResponse> responses = Collections.singletonList(
-                new ClusterStatsNodeResponse(new DiscoveryNode("node_0", DummyTransportAddress.INSTANCE,
+                new ClusterStatsNodeResponse(new DiscoveryNode("node_0", LocalTransportAddress.buildUnique(),
                         emptyMap(), emptySet(), Version.CURRENT),
                         ClusterHealthStatus.GREEN, randomNodeInfo(), randomNodeStats(), randomShardStats())
         );
@@ -106,10 +106,10 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
      * @return a random {@link NodeInfo} used to resolve a monitoring document.
      */
     private NodeInfo randomNodeInfo() {
-        BoundTransportAddress transportAddress = new BoundTransportAddress(new TransportAddress[]{DummyTransportAddress.INSTANCE},
-                DummyTransportAddress.INSTANCE);
+        BoundTransportAddress transportAddress = new BoundTransportAddress(new TransportAddress[]{LocalTransportAddress.buildUnique()},
+                LocalTransportAddress.buildUnique());
         return new NodeInfo(Version.CURRENT, org.elasticsearch.Build.CURRENT,
-                new DiscoveryNode("node_0", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT),
+                new DiscoveryNode("node_0", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
                 Settings.EMPTY, DummyOsInfo.INSTANCE, new ProcessInfo(randomInt(), randomBoolean()), JvmInfo.jvmInfo(),
                 new ThreadPoolInfo(Collections.singletonList(new ThreadPool.Info("test_threadpool", ThreadPool.ThreadPoolType.FIXED, 5))),
                 new TransportInfo(transportAddress, Collections.emptyMap()), new HttpInfo(transportAddress, randomLong()),
@@ -127,7 +127,7 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
         };
         Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
         statsByShard.put(index, Collections.singletonList(new IndexShardStats(new ShardId(index, 0), randomShardStats())));
-        return new NodeStats(new DiscoveryNode("node_0", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT), 0,
+        return new NodeStats(new DiscoveryNode("node_0", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT), 0,
                 new NodeIndicesStats(new CommonStats(), statsByShard), null, null, null, null,
                 new FsInfo(0, null, pathInfo), null, null, null, null, null, null);
     }

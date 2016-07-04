@@ -122,9 +122,9 @@ public class IncludeExclude {
         }
     }
 
-    public static abstract class OrdinalsFilter {
-        public abstract LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource) throws IOException;
-        
+    public abstract static class OrdinalsFilter {
+        public abstract LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals) throws IOException;
+
     }
 
     static class AutomatonBackedOrdinalsFilter extends OrdinalsFilter {
@@ -140,7 +140,8 @@ public class IncludeExclude {
          * 
          */
         @Override
-        public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource) throws IOException {
+        public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals)
+                throws IOException {
             LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
             TermsEnum globalTermsEnum;
             Terms globalTerms = new DocValuesTerms(globalOrdinals);
@@ -165,7 +166,7 @@ public class IncludeExclude {
         }
 
         @Override
-        public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, WithOrdinals valueSource) throws IOException {
+        public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals) throws IOException {
             LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
             if(includeValues!=null){
                 for (BytesRef term : includeValues) {
@@ -173,8 +174,8 @@ public class IncludeExclude {
                     if (ord >= 0) {
                         acceptedGlobalOrdinals.set(ord);
                     }
-                }                
-            } else {
+                }
+            } else if (acceptedGlobalOrdinals.length() > 0) {
                 // default to all terms being acceptable
                 acceptedGlobalOrdinals.set(0, acceptedGlobalOrdinals.length());
             }

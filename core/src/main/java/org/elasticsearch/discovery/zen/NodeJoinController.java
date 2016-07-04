@@ -180,7 +180,7 @@ public class NodeJoinController extends AbstractComponent {
             electionContext.addIncomingJoin(node, callback);
             checkPendingJoinsAndElectIfNeeded();
         } else {
-            clusterService.submitStateUpdateTask("node-join",
+            clusterService.submitStateUpdateTask("zend-disco-node-join",
                 node, ClusterStateTaskConfig.build(Priority.URGENT),
                 joinTaskExecutor, new JoinTaskListener(callback, logger));
         }
@@ -279,7 +279,7 @@ public class NodeJoinController extends AbstractComponent {
             innerClose();
 
             Map<DiscoveryNode, ClusterStateTaskListener> tasks = getPendingAsTasks();
-            final String source = "elected_as_master ([" + tasks.size() + "] nodes joined)";
+            final String source = "zen-disco-elected-as-master ([" + tasks.size() + "] nodes joined)";
 
             tasks.put(BECOME_MASTER_TASK, joinProcessedListener);
             clusterService.submitStateUpdateTasks(source, tasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
@@ -288,7 +288,7 @@ public class NodeJoinController extends AbstractComponent {
         public synchronized void closeAndProcessPending(String reason) {
             innerClose();
             Map<DiscoveryNode, ClusterStateTaskListener> tasks = getPendingAsTasks();
-            final String source = "process_pending_joins [" +  reason + "]";
+            final String source = "zen-disco-process-pending-joins [" +  reason + "]";
 
             tasks.put(FINISH_ELECTION_NOT_MASTER_TASK, joinProcessedListener);
             clusterService.submitStateUpdateTasks(source, tasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);

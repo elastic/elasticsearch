@@ -108,8 +108,8 @@ public final class CompletionTokenStream extends TokenStream {
         input.close();
     }
 
-    public static interface ToFiniteStrings {
-        public Set<IntsRef> toFiniteStrings(TokenStream stream) throws IOException;
+    public interface ToFiniteStrings {
+        Set<IntsRef> toFiniteStrings(TokenStream stream) throws IOException;
     }
 
     @Override

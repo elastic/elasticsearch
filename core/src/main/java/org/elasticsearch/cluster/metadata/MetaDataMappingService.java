@@ -355,7 +355,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
         @Override
         public String describeTasks(List<PutMappingClusterStateUpdateRequest> tasks) {
-            return  tasks.stream().map(PutMappingClusterStateUpdateRequest::type).reduce((s1,s2) -> s1 + ", " + s2).orElse("");
+            return tasks.stream().map(PutMappingClusterStateUpdateRequest::type).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
         }
     }
 

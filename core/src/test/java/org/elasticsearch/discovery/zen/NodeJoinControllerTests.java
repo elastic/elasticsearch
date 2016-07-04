@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
@@ -102,10 +101,9 @@ public class NodeJoinControllerTests extends ESTestCase {
         // make sure we have a master
         setState(clusterService, ClusterState.builder(clusterService.state()).nodes(
             DiscoveryNodes.builder(initialNodes).masterNodeId(localNode.getId())));
-        nodeJoinController = new NodeJoinController(clusterService, new NoopRoutingService(Settings.EMPTY),
-            new ElectMasterService(Settings.EMPTY),
-            new DiscoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            Settings.EMPTY);
+        nodeJoinController = new NodeJoinController(clusterService, new NoopAllocationService(Settings.EMPTY),
+            new ElectMasterService(Settings.EMPTY), new DiscoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)), Settings.EMPTY);
     }
 
     @After
@@ -556,18 +554,6 @@ public class NodeJoinControllerTests extends ESTestCase {
         joinNode(other_node);
 
         assertThat(clusterService.localNode(), equalTo(other_node));
-    }
-
-    static class NoopRoutingService extends RoutingService {
-
-        public NoopRoutingService(Settings settings) {
-            super(settings, null, new NoopAllocationService(settings));
-        }
-
-        @Override
-        protected void performReroute(String reason) {
-
-        }
     }
 
     static class NoopAllocationService extends AllocationService {

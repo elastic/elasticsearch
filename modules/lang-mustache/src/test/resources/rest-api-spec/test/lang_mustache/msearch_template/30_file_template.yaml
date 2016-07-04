@@ -44,7 +44,7 @@ setup:
   - match: { template_output.size: 20 }
 
   - do:
-      template.msearch:
+      msearch_template:
         body:
           - index: index_*
           - file: template_1

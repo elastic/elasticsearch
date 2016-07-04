@@ -109,7 +109,8 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             Supplier<Request> request,
             String executor,
             boolean canTripCircuitBreaker) {
-        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
+        super(settings, actionName, canTripCircuitBreaker, threadPool, transportService, actionFilters, indexNameExpressionResolver,
+            request);
 
         this.clusterService = clusterService;
         this.transportService = transportService;

@@ -33,6 +33,7 @@ import org.elasticsearch.rest.action.support.RestToXContentListener;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@Deprecated
 public class RestMultiPercolateAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;

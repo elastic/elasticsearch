@@ -18,15 +18,15 @@
  */
 package org.elasticsearch.percolator;
 
+import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.HalfFloatPoint;
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.queries.TermsQuery;
@@ -36,6 +36,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
@@ -46,36 +47,28 @@ import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
-import org.elasticsearch.index.mapper.ParseContext;
 
-import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
 /**
- * Utility to extract query terms from queries and create queries from documents.
+ * Utility to extract terms and ranges from queries.
  */
-public final class ExtractQueryTermsService {
+public final class QueryExtractService {
 
-    private static final byte FIELD_VALUE_SEPARATOR = 0;  // nul code point
-    public static final String EXTRACTION_COMPLETE = "complete";
-    public static final String EXTRACTION_PARTIAL = "partial";
-    public static final String EXTRACTION_FAILED = "failed";
-
-    static final Map<Class<? extends Query>, Function<Query, Result>> queryProcessors;
+    private static final Map<Class<? extends Query>, Function<Query, Result>> queryProcessors;
 
     static {
-        Map<Class<? extends Query>, Function<Query, Result>> map = new HashMap<>(16);
+        Map<Class<? extends Query>, Function<Query, Result>> map = new HashMap<>();
         map.put(MatchNoDocsQuery.class, matchNoDocsQuery());
         map.put(ConstantScoreQuery.class, constantScoreQuery());
         map.put(BoostQuery.class, boostQuery());
@@ -92,78 +85,15 @@ public final class ExtractQueryTermsService {
         map.put(BooleanQuery.class, booleanQuery());
         map.put(DisjunctionMaxQuery.class, disjunctionMaxQuery());
         map.put(SynonymQuery.class, synonymQuery());
+        map.put(PointRangeQuery.class, pointRangeQuery());
         queryProcessors = Collections.unmodifiableMap(map);
     }
 
-    private ExtractQueryTermsService() {
+    private QueryExtractService() {
     }
 
     /**
-     * Extracts all terms from the specified query and adds it to the specified document.
-     *
-     * @param query                 The query to extract terms from
-     * @param document              The document to add the extracted terms to
-     * @param queryTermsFieldField  The field in the document holding the extracted terms
-     * @param extractionResultField The field contains whether query term extraction was successful, partial or
-     *                              failed. (For example the query contained an unsupported query (e.g. WildcardQuery)
-     *                              then query extraction would fail)
-     * @param fieldType             The field type for the query metadata field
-     */
-    public static void extractQueryTerms(Query query, ParseContext.Document document, String queryTermsFieldField,
-                                         String extractionResultField, FieldType fieldType) {
-        Result result;
-        try {
-            result = extractQueryTerms(query);
-        } catch (UnsupportedQueryException e) {
-            document.add(new Field(extractionResultField, EXTRACTION_FAILED, fieldType));
-            return;
-        }
-        for (Term term : result.terms) {
-            BytesRefBuilder builder = new BytesRefBuilder();
-            builder.append(new BytesRef(term.field()));
-            builder.append(FIELD_VALUE_SEPARATOR);
-            builder.append(term.bytes());
-            document.add(new Field(queryTermsFieldField, builder.toBytesRef(), fieldType));
-        }
-        if (result.verified) {
-            document.add(new Field(extractionResultField, EXTRACTION_COMPLETE, fieldType));
-        } else {
-            document.add(new Field(extractionResultField, EXTRACTION_PARTIAL, fieldType));
-        }
-    }
-
-    /**
-     * Creates a terms query containing all terms from all fields of the specified index reader.
-     */
-    public static Query createQueryTermsQuery(IndexReader indexReader, String queryMetadataField,
-                                              Term... optionalTerms) throws IOException {
-        Objects.requireNonNull(queryMetadataField);
-
-        List<Term> extractedTerms = new ArrayList<>();
-        Collections.addAll(extractedTerms, optionalTerms);
-
-        Fields fields = MultiFields.getFields(indexReader);
-        for (String field : fields) {
-            Terms terms = fields.terms(field);
-            if (terms == null) {
-                continue;
-            }
-
-            BytesRef fieldBr = new BytesRef(field);
-            TermsEnum tenum = terms.iterator();
-            for (BytesRef term = tenum.next(); term != null; term = tenum.next()) {
-                BytesRefBuilder builder = new BytesRefBuilder();
-                builder.append(fieldBr);
-                builder.append(FIELD_VALUE_SEPARATOR);
-                builder.append(term);
-                extractedTerms.add(new Term(queryMetadataField, builder.toBytesRef()));
-            }
-        }
-        return new TermsQuery(extractedTerms);
-    }
-
-    /**
-     * Extracts all query terms from the provided query and adds it to specified list.
+     * Extracts all terms and ranges from the provided query.
      * <p>
      * From boolean query with no should clauses or phrase queries only the longest term are selected,
      * since that those terms are likely to be the rarest. Boolean query's must_not clauses are always ignored.
@@ -171,7 +101,7 @@ public final class ExtractQueryTermsService {
      * If from part of the query, no query terms can be extracted then term extraction is stopped and
      * an UnsupportedQueryException is thrown.
      */
-    static Result extractQueryTerms(Query query) {
+    public static Result extractQueryTerms(Query query) {
         Class queryClass = query.getClass();
         if (queryClass.isAnonymousClass()) {
             // Sometimes queries have anonymous classes in that case we need the direct super class.
@@ -187,7 +117,7 @@ public final class ExtractQueryTermsService {
     }
 
     static Function<Query, Result> matchNoDocsQuery() {
-        return (query -> new Result(true, Collections.emptySet()));
+        return (query -> new Result(true, Collections.emptySet(), Collections.emptySet()));
     }
 
     static Function<Query, Result> constantScoreQuery() {
@@ -207,7 +137,7 @@ public final class ExtractQueryTermsService {
     static Function<Query, Result> termQuery() {
         return (query -> {
             TermQuery termQuery = (TermQuery) query;
-            return new Result(true, Collections.singleton(termQuery.getTerm()));
+            return new Result(true, Collections.singleton(termQuery.getTerm()), Collections.emptySet());
         });
     }
 
@@ -219,28 +149,28 @@ public final class ExtractQueryTermsService {
             for (BytesRef term = iterator.next(); term != null; term = iterator.next()) {
                 terms.add(new Term(iterator.field(), term));
             }
-            return new Result(true, terms);
+            return new Result(true, terms, Collections.emptySet());
         };
     }
 
     static Function<Query, Result> synonymQuery() {
         return query -> {
             Set<Term> terms = new HashSet<>(((SynonymQuery) query).getTerms());
-            return new Result(true, terms);
+            return new Result(true, terms, Collections.emptySet());
         };
     }
 
     static Function<Query, Result> commonTermsQuery() {
         return query -> {
             List<Term> terms = ((CommonTermsQuery) query).getTerms();
-            return new Result(false, new HashSet<>(terms));
+            return new Result(false, new HashSet<>(terms), Collections.emptySet());
         };
     }
 
     static Function<Query, Result> blendedTermQuery() {
         return query -> {
             List<Term> terms = ((BlendedTermQuery) query).getTerms();
-            return new Result(true, new HashSet<>(terms));
+            return new Result(true, new HashSet<>(terms), Collections.emptySet());
         };
     }
 
@@ -248,7 +178,7 @@ public final class ExtractQueryTermsService {
         return query -> {
             Term[] terms = ((PhraseQuery) query).getTerms();
             if (terms.length == 0) {
-                return new Result(true, Collections.emptySet());
+                return new Result(true, Collections.emptySet(), Collections.emptySet());
             }
 
             // the longest term is likely to be the rarest,
@@ -259,26 +189,58 @@ public final class ExtractQueryTermsService {
                     longestTerm = term;
                 }
             }
-            return new Result(false, Collections.singleton(longestTerm));
+            return new Result(false, Collections.singleton(longestTerm), Collections.emptySet());
+        };
+    }
+
+    static Function<Query, Result> pointRangeQuery() {
+        return query -> {
+            PointRangeQuery pointRangeQuery = (PointRangeQuery) query;
+            // Is this too hacky? Otherwise we need to use the MapperService to determine what kind of number field this is
+            Class<?> enclosingClass = pointRangeQuery.getClass().getEnclosingClass();
+            // We need to check the number type before indexing to ensure we support it.
+            RangeType rangeType = null;
+            if (LongPoint.class.isAssignableFrom(enclosingClass)) {
+                rangeType = RangeType.LONG;
+            } else if (IntPoint.class.isAssignableFrom(enclosingClass)) {
+                rangeType = RangeType.INT;
+            } else if (DoublePoint.class.isAssignableFrom(enclosingClass)) {
+                rangeType = RangeType.DOUBLE;
+            } else if (FloatPoint.class.isAssignableFrom(enclosingClass)) {
+                rangeType = RangeType.FLOAT;
+            } else if (HalfFloatPoint.class.isAssignableFrom(enclosingClass)) {
+                rangeType = RangeType.HALF_FLOAT;
+            } else if (InetAddressPoint.class.isAssignableFrom(enclosingClass)) {
+                rangeType = RangeType.IP;
+            }
+            if (rangeType != null) {
+                return new Result(false, Collections.emptySet(), Collections.singleton(new Range(rangeType, pointRangeQuery)));
+            } else {
+                throw new UnsupportedQueryException(pointRangeQuery);
+            }
         };
     }
 
     static Function<Query, Result> spanTermQuery() {
         return query -> {
             Term term = ((SpanTermQuery) query).getTerm();
-            return new Result(true, Collections.singleton(term));
+            return new Result(true, Collections.singleton(term), Collections.emptySet());
         };
     }
 
     static Function<Query, Result> spanNearQuery() {
         return query -> {
-            Set<Term> bestClauses = null;
             SpanNearQuery spanNearQuery = (SpanNearQuery) query;
+            if (spanNearQuery.getClauses().length == 0) {
+                return new Result(true, Collections.emptySet(), Collections.emptySet());
+            }
+
+            Result bestClauses = null;
             for (SpanQuery clause : spanNearQuery.getClauses()) {
                 Result temp = extractQueryTerms(clause);
-                bestClauses = selectTermListWithTheLongestShortestTerm(temp.terms, bestClauses);
+                bestClauses = selectBestResult(temp, bestClauses);
             }
-            return new Result(false, bestClauses);
+            return new Result(false, bestClauses.terms, bestClauses.ranges);
         };
     }
 
@@ -289,21 +251,21 @@ public final class ExtractQueryTermsService {
             for (SpanQuery clause : spanOrQuery.getClauses()) {
                 terms.addAll(extractQueryTerms(clause).terms);
             }
-            return new Result(false, terms);
+            return new Result(false, terms, Collections.emptySet());
         };
     }
 
     static Function<Query, Result> spanNotQuery() {
         return query -> {
             Result result = extractQueryTerms(((SpanNotQuery) query).getInclude());
-            return new Result(false, result.terms);
+            return new Result(false, result.terms, Collections.emptySet());
         };
     }
 
     static Function<Query, Result> spanFirstQuery() {
         return query -> {
             Result result = extractQueryTerms(((SpanFirstQuery) query).getMatch());
-            return new Result(false, result.terms);
+            return new Result(false, result.terms, Collections.emptySet());
         };
     }
 
@@ -327,7 +289,7 @@ public final class ExtractQueryTermsService {
                 }
             }
             if (numRequiredClauses > 0) {
-                Set<Term> bestClause = null;
+                Result bestClause = null;
                 UnsupportedQueryException uqe = null;
                 for (BooleanClause clause : clauses) {
                     if (clause.isRequired() == false) {
@@ -344,17 +306,17 @@ public final class ExtractQueryTermsService {
                         uqe = e;
                         continue;
                     }
-                    bestClause = selectTermListWithTheLongestShortestTerm(temp.terms, bestClause);
+                    bestClause = selectBestResult(temp, bestClause);
                 }
                 if (bestClause != null) {
-                    return new Result(false, bestClause);
+                    return new Result(false, bestClause.terms, bestClause.ranges);
                 } else {
                     if (uqe != null) {
                         // we're unable to select the best clause and an exception occurred, so we bail
                         throw uqe;
                     } else {
                         // We didn't find a clause and no exception occurred, so this bq only contained MatchNoDocsQueries,
-                        return new Result(true, Collections.emptySet());
+                        return new Result(true, Collections.emptySet(), Collections.emptySet());
                     }
                 }
             } else {
@@ -379,29 +341,43 @@ public final class ExtractQueryTermsService {
     static Result handleDisjunction(List<Query> disjunctions, int minimumShouldMatch, boolean otherClauses) {
         boolean verified = minimumShouldMatch <= 1 && otherClauses == false;
         Set<Term> terms = new HashSet<>();
+        Set<Range> ranges = new HashSet<>();
         for (Query disjunct : disjunctions) {
             Result subResult = extractQueryTerms(disjunct);
             if (subResult.verified == false) {
                 verified = false;
             }
             terms.addAll(subResult.terms);
+            ranges.addAll(subResult.ranges);
         }
-        return new Result(verified, terms);
+        return new Result(verified, terms, ranges);
     }
 
-    static Set<Term> selectTermListWithTheLongestShortestTerm(Set<Term> terms1, Set<Term> terms2) {
-        if (terms1 == null) {
-            return terms2;
-        } else if (terms2 == null) {
-            return terms1;
+    static Result selectBestResult(Result result1, Result result2) {
+        if (result1 == null) {
+            return result2;
+        } else if (result2 == null) {
+            return result1;
         } else {
-            int terms1ShortestTerm = minTermLength(terms1);
-            int terms2ShortestTerm = minTermLength(terms2);
-            // keep the clause with longest terms, this likely to be rarest.
-            if (terms1ShortestTerm >= terms2ShortestTerm) {
-                return terms1;
+            boolean onlyTerms = result1.ranges.isEmpty() && result2.ranges.isEmpty();
+            if (onlyTerms) {
+                int terms1ShortestTerm = minTermLength(result1.terms);
+                int terms2ShortestTerm = minTermLength(result2.terms);
+                // keep the clause with longest terms, this likely to be rarest.
+                if (terms1ShortestTerm >= terms2ShortestTerm) {
+                    return result1;
+                } else {
+                    return result2;
+                }
             } else {
-                return terms2;
+                // 'picking the longest terms' heuristic does't work with numbers, so just pick the result with the least clauses:
+                int clauseSize1 = result1.ranges.size() + result1.terms.size();
+                int clauseSize2 = result2.ranges.size() + result2.terms.size();
+                if (clauseSize1 >= clauseSize2) {
+                    return result1;
+                } else {
+                    return result2;
+                }
             }
         }
     }
@@ -418,11 +394,115 @@ public final class ExtractQueryTermsService {
 
         final Set<Term> terms;
         final boolean verified;
+        final Set<Range> ranges;
 
-        Result(boolean verified, Set<Term> terms) {
+        Result(boolean verified, Set<Term> terms, Set<Range> ranges) {
             this.terms = terms;
             this.verified = verified;
+            this.ranges = ranges;
         }
+
+    }
+
+    static class Range {
+
+        final RangeType rangeType;
+        final String fieldName;
+        final byte[] lowerPoint;
+        final byte[] upperPoint;
+
+        Range(RangeType rangeType, PointRangeQuery query) {
+            this.rangeType = rangeType;
+            this.fieldName = query.getField();
+            this.lowerPoint = query.getLowerPoint();
+            this.upperPoint = query.getUpperPoint();
+        }
+    }
+
+    enum RangeType {
+
+        LONG {
+
+            @Override
+            Object decodePackedValue(byte[] packedValue) {
+                return LongPoint.decodeDimension(packedValue, 0);
+            }
+
+            @Override
+            Field createField(String fieldName, byte[] packedValue) {
+                long value = LongPoint.decodeDimension(packedValue, 0);
+                return new LongPoint(fieldName, value);
+            }
+        },
+        INT {
+
+            @Override
+            Object decodePackedValue(byte[] packedValue) {
+                return IntPoint.decodeDimension(packedValue, 0);
+            }
+
+            @Override
+            Field createField(String fieldName, byte[] packedValue) {
+                int value =  IntPoint.decodeDimension(packedValue, 0);
+                return new IntPoint(fieldName, value);
+            }
+        },
+        DOUBLE {
+
+            @Override
+            Object decodePackedValue(byte[] packedValue) {
+                return DoublePoint.decodeDimension(packedValue, 0);
+            }
+
+            @Override
+            Field createField(String fieldName, byte[] packedValue) {
+                double value = DoublePoint.decodeDimension(packedValue, 0);
+                return new DoublePoint(fieldName, value);
+            }
+        },
+        FLOAT {
+
+            @Override
+            Object decodePackedValue(byte[] packedValue) {
+                return FloatPoint.decodeDimension(packedValue, 0);
+            }
+
+            @Override
+            Field createField(String fieldName, byte[] packedValue) {
+                float value = FloatPoint.decodeDimension(packedValue, 0);
+                return new FloatPoint(fieldName, value);
+            }
+        },
+        HALF_FLOAT {
+
+            @Override
+            Object decodePackedValue(byte[] packedValue) {
+                return HalfFloatPoint.decodeDimension(packedValue, 0);
+            }
+
+            @Override
+            Field createField(String fieldName, byte[] packedValue) {
+                float value = HalfFloatPoint.decodeDimension(packedValue, 0);
+                return new HalfFloatPoint(fieldName, value);
+            }
+        },
+        IP {
+
+            @Override
+            Object decodePackedValue(byte[] packedValue) {
+                return InetAddressPoint.decode(packedValue);
+            }
+
+            @Override
+            Field createField(String fieldName, byte[] packedValue) {
+                InetAddress value  = InetAddressPoint.decode(packedValue);
+                return new InetAddressPoint(fieldName, value);
+            }
+        };
+
+        abstract Object decodePackedValue(byte[] packedValue);
+
+        abstract Field createField(String fieldName, byte[] packedValue);
 
     }
 

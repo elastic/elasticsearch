@@ -50,6 +50,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -57,7 +58,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
@@ -406,37 +406,27 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             docSearcher.setQueryCache(null);
         }
 
-        IndexSettings indexSettings = context.getIndexSettings();
-        boolean mapUnmappedFieldsAsString = indexSettings.getValue(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
-        return buildQuery(indexSettings.getIndexVersionCreated(), context, docSearcher, mapUnmappedFieldsAsString);
-    }
-
-    Query buildQuery(Version indexVersionCreated, QueryShardContext context, IndexSearcher docSearcher,
-                     boolean mapUnmappedFieldsAsString) throws IOException {
+        Version indexVersionCreated = context.getIndexSettings().getIndexVersionCreated();
+        boolean mapUnmappedFieldsAsString = context.getIndexSettings()
+                .getValue(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
         if (indexVersionCreated.onOrAfter(Version.V_5_0_0_alpha1)) {
             MappedFieldType fieldType = context.fieldMapper(field);
             if (fieldType == null) {
                 throw new QueryShardException(context, "field [" + field + "] does not exist");
             }
 
-            if (!(fieldType instanceof PercolatorFieldMapper.PercolatorFieldType)) {
+            if (!(fieldType instanceof PercolatorFieldMapper.FieldType)) {
                 throw new QueryShardException(context, "expected field [" + field +
                         "] to be of type [percolator], but is of type [" + fieldType.typeName() + "]");
             }
-            PercolatorFieldMapper.PercolatorFieldType pft = (PercolatorFieldMapper.PercolatorFieldType) fieldType;
+            PercolatorFieldMapper.FieldType pft = (PercolatorFieldMapper.FieldType) fieldType;
             PercolateQuery.QueryStore queryStore = createStore(pft, context, mapUnmappedFieldsAsString);
-            PercolateQuery.Builder builder = new PercolateQuery.Builder(
-                    documentType, queryStore, document, docSearcher
-            );
-            builder.extractQueryTermsQuery(pft.getExtractedTermsField(), pft.getExtractionResultFieldName());
-            return builder.build();
+            return pft.percolateQuery(documentType, queryStore, document, docSearcher, docMapper);
         } else {
             Query percolateTypeQuery = new TermQuery(new Term(TypeFieldMapper.NAME, MapperService.PERCOLATOR_LEGACY_TYPE_NAME));
-            PercolateQuery.Builder builder = new PercolateQuery.Builder(
-                    documentType, createLegacyStore(context, mapUnmappedFieldsAsString), document, docSearcher
-            );
-            builder.setPercolateTypeQuery(percolateTypeQuery);
-            return builder.build();
+            PercolateQuery.QueryStore queryStore = createLegacyStore(context, mapUnmappedFieldsAsString);
+            return new PercolateQuery(documentType, queryStore, document, percolateTypeQuery, docSearcher,
+                    new MatchNoDocsQuery("pre 5.0.0-alpha1 index, no verified matches"));
         }
     }
 
@@ -477,17 +467,17 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
     }
 
-    private static PercolateQuery.QueryStore createStore(PercolatorFieldMapper.PercolatorFieldType fieldType,
+    private static PercolateQuery.QueryStore createStore(PercolatorFieldMapper.FieldType fieldType,
                                                          QueryShardContext context,
                                                          boolean mapUnmappedFieldsAsString) {
         return ctx -> {
             LeafReader leafReader = ctx.reader();
-            BinaryDocValues binaryDocValues = leafReader.getBinaryDocValues(fieldType.getQueryBuilderFieldName());
+            BinaryDocValues binaryDocValues = leafReader.getBinaryDocValues(fieldType.queryBuilderField.name());
             if (binaryDocValues == null) {
                 return docId -> null;
             }
 
-            Bits bits = leafReader.getDocsWithField(fieldType.getQueryBuilderFieldName());
+            Bits bits = leafReader.getDocsWithField(fieldType.queryBuilderField.name());
             return docId -> {
                 if (bits.get(docId)) {
                     BytesRef qbSource = binaryDocValues.get(docId);

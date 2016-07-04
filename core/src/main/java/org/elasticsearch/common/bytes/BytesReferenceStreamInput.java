@@ -117,10 +117,8 @@ final class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public long skip(long n) throws IOException {
-        if (offset >= length) {
-            return -1;
-        }
-        final int numBytesSkipped =  Math.min((int)n, length - offset);
+        final int skip = (int) Math.min(Integer.MAX_VALUE, n);
+        final int numBytesSkipped =  Math.min(skip, length - offset);
         int remaining = numBytesSkipped;
         while (remaining > 0) {
             maybeNextSlice();

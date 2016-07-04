@@ -245,8 +245,8 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
     public void testInputStreamSkip() throws IOException {
         int length = randomIntBetween(10, scaledRandomIntBetween(PAGE_SIZE * 2, PAGE_SIZE * 20));
         BytesReference pbr = newBytesReference(length);
-
-        for (int i = 0; i < 10; i++) {
+        final int iters = randomIntBetween(5, 50);
+        for (int i = 0; i < iters; i++) {
             try (StreamInput input = pbr.streamInput()) {
                 final int offset = randomIntBetween(0, length-1);
                 assertEquals(offset, input.skip(offset));
@@ -254,6 +254,8 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
                 final int nextOffset = randomIntBetween(offset, length-2);
                 assertEquals(nextOffset - offset, input.skip(nextOffset - offset));
                 assertEquals(pbr.get(nextOffset+1), input.readByte()); // +1 for the one byte we read above
+                assertEquals(length - (nextOffset+2), input.skip(Long.MAX_VALUE));
+                assertEquals(0, input.skip(randomIntBetween(0, Integer.MAX_VALUE)));
             }
         }
     }

@@ -98,10 +98,12 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
        // CompositeBytesReference doesn't share pages
     }
 
+    @Override
     public void testSliceArrayOffset() throws IOException {
         // the assertions in this test only work on no-composite buffers
     }
 
+    @Override
     public void testSliceToBytesRef() throws IOException {
         // CompositeBytesReference shifts offsets
     }

@@ -22,9 +22,11 @@ package org.elasticsearch.common.bytes;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefIterator;
+import org.apache.lucene.util.RamUsageEstimator;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * A composite {@link BytesReference} that allows joining multiple bytes references
@@ -40,7 +42,7 @@ public final class CompositeBytesReference extends BytesReference {
     private final long ramBytesUsed;
 
     public CompositeBytesReference(BytesReference... references) {
-        this.references = references;
+        this.references = Objects.requireNonNull(references, "references must not be null");
         this.offsets = new int[references.length];
         long ramBytesUsed = 0;
         int offset = 0;
@@ -49,18 +51,22 @@ public final class CompositeBytesReference extends BytesReference {
             if (reference == null) {
                 throw new IllegalArgumentException("references must not be null");
             }
-            offsets[i] = offset;
+            offsets[i] = offset; // we use the offsets to seek into the right BytesReference for random access and slicing
             offset += reference.length();
             ramBytesUsed += reference.ramBytesUsed();
         }
-        this.ramBytesUsed = ramBytesUsed + Integer.BYTES * offsets.length;
+        this.ramBytesUsed = ramBytesUsed
+            + (Integer.BYTES * offsets.length + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER) // offsets
+            + (references.length * RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER) // references
+            + Integer.BYTES // length
+            + Long.BYTES; // ramBytesUsed
         length = offset;
     }
 
 
     @Override
     public byte get(int index) {
-        int i = getOffsetIndex(index);
+        final int i = getOffsetIndex(index);
         return references[i].get(index - offsets[i]);
     }
 
@@ -71,10 +77,12 @@ public final class CompositeBytesReference extends BytesReference {
 
     @Override
     public BytesReference slice(int from, int length) {
+        // for slices we only need to find the start and the end reference
+        // adjust them and pass on the references in between as they are fully contained
         final int to = from + length;
         final int limit = getOffsetIndex(from + length);
         final int start = getOffsetIndex(from);
-        BytesReference[] inSlice = new BytesReference[1 + (limit - start)];
+        final BytesReference[] inSlice = new BytesReference[1 + (limit - start)];
         for (int i = 0, j = start; i < inSlice.length; i++) {
             inSlice[i] = references[j++];
         }
@@ -89,8 +97,8 @@ public final class CompositeBytesReference extends BytesReference {
     }
 
     private final int getOffsetIndex(int offset) {
-        int i = Arrays.binarySearch(offsets, offset);
-        return i < 0 ? (-(i+1)) - 1 : i;
+        final int i = Arrays.binarySearch(offsets, offset);
+        return i < 0 ? (-(i + 1)) - 1 : i;
     }
 
     @Override

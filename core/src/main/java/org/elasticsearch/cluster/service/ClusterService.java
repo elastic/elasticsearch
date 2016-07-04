@@ -726,8 +726,8 @@ public class ClusterService extends AbstractLifecycleComponent {
             }
 
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
-            logger.debug("processing [{}]: took [{}] done applying updated cluster_state (version: {}, uuid: {})", tasksSummary, executionTime,
-                    newClusterState.version(), newClusterState.stateUUID());
+            logger.debug("processing [{}]: took [{}] done applying updated cluster_state (version: {}, uuid: {})", tasksSummary,
+                executionTime, newClusterState.version(), newClusterState.stateUUID());
             warnAboutSlowTaskIfNeeded(executionTime, tasksSummary);
         } catch (Exception e) {
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));

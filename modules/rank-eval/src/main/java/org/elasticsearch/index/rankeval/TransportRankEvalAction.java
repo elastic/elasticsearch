@@ -49,18 +49,18 @@ import java.util.Map;
  * Instances of this class execute a collection of search intents (read: user supplied query parameters) against a set of
  * possible search requests (read: search specifications, expressed as query/search request templates) and compares the result
  * against a set of annotated documents per search intent.
- * 
+ *
  * If any documents are returned that haven't been annotated the document id of those is returned per search intent.
- * 
+ *
  * The resulting search quality is computed in terms of precision at n and returned for each search specification for the full
  * set of search intents as averaged precision at n.
  * */
 public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequest, RankEvalResponse> {
-    private SearchPhaseController searchPhaseController; 
-    private TransportService transportService; 
-    private SearchTransportService searchTransportService; 
-    private ClusterService clusterService; 
-    private ActionFilters actionFilters; 
+    private SearchPhaseController searchPhaseController;
+    private TransportService transportService;
+    private SearchTransportService searchTransportService;
+    private ClusterService clusterService;
+    private ActionFilters actionFilters;
 
     @Inject
     public TransportRankEvalAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
@@ -75,46 +75,36 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         this.clusterService = clusterService;
         this.actionFilters = actionFilters;
 
+        // TODO this should maybe move to some registry on startup
         namedWriteableRegistry.register(RankedListQualityMetric.class, PrecisionAtN.NAME, PrecisionAtN::new);
     }
 
     @Override
     protected void doExecute(RankEvalRequest request, ActionListener<RankEvalResponse> listener) {
-        RankEvalResponse response = new RankEvalResponse();
         RankEvalSpec qualityTask = request.getRankEvalSpec();
         RankedListQualityMetric metric = qualityTask.getEvaluator();
 
-        for (QuerySpec spec : qualityTask.getSpecifications()) {
-            double qualitySum = 0;
-
+        double qualitySum = 0;
+        Map<String, Collection<String>> unknownDocs = new HashMap<String, Collection<String>>();
+        Collection<QuerySpec> specifications = qualityTask.getSpecifications();
+        for (QuerySpec spec : specifications) {
             SearchSourceBuilder specRequest = spec.getTestRequest();
-            String[] indices = new String[spec.getIndices().size()]; 
+            String[] indices = new String[spec.getIndices().size()];
             spec.getIndices().toArray(indices);
             SearchRequest templatedRequest = new SearchRequest(indices, specRequest);
 
+            TransportSearchAction transportSearchAction = new TransportSearchAction(settings, threadPool, searchPhaseController,
+                    transportService, searchTransportService, clusterService, actionFilters, indexNameExpressionResolver);
+            ActionFuture<SearchResponse> searchResponse = transportSearchAction.execute(templatedRequest);
+            SearchHits hits = searchResponse.actionGet().getHits();
 
-            Map<Integer, Collection<String>> unknownDocs = new HashMap<Integer, Collection<String>>();
-            Collection<RatedQuery> intents = qualityTask.getIntents();
-            for (RatedQuery intent : intents) {
-
-                TransportSearchAction transportSearchAction = new TransportSearchAction(
-                        settings, 
-                        threadPool, 
-                        searchPhaseController, 
-                        transportService, 
-                        searchTransportService, 
-                        clusterService, 
-                        actionFilters, 
-                        indexNameExpressionResolver);
-                ActionFuture<SearchResponse> searchResponse = transportSearchAction.execute(templatedRequest);
-                SearchHits hits = searchResponse.actionGet().getHits();
-
-                EvalQueryQuality intentQuality = metric.evaluate(hits.getHits(), intent);
-                qualitySum += intentQuality.getQualityLevel();
-                unknownDocs.put(intent.getIntentId(), intentQuality.getUnknownDocs());
-            }
-            response.addRankEvalResult(spec.getSpecId(), qualitySum / intents.size(), unknownDocs);
+            EvalQueryQuality intentQuality = metric.evaluate(hits.getHits(), spec.getRatedDocs());
+            qualitySum += intentQuality.getQualityLevel();
+            unknownDocs.put(spec.getSpecId(), intentQuality.getUnknownDocs());
         }
+        RankEvalResponse response = new RankEvalResponse();
+        RankEvalResult result = new RankEvalResult(qualityTask.getTaskId(), qualitySum / specifications.size(), unknownDocs);
+        response.setRankEvalResult(result);
         listener.onResponse(response);
     }
 }

@@ -19,9 +19,13 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
@@ -32,25 +36,33 @@ import java.util.List;
  * Defines a QA specification: All end user supplied query intents will be mapped to the search request specified in this search request
  * template and executed against the targetIndex given. Any filters that should be applied in the target system can be specified as well.
  *
- * The resulting document lists can then be compared against what was specified in the set of rated documents as part of a QAQuery.  
+ * The resulting document lists can then be compared against what was specified in the set of rated documents as part of a QAQuery.
  * */
 public class QuerySpec implements Writeable {
 
-    private int specId = 0;
+    private String specId;
     private SearchSourceBuilder testRequest;
     private List<String> indices = new ArrayList<>();
     private List<String> types = new ArrayList<>();
-    
-    public QuerySpec(
-            int specId, SearchSourceBuilder testRequest, List<String> indices, List<String> types) {
+    /** Collection of rated queries for this query QA specification.*/
+    private List<RatedDocument> ratedDocs = new ArrayList<>();
+
+    public QuerySpec() {
+        // ctor that doesn't require all args to be present immediatly is easier to use with ObjectParser
+        // TODO decide if we can require only id as mandatory, set default values for the rest?
+    }
+
+    public QuerySpec(String specId, SearchSourceBuilder testRequest, List<String> indices, List<String> types,
+            List<RatedDocument> ratedDocs) {
         this.specId = specId;
         this.testRequest = testRequest;
         this.indices = indices;
         this.types = types;
+        this.ratedDocs = ratedDocs;
     }
 
     public QuerySpec(StreamInput in) throws IOException {
-        this.specId = in.readInt();
+        this.specId = in.readString();
         testRequest = new SearchSourceBuilder(in);
         int indicesSize = in.readInt();
         indices = new ArrayList<String>(indicesSize);
@@ -62,11 +74,16 @@ public class QuerySpec implements Writeable {
         for (int i = 0; i < typesSize; i++) {
             this.types.add(in.readString());
         }
+        int intentSize = in.readInt();
+        ratedDocs = new ArrayList<>(intentSize);
+        for (int i = 0; i < intentSize; i++) {
+            ratedDocs.add(new RatedDocument(in));
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(specId);
+        out.writeString(specId);
         testRequest.writeTo(out);
         out.writeInt(indices.size());
         for (String index : indices) {
@@ -75,6 +92,10 @@ public class QuerySpec implements Writeable {
         out.writeInt(types.size());
         for (String type : types) {
             out.writeString(type);
+        }
+        out.writeInt(ratedDocs.size());
+        for (RatedDocument ratedDoc : ratedDocs) {
+            ratedDoc.writeTo(out);
         }
     }
 
@@ -103,12 +124,69 @@ public class QuerySpec implements Writeable {
     }
 
     /** Returns a user supplied spec id for easier referencing. */
-    public int getSpecId() {
+    public String getSpecId() {
         return specId;
     }
 
     /** Sets a user supplied spec id for easier referencing. */
-    public void setSpecId(int specId) {
+    public void setSpecId(String specId) {
         this.specId = specId;
+    }
+
+    /** Returns a list of rated documents to evaluate. */
+    public List<RatedDocument> getRatedDocs() {
+        return ratedDocs;
+    }
+
+    /** Set a list of rated documents for this query. */
+    public void setRatedDocs(List<RatedDocument> ratedDocs) {
+        this.ratedDocs = ratedDocs;
+    }
+
+    private static final ParseField ID_FIELD = new ParseField("id");
+    private static final ParseField REQUEST_FIELD = new ParseField("request");
+    private static final ParseField RATINGS_FIELD = new ParseField("ratings");
+    private static final ObjectParser<QuerySpec, RankEvalContext> PARSER = new ObjectParser<>("requests", QuerySpec::new);
+
+    static {
+        PARSER.declareString(QuerySpec::setSpecId, ID_FIELD);
+        PARSER.declareObject(QuerySpec::setTestRequest, (p, c) -> {
+            try {
+                return SearchSourceBuilder.fromXContent(c.getParseContext(), c.getAggs(),  c.getSuggesters());
+            } catch (IOException ex) {
+                throw new ParsingException(p.getTokenLocation(), "error parsing request", ex);
+            }
+        } , REQUEST_FIELD);
+        PARSER.declareObjectArray(QuerySpec::setRatedDocs, (p, c) -> {
+            try {
+                return RatedDocument.fromXContent(p);
+            } catch (IOException ex) {
+                throw new ParsingException(p.getTokenLocation(), "error parsing ratings", ex);
+            }
+        } , RATINGS_FIELD);
+    }
+
+    /**
+     * Parses {@link QuerySpec} from rest representation:
+     *
+     * Example:
+     *  {
+     *   "id": "coffee_query",
+     *   "request": {
+     *           "query": {
+     *               "bool": {
+     *                   "must": [
+     *                       {"match": {"beverage": "coffee"}},
+     *                       {"term": {"browser": {"value": "safari"}}},
+     *                       {"term": {"time_of_day": {"value": "morning","boost": 2}}},
+     *                       {"term": {"ip_location": {"value": "ams","boost": 10}}}]}
+     *           },
+     *           "size": 10
+     *   },
+     *   "ratings": [{ "1": 1 }, { "2": 0 }, { "3": 1 } ]
+     *  }
+     */
+    public static QuerySpec fromXContent(XContentParser parser, RankEvalContext context) throws IOException {
+        return PARSER.parse(parser, context);
     }
 }

@@ -31,22 +31,23 @@ import java.util.Map;
  * For each precision at n computation the id of the search request specification used to generate search requests is returned
  * for reference. In addition the averaged precision and the ids of all documents returned but not found annotated is returned.
  * */
+// TODO do we need an extra class for this or it RankEvalResponse enough?
 public class RankEvalResult implements Writeable {
-    /**ID of specification this result was generated for.*/
-    private int specId;
-    /**Average precision observed when issueing query intents with this spec.*/
+    /**ID of QA specification this result was generated for.*/
+    private String specId;
+    /**Average precision observed when issuing query intents with this specification.*/
     private double qualityLevel;
     /**Mapping from intent id to all documents seen for this intent that were not annotated.*/
-    private Map<Integer, Collection<String>> unknownDocs;
+    private Map<String, Collection<String>> unknownDocs;
 
     @SuppressWarnings("unchecked")
     public RankEvalResult(StreamInput in) throws IOException {
-        this.specId = in.readInt();
+        this.specId = in.readString();
         this.qualityLevel = in.readDouble();
-        this.unknownDocs = (Map<Integer, Collection<String>>) in.readGenericValue();
+        this.unknownDocs = (Map<String, Collection<String>>) in.readGenericValue();
     }
-    
-    public RankEvalResult(int specId, double quality, Map<Integer, Collection<String>> unknownDocs) {
+
+    public RankEvalResult(String specId, double quality, Map<String, Collection<String>> unknownDocs) {
         this.specId = specId;
         this.qualityLevel = quality;
         this.unknownDocs = unknownDocs;
@@ -54,12 +55,12 @@ public class RankEvalResult implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(specId);
+        out.writeString(specId);
         out.writeDouble(qualityLevel);
         out.writeGenericValue(getUnknownDocs());
     }
-    
-    public int getSpecId() {
+
+    public String getSpecId() {
         return specId;
     }
 
@@ -67,7 +68,12 @@ public class RankEvalResult implements Writeable {
         return qualityLevel;
     }
 
-    public Map<Integer, Collection<String>> getUnknownDocs() {
+    public Map<String, Collection<String>> getUnknownDocs() {
         return unknownDocs;
+    }
+
+    @Override
+    public String toString() {
+        return "RankEvalResult, ID :[" + specId + "], quality: " + qualityLevel + ", unknown docs: " + unknownDocs;
     }
 }

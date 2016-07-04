@@ -35,45 +35,54 @@ import java.util.Collection;
  * */
 
 public class RankEvalSpec implements Writeable {
-    /** Collection of query intents to check against including expected document ids.*/
-    private Collection<RatedQuery> intents = new ArrayList<>();
+
     /** Collection of query specifications, that is e.g. search request templates to use for query translation. */
     private Collection<QuerySpec> specifications = new ArrayList<>();
-    /** Definition of n in precision at n */
+    /** Definition of the quality metric, e.g. precision at N */
     private RankedListQualityMetric eval;
+    /** a unique id for the whole QA task */
+    private String taskId;
 
+    public RankEvalSpec() {
+        // TODO think if no args ctor is okay
+    }
 
-    public RankEvalSpec(Collection<RatedQuery> intents, Collection<QuerySpec> specs, RankedListQualityMetric metric) {
-        this.intents = intents;
+    public RankEvalSpec(String taskId, Collection<QuerySpec> specs, RankedListQualityMetric metric) {
+        this.taskId = taskId;
         this.specifications = specs;
         this.eval = metric;
     }
 
     public RankEvalSpec(StreamInput in) throws IOException {
-        int intentSize = in.readInt();
-        intents = new ArrayList<>(intentSize);
-        for (int i = 0; i < intentSize; i++) {
-           intents.add(new RatedQuery(in));
-        }
         int specSize = in.readInt();
         specifications = new ArrayList<>(specSize);
         for (int i = 0; i < specSize; i++) {
             specifications.add(new QuerySpec(in));
         }
         eval = in.readNamedWriteable(RankedListQualityMetric.class); // TODO add to registry
+        taskId = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(intents.size());
-        for (RatedQuery query : intents) {
-            query.writeTo(out);
-        }
         out.writeInt(specifications.size());
         for (QuerySpec spec : specifications) {
             spec.writeTo(out);
         }
         out.writeNamedWriteable(eval);
+        out.writeString(taskId);
+    }
+
+    public void setEval(RankedListQualityMetric eval) {
+        this.eval = eval;
+    }
+
+    public void setTaskId(String taskId) {
+        this.taskId = taskId;
+    }
+
+    public String getTaskId() {
+        return this.taskId;
     }
 
     /** Returns the precision at n configuration (containing level of n to consider).*/
@@ -84,16 +93,6 @@ public class RankEvalSpec implements Writeable {
     /** Sets the precision at n configuration (containing level of n to consider).*/
     public void setEvaluator(RankedListQualityMetric config) {
         this.eval = config;
-    }
-
-    /** Returns a list of search intents to evaluate. */
-    public Collection<RatedQuery> getIntents() {
-        return intents;
-    }
-
-    /** Set a list of search intents to evaluate. */
-    public void setIntents(Collection<RatedQuery> intents) {
-        this.intents = intents;
     }
 
     /** Returns a list of intent to query translation specifications to evaluate. */

@@ -70,18 +70,19 @@ public class RestAliasesExistAction extends BaseRestHandler {
                     } else {
                         channel.sendResponse(new BytesRestResponse(NOT_FOUND, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
                     }
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     onFailure(e);
                 }
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 try {
                     channel.sendResponse(
                         new BytesRestResponse(ExceptionsHelper.status(e), BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
-                } catch (Exception e1) {
-                    logger.error("Failed to send failure response", e1);
+                } catch (Exception inner) {
+                    inner.addSuppressed(e);
+                    logger.error("Failed to send failure response", inner);
                 }
             }
         });

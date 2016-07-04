@@ -167,7 +167,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         Request request = new Request();
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        final Throwable exception = new Throwable();
+        final Exception exception = new Exception();
         final Response response = new Response();
 
         setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
@@ -342,7 +342,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
                 // The other node has become master, simulate failures of this node while publishing cluster state through ZenDiscovery
                 setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
-                Throwable failure = randomBoolean()
+                Exception failure = randomBoolean()
                         ? new Discovery.FailedToCommitClusterStateException("Fake error")
                         : new NotMasterException("Fake error");
                 listener.onFailure(failure);

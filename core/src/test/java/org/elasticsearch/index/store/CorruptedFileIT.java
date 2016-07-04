@@ -193,7 +193,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
          * run the checkindex. if the corruption is still there we will catch it.
          */
         final CountDownLatch latch = new CountDownLatch(numShards * 3); // primary + 2 replicas
-        final CopyOnWriteArrayList<Throwable> exception = new CopyOnWriteArrayList<>();
+        final CopyOnWriteArrayList<Exception> exception = new CopyOnWriteArrayList<>();
         final IndexEventListener listener = new IndexEventListener() {
             @Override
             public void afterIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard, Settings indexSettings) {
@@ -215,8 +215,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
                                 throw new IOException("index check failure");
                             }
                         }
-                    } catch (Throwable t) {
-                        exception.add(t);
+                    } catch (Exception e) {
+                        exception.add(e);
                     } finally {
                         store.decRef();
                         latch.countDown();

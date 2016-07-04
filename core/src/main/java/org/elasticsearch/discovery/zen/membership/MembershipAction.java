@@ -50,7 +50,7 @@ public class MembershipAction extends AbstractComponent {
     public interface JoinCallback {
         void onSuccess();
 
-        void onFailure(Throwable t);
+        void onFailure(Exception e);
     }
 
     public interface MembershipListener {
@@ -137,17 +137,18 @@ public class MembershipAction extends AbstractComponent {
                 public void onSuccess() {
                     try {
                         channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                    } catch (Throwable t) {
-                        onFailure(t);
+                    } catch (Exception e) {
+                        onFailure(e);
                     }
                 }
 
                 @Override
-                public void onFailure(Throwable t) {
+                public void onFailure(Exception e) {
                     try {
-                        channel.sendResponse(t);
-                    } catch (Throwable e) {
-                        logger.warn("failed to send back failure on join request", e);
+                        channel.sendResponse(e);
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        logger.warn("failed to send back failure on join request", inner);
                     }
                 }
             });

@@ -181,7 +181,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             snapshotContext.snapshot(snapshotIndexCommit);
             snapshotStatus.time(System.currentTimeMillis() - snapshotStatus.startTime());
             snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.DONE);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             snapshotStatus.time(System.currentTimeMillis() - snapshotStatus.startTime());
             snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FAILURE);
             snapshotStatus.failure(ExceptionsHelper.detailedMessage(e));
@@ -201,7 +201,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         final RestoreContext snapshotContext = new RestoreContext(snapshotId, version, shardId, snapshotShardId, recoveryState);
         try {
             snapshotContext.restore();
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e);
         }
     }
@@ -559,7 +559,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                                 // don't have this hash we try to read that hash from the blob store
                                 // in a bwc compatible way.
                                 maybeRecalculateMetadataHash(blobContainer, fileInfo, metadata);
-                            } catch (Throwable e) {
+                            } catch (Exception e) {
                                 logger.warn("{} Can't calculate hash from blob for file [{}] [{}]", e, shardId, fileInfo.physicalName(), fileInfo.metadata());
                             }
                             if (fileInfo.isSame(md) && snapshotFileExistsInBlobs(fileInfo, blobs)) {
@@ -651,19 +651,20 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 }
                 Store.verify(indexInput);
                 snapshotStatus.addProcessedFile(fileInfo.length());
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 failStoreIfCorrupted(t);
                 snapshotStatus.addProcessedFile(0);
                 throw t;
             }
         }
 
-        private void failStoreIfCorrupted(Throwable t) {
-            if (t instanceof CorruptIndexException || t instanceof IndexFormatTooOldException || t instanceof IndexFormatTooNewException) {
+        private void failStoreIfCorrupted(Exception e) {
+            if (e instanceof CorruptIndexException || e instanceof IndexFormatTooOldException || e instanceof IndexFormatTooNewException) {
                 try {
-                    store.markStoreCorrupted((IOException) t);
-                } catch (IOException e) {
-                    logger.warn("store cannot be marked as corrupted", e);
+                    store.markStoreCorrupted((IOException) e);
+                } catch (IOException inner) {
+                    inner.addSuppressed(e);
+                    logger.warn("store cannot be marked as corrupted", inner);
                 }
             }
         }
@@ -730,7 +731,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
      * The new logic for StoreFileMetaData reads the entire <tt>.si</tt> and <tt>segments.n</tt> files to strengthen the
      * comparison of the files on a per-segment / per-commit level.
      */
-    private static void maybeRecalculateMetadataHash(final BlobContainer blobContainer, final FileInfo fileInfo, Store.MetadataSnapshot snapshot) throws Throwable {
+    private static void maybeRecalculateMetadataHash(final BlobContainer blobContainer, final FileInfo fileInfo, Store.MetadataSnapshot snapshot) throws Exception {
         final StoreFileMetaData metadata;
         if (fileInfo != null && (metadata = snapshot.get(fileInfo.physicalName())) != null) {
             if (metadata.hash().length > 0 && fileInfo.metadata().hash().length == 0) {
@@ -836,7 +837,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                         // don't have this hash we try to read that hash from the blob store
                         // in a bwc compatible way.
                         maybeRecalculateMetadataHash(blobContainer, fileInfo, recoveryTargetMetadata);
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         // if the index is broken we might not be able to read it
                         logger.warn("{} Can't calculate hash from blog for file [{}] [{}]", e, shardId, fileInfo.physicalName(), fileInfo.metadata());
                     }

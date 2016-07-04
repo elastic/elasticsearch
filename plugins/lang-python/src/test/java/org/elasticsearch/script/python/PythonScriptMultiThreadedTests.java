@@ -66,9 +66,9 @@ public class PythonScriptMultiThreadedTests extends ESTestCase {
                             long result = ((Number) script.run()).longValue();
                             assertThat(result, equalTo(addition));
                         }
-                    } catch (Throwable t) {
+                    } catch (Exception e) {
                         failed.set(true);
-                        logger.error("failed", t);
+                        logger.error("failed", e);
                     } finally {
                         latch.countDown();
                     }
@@ -109,9 +109,9 @@ public class PythonScriptMultiThreadedTests extends ESTestCase {
 //                            long result = ((Number) script.run(runtimeVars)).longValue();
 //                            assertThat(result, equalTo(addition));
 //                        }
-//                    } catch (Throwable t) {
+//                    } catch (Exception e) {
 //                        failed.set(true);
-//                        logger.error("failed", t);
+//                        logger.error("failed", e);
 //                    } finally {
 //                        latch.countDown();
 //                    }
@@ -151,9 +151,9 @@ public class PythonScriptMultiThreadedTests extends ESTestCase {
                             long result = ((Number) se.executable(compiledScript, runtimeVars).run()).longValue();
                             assertThat(result, equalTo(addition));
                         }
-                    } catch (Throwable t) {
+                    } catch (Exception e) {
                         failed.set(true);
-                        logger.error("failed", t);
+                        logger.error("failed", e);
                     } finally {
                         latch.countDown();
                     }

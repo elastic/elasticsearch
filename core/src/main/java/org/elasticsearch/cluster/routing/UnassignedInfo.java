@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -114,7 +113,7 @@ public final class UnassignedInfo implements ToXContent, Writeable {
     private final long unassignedTimeNanos; // in nanoseconds, used to calculate delay for delayed shard allocation
     private final boolean delayed; // if allocation of this shard is delayed due to INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING
     private final String message;
-    private final Throwable failure;
+    private final Exception failure;
     private final int failedAllocations;
 
     /**
@@ -135,8 +134,8 @@ public final class UnassignedInfo implements ToXContent, Writeable {
      * @param unassignedTimeMillis the time of unassignment used to display to in our reporting.
      * @param delayed              if allocation of this shard is delayed due to INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.
      */
-    public UnassignedInfo(Reason reason, @Nullable String message, @Nullable Throwable failure, int failedAllocations,
-        long unassignedTimeNanos, long unassignedTimeMillis, boolean delayed) {
+    public UnassignedInfo(Reason reason, @Nullable String message, @Nullable Exception failure, int failedAllocations,
+                          long unassignedTimeNanos, long unassignedTimeMillis, boolean delayed) {
         this.reason = reason;
         this.unassignedTimeMillis = unassignedTimeMillis;
         this.unassignedTimeNanos = unassignedTimeNanos;
@@ -158,7 +157,7 @@ public final class UnassignedInfo implements ToXContent, Writeable {
         this.unassignedTimeNanos = System.nanoTime();
         this.delayed = in.readBoolean();
         this.message = in.readOptionalString();
-        this.failure = in.readThrowable();
+        this.failure = in.readException();
         this.failedAllocations = in.readVInt();
     }
 
@@ -226,7 +225,7 @@ public final class UnassignedInfo implements ToXContent, Writeable {
      * Returns additional failure exception details if exists.
      */
     @Nullable
-    public Throwable getFailure() {
+    public Exception getFailure() {
         return failure;
     }
 

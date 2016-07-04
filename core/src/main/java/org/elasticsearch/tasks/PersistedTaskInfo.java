@@ -67,7 +67,7 @@ public final class PersistedTaskInfo implements Writeable, ToXContent {
     /**
      * Construct a {@linkplain PersistedTaskInfo} for a task that completed with an error.
      */
-    public PersistedTaskInfo(TaskInfo task, Throwable error) throws IOException {
+    public PersistedTaskInfo(TaskInfo task, Exception error) throws IOException {
         this(true, task, toXContent(error), null);
     }
 
@@ -228,12 +228,12 @@ public final class PersistedTaskInfo implements Writeable, ToXContent {
         }
     }
 
-    private static BytesReference toXContent(Throwable error) throws IOException {
+    private static BytesReference toXContent(Exception error) throws IOException {
         try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.INDEX_CONTENT_TYPE)) {
             builder.startObject();
             ElasticsearchException.toXContent(builder, ToXContent.EMPTY_PARAMS, error);
             builder.endObject();
-            return builder.bytes(); 
+            return builder.bytes();
         }
     }
 }

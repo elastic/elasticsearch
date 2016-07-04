@@ -379,8 +379,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // we want to refresh *before* we move to internal STARTED state
                 try {
                     getEngine().refresh("cluster_state_started");
-                } catch (Throwable t) {
-                    logger.debug("failed to refresh due to move to cluster wide started", t);
+                } catch (Exception e) {
+                    logger.debug("failed to refresh due to move to cluster wide started", e);
                 }
 
                 boolean movedToStarted = false;
@@ -483,9 +483,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         try {
             verifyPrimary();
             return prepareIndex(docMapper(source.type()), source, version, versionType, Engine.Operation.Origin.PRIMARY);
-        } catch (Throwable t) {
-            verifyNotClosed(t);
-            throw t;
+        } catch (Exception e) {
+            verifyNotClosed(e);
+            throw e;
         }
     }
 
@@ -493,9 +493,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         try {
             verifyReplicationTarget();
             return prepareIndex(docMapper(source.type()), source, version, versionType, Engine.Operation.Origin.REPLICA);
-        } catch (Throwable t) {
-            verifyNotClosed(t);
-            throw t;
+        } catch (Exception e) {
+            verifyNotClosed(e);
+            throw e;
         }
     }
 
@@ -531,9 +531,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             created = engine.index(index);
             index.endTime(System.nanoTime());
-        } catch (Throwable ex) {
-            indexingOperationListeners.postIndex(index, ex);
-            throw ex;
+        } catch (Exception e) {
+            indexingOperationListeners.postIndex(index, e);
+            throw e;
         }
 
         indexingOperationListeners.postIndex(index, created);
@@ -578,9 +578,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             engine.delete(delete);
             delete.endTime(System.nanoTime());
-        } catch (Throwable ex) {
-            indexingOperationListeners.postDelete(delete, ex);
-            throw ex;
+        } catch (Exception e) {
+            indexingOperationListeners.postDelete(delete, e);
+            throw e;
         }
 
         indexingOperationListeners.postDelete(delete);
@@ -816,7 +816,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Fails the shard and marks the shard store as corrupted if
      * <code>e</code> is caused by index corruption
      */
-    public void failShard(String reason, @Nullable Throwable e) {
+    public void failShard(String reason, @Nullable Exception e) {
         // fail the engine. This will cause this shard to also be removed from the node's index service.
         getEngine().failEngine(reason, e);
     }
@@ -1074,7 +1074,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         verifyNotClosed(null);
     }
 
-    private void verifyNotClosed(Throwable suppressed) throws IllegalIndexShardStateException {
+    private void verifyNotClosed(Exception suppressed) throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
         if (state == IndexShardState.CLOSED) {
             final IllegalIndexShardStateException exc = new IndexShardClosedException(shardId, "operation only allowed when not closed");
@@ -1388,7 +1388,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 try {
                     markAsRecovering("from " + recoveryState.getSourceNode(), recoveryState);
                     recoveryTargetService.startRecovery(this, recoveryState.getType(), recoveryState.getSourceNode(), recoveryListener);
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     failShard("corrupted preexisting index", e);
                     recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true);
                 }
@@ -1400,8 +1400,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         if (recoverFromStore()) {
                             recoveryListener.onRecoveryDone(recoveryState);
                         }
-                    } catch (Throwable t) {
-                        recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, t), true);
+                    } catch (Exception e) {
+                        recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true);
                     }
                 });
                 break;
@@ -1428,21 +1428,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 .filter((s) -> shards.contains(s.shardId())).collect(Collectors.toList()))) {
                                 recoveryListener.onRecoveryDone(recoveryState);
                             }
-                        } catch (Throwable t) {
+                        } catch (Exception e) {
                             recoveryListener.onRecoveryFailure(recoveryState,
-                                new RecoveryFailedException(recoveryState, null, t), true);
+                                new RecoveryFailedException(recoveryState, null, e), true);
                         }
                     });
                 } else {
-                    final Throwable t;
+                    final Exception e;
                     if (numShards == -1) {
-                        t = new IndexNotFoundException(mergeSourceIndex);
+                        e = new IndexNotFoundException(mergeSourceIndex);
                     } else {
-                        t = new IllegalStateException("not all shards from index " + mergeSourceIndex
+                        e = new IllegalStateException("not all shards from index " + mergeSourceIndex
                             + " are started yet, expected " + numShards + " found " + startedShards.size() + " can't recover shard "
                             + shardId());
                     }
-                    recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, t), true);
+                    recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true);
                 }
                 break;
             case SNAPSHOT:
@@ -1454,7 +1454,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         if (restoreFromRepository(indexShardRepository)) {
                             recoveryListener.onRecoveryDone(recoveryState);
                         }
-                    } catch (Throwable first) {
+                    } catch (Exception first) {
                         recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, first), true);
                     }
                 });
@@ -1469,13 +1469,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         // called by the current engine
         @Override
-        public void onFailedEngine(String reason, @Nullable Throwable failure) {
+        public void onFailedEngine(String reason, @Nullable Exception failure) {
             final ShardFailure shardFailure = new ShardFailure(shardRouting, reason, failure);
             for (Callback<ShardFailure> listener : delegates) {
                 try {
                     listener.handle(shardFailure);
-                } catch (Exception e) {
-                    logger.warn("exception while notifying engine failure", e);
+                } catch (Exception inner) {
+                    inner.addSuppressed(failure);
+                    logger.warn("exception while notifying engine failure", inner);
                 }
             }
         }
@@ -1620,9 +1621,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     logger.debug("submitting async flush request");
                     final AbstractRunnable abstractRunnable = new AbstractRunnable() {
                         @Override
-                        public void onFailure(Throwable t) {
+                        public void onFailure(Exception e) {
                             if (state != IndexShardState.CLOSED) {
-                                logger.warn("failed to flush index", t);
+                                logger.warn("failed to flush index", e);
                             }
                         }
 
@@ -1665,9 +1666,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         public final ShardRouting routing;
         public final String reason;
         @Nullable
-        public final Throwable cause;
+        public final Exception cause;
 
-        public ShardFailure(ShardRouting routing, String reason, @Nullable Throwable cause) {
+        public ShardFailure(ShardRouting routing, String reason, @Nullable Exception cause) {
             this.routing = routing;
             this.reason = reason;
             this.cause = cause;

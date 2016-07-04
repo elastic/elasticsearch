@@ -72,9 +72,9 @@ public final class TcpTransportChannel<Channel> implements TransportChannel {
     }
 
     @Override
-    public void sendResponse(Throwable error) throws IOException {
+    public void sendResponse(Exception exception) throws IOException {
         release();
-       transport.sendErrorResponse(version, channel, error, requestId, action);
+       transport.sendErrorResponse(version, channel, exception, requestId, action);
     }
 
     private void release() {

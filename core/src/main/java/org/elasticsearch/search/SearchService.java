@@ -22,6 +22,7 @@ package org.elasticsearch.search;
 import com.carrotsearch.hppc.ObjectFloatHashMap;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -233,7 +234,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             dfsPhase.execute(context);
             contextProcessedSuccessfully(context);
             return context.dfsResult();
-        } catch (Throwable e) {
+        } catch (Exception e) {
             logger.trace("Dfs phase failed", e);
             processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
@@ -272,10 +273,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             operationListener.onQueryPhase(context, System.nanoTime() - time);
 
             return context.queryResult();
-        } catch (Throwable e) {
+        } catch (Exception e) {
             // execution exception can happen while loading the cache, strip it
             if (e instanceof ExecutionException) {
-                e = e.getCause();
+                e = (e.getCause() == null || e.getCause() instanceof Exception) ?
+                        (Exception) e.getCause() : new ElasticsearchException(e.getCause());
             }
             operationListener.onFailedQueryPhase(context);
             logger.trace("Query phase failed", e);
@@ -298,7 +300,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             contextProcessedSuccessfully(context);
             operationListener.onQueryPhase(context, System.nanoTime() - time);
             return new ScrollQuerySearchResult(context.queryResult(), context.shardTarget());
-        } catch (Throwable e) {
+        } catch (Exception e) {
             operationListener.onFailedQueryPhase(context);
             logger.trace("Query phase failed", e);
             processFailure(context, e);
@@ -326,7 +328,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             operationListener.onQueryPhase(context, System.nanoTime() - time);
             return context.queryResult();
-        } catch (Throwable e) {
+        } catch (Exception e) {
             operationListener.onFailedQueryPhase(context);
             logger.trace("Query phase failed", e);
             processFailure(context, e);
@@ -355,7 +357,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             long time = System.nanoTime();
             try {
                 loadOrExecuteQueryPhase(request, context);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 operationListener.onFailedQueryPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
             }
@@ -370,13 +372,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 } else {
                     contextProcessedSuccessfully(context);
                 }
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 operationListener.onFailedFetchPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
             }
             operationListener.onFetchPhase(context, System.nanoTime() - time2);
             return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
-        } catch (Throwable e) {
+        } catch (Exception e) {
             logger.trace("Fetch phase failed", e);
             processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
@@ -395,7 +397,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             long time = System.nanoTime();
             try {
                 queryPhase.execute(context);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 operationListener.onFailedQueryPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
             }
@@ -410,13 +412,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 } else {
                     contextProcessedSuccessfully(context);
                 }
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 operationListener.onFailedFetchPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
             }
             operationListener.onFetchPhase(context, System.nanoTime() - time2);
             return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
-        } catch (Throwable e) {
+        } catch (Exception e) {
             logger.trace("Fetch phase failed", e);
             processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
@@ -435,7 +437,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             long time = System.nanoTime();
             try {
                 queryPhase.execute(context);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 operationListener.onFailedQueryPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
             }
@@ -450,13 +452,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 } else {
                     contextProcessedSuccessfully(context);
                 }
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 operationListener.onFailedFetchPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
             }
             operationListener.onFetchPhase(context, System.nanoTime() - time2);
             return new ScrollQueryFetchSearchResult(new QueryFetchSearchResult(context.queryResult(), context.fetchResult()), context.shardTarget());
-        } catch (Throwable e) {
+        } catch (Exception e) {
             logger.trace("Fetch phase failed", e);
             processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
@@ -484,7 +486,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             operationListener.onFetchPhase(context, System.nanoTime() - time);
             return context.fetchResult();
-        } catch (Throwable e) {
+        } catch (Exception e) {
             operationListener.onFailedFetchPhase(context);
             logger.trace("Fetch phase failed", e);
             processFailure(context, e);
@@ -566,7 +568,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 keepAlive = request.scroll().keepAlive().millis();
             }
             context.keepAlive(keepAlive);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             context.close();
             throw ExceptionsHelper.convertToRuntime(e);
         }
@@ -623,14 +625,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         SearchContext.removeCurrent();
     }
 
-    private void processFailure(SearchContext context, Throwable t) {
+    private void processFailure(SearchContext context, Exception e) {
         freeContext(context.id());
         try {
-            if (Lucene.isCorruptionException(t)) {
-                context.indexShard().failShard("search execution corruption failure", t);
+            if (Lucene.isCorruptionException(e)) {
+                context.indexShard().failShard("search execution corruption failure", e);
             }
-        } catch (Throwable e) {
-            logger.warn("failed to process shard failure to (potentially) send back shard failure on corruption", e);
+        } catch (Exception inner) {
+            inner.addSuppressed(e);
+            logger.warn("failed to process shard failure to (potentially) send back shard failure on corruption", inner);
         }
     }
 
@@ -771,7 +774,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 String sSource = "_na_";
                 try {
                     sSource = source.toString();
-                } catch (Throwable e1) {
+                } catch (Exception inner) {
+                    e.addSuppressed(inner);
                     // ignore
                 }
                 XContentLocation location = extParser != null ? extParser.getTokenLocation() : null;

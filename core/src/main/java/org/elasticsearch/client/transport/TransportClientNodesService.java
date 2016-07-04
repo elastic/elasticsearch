@@ -230,9 +230,9 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
         DiscoveryNode node = nodes.get((index) % nodes.size());
         try {
             callback.doWithNode(node, retryListener);
-        } catch (Throwable t) {
+        } catch (Exception e) {
             //this exception can't come from the TransportService as it doesn't throw exception at all
-            listener.onFailure(t);
+            listener.onFailure(e);
         }
     }
 
@@ -258,7 +258,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
         }
 
         @Override
-        public void onFailure(Throwable e) {
+        public void onFailure(Exception e) {
             if (ExceptionsHelper.unwrapCause(e) instanceof ConnectTransportException) {
                 int i = ++this.i;
                 if (i >= nodes.size()) {
@@ -266,9 +266,10 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                 } else {
                     try {
                         callback.doWithNode(nodes.get((index + i) % nodes.size()), this);
-                    } catch(final Throwable t) {
+                    } catch(final Exception inner) {
+                        inner.addSuppressed(e);
                         // this exception can't come from the TransportService as it doesn't throw exceptions at all
-                        listener.onFailure(t);
+                        listener.onFailure(inner);
                     }
                 }
             } else {
@@ -335,7 +336,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                     try {
                         logger.trace("connecting to node [{}]", node);
                         transportService.connectToNode(node);
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         it.remove();
                         logger.debug("failed to connect to discovered node [{}]", e, node);
                     }
@@ -373,7 +374,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                         // its a listed node, light connect to it...
                         logger.trace("connecting to listed node (light) [{}]", listedNode);
                         transportService.connectToNodeLight(listedNode);
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         logger.debug("failed to connect to node [{}], removed from nodes list", e, listedNode);
                         newFilteredNodes.add(listedNode);
                         continue;
@@ -405,7 +406,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                         logger.debug("node {} didn't return any discovery info, temporarily using transport discovery node", listedNode);
                         newNodes.add(listedNode);
                     }
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     logger.info("failed to get node info for {}, disconnecting...", e, listedNode);
                     transportService.disconnectFromNode(listedNode);
                 }
@@ -484,7 +485,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                                             latch.countDown();
                                         }
                                     });
-                        } catch (Throwable e) {
+                        } catch (Exception e) {
                             logger.info("failed to get local cluster state info for {}, disconnecting...", e, listedNode);
                             transportService.disconnectFromNode(listedNode);
                             latch.countDown();

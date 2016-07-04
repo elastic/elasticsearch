@@ -44,7 +44,7 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
         AtomicReference<String> value = new AtomicReference<>(randomSimpleString(random()));
         indexRandom(true, client().prepareIndex("test", "test", "test").setSource("test", value.get()));
 
-        AtomicReference<Throwable> failure = new AtomicReference<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
         AtomicBoolean keepUpdating = new AtomicBoolean(true);
         Thread updater = new Thread(() -> {
             while (keepUpdating.get()) {
@@ -52,8 +52,8 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
                     BulkIndexByScrollResponse response = updateByQuery().source("test").refresh(true).abortOnVersionConflict(false).get();
                     assertThat(response, matcher().updated(either(equalTo(0L)).or(equalTo(1L)))
                             .versionConflicts(either(equalTo(0L)).or(equalTo(1L))));
-                } catch (Throwable t) {
-                    failure.set(t);
+                } catch (Exception e) {
+                    failure.set(e);
                 }
             }
         });

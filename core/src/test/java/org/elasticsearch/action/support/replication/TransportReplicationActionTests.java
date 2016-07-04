@@ -785,7 +785,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 }
 
                 @Override
-                public void failShard(String reason, @Nullable Throwable e) {
+                public void failShard(String reason, @Nullable Exception e) {
                     throw new UnsupportedOperationException();
                 }
 
@@ -856,9 +856,9 @@ public class TransportReplicationActionTests extends ESTestCase {
             }
 
             @Override
-            public void sendResponse(Throwable error) throws IOException {
-                consumer.accept(error);
-                listener.onFailure(error);
+            public void sendResponse(Exception exception) throws IOException {
+                consumer.accept(exception);
+                listener.onFailure(exception);
             }
 
             @Override

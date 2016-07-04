@@ -38,5 +38,5 @@ public interface TransportChannel {
 
     void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException;
 
-    void sendResponse(Throwable error) throws IOException;
+    void sendResponse(Exception exception) throws IOException;
 }

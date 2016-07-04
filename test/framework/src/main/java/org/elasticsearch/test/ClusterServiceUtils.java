@@ -21,7 +21,6 @@ package org.elasticsearch.test;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NodeConnectionsService;
@@ -98,8 +97,8 @@ public class ClusterServiceUtils {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                fail("unexpected exception" + t);
+            public void onFailure(String source, Exception e) {
+                fail("unexpected exception" + e);
             }
         });
         try {

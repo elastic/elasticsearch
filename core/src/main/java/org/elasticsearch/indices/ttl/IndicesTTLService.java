@@ -140,7 +140,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent {
                     try {
                         List<IndexShard> shardsToPurge = getShardsToPurge();
                         purgeShards(shardsToPurge);
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         if (running.get()) {
                             logger.warn("failed to execute ttl purge", e);
                         }
@@ -295,7 +295,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent {
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         if (logger.isTraceEnabled()) {
                             logger.trace("failed to execute bulk", e);
                         } else {

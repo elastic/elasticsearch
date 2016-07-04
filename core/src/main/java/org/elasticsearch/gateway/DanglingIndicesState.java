@@ -170,7 +170,7 @@ public class DanglingIndicesState extends AbstractComponent {
                     }
                 }
             );
-        } catch (Throwable e) {
+        } catch (Exception e) {
             logger.warn("failed to send allocate dangled", e);
         }
     }

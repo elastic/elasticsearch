@@ -88,9 +88,7 @@ public class JvmStats implements Streamable, ToXContent {
                         peakUsage.getUsed() < 0 ? 0 : peakUsage.getUsed(),
                         peakUsage.getMax() < 0 ? 0 : peakUsage.getMax()
                 ));
-            } catch (OutOfMemoryError err) {
-                throw err; // rethrow
-            } catch (Throwable ex) {
+            } catch (Exception ex) {
                 /* ignore some JVMs might barf here with:
                  * java.lang.InternalError: Memory Pool not found
                  * we just omit the pool in that case!*/
@@ -119,7 +117,7 @@ public class JvmStats implements Streamable, ToXContent {
             for (BufferPoolMXBean bufferPool : bufferPools) {
                 stats.bufferPools.add(new BufferPool(bufferPool.getName(), bufferPool.getCount(), bufferPool.getTotalCapacity(), bufferPool.getMemoryUsed()));
             }
-        } catch (Throwable t) {
+        } catch (Exception e) {
             // buffer pools are not available
         }
 

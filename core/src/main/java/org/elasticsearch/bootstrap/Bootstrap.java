@@ -125,7 +125,7 @@ final class Bootstrap {
         // force remainder of JNA to be loaded (if available).
         try {
             JNAKernel32Library.getInstance();
-        } catch (Throwable ignored) {
+        } catch (Exception ignored) {
             // we've already logged this.
         }
 
@@ -216,7 +216,7 @@ final class Bootstrap {
     static void init(
             final boolean foreground,
             final String pidFile,
-            final Map<String, String> esSettings) throws Throwable {
+            final Map<String, String> esSettings) throws Exception {
         // Set the system property before anything has a chance to trigger its use
         initLoggerPrefix();
 
@@ -254,7 +254,7 @@ final class Bootstrap {
             if (!foreground) {
                 closeSysError();
             }
-        } catch (Throwable e) {
+        } catch (Exception e) {
             // disable console logging, so user does not see the exception twice (jvm will show it already)
             if (foreground) {
                 Loggers.disableConsoleLogging();

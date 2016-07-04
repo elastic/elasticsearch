@@ -98,11 +98,11 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                             if (numberOfReplicas == 1 || !ex.getMessage().contains("all shards failed")) {
                                 thrownExceptions.add(ex);
                             }
-                        } catch (Throwable t) {
+                        } catch (Exception ex) {
                             if (!criticalException) {
-                                nonCriticalExceptions.add(t);
+                                nonCriticalExceptions.add(ex);
                             } else {
-                                thrownExceptions.add(t);
+                                thrownExceptions.add(ex);
                             }
                         }
                     }

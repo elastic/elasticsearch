@@ -50,9 +50,6 @@ import java.util.Set;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableSet;
 
-/**
- *
- */
 public class GatewayMetaState extends AbstractComponent implements ClusterStateListener {
 
     private final NodeEnvironment nodeEnv;
@@ -141,7 +138,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                         newPreviouslyWrittenIndices.addAll(previouslyWrittenIndices);
                         previouslyWrittenIndices = unmodifiableSet(newPreviouslyWrittenIndices);
                     }
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     success = false;
                 }
             }
@@ -149,7 +146,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             if (previousMetaData == null || !MetaData.isGlobalStateEquals(previousMetaData, newMetaData)) {
                 try {
                     metaStateService.writeGlobalState("changed", newMetaData);
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     success = false;
                 }
             }
@@ -161,7 +158,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             for (IndexMetaWriteInfo indexMetaWrite : writeInfo) {
                 try {
                     metaStateService.writeIndex(indexMetaWrite.reason, indexMetaWrite.newMetaData);
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     success = false;
                 }
             }

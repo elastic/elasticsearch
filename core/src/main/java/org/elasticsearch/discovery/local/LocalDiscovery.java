@@ -134,8 +134,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
                     }
 
                     @Override
-                    public void onFailure(String source, Throwable t) {
-                        logger.error("unexpected failure during [{}]", t, source);
+                    public void onFailure(String source, Exception e) {
+                        logger.error("unexpected failure during [{}]", e, source);
                     }
                 });
             } else if (firstMaster != null) {
@@ -163,8 +163,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
                     }
 
                     @Override
-                    public void onFailure(String source, Throwable t) {
-                        logger.error("unexpected failure during [{}]", t, source);
+                    public void onFailure(String source, Exception e) {
+                        logger.error("unexpected failure during [{}]", e, source);
                     }
 
                 });
@@ -228,8 +228,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
                     }
 
                     @Override
-                    public void onFailure(String source, Throwable t) {
-                        logger.error("unexpected failure during [{}]", t, source);
+                    public void onFailure(String source, Exception e) {
+                        logger.error("unexpected failure during [{}]", e, source);
                     }
                 });
             }
@@ -370,9 +370,9 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
                         }
 
                         @Override
-                        public void onFailure(String source, Throwable t) {
-                            logger.error("unexpected failure during [{}]", t, source);
-                            publishResponseHandler.onFailure(discovery.localNode(), t);
+                        public void onFailure(String source, Exception e) {
+                            logger.error("unexpected failure during [{}]", e, source);
+                            publishResponseHandler.onFailure(discovery.localNode(), e);
                         }
 
                         @Override

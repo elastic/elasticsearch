@@ -201,7 +201,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
 
             }
         });

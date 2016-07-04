@@ -379,7 +379,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
     }
 
-    public void testPrimaryRelocationWithConcurrentIndexing() throws Throwable {
+    public void testPrimaryRelocationWithConcurrentIndexing() throws Exception {
         Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
 
@@ -408,7 +408,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         final int numPhase2Docs = scaledRandomIntBetween(25, 200);
         final CountDownLatch phase1finished = new CountDownLatch(1);
         final CountDownLatch phase2finished = new CountDownLatch(1);
-        final CopyOnWriteArrayList<Throwable> exceptions = new CopyOnWriteArrayList<>();
+        final CopyOnWriteArrayList<Exception> exceptions = new CopyOnWriteArrayList<>();
         Thread thread = new Thread() {
             @Override
             public void run() {
@@ -418,8 +418,8 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                         final IndexResponse indexResponse = client().prepareIndex(IDX, "doc",
                                 Integer.toString(counter.incrementAndGet())).setSource("foo", "bar").get();
                         assertTrue(indexResponse.isCreated());
-                    } catch (Throwable t) {
-                        exceptions.add(t);
+                    } catch (Exception e) {
+                        exceptions.add(e);
                     }
                     final int docCount = counter.get();
                     if (docCount == numPhase1Docs) {

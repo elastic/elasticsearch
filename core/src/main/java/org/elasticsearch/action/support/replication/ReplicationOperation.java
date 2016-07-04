@@ -159,7 +159,7 @@ public class ReplicationOperation<
             }
 
             @Override
-            public void onFailure(Throwable replicaException) {
+            public void onFailure(Exception replicaException) {
                 logger.trace("[{}] failure while performing [{}] on replica {}, request [{}]", replicaException, shard.shardId(), opType,
                     shard, replicaRequest);
                 if (ignoreReplicaException(replicaException)) {
@@ -180,7 +180,7 @@ public class ReplicationOperation<
         });
     }
 
-    private void onPrimaryDemoted(Throwable demotionFailure) {
+    private void onPrimaryDemoted(Exception demotionFailure) {
         String primaryFail = String.format(Locale.ROOT,
             "primary shard [%s] was demoted while failing replica shard",
             primary.routingEntry());
@@ -266,9 +266,9 @@ public class ReplicationOperation<
         }
     }
 
-    private void finishAsFailed(Throwable throwable) {
+    private void finishAsFailed(Exception exception) {
         if (finished.compareAndSet(false, true)) {
-            resultListener.onFailure(throwable);
+            resultListener.onFailure(exception);
         }
     }
 
@@ -276,7 +276,7 @@ public class ReplicationOperation<
     /**
      * Should an exception be ignored when the operation is performed on the replica.
      */
-    public static boolean ignoreReplicaException(Throwable e) {
+    public static boolean ignoreReplicaException(Exception e) {
         if (TransportActions.isShardNotAvailableException(e)) {
             return true;
         }
@@ -288,14 +288,11 @@ public class ReplicationOperation<
         return false;
     }
 
-    public static boolean isConflictException(Throwable e) {
-        Throwable cause = ExceptionsHelper.unwrapCause(e);
+    public static boolean isConflictException(Throwable t) {
+        final Throwable cause = ExceptionsHelper.unwrapCause(t);
         // on version conflict or document missing, it means
         // that a new change has crept into the replica, and it's fine
-        if (cause instanceof VersionConflictEngineException) {
-            return true;
-        }
-        return false;
+        return cause instanceof VersionConflictEngineException;
     }
 
 
@@ -313,7 +310,7 @@ public class ReplicationOperation<
         /**
          * fail the primary, typically due to the fact that the operation has learned the primary has been demoted by the master
          */
-        void failShard(String message, Throwable throwable);
+        void failShard(String message, Exception exception);
 
         /**
          * Performs the given request on this primary. Yes, this returns as soon as it can with the request for the replicas and calls a
@@ -340,20 +337,17 @@ public class ReplicationOperation<
 
         /**
          * Fail the specified shard, removing it from the current set of active shards
-         *
          * @param replica          shard to fail
          * @param primary          the primary shard that requested the failure
          * @param message          a (short) description of the reason
-         * @param throwable        the original exception which caused the ReplicationOperation to request the shard to be failed
+         * @param exception        the original exception which caused the ReplicationOperation to request the shard to be failed
          * @param onSuccess        a callback to call when the shard has been successfully removed from the active set.
          * @param onPrimaryDemoted a callback to call when the shard can not be failed because the current primary has been demoted
-         *                         by the master.
+*                         by the master.
          * @param onIgnoredFailure a callback to call when failing a shard has failed, but it that failure can be safely ignored and the
-         *                         replication operation can finish processing
-         *                         Note: this callback should be used in extreme situations, typically node shutdown.
          */
-        void failShard(ShardRouting replica, ShardRouting primary, String message, Throwable throwable, Runnable onSuccess,
-                       Consumer<Throwable> onPrimaryDemoted, Consumer<Throwable> onIgnoredFailure);
+        void failShard(ShardRouting replica, ShardRouting primary, String message, Exception exception, Runnable onSuccess,
+                       Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure);
     }
 
     public static class RetryOnPrimaryException extends ElasticsearchException {

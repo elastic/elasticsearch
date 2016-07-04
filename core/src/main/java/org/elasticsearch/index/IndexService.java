@@ -234,8 +234,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 for (final int shardId : shardIds) {
                     try {
                         removeShard(shardId, reason);
-                    } catch (Throwable t) {
-                        logger.warn("failed to close shard", t);
+                    } catch (Exception e) {
+                        logger.warn("failed to close shard", e);
                     }
                 }
             } finally {
@@ -290,9 +290,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 try {
                     ShardPath.deleteLeftoverShardDirectory(logger, nodeEnv, lock, this.indexSettings);
                     path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings);
-                } catch (Throwable t) {
-                    t.addSuppressed(ex);
-                    throw t;
+                } catch (Exception inner) {
+                    ex.addSuppressed(inner);
+                    throw ex;
                 }
             }
 
@@ -390,7 +390,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         // only flush we are we closed (closed index or shutdown) and if we are not deleted
                         final boolean flushEngine = deleted.get() == false && closed.get();
                         indexShard.close(reason, flushEngine);
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         logger.debug("[{}] failed to close index shard", e, shardId);
                         // ignore
                     }
@@ -401,7 +401,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         } finally {
             try {
                 store.close();
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 logger.warn("[{}] failed to close store on shard removal (reason: [{}])", e, shardId, reason);
             }
         }

@@ -43,7 +43,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.DocsStats;
-import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -132,14 +131,14 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                             }
 
                                             @Override
-                                            public void onFailure(Throwable e) {
+                                            public void onFailure(Exception e) {
                                                 listener.onFailure(e);
                                             }
                                         });
                                 }
 
                                 @Override
-                                public void onFailure(Throwable t) {
+                                public void onFailure(Exception t) {
                                     listener.onFailure(t);
                                 }
                             });
@@ -152,7 +151,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
             }

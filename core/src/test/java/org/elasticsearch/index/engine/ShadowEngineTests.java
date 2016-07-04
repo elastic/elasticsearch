@@ -242,7 +242,7 @@ public class ShadowEngineTests extends ESTestCase {
         }
         Engine.EventListener eventListener = new Engine.EventListener() {
             @Override
-            public void onFailedEngine(String reason, @Nullable Throwable t) {
+            public void onFailedEngine(String reason, @Nullable Exception e) {
                 // we don't need to notify anybody in this test
             }
         };

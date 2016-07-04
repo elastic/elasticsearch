@@ -236,8 +236,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             }
 
             @Override
-            public void onFailure(String source, @org.elasticsearch.common.Nullable Throwable t) {
-                logger.warn("failed to start initial join process", t);
+            public void onFailure(String source, @org.elasticsearch.common.Nullable Exception e) {
+                logger.warn("failed to start initial join process", e);
             }
         });
     }
@@ -326,8 +326,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.error("unexpected failure during [{}]", t, source);
+                public void onFailure(String source, Exception e) {
+                    logger.error("unexpected failure during [{}]", e, source);
                 }
 
             });
@@ -446,8 +446,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 }
 
                 @Override
-                public void onFailure(String source, @Nullable Throwable t) {
-                    logger.error("unexpected error while trying to finalize cluster join", t);
+                public void onFailure(String source, @Nullable Exception e) {
+                    logger.error("unexpected error while trying to finalize cluster join", e);
                     joinThreadControl.markThreadAsDoneAndStartNew(currentThread);
                 }
             });
@@ -473,20 +473,20 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 logger.trace("joining master {}", masterNode);
                 membership.sendJoinRequestBlocking(masterNode, clusterService.localNode(), joinTimeout);
                 return true;
-            } catch (Throwable t) {
-                Throwable unwrap = ExceptionsHelper.unwrapCause(t);
+            } catch (Exception e) {
+                final Throwable unwrap = ExceptionsHelper.unwrapCause(e);
                 if (unwrap instanceof NotMasterException) {
                     if (++joinAttempt == this.joinRetryAttempts) {
-                        logger.info("failed to send join request to master [{}], reason [{}], tried [{}] times", masterNode, ExceptionsHelper.detailedMessage(t), joinAttempt);
+                        logger.info("failed to send join request to master [{}], reason [{}], tried [{}] times", masterNode, ExceptionsHelper.detailedMessage(e), joinAttempt);
                         return false;
                     } else {
-                        logger.trace("master {} failed with [{}]. retrying... (attempts done: [{}])", masterNode, ExceptionsHelper.detailedMessage(t), joinAttempt);
+                        logger.trace("master {} failed with [{}]. retrying... (attempts done: [{}])", masterNode, ExceptionsHelper.detailedMessage(e), joinAttempt);
                     }
                 } else {
                     if (logger.isTraceEnabled()) {
-                        logger.trace("failed to send join request to master [{}]", t, masterNode);
+                        logger.trace("failed to send join request to master [{}]", e, masterNode);
                     } else {
-                        logger.info("failed to send join request to master [{}], reason [{}]", masterNode, ExceptionsHelper.detailedMessage(t));
+                        logger.info("failed to send join request to master [{}], reason [{}]", masterNode, ExceptionsHelper.detailedMessage(e));
                     }
                     return false;
                 }
@@ -527,8 +527,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.error("unexpected failure during [{}]", t, source);
+                public void onFailure(String source, Exception e) {
+                    logger.error("unexpected failure during [{}]", e, source);
                 }
             });
         } else if (node.equals(nodes().getMasterNode())) {
@@ -572,8 +572,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                logger.error("unexpected failure during [{}]", t, source);
+            public void onFailure(String source, Exception e) {
+                logger.error("unexpected failure during [{}]", e, source);
             }
 
             @Override
@@ -610,8 +610,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                logger.error("unexpected failure during [{}]", t, source);
+            public void onFailure(String source, Exception e) {
+                logger.error("unexpected failure during [{}]", e, source);
             }
 
             @Override
@@ -659,8 +659,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                logger.error("unexpected failure during [{}]", t, source);
+            public void onFailure(String source, Exception e) {
+                logger.error("unexpected failure during [{}]", e, source);
             }
 
             @Override
@@ -744,13 +744,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                logger.error("unexpected failure during [{}]", t, source);
+            public void onFailure(String source, Exception e) {
+                logger.error("unexpected failure during [{}]", e, source);
                 if (newClusterState != null) {
                     try {
-                        publishClusterState.pendingStatesQueue().markAsFailed(newClusterState, t);
-                    } catch (Throwable unexpected) {
-                        logger.error("unexpected exception while failing [{}]", unexpected, source);
+                        publishClusterState.pendingStatesQueue().markAsFailed(newClusterState, e);
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        logger.error("unexpected exception while failing [{}]", inner, source);
                     }
                 }
             }
@@ -761,8 +762,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                     if (newClusterState != null) {
                         publishClusterState.pendingStatesQueue().markAsProcessed(newClusterState);
                     }
-                } catch (Throwable t) {
-                    onFailure(source, t);
+                } catch (Exception e) {
+                    onFailure(source, e);
                 }
             }
         });
@@ -832,7 +833,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             // node calling the join request
             try {
                 membership.sendValidateJoinRequestBlocking(node, state, joinTimeout);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 logger.warn("failed to validate incoming join request from node [{}]", e, node);
                 callback.onFailure(new IllegalStateException("failure when sending a validation request to node", e));
                 return;
@@ -1049,8 +1050,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.debug("unexpected error during cluster state update task after pings from another master", t);
+                public void onFailure(String source, Exception e) {
+                    logger.debug("unexpected error during cluster state update task after pings from another master", e);
                 }
             });
         }
@@ -1109,8 +1110,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.error("unexpected failure during [{}]", t, source);
+                public void onFailure(String source, Exception e) {
+                    logger.error("unexpected failure during [{}]", e, source);
                 }
             });
         }

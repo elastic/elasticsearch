@@ -65,9 +65,6 @@ import java.util.function.LongSupplier;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
 
-/**
- */
-
 public class TermVectorsService  {
 
 
@@ -149,7 +146,7 @@ public class TermVectorsService  {
                 termVectorsResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields, dfs, termVectorsFilter);
             }
             termVectorsResponse.setTookInMillis(TimeUnit.NANOSECONDS.toMillis(nanoTimeSupplier.getAsLong() - startTime));
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             throw new ElasticsearchException("failed to execute term vector request", ex);
         } finally {
             searcher.close();
@@ -237,8 +234,7 @@ public class TermVectorsService  {
         return selectedFields;
     }
 
-    private static Fields generateTermVectors(IndexShard indexShard, Collection<GetField> getFields, boolean withOffsets, @Nullable Map<String, String> perFieldAnalyzer, Set<String> fields)
-            throws IOException {
+    private static Fields generateTermVectors(IndexShard indexShard, Collection<GetField> getFields, boolean withOffsets, @Nullable Map<String, String> perFieldAnalyzer, Set<String> fields) throws IOException {
         /* store document in memory index */
         MemoryIndex index = new MemoryIndex(withOffsets);
         for (GetField getField : getFields) {
@@ -256,7 +252,7 @@ public class TermVectorsService  {
         return MultiFields.getFields(index.createSearcher().getIndexReader());
     }
 
-    private static Fields generateTermVectorsFromDoc(IndexShard indexShard, TermVectorsRequest request, boolean doAllFields) throws Throwable {
+    private static Fields generateTermVectorsFromDoc(IndexShard indexShard, TermVectorsRequest request, boolean doAllFields) throws IOException {
         // parse the document, at the moment we do update the mapping, just like percolate
         ParsedDocument parsedDocument = parseDocument(indexShard, indexShard.shardId().getIndexName(), request.type(), request.doc());
 
@@ -287,7 +283,7 @@ public class TermVectorsService  {
         return generateTermVectors(indexShard, getFields, request.offsets(), request.perFieldAnalyzer(), seenFields);
     }
 
-    private static ParsedDocument parseDocument(IndexShard indexShard, String index, String type, BytesReference doc) throws Throwable {
+    private static ParsedDocument parseDocument(IndexShard indexShard, String index, String type, BytesReference doc) {
         MapperService mapperService = indexShard.mapperService();
         DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate(type);
         ParsedDocument parsedDocument = docMapper.getDocumentMapper().parse(source(index, type, "_id_for_tv_api", doc));

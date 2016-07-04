@@ -82,7 +82,7 @@ public class RecoverySourceHandler {
 
     private final CancellableThreads cancellableThreads = new CancellableThreads() {
         @Override
-        protected void onCancel(String reason, @Nullable Throwable suppressedException) {
+        protected void onCancel(String reason, @Nullable Exception suppressedException) {
             RuntimeException e;
             if (shard.state() == IndexShardState.CLOSED) { // check if the shard got closed on us
                 e = new IndexShardClosedException(shard.shardId(), "shard is closed and recovery was canceled reason [" + reason + "]");
@@ -119,14 +119,14 @@ public class RecoverySourceHandler {
             final IndexCommit phase1Snapshot;
             try {
                 phase1Snapshot = shard.snapshotIndex(false);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 IOUtils.closeWhileHandlingException(translogView);
                 throw new RecoveryEngineException(shard.shardId(), 1, "Snapshot failed", e);
             }
 
             try {
                 phase1(phase1Snapshot, translogView);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 throw new RecoveryEngineException(shard.shardId(), 1, "phase1 failed", e);
             } finally {
                 try {
@@ -139,7 +139,7 @@ public class RecoverySourceHandler {
             logger.trace("{} snapshot translog for recovery. current size is [{}]", shard.shardId(), translogView.totalOperations());
             try {
                 phase2(translogView.snapshot());
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 throw new RecoveryEngineException(shard.shardId(), 2, "phase2 failed", e);
             }
 
@@ -301,7 +301,7 @@ public class RecoverySourceHandler {
 
             logger.trace("[{}][{}] recovery [phase1] to {}: took [{}]", indexName, shardId, request.targetNode(), stopWatch.totalTime());
             response.phase1Time = stopWatch.totalTime().millis();
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new RecoverFilesRecoveryException(request.shardId(), response.phase1FileNames.size(), new ByteSizeValue(totalSize), e);
         } finally {
             store.decRef();
@@ -365,7 +365,7 @@ public class RecoverySourceHandler {
             logger.trace("[{}][{}] performing relocation hand-off to {}", indexName, shardId, request.targetNode());
             try {
                 cancellableThreads.execute(() -> shard.relocated("to " + request.targetNode()));
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 logger.debug("[{}][{}] completing relocation hand-off to {} failed", e, indexName, shardId, request.targetNode());
                 throw e;
             }
@@ -508,7 +508,7 @@ public class RecoverySourceHandler {
         }
     }
 
-    void sendFiles(Store store, StoreFileMetaData[] files, Function<StoreFileMetaData, OutputStream> outputStreamFactory) throws Throwable {
+    void sendFiles(Store store, StoreFileMetaData[] files, Function<StoreFileMetaData, OutputStream> outputStreamFactory) throws Exception {
         store.incRef();
         try {
             ArrayUtil.timSort(files, (a, b) -> Long.compare(a.length(), b.length())); // send smallest first
@@ -518,9 +518,9 @@ public class RecoverySourceHandler {
                     // it's fine that we are only having the indexInput in the try/with block. The copy methods handles
                     // exceptions during close correctly and doesn't hide the original exception.
                     Streams.copy(new InputStreamIndexInput(indexInput, md.length()), outputStreamFactory.apply(md));
-                } catch (Throwable t) {
+                } catch (Exception e) {
                     final IOException corruptIndexException;
-                    if ((corruptIndexException = ExceptionsHelper.unwrapCorruption(t)) != null) {
+                    if ((corruptIndexException = ExceptionsHelper.unwrapCorruption(e)) != null) {
                         if (store.checkIntegrityNoException(md) == false) { // we are corrupted on the primary -- fail!
                             logger.warn("{} Corrupted file detected {} checksum mismatch", shardId, md);
                             failEngine(corruptIndexException);
@@ -528,13 +528,13 @@ public class RecoverySourceHandler {
                         } else { // corruption has happened on the way to replica
                             RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but " +
                                     "checksums are ok", null);
-                            exception.addSuppressed(t);
+                            exception.addSuppressed(e);
                             logger.warn("{} Remote file corruption on node {}, recovering {}. local checksum OK",
                                     corruptIndexException, shardId, request.targetNode(), md);
                             throw exception;
                         }
                     } else {
-                        throw t;
+                        throw e;
                     }
                 }
             }

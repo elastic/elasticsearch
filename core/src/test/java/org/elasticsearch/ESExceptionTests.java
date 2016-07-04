@@ -57,6 +57,14 @@ import static org.hamcrest.Matchers.equalTo;
 public class ESExceptionTests extends ESTestCase {
     private static final ToXContent.Params PARAMS = ToXContent.EMPTY_PARAMS;
 
+    private class UnknownException extends Exception {
+
+        UnknownException(final String message, final Exception cause) {
+            super(message, cause);
+        }
+
+    }
+
     public void testStatus() {
         ElasticsearchException exception = new ElasticsearchException("test");
         assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
@@ -296,7 +304,7 @@ public class ESExceptionTests extends ESTestCase {
         out.writeThrowable(ex);
 
         StreamInput in = out.bytes().streamInput();
-        ParsingException e = in.readThrowable();
+        ParsingException e = in.readException();
         assertEquals(ex.getIndex(), e.getIndex());
         assertEquals(ex.getMessage(), e.getMessage());
         assertEquals(ex.getLineNumber(), e.getLineNumber());
@@ -305,23 +313,27 @@ public class ESExceptionTests extends ESTestCase {
 
     public void testSerializeUnknownException() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        ParsingException ParsingException = new ParsingException(1, 2, "foobar", null);
-        Throwable ex = new Throwable("eggplant", ParsingException);
+        ParsingException parsingException = new ParsingException(1, 2, "foobar", null);
+        final Exception ex = new UnknownException("eggplant", parsingException);
         out.writeThrowable(ex);
 
         StreamInput in = out.bytes().streamInput();
-        Throwable throwable = in.readThrowable();
-        assertEquals("throwable: eggplant", throwable.getMessage());
+        Throwable throwable = in.readException();
+        assertEquals("unknown_exception: eggplant", throwable.getMessage());
         assertTrue(throwable instanceof ElasticsearchException);
         ParsingException e = (ParsingException)throwable.getCause();
-                assertEquals(ParsingException.getIndex(), e.getIndex());
-        assertEquals(ParsingException.getMessage(), e.getMessage());
-        assertEquals(ParsingException.getLineNumber(), e.getLineNumber());
-        assertEquals(ParsingException.getColumnNumber(), e.getColumnNumber());
+                assertEquals(parsingException.getIndex(), e.getIndex());
+        assertEquals(parsingException.getMessage(), e.getMessage());
+        assertEquals(parsingException.getLineNumber(), e.getLineNumber());
+        assertEquals(parsingException.getColumnNumber(), e.getColumnNumber());
     }
 
     public void testWriteThrowable() throws IOException {
-        Throwable[] causes = new Throwable[] {
+
+        final QueryShardException queryShardException = new QueryShardException(new Index("foo", "_na_"), "foobar", null);
+        final UnknownException unknownException = new UnknownException("this exception is unknown", queryShardException);
+
+        final Exception[] causes = new Exception[]{
                 new IllegalStateException("foobar"),
                 new IllegalArgumentException("alalaal"),
                 new NullPointerException("boom"),
@@ -336,32 +348,30 @@ public class ESExceptionTests extends ESTestCase {
                 new StringIndexOutOfBoundsException("booom"),
                 new FileNotFoundException("booom"),
                 new NoSuchFileException("booom"),
-                new AssertionError("booom", new NullPointerException()),
-                new OutOfMemoryError("no memory left"),
                 new AlreadyClosedException("closed!!", new NullPointerException()),
                 new LockObtainFailedException("can't lock directory", new NullPointerException()),
-                new Throwable("this exception is unknown", new QueryShardException(new Index("foo", "_na_"), "foobar", null) ), // somethin unknown
-        };
-        for (Throwable t : causes) {
+                unknownException};
+        for (final Exception cause : causes) {
             BytesStreamOutput out = new BytesStreamOutput();
-            ElasticsearchException ex = new ElasticsearchException("topLevel", t);
+            ElasticsearchException ex = new ElasticsearchException("topLevel", cause);
             out.writeThrowable(ex);
             StreamInput in = out.bytes().streamInput();
-            ElasticsearchException e = in.readThrowable();
+            ElasticsearchException e = in.readException();
             assertEquals(e.getMessage(), ex.getMessage());
             assertTrue("Expected: " + e.getCause().getMessage() + " to contain: " +
                             ex.getCause().getClass().getName() + " but it didn't",
                     e.getCause().getMessage().contains(ex.getCause().getMessage()));
-            if (ex.getCause().getClass() != Throwable.class) { // throwable is not directly mapped
+            if (ex.getCause().getClass() != UnknownException.class) { // unknown exception is not directly mapped
                 assertEquals(e.getCause().getClass(), ex.getCause().getClass());
             } else {
                 assertEquals(e.getCause().getClass(), NotSerializableExceptionWrapper.class);
             }
             assertArrayEquals(e.getStackTrace(), ex.getStackTrace());
             assertTrue(e.getStackTrace().length > 1);
-            ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(random()), t);
+            ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(random()), cause);
             ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(random()), ex);
             ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(random()), e);
         }
     }
+
 }

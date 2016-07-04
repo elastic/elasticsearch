@@ -312,7 +312,7 @@ public abstract class MetaDataStateFormat<T> {
                     logger.trace("state id [{}] read from [{}]", id, stateFile.getFileName());
                 }
                 return state;
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 exceptions.add(new IOException("failed to read " + pathAndStateId.toString(), e));
                 logger.debug("{}: failed to read [{}], ignoring...", e, pathAndStateId.file.toAbsolutePath(), prefix);
             }

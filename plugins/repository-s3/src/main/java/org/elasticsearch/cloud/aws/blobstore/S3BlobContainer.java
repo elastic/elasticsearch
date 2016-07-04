@@ -46,9 +46,6 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Map;
 
-/**
- *
- */
 public class S3BlobContainer extends AbstractBlobContainer {
 
     protected final S3BlobStore blobStore;
@@ -74,7 +71,7 @@ public class S3BlobContainer extends AbstractBlobContainer {
             });
         } catch (AmazonS3Exception e) {
             return false;
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new BlobStoreException("failed to check if blob exists", e);
         }
     }

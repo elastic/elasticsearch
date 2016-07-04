@@ -125,13 +125,13 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                                 List<SnapshotsInProgress.Entry> currentSnapshots =
                                         snapshotsService.currentSnapshots(request.repository(), Arrays.asList(request.snapshots()));
                                 listener.onResponse(buildResponse(request, currentSnapshots, nodeSnapshotStatuses));
-                            } catch (Throwable e) {
+                            } catch (Exception e) {
                                 listener.onFailure(e);
                             }
                         }
 
                         @Override
-                        public void onFailure(Throwable e) {
+                        public void onFailure(Exception e) {
                             listener.onFailure(e);
                         }
                     });

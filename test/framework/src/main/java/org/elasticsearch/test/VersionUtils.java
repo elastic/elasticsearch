@@ -44,7 +44,7 @@ public class VersionUtils {
                     try {
                         Version object = (Version) field.get(null);
                         ids.add(object.id);
-                    } catch (Throwable e) {
+                    } catch (IllegalAccessException e) {
                         throw new RuntimeException(e);
                     }
                 }

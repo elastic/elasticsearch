@@ -611,7 +611,7 @@ final class Seccomp {
      * This is best effort and OS and architecture dependent. It may throw any Throwable.
      * @return 0 if we can do this for application threads, 1 for the entire process
      */
-    static int init(Path tmpFile) throws Throwable {
+    static int init(Path tmpFile) throws Exception {
         if (Constants.LINUX) {
             return linuxImpl();
         } else if (Constants.MAC_OS_X) {

@@ -185,8 +185,8 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
         }
         scheduledFuture = threadPool.scheduleWithFixedDelay(new JvmMonitor(gcThresholds, gcOverheadThreshold) {
             @Override
-            void onMonitorFailure(Throwable t) {
-                logger.debug("failed to monitor", t);
+            void onMonitorFailure(Exception e) {
+                logger.debug("failed to monitor", e);
             }
 
             @Override
@@ -389,12 +389,12 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
         public void run() {
             try {
                 monitorGc();
-            } catch (Throwable t) {
-                onMonitorFailure(t);
+            } catch (Exception e) {
+                onMonitorFailure(e);
             }
         }
 
-        abstract void onMonitorFailure(Throwable t);
+        abstract void onMonitorFailure(Exception e);
 
         synchronized void monitorGc() {
             seq++;

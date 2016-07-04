@@ -88,7 +88,7 @@ public class RefCountedTests extends ESTestCase {
         final MyRefCounted counted = new MyRefCounted();
         Thread[] threads = new Thread[randomIntBetween(2, 5)];
         final CountDownLatch latch = new CountDownLatch(1);
-        final CopyOnWriteArrayList<Throwable> exceptions = new CopyOnWriteArrayList<>();
+        final CopyOnWriteArrayList<Exception> exceptions = new CopyOnWriteArrayList<>();
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread() {
                 @Override
@@ -103,7 +103,7 @@ public class RefCountedTests extends ESTestCase {
                                 counted.decRef();
                             }
                         }
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         exceptions.add(e);
                     }
                 }

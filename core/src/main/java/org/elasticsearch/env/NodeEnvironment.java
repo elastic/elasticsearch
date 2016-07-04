@@ -670,10 +670,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
      * @throws IllegalStateException if the node is not configured to store local locations
      */
     public Path[] nodeDataPaths() {
-        assert assertEnvIsLocked();
-        if (nodePaths == null || locks == null) {
-            throw new IllegalStateException("node is not configured to store local location");
-        }
+        assertEnvIsLocked();
         Path[] paths = new Path[nodePaths.length];
         for(int i=0;i<paths.length;i++) {
             paths[i] = nodePaths[i].path;
@@ -685,7 +682,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
      * Returns an array of all of the {@link NodePath}s.
      */
     public NodePath[] nodePaths() {
-        assert assertEnvIsLocked();
+        assertEnvIsLocked();
         if (nodePaths == null || locks == null) {
             throw new IllegalStateException("node is not configured to store local location");
         }
@@ -696,7 +693,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
      * Returns all index paths.
      */
     public Path[] indexPaths(Index index) {
-        assert assertEnvIsLocked();
+        assertEnvIsLocked();
         Path[] indexPaths = new Path[nodePaths.length];
         for (int i = 0; i < nodePaths.length; i++) {
             indexPaths[i] = nodePaths[i].resolve(index);
@@ -713,7 +710,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
      *
      */
     public Path[] availableShardPaths(ShardId shardId) {
-        assert assertEnvIsLocked();
+        assertEnvIsLocked();
         final NodePath[] nodePaths = nodePaths();
         final Path[] shardLocations = new Path[nodePaths.length];
         for (int i = 0; i < nodePaths.length; i++) {
@@ -729,7 +726,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
         if (nodePaths == null || locks == null) {
             throw new IllegalStateException("node is not configured to store local location");
         }
-        assert assertEnvIsLocked();
+        assertEnvIsLocked();
         Set<String> indexFolders = new HashSet<>();
         for (NodePath nodePath : nodePaths) {
             Path indicesLocation = nodePath.indicesPath;
@@ -754,7 +751,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
         if (nodePaths == null || locks == null) {
             throw new IllegalStateException("node is not configured to store local location");
         }
-        assert assertEnvIsLocked();
+        assertEnvIsLocked();
         List<Path> paths = new ArrayList<>(nodePaths.length);
         for (NodePath nodePath : nodePaths) {
             Path indexFolder = nodePath.indicesPath.resolve(indexFolderName);
@@ -778,7 +775,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
         if (nodePaths == null || locks == null) {
             throw new IllegalStateException("node is not configured to store local location");
         }
-        assert assertEnvIsLocked();
+        assertEnvIsLocked();
         final Set<ShardId> shardIds = new HashSet<>();
         final String indexUniquePathId = index.getUUID();
         for (final NodePath nodePath : nodePaths) {
@@ -829,18 +826,17 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
     }
 
 
-    private boolean assertEnvIsLocked() {
+    private void assertEnvIsLocked() {
         if (!closed.get() && locks != null) {
             for (Lock lock : locks) {
                 try {
                     lock.ensureValid();
                 } catch (IOException e) {
                     logger.warn("lock assertion failed", e);
-                    return false;
+                    throw new IllegalStateException("environment is not locked", e);
                 }
             }
         }
-        return true;
     }
 
     /**

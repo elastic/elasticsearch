@@ -102,7 +102,7 @@ public abstract class AbstractListenableActionFuture<T, L> extends AdapterAction
             // we use a timeout of 0 to by pass assertion forbidding to call actionGet() (blocking) on a network thread.
             // here we know we will never block
             listener.onResponse(actionGet(0));
-        } catch (Throwable e) {
+        } catch (Exception e) {
             listener.onFailure(e);
         }
     }

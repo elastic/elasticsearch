@@ -22,13 +22,13 @@ package org.elasticsearch.cli;
 /**
  * An exception representing a user fixable problem in {@link Command} usage.
  */
-public class UserError extends Exception {
+public class UserException extends Exception {
 
     /** The exist status the cli should use when catching this user error. */
     public final int exitCode;
 
-    /** Constructs a UserError with an exit status and message to show the user. */
-    public UserError(int exitCode, String msg) {
+    /** Constructs a UserException with an exit status and message to show the user. */
+    public UserException(int exitCode, String msg) {
         super(msg);
         this.exitCode = exitCode;
     }

@@ -46,6 +46,18 @@ public interface ClusterStateTaskExecutor<T> {
     default void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
     }
 
+    default String describeTasks(List<T> tasks) {
+        return tasks.stream().map(T::toString).reduce((s1,s2) -> {
+            if (s1.isEmpty()) {
+                return s2;
+            } else if (s2.isEmpty()) {
+                return s1;
+            } else {
+                return s1 + ", " + s2;
+            }
+        }).orElse("");
+    }
+
     /**
      * Represents the result of a batched execution of cluster state update tasks
      * @param <T> the type of the cluster state update task

@@ -406,7 +406,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             );
         } else {
             // process any incoming joins (they will fail because we are not the master)
-            nodeJoinController.stopElectionContext("not master");
+            nodeJoinController.stopElectionContext(masterNode + " elected");
 
             // send join request
             final boolean success = joinElectedMaster(masterNode);

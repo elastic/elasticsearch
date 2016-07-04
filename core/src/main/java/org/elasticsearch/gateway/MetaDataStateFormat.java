@@ -64,7 +64,9 @@ public abstract class MetaDataStateFormat<T> {
     public static final String STATE_DIR_NAME = "_state";
     public static final String STATE_FILE_EXTENSION = ".st";
     private static final String STATE_FILE_CODEC = "state";
-    private static final int STATE_FILE_VERSION = 0;
+    private static final int MIN_COMPATIBLE_STATE_FILE_VERSION = 0;
+    private static final int STATE_FILE_VERSION = 1;
+    private static final int STATE_FILE_VERSION_ES_2X_AND_BELOW = 0;
     private static final int BUFFER_SIZE = 4096;
     private final XContentType format;
     private final String prefix;
@@ -96,11 +98,10 @@ public abstract class MetaDataStateFormat<T> {
      * it's target filename of the pattern <tt>{prefix}{version}.st</tt>.
      *
      * @param state the state object to write
-     * @param version the version of the state
      * @param locations the locations where the state should be written to.
      * @throws IOException if an IOException occurs
      */
-    public final void write(final T state, final long version, final Path... locations) throws IOException {
+    public final void write(final T state, final Path... locations) throws IOException {
         if (locations == null) {
             throw new IllegalArgumentException("Locations must not be null");
         }
@@ -116,10 +117,10 @@ public abstract class MetaDataStateFormat<T> {
         final Path finalStatePath = stateLocation.resolve(fileName);
         try {
             final String resourceDesc = "MetaDataStateFormat.write(path=\"" + tmpStatePath + "\")";
-            try (OutputStreamIndexOutput out = new OutputStreamIndexOutput(resourceDesc, fileName, Files.newOutputStream(tmpStatePath), BUFFER_SIZE)) {
+            try (OutputStreamIndexOutput out =
+                     new OutputStreamIndexOutput(resourceDesc, fileName, Files.newOutputStream(tmpStatePath), BUFFER_SIZE)) {
                 CodecUtil.writeHeader(out, STATE_FILE_CODEC, STATE_FILE_VERSION);
                 out.writeInt(format.index());
-                out.writeLong(version);
                 try (XContentBuilder builder = newXContentBuilder(format, new IndexOutputOutputStream(out) {
                     @Override
                     public void close() throws IOException {
@@ -145,7 +146,8 @@ public abstract class MetaDataStateFormat<T> {
                 Path finalPath = stateLocation.resolve(fileName);
                 try {
                     Files.copy(finalStatePath, tmpPath);
-                    Files.move(tmpPath, finalPath, StandardCopyOption.ATOMIC_MOVE); // we are on the same FileSystem / Partition here we can do an atomic move
+                    // we are on the same FileSystem / Partition here we can do an atomic move
+                    Files.move(tmpPath, finalPath, StandardCopyOption.ATOMIC_MOVE);
                     IOUtils.fsync(stateLocation, true); // we just fsync the dir here..
                 } finally {
                     Files.deleteIfExists(tmpPath);
@@ -182,13 +184,18 @@ public abstract class MetaDataStateFormat<T> {
             try (final IndexInput indexInput = dir.openInput(file.getFileName().toString(), IOContext.DEFAULT)) {
                  // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
-                CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, STATE_FILE_VERSION, STATE_FILE_VERSION);
+                final int fileVersion = CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, MIN_COMPATIBLE_STATE_FILE_VERSION,
+                    STATE_FILE_VERSION);
                 final XContentType xContentType = XContentType.values()[indexInput.readInt()];
-                indexInput.readLong(); // version currently unused
+                if (fileVersion == STATE_FILE_VERSION_ES_2X_AND_BELOW) {
+                    // format version 0, wrote a version that always came from the content state file and was never used
+                    indexInput.readLong(); // version currently unused
+                }
                 long filePointer = indexInput.getFilePointer();
                 long contentSize = indexInput.length() - CodecUtil.footerLength() - filePointer;
                 try (IndexInput slice = indexInput.slice("state_xcontent", filePointer, contentSize)) {
-                    try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(new InputStreamIndexInput(slice, contentSize))) {
+                    try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(new InputStreamIndexInput(slice,
+                        contentSize))) {
                         return fromXContent(parser);
                     }
                 }
@@ -261,7 +268,8 @@ public abstract class MetaDataStateFormat<T> {
                 // now, iterate over the current versions, and find latest one
                 // we don't check if the stateDir is present since it could be deleted
                 // after the check. Also if there is a _state file and it's not a dir something is really wrong
-                try (DirectoryStream<Path> paths = Files.newDirectoryStream(stateDir)) { // we don't pass a glob since we need the group part for parsing
+                // we don't pass a glob since we need the group part for parsing
+                try (DirectoryStream<Path> paths = Files.newDirectoryStream(stateDir)) {
                     for (Path stateFile : paths) {
                         final Matcher matcher = stateFilePattern.matcher(stateFile.getFileName().toString());
                         if (matcher.matches()) {

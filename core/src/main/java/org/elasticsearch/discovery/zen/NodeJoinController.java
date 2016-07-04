@@ -36,7 +36,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
@@ -380,13 +380,13 @@ public class NodeJoinController extends AbstractComponent {
     }
 
     // a task indicated that the current node should become master, if no current master is known
-    private static final DiscoveryNode BECOME_MASTER_TASK = new DiscoveryNode("_BECOME_MASTER_TASK_", DummyTransportAddress.INSTANCE,
+    private static final DiscoveryNode BECOME_MASTER_TASK = new DiscoveryNode("_BECOME_MASTER_TASK_", LocalTransportAddress.buildUnique(),
         Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
 
     // a task that is used to process pending joins without explicitly becoming a master and listening to the results
     // this task is used when election is stop without the local node becoming a master per se (though it might
     private static final DiscoveryNode FINISH_ELECTION_NOT_MASTER_TASK = new DiscoveryNode("_NOT_MASTER_TASK_",
-        DummyTransportAddress.INSTANCE, Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
+        LocalTransportAddress.buildUnique(), Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
 
     class JoinTaskExecutor implements ClusterStateTaskExecutor<DiscoveryNode> {
 
@@ -418,17 +418,15 @@ public class NodeJoinController extends AbstractComponent {
             for (final DiscoveryNode node : joiningNodes) {
                 if (node.equals(BECOME_MASTER_TASK) || node.equals(FINISH_ELECTION_NOT_MASTER_TASK)) {
                     // noop
-                } else if (currentNodes.nodeExists(node.getId())) {
+                } else if (currentNodes.nodeExists(node)) {
                     logger.debug("received a join request for an existing node [{}]", node);
                 } else {
-                    nodesChanged = true;
-                    nodesBuilder.put(node);
-                    for (DiscoveryNode existingNode : currentNodes) {
-                        if (node.getAddress().equals(existingNode.getAddress())) {
-                            nodesBuilder.remove(existingNode.getId());
-                            logger.warn("received join request from node [{}], but found existing node {} with same address, " +
-                                "removing existing node", node, existingNode);
-                        }
+                    try {
+                        nodesBuilder.put(node);
+                        nodesChanged = true;
+                    } catch (IllegalArgumentException e) {
+                        results.failure(node, e);
+                        continue;
                     }
                 }
                 results.success(node);

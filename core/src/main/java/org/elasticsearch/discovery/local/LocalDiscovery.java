@@ -47,6 +47,7 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
 
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
@@ -99,6 +100,14 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
                 clusterGroups.put(clusterName, clusterGroup);
             }
             logger.debug("Connected to cluster [{}]", clusterName);
+
+            Optional<LocalDiscovery> current = clusterGroup.members().stream().filter(other -> (
+                other.localNode().equals(this.localNode()) || other.localNode().getId().equals(this.localNode().getId())
+            )).findFirst();
+            if (current.isPresent()) {
+                throw new IllegalStateException("current cluster group already contains a node with the same id. current "
+                    + current.get().localNode() + ", this node " + localNode());
+            }
 
             clusterGroup.members().add(this);
 
@@ -308,7 +317,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
                 synchronized (this) {
                     // we do the marshaling intentionally, to check it works well...
                     // check if we published cluster state at least once and node was in the cluster when we published cluster state the last time
-                    if (discovery.lastProcessedClusterState != null && clusterChangedEvent.previousState().nodes().nodeExists(discovery.localNode().getId())) {
+                    if (discovery.lastProcessedClusterState != null && clusterChangedEvent.previousState().nodes().nodeExists(discovery.localNode())) {
                         // both conditions are true - which means we can try sending cluster state as diffs
                         if (clusterStateDiffBytes == null) {
                             Diff diff = clusterState.diff(clusterChangedEvent.previousState());

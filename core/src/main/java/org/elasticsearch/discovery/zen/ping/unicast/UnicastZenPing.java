@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -372,9 +373,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
                 if (!nodeFoundByAddress) {
                     if (!nodeToSend.getId().startsWith(UNICAST_NODE_PREFIX)) {
                         DiscoveryNode tempNode = new DiscoveryNode("",
-                                UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "_" + nodeToSend.getId() + "#",
-                                nodeToSend.getHostName(), nodeToSend.getHostAddress(), nodeToSend.getAddress(), nodeToSend.getAttributes(),
-                                nodeToSend.getRoles(), nodeToSend.getVersion());
+                            UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "_" + nodeToSend.getId() + "#",
+                            UUIDs.randomBase64UUID(), nodeToSend.getHostName(), nodeToSend.getHostAddress(), nodeToSend.getAddress(),
+                            nodeToSend.getAttributes(), nodeToSend.getRoles(), nodeToSend.getVersion());
 
                         logger.trace("replacing {} with temp node {}", nodeToSend, tempNode);
                         nodeToSend = tempNode;
@@ -461,7 +462,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
                 try {
                     DiscoveryNodes discoveryNodes = contextProvider.nodes();
                     for (PingResponse pingResponse : response.pingResponses) {
-                        if (pingResponse.node().getId().equals(discoveryNodes.getLocalNodeId())) {
+                        if (pingResponse.node().equals(discoveryNodes.getLocalNode())) {
                             // that's us, ignore
                             continue;
                         }

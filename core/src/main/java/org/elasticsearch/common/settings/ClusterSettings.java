@@ -24,16 +24,14 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.bootstrap.BootstrapSettings;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
@@ -49,6 +47,7 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -336,7 +335,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Environment.PATH_SCRIPTS_SETTING,
                     Environment.PATH_SHARED_DATA_SETTING,
                     Environment.PIDFILE_SETTING,
-                    DiscoveryNodeService.NODE_ID_SEED_SETTING,
+                    NodeEnvironment.NODE_ID_SEED_SETTING,
                     DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING,
                     DiscoveryModule.DISCOVERY_TYPE_SETTING,
                     DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_SETTING,
@@ -365,6 +364,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Node.NODE_MODE_SETTING,
                     Node.NODE_INGEST_SETTING,
                     Node.NODE_ATTRIBUTES,
+                    Node.NODE_LOCAL_STORAGE_SETTING,
                     URLRepository.ALLOWED_URLS_SETTING,
                     URLRepository.REPOSITORIES_URL_SETTING,
                     URLRepository.SUPPORTED_PROTOCOLS_SETTING,
@@ -387,7 +387,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     TribeService.TRIBE_NAME_SETTING,
                     NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,
                     NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING,
-                    NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH,
+                    NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH,
                     OsService.REFRESH_INTERVAL_SETTING,
                     ProcessService.REFRESH_INTERVAL_SETTING,
                     JvmService.REFRESH_INTERVAL_SETTING,

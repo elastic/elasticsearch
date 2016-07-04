@@ -149,6 +149,15 @@ public class Node implements Closeable {
         new Setting<>("node.mode", "network", Function.identity(), Property.NodeScope);
     public static final Setting<Boolean> NODE_INGEST_SETTING =
         Setting.boolSetting("node.ingest", true, Property.NodeScope);
+
+    /**
+    * controls whether the node is allowed to persist things like metadata to disk
+    * Note that this does not control whether the node stores actual indices (see
+    * {@link #NODE_DATA_SETTING}). However, if this is false, {@link #NODE_DATA_SETTING}
+    * and {@link #NODE_MASTER_SETTING} must also be false.
+    *
+    */
+    public static final Setting<Boolean> NODE_LOCAL_STORAGE_SETTING = Setting.boolSetting("node.local_storage", true, Property.NodeScope);
     public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", Property.NodeScope);
     public static final Setting<Settings> NODE_ATTRIBUTES = Setting.groupSetting("node.attr.", Property.NodeScope);
     public static final Setting<String> BREAKER_TYPE_KEY = new Setting<>("indices.breaker.type", "hierarchy", (s) -> {
@@ -253,7 +262,7 @@ public class Node implements Closeable {
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
             clusterService.add(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
-            final TribeService tribeService = new TribeService(settings, clusterService);
+            final TribeService tribeService = new TribeService(settings, clusterService, nodeEnvironment.nodeId());
             resourcesToClose.add(tribeService);
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
             ModulesBuilder modules = new ModulesBuilder();
@@ -394,7 +403,7 @@ public class Node implements Closeable {
         validateNodeBeforeAcceptingRequests(settings, transportService.boundAddress());
 
         DiscoveryNode localNode = injector.getInstance(DiscoveryNodeService.class)
-                .buildLocalNode(transportService.boundAddress().publishAddress());
+                .buildLocalNode(transportService.boundAddress().publishAddress(), injector.getInstance(NodeEnvironment.class)::nodeId);
 
         // TODO: need to find a cleaner way to start/construct a service with some initial parameters,
         // playing nice with the life cycle interfaces

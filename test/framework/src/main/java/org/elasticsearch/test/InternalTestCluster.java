@@ -40,7 +40,6 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
-import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -606,7 +605,7 @@ public final class InternalTestCluster extends TestCluster {
             .put(Environment.PATH_HOME_SETTING.getKey(), baseDir) // allow overriding path.home
             .put(settings)
             .put("node.name", name)
-            .put(DiscoveryNodeService.NODE_ID_SEED_SETTING.getKey(), seed)
+            .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), seed)
             .build();
         MockNode node = new MockNode(finalSettings, plugins);
         return new NodeAndClient(name, node, nodeId);
@@ -898,8 +897,8 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         private void createNewNode(final Settings newSettings) {
-            final long newIdSeed = DiscoveryNodeService.NODE_ID_SEED_SETTING.get(node.settings()) + 1; // use a new seed to make sure we have new node id
-            Settings finalSettings = Settings.builder().put(node.settings()).put(newSettings).put(DiscoveryNodeService.NODE_ID_SEED_SETTING.getKey(), newIdSeed).build();
+            final long newIdSeed = NodeEnvironment.NODE_ID_SEED_SETTING.get(node.settings()) + 1; // use a new seed to make sure we have new node id
+            Settings finalSettings = Settings.builder().put(node.settings()).put(newSettings).put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), newIdSeed).build();
             Collection<Class<? extends Plugin>> plugins = node.getPlugins();
             node = new MockNode(finalSettings, plugins);
             markNodeDataDirsAsNotEligableForWipe(node);
@@ -1392,7 +1391,6 @@ public final class InternalTestCluster extends TestCluster {
                 nodeAndClient.closeNode();
                 // delete data folders now, before we start other nodes that may claim it
                 nodeAndClient.clearDataIfNeeded(callback);
-
 
                 DiscoveryNode discoveryNode = getInstanceFromNode(ClusterService.class, nodeAndClient.node()).localNode();
                 nodesRoleOrder[nodeAndClient.nodeAndClientId()] = discoveryNode.getRoles();

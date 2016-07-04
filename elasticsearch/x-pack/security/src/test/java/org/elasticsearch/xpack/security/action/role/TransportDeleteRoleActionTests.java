@@ -55,7 +55,7 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 throwableRef.set(e);
             }
         });
@@ -96,7 +96,7 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 throwableRef.set(e);
             }
         });
@@ -108,7 +108,7 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
     }
 
     public void testException() {
-        final Throwable t = randomFrom(new ElasticsearchSecurityException(""), new IllegalStateException());
+        final Exception e = randomFrom(new ElasticsearchSecurityException(""), new IllegalStateException());
         final String roleName = randomFrom("admin", "dept_a", "restricted");
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportDeleteRoleAction action = new TransportDeleteRoleAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
@@ -124,7 +124,7 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
                 Object[] args = invocation.getArguments();
                 assert args.length == 2;
                 ActionListener<Boolean> listener = (ActionListener<Boolean>) args[1];
-                listener.onFailure(t);
+                listener.onFailure(e);
                 return null;
             }
         }).when(rolesStore).deleteRole(eq(request), any(ActionListener.class));
@@ -138,14 +138,14 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 throwableRef.set(e);
             }
         });
 
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), is(notNullValue()));
-        assertThat(throwableRef.get(), is(sameInstance(t)));
+        assertThat(throwableRef.get(), is(sameInstance(e)));
         verify(rolesStore, times(1)).deleteRole(eq(request), any(ActionListener.class));
     }
 }

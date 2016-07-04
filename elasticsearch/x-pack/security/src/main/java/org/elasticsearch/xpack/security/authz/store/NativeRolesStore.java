@@ -231,7 +231,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
                 }
 
                 @Override
-                public void onFailure(Throwable t) {
+                public void onFailure(Exception t) {
                     // attempt to clear the scroll request
                     if (lastResponse != null && lastResponse.getScrollId() != null) {
                         clearScollRequest(lastResponse.getScrollId());
@@ -277,7 +277,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     logger.error("failed to delete role from the index", e);
                     listener.onFailure(e);
                 }
@@ -311,7 +311,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
                         }
 
                         @Override
-                        public void onFailure(Throwable e) {
+                        public void onFailure(Exception e) {
                             logger.error("failed to put role [{}]", e, request.name());
                             listener.onFailure(e);
                         }
@@ -345,7 +345,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
                         }
 
                         @Override
-                        public void onFailure(Throwable t) {
+                        public void onFailure(Exception t) {
                             if (t instanceof IndexNotFoundException) {
                                 logger.trace("failed to retrieve role [{}] since security index does not exist", t, roleId);
                             } else {
@@ -403,7 +403,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
                 // Not really much to do here except for warn about it...
                 logger.warn("failed to clear scroll [{}] after retrieving roles", t, scrollId);
             }
@@ -441,7 +441,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 logger.error("unable to clear cache for role [{}]", e, role);
                 ElasticsearchException exception = new ElasticsearchException("clearing the cache for [" + role
                         + "] failed. please clear the role cache manually", e);
@@ -568,8 +568,8 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
         }
 
         @Override
-        public void onFailure(Throwable t) {
-            logger.error("error occurred while checking the native roles for changes", t);
+        public void onFailure(Exception e) {
+            logger.error("error occurred while checking the native roles for changes", e);
         }
 
         private boolean isStopped() {

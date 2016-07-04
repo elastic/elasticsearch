@@ -61,7 +61,7 @@ public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLice
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
         });

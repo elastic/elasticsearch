@@ -59,9 +59,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-/**
- *
- */
 public class HttpExporter extends Exporter {
 
     public static final String TYPE = "http";
@@ -664,9 +661,9 @@ public class HttpExporter extends Exporter {
                     }
                 } catch (InterruptedException e) {
                     // ignore, if closed, good....
-                } catch (Throwable t) {
+                } catch (Exception e) {
                     logger.debug("error in keep alive thread, shutting down (will be restarted after a successful connection has been " +
-                            "made) {}", ExceptionsHelper.detailedMessage(t));
+                            "made) {}", ExceptionsHelper.detailedMessage(e));
                     return;
                 }
             }

@@ -509,7 +509,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
             }
             });
@@ -711,13 +711,13 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         listener.onFailure(e);
                     }
                 });
-            } catch (Throwable t) {
-                logger.error("unable to execute the graph query", t);
-                listener.onFailure(t);
+            } catch (Exception e) {
+                logger.error("unable to execute the graph query", e);
+                listener.onFailure(e);
             }
         }
 

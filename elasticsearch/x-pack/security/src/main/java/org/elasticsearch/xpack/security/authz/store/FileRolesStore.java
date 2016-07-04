@@ -46,9 +46,6 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.xpack.security.Security.setting;
 
-/**
- *
- */
 public class FileRolesStore extends AbstractLifecycleComponent implements RolesStore {
 
     public static final Setting<String> ROLES_FILE_SETTING =
@@ -288,8 +285,8 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
                 try {
                     permissions = parseFile(file, logger, settings);
                     logger.info("updated roles (roles file [{}] changed)", file.toAbsolutePath());
-                } catch (Throwable t) {
-                    logger.error("could not reload roles file [{}]. Current roles remain unmodified", t, file.toAbsolutePath());
+                } catch (Exception e) {
+                    logger.error("could not reload roles file [{}]. Current roles remain unmodified", e, file.toAbsolutePath());
                     return;
                 }
                 listener.onRefresh();

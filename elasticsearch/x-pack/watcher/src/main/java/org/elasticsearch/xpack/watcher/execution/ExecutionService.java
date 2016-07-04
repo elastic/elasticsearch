@@ -206,7 +206,7 @@ public class ExecutionService extends AbstractComponent {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 Throwable cause = ExceptionsHelper.unwrapCause(e);
                 if (cause instanceof EsRejectedExecutionException) {
                     logger.debug("failed to store watch records due to overloaded threadpool [{}]", ExceptionsHelper.detailedMessage(e));

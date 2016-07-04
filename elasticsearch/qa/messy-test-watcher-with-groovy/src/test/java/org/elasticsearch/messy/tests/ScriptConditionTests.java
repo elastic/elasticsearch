@@ -165,14 +165,15 @@ public class ScriptConditionTests extends ESTestCase {
     public void testScriptConditionThrowException() throws Exception {
         ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
         ExecutableScriptCondition condition = new ExecutableScriptCondition(
-                new ScriptCondition(Script.inline("assert false").build()), logger, scriptService);
+                new ScriptCondition(Script.inline("null.foo").build()), logger, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500L, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         ScriptCondition.Result result = condition.execute(ctx);
         assertThat(result, notNullValue());
         assertThat(result.status(), is(Condition.Result.Status.FAILURE));
         assertThat(result.reason(), notNullValue());
-        assertThat(result.reason(), containsString("Assertion"));
+        assertThat(result.reason(), containsString("NullPointerException"));
+        assertThat(result.reason(), containsString("Cannot get property 'foo' on null object"));
     }
 
     public void testScriptConditionReturnObject() throws Exception {

@@ -90,8 +90,8 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
                 if (createTemplate && templateCreationPending.compareAndSet(false, true)) {
                     threadPool.generic().execute(new AbstractRunnable() {
                         @Override
-                        public void onFailure(Throwable t) {
-                            logger.warn("failed to create security index template", t);
+                        public void onFailure(Exception e) {
+                            logger.warn("failed to create security index template", e);
                             templateCreationPending.set(false);
                         }
 

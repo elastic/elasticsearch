@@ -211,8 +211,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             }
 
             @Override
-            public void onFailure(Throwable throwable) {
-                logger.error("failed to update monitoring index template [{}]", throwable, template);
+            public void onFailure(Exception e) {
+                logger.error("failed to update monitoring index template [{}]", e, template);
             }
         });
     }
@@ -296,7 +296,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 logger.error("failed to delete indices", e);
             }
         });

@@ -88,8 +88,8 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
             }
 
             @Override
-            public void onFailure(String source, @Nullable Throwable t) {
-                logger.error("error on metaData cleanup after test", t);
+            public void onFailure(String source, @Nullable Exception e) {
+                logger.error("error on metaData cleanup after test", e);
             }
         });
         latch.await();

@@ -114,8 +114,8 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
                 }
 
                 @Override
-                public void onFailure(Throwable t) {
-                    listener.onResponse(new MonitoringBulkResponse(buildTookInMillis(startTimeNanos), new MonitoringBulkResponse.Error(t)));
+                public void onFailure(Exception e) {
+                    listener.onResponse(new MonitoringBulkResponse(buildTookInMillis(startTimeNanos), new MonitoringBulkResponse.Error(e)));
                 }
             });
         }

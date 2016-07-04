@@ -42,8 +42,8 @@ public final class SearchRequestEquivalence {
             r2.writeTo(output1);
             byte[] bytes2 = BytesReference.toBytes(output1.bytes());
             return Arrays.equals(bytes1, bytes2);
-        } catch (Throwable t) {
-            throw illegalState("could not compare search requests", t);
+        } catch (Exception e) {
+            throw illegalState("could not compare search requests", e);
         }
     }
 }

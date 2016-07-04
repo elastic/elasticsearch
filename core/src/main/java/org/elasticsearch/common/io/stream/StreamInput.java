@@ -381,12 +381,6 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Resets the stream.
-     */
-    @Override
-    public abstract void reset() throws IOException;
-
-    /**
      * Closes the stream to further operations.
      */
     @Override

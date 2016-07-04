@@ -24,6 +24,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.function.ToIntBiFunction;
 
@@ -52,9 +53,8 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
     /**
      * A stream input of the bytes.
      */
-    public StreamInput streamInput() {
-        BytesRef ref = toBytesRef();
-        return StreamInput.wrap(ref.bytes, ref.offset, ref.length);
+    public StreamInput streamInput() throws IOException {
+        return new MarkSupportingStreamInputWrapper(this);
     }
 
     /**
@@ -207,5 +207,66 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
             : "offset: " + ref.offset + " ref.bytes.length: " + ref.bytes.length + " length: " + length + " ref.length: " + ref.length;
         ref.length -= length;
         ref.offset += length;
+    }
+
+    /**
+     * Instead of adding the complexity of {@link InputStream#reset()} etc to the actual impl
+     * this wrapper builds it on top of the BytesReferenceStreamInput which is much simpler
+     * that way.
+     */
+    private static final class MarkSupportingStreamInputWrapper extends StreamInput {
+        private final BytesReference reference;
+        private StreamInput input;
+        private int mark = 0;
+
+        private MarkSupportingStreamInputWrapper(BytesReference reference) throws IOException {
+            this.reference = reference;
+            this.input = new BytesReferenceStreamInput(reference.iterator(), reference.length());
+        }
+
+        @Override
+        public byte readByte() throws IOException {
+            return input.readByte();
+        }
+
+        @Override
+        public void readBytes(byte[] b, int offset, int len) throws IOException {
+            input.read(b, offset, len);
+        }
+
+        @Override
+        public void close() throws IOException {
+            input.close();
+        }
+
+        @Override
+        public int read() throws IOException {
+            return input.read();
+        }
+
+        @Override
+        public int available() throws IOException {
+            return input.available();
+        }
+
+        @Override
+        public synchronized void reset() throws IOException {
+            input = reference.slice(mark, reference.length() - mark).streamInput();
+        }
+
+        @Override
+        public boolean markSupported() {
+            return true;
+        }
+
+        @Override
+        public synchronized void mark(int readlimit) {
+            this.mark = readlimit;
+        }
+
+        @Override
+        public long skip(long n) throws IOException {
+            return input.skip(n);
+        }
     }
 }

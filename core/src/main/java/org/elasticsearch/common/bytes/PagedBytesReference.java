@@ -25,10 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 
-import java.io.EOFException;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.util.Arrays;
 
 /**
  * A page based bytes reference, internally holding the bytes in a paged
@@ -69,13 +66,7 @@ public class PagedBytesReference extends BytesReference {
         if (from < 0 || (from + length) > length()) {
             throw new IllegalArgumentException("can't slice a buffer with length [" + length() + "], with slice parameters from [" + from + "], length [" + length + "]");
         }
-
         return new PagedBytesReference(bigarrays, bytearray, offset + from, length);
-    }
-
-    @Override
-    public StreamInput streamInput() {
-        return new PagedBytesReferenceStreamInput(bytearray, offset, length);
     }
 
     @Override
@@ -84,109 +75,6 @@ public class PagedBytesReference extends BytesReference {
         // if length <= pagesize this will dereference the page, or materialize the byte[]
         bytearray.get(offset, length, bref);
         return bref;
-    }
-
-    private static class PagedBytesReferenceStreamInput extends StreamInput {
-
-        private final ByteArray bytearray;
-        private final BytesRef ref;
-        private final int offset;
-        private final int length;
-        private int pos;
-        private int mark;
-
-        public PagedBytesReferenceStreamInput(ByteArray bytearray, int offset, int length) {
-            this.bytearray = bytearray;
-            this.ref = new BytesRef();
-            this.offset = offset;
-            this.length = length;
-            this.pos = 0;
-
-            if (offset + length > bytearray.size()) {
-                throw new IndexOutOfBoundsException("offset+length >= bytearray.size()");
-            }
-        }
-
-        @Override
-        public byte readByte() throws IOException {
-            if (pos >= length) {
-                throw new EOFException();
-            }
-
-            return bytearray.get(offset + pos++);
-        }
-
-        @Override
-        public void readBytes(byte[] b, int bOffset, int len) throws IOException {
-            if (len > offset + length) {
-                throw new IndexOutOfBoundsException("Cannot read " + len + " bytes from stream with length " + length + " at pos " + pos);
-            }
-
-            read(b, bOffset, len);
-        }
-
-        @Override
-        public int read() throws IOException {
-            return (pos < length) ? Byte.toUnsignedInt(bytearray.get(offset + pos++)) : -1;
-        }
-
-        @Override
-        public int read(final byte[] b, final int bOffset, final int len) throws IOException {
-            if (len == 0) {
-                return 0;
-            }
-
-            if (pos >= offset + length) {
-                return -1;
-            }
-
-            final int numBytesToCopy = Math.min(len, length - pos); // copy the full length or the remaining part
-
-            // current offset into the underlying ByteArray
-            long byteArrayOffset = offset + pos;
-
-            // bytes already copied
-            int copiedBytes = 0;
-
-            while (copiedBytes < numBytesToCopy) {
-                long pageFragment = PAGE_SIZE - (byteArrayOffset % PAGE_SIZE); // how much can we read until hitting N*PAGE_SIZE?
-                int bulkSize = (int) Math.min(pageFragment, numBytesToCopy - copiedBytes); // we cannot copy more than a page fragment
-                boolean copied = bytearray.get(byteArrayOffset, bulkSize, ref); // get the fragment
-                assert (copied == false); // we should never ever get back a materialized byte[]
-                System.arraycopy(ref.bytes, ref.offset, b, bOffset + copiedBytes, bulkSize); // copy fragment contents
-                copiedBytes += bulkSize; // count how much we copied
-                byteArrayOffset += bulkSize; // advance ByteArray index
-            }
-
-            pos += copiedBytes; // finally advance our stream position
-            return copiedBytes;
-        }
-
-        @Override
-        public boolean markSupported() {
-            return true;
-        }
-
-        @Override
-        public void mark(int readlimit) {
-            this.mark = pos;
-        }
-
-        @Override
-        public void reset() throws IOException {
-            pos = mark;
-        }
-
-        @Override
-        public void close() throws IOException {
-            // do nothing
-        }
-
-        @Override
-        public int available() throws IOException {
-            return length - pos;
-        }
-
     }
 
     @Override

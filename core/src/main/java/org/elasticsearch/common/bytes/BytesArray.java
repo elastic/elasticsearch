@@ -96,4 +96,5 @@ public final class BytesArray extends BytesReference {
     public long ramBytesUsed() {
         return bytes.length;
     }
+
 }

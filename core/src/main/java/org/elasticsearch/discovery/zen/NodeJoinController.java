@@ -180,7 +180,7 @@ public class NodeJoinController extends AbstractComponent {
             electionContext.addIncomingJoin(node, callback);
             checkPendingJoinsAndElectIfNeeded();
         } else {
-            clusterService.submitStateUpdateTask("zend-disco-node-join",
+            clusterService.submitStateUpdateTask("zen-disco-node-join",
                 node, ClusterStateTaskConfig.build(Priority.URGENT),
                 joinTaskExecutor, new JoinTaskListener(callback, logger));
         }

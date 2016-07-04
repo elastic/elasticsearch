@@ -23,8 +23,11 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
+import org.apache.lucene.util.AttributeImpl;
+import org.apache.lucene.util.AttributeReflector;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.fst.Util;
 
@@ -105,8 +108,8 @@ public final class CompletionTokenStream extends TokenStream {
         input.close();
     }
 
-    public interface ToFiniteStrings {
-        Set<IntsRef> toFiniteStrings(TokenStream stream) throws IOException;
+    public static interface ToFiniteStrings {
+        public Set<IntsRef> toFiniteStrings(TokenStream stream) throws IOException;
     }
 
     @Override
@@ -129,5 +132,45 @@ public final class CompletionTokenStream extends TokenStream {
         BytesRefBuilder builder();
 
         CharSequence toUTF16();
+    }
+
+    public static final class ByteTermAttributeImpl extends AttributeImpl implements ByteTermAttribute, TermToBytesRefAttribute {
+        private final BytesRefBuilder bytes = new BytesRefBuilder();
+        private CharsRefBuilder charsRef;
+
+        @Override
+        public BytesRefBuilder builder() {
+            return bytes;
+        }
+
+        @Override
+        public BytesRef getBytesRef() {
+            return bytes.get();
+        }
+
+        @Override
+        public void clear() {
+            bytes.clear();
+        }
+
+        @Override
+        public void reflectWith(AttributeReflector reflector) {
+
+        }
+
+        @Override
+        public void copyTo(AttributeImpl target) {
+            ByteTermAttributeImpl other = (ByteTermAttributeImpl) target;
+            other.bytes.copyBytes(bytes);
+        }
+
+        @Override
+        public CharSequence toUTF16() {
+            if (charsRef == null) {
+                charsRef = new CharsRefBuilder();
+            }
+            charsRef.copyUTF8Bytes(getBytesRef());
+            return charsRef.get();
+        }
     }
 }

@@ -46,7 +46,7 @@ public class PropertiesSettingsLoader implements SettingsLoader {
         return load(() -> StreamInput.wrap(source), (inStream, props) -> props.load(inStream));
     }
 
-    private final <T extends Closeable> Map<String, String> load(
+    private <T extends Closeable> Map<String, String> load(
             Supplier<T> supplier,
             IOExceptionThrowingBiConsumer<T, Properties> properties
     ) throws IOException {

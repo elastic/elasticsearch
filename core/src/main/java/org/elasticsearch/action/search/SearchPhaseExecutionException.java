@@ -66,7 +66,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         }
     }
 
-    private static final Throwable deduplicateCause(Throwable cause, ShardSearchFailure[] shardFailures) {
+    private static Throwable deduplicateCause(Throwable cause, ShardSearchFailure[] shardFailures) {
         if (shardFailures == null) {
             throw new IllegalArgumentException("shardSearchFailures must not be null");
         }

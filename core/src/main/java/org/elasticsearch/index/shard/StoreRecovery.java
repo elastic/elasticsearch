@@ -130,7 +130,7 @@ final class StoreRecovery {
         return false;
     }
 
-    final void addIndices(RecoveryState.Index indexRecoveryStats, Directory target, Directory... sources) throws IOException {
+    void addIndices(RecoveryState.Index indexRecoveryStats, Directory target, Directory... sources) throws IOException {
         target = new org.apache.lucene.store.HardlinkCopyDirectoryWrapper(target);
         try (IndexWriter writer = new IndexWriter(new StatsDirectoryWrapper(target, indexRecoveryStats),
             new IndexWriterConfig(null)

@@ -25,6 +25,6 @@ public interface MultiTermAwareComponent {
     /** Returns an analysis component to handle analysis if multi-term queries.
      * The returned component must be a TokenizerFactory, TokenFilterFactory or CharFilterFactory.
      */
-    public Object getMultiTermComponent();
+    Object getMultiTermComponent();
 
 }

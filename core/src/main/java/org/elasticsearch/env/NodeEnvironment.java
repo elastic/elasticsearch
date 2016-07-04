@@ -812,7 +812,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
     }
 
     @Override
-    public final void close() {
+    public void close() {
         if (closed.compareAndSet(false, true) && locks != null) {
             for (Lock lock : locks) {
                 try {

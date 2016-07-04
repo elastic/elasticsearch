@@ -66,7 +66,7 @@ final class DocumentParser {
         this.docMapper = docMapper;
     }
 
-    final ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
+    ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
         validateType(source);
 
         final Mapping mapping = docMapper.mapping();

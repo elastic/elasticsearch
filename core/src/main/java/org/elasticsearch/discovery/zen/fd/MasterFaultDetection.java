@@ -55,7 +55,7 @@ public class MasterFaultDetection extends FaultDetection {
 
     public static final String MASTER_PING_ACTION_NAME = "internal:discovery/zen/fd/master_ping";
 
-    public static interface Listener {
+    public interface Listener {
 
         /** called when pinging the master failed, like a timeout, transport disconnects etc */
         void onMasterFailure(DiscoveryNode masterNode, Throwable cause, String reason);

@@ -27,7 +27,7 @@ import java.util.Set;
  */
 public interface CharMatcher {
 
-    public static class ByUnicodeCategory implements CharMatcher {
+    class ByUnicodeCategory implements CharMatcher {
 
         public static CharMatcher of(byte unicodeCategory) {
             return new ByUnicodeCategory(unicodeCategory);
@@ -134,5 +134,5 @@ public interface CharMatcher {
     }
 
     /** Returns true if, and only if, the provided character matches this character class. */
-    public boolean isTokenChar(int c);
+    boolean isTokenChar(int c);
 }

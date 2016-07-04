@@ -105,7 +105,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
         });
     }
 
-    public static interface Listener {
+    public interface Listener {
         void onResponse(AllocateDangledResponse response);
 
         void onFailure(Throwable e);

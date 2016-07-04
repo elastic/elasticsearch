@@ -556,7 +556,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         failIfCorrupted(directory, shardId);
     }
 
-    private static final void failIfCorrupted(Directory directory, ShardId shardId) throws IOException {
+    private static void failIfCorrupted(Directory directory, ShardId shardId) throws IOException {
         final String[] files = directory.listAll();
         List<CorruptIndexException> ex = new ArrayList<>();
         for (String file : files) {
@@ -1033,7 +1033,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             return null;
         }
 
-        private final int numSegmentFiles() { // only for asserts
+        private int numSegmentFiles() { // only for asserts
             int count = 0;
             for (StoreFileMetaData file : this) {
                 if (file.name().startsWith(IndexFileNames.SEGMENTS)) {
@@ -1353,8 +1353,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * A listener that is executed once the store is closed and all references to it are released
      */
-    public static interface OnClose extends Callback<ShardLock> {
-        static final OnClose EMPTY = new OnClose() {
+    public interface OnClose extends Callback<ShardLock> {
+        OnClose EMPTY = new OnClose() {
             /**
              * This method is called while the provided {@link org.elasticsearch.env.ShardLock} is held.
              * This method is only called once after all resources for a store are released.

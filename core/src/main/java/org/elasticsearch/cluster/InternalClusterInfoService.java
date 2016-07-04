@@ -278,7 +278,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         return latch;
     }
 
-    private final void maybeRefresh() {
+    private void maybeRefresh() {
         // Short-circuit if not enabled
         if (enabled) {
             refresh();

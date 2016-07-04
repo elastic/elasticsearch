@@ -646,12 +646,12 @@ public class CorruptedFileIT extends ESIntegTestCase {
         return shardRouting;
     }
 
-    private static final boolean isPerCommitFile(String fileName) {
+    private static boolean isPerCommitFile(String fileName) {
         // .liv and segments_N are per commit files and might change after corruption
         return fileName.startsWith("segments") || fileName.endsWith(".liv");
     }
 
-    private static final boolean isPerSegmentFile(String fileName) {
+    private static boolean isPerSegmentFile(String fileName) {
         return isPerCommitFile(fileName) == false;
     }
 

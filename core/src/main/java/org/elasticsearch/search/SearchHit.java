@@ -146,7 +146,7 @@ public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitFie
     /**
      * The hit field matching the given field name.
      */
-    public SearchHitField field(String fieldName);
+    SearchHitField field(String fieldName);
 
     /**
      * A map of hit fields (from field name to hit fields) if additional fields
@@ -208,23 +208,23 @@ public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitFie
     /**
      * Encapsulates the nested identity of a hit.
      */
-    public interface NestedIdentity {
+    interface NestedIdentity {
 
         /**
          * Returns the nested field in the source this hit originates from
          */
-        public Text getField();
+        Text getField();
 
         /**
          * Returns the offset in the nested array of objects in the source this hit
          */
-        public int getOffset();
+        int getOffset();
 
         /**
          * Returns the next child nested level if there is any, otherwise <code>null</code> is returned.
          *
          * In the case of mappings with multiple levels of nested object fields
          */
-        public NestedIdentity getChild();
+        NestedIdentity getChild();
     }
 }

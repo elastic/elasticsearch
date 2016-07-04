@@ -38,7 +38,7 @@ public class PipelineAggregatorStreams {
     /**
      * A stream that knows how to read an aggregation from the input.
      */
-    public static interface Stream {
+    public interface Stream {
         PipelineAggregator readResult(StreamInput in) throws IOException;
     }
 

@@ -623,7 +623,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("ultimate1"));
     }
 
-    private static final void assertEquivalent(String query, SearchResponse left, SearchResponse right) {
+    private static void assertEquivalent(String query, SearchResponse left, SearchResponse right) {
         assertNoFailures(left);
         assertNoFailures(right);
         SearchHits leftHits = left.getHits();

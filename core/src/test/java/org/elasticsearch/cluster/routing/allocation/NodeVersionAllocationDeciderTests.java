@@ -407,7 +407,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         return clusterState;
     }
 
-    private final void assertRecoveryNodeVersions(RoutingNodes routingNodes) {
+    private void assertRecoveryNodeVersions(RoutingNodes routingNodes) {
         logger.trace("RoutingNodes: {}", routingNodes.prettyPrint());
 
         List<ShardRouting> mutableShardRoutings = routingNodes.shardsWithState(ShardRoutingState.RELOCATING);

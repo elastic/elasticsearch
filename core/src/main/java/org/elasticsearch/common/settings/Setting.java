@@ -465,7 +465,7 @@ public class Setting<T> extends ToXContentToBytes {
         }
 
         @Override
-        public final void apply(T value, Settings current, Settings previous) {
+        public void apply(T value, Settings current, Settings previous) {
             logger.info("updating [{}] from [{}] to [{}]", key, getRaw(previous), getRaw(current));
             consumer.accept(value);
         }

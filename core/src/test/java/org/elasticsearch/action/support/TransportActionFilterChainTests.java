@@ -447,12 +447,12 @@ public class TransportActionFilterChainTests extends ESTestCase {
         }
     }
 
-    private static interface RequestCallback {
+    private interface RequestCallback {
         <Request extends ActionRequest<Request>, Response extends ActionResponse> void execute(Task task, String action, Request request,
                 ActionListener<Response> listener, ActionFilterChain<Request, Response> actionFilterChain);
     }
 
-    private static interface ResponseCallback {
+    private interface ResponseCallback {
         <Response extends ActionResponse> void execute(String action, Response response, ActionListener<Response> listener,
                 ActionFilterChain<?, Response> chain);
     }

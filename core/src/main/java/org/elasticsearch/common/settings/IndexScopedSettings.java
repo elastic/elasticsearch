@@ -178,7 +178,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     }
 
     @Override
-    protected final boolean isPrivateSetting(String key) {
+    protected boolean isPrivateSetting(String key) {
         switch (key) {
             case IndexMetaData.SETTING_CREATION_DATE:
             case IndexMetaData.SETTING_INDEX_UUID:

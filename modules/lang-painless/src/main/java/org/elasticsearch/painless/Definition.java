@@ -646,7 +646,7 @@ public final class Definition {
         }
     }
 
-    private final void addStruct(final String name, final Class<?> clazz) {
+    private void addStruct(final String name, final Class<?> clazz) {
         if (!name.matches("^[_a-zA-Z][\\.,_a-zA-Z0-9]*$")) {
             throw new IllegalArgumentException("Invalid struct name [" + name + "].");
         }
@@ -661,7 +661,7 @@ public final class Definition {
         simpleTypesMap.put(name, getTypeInternal(name));
     }
 
-    private final void addConstructorInternal(final String struct, final String name, final Type[] args) {
+    private void addConstructorInternal(final String struct, final String name, final Type[] args) {
         final Struct owner = structsMap.get(struct);
 
         if (owner == null) {
@@ -734,7 +734,7 @@ public final class Definition {
      * </ul>
      * no spaces allowed.
      */
-    private final void addSignature(String className, String signature) {
+    private void addSignature(String className, String signature) {
         String elements[] = signature.split("\u0020");
         if (elements.length != 2) {
             throw new IllegalArgumentException("Malformed signature: " + signature);
@@ -774,8 +774,8 @@ public final class Definition {
         }
     }
 
-    private final void addMethodInternal(String struct, String name, boolean augmentation,
-                                         Type rtn, Type[] args) {
+    private void addMethodInternal(String struct, String name, boolean augmentation,
+                                   Type rtn, Type[] args) {
         final Struct owner = structsMap.get(struct);
 
         if (owner == null) {
@@ -858,7 +858,7 @@ public final class Definition {
         }
     }
 
-    private final void addFieldInternal(String struct, String name, Type type) {
+    private void addFieldInternal(String struct, String name, Type type) {
         final Struct owner = structsMap.get(struct);
 
         if (owner == null) {

@@ -486,12 +486,12 @@ public class RecoverySourceHandler {
         }
 
         @Override
-        public final void write(int b) throws IOException {
+        public void write(int b) throws IOException {
             throw new UnsupportedOperationException("we can't send single bytes over the wire");
         }
 
         @Override
-        public final void write(byte[] b, int offset, int length) throws IOException {
+        public void write(byte[] b, int offset, int length) throws IOException {
             sendNextChunk(position, new BytesArray(b, offset, length), md.length() == position + length);
             position += length;
             assert md.length() >= position : "length: " + md.length() + " but positions was: " + position;

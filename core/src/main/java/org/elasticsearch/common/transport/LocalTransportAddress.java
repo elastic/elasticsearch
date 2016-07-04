@@ -36,7 +36,7 @@ public final class LocalTransportAddress implements TransportAddress {
     /**
      * generates a new unique address
      */
-    static public LocalTransportAddress buildUnique() {
+    public static LocalTransportAddress buildUnique() {
         return new LocalTransportAddress(Long.toString(transportAddressIdGenerator.incrementAndGet()));
     }
 

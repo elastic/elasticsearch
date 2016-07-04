@@ -420,7 +420,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 // weakest weights.
                 // A priority queue is used to trim vertices according to the size settings
                 // requested for each field.
-                private final void trimNewAdditions(Hop currentHop, ArrayList<Connection> newConnections, ArrayList<Vertex> newVertices) {
+                private void trimNewAdditions(Hop currentHop, ArrayList<Connection> newConnections, ArrayList<Vertex> newVertices) {
                     Set<Vertex> evictions = new HashSet<>();
                     
                     for (int k = 0; k < currentHop.getNumberVertexRequests(); k++) {
@@ -460,7 +460,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 // we can do something server-side here
 
                 // Helper method - compute the total signal of all scores in the search results
-                private final double getExpandTotalSignalStrength(Hop lastHop, Hop currentHop, Sampler sample) {
+                private double getExpandTotalSignalStrength(Hop lastHop, Hop currentHop, Sampler sample) {
                     double totalSignalOutput = 0;
                     for (int j = 0; j < lastHop.getNumberVertexRequests(); j++) {
                         VertexRequest lastVr = lastHop.getVertexRequest(j);
@@ -688,7 +688,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                     }
 
                     // Helper method - Provides a total signal strength for all terms connected to the initial query
-                    private final double getInitialTotalSignalStrength(Hop rootHop, Sampler sample) {
+                    private double getInitialTotalSignalStrength(Hop rootHop, Sampler sample) {
                         double totalSignalStrength = 0;
                         for (int i = 0; i < rootHop.getNumberVertexRequests(); i++) {
                             if (request.useSignificance()) {

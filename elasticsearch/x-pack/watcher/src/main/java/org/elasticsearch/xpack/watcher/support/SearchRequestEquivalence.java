@@ -29,7 +29,7 @@ public final class SearchRequestEquivalence {
     private SearchRequestEquivalence() {
     }
 
-    public final boolean equivalent(@Nullable SearchRequest a, @Nullable SearchRequest b) {
+    public boolean equivalent(@Nullable SearchRequest a, @Nullable SearchRequest b) {
         return a == b ? true : (a != null && b != null ? this.doEquivalent(a, b) : false);
     }
 

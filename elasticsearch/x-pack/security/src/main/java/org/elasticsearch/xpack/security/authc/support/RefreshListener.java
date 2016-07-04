@@ -10,12 +10,7 @@ package org.elasticsearch.xpack.security.authc.support;
  */
 public interface RefreshListener {
 
-    static final RefreshListener NOOP = new RefreshListener() {
-        @Override
-        public void onRefresh() {
-        }
-    };
+    RefreshListener NOOP = () -> {};
 
     void onRefresh();
-
 }

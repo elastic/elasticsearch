@@ -46,6 +46,11 @@ public abstract  class ClusterStateUpdateTask implements ClusterStateTaskConfig,
         return BatchResult.<ClusterStateUpdateTask>builder().successes(tasks).build(result);
     }
 
+    @Override
+    public String describeTasks(List<ClusterStateUpdateTask> tasks) {
+        return ""; // one of task, source is enough
+    }
+
     /**
      * Update the cluster state based on the current state. Return the *same instance* if no state
      * should be changed.

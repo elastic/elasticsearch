@@ -180,7 +180,7 @@ public class NodeJoinController extends AbstractComponent {
             electionContext.addIncomingJoin(node, callback);
             checkPendingJoinsAndElectIfNeeded();
         } else {
-            clusterService.submitStateUpdateTask("zen-disco-join(node " + node + "])",
+            clusterService.submitStateUpdateTask("zen-disco-node-join",
                 node, ClusterStateTaskConfig.build(Priority.URGENT),
                 joinTaskExecutor, new JoinTaskListener(callback, logger));
         }
@@ -279,7 +279,7 @@ public class NodeJoinController extends AbstractComponent {
             innerClose();
 
             Map<DiscoveryNode, ClusterStateTaskListener> tasks = getPendingAsTasks();
-            final String source = "zen-disco-join(elected_as_master, [" + tasks.size() + "] nodes joined)";
+            final String source = "zen-disco-elected-as-master ([" + tasks.size() + "] nodes joined)";
 
             tasks.put(BECOME_MASTER_TASK, joinProcessedListener);
             clusterService.submitStateUpdateTasks(source, tasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
@@ -288,7 +288,7 @@ public class NodeJoinController extends AbstractComponent {
         public synchronized void closeAndProcessPending(String reason) {
             innerClose();
             Map<DiscoveryNode, ClusterStateTaskListener> tasks = getPendingAsTasks();
-            final String source = "zen-disco-join(election stopped [" + reason + "] nodes joined";
+            final String source = "zen-disco-process-pending-joins [" +  reason + "]";
 
             tasks.put(FINISH_ELECTION_NOT_MASTER_TASK, joinProcessedListener);
             clusterService.submitStateUpdateTasks(source, tasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
@@ -381,12 +381,22 @@ public class NodeJoinController extends AbstractComponent {
 
     // a task indicated that the current node should become master, if no current master is known
     private static final DiscoveryNode BECOME_MASTER_TASK = new DiscoveryNode("_BECOME_MASTER_TASK_", LocalTransportAddress.buildUnique(),
-        Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
+        Collections.emptyMap(), Collections.emptySet(), Version.CURRENT) {
+        @Override
+        public String toString() {
+            return ""; // this is not really task , so don't log anything about it...
+        }
+    };
 
     // a task that is used to process pending joins without explicitly becoming a master and listening to the results
     // this task is used when election is stop without the local node becoming a master per se (though it might
     private static final DiscoveryNode FINISH_ELECTION_NOT_MASTER_TASK = new DiscoveryNode("_NOT_MASTER_TASK_",
-        LocalTransportAddress.buildUnique(), Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
+        LocalTransportAddress.buildUnique(), Collections.emptyMap(), Collections.emptySet(), Version.CURRENT) {
+            @Override
+            public String toString() {
+                return ""; // this is not really task , so don't log anything about it...
+            }
+    };
 
     class JoinTaskExecutor implements ClusterStateTaskExecutor<DiscoveryNode> {
 

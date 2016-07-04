@@ -47,6 +47,25 @@ public interface ClusterStateTaskExecutor<T> {
     }
 
     /**
+     * Builds a concise description of a list of tasks (to be used in logging etc.).
+     *
+     * Note that the tasks given are not necessarily the same as those that will be passed to {@link #execute(ClusterState, List)}.
+     * but are guaranteed to be a subset of them. This method can be called multiple times with different lists before execution.
+     * This allows groupd task description but the submitting source.
+     */
+    default String describeTasks(List<T> tasks) {
+        return tasks.stream().map(T::toString).reduce((s1,s2) -> {
+            if (s1.isEmpty()) {
+                return s2;
+            } else if (s2.isEmpty()) {
+                return s1;
+            } else {
+                return s1 + ", " + s2;
+            }
+        }).orElse("");
+    }
+
+    /**
      * Represents the result of a batched execution of cluster state update tasks
      * @param <T> the type of the cluster state update task
      */

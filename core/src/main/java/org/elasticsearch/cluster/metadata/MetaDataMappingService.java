@@ -82,6 +82,11 @@ public class MetaDataMappingService extends AbstractComponent {
             this.index = index;
             this.indexUUID = indexUUID;
         }
+
+        @Override
+        public String toString() {
+            return "[" + index + "][" + indexUUID + "]";
+        }
     }
 
     class RefreshTaskExecutor implements ClusterStateTaskExecutor<RefreshTask> {
@@ -198,7 +203,7 @@ public class MetaDataMappingService extends AbstractComponent {
      */
     public void refreshMapping(final String index, final String indexUUID) {
         final RefreshTask refreshTask = new RefreshTask(index, indexUUID);
-        clusterService.submitStateUpdateTask("refresh-mapping [" + index + "]",
+        clusterService.submitStateUpdateTask("refresh-mapping",
             refreshTask,
             ClusterStateTaskConfig.build(Priority.HIGH),
             refreshExecutor,
@@ -347,10 +352,15 @@ public class MetaDataMappingService extends AbstractComponent {
 
             return ClusterState.builder(currentState).metaData(builder).build();
         }
+
+        @Override
+        public String describeTasks(List<PutMappingClusterStateUpdateRequest> tasks) {
+            return tasks.stream().map(PutMappingClusterStateUpdateRequest::type).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
+        }
     }
 
     public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-        clusterService.submitStateUpdateTask("put-mapping [" + request.type() + "]",
+        clusterService.submitStateUpdateTask("put-mapping",
                 request,
                 ClusterStateTaskConfig.build(Priority.HIGH, request.masterNodeTimeout()),
                 putMappingExecutor,

@@ -406,7 +406,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             );
         } else {
             // process any incoming joins (they will fail because we are not the master)
-            nodeJoinController.stopElectionContext("not master");
+            nodeJoinController.stopElectionContext(masterNode + " elected");
 
             // send join request
             final boolean success = joinElectedMaster(masterNode);
@@ -506,7 +506,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             return;
         }
         if (localNodeMaster()) {
-            clusterService.submitStateUpdateTask("zen-disco-node_left(" + node + ")", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+            clusterService.submitStateUpdateTask("zen-disco-node-left(" + node + ")", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes()).remove(node.getId());
@@ -545,7 +545,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             // nothing to do here...
             return;
         }
-        clusterService.submitStateUpdateTask("zen-disco-node_failed(" + node + "), reason " + reason, new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+        clusterService.submitStateUpdateTask("zen-disco-node-failed(" + node + "), reason " + reason,
+            new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 if (currentState.nodes().nodeExists(node) == false) {
@@ -592,7 +593,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             // We only set the new value. If the master doesn't see enough nodes it will revoke it's mastership.
             return;
         }
-        clusterService.submitStateUpdateTask("zen-disco-minimum_master_nodes_changed", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+        clusterService.submitStateUpdateTask("zen-disco-mini-master-nodes-changed", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 // check if we have enough master nodes, if not, we need to move into joining the cluster again
@@ -632,7 +633,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         logger.info("master_left [{}], reason [{}]", cause, masterNode, reason);
 
-        clusterService.submitStateUpdateTask("zen-disco-master_failed (" + masterNode + ")", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+        clusterService.submitStateUpdateTask("master_failed (" + masterNode + ")", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
 
             @Override
             public boolean runOnlyOnMaster() {

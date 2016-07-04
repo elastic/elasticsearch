@@ -425,7 +425,8 @@ class InstallPluginCommand extends SettingCommand {
         // don't let luser install plugin as a module...
         // they might be unavoidably in maven central and are packaged up the same way)
         if (MODULES.contains(info.getName())) {
-            throw new UserException(ExitCodes.USAGE, "plugin '" + info.getName() + "' cannot be installed like this, it is a system module");
+            throw new UserException(
+                    ExitCodes.USAGE, "plugin '" + info.getName() + "' cannot be installed like this, it is a system module");
         }
 
         // check for jar hell before any copying

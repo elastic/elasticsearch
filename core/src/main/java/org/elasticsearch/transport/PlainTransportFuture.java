@@ -87,8 +87,8 @@ public class PlainTransportFuture<V extends TransportResponse> extends BaseFutur
         try {
             handler.handleResponse(response);
             set(response);
-        } catch (Throwable t) {
-            handleException(new ResponseHandlerFailureTransportException(t));
+        } catch (Exception e) {
+            handleException(new ResponseHandlerFailureTransportException(e));
         }
     }
 

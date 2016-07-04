@@ -142,7 +142,7 @@ public class RestFilterChainTests extends ESTestCase {
         assertThat(fakeRestChannel.errors().get(), equalTo(additionalContinueCount));
     }
 
-    private static enum Operation implements Callback {
+    private enum Operation implements Callback {
         CONTINUE_PROCESSING {
             @Override
             public void execute(RestRequest request, RestChannel channel, NodeClient client, RestFilterChain filterChain) throws Exception {
@@ -157,7 +157,7 @@ public class RestFilterChainTests extends ESTestCase {
         }
     }
 
-    private static interface Callback {
+    private interface Callback {
         void execute(RestRequest request, RestChannel channel, NodeClient client, RestFilterChain filterChain) throws Exception;
     }
 

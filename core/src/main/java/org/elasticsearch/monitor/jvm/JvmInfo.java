@@ -76,7 +76,7 @@ public class JvmInfo implements Streamable, ToXContent {
         try {
             Class<?> vmClass = Class.forName("sun.misc.VM");
             info.mem.directMemoryMax = (Long) vmClass.getMethod("maxDirectMemory").invoke(null);
-        } catch (Throwable t) {
+        } catch (Exception t) {
             // ignore
         }
         info.inputArguments = runtimeMXBean.getInputArguments().toArray(new String[runtimeMXBean.getInputArguments().size()]);

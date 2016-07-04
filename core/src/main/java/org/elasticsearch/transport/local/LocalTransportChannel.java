@@ -91,14 +91,14 @@ public class LocalTransportChannel implements TransportChannel {
     }
 
     @Override
-    public void sendResponse(Throwable error) throws IOException {
+    public void sendResponse(Exception exception) throws IOException {
         BytesStreamOutput stream = new BytesStreamOutput();
         writeResponseExceptionHeader(stream);
         RemoteTransportException tx = new RemoteTransportException(targetTransport.nodeName(),
-                targetTransport.boundAddress().boundAddresses()[0], action, error);
+                targetTransport.boundAddress().boundAddresses()[0], action, exception);
         stream.writeThrowable(tx);
         sendResponseData(BytesReference.toBytes(stream.bytes()));
-        sourceTransportServiceAdapter.onResponseSent(requestId, action, error);
+        sourceTransportServiceAdapter.onResponseSent(requestId, action, exception);
     }
 
     private void sendResponseData(byte[] data) {

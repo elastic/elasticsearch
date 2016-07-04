@@ -547,7 +547,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         try {
             List<T> inputs = toExecute.stream().map(tUpdateTask -> tUpdateTask.task).collect(Collectors.toList());
             batchResult = executor.execute(previousClusterState, inputs);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
             if (logger.isTraceEnabled()) {
                 logger.trace("failed to execute cluster state update in [{}], state:\nversion [{}], source [{}]\n{}{}{}", e, executionTime,
@@ -707,8 +707,8 @@ public class ClusterService extends AbstractLifecycleComponent {
             if (newClusterState.nodes().isLocalNodeElectedMaster()) {
                 try {
                     ackListener.onNodeAck(newClusterState.nodes().getLocalNode(), null);
-                } catch (Throwable t) {
-                    logger.debug("error while processing ack for master node [{}]", t, newClusterState.nodes().getLocalNode());
+                } catch (Exception e) {
+                    logger.debug("error while processing ack for master node [{}]", e, newClusterState.nodes().getLocalNode());
                 }
             }
 
@@ -726,9 +726,9 @@ public class ClusterService extends AbstractLifecycleComponent {
             logger.debug("processing [{}]: took [{}] done applying updated cluster_state (version: {}, uuid: {})", source, executionTime,
                     newClusterState.version(), newClusterState.stateUUID());
             warnAboutSlowTaskIfNeeded(executionTime, source);
-        } catch (Throwable t) {
+        } catch (Exception e) {
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
-            logger.warn("failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}", t, executionTime,
+            logger.warn("failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}", e, executionTime,
                     newClusterState.version(), newClusterState.stateUUID(), source, newClusterState.prettyPrint());
             // TODO: do we want to call updateTask.onFailure here?
         }
@@ -756,11 +756,12 @@ public class ClusterService extends AbstractLifecycleComponent {
         }
 
         @Override
-        public void onFailure(String source, Throwable t) {
+        public void onFailure(String source, Exception e) {
             try {
-                listener.onFailure(source, t);
-            } catch (Exception e) {
-                logger.error("exception thrown by listener notifying of failure [{}] from [{}]", e, t, source);
+                listener.onFailure(source, e);
+            } catch (Exception inner) {
+                inner.addSuppressed(e);
+                logger.error("exception thrown by listener notifying of failure from [{}]", inner, source);
             }
         }
 
@@ -805,11 +806,12 @@ public class ClusterService extends AbstractLifecycleComponent {
         }
 
         @Override
-        public void onAllNodesAcked(@Nullable Throwable t) {
+        public void onAllNodesAcked(@Nullable Exception e) {
             try {
-                listener.onAllNodesAcked(t);
-            } catch (Exception e) {
-                logger.error("exception thrown by listener while notifying on all nodes acked [{}]", e, t);
+                listener.onAllNodesAcked(e);
+            } catch (Exception inner) {
+                inner.addSuppressed(e);
+                logger.error("exception thrown by listener while notifying on all nodes acked", inner);
             }
         }
 
@@ -966,9 +968,9 @@ public class ClusterService extends AbstractLifecycleComponent {
         }
 
         @Override
-        public void onNodeAck(DiscoveryNode node, @Nullable Throwable t) {
+        public void onNodeAck(DiscoveryNode node, @Nullable Exception e) {
             for (Discovery.AckListener listener : listeners) {
-                listener.onNodeAck(node, t);
+                listener.onNodeAck(node, e);
             }
         }
 
@@ -987,7 +989,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         private final DiscoveryNodes nodes;
         private final long clusterStateVersion;
         private final Future<?> ackTimeoutCallback;
-        private Throwable lastFailure;
+        private Exception lastFailure;
 
         AckCountDownListener(AckedClusterStateTaskListener ackedTaskListener, long clusterStateVersion, DiscoveryNodes nodes,
                              ThreadPool threadPool) {
@@ -1013,18 +1015,18 @@ public class ClusterService extends AbstractLifecycleComponent {
         }
 
         @Override
-        public void onNodeAck(DiscoveryNode node, @Nullable Throwable t) {
+        public void onNodeAck(DiscoveryNode node, @Nullable Exception e) {
             if (!ackedTaskListener.mustAck(node)) {
                 //we always wait for the master ack anyway
                 if (!node.equals(nodes.getMasterNode())) {
                     return;
                 }
             }
-            if (t == null) {
+            if (e == null) {
                 logger.trace("ack received from node [{}], cluster_state update (version: {})", node, clusterStateVersion);
             } else {
-                this.lastFailure = t;
-                logger.debug("ack received from node [{}], cluster_state update (version: {})", t, node, clusterStateVersion);
+                this.lastFailure = e;
+                logger.debug("ack received from node [{}], cluster_state update (version: {})", e, node, clusterStateVersion);
             }
 
             if (countDown.countDown()) {

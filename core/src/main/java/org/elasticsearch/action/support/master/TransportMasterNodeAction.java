@@ -152,7 +152,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                         }
 
                         @Override
-                        public void onFailure(Throwable t) {
+                        public void onFailure(Exception t) {
                             if (t instanceof Discovery.FailedToCommitClusterStateException
                                     || (t instanceof NotMasterException)) {
                                 logger.debug("master could not publish cluster state or stepped down before publishing action [{}], scheduling a retry", t, actionName);

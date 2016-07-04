@@ -805,7 +805,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             super.doExecute(action, request, listener);
         }
 
-        private Throwable wrappedRejectedException() {
+        private Exception wrappedRejectedException() {
             Exception e = new EsRejectedExecutionException();
             int wraps = randomIntBetween(0, 4);
             for (int i = 0; i < wraps; i++) {

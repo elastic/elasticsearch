@@ -83,8 +83,8 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                listener.onFailure(t);
+            public void onFailure(String source, Exception e) {
+                listener.onFailure(e);
             }
 
             @Override
@@ -134,7 +134,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
         try {
             validate(request);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             listener.onFailure(e);
             return;
         }
@@ -150,8 +150,8 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                listener.onFailure(t);
+            public void onFailure(String source, Exception e) {
+                listener.onFailure(e);
             }
 
             @Override
@@ -280,7 +280,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
         void onResponse(PutResponse response);
 
-        void onFailure(Throwable t);
+        void onFailure(Exception e);
     }
 
     public static class PutRequest {
@@ -395,6 +395,6 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
         void onResponse(RemoveResponse response);
 
-        void onFailure(Throwable t);
+        void onFailure(Exception e);
     }
 }

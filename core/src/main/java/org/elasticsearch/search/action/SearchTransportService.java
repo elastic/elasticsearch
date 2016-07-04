@@ -115,7 +115,7 @@ public class SearchTransportService extends AbstractComponent {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
 
             }
         }, SearchFreeContextResponse::new));

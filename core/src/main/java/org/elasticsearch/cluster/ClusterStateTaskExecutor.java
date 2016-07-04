@@ -82,13 +82,13 @@ public interface ClusterStateTaskExecutor<T> {
                 return this;
             }
 
-            public Builder<T> failure(T task, Throwable t) {
-                return result(task, TaskResult.failure(t));
+            public Builder<T> failure(T task, Exception e) {
+                return result(task, TaskResult.failure(e));
             }
 
-            public Builder<T> failures(Iterable<T> tasks, Throwable t) {
+            public Builder<T> failures(Iterable<T> tasks, Exception e) {
                 for (T task : tasks) {
-                    failure(task, t);
+                    failure(task, e);
                 }
                 return this;
             }
@@ -106,7 +106,7 @@ public interface ClusterStateTaskExecutor<T> {
     }
 
     final class TaskResult {
-        private final Throwable failure;
+        private final Exception failure;
 
         private static final TaskResult SUCCESS = new TaskResult(null);
 
@@ -114,11 +114,11 @@ public interface ClusterStateTaskExecutor<T> {
             return SUCCESS;
         }
 
-        public static TaskResult failure(Throwable failure) {
+        public static TaskResult failure(Exception failure) {
             return new TaskResult(failure);
         }
 
-        private TaskResult(Throwable failure) {
+        private TaskResult(Exception failure) {
             this.failure = failure;
         }
 
@@ -126,7 +126,7 @@ public interface ClusterStateTaskExecutor<T> {
             return this == SUCCESS;
         }
 
-        public Throwable getFailure() {
+        public Exception getFailure() {
             assert !isSuccess();
             return failure;
         }
@@ -136,7 +136,7 @@ public interface ClusterStateTaskExecutor<T> {
          * @param onSuccess handler to invoke on success
          * @param onFailure handler to invoke on failure; the throwable passed through will not be null
          */
-        public void handle(Runnable onSuccess, Consumer<Throwable> onFailure) {
+        public void handle(Runnable onSuccess, Consumer<Exception> onFailure) {
             if (failure == null) {
                 onSuccess.run();
             } else {

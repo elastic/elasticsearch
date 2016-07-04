@@ -292,7 +292,7 @@ public class AsyncShardFetchTests extends ESTestCase {
                             } else {
                                 processAsyncFetch(shardId, Collections.singletonList(entry.response), null);
                             }
-                        } catch (Throwable e) {
+                        } catch (Exception e) {
                             logger.error("unexpected failure", e);
                         } finally {
                             if (entry != null) {

@@ -262,16 +262,16 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
                         }
 
                         @Override
-                        public void onFailure(Throwable t) {
-                            logger.debug("Ping execution failed", t);
+                        public void onFailure(Exception e) {
+                            logger.debug("Ping execution failed", e);
                             sendPingsHandler.close();
                         }
                     });
                 }
 
                 @Override
-                public void onFailure(Throwable t) {
-                    logger.debug("Ping execution failed", t);
+                public void onFailure(Exception e) {
+                    logger.debug("Ping execution failed", e);
                     sendPingsHandler.close();
                 }
             });
@@ -418,7 +418,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
                             // something went wrong on the other side
                             logger.debug("[{}] received a remote error as a response to ping {}", e,
                                     sendPingsHandler.id(), finalNodeToSend);
-                        } catch (Throwable e) {
+                        } catch (Exception e) {
                             logger.warn("[{}] failed send ping to {}", e, sendPingsHandler.id(), finalNodeToSend);
                         } finally {
                             if (!success) {

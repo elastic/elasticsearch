@@ -58,6 +58,8 @@
     -->
     <module name="ModifierOrder" />
 
+    <module name="RedundantModifier" />
+
     <!-- We don't use Java's builtin serialization and we suppress all warning
       about it. The flip side of that coin is that we shouldn't _try_ to use
       it. We can't outright ban it with ForbiddenApis because it complain about

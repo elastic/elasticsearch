@@ -58,8 +58,8 @@ public class BlockingClusterStatePublishResponseHandlerTests extends ESTestCase 
         }
 
         @Override
-        public void onFailure(Throwable t) {
-            logger.error("unexpected error", t);
+        public void onFailure(Exception e) {
+            logger.error("unexpected error", e);
         }
 
         @Override

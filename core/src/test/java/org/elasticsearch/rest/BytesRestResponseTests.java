@@ -41,10 +41,15 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- *
- */
 public class BytesRestResponseTests extends ESTestCase {
+
+    class UnknownException extends Exception {
+
+        public UnknownException(final String message, final Throwable cause) {
+            super(message, cause);
+        }
+
+    }
 
     public void testWithHeaders() throws Exception {
         RestRequest request = new FakeRestRequest();
@@ -61,7 +66,7 @@ public class BytesRestResponseTests extends ESTestCase {
         RestRequest request = new FakeRestRequest();
         RestChannel channel = new SimpleExceptionRestChannel(request);
 
-        Throwable t = new ElasticsearchException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
+        Exception t = new ElasticsearchException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
         BytesRestResponse response = new BytesRestResponse(channel, t);
         String text = response.content().utf8ToString();
         assertThat(text, containsString("ElasticsearchException[an error occurred reading data]"));
@@ -74,7 +79,7 @@ public class BytesRestResponseTests extends ESTestCase {
         RestRequest request = new FakeRestRequest();
         RestChannel channel = new DetailedExceptionRestChannel(request);
 
-        Throwable t = new ElasticsearchException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
+        Exception t = new ElasticsearchException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
         BytesRestResponse response = new BytesRestResponse(channel, t);
         String text = response.content().utf8ToString();
         assertThat(text, containsString("{\"type\":\"exception\",\"reason\":\"an error occurred reading data\"}"));
@@ -85,10 +90,10 @@ public class BytesRestResponseTests extends ESTestCase {
         RestRequest request = new FakeRestRequest();
         RestChannel channel = new SimpleExceptionRestChannel(request);
 
-        Throwable t = new Throwable("an error occurred reading data", new FileNotFoundException("/foo/bar"));
+        Exception t = new UnknownException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
         BytesRestResponse response = new BytesRestResponse(channel, t);
         String text = response.content().utf8ToString();
-        assertThat(text, not(containsString("Throwable[an error occurred reading data]")));
+        assertThat(text, not(containsString("UnknownException[an error occurred reading data]")));
         assertThat(text, not(containsString("FileNotFoundException[/foo/bar]")));
         assertThat(text, not(containsString("error_trace")));
         assertThat(text, containsString("\"error\":\"No ElasticsearchException found\""));
@@ -99,10 +104,10 @@ public class BytesRestResponseTests extends ESTestCase {
         request.params().put("error_trace", "true");
         RestChannel channel = new DetailedExceptionRestChannel(request);
 
-        Throwable t = new Throwable("an error occurred reading data", new FileNotFoundException("/foo/bar"));
+        Exception t = new UnknownException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
         BytesRestResponse response = new BytesRestResponse(channel, t);
         String text = response.content().utf8ToString();
-        assertThat(text, containsString("\"type\":\"throwable\",\"reason\":\"an error occurred reading data\""));
+        assertThat(text, containsString("\"type\":\"unknown_exception\",\"reason\":\"an error occurred reading data\""));
         assertThat(text, containsString("{\"type\":\"file_not_found_exception\""));
         assertThat(text, containsString("\"stack_trace\":\"[an error occurred reading data]"));
     }
@@ -111,14 +116,14 @@ public class BytesRestResponseTests extends ESTestCase {
         RestRequest request = new FakeRestRequest();
         RestChannel channel = new DetailedExceptionRestChannel(request);
         {
-            Throwable t = new ElasticsearchException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
-            BytesRestResponse response = new BytesRestResponse(channel, t);
+            Exception e = new ElasticsearchException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
+            BytesRestResponse response = new BytesRestResponse(channel, e);
             String text = response.content().utf8ToString();
             assertThat(text, containsString("{\"root_cause\":[{\"type\":\"exception\",\"reason\":\"an error occurred reading data\"}]"));
         }
         {
-            Throwable t = new FileNotFoundException("/foo/bar");
-            BytesRestResponse response = new BytesRestResponse(channel, t);
+            Exception e = new FileNotFoundException("/foo/bar");
+            BytesRestResponse response = new BytesRestResponse(channel, e);
             String text = response.content().utf8ToString();
             assertThat(text, containsString("{\"root_cause\":[{\"type\":\"file_not_found_exception\",\"reason\":\"/foo/bar\"}]"));
         }

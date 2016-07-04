@@ -216,7 +216,7 @@ public class MapperService extends AbstractIndexComponent {
                         requireRefresh = true;
                     }
                 }
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 logger.warn("[{}] failed to add mapping [{}], source [{}]", e, index(), mappingType, mappingSource);
                 throw e;
             }

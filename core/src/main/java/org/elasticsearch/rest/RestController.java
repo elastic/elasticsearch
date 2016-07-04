@@ -171,11 +171,12 @@ public class RestController extends AbstractLifecycleComponent {
         }
     }
 
-    public void sendErrorResponse(RestRequest request, RestChannel channel, Throwable e) {
+    public void sendErrorResponse(RestRequest request, RestChannel channel, Exception e) {
         try {
             channel.sendResponse(new BytesRestResponse(channel, e));
-        } catch (Throwable e1) {
-            logger.error("failed to send failure response for uri [{}]", e1, request.uri());
+        } catch (Exception inner) {
+            inner.addSuppressed(e);
+            logger.error("failed to send failure response for uri [{}]", inner, request.uri());
         }
     }
 

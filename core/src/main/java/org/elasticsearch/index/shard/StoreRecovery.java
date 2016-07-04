@@ -130,7 +130,7 @@ final class StoreRecovery {
         return false;
     }
 
-    final void addIndices(RecoveryState.Index indexRecoveryStats, Directory target, Directory... sources) throws IOException {
+    void addIndices(RecoveryState.Index indexRecoveryStats, Directory target, Directory... sources) throws IOException {
         target = new org.apache.lucene.store.HardlinkCopyDirectoryWrapper(target);
         try (IndexWriter writer = new IndexWriter(new StatsDirectoryWrapper(target, indexRecoveryStats),
             new IndexWriterConfig(null)
@@ -319,12 +319,13 @@ final class StoreRecovery {
                 store.failIfCorrupted();
                 try {
                     si = store.readLastCommittedSegmentsInfo();
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     String files = "_unknown_";
                     try {
                         files = Arrays.toString(store.directory().listAll());
-                    } catch (Throwable e1) {
-                        files += " (failure=" + ExceptionsHelper.detailedMessage(e1) + ")";
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        files += " (failure=" + ExceptionsHelper.detailedMessage(inner) + ")";
                     }
                     if (indexShouldExists) {
                         throw new IndexShardRecoveryException(shardId, "shard allocated for local recovery (post api), should exist, but doesn't, current files: " + files, e);
@@ -340,7 +341,7 @@ final class StoreRecovery {
                         Lucene.cleanLuceneIndex(store.directory());
                     }
                 }
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 throw new IndexShardRecoveryException(shardId, "failed to fetch index version after copying it over", e);
             }
             recoveryState.getIndex().updateVersion(version);
@@ -400,8 +401,8 @@ final class StoreRecovery {
             indexShard.skipTranslogRecovery();
             indexShard.finalizeRecovery();
             indexShard.postRecovery("restore done");
-        } catch (Throwable t) {
-            throw new IndexShardRestoreFailedException(shardId, "restore failed", t);
+        } catch (Exception e) {
+            throw new IndexShardRestoreFailedException(shardId, "restore failed", e);
         }
     }
 

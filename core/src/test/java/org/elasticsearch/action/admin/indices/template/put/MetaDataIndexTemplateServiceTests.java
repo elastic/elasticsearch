@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.template.put;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -172,8 +171,8 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                throwables.add(t);
+            public void onFailure(Exception e) {
+                throwables.add(e);
             }
         });
         return throwables;
@@ -205,8 +204,8 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                throwables.add(t);
+            public void onFailure(Exception e) {
+                throwables.add(e);
                 latch.countDown();
             }
         });

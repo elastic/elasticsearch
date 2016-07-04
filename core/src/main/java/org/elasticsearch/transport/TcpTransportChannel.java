@@ -50,31 +50,31 @@ public final class TcpTransportChannel<Channel> implements TransportChannel {
     }
 
     @Override
-    public final String getProfileName() {
+    public String getProfileName() {
         return profileName;
     }
 
     @Override
-    public final String action() {
+    public String action() {
         return this.action;
     }
 
     @Override
-    public final void sendResponse(TransportResponse response) throws IOException {
+    public void sendResponse(TransportResponse response) throws IOException {
         sendResponse(response, TransportResponseOptions.EMPTY);
     }
 
     @Override
-    public final void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
+    public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
         release();
         transport.sendResponse(version, channel, response, requestId, action, options);
 
     }
 
     @Override
-    public void sendResponse(Throwable error) throws IOException {
+    public void sendResponse(Exception exception) throws IOException {
         release();
-       transport.sendErrorResponse(version, channel, error, requestId, action);
+       transport.sendErrorResponse(version, channel, exception, requestId, action);
     }
 
     private void release() {
@@ -86,12 +86,12 @@ public final class TcpTransportChannel<Channel> implements TransportChannel {
     }
 
     @Override
-    public final long getRequestId() {
+    public long getRequestId() {
         return requestId;
     }
 
     @Override
-    public final String getChannelType() {
+    public String getChannelType() {
         return channelType;
     }
 

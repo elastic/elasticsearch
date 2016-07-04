@@ -176,8 +176,8 @@ public class IndexingMemoryController extends AbstractComponent implements Index
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                logger.warn("failed to write indexing buffer for shard [{}]; ignoring", t, shard.shardId());
+            public void onFailure(Exception e) {
+                logger.warn("failed to write indexing buffer for shard [{}]; ignoring", e, shard.shardId());
             }
         });
     }

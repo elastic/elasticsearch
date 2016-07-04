@@ -170,7 +170,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         finalFailures.incrementAndGet();
                         finalFailure.set(e);
                         latch.countDown();

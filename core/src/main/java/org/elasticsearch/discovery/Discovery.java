@@ -59,7 +59,7 @@ public interface Discovery extends LifecycleComponent {
     void publish(ClusterChangedEvent clusterChangedEvent, AckListener ackListener);
 
     interface AckListener {
-        void onNodeAck(DiscoveryNode node, @Nullable Throwable t);
+        void onNodeAck(DiscoveryNode node, @Nullable Exception e);
         void onTimeout();
     }
 

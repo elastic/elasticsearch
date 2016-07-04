@@ -267,9 +267,9 @@ public class NodeEnvironmentTests extends ESTestCase {
         if (randomBoolean()) {
             Thread t = new Thread(new AbstractRunnable() {
                 @Override
-                public void onFailure(Throwable t) {
-                    logger.error("unexpected error", t);
-                    threadException.set(t);
+                public void onFailure(Exception e) {
+                    logger.error("unexpected error", e);
+                    threadException.set(e);
                     latch.countDown();
                     blockLatch.countDown();
                 }

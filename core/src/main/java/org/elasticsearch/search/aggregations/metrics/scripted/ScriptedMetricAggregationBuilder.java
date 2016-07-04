@@ -31,6 +31,7 @@ import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
@@ -42,7 +43,8 @@ import java.util.Set;
 
 public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder<ScriptedMetricAggregationBuilder> {
 
-    public static final String NAME = InternalScriptedMetric.TYPE.name();
+    public static final String NAME = "scripted_metric";
+    private static final Type TYPE = new Type(NAME);
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField INIT_SCRIPT_FIELD = new ParseField("init_script");
@@ -59,14 +61,14 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     private Map<String, Object> params;
 
     public ScriptedMetricAggregationBuilder(String name) {
-        super(name, InternalScriptedMetric.TYPE);
+        super(name, TYPE);
     }
 
     /**
      * Read from a stream.
      */
     public ScriptedMetricAggregationBuilder(StreamInput in) throws IOException {
-        super(in, InternalScriptedMetric.TYPE);
+        super(in, TYPE);
         initScript = in.readOptionalWriteable(Script::new);
         mapScript = in.readOptionalWriteable(Script::new);
         combineScript = in.readOptionalWriteable(Script::new);

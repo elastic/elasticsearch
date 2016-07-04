@@ -22,6 +22,7 @@ package org.elasticsearch.common.lease;
 import org.apache.lucene.util.IOUtils;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 
 /** Utility methods to work with {@link Releasable}s. */
@@ -32,9 +33,9 @@ public enum Releasables {
         try {
             // this does the right thing with respect to add suppressed and not wrapping errors etc.
             IOUtils.close(releasables);
-        } catch (Throwable t) {
+        } catch (IOException e) {
             if (ignoreException == false) {
-                IOUtils.reThrowUnchecked(t);
+                throw new UncheckedIOException(e);
             }
         }
     }

@@ -458,9 +458,9 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
 
                 @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.warn("[{}] failed to restore snapshot", t, snapshotId);
-                    listener.onFailure(t);
+                public void onFailure(String source, Exception e) {
+                    logger.warn("[{}] failed to restore snapshot", e, snapshotId);
+                    listener.onFailure(e);
                 }
 
                 @Override
@@ -475,7 +475,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             });
 
 
-        } catch (Throwable e) {
+        } catch (Exception e) {
             logger.warn("[{}] failed to restore snapshot", e, request.repositoryName + ":" + request.snapshotName);
             listener.onFailure(e);
         }
@@ -598,9 +598,9 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             }
 
             @Override
-            public void onFailure(String source, @Nullable Throwable t) {
+            public void onFailure(String source, @Nullable Exception e) {
                 for (UpdateIndexShardRestoreStatusRequest request : drainedRequests) {
-                    logger.warn("[{}][{}] failed to update snapshot status to [{}]", t, request.snapshot(), request.shardId(), request.status());
+                    logger.warn("[{}][{}] failed to update snapshot status to [{}]", e, request.snapshot(), request.shardId(), request.status());
                 }
             }
 
@@ -667,7 +667,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                 for (ActionListener<RestoreCompletionResponse> listener : listeners) {
                     try {
                         listener.onResponse(new RestoreCompletionResponse(snapshot, restoreInfo));
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         logger.warn("failed to update snapshot status for [{}]", e, listener);
                     }
                 }
@@ -840,7 +840,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             if (event.localNodeMaster()) {
                 processDeletedIndices(event);
             }
-        } catch (Throwable t) {
+        } catch (Exception t) {
             logger.warn("Failed to update restore state ", t);
         }
     }

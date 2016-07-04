@@ -90,7 +90,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 assert current != null : "node " + node + " was removed in event but not in internal nodes";
                 try {
                     transportService.disconnectFromNode(node);
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     logger.warn("failed to disconnect to node [{}]", e, node);
                 }
             }
@@ -123,8 +123,8 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
     class ConnectionChecker extends AbstractRunnable {
 
         @Override
-        public void onFailure(Throwable t) {
-            logger.warn("unexpected error while checking for node reconnects", t);
+        public void onFailure(Exception e) {
+            logger.warn("unexpected error while checking for node reconnects", e);
         }
 
         protected void doRun() {

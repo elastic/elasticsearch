@@ -259,8 +259,8 @@ public class PendingClusterStatesQueueTests extends ESTestCase {
         }
 
         @Override
-        public void onNewClusterStateFailed(Throwable t) {
-            failure = t;
+        public void onNewClusterStateFailed(Exception e) {
+            failure = e;
         }
     }
 

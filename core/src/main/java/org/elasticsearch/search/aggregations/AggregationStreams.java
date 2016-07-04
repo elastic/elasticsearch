@@ -38,7 +38,7 @@ public class AggregationStreams {
     /**
      * A stream that knows how to read an aggregation from the input.
      */
-    public static interface Stream {
+    public interface Stream {
          InternalAggregation readResult(StreamInput in) throws IOException;
     }
 

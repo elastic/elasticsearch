@@ -59,7 +59,7 @@ public class RecoveryTargetTests extends ESTestCase {
         private T lastRead;
         private final AtomicBoolean shouldStop;
         private final T source;
-        final AtomicReference<Throwable> error = new AtomicReference<>();
+        final AtomicReference<Exception> error = new AtomicReference<>();
         final Version streamVersion;
 
         Streamer(AtomicBoolean shouldStop, T source) {
@@ -73,7 +73,7 @@ public class RecoveryTargetTests extends ESTestCase {
         }
 
         public T lastRead() throws Throwable {
-            Throwable t = error.get();
+            Exception t = error.get();
             if (t != null) {
                 throw t;
             }
@@ -105,8 +105,8 @@ public class RecoveryTargetTests extends ESTestCase {
                     serializeDeserialize();
                 }
                 serializeDeserialize();
-            } catch (Throwable t) {
-                error.set(t);
+            } catch (Exception e) {
+                error.set(e);
             }
         }
     }

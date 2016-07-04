@@ -199,9 +199,9 @@ public class NodeJoinControllerTests extends ESTestCase {
         final SimpleFuture electionFuture = new SimpleFuture("master election");
         final Thread masterElection = new Thread(new AbstractRunnable() {
             @Override
-            public void onFailure(Throwable t) {
-                logger.error("unexpected error from waitToBeElectedAsMaster", t);
-                electionFuture.markAsFailed(t);
+            public void onFailure(Exception e) {
+                logger.error("unexpected error from waitToBeElectedAsMaster", e);
+                electionFuture.markAsFailed(e);
             }
 
             @Override
@@ -249,9 +249,9 @@ public class NodeJoinControllerTests extends ESTestCase {
         final SimpleFuture electionFuture = new SimpleFuture("master election");
         final Thread masterElection = new Thread(new AbstractRunnable() {
             @Override
-            public void onFailure(Throwable t) {
-                logger.error("unexpected error from waitToBeElectedAsMaster", t);
-                electionFuture.markAsFailed(t);
+            public void onFailure(Exception e) {
+                logger.error("unexpected error from waitToBeElectedAsMaster", e);
+                electionFuture.markAsFailed(e);
             }
 
             @Override
@@ -432,9 +432,9 @@ public class NodeJoinControllerTests extends ESTestCase {
             nodes.add(node);
             threads[i] = new Thread(new AbstractRunnable() {
                 @Override
-                public void onFailure(Throwable t) {
-                    logger.error("unexpected error in join thread", t);
-                    backgroundExceptions.add(t);
+                public void onFailure(Exception e) {
+                    logger.error("unexpected error in join thread", e);
+                    backgroundExceptions.add(e);
                 }
 
                 @Override
@@ -475,9 +475,9 @@ public class NodeJoinControllerTests extends ESTestCase {
             nodes.add(node);
             threads[i] = new Thread(new AbstractRunnable() {
                 @Override
-                public void onFailure(Throwable t) {
-                    logger.error("unexpected error in join thread", t);
-                    backgroundExceptions.add(t);
+                public void onFailure(Exception e) {
+                    logger.error("unexpected error in join thread", e);
+                    backgroundExceptions.add(e);
                 }
 
                 @Override
@@ -626,9 +626,9 @@ public class NodeJoinControllerTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                logger.error("unexpected error for {}", t, future);
-                future.markAsFailed(t);
+            public void onFailure(Exception e) {
+                logger.error("unexpected error for {}", e, future);
+                future.markAsFailed(e);
             }
         });
         return future;

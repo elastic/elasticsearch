@@ -20,15 +20,14 @@
 package org.elasticsearch.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.fieldstats.FieldStats;
@@ -53,8 +52,8 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -132,9 +131,6 @@ import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 
-/**
- *
- */
 public class IndicesService extends AbstractLifecycleComponent
     implements IndicesClusterStateService.AllocatedIndices<IndexShard, IndexService>, IndexService.ShardStoreDeleter {
 
@@ -221,7 +217,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indicesStopExecutor.execute(() -> {
                 try {
                     removeIndex(index, "shutdown", false);
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     logger.warn("failed to remove index on stop [{}]", e, index);
                 } finally {
                     latch.countDown();
@@ -477,7 +473,7 @@ public class IndicesService extends AbstractLifecycleComponent
     public void removeIndex(Index index, String reason) {
         try {
             removeIndex(index, reason, false);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             logger.warn("failed to remove index ({})", e, reason);
         }
     }
@@ -568,7 +564,7 @@ public class IndicesService extends AbstractLifecycleComponent
     public void deleteIndex(Index index, String reason) {
         try {
             removeIndex(index, reason, true);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             logger.warn("failed to delete index ({})", e, reason);
         }
     }

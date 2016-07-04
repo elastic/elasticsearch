@@ -155,7 +155,7 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
     /**
      * Compares the two references using the given int function.
      */
-    private static final int compareIterators(final BytesReference a, final BytesReference b, final ToIntBiFunction<BytesRef, BytesRef> f) {
+    private static int compareIterators(final BytesReference a, final BytesReference b, final ToIntBiFunction<BytesRef, BytesRef> f) {
         try {
             // we use the iterators since it's a 0-copy comparison where possible!
             final long lengthToCompare = Math.min(a.length(), b.length());
@@ -201,7 +201,7 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
         }
     }
 
-    private static final void advance(final BytesRef ref, final int length) {
+    private static void advance(final BytesRef ref, final int length) {
         assert ref.length >= length : " ref.length: " + ref.length + " length: " + length;
         assert ref.offset+length < ref.bytes.length || (ref.offset+length == ref.bytes.length && ref.length-length == 0)
             : "offset: " + ref.offset + " ref.bytes.length: " + ref.bytes.length + " length: " + length + " ref.length: " + ref.length;

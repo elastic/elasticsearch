@@ -104,13 +104,13 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
     void processBulkIndexRequest(Task task, BulkRequest original, String action, ActionFilterChain chain, ActionListener<BulkResponse> listener) {
         long ingestStartTimeInNanos = System.nanoTime();
         BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
-        executionService.executeBulkRequest(() -> bulkRequestModifier, (indexRequest, throwable) -> {
-            logger.debug("failed to execute pipeline [{}] for document [{}/{}/{}]", throwable, indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id());
-            bulkRequestModifier.markCurrentItemAsFailed(throwable);
-        }, (throwable) -> {
-            if (throwable != null) {
-                logger.error("failed to execute pipeline for a bulk request", throwable);
-                listener.onFailure(throwable);
+        executionService.executeBulkRequest(() -> bulkRequestModifier, (indexRequest, exception) -> {
+            logger.debug("failed to execute pipeline [{}] for document [{}/{}/{}]", exception, indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id());
+            bulkRequestModifier.markCurrentItemAsFailed(exception);
+        }, (exception) -> {
+            if (exception != null) {
+                logger.error("failed to execute pipeline for a bulk request", exception);
+                listener.onFailure(exception);
             } else {
                 long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - ingestStartTimeInNanos);
                 BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
@@ -188,7 +188,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         actionListener.onFailure(e);
                     }
                 };
@@ -197,7 +197,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
             }
         }
 
-        void markCurrentItemAsFailed(Throwable e) {
+        void markCurrentItemAsFailed(Exception e) {
             IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(currentSlot);
             // We hit a error during preprocessing a request, so we:
             // 1) Remember the request item slot from the bulk, so that we're done processing all requests we know what failed
@@ -233,7 +233,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
         }
 
         @Override
-        public void onFailure(Throwable e) {
+        public void onFailure(Exception e) {
             actionListener.onFailure(e);
         }
     }

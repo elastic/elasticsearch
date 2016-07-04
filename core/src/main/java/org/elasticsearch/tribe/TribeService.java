@@ -264,13 +264,14 @@ public class TribeService extends AbstractLifecycleComponent {
             try {
                 node.injector().getInstance(ClusterService.class).add(new TribeClusterStateListener(node));
                 node.start();
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 // calling close is safe for non started nodes, we can just iterate over all
                 for (Node otherNode : nodes) {
                     try {
                         otherNode.close();
-                    } catch (Throwable t) {
-                        logger.warn("failed to close node {} on failed start", t, otherNode);
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        logger.warn("failed to close node {} on failed start", inner, otherNode);
                     }
                 }
                 if (e instanceof RuntimeException) {
@@ -291,8 +292,8 @@ public class TribeService extends AbstractLifecycleComponent {
         for (Node node : nodes) {
             try {
                 node.close();
-            } catch (Throwable t) {
-                logger.warn("failed to close node {}", t, node);
+            } catch (Exception e) {
+                logger.warn("failed to close node {}", e, node);
             }
         }
     }
@@ -316,7 +317,7 @@ public class TribeService extends AbstractLifecycleComponent {
                     event,
                     ClusterStateTaskConfig.build(Priority.NORMAL),
                     executor,
-                    (source, t) -> logger.warn("failed to process [{}]", t, source));
+                    (source, e) -> logger.warn("failed to process [{}]", e, source));
         }
     }
 
@@ -342,8 +343,8 @@ public class TribeService extends AbstractLifecycleComponent {
                 // we only need to apply the latest cluster state update
                 accumulator = applyUpdate(accumulator, tasks.get(tasks.size() - 1));
                 builder.successes(tasks);
-            } catch (Throwable t) {
-                builder.failures(tasks, t);
+            } catch (Exception e) {
+                builder.failures(tasks, e);
             }
 
             return builder.build(accumulator);

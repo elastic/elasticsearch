@@ -172,7 +172,7 @@ public class GeoHashUtils {
         return BitUtil.flipFlop(((geoHashLong >>> 4) << odd) << (((12 - level) * 5) + (MORTON_OFFSET - odd)));
     }
 
-    private static final char encode(int x, int y) {
+    private static char encode(int x, int y) {
         return BASE_32[((x & 1) + ((y & 1) * 2) + ((x & 2) * 2) + ((y & 2) * 4) + ((x & 4) * 4)) % 32];
     }
 

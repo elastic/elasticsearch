@@ -55,7 +55,7 @@ public class MasterFaultDetection extends FaultDetection {
 
     public static final String MASTER_PING_ACTION_NAME = "internal:discovery/zen/fd/master_ping";
 
-    public static interface Listener {
+    public interface Listener {
 
         /** called when pinging the master failed, like a timeout, transport disconnects etc */
         void onMasterFailure(DiscoveryNode masterNode, Throwable cause, String reason);
@@ -378,14 +378,15 @@ public class MasterFaultDetection extends FaultDetection {
                     }
 
                     @Override
-                    public void onFailure(String source, @Nullable Throwable t) {
-                        if (t == null) {
-                            t = new ElasticsearchException("unknown error while processing ping");
+                    public void onFailure(String source, @Nullable Exception e) {
+                        if (e == null) {
+                            e = new ElasticsearchException("unknown error while processing ping");
                         }
                         try {
-                            channel.sendResponse(t);
-                        } catch (IOException e) {
-                            logger.warn("error while sending ping response", e);
+                            channel.sendResponse(e);
+                        } catch (IOException inner) {
+                            inner.addSuppressed(e);
+                            logger.warn("error while sending ping response", inner);
                         }
                     }
 

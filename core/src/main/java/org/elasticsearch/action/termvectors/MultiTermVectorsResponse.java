@@ -40,13 +40,13 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
         private String index;
         private String type;
         private String id;
-        private Throwable cause;
+        private Exception cause;
 
         Failure() {
 
         }
 
-        public Failure(String index, String type, String id, Throwable cause) {
+        public Failure(String index, String type, String id, Exception cause) {
             this.index = index;
             this.type = type;
             this.id = id;
@@ -77,7 +77,7 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
         /**
          * The failure cause.
          */
-        public Throwable getCause() {
+        public Exception getCause() {
             return this.cause;
         }
 
@@ -92,7 +92,7 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
             index = in.readString();
             type = in.readOptionalString();
             id = in.readString();
-            cause = in.readThrowable();
+            cause = in.readException();
         }
 
         @Override
@@ -132,7 +132,7 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
                 builder.field(Fields._INDEX, failure.getIndex());
                 builder.field(Fields._TYPE, failure.getType());
                 builder.field(Fields._ID, failure.getId());
-                ElasticsearchException.renderThrowable(builder, params, failure.getCause());
+                ElasticsearchException.renderException(builder, params, failure.getCause());
                 builder.endObject();
             } else {
                 TermVectorsResponse getResponse = response.getResponse();

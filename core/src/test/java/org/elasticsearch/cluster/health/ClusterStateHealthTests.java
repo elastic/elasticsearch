@@ -118,8 +118,8 @@ public class ClusterStateHealthTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                logger.warn("unexpected failure", t);
+            public void onFailure(String source, Exception e) {
+                logger.warn("unexpected failure", e);
             }
         });
 

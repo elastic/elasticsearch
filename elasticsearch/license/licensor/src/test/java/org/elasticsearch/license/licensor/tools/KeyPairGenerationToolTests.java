@@ -11,9 +11,7 @@ import java.nio.file.Path;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.UserError;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.cli.UserException;
 
 import static org.hamcrest.CoreMatchers.containsString;
 
@@ -27,12 +25,12 @@ public class KeyPairGenerationToolTests extends CommandTestCase {
     public void testMissingKeyPaths() throws Exception {
         Path exists = createTempFile("", "existing");
         Path dne = createTempDir().resolve("dne");
-        UserError e = expectThrows(UserError.class, () -> {
+        UserException e = expectThrows(UserException.class, () -> {
             execute("--publicKeyPath", exists.toString(), "--privateKeyPath", dne.toString());
         });
         assertThat(e.getMessage(), containsString("existing"));
         assertEquals(ExitCodes.USAGE, e.exitCode);
-        e = expectThrows(UserError.class, () -> {
+        e = expectThrows(UserException.class, () -> {
             execute("--publicKeyPath", dne.toString(), "--privateKeyPath", exists.toString());
         });
         assertThat(e.getMessage(), containsString("existing"));

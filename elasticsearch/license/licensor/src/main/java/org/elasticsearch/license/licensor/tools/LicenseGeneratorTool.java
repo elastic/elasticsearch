@@ -12,7 +12,7 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.UserError;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
@@ -62,9 +62,9 @@ public class LicenseGeneratorTool extends Command {
         Path publicKeyPath = parsePath(publicKeyPathOption.value(options));
         Path privateKeyPath = parsePath(privateKeyPathOption.value(options));
         if (Files.exists(privateKeyPath) == false) {
-            throw new UserError(ExitCodes.USAGE, privateKeyPath + " does not exist");
+            throw new UserException(ExitCodes.USAGE, privateKeyPath + " does not exist");
         } else if (Files.exists(publicKeyPath) == false) {
-            throw new UserError(ExitCodes.USAGE, publicKeyPath + " does not exist");
+            throw new UserException(ExitCodes.USAGE, publicKeyPath + " does not exist");
         }
 
         final License licenseSpec;
@@ -73,11 +73,11 @@ public class LicenseGeneratorTool extends Command {
         } else if (options.has(licenseFileOption)) {
             Path licenseSpecPath = parsePath(licenseFileOption.value(options));
             if (Files.exists(licenseSpecPath) == false) {
-                throw new UserError(ExitCodes.USAGE, licenseSpecPath + " does not exist");
+                throw new UserException(ExitCodes.USAGE, licenseSpecPath + " does not exist");
             }
             licenseSpec = License.fromSource(Files.readAllBytes(licenseSpecPath));
         } else {
-            throw new UserError(ExitCodes.USAGE, "Must specify either --license or --licenseFile");
+            throw new UserException(ExitCodes.USAGE, "Must specify either --license or --licenseFile");
         }
 
         // sign

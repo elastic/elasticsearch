@@ -169,18 +169,25 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
 
         assertThat(response.getAllFieldStats().get("byte").getMinValue(), equalTo(minByte));
         assertThat(response.getAllFieldStats().get("byte").getMaxValue(), equalTo(maxByte));
+        assertThat(response.getAllFieldStats().get("byte").getDisplayType(), equalTo("integer"));
         assertThat(response.getAllFieldStats().get("short").getMinValue(), equalTo(minShort));
         assertThat(response.getAllFieldStats().get("short").getMaxValue(), equalTo(maxShort));
+        assertThat(response.getAllFieldStats().get("short").getDisplayType(), equalTo("integer"));
         assertThat(response.getAllFieldStats().get("integer").getMinValue(), equalTo(minInt));
         assertThat(response.getAllFieldStats().get("integer").getMaxValue(), equalTo(maxInt));
+        assertThat(response.getAllFieldStats().get("integer").getDisplayType(), equalTo("integer"));
         assertThat(response.getAllFieldStats().get("long").getMinValue(), equalTo(minLong));
         assertThat(response.getAllFieldStats().get("long").getMaxValue(), equalTo(maxLong));
+        assertThat(response.getAllFieldStats().get("long").getDisplayType(), equalTo("integer"));
         assertThat(response.getAllFieldStats().get("half_float").getMinValue(), equalTo(minHalfFloat));
         assertThat(response.getAllFieldStats().get("half_float").getMaxValue(), equalTo(maxHalfFloat));
+        assertThat(response.getAllFieldStats().get("half_float").getDisplayType(), equalTo("float"));
         assertThat(response.getAllFieldStats().get("float").getMinValue(), equalTo(minFloat));
         assertThat(response.getAllFieldStats().get("float").getMaxValue(), equalTo(maxFloat));
+        assertThat(response.getAllFieldStats().get("float").getDisplayType(), equalTo("float"));
         assertThat(response.getAllFieldStats().get("double").getMinValue(), equalTo(minDouble));
         assertThat(response.getAllFieldStats().get("double").getMaxValue(), equalTo(maxDouble));
+        assertThat(response.getAllFieldStats().get("double").getDisplayType(), equalTo("float"));
     }
 
     public void testFieldStatsIndexLevel() throws Exception {
@@ -207,6 +214,8 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
         assertThat(response.getIndicesMergedFieldStats().get("_all").get("value").getMinValue(), equalTo(-10L));
         assertThat(response.getIndicesMergedFieldStats().get("_all").get("value").getMaxValue(), equalTo(300L));
+        assertThat(response.getIndicesMergedFieldStats().get("_all").get("value").getDisplayType(),
+            equalTo("integer"));
 
         // Level: cluster
         response = client().prepareFieldStats().setFields("value").setLevel("cluster").get();
@@ -216,6 +225,8 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
         assertThat(response.getIndicesMergedFieldStats().get("_all").get("value").getMinValue(), equalTo(-10L));
         assertThat(response.getIndicesMergedFieldStats().get("_all").get("value").getMaxValue(), equalTo(300L));
+        assertThat(response.getIndicesMergedFieldStats().get("_all").get("value").getDisplayType(),
+            equalTo("integer"));
 
         // Level: indices
         response = client().prepareFieldStats().setFields("value").setLevel("indices").get();
@@ -228,6 +239,8 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
         assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMaxValue(), equalTo(200L));
         assertThat(response.getIndicesMergedFieldStats().get("test3").get("value").getMinValue(), equalTo(201L));
         assertThat(response.getIndicesMergedFieldStats().get("test3").get("value").getMaxValue(), equalTo(300L));
+        assertThat(response.getIndicesMergedFieldStats().get("test3").get("value").getDisplayType(),
+            equalTo("integer"));
 
         // Illegal level option:
         try {
@@ -259,7 +272,7 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
         assertThat(response.getIndicesMergedFieldStats().get("_all").size(), equalTo(0));
         assertThat(response.getConflicts().size(), equalTo(1));
         assertThat(response.getConflicts().get("value"),
-            equalTo("Field [value] of type [whole-number] conflicts with existing field of type [text] " +
+            equalTo("Field [value] of type [integer] conflicts with existing field of type [string] " +
                 "in other index."));
 
         response = client().prepareFieldStats().setFields("value").setLevel("indices").get();
@@ -296,7 +309,7 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
         assertThat(response.getIndicesMergedFieldStats().get("_all").get("value2").getMaxValue(), equalTo(1L));
         assertThat(response.getConflicts().size(), equalTo(1));
         assertThat(response.getConflicts().get("value"),
-            equalTo("Field [value] of type [whole-number] conflicts with existing field of type [text] " +
+            equalTo("Field [value] of type [integer] conflicts with existing field of type [string] " +
                 "in other index."));
 
         response = client().prepareFieldStats().setFields("value", "value2").setLevel("indices").get();
@@ -310,6 +323,8 @@ public class FieldStatsIntegrationIT extends ESIntegTestCase {
             equalTo(new BytesRef("a")));
         assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMaxValue(),
             equalTo(new BytesRef("b")));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getDisplayType(),
+            equalTo("string"));
     }
 
     public void testFieldStatsFiltering() throws Exception {

@@ -116,9 +116,9 @@ public class TransportFieldStatsAction extends
                                 Arrays.sort(fields, (o1, o2) -> Byte.compare(o1.getType(), o2.getType()));
                                 conflicts.put(entry.getKey(),
                                     "Field [" + entry.getKey() + "] of type [" +
-                                        FieldStats.typeName(fields[0].getType()) +
+                                        fields[0].getDisplayType() +
                                         "] conflicts with existing field of type [" +
-                                        FieldStats.typeName(fields[1].getType()) +
+                                        fields[1].getDisplayType() +
                                         "] in other index.");
                             }
                         } else {

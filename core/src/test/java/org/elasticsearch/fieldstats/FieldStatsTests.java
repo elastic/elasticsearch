@@ -89,6 +89,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
             equalTo(String.format(Locale.ENGLISH, "%03d", 0)));
         assertThat(result.getAllFieldStats().get("field").getMaxValueAsString(),
             equalTo(String.format(Locale.ENGLISH, "%03d", 10)));
+        assertThat(result.getAllFieldStats().get("field").getDisplayType(),
+            equalTo("string"));
     }
 
     public void testDouble() {
@@ -106,6 +108,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(-1d));
         assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(9d));
         assertThat(result.getAllFieldStats().get(fieldName).getMinValueAsString(), equalTo(Double.toString(-1)));
+        assertThat(result.getAllFieldStats().get(fieldName).getDisplayType(), equalTo("float"));
     }
 
     public void testHalfFloat() {
@@ -124,6 +127,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(9d));
         assertThat(result.getAllFieldStats().get(fieldName).getMinValueAsString(), equalTo(Float.toString(-1)));
         assertThat(result.getAllFieldStats().get(fieldName).getMaxValueAsString(), equalTo(Float.toString(9)));
+        assertThat(result.getAllFieldStats().get(fieldName).getDisplayType(), equalTo("float"));
     }
 
     public void testFloat() {
@@ -169,6 +173,11 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
             equalTo(java.lang.Long.toString(max)));
         assertThat(result.getAllFieldStats().get(fieldName).isSearchable(), equalTo(true));
         assertThat(result.getAllFieldStats().get(fieldName).isAggregatable(), equalTo(true));
+        if (fieldType.equals("float") || fieldType.equals("double") || fieldType.equals("half-float")) {
+            assertThat(result.getAllFieldStats().get(fieldName).getDisplayType(), equalTo("float"));
+        } else {
+            assertThat(result.getAllFieldStats().get(fieldName).getDisplayType(), equalTo("integer"));
+        }
 
         client().admin().indices().prepareDelete("test").get();
         client().admin().indices().prepareDelete("test1").get();
@@ -191,6 +200,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertThat(stat.getSumTotalTermFreq(), equalTo(4L));
         assertThat(stat.isSearchable(), equalTo(true));
         assertThat(stat.isAggregatable(), equalTo(false));
+        assertThat(stat.getDisplayType(), equalTo("integer"));
     }
 
     public void testMerge_notAvailable() {
@@ -209,6 +219,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertThat(stat.getSumTotalTermFreq(), equalTo(-1L));
         assertThat(stat.isSearchable(), equalTo(true));
         assertThat(stat.isAggregatable(), equalTo(true));
+        assertThat(stat.getDisplayType(), equalTo("integer"));
 
         stats.add(new FieldStats.Long(1, -1L, -1L, -1L, true, true, 1L, 1L));
         stat = stats.remove(0);
@@ -221,6 +232,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertThat(stat.getSumTotalTermFreq(), equalTo(-1L));
         assertThat(stat.isSearchable(), equalTo(true));
         assertThat(stat.isAggregatable(), equalTo(true));
+        assertThat(stat.getDisplayType(), equalTo("integer"));
     }
 
     public void testNumberFiltering() {
@@ -350,6 +362,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
             equalTo(dateTime1Str));
         assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(),
             equalTo(dateTime2Str));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getDisplayType(),
+            equalTo("date"));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -370,6 +384,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
             equalTo(dateTime1.getMillis()));
         assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValueAsString(),
             equalTo(dateTime1Str));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getDisplayType(),
+            equalTo("date"));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -402,6 +418,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
             equalTo(dateTime2.getMillis()));
         assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(),
             equalTo(dateTime2Str));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getDisplayType(),
+            equalTo("date"));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -417,6 +435,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
             equalTo(dateTime1Str));
         assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(),
             equalTo(dateTime2Str));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getDisplayType(),
+            equalTo("date"));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -432,6 +452,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
             equalTo(dateTime1Str));
         assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(),
             equalTo(dateTime2Str));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getDisplayType(),
+            equalTo("date"));
     }
 
     public void testDateFiltering_optionalFormat() {
@@ -453,6 +475,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
         assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(),
             equalTo("2014-01-02T00:00:00.000Z"));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getDisplayType(),
+            equalTo("date"));
 
         try {
             client().prepareFieldStats()
@@ -487,6 +511,6 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
             .get();
         assertThat(response.getAllFieldStats().size(), equalTo(1));
         assertThat(response.getAllFieldStats().get("_type").isSearchable(), equalTo(true));
-        // assertThat(response.getAllFieldStats().get("_type").isAggregatable(), equalTo(true));
+        assertThat(response.getAllFieldStats().get("_type").isAggregatable(), equalTo(true));
     }
 }

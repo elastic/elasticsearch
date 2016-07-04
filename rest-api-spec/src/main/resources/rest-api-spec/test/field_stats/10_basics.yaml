@@ -54,6 +54,7 @@ setup:
   - match: { indices._all.fields.foo.doc_count: 2 }
   - match: { indices._all.fields.foo.min_value: "babar" }
   - match: { indices._all.fields.foo.max_value: "bar" }
+  - match: { indices._all.fields.foo.type: "string" }
   - is_false: indices._all.fields.foo.min_value_as_string
   - is_false: indices._all.fields.foo.max_value_as_string
   - match: { indices._all.fields.foo.searchable: true }
@@ -66,6 +67,7 @@ setup:
   - match: { indices._all.fields.number.min_value_as_string: "123" }
   - match: { indices._all.fields.number.max_value: 456 }
   - match: { indices._all.fields.number.max_value_as_string: "456" }
+  - match: { indices._all.fields.number.type: "integer" }
   - is_false: conflicts
 
 ---
@@ -83,6 +85,7 @@ setup:
   - is_false: indices.test_1.fields.foo.max_value_as_string
   - match: { indices.test_1.fields.foo.searchable: true }
   - match: { indices.test_1.fields.foo.aggregatable: false }
+  - match: { indices.test_1.fields.foo.type: "string" }
   - match: { indices.test_1.fields.number.max_doc: 1 }
   - match: { indices.test_1.fields.number.doc_count: 1 }
   - match: { indices.test_1.fields.number.searchable: true }
@@ -91,14 +94,17 @@ setup:
   - match: { indices.test_1.fields.number.min_value_as_string: "123" }
   - match: { indices.test_1.fields.number.max_value: 123 }
   - match: { indices.test_1.fields.number.max_value_as_string: "123" }
+  - match: { indices.test_1.fields.number.type: "integer" }
   - match: { indices.test_2.fields.foo.max_doc: 1 }
   - match: { indices.test_2.fields.foo.doc_count: 1 }
   - match: { indices.test_2.fields.foo.min_value: "babar" }
   - match: { indices.test_2.fields.foo.max_value: "babar" }
+  - match: { indices.test_2.fields.foo.type: "string" }
   - is_false: indices.test_2.fields.foo.min_value_as_string
   - is_false: indices.test_2.fields.foo.max_value_as_string
   - match: { indices.test_2.fields.foo.searchable: true }
   - match: { indices.test_2.fields.foo.aggregatable: false }
+  - match: { indices.test_2.fields.foo.type: "string" }
   - match: { indices.test_2.fields.number.max_doc: 1 }
   - match: { indices.test_2.fields.number.doc_count: 1 }
   - match: { indices.test_2.fields.number.searchable: true }
@@ -107,6 +113,7 @@ setup:
   - match: { indices.test_2.fields.number.min_value_as_string: "456" }
   - match: { indices.test_2.fields.number.max_value: 456 }
   - match: { indices.test_2.fields.number.max_value_as_string: "456" }
+  - match: { indices.test_2.fields.number.type: "integer" }
   - is_false: conflicts
 
 ---
@@ -124,6 +131,7 @@ setup:
   - match: { indices.test_1.fields.foo.aggregatable: false }
   - match: { indices.test_1.fields.foo.min_value: "bar" }
   - match: { indices.test_1.fields.foo.max_value: "bar" }
+  - match: { indices.test_1.fields.foo.type: "string" }
   - is_false: indices.test_1.fields.number
   - is_false: conflicts
 
@@ -156,6 +164,7 @@ setup:
   - match: { indices._all.fields.foo.max_value: "bar" }
   - match: { indices._all.fields.foo.searchable: true }
   - match: { indices._all.fields.foo.aggregatable: false }
+  - match: { indices._all.fields.foo.type: "string" }
   - match: { indices._all.fields.number.max_doc: 2 }
   - match: { indices._all.fields.number.doc_count: 2 }
   - match: { indices._all.fields.number.searchable: true }
@@ -164,5 +173,6 @@ setup:
   - match: { indices._all.fields.number.min_value_as_string: "123" }
   - match: { indices._all.fields.number.max_value: 456 }
   - match: { indices._all.fields.number.max_value_as_string: "456" }
-  - match: { conflicts.bar: "Field [bar] of type [whole-number] conflicts with existing field of type [text] in other index." }
+  - match: { indices._all.fields.number.type: "integer" }
+  - match: { conflicts.bar: "Field [bar] of type [integer] conflicts with existing field of type [string] in other index." }
   - is_false: indices._all.fields.bar

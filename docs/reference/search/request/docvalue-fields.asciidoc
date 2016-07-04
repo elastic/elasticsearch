@@ -1,7 +1,7 @@
 [[search-request-docvalue-fields]]
 === Doc value Fields
 
-Allows to return the <<docvalue,doc value>> representation of a field for each hit, for
+Allows to return the <<doc-values,doc value>> representation of a field for each hit, for
 example:
 
 [source,js]

@@ -180,7 +180,7 @@ public class NodeJoinController extends AbstractComponent {
             electionContext.addIncomingJoin(node, callback);
             checkPendingJoinsAndElectIfNeeded();
         } else {
-            clusterService.submitStateUpdateTask("node-join([" + node + ")]",
+            clusterService.submitStateUpdateTask("node-join",
                 node, ClusterStateTaskConfig.build(Priority.URGENT),
                 joinTaskExecutor, new JoinTaskListener(callback, logger));
         }
@@ -279,7 +279,7 @@ public class NodeJoinController extends AbstractComponent {
             innerClose();
 
             Map<DiscoveryNode, ClusterStateTaskListener> tasks = getPendingAsTasks();
-            final String source = "elected_as_master, [" + tasks.size() + "] nodes joined)";
+            final String source = "elected_as_master ([" + tasks.size() + "] nodes joined)";
 
             tasks.put(BECOME_MASTER_TASK, joinProcessedListener);
             clusterService.submitStateUpdateTasks(source, tasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);

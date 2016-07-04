@@ -517,11 +517,11 @@ public class ClusterService extends AbstractLifecycleComponent {
             if (pending != null) {
                 for (UpdateTask<T> task : pending) {
                     if (task.processed.getAndSet(true) == false) {
-                        logger.trace("will process [{}] from [{}]", task.task, task.source);
+                        logger.trace("will process [{}[{}]]", task.source, task.task);
                         toExecute.add(task);
                         processTasksBySource.computeIfAbsent(task.source, s -> new ArrayList<>()).add(task.task);
                     } else {
-                        logger.trace("skipping [{}] from [{}], already processed", task.task, task.source);
+                        logger.trace("skipping [{}[{}]], already processed", task.source, task.task);
                     }
                 }
             }
@@ -531,7 +531,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         }
         final String tasksSummary = processTasksBySource.entrySet().stream().map(entry -> {
             String tasks = executor.describeTasks(entry.getValue());
-            return tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[ " + tasks + "]";
+            return tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";
         }).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
 
         if (!lifecycle.started()) {

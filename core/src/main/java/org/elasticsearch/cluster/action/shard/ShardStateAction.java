@@ -183,7 +183,7 @@ public class ShardStateAction extends AbstractComponent {
         public void messageReceived(ShardRoutingEntry request, TransportChannel channel) throws Exception {
             logger.warn("{} received shard failed for {}", request.failure, request.shardRouting.shardId(), request);
             clusterService.submitStateUpdateTask(
-                "shard-failed (" + request.shardRouting + "), message [" + request.message + "]",
+                "shard-failed",
                 request,
                 ClusterStateTaskConfig.build(Priority.HIGH),
                 shardFailedClusterStateTaskExecutor,
@@ -231,6 +231,11 @@ public class ShardStateAction extends AbstractComponent {
             this.allocationService = allocationService;
             this.routingService = routingService;
             this.logger = logger;
+        }
+
+        @Override
+        public String describeTasks(List<ShardRoutingEntry> tasks) {
+            return tasks.stream().map(entry -> entry.getShardRouting().toString()).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
         }
 
         @Override
@@ -346,7 +351,7 @@ public class ShardStateAction extends AbstractComponent {
         public void messageReceived(ShardRoutingEntry request, TransportChannel channel) throws Exception {
             logger.debug("{} received shard started for [{}]", request.shardRouting.shardId(), request);
             clusterService.submitStateUpdateTask(
-                "shard-started (" + request.shardRouting + "), reason [" + request.message + "]",
+                "shard-started",
                 request,
                 ClusterStateTaskConfig.build(Priority.URGENT),
                 shardStartedClusterStateTaskExecutor,
@@ -362,6 +367,11 @@ public class ShardStateAction extends AbstractComponent {
         public ShardStartedClusterStateTaskExecutor(AllocationService allocationService, ESLogger logger) {
             this.allocationService = allocationService;
             this.logger = logger;
+        }
+
+        @Override
+        public String describeTasks(List<ShardRoutingEntry> tasks) {
+            return tasks.stream().map(entry -> entry.getShardRouting().toString()).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
         }
 
         @Override

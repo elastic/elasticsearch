@@ -313,7 +313,7 @@ public class TribeService extends AbstractLifecycleComponent {
         public void clusterChanged(final ClusterChangedEvent event) {
             logger.debug("[{}] received cluster event, [{}]", tribeName, event.source());
             clusterService.submitStateUpdateTask(
-                    "cluster event from " + tribeName + ", " + event.source(),
+                    "cluster event from " + tribeName,
                     event,
                     ClusterStateTaskConfig.build(Priority.NORMAL),
                     executor,
@@ -328,10 +328,14 @@ public class TribeService extends AbstractLifecycleComponent {
             this.tribeName = tribeName;
         }
 
-
         @Override
         public boolean runOnlyOnMaster() {
             return false;
+        }
+
+        @Override
+        public String describeTasks(List<ClusterChangedEvent> tasks) {
+            return tasks.stream().map(ClusterChangedEvent::source).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
         }
 
         @Override

@@ -1,6 +1,6 @@
 = Elasticsearch Plugins and Integrations
 
-:ref: https://www.elastic.co/guide/en/elasticsearch/reference/2.x
+:ref: https://www.elastic.co/guide/en/elasticsearch/reference/2.4
 :guide: https://www.elastic.co/guide
 
 [[intro]]

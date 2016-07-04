@@ -111,7 +111,6 @@ setup:
 
 ---
 "fielddata_fields":
-=======
   - do:
       search:
         docvalue_fields: [ "count" ]

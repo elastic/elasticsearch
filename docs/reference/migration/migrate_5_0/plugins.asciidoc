@@ -140,3 +140,11 @@ remove their `onModule(ActionModule)` implementation.
 
 Plugins that register custom `RestHandler`s should implement `ActionPlugin` and
 remove their `onModule(NetworkModule)` implemnetation.
+
+==== Mapper-Size plugin
+
+The metadata field `_size` is not accessible in aggregations, scripts and when
+sorting for indices created in 2.x even if the index has been upgraded using the <<indices-upgrade,`upgrade`>> API.
+If these features are needed in your application it is required to reindex the data with Elasticsearch 5.x.
+The easiest way to reindex old indices is to use the `reindex` API, or the reindex UI provided by
+the <<migration-plugin,Migration Plugin>>.

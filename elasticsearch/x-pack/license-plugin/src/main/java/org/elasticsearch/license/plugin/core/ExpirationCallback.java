@@ -14,7 +14,7 @@ import java.util.UUID;
 
 public abstract class ExpirationCallback {
 
-    final static String EXPIRATION_JOB_PREFIX = ".license_expiration_job_";
+    static final String EXPIRATION_JOB_PREFIX = ".license_expiration_job_";
 
     public enum Orientation {PRE, POST}
 

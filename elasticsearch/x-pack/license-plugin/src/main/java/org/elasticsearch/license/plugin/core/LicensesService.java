@@ -118,7 +118,7 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
      */
     public static final TimeValue GRACE_PERIOD_DURATION = days(7);
 
-    private final static String LICENSE_JOB = "licenseJob";
+    private static final String LICENSE_JOB = "licenseJob";
 
     private static final FormatDateTimeFormatter DATE_FORMATTER = Joda.forPattern("EEEE, MMMMM dd, yyyy", Locale.ROOT);
 

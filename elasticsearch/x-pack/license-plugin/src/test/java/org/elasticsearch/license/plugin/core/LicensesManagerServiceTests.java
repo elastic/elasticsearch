@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.graph.Graph;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.TestUtils;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequest;
-import org.elasticsearch.marvel.Monitoring;
+import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.test.ESSingleNodeTestCase;

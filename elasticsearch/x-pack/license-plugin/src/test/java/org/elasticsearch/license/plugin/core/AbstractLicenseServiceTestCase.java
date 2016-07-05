@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -57,7 +57,7 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
         when(metaData.custom(LicensesMetaData.TYPE)).thenReturn(new LicensesMetaData(license));
         when(state.metaData()).thenReturn(metaData);
         final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
-        final DiscoveryNode mockNode = new DiscoveryNode("b", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
+        final DiscoveryNode mockNode = new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
         when(discoveryNodes.getMasterNode()).thenReturn(mockNode);
         when(state.nodes()).thenReturn(discoveryNodes);
         when(clusterService.state()).thenReturn(state);

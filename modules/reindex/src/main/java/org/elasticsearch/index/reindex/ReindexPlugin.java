@@ -19,25 +19,42 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestHandler;
 
-public class ReindexPlugin extends Plugin {
+import java.util.Arrays;
+import java.util.List;
+
+import static java.util.Collections.singletonList;
+
+public class ReindexPlugin extends Plugin implements ActionPlugin {
     public static final String NAME = "reindex";
 
-    public void onModule(ActionModule actionModule) {
-        actionModule.registerAction(ReindexAction.INSTANCE, TransportReindexAction.class);
-        actionModule.registerAction(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class);
-        actionModule.registerAction(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class);
-        actionModule.registerAction(RethrottleAction.INSTANCE, TransportRethrottleAction.class);
+    @Override
+    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+        return Arrays.asList(new ActionHandler<>(ReindexAction.INSTANCE, TransportReindexAction.class),
+                new ActionHandler<>(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
+                new ActionHandler<>(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
+                new ActionHandler<>(RethrottleAction.INSTANCE, TransportRethrottleAction.class));
+    }
+
+    @Override
+    public List<Class<? extends RestHandler>> getRestHandlers() {
+        return Arrays.asList(RestReindexAction.class, RestUpdateByQueryAction.class, RestDeleteByQueryAction.class,
+                RestRethrottleAction.class);
     }
 
     public void onModule(NetworkModule networkModule) {
-        networkModule.registerRestHandler(RestReindexAction.class);
-        networkModule.registerRestHandler(RestUpdateByQueryAction.class);
-        networkModule.registerRestHandler(RestDeleteByQueryAction.class);
-        networkModule.registerRestHandler(RestRethrottleAction.class);
         networkModule.registerTaskStatus(BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new);
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return singletonList(TransportReindexAction.REMOTE_CLUSTER_WHITELIST);
     }
 }

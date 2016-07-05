@@ -34,6 +34,7 @@ import java.util.function.ObjIntConsumer;
 import java.util.function.Predicate;
 import java.util.function.ToDoubleFunction;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /** Additional methods added to classes. These must be static methods with receiver as first argument */
 public class Augmentation {
@@ -62,6 +63,30 @@ public class Augmentation {
             }
         }
         return false;
+    }
+    
+    /** Converts this Iterable to a Collection. Returns the original Iterable if it is already a Collection. */
+    public static <T> Collection<T> asCollection(Iterable<T> receiver) {
+        if (receiver instanceof Collection) {
+            return (Collection<T>)receiver;
+        }
+        List<T> list = new ArrayList<>();
+        for (T t : receiver) {
+            list.add(t);
+        }
+        return list;
+    }
+    
+    /** Converts this Iterable to a List. Returns the original Iterable if it is already a List. */
+    public static <T> List<T> asList(Iterable<T> receiver) {
+        if (receiver instanceof List) {
+            return (List<T>)receiver;
+        }
+        List<T> list = new ArrayList<>();
+        for (T t : receiver) {
+            list.add(t);
+        }
+        return list;
     }
     
     /** Counts the number of occurrences which satisfy the given predicate from inside this Iterable. */ 
@@ -153,6 +178,17 @@ public class Augmentation {
             sb.append(t);
         }
         return sb.toString();
+    }
+    
+    /**
+     * Sums the result of an Iterable
+     */
+    public static <T extends Number> double sum(Iterable<T> receiver) {
+        double sum = 0;
+        for (T t : receiver) {
+            sum += t.doubleValue();
+        }
+        return sum;
     }
     
     /**
@@ -406,5 +442,48 @@ public class Augmentation {
             results.put(kvPair.getKey(), kvPair.getValue());
         }
         return map;
+    }
+
+    // CharSequence augmentation
+    /**
+     * Replace all matches. Similar to {@link Matcher#replaceAll(String)} but allows you to customize the replacement based on the match.
+     */
+    public static String replaceAll(CharSequence receiver, Pattern pattern, Function<Matcher, String> replacementBuilder) {
+        Matcher m = pattern.matcher(receiver);
+        if (false == m.find()) {
+            // CharSequqence's toString is *supposed* to always return the characters in the sequence as a String
+            return receiver.toString();
+        }
+        StringBuffer result = new StringBuffer(initialBufferForReplaceWith(receiver));
+        do {
+            m.appendReplacement(result, Matcher.quoteReplacement(replacementBuilder.apply(m)));
+        } while (m.find());
+        m.appendTail(result);
+        return result.toString();
+    }
+
+    /**
+     * Replace the first match. Similar to {@link Matcher#replaceFirst(String)} but allows you to customize the replacement based on the
+     * match.
+     */
+    public static String replaceFirst(CharSequence receiver, Pattern pattern, Function<Matcher, String> replacementBuilder) {
+        Matcher m = pattern.matcher(receiver);
+        if (false == m.find()) {
+            // CharSequqence's toString is *supposed* to always return the characters in the sequence as a String
+            return receiver.toString();
+        }
+        StringBuffer result = new StringBuffer(initialBufferForReplaceWith(receiver));
+        m.appendReplacement(result, Matcher.quoteReplacement(replacementBuilder.apply(m)));
+        m.appendTail(result);
+        return result.toString();
+    }
+
+    /**
+     * The initial size of the {@link StringBuilder} used for {@link #replaceFirst(CharSequence, Pattern, Function)} and
+     * {@link #replaceAll(CharSequence, Pattern, Function)} for a particular sequence. We ape
+     * {{@link StringBuilder#StringBuilder(CharSequence)} here and add 16 extra chars to the buffer to have a little room for growth.
+     */
+    private static int initialBufferForReplaceWith(CharSequence seq) {
+        return seq.length() + 16;
     }
 }

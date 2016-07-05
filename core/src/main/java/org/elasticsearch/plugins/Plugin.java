@@ -19,12 +19,14 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 
@@ -102,6 +104,22 @@ public abstract class Plugin {
      */
     @Deprecated
     public final void onModule(ScriptModule module) {}
+
+    /**
+     * Old-style analysis extension point.
+     *
+     * @deprecated implement {@link AnalysisPlugin} instead
+     */
+    @Deprecated
+    public final void onModule(AnalysisModule module) {}
+
+    /**
+     * Old-style action extension point.
+     *
+     * @deprecated implement {@link ActionPlugin} instead
+     */
+    @Deprecated
+    public final void onModule(ActionModule module) {}
 
     /**
      * Provides the list of this plugin's custom thread pools, empty if

@@ -21,6 +21,7 @@ package org.elasticsearch.messy.tests;
 import com.carrotsearch.hppc.LongHashSet;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.groovy.GroovyPlugin;
@@ -821,6 +822,83 @@ public class HistogramTests extends ESIntegTestCase {
             assertThat(bucket, notNullValue());
             assertThat(((Number) bucket.getKey()).longValue(), equalTo(key));
             assertThat(bucket.getDocCount(), equalTo(extendedValueCounts[i]));
+            key += interval;
+        }
+    }
+
+    public void testEmptyWithExtendedBounds() throws Exception {
+        int lastDataBucketKey = (numValueBuckets - 1) * interval;
+
+        // randomizing the number of buckets on the min bound
+        // (can sometimes fall within the data range, but more frequently will fall before the data range)
+        int addedBucketsLeft = randomIntBetween(0, numValueBuckets);
+        long boundsMinKey = addedBucketsLeft * interval;
+        if (frequently()) {
+            boundsMinKey = -boundsMinKey;
+        } else {
+            addedBucketsLeft = 0;
+        }
+        long boundsMin = boundsMinKey + randomIntBetween(0, interval - 1);
+
+        // randomizing the number of buckets on the max bound
+        // (can sometimes fall within the data range, but more frequently will fall after the data range)
+        int addedBucketsRight = randomIntBetween(0, numValueBuckets);
+        long boundsMaxKeyDelta = addedBucketsRight * interval;
+        if (rarely()) {
+            addedBucketsRight = 0;
+            boundsMaxKeyDelta = -boundsMaxKeyDelta;
+        }
+        long boundsMaxKey = lastDataBucketKey + boundsMaxKeyDelta;
+        long boundsMax = boundsMaxKey + randomIntBetween(0, interval - 1);
+
+
+        // it could be that the random bounds.min we chose ended up greater than bounds.max - this should cause an
+        // error
+        boolean invalidBoundsError = boundsMin > boundsMax;
+
+        // constructing the newly expected bucket list
+        int bucketsCount = (int) ((boundsMaxKey - boundsMinKey) / interval) + 1;
+        long[] extendedValueCounts = new long[valueCounts.length + addedBucketsLeft + addedBucketsRight];
+        System.arraycopy(valueCounts, 0, extendedValueCounts, addedBucketsLeft, valueCounts.length);
+
+        SearchResponse response = null;
+        try {
+            response = client().prepareSearch("idx")
+                    .setQuery(QueryBuilders.termQuery("foo", "bar"))
+                    .addAggregation(histogram("histo")
+                            .field(SINGLE_VALUED_FIELD_NAME)
+                            .interval(interval)
+                            .minDocCount(0)
+                            .extendedBounds(new ExtendedBounds(boundsMin, boundsMax)))
+                    .execute().actionGet();
+
+            if (invalidBoundsError) {
+                fail("Expected an exception to be thrown when bounds.min is greater than bounds.max");
+                return;
+            }
+
+        } catch (Exception e) {
+            if (invalidBoundsError) {
+                // expected
+                return;
+            } else {
+                throw e;
+            }
+        }
+        assertSearchResponse(response);
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(bucketsCount));
+
+        long key = boundsMinKey;
+        for (int i = 0; i < bucketsCount; i++) {
+            Histogram.Bucket bucket = buckets.get(i);
+            assertThat(bucket, notNullValue());
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo(key));
+            assertThat(bucket.getDocCount(), equalTo(0L));
             key += interval;
         }
     }

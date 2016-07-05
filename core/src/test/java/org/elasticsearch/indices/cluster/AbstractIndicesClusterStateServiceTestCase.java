@@ -206,7 +206,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public @Nullable MockIndexService indexService(Index index) {
+        @Nullable
+        public MockIndexService indexService(Index index) {
             return indices.get(index.getUUID());
         }
 

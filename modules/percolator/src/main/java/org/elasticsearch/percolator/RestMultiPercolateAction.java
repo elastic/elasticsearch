@@ -19,7 +19,7 @@
 package org.elasticsearch.percolator;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -36,13 +36,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestMultiPercolateAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
-    private final TransportMultiPercolateAction action;
 
     @Inject
-    public RestMultiPercolateAction(Settings settings, RestController controller, Client client,
-                                    TransportMultiPercolateAction action) {
-        super(settings, client);
-        this.action = action;
+    public RestMultiPercolateAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(POST, "/_mpercolate", this);
         controller.registerHandler(POST, "/{index}/_mpercolate", this);
         controller.registerHandler(POST, "/{index}/{type}/_mpercolate", this);
@@ -55,13 +52,14 @@ public class RestMultiPercolateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest restRequest, final RestChannel restChannel, final Client client) throws Exception {
+    public void handleRequest(final RestRequest restRequest, final RestChannel restChannel, final NodeClient client) throws Exception {
         MultiPercolateRequest multiPercolateRequest = new MultiPercolateRequest();
         multiPercolateRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, multiPercolateRequest.indicesOptions()));
         multiPercolateRequest.indices(Strings.splitStringByCommaToArray(restRequest.param("index")));
         multiPercolateRequest.documentType(restRequest.param("type"));
         multiPercolateRequest.add(RestActions.getRestContent(restRequest), allowExplicitIndex);
-        action.execute(multiPercolateRequest, new RestToXContentListener<MultiPercolateResponse>(restChannel));
+        client.execute(MultiPercolateAction.INSTANCE, multiPercolateRequest,
+                new RestToXContentListener<MultiPercolateResponse>(restChannel));
     }
 
 }

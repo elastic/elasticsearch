@@ -88,13 +88,13 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<Globa
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 logger.debug("{} failed to update global checkpoint", e, shardId);
             }
         });
     }
 
-    final static class PrimaryRequest extends ReplicationRequest<PrimaryRequest> {
+    static final class PrimaryRequest extends ReplicationRequest<PrimaryRequest> {
 
         private PrimaryRequest() {
             super();
@@ -105,7 +105,7 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<Globa
         }
     }
 
-    final static class ReplicaRequest extends ReplicationRequest<GlobalCheckpointSyncAction.ReplicaRequest> {
+    static final class ReplicaRequest extends ReplicationRequest<GlobalCheckpointSyncAction.ReplicaRequest> {
 
         public long checkpoint;
 

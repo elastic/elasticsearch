@@ -125,9 +125,8 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
      * @return the shardId of the shard where this operation should be executed on.
      * can be null if the shardID has not yet been resolved
      */
-    public
     @Nullable
-    ShardId shardId() {
+    public ShardId shardId() {
         return shardId;
     }
 

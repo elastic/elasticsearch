@@ -45,9 +45,9 @@ import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resol
 
 public class SerialDiffPipelineAggregator extends PipelineAggregator {
 
-    public final static Type TYPE = new Type("serial_diff");
+    public static final Type TYPE = new Type("serial_diff");
 
-    public final static PipelineAggregatorStreams.Stream STREAM = in -> {
+    public static final PipelineAggregatorStreams.Stream STREAM = in -> {
         SerialDiffPipelineAggregator result = new SerialDiffPipelineAggregator();
         result.readFrom(in);
         return result;

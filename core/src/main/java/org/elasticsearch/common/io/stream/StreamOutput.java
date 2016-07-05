@@ -408,7 +408,7 @@ public abstract class StreamOutput extends OutputStream {
         void write(StreamOutput o, Object value) throws IOException;
     }
 
-    private final static Map<Class<?>, Writer> WRITERS;
+    private static final Map<Class<?>, Writer> WRITERS;
 
     static {
         Map<Class<?>, Writer> writers = new HashMap<>();
@@ -594,6 +594,22 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    public <T extends Writeable> void writeArray(T[] array) throws IOException {
+        writeVInt(array.length);
+        for (T value: array) {
+            value.writeTo(this);
+        }
+    }
+
+    public <T extends Writeable> void writeOptionalArray(@Nullable T[] array) throws IOException {
+        if (array == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeArray(array);
+        }
+    }
+
     /**
      * Serializes a potential null value.
      */
@@ -615,7 +631,7 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public void writeThrowable(Throwable throwable) throws IOException {
+    public void writeException(Throwable throwable) throws IOException {
         if (throwable == null) {
             writeBoolean(false);
         } else {
@@ -671,13 +687,11 @@ public abstract class StreamOutput extends OutputStream {
             } else if (throwable instanceof ArrayIndexOutOfBoundsException) {
                 writeVInt(11);
                 writeCause = false;
-            } else if (throwable instanceof AssertionError) {
-                writeVInt(12);
             } else if (throwable instanceof FileNotFoundException) {
-                writeVInt(13);
+                writeVInt(12);
                 writeCause = false;
             } else if (throwable instanceof FileSystemException) {
-                writeVInt(14);
+                writeVInt(13);
                 if (throwable instanceof NoSuchFileException) {
                     writeVInt(0);
                 } else if (throwable instanceof NotDirectoryException) {
@@ -699,18 +713,15 @@ public abstract class StreamOutput extends OutputStream {
                 writeOptionalString(((FileSystemException) throwable).getOtherFile());
                 writeOptionalString(((FileSystemException) throwable).getReason());
                 writeCause = false;
-            } else if (throwable instanceof OutOfMemoryError) {
-                writeVInt(15);
-                writeCause = false;
             } else if (throwable instanceof IllegalStateException) {
-                writeVInt(16);
+                writeVInt(14);
             } else if (throwable instanceof LockObtainFailedException) {
-                writeVInt(17);
+                writeVInt(15);
             } else if (throwable instanceof InterruptedException) {
-                writeVInt(18);
+                writeVInt(16);
                 writeCause = false;
             } else if (throwable instanceof IOException) {
-                writeVInt(19);
+                writeVInt(17);
             } else {
                 ElasticsearchException ex;
                 if (throwable instanceof ElasticsearchException && ElasticsearchException.isRegistered(throwable.getClass())) {
@@ -728,7 +739,7 @@ public abstract class StreamOutput extends OutputStream {
                 writeOptionalString(throwable.getMessage());
             }
             if (writeCause) {
-                writeThrowable(throwable.getCause());
+                writeException(throwable.getCause());
             }
             ElasticsearchException.writeStackTraces(throwable, this);
         }

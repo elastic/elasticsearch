@@ -28,6 +28,8 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -62,7 +64,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
@@ -70,7 +71,7 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * Integration tests for InternalCircuitBreakerService
  */
-@ClusterScope(scope = TEST, randomDynamicTemplates = false)
+@ClusterScope(scope = TEST, randomDynamicTemplates = false, numClientNodes = 0, maxNumDataNodes = 1)
 public class CircuitBreakerServiceIT extends ESIntegTestCase {
     /** Reset all breaker settings back to their defaults */
     private void reset() {
@@ -266,17 +267,26 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
 
         // Perform a search to load field data for the "test" field
         try {
-            client.prepareSearch("cb-test").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC).get();
-            fail("should have thrown an exception");
+            SearchResponse searchResponse = client.prepareSearch("cb-test").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC).get();
+            if (searchResponse.getShardFailures().length > 0) {
+                // each shard must have failed with CircuitBreakingException
+                for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
+                    Throwable cause = ExceptionsHelper.unwrap(shardSearchFailure.getCause(), CircuitBreakingException.class);
+                    assertThat(cause, instanceOf(CircuitBreakingException.class));
+                    assertEquals(((CircuitBreakingException) cause).getByteLimit(), 500L);
+                }
+            } else {
+                fail("should have thrown a CircuitBreakingException");
+            }
         } catch (Exception e) {
-            final Throwable cause = ExceptionsHelper.unwrap(e, CircuitBreakingException.class);
-            assertNotNull("CircuitBreakingException is not the cause of " + e, cause);
-            String errMsg = "would be larger than limit of [500/500b]]";
-            assertThat("Exception: [" + cause.toString() + "] should contain a CircuitBreakingException",
+            Throwable cause = ExceptionsHelper.unwrap(e, CircuitBreakingException.class);
+            assertThat(cause, instanceOf(CircuitBreakingException.class));
+            assertEquals(((CircuitBreakingException) cause).getByteLimit(), 500L);
+            assertThat("Exception: [" + cause.toString() + "] should be caused by the parent circuit breaker",
                 cause.toString(), startsWith("CircuitBreakingException[[parent] Data too large"));
-            assertThat("Exception: [" + cause.toString() + "] should contain a CircuitBreakingException",
-                cause.toString(), endsWith(errMsg));
         }
+
+        reset();
     }
 
     public void testRequestBreaker() throws Exception {

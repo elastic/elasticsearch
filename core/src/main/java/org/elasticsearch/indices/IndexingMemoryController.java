@@ -20,8 +20,8 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -34,8 +34,6 @@ import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexingOperationListener;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -94,10 +92,6 @@ public class IndexingMemoryController extends AbstractComponent implements Index
     private final ShardsIndicesStatusChecker statusChecker;
 
     IndexingMemoryController(Settings settings, ThreadPool threadPool, Iterable<IndexShard> indexServices) {
-        this(settings, threadPool, indexServices, JvmInfo.jvmInfo().getMem().getHeapMax().bytes());
-    }
-
-    IndexingMemoryController(Settings settings, ThreadPool threadPool, Iterable<IndexShard> indexServices, long jvmMemoryInBytes) {
         super(settings);
         this.indexShards = indexServices;
 
@@ -182,8 +176,8 @@ public class IndexingMemoryController extends AbstractComponent implements Index
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                logger.warn("failed to write indexing buffer for shard [{}]; ignoring", t, shard.shardId());
+            public void onFailure(Exception e) {
+                logger.warn("failed to write indexing buffer for shard [{}]; ignoring", e, shard.shardId());
             }
         });
     }

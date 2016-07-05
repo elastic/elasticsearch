@@ -143,7 +143,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
      * Returns the profiled results for this search, or potentially null if result was empty
      * @return The profiled results, or null
      */
-    public @Nullable ProfileShardResult profileResults() {
+    @Nullable public ProfileShardResult profileResults() {
         return profileShardResults;
     }
 
@@ -224,9 +224,14 @@ public class QuerySearchResult extends QuerySearchResultProvider {
             int size = in.readVInt();
             List<SiblingPipelineAggregator> pipelineAggregators = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                BytesReference type = in.readBytesReference();
-                PipelineAggregator pipelineAggregator = PipelineAggregatorStreams.stream(type).readResult(in);
-                pipelineAggregators.add((SiblingPipelineAggregator) pipelineAggregator);
+                // NORELEASE temporary hack to support old style streams and new style NamedWriteable at the same time
+                if (in.readBoolean()) {
+                    pipelineAggregators.add((SiblingPipelineAggregator) in.readNamedWriteable(PipelineAggregator.class));
+                } else {
+                    BytesReference type = in.readBytesReference();
+                    PipelineAggregator pipelineAggregator = PipelineAggregatorStreams.stream(type).readResult(in);
+                    pipelineAggregators.add((SiblingPipelineAggregator) pipelineAggregator);
+                }
             }
             this.pipelineAggregators = pipelineAggregators;
         }
@@ -273,8 +278,16 @@ public class QuerySearchResult extends QuerySearchResultProvider {
             out.writeBoolean(true);
             out.writeVInt(pipelineAggregators.size());
             for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
-                out.writeBytesReference(pipelineAggregator.type().stream());
-                pipelineAggregator.writeTo(out);
+                // NORELEASE temporary hack to support old style streams and new style NamedWriteable
+                try {
+                    pipelineAggregator.getWriteableName(); // Throws UnsupportedOperationException if we should use old style streams.
+                    out.writeBoolean(true);
+                    out.writeNamedWriteable(pipelineAggregator);
+                } catch (UnsupportedOperationException e) {
+                    out.writeBoolean(false);
+                    out.writeBytesReference(pipelineAggregator.type().stream());
+                    pipelineAggregator.writeTo(out);
+                }
             }
         }
         if (suggest == null) {

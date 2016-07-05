@@ -21,7 +21,6 @@ package org.elasticsearch.discovery.zen.membership;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,13 +47,13 @@ public class MembershipAction extends AbstractComponent {
     public static final String DISCOVERY_JOIN_VALIDATE_ACTION_NAME = "internal:discovery/zen/join/validate";
     public static final String DISCOVERY_LEAVE_ACTION_NAME = "internal:discovery/zen/leave";
 
-    public static interface JoinCallback {
+    public interface JoinCallback {
         void onSuccess();
 
-        void onFailure(Throwable t);
+        void onFailure(Exception e);
     }
 
-    public static interface MembershipListener {
+    public interface MembershipListener {
         void onJoin(DiscoveryNode node, JoinCallback callback);
 
         void onLeave(DiscoveryNode node);
@@ -66,14 +65,11 @@ public class MembershipAction extends AbstractComponent {
 
     private final MembershipListener listener;
 
-    private final ClusterService clusterService;
-
-    public MembershipAction(Settings settings, ClusterService clusterService, TransportService transportService, DiscoveryNodesProvider nodesProvider, MembershipListener listener) {
+    public MembershipAction(Settings settings, TransportService transportService, DiscoveryNodesProvider nodesProvider, MembershipListener listener) {
         super(settings);
         this.transportService = transportService;
         this.nodesProvider = nodesProvider;
         this.listener = listener;
-        this.clusterService = clusterService;
 
         transportService.registerRequestHandler(DISCOVERY_JOIN_ACTION_NAME, JoinRequest::new, ThreadPool.Names.GENERIC, new JoinRequestRequestHandler());
         transportService.registerRequestHandler(DISCOVERY_JOIN_VALIDATE_ACTION_NAME, ValidateJoinRequest::new, ThreadPool.Names.GENERIC, new ValidateJoinRequestRequestHandler());
@@ -141,17 +137,18 @@ public class MembershipAction extends AbstractComponent {
                 public void onSuccess() {
                     try {
                         channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                    } catch (Throwable t) {
-                        onFailure(t);
+                    } catch (Exception e) {
+                        onFailure(e);
                     }
                 }
 
                 @Override
-                public void onFailure(Throwable t) {
+                public void onFailure(Exception e) {
                     try {
-                        channel.sendResponse(t);
-                    } catch (Throwable e) {
-                        logger.warn("failed to send back failure on join request", e);
+                        channel.sendResponse(e);
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        logger.warn("failed to send back failure on join request", inner);
                     }
                 }
             });

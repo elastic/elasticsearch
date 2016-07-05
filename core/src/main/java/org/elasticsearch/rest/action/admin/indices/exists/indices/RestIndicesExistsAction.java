@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.indices.exists.indices;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
@@ -45,13 +45,13 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestIndicesExistsAction extends BaseRestHandler {
 
     @Inject
-    public RestIndicesExistsAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestIndicesExistsAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(HEAD, "/{index}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         IndicesExistsRequest indicesExistsRequest = new IndicesExistsRequest(Strings.splitStringByCommaToArray(request.param("index")));
         indicesExistsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesExistsRequest.indicesOptions()));
         indicesExistsRequest.local(request.paramAsBoolean("local", indicesExistsRequest.local()));

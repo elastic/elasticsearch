@@ -322,8 +322,6 @@ public abstract class ParseContext {
 
         private Field seqNo;
 
-        private StringBuilder stringBuilder = new StringBuilder();
-
         private final AllEntries allEntries;
 
         private final List<Mapper> dynamicMappers;

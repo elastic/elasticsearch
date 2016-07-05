@@ -71,8 +71,8 @@ import static org.elasticsearch.action.support.replication.ReplicationOperation.
  */
 public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardResponse> {
 
-    private final static String OP_TYPE_UPDATE = "update";
-    private final static String OP_TYPE_DELETE = "delete";
+    private static final String OP_TYPE_UPDATE = "update";
+    private static final String OP_TYPE_DELETE = "delete";
 
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
 
@@ -158,7 +158,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             // add the response
             IndexResponse indexResponse = result.getResponse();
             setResponse(item, new BulkItemResponse(item.id(), indexRequest.opType().lowercase(), indexResponse));
-        } catch (Throwable e) {
+        } catch (Exception e) {
             // nocommit: since we now have RetryOnPrimaryException, retrying doesn't always mean the shard is closed.
             // some operations were already perform and have a seqno assigned. we shouldn't just reindex them
             // rethrow the failure if we are going to retry on primary and let parent failure to handle it
@@ -183,11 +183,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return location;
     }
 
-    private <ReplicationRequestT extends ReplicationRequest<ReplicationRequestT>> void logFailure(Throwable e, String operation, ShardId shardId, ReplicationRequest<ReplicationRequestT> request) {
-        if (ExceptionsHelper.status(e) == RestStatus.CONFLICT) {
-            logger.trace("{} failed to execute bulk item ({}) {}", e, shardId, operation, request);
+    private <ReplicationRequestT extends ReplicationRequest<ReplicationRequestT>> void logFailure(Throwable t, String operation, ShardId shardId, ReplicationRequest<ReplicationRequestT> request) {
+        if (ExceptionsHelper.status(t) == RestStatus.CONFLICT) {
+            logger.trace("{} failed to execute bulk item ({}) {}", t, shardId, operation, request);
         } else {
-            logger.debug("{} failed to execute bulk item ({}) {}", e, shardId, operation, request);
+            logger.debug("{} failed to execute bulk item ({}) {}", t, shardId, operation, request);
         }
     }
 
@@ -202,7 +202,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             DeleteResponse deleteResponse = writeResult.getResponse();
             location = locationToSync(location, writeResult.getLocation());
             setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_DELETE, deleteResponse));
-        } catch (Throwable e) {
+        } catch (Exception e) {
             // nocommit: since we now have RetryOnPrimaryException, retrying doesn't always mean the shard is closed.
             // some operations were already perform and have a seqno assigned. we shouldn't just reindex them
             // rethrow the failure if we are going to retry on primary and let parent failure to handle it
@@ -236,7 +236,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             UpdateResult updateResult;
             try {
                 updateResult = shardUpdateOperation(metaData, request, updateRequest, indexShard);
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 updateResult = new UpdateResult(null, null, false, t, null);
             }
             if (updateResult.success()) {
@@ -279,45 +279,45 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 // NOTE: Breaking out of the retry_on_conflict loop!
                 break;
             } else if (updateResult.failure()) {
-                Throwable t = updateResult.error;
+                Throwable e = updateResult.error;
                 if (updateResult.retry) {
                     // updateAttemptCount is 0 based and marks current attempt, if it's equal to retryOnConflict we are going out of the iteration
                     if (updateAttemptsCount >= updateRequest.retryOnConflict()) {
                         setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_UPDATE,
-                                new BulkItemResponse.Failure(request.index(), updateRequest.type(), updateRequest.id(), t)));
+                                new BulkItemResponse.Failure(request.index(), updateRequest.type(), updateRequest.id(), e)));
                     }
                 } else {
                     // nocommit: since we now have RetryOnPrimaryException, retrying doesn't always mean the shard is closed.
                     // some operations were already perform and have a seqno assigned. we shouldn't just reindex them
                     // rethrow the failure if we are going to retry on primary and let parent failure to handle it
-                    if (retryPrimaryException(t)) {
+                    if (retryPrimaryException(e)) {
                         // restore updated versions...
                         for (int j = 0; j < requestIndex; j++) {
                             applyVersion(request.items()[j], preVersions[j], preVersionTypes[j]);
                         }
-                        throw (ElasticsearchException) t;
+                        throw (ElasticsearchException) e;
                     }
                     // if its a conflict failure, and we already executed the request on a primary (and we execute it
                     // again, due to primary relocation and only processing up to N bulk items when the shard gets closed)
                     // then just use the response we got from the successful execution
-                    if (item.getPrimaryResponse() != null && isConflictException(t)) {
+                    if (item.getPrimaryResponse() != null && isConflictException(e)) {
                         setResponse(item, item.getPrimaryResponse());
                     } else if (updateResult.result == null) {
-                        setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_UPDATE, new BulkItemResponse.Failure(request.index(), updateRequest.type(), updateRequest.id(), t)));
+                        setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_UPDATE, new BulkItemResponse.Failure(request.index(), updateRequest.type(), updateRequest.id(), e)));
                     } else {
                         switch (updateResult.result.operation()) {
                             case UPSERT:
                             case INDEX:
                                 IndexRequest indexRequest = updateResult.request();
-                                logFailure(t, "index", request.shardId(), indexRequest);
+                                logFailure(e, "index", request.shardId(), indexRequest);
                                 setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_UPDATE,
-                                        new BulkItemResponse.Failure(request.index(), indexRequest.type(), indexRequest.id(), t)));
+                                        new BulkItemResponse.Failure(request.index(), indexRequest.type(), indexRequest.id(), e)));
                                 break;
                             case DELETE:
                                 DeleteRequest deleteRequest = updateResult.request();
-                                logFailure(t, "delete", request.shardId(), deleteRequest);
+                                logFailure(e, "delete", request.shardId(), deleteRequest);
                                 setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_DELETE,
-                                        new BulkItemResponse.Failure(request.index(), deleteRequest.type(), deleteRequest.id(), t)));
+                                        new BulkItemResponse.Failure(request.index(), deleteRequest.type(), deleteRequest.id(), e)));
                                 break;
                         }
                     }
@@ -341,7 +341,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     private WriteResult<IndexResponse> shardIndexOperation(BulkShardRequest request, IndexRequest indexRequest, IndexMetaData metaData,
-            IndexShard indexShard, boolean processed) throws Throwable {
+            IndexShard indexShard, boolean processed) throws Exception {
 
         MappingMetaData mappingMd = metaData.mappingOrDefault(indexRequest.type());
         if (!processed) {
@@ -412,26 +412,26 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 try {
                     WriteResult result = shardIndexOperation(bulkShardRequest, indexRequest, metaData, indexShard, false);
                     return new UpdateResult(translate, indexRequest, result);
-                } catch (Throwable t) {
-                    t = ExceptionsHelper.unwrapCause(t);
+                } catch (Exception e) {
+                    final Throwable cause = ExceptionsHelper.unwrapCause(e);
                     boolean retry = false;
-                    if (t instanceof VersionConflictEngineException) {
+                    if (cause instanceof VersionConflictEngineException) {
                         retry = true;
                     }
-                    return new UpdateResult(translate, indexRequest, retry, t, null);
+                    return new UpdateResult(translate, indexRequest, retry, cause, null);
                 }
             case DELETE:
                 DeleteRequest deleteRequest = translate.action();
                 try {
                     WriteResult<DeleteResponse> result = TransportDeleteAction.executeDeleteRequestOnPrimary(deleteRequest, indexShard);
                     return new UpdateResult(translate, deleteRequest, result);
-                } catch (Throwable t) {
-                    t = ExceptionsHelper.unwrapCause(t);
+                } catch (Exception e) {
+                    final Throwable cause = ExceptionsHelper.unwrapCause(e);
                     boolean retry = false;
-                    if (t instanceof VersionConflictEngineException) {
+                    if (cause instanceof VersionConflictEngineException) {
                         retry = true;
                     }
-                    return new UpdateResult(translate, deleteRequest, retry, t, null);
+                    return new UpdateResult(translate, deleteRequest, retry, cause, null);
                 }
             case NONE:
                 UpdateResponse updateResponse = translate.action();
@@ -455,7 +455,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 try {
                     Engine.Index operation = TransportIndexAction.executeIndexRequestOnReplica(indexRequest, indexShard);
                     location = locationToSync(location, operation.getTranslogLocation());
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     // if its not an ignore replica failure, we need to make sure to bubble up the failure
                     // so we will fail the shard
                     if (!ignoreReplicaException(e)) {
@@ -468,7 +468,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     Engine.Delete delete = TransportDeleteAction.executeDeleteRequestOnReplica(deleteRequest, indexShard);
                     indexShard.delete(delete);
                     location = locationToSync(location, delete.getTranslogLocation());
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     // if its not an ignore replica failure, we need to make sure to bubble up the failure
                     // so we will fail the shard
                     if (!ignoreReplicaException(e)) {

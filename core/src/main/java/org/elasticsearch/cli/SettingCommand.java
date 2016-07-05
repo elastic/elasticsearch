@@ -41,7 +41,7 @@ public abstract class SettingCommand extends Command {
         final Map<String, String> settings = new HashMap<>();
         for (final KeyValuePair kvp : settingOption.values(options)) {
             if (kvp.value.isEmpty()) {
-                throw new UserError(ExitCodes.USAGE, "Setting [" + kvp.key + "] must not be empty");
+                throw new UserException(ExitCodes.USAGE, "Setting [" + kvp.key + "] must not be empty");
             }
             settings.put(kvp.key, kvp.value);
         }

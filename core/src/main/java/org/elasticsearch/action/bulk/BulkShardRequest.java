@@ -38,7 +38,7 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
     public BulkShardRequest() {
     }
 
-    BulkShardRequest(BulkRequest bulkRequest, ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
+    BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
         super(shardId);
         this.items = items;
         setRefreshPolicy(refreshPolicy);

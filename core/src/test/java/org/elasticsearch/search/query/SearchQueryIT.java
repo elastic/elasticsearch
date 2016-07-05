@@ -1148,6 +1148,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                 jsonBuilder().startObject().startObject("type").startObject("properties")
                         .startObject("arr").startObject("properties").startObject("term").field("type", "text")
                         .endObject().endObject().endObject().endObject().endObject().endObject()));
+        assertAcked(prepareCreate("lookup3").addMapping("type", "_source", "enabled=false", "terms","type=text"));
         assertAcked(prepareCreate("test").addMapping("type", "term", "type=text"));
 
         indexRandom(true,
@@ -1172,6 +1173,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                         .startObject().field("term", "4").endObject()
                         .endArray()
                         .endObject()),
+                client().prepareIndex("lookup3", "type", "1").setSource("terms", new String[]{"1", "3"}),
                 client().prepareIndex("test", "type", "1").setSource("term", "1"),
                 client().prepareIndex("test", "type", "2").setSource("term", "2"),
                 client().prepareIndex("test", "type", "3").setSource("term", "3"),
@@ -1226,6 +1228,16 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(termsLookupQuery("not_exists", new TermsLookup("lookup2", "type", "3", "arr.term"))).get();
+        assertHitCount(searchResponse, 0L);
+
+        // index "lookup" type "type" id "missing" document does not exist: ignore the lookup terms
+        searchResponse = client().prepareSearch("test")
+            .setQuery(termsLookupQuery("term" , new TermsLookup("lookup", "type", "missing", "terms"))).get();
+        assertHitCount(searchResponse, 0L);
+
+        // index "lookup3" type "type" has the source disabled: ignore the lookup terms
+        searchResponse = client().prepareSearch("test")
+            .setQuery(termsLookupQuery("term" , new TermsLookup("lookup3", "type", "1", "terms"))).get();
         assertHitCount(searchResponse, 0L);
     }
 

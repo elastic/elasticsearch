@@ -82,6 +82,11 @@ public class MetaDataMappingService extends AbstractComponent {
             this.index = index;
             this.indexUUID = indexUUID;
         }
+
+        @Override
+        public String toString() {
+            return "[" + index + "][" + indexUUID + "]";
+        }
     }
 
     class RefreshTaskExecutor implements ClusterStateTaskExecutor<RefreshTask> {
@@ -187,8 +192,8 @@ public class MetaDataMappingService extends AbstractComponent {
                     builder.putMapping(new MappingMetaData(mapper));
                 }
             }
-        } catch (Throwable t) {
-            logger.warn("[{}] failed to refresh-mapping in cluster state", t, index);
+        } catch (Exception e) {
+            logger.warn("[{}] failed to refresh-mapping in cluster state", e, index);
         }
         return dirty;
     }
@@ -198,11 +203,11 @@ public class MetaDataMappingService extends AbstractComponent {
      */
     public void refreshMapping(final String index, final String indexUUID) {
         final RefreshTask refreshTask = new RefreshTask(index, indexUUID);
-        clusterService.submitStateUpdateTask("refresh-mapping [" + index + "]",
+        clusterService.submitStateUpdateTask("refresh-mapping",
             refreshTask,
             ClusterStateTaskConfig.build(Priority.HIGH),
             refreshExecutor,
-            (source, t) -> logger.warn("failure during [{}]", t, source)
+            (source, e) -> logger.warn("failure during [{}]", e, source)
         );
     }
 
@@ -233,8 +238,8 @@ public class MetaDataMappingService extends AbstractComponent {
                         }
                         currentState = applyRequest(currentState, request);
                         builder.success(request);
-                    } catch (Throwable t) {
-                        builder.failure(request, t);
+                    } catch (Exception e) {
+                        builder.failure(request, e);
                     }
                 }
                 return builder.build(currentState);
@@ -347,18 +352,23 @@ public class MetaDataMappingService extends AbstractComponent {
 
             return ClusterState.builder(currentState).metaData(builder).build();
         }
+
+        @Override
+        public String describeTasks(List<PutMappingClusterStateUpdateRequest> tasks) {
+            return tasks.stream().map(PutMappingClusterStateUpdateRequest::type).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
+        }
     }
 
     public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-        clusterService.submitStateUpdateTask("put-mapping [" + request.type() + "]",
+        clusterService.submitStateUpdateTask("put-mapping",
                 request,
                 ClusterStateTaskConfig.build(Priority.HIGH, request.masterNodeTimeout()),
                 putMappingExecutor,
                 new AckedClusterStateTaskListener() {
 
                     @Override
-                    public void onFailure(String source, Throwable t) {
-                        listener.onFailure(t);
+                    public void onFailure(String source, Exception e) {
+                        listener.onFailure(e);
                     }
 
                     @Override
@@ -367,7 +377,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     }
 
                     @Override
-                    public void onAllNodesAcked(@Nullable Throwable t) {
+                    public void onAllNodesAcked(@Nullable Exception e) {
                         listener.onResponse(new ClusterStateUpdateResponse(true));
                     }
 

@@ -55,7 +55,7 @@ public abstract class Command {
             printHelp(terminal);
             terminal.println(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
             return ExitCodes.USAGE;
-        } catch (UserError e) {
+        } catch (UserException e) {
             if (e.exitCode == ExitCodes.USAGE) {
                 printHelp(terminal);
             }
@@ -79,7 +79,7 @@ public abstract class Command {
         if (options.has(silentOption)) {
             if (options.has(verboseOption)) {
                 // mutually exclusive, we can remove this with jopt-simple 5.0, which natively supports it
-                throw new UserError(ExitCodes.USAGE, "Cannot specify -s and -v together");
+                throw new UserException(ExitCodes.USAGE, "Cannot specify -s and -v together");
             }
             terminal.setVerbosity(Terminal.Verbosity.SILENT);
         } else if (options.has(verboseOption)) {
@@ -110,7 +110,7 @@ public abstract class Command {
     /**
      * Executes this command.
      *
-     * Any runtime user errors (like an input file that does not exist), should throw a {@link UserError}. */
+     * Any runtime user errors (like an input file that does not exist), should throw a {@link UserException}. */
     protected abstract void execute(Terminal terminal, OptionSet options) throws Exception;
 
 }

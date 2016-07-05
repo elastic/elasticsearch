@@ -76,7 +76,7 @@ public abstract class Rounding implements Streamable {
      */
     public static class Interval extends Rounding {
 
-        final static byte ID = 0;
+        static final byte ID = 0;
 
         public static final ParseField INTERVAL_FIELD = new ParseField("interval");
 
@@ -157,7 +157,7 @@ public abstract class Rounding implements Streamable {
 
     public static class FactorRounding extends Rounding {
 
-        final static byte ID = 7;
+        static final byte ID = 7;
 
         public static final ParseField FACTOR_FIELD = new ParseField("factor");
 
@@ -226,7 +226,7 @@ public abstract class Rounding implements Streamable {
 
     public static class OffsetRounding extends Rounding {
 
-        final static byte ID = 8;
+        static final byte ID = 8;
 
         public static final ParseField OFFSET_FIELD = new ParseField("offset");
 

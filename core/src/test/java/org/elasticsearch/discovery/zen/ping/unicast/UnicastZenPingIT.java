@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery.zen.ping.unicast;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
@@ -43,7 +43,6 @@ import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty.NettyTransport;
-import org.jboss.netty.util.internal.ConcurrentHashMap;
 
 import java.net.InetSocketAddress;
 import java.util.concurrent.ConcurrentMap;
@@ -209,7 +208,7 @@ public class UnicastZenPingIT extends ESTestCase {
         final TransportService transportService = new TransportService(settings, transport, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
-        ConcurrentMap<TransportAddress, AtomicInteger> counters = new ConcurrentHashMap<>();
+        ConcurrentMap<TransportAddress, AtomicInteger> counters = ConcurrentCollections.newConcurrentMap();
         transportService.addConnectionListener(new TransportConnectionListener() {
             @Override
             public void onNodeConnected(DiscoveryNode node) {

@@ -28,7 +28,9 @@ import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptReque
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -75,7 +77,7 @@ import java.util.concurrent.ConcurrentMap;
 
 import static java.util.Collections.unmodifiableMap;
 
-public class ScriptService extends AbstractComponent implements Closeable {
+public class ScriptService extends AbstractComponent implements Closeable, ClusterStateListener {
 
     static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
 
@@ -104,6 +106,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     private final ParseFieldMatcher parseFieldMatcher;
     private final ScriptMetrics scriptMetrics = new ScriptMetrics();
+
+    private ClusterState clusterState;
 
     /**
      * @deprecated Use {@link org.elasticsearch.script.Script.ScriptField} instead. This should be removed in
@@ -217,7 +221,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Checks if a script can be executed and compiles it if needed, or returns the previously compiled and cached script.
      */
-    public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params, ClusterState state) {
+    public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params) {
         if (script == null) {
             throw new IllegalArgumentException("The parameter script (Script) must not be null.");
         }
@@ -232,7 +236,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         }
 
         ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
-        if (canExecuteScript(lang, scriptEngineService, script.getType(), scriptContext) == false) {
+        if (canExecuteScript(lang, script.getType(), scriptContext) == false) {
             throw new IllegalStateException("scripts of type [" + script.getType() + "], operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are disabled");
         }
 
@@ -245,14 +249,14 @@ public class ScriptService extends AbstractComponent implements Closeable {
                     " operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are not supported");
         }
 
-        return compileInternal(script, params, state);
+        return compileInternal(script, params);
     }
 
     /**
      * Compiles a script straight-away, or returns the previously compiled and cached script,
      * without checking if it can be executed based on settings.
      */
-    CompiledScript compileInternal(Script script, Map<String, String> params, ClusterState state) {
+    CompiledScript compileInternal(Script script, Map<String, String> params) {
         if (script == null) {
             throw new IllegalArgumentException("The parameter script (Script) must not be null.");
         }
@@ -289,7 +293,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
             //the script has been updated in the index since the last look up.
             final IndexedScript indexedScript = new IndexedScript(lang, name);
             name = indexedScript.id;
-            code = getScriptFromClusterState(state, indexedScript.lang, indexedScript.id);
+            code = getScriptFromClusterState(indexedScript.lang, indexedScript.id);
         }
 
         CacheKey cacheKey = new CacheKey(scriptEngineService, type == ScriptType.INLINE ? null : name, code, params);
@@ -328,9 +332,9 @@ public class ScriptService extends AbstractComponent implements Closeable {
         return scriptLang;
     }
 
-    String getScriptFromClusterState(ClusterState state, String scriptLang, String id) {
+    String getScriptFromClusterState(String scriptLang, String id) {
         scriptLang = validateScriptLanguage(scriptLang);
-        ScriptMetaData scriptMetadata = state.metaData().custom(ScriptMetaData.TYPE);
+        ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);
         if (scriptMetadata == null) {
             throw new ResourceNotFoundException("Unable to find script [" + scriptLang + "/" + id + "] in cluster state");
         }
@@ -353,7 +357,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
                     ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(scriptLang);
                     //we don't know yet what the script will be used for, but if all of the operations for this lang with
                     //indexed scripts are disabled, it makes no sense to even compile it.
-                    if (isAnyScriptContextEnabled(scriptLang, scriptEngineService, ScriptType.STORED)) {
+                    if (isAnyScriptContextEnabled(scriptLang, ScriptType.STORED)) {
                         Object compiled = scriptEngineService.compile(id, template.getScript(), Collections.emptyMap());
                         if (compiled == null) {
                             throw new IllegalArgumentException("Unable to parse [" + template.getScript() +
@@ -372,7 +376,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
                             "] lang [" + scriptLang + "]", e);
                 }
             } else {
-                throw new IllegalArgumentException("Unable to find script in : " + scriptBytes.toUtf8());
+                throw new IllegalArgumentException("Unable to find script in : " + scriptBytes.utf8ToString());
             }
         } catch (IOException e) {
             throw new IllegalArgumentException("failed to parse template script", e);
@@ -443,8 +447,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Compiles (or retrieves from cache) and executes the provided script
      */
-    public ExecutableScript executable(Script script, ScriptContext scriptContext, Map<String, String> params, ClusterState state) {
-        return executable(compile(script, scriptContext, params, state), script.getParams());
+    public ExecutableScript executable(Script script, ScriptContext scriptContext, Map<String, String> params) {
+        return executable(compile(script, scriptContext, params), script.getParams());
     }
 
     /**
@@ -457,21 +461,21 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Compiles (or retrieves from cache) and executes the provided search script
      */
-    public SearchScript search(SearchLookup lookup, Script script, ScriptContext scriptContext, Map<String, String> params, ClusterState state) {
-        CompiledScript compiledScript = compile(script, scriptContext, params, state);
+    public SearchScript search(SearchLookup lookup, Script script, ScriptContext scriptContext, Map<String, String> params) {
+        CompiledScript compiledScript = compile(script, scriptContext, params);
         return getScriptEngineServiceForLang(compiledScript.lang()).search(compiledScript, lookup, script.getParams());
     }
 
-    private boolean isAnyScriptContextEnabled(String lang, ScriptEngineService scriptEngineService, ScriptType scriptType) {
+    private boolean isAnyScriptContextEnabled(String lang, ScriptType scriptType) {
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
-            if (canExecuteScript(lang, scriptEngineService, scriptType, scriptContext)) {
+            if (canExecuteScript(lang, scriptType, scriptContext)) {
                 return true;
             }
         }
         return false;
     }
 
-    private boolean canExecuteScript(String lang, ScriptEngineService scriptEngineService, ScriptType scriptType, ScriptContext scriptContext) {
+    private boolean canExecuteScript(String lang, ScriptType scriptType, ScriptContext scriptContext) {
         assert lang != null;
         if (scriptContextRegistry.isSupportedContext(scriptContext) == false) {
             throw new IllegalArgumentException("script context [" + scriptContext.getKey() + "] not supported");
@@ -494,6 +498,11 @@ public class ScriptService extends AbstractComponent implements Closeable {
             );
             throw new IllegalArgumentException(message);
         }
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        clusterState = event.state();
     }
 
     /**
@@ -547,7 +556,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
                 try {
                     //we don't know yet what the script will be used for, but if all of the operations for this lang
                     // with file scripts are disabled, it makes no sense to even compile it and cache it.
-                    if (isAnyScriptContextEnabled(engineService.getType(), engineService, ScriptType.FILE)) {
+                    if (isAnyScriptContextEnabled(engineService.getType(), ScriptType.FILE)) {
                         logger.info("compiling script file [{}]", file.toAbsolutePath());
                         try (InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8)) {
                             String script = Streams.copyToString(reader);
@@ -562,7 +571,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
                     } else {
                         logger.warn("skipping compile of script file [{}] as all scripted operations are disabled for file scripts", file.toAbsolutePath());
                     }
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     logger.warn("failed to load/compile script [{}]", e, scriptNameExt.v1());
                 }
             }

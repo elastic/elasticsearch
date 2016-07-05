@@ -48,7 +48,7 @@ public class SimulateProcessorResultTests extends ESTestCase {
 
         BytesStreamOutput out = new BytesStreamOutput();
         simulateProcessorResult.writeTo(out);
-        StreamInput streamInput = StreamInput.wrap(out.bytes());
+        StreamInput streamInput = out.bytes().streamInput();
         SimulateProcessorResult otherSimulateProcessorResult = new SimulateProcessorResult(streamInput);
         assertThat(otherSimulateProcessorResult.getProcessorTag(), equalTo(simulateProcessorResult.getProcessorTag()));
         if (isFailure) {

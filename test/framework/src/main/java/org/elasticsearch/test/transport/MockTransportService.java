@@ -20,7 +20,6 @@
 package org.elasticsearch.test.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.transport.TransportService;
 
@@ -34,7 +33,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -52,7 +50,6 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.local.LocalTransport;
 import org.elasticsearch.transport.netty.NettyTransport;
@@ -383,11 +380,11 @@ public class MockTransportService extends TransportService {
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 request.writeTo(bStream);
                 final TransportRequest clonedRequest = reg.newRequest();
-                clonedRequest.readFrom(StreamInput.wrap(bStream.bytes()));
+                clonedRequest.readFrom(bStream.bytes().streamInput());
 
                 threadPool.schedule(delay, ThreadPool.Names.GENERIC, new AbstractRunnable() {
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         logger.debug("failed to send delayed request", e);
                     }
 
@@ -558,15 +555,13 @@ public class MockTransportService extends TransportService {
         }
 
         @Override
-        public Transport start() {
+        public void start() {
             transport.start();
-            return this;
         }
 
         @Override
-        public Transport stop() {
+        public void stop() {
             transport.stop();
-            return this;
         }
 
         @Override
@@ -641,10 +636,10 @@ public class MockTransportService extends TransportService {
         }
 
         @Override
-        protected void traceResponseSent(long requestId, String action, Throwable t) {
-            super.traceResponseSent(requestId, action, t);
+        protected void traceResponseSent(long requestId, String action, Exception e) {
+            super.traceResponseSent(requestId, action, e);
             for (Tracer tracer : activeTracers) {
-                tracer.responseSent(requestId, action, t);
+                tracer.responseSent(requestId, action, e);
             }
         }
 

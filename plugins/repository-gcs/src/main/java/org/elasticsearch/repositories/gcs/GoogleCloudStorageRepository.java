@@ -62,7 +62,7 @@ public class GoogleCloudStorageRepository extends BlobStoreRepository {
     public static final Setting<String> APPLICATION_NAME =
             new Setting<>("application_name", GoogleCloudStoragePlugin.NAME, Function.identity(), Property.NodeScope, Property.Dynamic);
     public static final Setting<String> SERVICE_ACCOUNT =
-            simpleString("service_account", Property.NodeScope, Property.Dynamic, Property.Filtered);
+            simpleString("service_account", Property.NodeScope, Property.Dynamic);
     public static final Setting<TimeValue> HTTP_READ_TIMEOUT =
             timeSetting("http.read_timeout", NO_TIMEOUT, Property.NodeScope, Property.Dynamic);
     public static final Setting<TimeValue> HTTP_CONNECT_TIMEOUT =

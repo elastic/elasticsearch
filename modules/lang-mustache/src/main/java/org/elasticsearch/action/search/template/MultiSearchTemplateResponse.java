@@ -40,21 +40,21 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
      */
     public static class Item implements Streamable {
         private SearchTemplateResponse response;
-        private Throwable throwable;
+        private Exception exception;
 
         Item() {
         }
 
-        public Item(SearchTemplateResponse response, Throwable throwable) {
+        public Item(SearchTemplateResponse response, Exception exception) {
             this.response = response;
-            this.throwable = throwable;
+            this.exception = exception;
         }
 
         /**
          * Is it a failed search?
          */
         public boolean isFailure() {
-            return throwable != null;
+            return exception != null;
         }
 
         /**
@@ -62,7 +62,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
          */
         @Nullable
         public String getFailureMessage() {
-            return throwable == null ? null : throwable.getMessage();
+            return exception == null ? null : exception.getMessage();
         }
 
         /**
@@ -85,7 +85,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
                 this.response = new SearchTemplateResponse();
                 response.readFrom(in);
             } else {
-                throwable = in.readThrowable();
+                exception = in.readException();
             }
         }
 
@@ -96,12 +96,12 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
                 response.writeTo(out);
             } else {
                 out.writeBoolean(false);
-                out.writeThrowable(throwable);
+                out.writeException(exception);
             }
         }
 
-        public Throwable getFailure() {
-            return throwable;
+        public Exception getFailure() {
+            return exception;
         }
     }
 
@@ -150,7 +150,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
         for (Item item : items) {
             builder.startObject();
             if (item.isFailure()) {
-                ElasticsearchException.renderThrowable(builder, params, item.getFailure());
+                ElasticsearchException.renderException(builder, params, item.getFailure());
             } else {
                 item.getResponse().toXContent(builder, params);
             }

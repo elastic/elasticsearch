@@ -19,21 +19,21 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.bytes.ByteBufferBytesReference;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
-import java.io.FilterInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class StreamTests extends ESTestCase {
     public void testRandomVLongSerialization() throws IOException {
@@ -61,8 +61,8 @@ public class StreamTests extends ESTestCase {
         for (Tuple<Long, byte[]> value : values) {
             BytesStreamOutput out = new BytesStreamOutput();
             out.writeZLong(value.v1());
-            assertArrayEquals(Long.toString(value.v1()), value.v2(), out.bytes().toBytes());
-            ByteBufferBytesReference bytes = new ByteBufferBytesReference(ByteBuffer.wrap(value.v2()));
+            assertArrayEquals(Long.toString(value.v1()), value.v2(), BytesReference.toBytes(out.bytes()));
+            BytesReference bytes = new BytesArray(value.v2());
             assertEquals(Arrays.toString(value.v2()), (long)value.v1(), bytes.streamInput().readZLong());
         }
     }
@@ -120,5 +120,63 @@ public class StreamTests extends ESTestCase {
         final int bytesToRead = randomIntBetween(1, length);
         streamInput.readBytes(new byte[bytesToRead], 0, bytesToRead);
         assertEquals(streamInput.available(), length - bytesToRead);
+    }
+
+    public void testWritableArrays() throws IOException {
+
+        final String[] strings = generateRandomStringArray(10, 10, false, true);
+        WriteableString[] sourceArray = Arrays.stream(strings).<WriteableString>map(WriteableString::new).toArray(WriteableString[]::new);
+        WriteableString[] targetArray;
+        BytesStreamOutput out = new BytesStreamOutput();
+
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                sourceArray = null;
+            }
+            out.writeOptionalArray(sourceArray);
+            targetArray = out.bytes().streamInput().readOptionalArray(WriteableString::new, WriteableString[]::new);
+        } else {
+            out.writeArray(sourceArray);
+            targetArray = out.bytes().streamInput().readArray(WriteableString::new, WriteableString[]::new);
+        }
+
+        assertThat(targetArray, equalTo(sourceArray));
+    }
+
+    static final class WriteableString implements Writeable {
+        final String string;
+
+        public WriteableString(String string) {
+            this.string = string;
+        }
+
+        public WriteableString(StreamInput in) throws IOException {
+            this(in.readString());
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            WriteableString that = (WriteableString) o;
+
+            return string.equals(that.string);
+
+        }
+
+        @Override
+        public int hashCode() {
+            return string.hashCode();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(string);
+        }
     }
 }

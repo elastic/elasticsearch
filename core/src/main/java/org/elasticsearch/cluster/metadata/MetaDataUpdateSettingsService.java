@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
@@ -43,7 +44,10 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.NodeServicesProvider;
+import org.elasticsearch.indices.IndicesService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -61,17 +65,20 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
     private final AllocationService allocationService;
 
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final IndexScopedSettings indexScopedSettings;
+    private final IndicesService indicesService;
+    private final NodeServicesProvider nodeServiceProvider;
 
     @Inject
-    public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, AllocationService allocationService, IndexScopedSettings indexScopedSettings, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, AllocationService allocationService,
+                                         IndexScopedSettings indexScopedSettings, IndicesService indicesService, NodeServicesProvider nodeServicesProvider) {
         super(settings);
         this.clusterService = clusterService;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.clusterService.add(this);
         this.allocationService = allocationService;
         this.indexScopedSettings = indexScopedSettings;
+        this.indicesService = indicesService;
+        this.nodeServiceProvider = nodeServicesProvider;
     }
 
     @Override
@@ -139,7 +146,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     }
 
                     @Override
-                    public void onFailure(Throwable t) {
+                    public void onFailure(Exception t) {
                         for (Index index : indices) {
                             logger.warn("{} fail to auto expand replicas to [{}]", index, fNumberOfReplicas);
                         }
@@ -266,11 +273,19 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 // now, reroute in case things change that require it (like number of replicas)
                 RoutingAllocation.Result routingResult = allocationService.reroute(updatedState, "settings update");
                 updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
-                for (Index index : openIndices) {
-                    indexScopedSettings.dryRun(updatedState.metaData().getIndexSafe(index).getSettings());
-                }
-                for (Index index : closeIndices) {
-                    indexScopedSettings.dryRun(updatedState.metaData().getIndexSafe(index).getSettings());
+                try {
+                    for (Index index : openIndices) {
+                        final IndexMetaData currentMetaData = currentState.getMetaData().getIndexSafe(index);
+                        final IndexMetaData updatedMetaData = updatedState.metaData().getIndexSafe(index);
+                        indicesService.verifyIndexMetadata(nodeServiceProvider, currentMetaData, updatedMetaData);
+                    }
+                    for (Index index : closeIndices) {
+                        final IndexMetaData currentMetaData = currentState.getMetaData().getIndexSafe(index);
+                        final IndexMetaData updatedMetaData = updatedState.metaData().getIndexSafe(index);
+                        indicesService.verifyIndexMetadata(nodeServiceProvider, currentMetaData, updatedMetaData);
+                    }
+                } catch (IOException ex) {
+                    throw ExceptionsHelper.convertToElastic(ex);
                 }
                 return updatedState;
             }

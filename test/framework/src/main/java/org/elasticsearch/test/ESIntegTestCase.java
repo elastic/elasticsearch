@@ -106,7 +106,6 @@ import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -405,7 +404,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     .setOrder(0)
                     .setSettings(randomSettingsBuilder);
             if (mappings != null) {
-                logger.info("test using _default_ mappings: [{}]", mappings.bytes().toUtf8());
+                logger.info("test using _default_ mappings: [{}]", mappings.bytes().utf8ToString());
                 putTemplate.addMapping("_default_", mappings);
             }
             assertAcked(putTemplate.execute().actionGet());
@@ -925,7 +924,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *                This saves on unneeded searches.
      * @return the actual number of docs seen.
      */
-    public long waitForDocs(final long numDocs, final @Nullable BackgroundIndexer indexer) throws InterruptedException {
+    public long waitForDocs(final long numDocs, @Nullable final BackgroundIndexer indexer) throws InterruptedException {
         // indexing threads can wait for up to ~1m before retrying when they first try to index into a shard which is not STARTED.
         return waitForDocs(numDocs, 90, TimeUnit.SECONDS, indexer);
     }
@@ -940,7 +939,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *                        This saves on unneeded searches.
      * @return the actual number of docs seen.
      */
-    public long waitForDocs(final long numDocs, int maxWaitTime, TimeUnit maxWaitTimeUnit, final @Nullable BackgroundIndexer indexer)
+    public long waitForDocs(final long numDocs, int maxWaitTime, TimeUnit maxWaitTimeUnit, @Nullable final BackgroundIndexer indexer)
             throws InterruptedException {
         final AtomicLong lastKnownCount = new AtomicLong(-1);
         long lastStartCount = -1;
@@ -956,7 +955,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         client().admin().indices().prepareRefresh().get();
                     }
                     lastKnownCount.set(count);
-                } catch (Throwable e) { // count now acts like search and barfs if all shards failed...
+                } catch (Exception e) { // count now acts like search and barfs if all shards failed...
                     logger.debug("failed to executed count", e);
                     return false;
                 }
@@ -1334,7 +1333,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         final String[] indices = indicesSet.toArray(new String[indicesSet.size()]);
         Collections.shuffle(builders, random());
-        final CopyOnWriteArrayList<Tuple<IndexRequestBuilder, Throwable>> errors = new CopyOnWriteArrayList<>();
+        final CopyOnWriteArrayList<Tuple<IndexRequestBuilder, Exception>> errors = new CopyOnWriteArrayList<>();
         List<CountDownLatch> inFlightAsyncOperations = new ArrayList<>();
         // If you are indexing just a few documents then frequently do it one at a time.  If many then frequently in bulk.
         if (builders.size() < FREQUENT_BULK_THRESHOLD ? frequently() : builders.size() < ALWAYS_BULK_THRESHOLD ? rarely() : false) {
@@ -1367,8 +1366,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
         for (CountDownLatch operation : inFlightAsyncOperations) {
             operation.await();
         }
-        final List<Throwable> actualErrors = new ArrayList<>();
-        for (Tuple<IndexRequestBuilder, Throwable> tuple : errors) {
+        final List<Exception> actualErrors = new ArrayList<>();
+        for (Tuple<IndexRequestBuilder, Exception> tuple : errors) {
             if (ExceptionsHelper.unwrapCause(tuple.v2()) instanceof EsRejectedExecutionException) {
                 tuple.v1().execute().actionGet(); // re-index if rejected
             } else {
@@ -1526,7 +1525,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
 
         @Override
-        public final void onFailure(Throwable t) {
+        public final void onFailure(Exception t) {
             try {
                 logger.info("Action Failed", t);
                 addError(t);
@@ -1535,24 +1534,24 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         }
 
-        protected void addError(Throwable t) {
+        protected void addError(Exception e) {
         }
 
     }
 
     private class PayloadLatchedActionListener<Response, T> extends LatchedActionListener<Response> {
-        private final CopyOnWriteArrayList<Tuple<T, Throwable>> errors;
+        private final CopyOnWriteArrayList<Tuple<T, Exception>> errors;
         private final T builder;
 
-        public PayloadLatchedActionListener(T builder, CountDownLatch latch, CopyOnWriteArrayList<Tuple<T, Throwable>> errors) {
+        public PayloadLatchedActionListener(T builder, CountDownLatch latch, CopyOnWriteArrayList<Tuple<T, Exception>> errors) {
             super(latch);
             this.errors = errors;
             this.builder = builder;
         }
 
         @Override
-        protected void addError(Throwable t) {
-            errors.add(new Tuple<>(builder, t));
+        protected void addError(Exception e) {
+            errors.add(new Tuple<>(builder, e));
         }
 
     }
@@ -2035,7 +2034,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * The returned client gets automatically closed when needed, it shouldn't be closed as part of tests otherwise
      * it cannot be reused by other tests anymore.
      */
-    protected synchronized static RestClient getRestClient() {
+    protected static synchronized RestClient getRestClient() {
         if (restClient == null) {
             restClient = createRestClient(null);
         }

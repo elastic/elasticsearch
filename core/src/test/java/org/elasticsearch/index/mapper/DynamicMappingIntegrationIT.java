@@ -96,8 +96,8 @@ public class DynamicMappingIntegrationIT extends ESIntegTestCase {
                     try {
                         startLatch.await();
                         assertTrue(client().prepareIndex("index", "type", id).setSource("field" + id, "bar").get().isCreated());
-                    } catch (Throwable t) {
-                        error.compareAndSet(null, t);
+                    } catch (Exception e) {
+                        error.compareAndSet(null, e);
                     }
                 }
             });

@@ -139,7 +139,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
 
         String updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_ttl")
-                .field("default", "1w")
+                .field("default", "7d")
                 .endObject()
                 .startObject("properties").field("field").startObject().field("type", "text").endObject().endObject()
                 .endObject().endObject().string();

@@ -128,7 +128,7 @@ public class Index implements Writeable, ToXContent {
     /**
      * Builder for Index objects.  Used by ObjectParser instances only.
      */
-    final private static class Builder {
+    private static final class Builder {
         private String name;
         private String uuid;
 

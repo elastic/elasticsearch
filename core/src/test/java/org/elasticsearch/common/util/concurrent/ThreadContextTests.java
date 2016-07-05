@@ -154,7 +154,7 @@ public class ThreadContextTests extends ESTestCase {
             assertNull(threadContext.getTransient("ctx.foo"));
             assertEquals("1", threadContext.getHeader("default"));
 
-            threadContext.readHeaders(StreamInput.wrap(out.bytes()));
+            threadContext.readHeaders(out.bytes().streamInput());
             assertEquals("bar", threadContext.getHeader("foo"));
             assertNull(threadContext.getTransient("ctx.foo"));
         }
@@ -179,14 +179,14 @@ public class ThreadContextTests extends ESTestCase {
         {
             Settings otherSettings = Settings.builder().put("request.headers.default", "5").build();
             ThreadContext otherhreadContext = new ThreadContext(otherSettings);
-            otherhreadContext.readHeaders(StreamInput.wrap(out.bytes()));
+            otherhreadContext.readHeaders(out.bytes().streamInput());
 
             assertEquals("bar", otherhreadContext.getHeader("foo"));
             assertNull(otherhreadContext.getTransient("ctx.foo"));
             assertEquals("1", otherhreadContext.getHeader("default"));
         }
     }
-    
+
     public void testSerializeInDifferentContextNoDefaults() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         {
@@ -202,7 +202,7 @@ public class ThreadContextTests extends ESTestCase {
         {
             Settings otherSettings = Settings.builder().put("request.headers.default", "5").build();
             ThreadContext otherhreadContext = new ThreadContext(otherSettings);
-            otherhreadContext.readHeaders(StreamInput.wrap(out.bytes()));
+            otherhreadContext.readHeaders(out.bytes().streamInput());
 
             assertEquals("bar", otherhreadContext.getHeader("foo"));
             assertNull(otherhreadContext.getTransient("ctx.foo"));
@@ -294,8 +294,8 @@ public class ThreadContextTests extends ESTestCase {
         }
         return new AbstractRunnable() {
             @Override
-            public void onFailure(Throwable t) {
-                throw new RuntimeException(t);
+            public void onFailure(Exception e) {
+                throw new RuntimeException(e);
             }
 
             @Override

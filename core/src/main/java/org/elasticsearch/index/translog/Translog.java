@@ -123,7 +123,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final Path location;
     private TranslogWriter current;
 
-    private final static long NOT_SET_GENERATION = -1; // -1 is safe as it will not cause a translog deletion.
+    private static final long NOT_SET_GENERATION = -1; // -1 is safe as it will not cause a translog deletion.
 
     private volatile long currentCommittingGeneration = NOT_SET_GENERATION;
     private volatile long lastCommittedTranslogFileGeneration = NOT_SET_GENERATION;
@@ -207,16 +207,16 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
             }
             // now that we know which files are there, create a new current one.
-        } catch (Throwable t) {
+        } catch (Exception e) {
             // close the opened translog files if we fail to create a new translog...
             IOUtils.closeWhileHandlingException(current);
             IOUtils.closeWhileHandlingException(readers);
-            throw t;
+            throw e;
         }
     }
 
     /** recover all translog files found on disk */
-    private final ArrayList<TranslogReader> recoverFromFiles(TranslogGeneration translogGeneration, Checkpoint checkpoint) throws IOException {
+    private ArrayList<TranslogReader> recoverFromFiles(TranslogGeneration translogGeneration, Checkpoint checkpoint) throws IOException {
         boolean success = false;
         ArrayList<TranslogReader> foundTranslogs = new ArrayList<>();
         final Path tempFile = Files.createTempFile(location, TRANSLOG_FILE_PREFIX, TRANSLOG_FILE_SUFFIX); // a temp file to copy checkpoint to - note it must be in on the same FS otherwise atomic move won't work
@@ -438,10 +438,18 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 return location;
             }
         } catch (AlreadyClosedException | IOException ex) {
-            closeOnTragicEvent(ex);
+            try {
+                closeOnTragicEvent(ex);
+            } catch (Exception inner) {
+                ex.addSuppressed(inner);
+            }
             throw ex;
-        } catch (Throwable e) {
-            closeOnTragicEvent(e);
+        } catch (Exception e) {
+            try {
+                closeOnTragicEvent(e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
         } finally {
             Releasables.close(out.bytes());
@@ -509,8 +517,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (closed.get() == false) {
                 current.sync();
             }
-        } catch (Throwable ex) {
-            closeOnTragicEvent(ex);
+        } catch (Exception ex) {
+            try {
+                closeOnTragicEvent(ex);
+            } catch (Exception inner) {
+                ex.addSuppressed(inner);
+            }
             throw ex;
         }
     }
@@ -542,14 +554,18 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 ensureOpen();
                 return current.syncUpTo(location.translogLocation + location.size);
             }
-        } catch (Throwable ex) {
-            closeOnTragicEvent(ex);
+        } catch (Exception ex) {
+            try {
+                closeOnTragicEvent(ex);
+            } catch (Exception inner) {
+                ex.addSuppressed(inner);
+            }
             throw ex;
         }
         return false;
     }
 
-    private void closeOnTragicEvent(Throwable ex) {
+    private void closeOnTragicEvent(Exception ex) {
         if (current.getTragicException() != null) {
             try {
                 close();
@@ -571,10 +587,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         try (ReleasableLock lock = readLock.acquire()) {
             return new TranslogStats(totalOperations(), sizeInBytes());
         }
-    }
-
-    private boolean isReferencedGeneration(long generation) { // used to make decisions if a file can be deleted
-        return generation >= lastCommittedTranslogFileGeneration;
     }
 
     public TranslogConfig getConfig() {
@@ -1142,7 +1154,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         try {
             final int opSize = in.readInt();
             if (opSize < 4) { // 4byte for the checksum
-                throw new AssertionError("operation size must be at least 4 but was: " + opSize);
+                throw new TranslogCorruptedException("operation size must be at least 4 but was: " + opSize);
             }
             in.resetDigest(); // size is not part of the checksum!
             if (in.markSupported()) { // if we can we validate the checksum first
@@ -1157,10 +1169,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
             operation = Translog.Operation.readType(in);
             verifyChecksum(in);
+        } catch (TranslogCorruptedException e) {
+            throw e;
         } catch (EOFException e) {
             throw new TruncatedTranslogException("reached premature end of file, translog is truncated", e);
-        } catch (AssertionError | Exception e) {
-            throw new TranslogCorruptedException("translog corruption while reading from stream", e);
         }
         return operation;
     }
@@ -1223,9 +1235,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             current = createWriter(current.getGeneration() + 1);
             logger.trace("current translog set to [{}]", current.getGeneration());
 
-        } catch (Throwable t) {
+        } catch (Exception e) {
             IOUtils.closeWhileHandlingException(this); // tragic event
-            throw t;
+            throw e;
         }
     }
 
@@ -1287,7 +1299,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * References a transaction log generation
      */
-    public final static class TranslogGeneration {
+    public static final class TranslogGeneration {
         public final String translogUUID;
         public final long translogFileGeneration;
 
@@ -1348,7 +1360,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * e.g. disk full while flushing a new segment, this returns the root cause exception.
      * Otherwise (no tragic exception has occurred) it returns null.
      */
-    public Throwable getTragicException() {
+    public Exception getTragicException() {
         return current.getTragicException();
     }
 

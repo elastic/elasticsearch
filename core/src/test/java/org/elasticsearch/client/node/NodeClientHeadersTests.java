@@ -46,7 +46,9 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
     protected Client buildClient(Settings headersSettings, GenericAction[] testedActions) {
         Settings settings = HEADER_SETTINGS;
         Actions actions = new Actions(settings, threadPool, testedActions);
-        return new NodeClient(settings, threadPool, actions);
+        NodeClient client = new NodeClient(settings, threadPool);
+        client.intialize(actions);
+        return client;
     }
 
     private static class Actions extends HashMap<GenericAction, TransportAction> {

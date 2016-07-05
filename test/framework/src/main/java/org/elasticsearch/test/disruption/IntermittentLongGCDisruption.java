@@ -61,7 +61,7 @@ public class IntermittentLongGCDisruption extends LongGCDisruption {
         this.delayDurationMax = delayDurationMax;
     }
 
-    final static AtomicInteger thread_ids = new AtomicInteger();
+    static final AtomicInteger thread_ids = new AtomicInteger();
 
     @Override
     public void startDisrupting() {

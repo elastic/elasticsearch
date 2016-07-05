@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.builder;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -85,11 +86,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class SearchSourceBuilderTests extends ESTestCase {
     private static Injector injector;
@@ -137,13 +139,13 @@ public class SearchSourceBuilderTests extends ESTestCase {
                     b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
                 },
                 settingsModule,
-                new IndicesModule(namedWriteableRegistry) {
+                new IndicesModule(namedWriteableRegistry, Collections.emptyList()) {
                     @Override
                     protected void configure() {
                         bindMapperExtension();
                     }
                 },
-                new SearchModule(settings, namedWriteableRegistry) {
+                new SearchModule(settings, namedWriteableRegistry, false) {
                     @Override
                     protected void configureSearch() {
                         // Skip me
@@ -205,7 +207,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
             builder.minScore(randomFloat() * 1000);
         }
         if (randomBoolean()) {
-            builder.timeout(new TimeValue(randomIntBetween(1, 100), randomFrom(TimeUnit.values())));
+            builder.timeout(TimeValue.parseTimeValue(randomTimeValue(), null, "timeout"));
         }
         if (randomBoolean()) {
             builder.terminateAfter(randomIntBetween(1, 100000));
@@ -442,7 +444,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
         SearchSourceBuilder testBuilder = createSearchSourceBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testBuilder.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 SearchSourceBuilder deserializedBuilder = new SearchSourceBuilder(in);
                 assertEquals(deserializedBuilder, testBuilder);
                 assertEquals(deserializedBuilder.hashCode(), testBuilder.hashCode());
@@ -453,7 +455,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
 
     public void testEqualsAndHashcode() throws IOException {
         SearchSourceBuilder firstBuilder = createSearchSourceBuilder();
-        assertFalse("source builder is equal to null", firstBuilder.equals(null));
+        assertNotNull("source builder is equal to null", firstBuilder);
         assertFalse("source builder is equal to incompatible type", firstBuilder.equals(""));
         assertTrue("source builder is not equal to self", firstBuilder.equals(firstBuilder));
         assertThat("same source builder's hashcode returns different values if called multiple times", firstBuilder.hashCode(),
@@ -482,7 +484,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
     protected SearchSourceBuilder copyBuilder(SearchSourceBuilder builder) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             builder.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 return new SearchSourceBuilder(in);
             }
         }
@@ -590,6 +592,27 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 assertEquals(new QueryRescorerBuilder(QueryBuilders.matchQuery("content", "baz")).windowSize(50),
                         searchSourceBuilder.rescores().get(0));
             }
+        }
+    }
+
+    public void testTimeoutWithUnits() throws IOException {
+        final String timeout = randomTimeValue();
+        final String query = "{ \"query\": { \"match_all\": {}}, \"timeout\": \"" + timeout + "\"}";
+        try (XContentParser parser = XContentFactory.xContent(query).createParser(query)) {
+            final SearchSourceBuilder builder = SearchSourceBuilder.fromXContent(createParseContext(parser), aggParsers, suggesters);
+            assertThat(builder.timeout(), equalTo(TimeValue.parseTimeValue(timeout, null, "timeout")));
+        }
+    }
+
+    public void testTimeoutWithoutUnits() throws IOException {
+        final int timeout = randomIntBetween(1, 1024);
+        final String query = "{ \"query\": { \"match_all\": {}}, \"timeout\": \"" + timeout + "\"}";
+        try (XContentParser parser = XContentFactory.xContent(query).createParser(query)) {
+            final ElasticsearchParseException e =
+                    expectThrows(
+                            ElasticsearchParseException.class,
+                            () -> SearchSourceBuilder.fromXContent(createParseContext(parser), aggParsers, suggesters));
+            assertThat(e, hasToString(containsString("unit is missing or unrecognized")));
         }
     }
 

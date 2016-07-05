@@ -47,7 +47,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class PipelineStore extends AbstractComponent implements Closeable, ClusterStateListener {
+public class PipelineStore extends AbstractComponent implements ClusterStateListener {
 
     private final Pipeline.Factory factory = new Pipeline.Factory();
     private ProcessorsRegistry processorRegistry;
@@ -65,13 +65,6 @@ public class PipelineStore extends AbstractComponent implements Closeable, Clust
     public void buildProcessorFactoryRegistry(ProcessorsRegistry.Builder processorsRegistryBuilder, ScriptService scriptService,
                                               ClusterService clusterService) {
         this.processorRegistry = processorsRegistryBuilder.build(scriptService, clusterService);
-    }
-
-    @Override
-    public void close() throws IOException {
-        // TODO: When org.elasticsearch.node.Node can close Closable instances we should try to remove this code,
-        // since any wired closable should be able to close itself
-        processorRegistry.close();
     }
 
     @Override

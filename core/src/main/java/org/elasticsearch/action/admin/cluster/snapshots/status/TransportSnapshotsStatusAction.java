@@ -125,13 +125,13 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                                 List<SnapshotsInProgress.Entry> currentSnapshots =
                                         snapshotsService.currentSnapshots(request.repository(), Arrays.asList(request.snapshots()));
                                 listener.onResponse(buildResponse(request, currentSnapshots, nodeSnapshotStatuses));
-                            } catch (Throwable e) {
+                            } catch (Exception e) {
                                 listener.onFailure(e);
                             }
                         }
 
                         @Override
-                        public void onFailure(Throwable e) {
+                        public void onFailure(Exception e) {
                             listener.onFailure(e);
                         }
                     });
@@ -207,15 +207,14 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 .filter(s -> requestedSnapshotNames.contains(s.getName()))
                 .collect(Collectors.toMap(SnapshotId::getName, Function.identity()));
             for (final String snapshotName : request.snapshots()) {
+                if (currentSnapshotNames.contains(snapshotName)) {
+                    // we've already found this snapshot in the current snapshot entries, so skip over
+                    continue;
+                }
                 SnapshotId snapshotId = matchedSnapshotIds.get(snapshotName);
                 if (snapshotId == null) {
-                    if (currentSnapshotNames.contains(snapshotName)) {
-                        // we've already found this snapshot in the current snapshot entries, so skip over
-                        continue;
-                    } else {
-                        // neither in the current snapshot entries nor found in the repository
-                        throw new SnapshotMissingException(repositoryName, snapshotName);
-                    }
+                    // neither in the current snapshot entries nor found in the repository
+                    throw new SnapshotMissingException(repositoryName, snapshotName);
                 }
                 SnapshotInfo snapshotInfo = snapshotsService.snapshot(repositoryName, snapshotId);
                 List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();

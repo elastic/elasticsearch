@@ -28,7 +28,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -70,7 +70,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         out.setVersion(version);
         nodeInfo.writeTo(out);
         out.close();
-        StreamInput in = StreamInput.wrap(out.bytes());
+        StreamInput in = out.bytes().streamInput();
         in.setVersion(version);
         NodeInfo readNodeInfo = NodeInfo.readNodeInfo(in);
         assertExpectedUnchanged(nodeInfo, readNodeInfo);
@@ -81,11 +81,6 @@ public class NodeInfoStreamingTests extends ESTestCase {
         assertThat(nodeInfo.getBuild().toString(), equalTo(readNodeInfo.getBuild().toString()));
         assertThat(nodeInfo.getHostname(), equalTo(readNodeInfo.getHostname()));
         assertThat(nodeInfo.getVersion(), equalTo(readNodeInfo.getVersion()));
-        assertThat(nodeInfo.getServiceAttributes().size(), equalTo(readNodeInfo.getServiceAttributes().size()));
-        for (Map.Entry<String, String> entry : nodeInfo.getServiceAttributes().entrySet()) {
-            assertNotNull(readNodeInfo.getServiceAttributes().get(entry.getKey()));
-            assertThat(readNodeInfo.getServiceAttributes().get(entry.getKey()), equalTo(entry.getValue()));
-        }
         compareJsonOutput(nodeInfo.getHttp(), readNodeInfo.getHttp());
         compareJsonOutput(nodeInfo.getJvm(), readNodeInfo.getJvm());
         compareJsonOutput(nodeInfo.getProcess(), readNodeInfo.getProcess());
@@ -122,7 +117,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
 
     private NodeInfo createNodeInfo() {
         Build build = Build.CURRENT;
-        DiscoveryNode node = new DiscoveryNode("test_node", DummyTransportAddress.INSTANCE,
+        DiscoveryNode node = new DiscoveryNode("test_node", LocalTransportAddress.buildUnique(),
                 emptyMap(), emptySet(), VersionUtils.randomVersion(random()));
         Map<String, String> serviceAttributes = new HashMap<>();
         serviceAttributes.put("test", "attribute");
@@ -134,7 +129,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         threadPoolInfos.add(new ThreadPool.Info("test_threadpool", ThreadPool.ThreadPoolType.FIXED, 5));
         ThreadPoolInfo threadPoolInfo = new ThreadPoolInfo(threadPoolInfos);
         Map<String, BoundTransportAddress> profileAddresses = new HashMap<>();
-        BoundTransportAddress dummyBoundTransportAddress = new BoundTransportAddress(new TransportAddress[]{DummyTransportAddress.INSTANCE}, DummyTransportAddress.INSTANCE);
+        BoundTransportAddress dummyBoundTransportAddress = new BoundTransportAddress(new TransportAddress[]{LocalTransportAddress.buildUnique()}, LocalTransportAddress.buildUnique());
         profileAddresses.put("test_address", dummyBoundTransportAddress);
         TransportInfo transport = new TransportInfo(dummyBoundTransportAddress, profileAddresses);
         HttpInfo htttpInfo = new HttpInfo(dummyBoundTransportAddress, randomLong());
@@ -149,6 +144,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
             // pick a random long that sometimes exceeds an int:
             indexingBuffer = new ByteSizeValue(random().nextLong() & ((1L<<40)-1));
         }
-        return new NodeInfo(VersionUtils.randomVersion(random()), build, node, serviceAttributes, settings, osInfo, process, jvm, threadPoolInfo, transport, htttpInfo, plugins, ingestInfo, indexingBuffer);
+        return new NodeInfo(VersionUtils.randomVersion(random()), build, node, settings, osInfo, process, jvm,
+            threadPoolInfo, transport, htttpInfo, plugins, ingestInfo, indexingBuffer);
     }
 }

@@ -21,6 +21,8 @@ package org.elasticsearch.rest;
 
 import java.io.Closeable;
 
+import org.elasticsearch.client.node.NodeClient;
+
 /**
  * A filter allowing to filter rest operations.
  */
@@ -43,5 +45,5 @@ public abstract class RestFilter implements Closeable {
      * Process the rest request. Using the channel to send a response, or the filter chain to continue
      * processing the request.
      */
-    public abstract void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws Exception;
+    public abstract void process(RestRequest request, RestChannel channel, NodeClient client, RestFilterChain filterChain) throws Exception;
 }

@@ -47,8 +47,8 @@ final class JNAKernel32Library {
     private List<NativeHandlerCallback> callbacks = new ArrayList<>();
 
     // Native library instance must be kept around for the same reason.
-    private final static class Holder {
-        private final static JNAKernel32Library instance = new JNAKernel32Library();
+    private static final class Holder {
+        private static final JNAKernel32Library instance = new JNAKernel32Library();
     }
 
     private JNAKernel32Library() {

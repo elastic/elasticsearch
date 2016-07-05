@@ -29,7 +29,6 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -81,16 +80,9 @@ public class TransportNodesListGatewayStartedShards extends
     }
 
     @Override
-    public void list(ShardId shardId, String[] nodesIds,
+    public void list(ShardId shardId, DiscoveryNode[] nodes,
                      ActionListener<NodesGatewayStartedShards> listener) {
-        execute(new Request(shardId, nodesIds), listener);
-    }
-
-    @Override
-    protected String[] resolveNodes(Request request, ClusterState clusterState) {
-        // default implementation may filter out non existent nodes. it's important to keep exactly the ids
-        // we were given for accounting on the caller
-        return request.nodesIds();
+        execute(new Request(shardId, nodes), listener);
     }
 
     @Override
@@ -177,8 +169,8 @@ public class TransportNodesListGatewayStartedShards extends
         public Request() {
         }
 
-        public Request(ShardId shardId, String[] nodesIds) {
-            super(nodesIds);
+        public Request(ShardId shardId, DiscoveryNode[] nodes) {
+            super(nodes);
             this.shardId = shardId;
         }
 
@@ -253,7 +245,7 @@ public class TransportNodesListGatewayStartedShards extends
         private long legacyVersion = ShardStateMetaData.NO_VERSION; // for pre-3.0 shards that have not yet been active
         private String allocationId = null;
         private boolean primary = false;
-        private Throwable storeException = null;
+        private Exception storeException = null;
 
         public NodeGatewayStartedShards() {
         }
@@ -263,7 +255,7 @@ public class TransportNodesListGatewayStartedShards extends
         }
 
         public NodeGatewayStartedShards(DiscoveryNode node, long legacyVersion, String allocationId, boolean primary,
-                                        Throwable storeException) {
+                                        Exception storeException) {
             super(node);
             this.legacyVersion = legacyVersion;
             this.allocationId = allocationId;
@@ -283,7 +275,7 @@ public class TransportNodesListGatewayStartedShards extends
             return this.primary;
         }
 
-        public Throwable storeException() {
+        public Exception storeException() {
             return this.storeException;
         }
 
@@ -294,7 +286,7 @@ public class TransportNodesListGatewayStartedShards extends
             allocationId = in.readOptionalString();
             primary = in.readBoolean();
             if (in.readBoolean()) {
-                storeException = in.readThrowable();
+                storeException = in.readException();
             }
         }
 
@@ -306,7 +298,7 @@ public class TransportNodesListGatewayStartedShards extends
             out.writeBoolean(primary);
             if (storeException != null) {
                 out.writeBoolean(true);
-                out.writeThrowable(storeException);
+                out.writeException(storeException);
             } else {
                 out.writeBoolean(false);
             }

@@ -27,8 +27,6 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
-import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -46,9 +44,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
     static final Factory FACTORY = new Factory();
 
-    public final static Type TYPE = new Type("range");
+    public static final Type TYPE = new Type("range");
 
-    private final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    private static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalRange readResult(StreamInput in) throws IOException {
             InternalRange ranges = new InternalRange();
@@ -57,32 +55,14 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         }
     };
 
-    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
-        @Override
-        public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
-            Bucket buckets = new Bucket(context.keyed(), context.format());
-            buckets.readFrom(in);
-            return buckets;
-        }
-
-        @Override
-        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
-            BucketStreamContext context = new BucketStreamContext();
-            context.format(bucket.format);
-            context.keyed(bucket.keyed);
-            return context;
-        }
-    };
-
     public static void registerStream() {
         AggregationStreams.registerStream(STREAM, TYPE.stream());
-        BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Range.Bucket {
 
-        protected transient final boolean keyed;
-        protected transient final DocValueFormat format;
+        protected final transient boolean keyed;
+        protected final transient DocValueFormat format;
         protected double from;
         protected double to;
         private long docCount;
@@ -260,7 +240,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     }
 
     private List<B> ranges;
-    private Map<String, B> rangeMap;
     protected DocValueFormat format;
     protected boolean keyed;
 
@@ -333,7 +312,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             ranges.add(getFactory().createBucket(key, in.readDouble(), in.readDouble(), in.readVLong(), InternalAggregations.readAggregations(in), keyed, format));
         }
         this.ranges = ranges;
-        this.rangeMap = null;
     }
 
     @Override

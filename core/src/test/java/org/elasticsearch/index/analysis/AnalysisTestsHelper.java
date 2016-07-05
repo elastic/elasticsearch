@@ -23,14 +23,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.indices.analysis.HunspellService;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Collections;
+
+import static java.util.Collections.emptyList;
 
 public class AnalysisTestsHelper {
 
@@ -49,7 +49,6 @@ public class AnalysisTestsHelper {
             settings = Settings.builder().put(settings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         }
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
-        Environment environment = new Environment(settings);
-        return new AnalysisRegistry(new HunspellService(settings, environment, Collections.emptyMap()), environment).build(idxSettings);
+        return new AnalysisModule(new Environment(settings), emptyList()).getAnalysisRegistry().build(idxSettings);
     }
 }

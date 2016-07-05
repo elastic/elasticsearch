@@ -24,8 +24,8 @@ import com.carrotsearch.hppc.IntSet;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.netty.NettyUtils;
-import org.elasticsearch.common.netty.OpenChannelsHandler;
+import org.elasticsearch.transport.netty.NettyUtils;
+import org.elasticsearch.transport.netty.OpenChannelsHandler;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
@@ -113,7 +113,7 @@ import static org.elasticsearch.http.netty.cors.CorsHandler.ANY_ORIGIN;
 /**
  *
  */
-public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpServerTransport> implements HttpServerTransport {
+public class NettyHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
 
     static {
         NettyUtils.setup();

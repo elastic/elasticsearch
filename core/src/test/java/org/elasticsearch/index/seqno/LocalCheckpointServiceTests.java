@@ -117,8 +117,8 @@ public class LocalCheckpointServiceTests extends ESTestCase {
             final int threadId = t;
             threads[t] = new Thread(new AbstractRunnable() {
                 @Override
-                public void onFailure(Throwable t) {
-                    throw new ElasticsearchException("failure in background thread", t);
+                public void onFailure(Exception e) {
+                    throw new ElasticsearchException("failure in background thread", e);
                 }
 
                 @Override
@@ -167,8 +167,8 @@ public class LocalCheckpointServiceTests extends ESTestCase {
             final int threadId = t;
             threads[t] = new Thread(new AbstractRunnable() {
                 @Override
-                public void onFailure(Throwable t) {
-                    throw new ElasticsearchException("failure in background thread", t);
+                public void onFailure(Exception e) {
+                    throw new ElasticsearchException("failure in background thread", e);
                 }
 
                 @Override

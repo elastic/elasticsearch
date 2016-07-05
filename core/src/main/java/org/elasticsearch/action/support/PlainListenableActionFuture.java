@@ -21,9 +21,6 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.threadpool.ThreadPool;
 
-/**
- *
- */
 public class PlainListenableActionFuture<T> extends AbstractListenableActionFuture<T, T> {
 
     public PlainListenableActionFuture(ThreadPool threadPool) {
@@ -34,4 +31,5 @@ public class PlainListenableActionFuture<T> extends AbstractListenableActionFutu
     protected T convert(T response) {
         return response;
     }
+
 }

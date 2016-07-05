@@ -40,6 +40,7 @@ DOT:       '.' -> mode(AFTER_DOT);
 COMMA:     ',';
 SEMICOLON: ';';
 IF:        'if';
+IN:        'in';
 ELSE:      'else';
 WHILE:     'while';
 DO:        'do';
@@ -52,6 +53,7 @@ TRY:       'try';
 CATCH:     'catch';
 THROW:     'throw';
 THIS:      'this';
+INSTANCEOF: 'instanceof';
 
 BOOLNOT: '!';
 BWNOT:   '~';

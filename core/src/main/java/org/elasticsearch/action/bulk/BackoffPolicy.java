@@ -89,6 +89,13 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         return new ExponentialBackoff((int) checkDelay(initialDelay).millis(), maxNumberOfRetries);
     }
 
+    /**
+     * Wraps the backoff policy in one that calls a method every time a new backoff is taken from the policy.
+     */
+    public static BackoffPolicy wrap(BackoffPolicy delegate, Runnable onBackoff) {
+        return new WrappedBackoffPolicy(delegate, onBackoff);
+    }
+
     private static TimeValue checkDelay(TimeValue delay) {
         if (delay.millis() > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("delay must be <= " + Integer.MAX_VALUE + " ms");
@@ -198,6 +205,45 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
             }
             curr++;
             return delay;
+        }
+    }
+
+    private static final class WrappedBackoffPolicy extends BackoffPolicy {
+        private final BackoffPolicy delegate;
+        private final Runnable onBackoff;
+
+        public WrappedBackoffPolicy(BackoffPolicy delegate, Runnable onBackoff) {
+            this.delegate = delegate;
+            this.onBackoff = onBackoff;
+        }
+
+        @Override
+        public Iterator<TimeValue> iterator() {
+            return new WrappedBackoffIterator(delegate.iterator(), onBackoff);
+        }
+    }
+
+    private static final class WrappedBackoffIterator implements Iterator<TimeValue> {
+        private final Iterator<TimeValue> delegate;
+        private final Runnable onBackoff;
+
+        public WrappedBackoffIterator(Iterator<TimeValue> delegate, Runnable onBackoff) {
+            this.delegate = delegate;
+            this.onBackoff = onBackoff;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return delegate.hasNext();
+        }
+
+        @Override
+        public TimeValue next() {
+            if (false == delegate.hasNext()) {
+                throw new NoSuchElementException();
+            }
+            onBackoff.run();
+            return delegate.next();
         }
     }
 }

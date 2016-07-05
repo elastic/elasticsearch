@@ -45,7 +45,7 @@ public class ClusterStateRequestTests extends ESTestCase {
             output.setVersion(testVersion);
             clusterStateRequest.writeTo(output);
 
-            StreamInput streamInput = StreamInput.wrap(output.bytes());
+            StreamInput streamInput = output.bytes().streamInput();
             streamInput.setVersion(testVersion);
             ClusterStateRequest deserializedCSRequest = new ClusterStateRequest();
             deserializedCSRequest.readFrom(streamInput);

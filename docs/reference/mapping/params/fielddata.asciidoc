@@ -81,7 +81,7 @@ can move the loading time from the first search request, to the refresh itself.
 Fielddata filtering can be used to reduce the number of terms loaded into
 memory, and thus reduce memory usage. Terms can be filtered by _frequency_:
 
-The frequency filter allows you to only load terms whose term frequency falls
+The frequency filter allows you to only load terms whose document frequency falls
 between a `min` and `max` value, which can be expressed an absolute
 number (when the number is bigger than 1.0) or as a percentage
 (eg `0.01` is `1%` and `1.0` is `100%`). Frequency is calculated

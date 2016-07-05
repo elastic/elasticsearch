@@ -55,7 +55,7 @@ public class ClusterBlockTests extends ESTestCase {
             out.setVersion(version);
             clusterBlock.writeTo(out);
 
-            StreamInput in = StreamInput.wrap(out.bytes());
+            StreamInput in = out.bytes().streamInput();
             in.setVersion(version);
             ClusterBlock result = ClusterBlock.readClusterBlock(in);
 

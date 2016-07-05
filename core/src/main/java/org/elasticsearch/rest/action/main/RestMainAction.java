@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.main;
 import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.action.main.MainResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -46,14 +46,14 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 public class RestMainAction extends BaseRestHandler {
 
     @Inject
-    public RestMainAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestMainAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/", this);
         controller.registerHandler(HEAD, "/", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         client.execute(MainAction.INSTANCE, new MainRequest(), new RestBuilderListener<MainResponse>(channel) {
             @Override
             public RestResponse buildResponse(MainResponse mainResponse, XContentBuilder builder) throws Exception {

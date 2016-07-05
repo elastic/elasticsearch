@@ -22,21 +22,26 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -48,36 +53,39 @@ import org.elasticsearch.search.suggest.Suggesters;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
- * Expose IndexBySearchRequest over rest.
+ * Expose reindex over rest.
  */
 public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, TransportReindexAction> {
-
-    private static final ObjectParser<ReindexRequest, ReindexParseContext> PARSER = new ObjectParser<>("reindex");
+    static final ObjectParser<ReindexRequest, ReindexParseContext> PARSER = new ObjectParser<>("reindex");
+    private static final Pattern HOST_PATTERN = Pattern.compile("(?<scheme>[^:]+)://(?<host>[^:]+):(?<port>\\d+)");
 
     static {
-        ObjectParser.Parser<SearchRequest, ReindexParseContext> sourceParser = (parser, search, context) -> {
-            /*
-             * Extract the parameters that we need from the source sent to the parser. We could do away with this hack when search source
-             * has an ObjectParser.
-             */
+        ObjectParser.Parser<ReindexRequest, ReindexParseContext> sourceParser = (parser, request, context) -> {
+            // Funky hack to work around Search not having a proper ObjectParser and us wanting to extract query if using remote.
             Map<String, Object> source = parser.map();
             String[] indices = extractStringArray(source, "index");
             if (indices != null) {
-                search.indices(indices);
+                request.getSearchRequest().indices(indices);
             }
             String[] types = extractStringArray(source, "type");
             if (types != null) {
-                search.types(types);
+                request.getSearchRequest().types(types);
             }
+            request.setRemoteInfo(buildRemoteInfo(source));
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
             builder.map(source);
             try (XContentParser innerParser = parser.contentType().xContent().createParser(builder.bytes())) {
-                search.source().parseXContent(context.queryParseContext(innerParser), context.aggParsers, context.suggesters);
+                request.getSearchRequest().source().parseXContent(context.queryParseContext(innerParser), context.aggParsers,
+                        context.suggesters);
             }
         };
 
@@ -94,7 +102,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         destParser.declareString((i, ttl) -> i.ttl(parseTimeValue(ttl, TimeValue.timeValueMillis(-1), "ttl").millis()),
                 new ParseField("ttl"));
 
-        PARSER.declareField((p, v, c) -> sourceParser.parse(p, v.getSearchRequest(), c), new ParseField("source"), ValueType.OBJECT);
+        PARSER.declareField((p, v, c) -> sourceParser.parse(p, v, c), new ParseField("source"), ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"), ValueType.OBJECT);
         PARSER.declareInt(ReindexRequest::setSize, new ParseField("size"));
         PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p, c.getParseFieldMatcher())), new ParseField("script"),
@@ -103,15 +111,15 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     }
 
     @Inject
-    public RestReindexAction(Settings settings, RestController controller, Client client,
+    public RestReindexAction(Settings settings, RestController controller,
             IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, Suggesters suggesters,
             ClusterService clusterService, TransportReindexAction action) {
-        super(settings, client, indicesQueriesRegistry, aggParsers, suggesters, clusterService, action);
+        super(settings, indicesQueriesRegistry, aggParsers, suggesters, clusterService, action);
         controller.registerHandler(POST, "/_reindex", this);
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel channel, Client client) throws IOException {
+    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws IOException {
         if (false == request.hasContent()) {
             throw new ElasticsearchException("_reindex requires a request body");
         }
@@ -125,6 +133,29 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             PARSER.parse(xcontent, internal, new ReindexParseContext(indicesQueriesRegistry, aggParsers, suggesters, parseFieldMatcher));
         }
         return internal;
+    }
+
+    static RemoteInfo buildRemoteInfo(Map<String, Object> source) throws IOException {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> remote = (Map<String, Object>) source.remove("remote");
+        if (remote == null) {
+            return null;
+        }
+        String username = extractString(remote, "username");
+        String password = extractString(remote, "password");
+        String hostInRequest = requireNonNull(extractString(remote, "host"), "[host] must be specified to reindex from a remote cluster");
+        Matcher hostMatcher = HOST_PATTERN.matcher(hostInRequest);
+        if (false == hostMatcher.matches()) {
+            throw new IllegalArgumentException("[host] must be of the form [scheme]://[host]:[port] but was [" + hostInRequest + "]");
+        }
+        String scheme = hostMatcher.group("scheme");
+        String host = hostMatcher.group("host");
+        int port = Integer.parseInt(hostMatcher.group("port"));
+        if (false == remote.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Unsupported fields in [remote]: [" + Strings.collectionToCommaDelimitedString(remote.keySet()) + "]");
+        }
+        return new RemoteInfo(scheme, host, port, queryForRemote(source), username, password);
     }
 
     /**
@@ -147,7 +178,32 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         }
     }
 
-    private class ReindexParseContext implements ParseFieldMatcherSupplier {
+    private static String extractString(Map<String, Object> source, String name) {
+        Object value = source.remove(name);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof String) {
+            return (String) value;
+        }
+        throw new IllegalArgumentException("Expected [" + name + "] to be a string but was [" + value + "]");
+    }
+
+    private static BytesReference queryForRemote(Map<String, Object> source) throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+        Object query = source.remove("query");
+        if (query == null) {
+            return matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS).bytes();
+        }
+        if (!(query instanceof Map)) {
+            throw new IllegalArgumentException("Expected [query] to be an object but was [" + query + "]");
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = (Map<String, Object>) query;
+        return builder.map(map).bytes();
+    }
+
+    static class ReindexParseContext implements ParseFieldMatcherSupplier {
         private final IndicesQueriesRegistry indicesQueryRegistry;
         private final ParseFieldMatcher parseFieldMatcher;
         private final AggregatorParsers aggParsers;

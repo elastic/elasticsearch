@@ -47,7 +47,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.NodeEnvironment;
@@ -108,10 +108,10 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
 
     private ThreadPool threadPool;
-    final private Index index = new Index("test", "uuid");
-    final private ShardId shardId = new ShardId(index, 0);
-    final private Map<String, String> indexMapping = Collections.singletonMap("type", "{ \"type\": {} }");
-    protected final static RecoveryTargetService.RecoveryListener recoveryListener = new RecoveryTargetService.RecoveryListener() {
+    private final Index index = new Index("test", "uuid");
+    private final ShardId shardId = new ShardId(index, 0);
+    private final Map<String, String> indexMapping = Collections.singletonMap("type", "{ \"type\": {} }");
+    protected static final RecoveryTargetService.RecoveryListener recoveryListener = new RecoveryTargetService.RecoveryListener() {
         @Override
         public void onRecoveryDone(RecoveryState state) {
 
@@ -199,7 +199,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
     }
 
     private DiscoveryNode getDiscoveryNode(String id) {
-        return new DiscoveryNode(id, id, DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+        return new DiscoveryNode(id, id, LocalTransportAddress.buildUnique(), Collections.emptyMap(),
             Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT);
     }
 
@@ -410,7 +410,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
         }
 
         @Override
-        public void failShard(String message, Throwable throwable) {
+        public void failShard(String message, Exception exception) {
             throw new UnsupportedOperationException();
         }
 
@@ -455,14 +455,14 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
                     new TransportReplicationAction.ReplicaResponse(
                         replica.routingEntry().allocationId().getId(),
                         replica.getLocalCheckpoint()));
-            } catch (Throwable t) {
-                listener.onFailure(t);
+            } catch (Exception e) {
+                listener.onFailure(e);
             }
         }
 
         @Override
-        public void failShard(ShardRouting replica, ShardRouting primary, String message, Throwable throwable, Runnable onSuccess,
-                              Consumer<Throwable> onPrimaryDemoted, Consumer<Throwable> onIgnoredFailure) {
+        public void failShard(ShardRouting replica, ShardRouting primary, String message, Exception exception, Runnable onSuccess,
+                              Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
             throw new UnsupportedOperationException();
         }
 

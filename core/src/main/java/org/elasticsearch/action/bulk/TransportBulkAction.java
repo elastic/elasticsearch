@@ -150,14 +150,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             if (counter.decrementAndGet() == 0) {
                                 try {
                                     executeBulk(task, bulkRequest, startTime, listener, responses);
-                                } catch (Throwable t) {
-                                    listener.onFailure(t);
+                                } catch (Exception e) {
+                                    listener.onFailure(e);
                                 }
                             }
                         }
 
                         @Override
-                        public void onFailure(Throwable e) {
+                        public void onFailure(Exception e) {
                             if (!(ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException)) {
                                 // fail all requests involving this index, if create didnt work
                                 for (int i = 0; i < bulkRequest.requests.size(); i++) {
@@ -170,8 +170,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             if (counter.decrementAndGet() == 0) {
                                 try {
                                     executeBulk(task, bulkRequest, startTime, listener, responses);
-                                } catch (Throwable t) {
-                                    listener.onFailure(t);
+                                } catch (Exception inner) {
+                                    inner.addSuppressed(e);
+                                    listener.onFailure(inner);
                                 }
                             }
                         }
@@ -195,7 +196,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return autoCreateIndex.shouldAutoCreate(index, state);
     }
 
-    private boolean setResponseFailureIfIndexMatches(AtomicArray<BulkItemResponse> responses, int idx, ActionRequest request, String index, Throwable e) {
+    private boolean setResponseFailureIfIndexMatches(AtomicArray<BulkItemResponse> responses, int idx, ActionRequest request, String index, Exception e) {
         if (request instanceof IndexRequest) {
             IndexRequest indexRequest = (IndexRequest) request;
             if (index.equals(indexRequest.index())) {
@@ -344,7 +345,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
             final ShardId shardId = entry.getKey();
             final List<BulkItemRequest> requests = entry.getValue();
-            BulkShardRequest bulkShardRequest = new BulkShardRequest(bulkRequest, shardId, bulkRequest.getRefreshPolicy(),
+            BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, bulkRequest.getRefreshPolicy(),
                     requests.toArray(new BulkItemRequest[requests.size()]));
             bulkShardRequest.consistencyLevel(bulkRequest.consistencyLevel());
             bulkShardRequest.timeout(bulkRequest.timeout());
@@ -367,7 +368,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     // create failures for all relevant requests
                     for (BulkItemRequest request : requests) {
                         final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();

@@ -19,45 +19,39 @@
 
 package org.elasticsearch.percolator;
 
-import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.search.SearchModule;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
-public class PercolatorPlugin extends Plugin {
+public class PercolatorPlugin extends Plugin implements MapperPlugin, ActionPlugin {
 
-    public static final String NAME = "percolator";
-
-    private final boolean transportClientMode;
     private final Settings settings;
 
     public PercolatorPlugin(Settings settings) {
-        this.transportClientMode = transportClientMode(settings);
         this.settings = settings;
     }
 
-    public void onModule(ActionModule module) {
-        module.registerAction(PercolateAction.INSTANCE, TransportPercolateAction.class);
-        module.registerAction(MultiPercolateAction.INSTANCE, TransportMultiPercolateAction.class);
+    @Override
+    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+        return Arrays.asList(new ActionHandler<>(PercolateAction.INSTANCE, TransportPercolateAction.class),
+                new ActionHandler<>(MultiPercolateAction.INSTANCE, TransportMultiPercolateAction.class));
     }
 
-    public void onModule(NetworkModule module) {
-        if (transportClientMode == false) {
-            module.registerRestHandler(RestPercolateAction.class);
-            module.registerRestHandler(RestMultiPercolateAction.class);
-        }
-    }
-
-    public void onModule(IndicesModule module) {
-        module.registerMapper(PercolatorFieldMapper.CONTENT_TYPE, new PercolatorFieldMapper.TypeParser());
+    @Override
+    public List<Class<? extends RestHandler>> getRestHandlers() {
+        return Arrays.asList(RestPercolateAction.class, RestMultiPercolateAction.class);
     }
 
     public void onModule(SearchModule module) {
@@ -67,10 +61,12 @@ public class PercolatorPlugin extends Plugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
+        return Collections.singletonList(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
     }
 
-    static boolean transportClientMode(Settings settings) {
-        return TransportClient.CLIENT_TYPE.equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
+    @Override
+    public Map<String, Mapper.TypeParser> getMappers() {
+        return Collections.singletonMap(PercolatorFieldMapper.CONTENT_TYPE, new PercolatorFieldMapper.TypeParser());
     }
+
 }

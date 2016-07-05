@@ -56,7 +56,7 @@ import static org.elasticsearch.common.geo.builders.ShapeBuilder.SPATIAL_CONTEXT
  */
 public class GeoJSONShapeParserTests extends ESTestCase {
 
-    private final static GeometryFactory GEOMETRY_FACTORY = SPATIAL_CONTEXT.getGeometryFactory();
+    private static final GeometryFactory GEOMETRY_FACTORY = SPATIAL_CONTEXT.getGeometryFactory();
 
     public void testParse_simplePoint() throws IOException {
         String pointGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Point")

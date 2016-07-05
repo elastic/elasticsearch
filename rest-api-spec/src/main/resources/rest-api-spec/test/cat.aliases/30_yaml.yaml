@@ -1,8 +1,5 @@
 ---
-"Simple alias with yaml body through format argument":
-
-  - skip:
-      features: yaml
+"Simple alias with json body through format argument":
 
   - do:
         indices.create:
@@ -15,15 +12,10 @@
 
   - do:
       cat.aliases:
-        format: yaml
+        format: json
 
-  - match:
-      $body: |
-        /^---\n
-          -\s+alias:\s+"test_alias"\s+
-              index:\s+"test"\s+
-              filter:\s+"-"\s+
-              routing.index:\s+"-"\s+
-              routing.search:\s+"-"\s+$/
-
-
+  - match: {0.alias: test_alias}
+  - match: {0.index: test}
+  - match: {0.filter: "-"}
+  - match: {0.routing\.index: "-"}
+  - match: {0.routing\.search: "-"}

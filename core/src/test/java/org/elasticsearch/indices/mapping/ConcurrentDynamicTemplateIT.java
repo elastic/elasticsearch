@@ -69,7 +69,7 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         throwable.add(e);
                         latch.countDown();
                     }

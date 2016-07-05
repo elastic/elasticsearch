@@ -28,6 +28,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
+
 import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
@@ -41,10 +42,10 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -54,9 +55,15 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -85,6 +92,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
@@ -337,8 +345,14 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** Pick a random object from the given array. The array must not be empty. */
     public static <T> T randomFrom(T... array) {
-        return RandomPicks.randomFrom(random(), array);
+        return randomFrom(random(), array);
     }
+
+    /** Pick a random object from the given array. The array must not be empty. */
+    public static <T> T randomFrom(Random random, T... array) {
+        return RandomPicks.randomFrom(random, array);
+    }
+
 
     /** Pick a random object from the given list. */
     public static <T> T randomFrom(List<T> list) {
@@ -406,7 +420,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return generateRandomStringArray(maxArraySize, maxStringSize, allowNull, true);
     }
 
-    private static String[] TIME_SUFFIXES = new String[]{"d", "H", "ms", "s", "S", "w"};
+    private static String[] TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m"};
 
     private static String randomTimeValue(int lower, int upper) {
         return randomIntBetween(lower, upper) + randomFrom(TIME_SUFFIXES);
@@ -768,29 +782,34 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Creates an AnalysisService to test analysis factories and analyzers.
+     * Creates an AnalysisService with all the default analyzers configured.
      */
-    @SafeVarargs
-    public static AnalysisService createAnalysisService(Index index, Settings settings, Consumer<AnalysisModule>... moduleConsumers) throws IOException {
+    public static AnalysisService createAnalysisService(Index index, Settings settings, AnalysisPlugin... analysisPlugins)
+            throws IOException {
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        return createAnalysisService(index, nodeSettings, settings, moduleConsumers);
+        return createAnalysisService(index, nodeSettings, settings, analysisPlugins);
     }
 
     /**
-     * Creates an AnalysisService to test analysis factories and analyzers.
+     * Creates an AnalysisService with all the default analyzers configured.
      */
-    @SafeVarargs
-    public static AnalysisService createAnalysisService(Index index, Settings nodeSettings, Settings settings, Consumer<AnalysisModule>... moduleConsumers) throws IOException {
+    public static AnalysisService createAnalysisService(Index index, Settings nodeSettings, Settings settings,
+            AnalysisPlugin... analysisPlugins) throws IOException {
         Settings indexSettings = Settings.builder().put(settings)
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .build();
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .build();
+        return createAnalysisService(IndexSettingsModule.newIndexSettings(index, indexSettings), nodeSettings, analysisPlugins);
+    }
+
+    /**
+     * Creates an AnalysisService with all the default analyzers configured.
+     */
+    public static AnalysisService createAnalysisService(IndexSettings indexSettings, Settings nodeSettings,
+            AnalysisPlugin... analysisPlugins) throws IOException {
         Environment env = new Environment(nodeSettings);
-        AnalysisModule analysisModule = new AnalysisModule(env);
-        for (Consumer<AnalysisModule> consumer : moduleConsumers) {
-            consumer.accept(analysisModule);
-        }
-        SettingsModule settingsModule = new SettingsModule(nodeSettings, InternalSettingsPlugin.VERSION_CREATED);
-        final AnalysisService analysisService = analysisModule.buildRegistry().build(IndexSettingsModule.newIndexSettings(index, indexSettings));
+        AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins));
+        final AnalysisService analysisService = analysisModule.getAnalysisRegistry()
+                .build(indexSettings);
         return analysisService;
     }
 
@@ -802,5 +821,22 @@ public abstract class ESTestCase extends LuceneTestCase {
                 .build();
         Environment environment = new Environment(settings);
         return new ScriptModule(settings, environment, null, singletonList(new MockScriptEngine()), emptyList());
+    }
+
+    /** Creates an IndicesModule for testing with the given mappers and metadata mappers. */
+    public static IndicesModule newTestIndicesModule(Map<String, Mapper.TypeParser> extraMappers,
+                                                     Map<String, MetadataFieldMapper.TypeParser> extraMetadataMappers) {
+        return new IndicesModule(new NamedWriteableRegistry(), Collections.singletonList(
+            new MapperPlugin() {
+                @Override
+                public Map<String, Mapper.TypeParser> getMappers() {
+                    return extraMappers;
+                }
+                @Override
+                public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+                    return extraMetadataMappers;
+                }
+            }
+        ));
     }
 }

@@ -475,8 +475,8 @@ public class BulkByScrollTask extends CancellableTask {
                 }
 
                 @Override
-                public void onFailure(Throwable t) {
-                    command.onFailure(t);
+                public void onFailure(Exception e) {
+                    command.onFailure(e);
                 }
             });
         }
@@ -546,8 +546,8 @@ public class BulkByScrollTask extends CancellableTask {
         }
 
         @Override
-        public void onFailure(Throwable t) {
-            delegate.onFailure(t);
+        public void onFailure(Exception e) {
+            delegate.onFailure(e);
         }
     }
 }

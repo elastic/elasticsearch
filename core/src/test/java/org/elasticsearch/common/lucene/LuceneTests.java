@@ -19,6 +19,7 @@
 package org.elasticsearch.common.lucene;
 
 import org.apache.lucene.analysis.MockAnalyzer;
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
@@ -27,6 +28,8 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoDeletionPolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.RandomIndexWriter;
@@ -35,9 +38,11 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -49,9 +54,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- *
- */
 public class LuceneTests extends ESTestCase {
     public void testWaitForIndex() throws Exception {
         final MockDirectoryWrapper dir = newMockDirectory();
@@ -349,6 +351,45 @@ public class LuceneTests extends ESTestCase {
         try (DirectoryReader reader = w.getReader()) {
             IndexSearcher searcher = newSearcher(reader);
             assertFalse(Lucene.exists(searcher, new TermQuery(new Term("foo", "bar"))));
+        }
+
+        w.close();
+        dir.close();
+    }
+
+    public void testAsSequentialAccessBits() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new KeywordAnalyzer()));
+
+        Document doc = new Document();
+        doc.add(new StringField("foo", "bar", Store.NO));
+        w.addDocument(doc);
+
+        doc = new Document();
+        w.addDocument(doc);
+
+        doc = new Document();
+        doc.add(new StringField("foo", "bar", Store.NO));
+        w.addDocument(doc);
+
+
+        try (DirectoryReader reader = DirectoryReader.open(w)) {
+            IndexSearcher searcher = newSearcher(reader);
+            Weight termWeight = new TermQuery(new Term("foo", "bar")).createWeight(searcher, false);
+            assertEquals(1, reader.leaves().size());
+            LeafReaderContext leafReaderContext = searcher.getIndexReader().leaves().get(0);
+            Bits bits = Lucene.asSequentialAccessBits(leafReaderContext.reader().maxDoc(), termWeight.scorer(leafReaderContext));
+
+            expectThrows(IndexOutOfBoundsException.class, () -> bits.get(-1));
+            expectThrows(IndexOutOfBoundsException.class, () -> bits.get(leafReaderContext.reader().maxDoc()));
+            assertTrue(bits.get(0));
+            assertTrue(bits.get(0));
+            assertFalse(bits.get(1));
+            assertFalse(bits.get(1));
+            expectThrows(IllegalArgumentException.class, () -> bits.get(0));
+            assertTrue(bits.get(2));
+            assertTrue(bits.get(2));
+            expectThrows(IllegalArgumentException.class, () -> bits.get(1));
         }
 
         w.close();

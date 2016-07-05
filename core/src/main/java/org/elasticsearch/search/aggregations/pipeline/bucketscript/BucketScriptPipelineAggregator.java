@@ -51,9 +51,9 @@ import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resol
 
 public class BucketScriptPipelineAggregator extends PipelineAggregator {
 
-    public final static Type TYPE = new Type("bucket_script");
+    public static final Type TYPE = new Type("bucket_script");
 
-    public final static PipelineAggregatorStreams.Stream STREAM = in -> {
+    public static final PipelineAggregatorStreams.Stream STREAM = in -> {
         BucketScriptPipelineAggregator result = new BucketScriptPipelineAggregator();
         result.readFrom(in);
         return result;
@@ -93,7 +93,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
         List<? extends Bucket> buckets = originalAgg.getBuckets();
 
         CompiledScript compiledScript = reduceContext.scriptService().compile(script, ScriptContext.Standard.AGGS,
-                Collections.emptyMap(), reduceContext.clusterState());
+                Collections.emptyMap());
         List newBuckets = new ArrayList<>();
         for (Bucket bucket : buckets) {
             Map<String, Object> vars = new HashMap<>();

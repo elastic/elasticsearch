@@ -81,7 +81,9 @@ import org.elasticsearch.painless.antlr.PainlessParser.ForContext;
 import org.elasticsearch.painless.antlr.PainlessParser.FuncrefContext;
 import org.elasticsearch.painless.antlr.PainlessParser.FunctionContext;
 import org.elasticsearch.painless.antlr.PainlessParser.IfContext;
+import org.elasticsearch.painless.antlr.PainlessParser.IneachContext;
 import org.elasticsearch.painless.antlr.PainlessParser.InitializerContext;
+import org.elasticsearch.painless.antlr.PainlessParser.InstanceofContext;
 import org.elasticsearch.painless.antlr.PainlessParser.LambdaContext;
 import org.elasticsearch.painless.antlr.PainlessParser.LamtypeContext;
 import org.elasticsearch.painless.antlr.PainlessParser.LocalFuncrefContext;
@@ -124,6 +126,7 @@ import org.elasticsearch.painless.node.EConditional;
 import org.elasticsearch.painless.node.EDecimal;
 import org.elasticsearch.painless.node.EExplicit;
 import org.elasticsearch.painless.node.EFunctionRef;
+import org.elasticsearch.painless.node.EInstanceof;
 import org.elasticsearch.painless.node.ELambda;
 import org.elasticsearch.painless.node.ENull;
 import org.elasticsearch.painless.node.ENumeric;
@@ -355,6 +358,17 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
         SBlock block = (SBlock)visit(ctx.trailer());
 
         return new SEach(location(ctx), type, name, expression, block);
+    }
+    
+    @Override
+    public Object visitIneach(IneachContext ctx) {
+        reserved.peek().setMaxLoopCounter(settings.getMaxLoopCounter());
+
+        String name = ctx.ID().getText();
+        AExpression expression = (AExpression)visitExpression(ctx.expression());
+        SBlock block = (SBlock)visit(ctx.trailer());
+
+        return new SEach(location(ctx), "def", name, expression, block);
     }
 
     @Override
@@ -1105,6 +1119,13 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
     @Override
     public Object visitMaptoken(MaptokenContext ctx) {
         throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+    }
+
+    @Override
+    public Object visitInstanceof(InstanceofContext ctx) {
+        AExpression expr = (AExpression)visitExpression(ctx.expression());
+        String type = ctx.decltype().getText();
+        return new EInstanceof(location(ctx), expr, type);
     }
 
     /** Returns name of next lambda */

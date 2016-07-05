@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.routing.DelayedAllocationService;
-import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -101,6 +100,7 @@ public class ClusterModule extends AbstractModule {
     private final ExtensionPoint.ClassSet<AllocationDecider> allocationDeciders = new ExtensionPoint.ClassSet<>("allocation_decider", AllocationDecider.class, AllocationDeciders.class);
     private final ExtensionPoint.ClassSet<IndexTemplateFilter> indexTemplateFilters = new ExtensionPoint.ClassSet<>("index_template_filter", IndexTemplateFilter.class);
     private final ClusterService clusterService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     // pkg private so tests can mock
     Class<? extends ClusterInfoService> clusterInfoServiceImpl = InternalClusterInfoService.class;
@@ -113,6 +113,7 @@ public class ClusterModule extends AbstractModule {
         registerShardsAllocator(ClusterModule.BALANCED_ALLOCATOR, BalancedShardsAllocator.class);
         registerShardsAllocator(ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR, BalancedShardsAllocator.class);
         this.clusterService = clusterService;
+        indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
     }
 
     public void registerAllocationDecider(Class<? extends AllocationDecider> allocationDecider) {
@@ -125,6 +126,10 @@ public class ClusterModule extends AbstractModule {
 
     public void registerIndexTemplateFilter(Class<? extends IndexTemplateFilter> indexTemplateFilter) {
         indexTemplateFilters.registerExtension(indexTemplateFilter);
+    }
+
+    public IndexNameExpressionResolver getIndexNameExpressionResolver() {
+        return indexNameExpressionResolver;
     }
 
     @Override
@@ -151,7 +156,7 @@ public class ClusterModule extends AbstractModule {
         bind(MetaDataIndexAliasesService.class).asEagerSingleton();
         bind(MetaDataUpdateSettingsService.class).asEagerSingleton();
         bind(MetaDataIndexTemplateService.class).asEagerSingleton();
-        bind(IndexNameExpressionResolver.class).asEagerSingleton();
+        bind(IndexNameExpressionResolver.class).toInstance(indexNameExpressionResolver);
         bind(RoutingService.class).asEagerSingleton();
         bind(DelayedAllocationService.class).asEagerSingleton();
         bind(ShardStateAction.class).asEagerSingleton();

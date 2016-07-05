@@ -38,7 +38,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
@@ -69,8 +69,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 put("indices.recovery.concurrent_small_file_streams", 1).build();
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
-                new DiscoveryNode("b", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT),
-                new DiscoveryNode("b", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT),
+                new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
+                new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
             null, RecoveryState.Type.STORE, randomLong());
         Store store = newStore(createTempDir());
         RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, recoverySettings.getChunkSize().bytesAsInt(),
@@ -119,8 +119,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 put("indices.recovery.concurrent_small_file_streams", 1).build();
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
-                new DiscoveryNode("b", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT),
-                new DiscoveryNode("b", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT),
+                new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
+                new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
             null, RecoveryState.Type.STORE, randomLong());
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
@@ -182,8 +182,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 put("indices.recovery.concurrent_small_file_streams", 1).build();
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
-                new DiscoveryNode("b", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT),
-                new DiscoveryNode("b", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT),
+                new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
+                new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
             null, RecoveryState.Type.STORE, randomLong());
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);

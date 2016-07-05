@@ -24,7 +24,7 @@ import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -45,11 +45,11 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  */
 public class AsyncShardFetchTests extends ESTestCase {
-    private final DiscoveryNode node1 = new DiscoveryNode("node1", DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+    private final DiscoveryNode node1 = new DiscoveryNode("node1", LocalTransportAddress.buildUnique(), Collections.emptyMap(),
             Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT);
     private final Response response1 = new Response(node1);
     private final Throwable failure1 = new Throwable("simulated failure 1");
-    private final DiscoveryNode node2 = new DiscoveryNode("node2", DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+    private final DiscoveryNode node2 = new DiscoveryNode("node2", LocalTransportAddress.buildUnique(), Collections.emptyMap(),
             Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT);
     private final Response response2 = new Response(node2);
     private final Throwable failure2 = new Throwable("simulate failure 2");
@@ -270,8 +270,9 @@ public class AsyncShardFetchTests extends ESTestCase {
         }
 
         @Override
-        protected void asyncFetch(final ShardId shardId, String[] nodesIds) {
-            for (final String nodeId : nodesIds) {
+        protected void asyncFetch(final ShardId shardId, DiscoveryNode[] nodes) {
+            for (final DiscoveryNode node : nodes) {
+                final String nodeId = node.getId();
                 threadPool.generic().execute(new Runnable() {
                     @Override
                     public void run() {
@@ -291,7 +292,7 @@ public class AsyncShardFetchTests extends ESTestCase {
                             } else {
                                 processAsyncFetch(shardId, Collections.singletonList(entry.response), null);
                             }
-                        } catch (Throwable e) {
+                        } catch (Exception e) {
                             logger.error("unexpected failure", e);
                         } finally {
                             if (entry != null) {

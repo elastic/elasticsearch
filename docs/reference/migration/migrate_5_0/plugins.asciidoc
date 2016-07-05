@@ -63,7 +63,7 @@ Proxy settings for both plugins have been renamed:
 
 Cloud Azure plugin has been split in three plugins:
 
-* {plugins}/discovery-azure.html[Discovery Azure plugin]
+* {plugins}/discovery-azure-classic.html[Discovery Azure plugin]
 * {plugins}/repository-azure.html[Repository Azure plugin]
 * {plugins}/store-smb.html[Store SMB plugin]
 
@@ -122,3 +122,29 @@ been removed.
 
 Plugins that register custom scripts should implement `ScriptPlugin` and remove
 their `onModule(ScriptModule)` implementation.
+
+==== AnalysisPlugin
+
+Plugins that register custom analysis components should implement
+`AnalysisPlugin` and remove their `onModule(AnalysisModule)` implementation.
+
+==== MapperPlugin
+
+Plugins that register custom mappers should implement
+`MapperPlugin` and remove their `onModule(IndicesModule)` implementation.
+
+==== ActionPlugin
+
+Plugins that register custom actions should implement `ActionPlugin` and
+remove their `onModule(ActionModule)` implementation.
+
+Plugins that register custom `RestHandler`s should implement `ActionPlugin` and
+remove their `onModule(NetworkModule)` implemnetation.
+
+==== Mapper-Size plugin
+
+The metadata field `_size` is not accessible in aggregations, scripts and when
+sorting for indices created in 2.x even if the index has been upgraded using the <<indices-upgrade,`upgrade`>> API.
+If these features are needed in your application it is required to reindex the data with Elasticsearch 5.x.
+The easiest way to reindex old indices is to use the `reindex` API, or the reindex UI provided by
+the <<migration-plugin,Migration Plugin>>.

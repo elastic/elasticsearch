@@ -160,7 +160,7 @@ class ClusterStateChanges {
             metaDataIndexUpgradeService, nodeServicesProvider, indicesService);
         MetaDataDeleteIndexService deleteIndexService = new MetaDataDeleteIndexService(settings, clusterService, allocationService);
         MetaDataUpdateSettingsService metaDataUpdateSettingsService = new MetaDataUpdateSettingsService(settings, clusterService,
-            allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, new IndexNameExpressionResolver(settings));
+            allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, indicesService, nodeServicesProvider);
         MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(settings, clusterService, indicesService,
             allocationService, new AliasValidator(settings), Collections.emptySet(), environment,
             nodeServicesProvider, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);

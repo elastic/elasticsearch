@@ -28,7 +28,7 @@ import java.util.Collection;
 
 import static org.hamcrest.Matchers.is;
 
-abstract public class AbstractAzureFsTestCase extends ESIntegTestCase {
+public abstract  class AbstractAzureFsTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(SMBStorePlugin.class);

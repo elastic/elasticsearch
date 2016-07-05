@@ -73,12 +73,6 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
                 builder.byteSizeField("total_indexing_buffer", "total_indexing_buffer_in_bytes", nodeInfo.getTotalIndexingBuffer());
             }
 
-            if (nodeInfo.getServiceAttributes() != null) {
-                for (Map.Entry<String, String> nodeAttribute : nodeInfo.getServiceAttributes().entrySet()) {
-                    builder.field(nodeAttribute.getKey(), nodeAttribute.getValue());
-                }
-            }
-
             builder.startArray("roles");
             for (DiscoveryNode.Role role : nodeInfo.getNode().getRoles()) {
                 builder.value(role.getRoleName());

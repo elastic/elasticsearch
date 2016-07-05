@@ -56,7 +56,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceComputeService>
+public class GceComputeServiceImpl extends AbstractLifecycleComponent
     implements GceComputeService {
 
     // all settings just used for testing - not registered by default
@@ -97,7 +97,8 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
                     }
                 });
                 // assist type inference
-                return instanceList.isEmpty() ? Collections.<Instance>emptyList() : instanceList.getItems();
+                return instanceList.isEmpty()  || instanceList.getItems() == null ?
+                    Collections.<Instance>emptyList() : instanceList.getItems();
             } catch (PrivilegedActionException e) {
                 logger.warn("Problem fetching instance list for zone {}", e, zoneId);
                 logger.debug("Full exception:", e);

@@ -201,12 +201,12 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
     // TODO: this should be refactored and moved to lucene
     // see https://issues.apache.org/jira/browse/LUCENE-6880
-    private final static class TopDocumentsCollector extends TopSuggestDocsCollector {
+    private static final class TopDocumentsCollector extends TopSuggestDocsCollector {
 
         /**
          * Holds a list of suggest meta data for a doc
          */
-        private final static class SuggestDoc extends TopSuggestDocs.SuggestScoreDoc {
+        private static final class SuggestDoc extends TopSuggestDocs.SuggestScoreDoc {
 
             private List<TopSuggestDocs.SuggestScoreDoc> suggestScoreDocs;
 
@@ -252,7 +252,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             }
         }
 
-        private final static class SuggestDocPriorityQueue extends PriorityQueue<SuggestDoc> {
+        private static final class SuggestDocPriorityQueue extends PriorityQueue<SuggestDoc> {
 
             public SuggestDocPriorityQueue(int maxSize) {
                 super(maxSize);

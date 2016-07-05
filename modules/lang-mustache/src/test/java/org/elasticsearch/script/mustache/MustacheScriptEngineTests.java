@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.script.mustache;
 
+import com.github.mustachejava.MustacheFactory;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
@@ -27,7 +28,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.StringWriter;
-import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -39,12 +39,12 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class MustacheScriptEngineTests extends ESTestCase {
     private MustacheScriptEngineService qe;
-    private JsonEscapingMustacheFactory escaper;
+    private MustacheFactory factory;
 
     @Before
     public void setup() {
         qe = new MustacheScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
-        escaper = new JsonEscapingMustacheFactory();
+        factory = new CustomMustacheFactory(true);
     }
 
     public void testSimpleParameterReplace() {
@@ -57,7 +57,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
             BytesReference o = (BytesReference) qe.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "", "mustache", qe.compile(null, template, compileParams)), vars).run();
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.3 } }}",
-                    new String(o.toBytes(), Charset.forName("UTF-8")));
+                    o.utf8ToString());
         }
         {
             String template = "GET _search {\"query\": " + "{\"boosting\": {" + "\"positive\": {\"match\": {\"body\": \"gift\"}},"
@@ -68,19 +68,19 @@ public class MustacheScriptEngineTests extends ESTestCase {
             BytesReference o = (BytesReference) qe.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "", "mustache", qe.compile(null, template, compileParams)), vars).run();
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"\\\"quick brown\\\"\"}}}, \"negative_boost\": 0.3 } }}",
-                    new String(o.toBytes(), Charset.forName("UTF-8")));
+                    o.utf8ToString());
         }
     }
 
     public void testEscapeJson() throws IOException {
         {
             StringWriter writer = new StringWriter();
-            escaper.encode("hello \n world", writer);
+            factory.encode("hello \n world", writer);
             assertThat(writer.toString(), equalTo("hello \\n world"));
         }
         {
             StringWriter writer = new StringWriter();
-            escaper.encode("\n", writer);
+            factory.encode("\n", writer);
             assertThat(writer.toString(), equalTo("\\n"));
         }
 
@@ -135,7 +135,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
                 expect.append(escapedChars[charIndex]);
             }
             StringWriter target = new StringWriter();
-            escaper.encode(writer.toString(), target);
+            factory.encode(writer.toString(), target);
             assertThat(expect.toString(), equalTo(target.toString()));
         }
     }

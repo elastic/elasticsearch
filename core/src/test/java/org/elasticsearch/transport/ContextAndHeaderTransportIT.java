@@ -21,7 +21,6 @@ package org.elasticsearch.transport;
 
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -45,6 +44,7 @@ import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -61,6 +61,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
@@ -284,15 +285,16 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
         return internalCluster().transportClient().filterWithHeader(Collections.singletonMap(randomHeaderKey, randomHeaderValue));
     }
 
-    public static class ActionLoggingPlugin extends Plugin {
+    public static class ActionLoggingPlugin extends Plugin implements ActionPlugin {
 
         @Override
         public Collection<Module> nodeModules() {
             return Collections.<Module>singletonList(new ActionLoggingModule());
         }
 
-        public void onModule(ActionModule module) {
-            module.registerFilter(LoggingFilter.class);
+        @Override
+        public List<Class<? extends ActionFilter>> getActionFilters() {
+            return singletonList(LoggingFilter.class);
         }
     }
 

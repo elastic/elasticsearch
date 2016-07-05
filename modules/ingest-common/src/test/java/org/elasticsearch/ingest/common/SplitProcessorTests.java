@@ -84,7 +84,7 @@ public class SplitProcessorTests extends ESTestCase {
         Map<String, Object> splitConfig = new HashMap<>();
         splitConfig.put("field", "flags");
         splitConfig.put("separator", "\\|");
-        Processor splitProcessor = (new SplitProcessor.Factory()).create(splitConfig);
+        Processor splitProcessor = (new SplitProcessor.Factory()).create("tag", splitConfig);
         Map<String, Object> source = new HashMap<>();
         source.put("flags", "new|hot|super|fun|interesting");
         IngestDocument ingestDocument = new IngestDocument(source, new HashMap<>());

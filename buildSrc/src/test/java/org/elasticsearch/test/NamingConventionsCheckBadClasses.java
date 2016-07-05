@@ -36,7 +36,7 @@ public class NamingConventionsCheckBadClasses {
         public void testDummy() {}
     }
 
-    public static abstract class DummyAbstractTests extends UnitTestCase {
+    public abstract static class DummyAbstractTests extends UnitTestCase {
     }
 
     public interface DummyInterfaceTests {

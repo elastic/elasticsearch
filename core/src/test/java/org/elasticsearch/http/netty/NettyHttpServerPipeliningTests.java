@@ -142,9 +142,9 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
         }
 
         @Override
-        public HttpServerTransport stop() {
+        public void stop() {
             executorService.shutdownNow();
-            return super.stop();
+            super.stop();
         }
     }
 

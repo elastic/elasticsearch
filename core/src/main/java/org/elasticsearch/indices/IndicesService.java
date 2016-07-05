@@ -132,10 +132,7 @@ import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 
-/**
- *
- */
-public class IndicesService extends AbstractLifecycleComponent<IndicesService>
+public class IndicesService extends AbstractLifecycleComponent
     implements IndicesClusterStateService.AllocatedIndices<IndexShard, IndexService>, IndexService.ShardStoreDeleter {
 
     public static final String INDICES_SHARDS_CLOSED_TIMEOUT = "indices.shards_closed_timeout";
@@ -221,7 +218,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
             indicesStopExecutor.execute(() -> {
                 try {
                     removeIndex(index, "shutdown", false);
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     logger.warn("failed to remove index on stop [{}]", e, index);
                 } finally {
                     latch.countDown();
@@ -340,7 +337,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
      * Returns an IndexService for the specified index if exists otherwise returns <code>null</code>.
      */
     @Override
-    public @Nullable IndexService indexService(Index index) {
+    @Nullable
+    public IndexService indexService(Index index) {
         return indices.get(index.getUUID());
     }
 
@@ -428,10 +426,12 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
     }
 
     /**
-     * This method verifies that the given {@link IndexMetaData} holds sane values to create an {@link IndexService}. This method will throw an
-     * exception if the creation fails. The created {@link IndexService} will not be registered and will be closed immediately.
+     * This method verifies that the given {@code metaData} holds sane values to create an {@link IndexService}.
+     * This method tries to update the meta data of the created {@link IndexService} if the given {@code metaDataUpdate} is different from the given {@code metaData}.
+     * This method will throw an exception if the creation or the update fails.
+     * The created {@link IndexService} will not be registered and will be closed immediately.
      */
-    public synchronized void verifyIndexMetadata(final NodeServicesProvider nodeServicesProvider, IndexMetaData metaData) throws IOException {
+    public synchronized void verifyIndexMetadata(final NodeServicesProvider nodeServicesProvider, IndexMetaData metaData, IndexMetaData metaDataUpdate) throws IOException {
         final List<Closeable> closeables = new ArrayList<>();
         try {
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {});
@@ -440,13 +440,17 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
             closeables.add(indicesQueryCache);
             // this will also fail if some plugin fails etc. which is nice since we can verify that early
             final IndexService service = createIndexService("metadata verification", nodeServicesProvider,
-                metaData, indicesQueryCache, indicesFieldDataCache, Collections.emptyList(), s -> {});
+                    metaData, indicesQueryCache, indicesFieldDataCache, Collections.emptyList(), s -> {
+                    });
+            closeables.add(() -> service.close("metadata verification", false));
             for (ObjectCursor<MappingMetaData> typeMapping : metaData.getMappings().values()) {
                 // don't apply the default mapping, it has been applied when the mapping was created
                 service.mapperService().merge(typeMapping.value.type(), typeMapping.value.source(),
                     MapperService.MergeReason.MAPPING_RECOVERY, true);
             }
-            closeables.add(() -> service.close("metadata verification", false));
+            if (metaData.equals(metaDataUpdate) == false) {
+                service.updateMetaData(metaDataUpdate);
+            }
         } finally {
             IOUtils.close(closeables);
         }
@@ -487,7 +491,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
     public void removeIndex(Index index, String reason) {
         try {
             removeIndex(index, reason, false);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             logger.warn("failed to remove index ({})", e, reason);
         }
     }
@@ -578,7 +582,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
     public void deleteIndex(Index index, String reason) {
         try {
             removeIndex(index, reason, true);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             logger.warn("failed to delete index ({})", e, reason);
         }
     }
@@ -748,7 +752,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
      * @return IndexMetaData for the index loaded from disk
      */
     @Override
-    public @Nullable IndexMetaData verifyIndexIsDeleted(final Index index, final ClusterState clusterState) {
+    @Nullable
+    public IndexMetaData verifyIndexIsDeleted(final Index index, final ClusterState clusterState) {
         // this method should only be called when we know the index (name + uuid) is not part of the cluster state
         if (clusterState.metaData().index(index) != null) {
             throw new IllegalStateException("Cannot delete index [" + index + "], it is still part of the cluster state.");
@@ -1008,7 +1013,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
      * has an entry invalidated may not clean up the entry if it is not read from
      * or written to after invalidation.
      */
-    private final static class CacheCleaner implements Runnable, Releasable {
+    private static final class CacheCleaner implements Runnable, Releasable {
 
         private final IndicesFieldDataCache cache;
         private final ESLogger logger;
@@ -1148,7 +1153,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
         BytesReference statsRef = cacheShardLevelResult(shard, searcher.getDirectoryReader(), cacheKey, out -> {
             out.writeOptionalWriteable(fieldType.stats(searcher.reader()));
         });
-        try (StreamInput in = StreamInput.wrap(statsRef)) {
+        try (StreamInput in = statsRef.streamInput()) {
             return in.readOptionalWriteable(FieldStats::readFrom);
         }
     }
@@ -1171,7 +1176,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService>
         return indicesRequestCache.getOrCompute(cacheEntity, reader, cacheKey);
     }
 
-    final static class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {
+    static final class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {
         private final IndexShard indexShard;
 
         protected IndexShardCacheEntity(IndexShard indexShard, Loader loader) {

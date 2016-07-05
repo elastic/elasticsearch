@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.rest.action.search.template;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
@@ -33,8 +33,8 @@ public class RestGetSearchTemplateAction extends RestGetStoredScriptAction {
     private static final String TEMPLATE = "template";
 
     @Inject
-    public RestGetSearchTemplateAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, false, client);
+    public RestGetSearchTemplateAction(Settings settings, RestController controller) {
+        super(settings, controller, false);
         controller.registerHandler(GET, "/_search/template/{id}", this);
     }
 

@@ -933,7 +933,7 @@ public class StoreTests extends ESTestCase {
 
     public void testStreamStoreFilesMetaData() throws Exception {
         Store.MetadataSnapshot metadataSnapshot = createMetaDataSnapshot();
-        TransportNodesListShardStoreMetaData.StoreFilesMetaData outStoreFileMetaData = new TransportNodesListShardStoreMetaData.StoreFilesMetaData(randomBoolean(), new ShardId("test", "_na_", 0),metadataSnapshot);
+        TransportNodesListShardStoreMetaData.StoreFilesMetaData outStoreFileMetaData = new TransportNodesListShardStoreMetaData.StoreFilesMetaData(new ShardId("test", "_na_", 0),metadataSnapshot);
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         org.elasticsearch.Version targetNodeVersion = randomVersion(random());
@@ -1086,7 +1086,7 @@ public class StoreTests extends ESTestCase {
         String uuid = Store.CORRUPTED + UUIDs.randomBase64UUID();
         try (IndexOutput output = dir.createOutput(uuid, IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, Store.CODEC, Store.VERSION_STACK_TRACE);
-            output.writeString(ExceptionsHelper.detailedMessage(exception, true, 0));
+            output.writeString(ExceptionsHelper.detailedMessage(exception));
             output.writeString(ExceptionsHelper.stackTrace(exception));
             CodecUtil.writeFooter(output);
         }
@@ -1102,7 +1102,7 @@ public class StoreTests extends ESTestCase {
 
         try (IndexOutput output = dir.createOutput(uuid, IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, Store.CODEC, Store.VERSION_START);
-            output.writeString(ExceptionsHelper.detailedMessage(exception, true, 0));
+            output.writeString(ExceptionsHelper.detailedMessage(exception));
             CodecUtil.writeFooter(output);
         }
         try {

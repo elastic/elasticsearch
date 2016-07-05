@@ -28,12 +28,15 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -54,6 +57,7 @@ public final class PercolateQuery extends Query implements Accountable {
         private final IndexSearcher percolatorIndexSearcher;
 
         private Query queriesMetaDataQuery;
+        private Query verifiedQueriesQuery = new MatchNoDocsQuery("");
         private Query percolateTypeQuery;
 
         /**
@@ -64,21 +68,32 @@ public final class PercolateQuery extends Query implements Accountable {
          */
         public Builder(String docType, QueryStore queryStore, BytesReference documentSource, IndexSearcher percolatorIndexSearcher) {
             this.docType = Objects.requireNonNull(docType);
+            this.queryStore = Objects.requireNonNull(queryStore);
             this.documentSource = Objects.requireNonNull(documentSource);
             this.percolatorIndexSearcher = Objects.requireNonNull(percolatorIndexSearcher);
-            this.queryStore = Objects.requireNonNull(queryStore);
         }
 
         /**
          * Optionally sets a query that reduces the number of queries to percolate based on extracted terms from
          * the document to be percolated.
-         *
-         * @param extractedTermsFieldName The name of the field to get the extracted terms from
-         * @param unknownQueryFieldname The field used to mark documents whose queries couldn't all get extracted
+         * @param extractedTermsFieldName   The name of the field to get the extracted terms from
+         * @param extractionResultField     The field to indicate for a document whether query term extraction was complete,
+         *                                  partial or failed. If query extraction was complete, the MemoryIndex doesn't
          */
-        public void extractQueryTermsQuery(String extractedTermsFieldName, String unknownQueryFieldname) throws IOException {
+        public void extractQueryTermsQuery(String extractedTermsFieldName, String extractionResultField) throws IOException {
+            // We can only skip the MemoryIndex verification when percolating a single document.
+            // When the document being percolated contains a nested object field then the MemoryIndex contains multiple
+            // documents. In this case the term query that indicates whether memory index verification can be skipped
+            // can incorrectly indicate that non nested queries would match, while their nested variants would not.
+            if (percolatorIndexSearcher.getIndexReader().maxDoc() == 1) {
+                this.verifiedQueriesQuery = new TermQuery(new Term(extractionResultField, ExtractQueryTermsService.EXTRACTION_COMPLETE));
+            }
             this.queriesMetaDataQuery = ExtractQueryTermsService.createQueryTermsQuery(
-                    percolatorIndexSearcher.getIndexReader(), extractedTermsFieldName, unknownQueryFieldname
+                    percolatorIndexSearcher.getIndexReader(), extractedTermsFieldName,
+                    // include extractionResultField:failed, because docs with this term have no extractedTermsField
+                    // and otherwise we would fail to return these docs. Docs that failed query term extraction
+                    // always need to be verified by MemoryIndex:
+                    new Term(extractionResultField, ExtractQueryTermsService.EXTRACTION_FAILED)
             );
         }
 
@@ -94,14 +109,15 @@ public final class PercolateQuery extends Query implements Accountable {
                 throw new IllegalStateException("Either filter by deprecated percolator type or by query metadata");
             }
             // The query that selects which percolator queries will be evaluated by MemoryIndex:
-            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            BooleanQuery.Builder queriesQuery = new BooleanQuery.Builder();
             if (percolateTypeQuery != null) {
-                builder.add(percolateTypeQuery, FILTER);
+                queriesQuery.add(percolateTypeQuery, FILTER);
             }
             if (queriesMetaDataQuery != null) {
-                builder.add(queriesMetaDataQuery, FILTER);
+                queriesQuery.add(queriesMetaDataQuery, FILTER);
             }
-            return new PercolateQuery(docType, queryStore, documentSource, builder.build(), percolatorIndexSearcher);
+            return new PercolateQuery(docType, queryStore, documentSource, queriesQuery.build(), percolatorIndexSearcher,
+                    verifiedQueriesQuery);
         }
 
     }
@@ -110,22 +126,25 @@ public final class PercolateQuery extends Query implements Accountable {
     private final QueryStore queryStore;
     private final BytesReference documentSource;
     private final Query percolatorQueriesQuery;
+    private final Query verifiedQueriesQuery;
     private final IndexSearcher percolatorIndexSearcher;
 
     private PercolateQuery(String documentType, QueryStore queryStore, BytesReference documentSource,
-                           Query percolatorQueriesQuery, IndexSearcher percolatorIndexSearcher) {
+                           Query percolatorQueriesQuery, IndexSearcher percolatorIndexSearcher, Query verifiedQueriesQuery) {
         this.documentType = documentType;
         this.documentSource = documentSource;
         this.percolatorQueriesQuery = percolatorQueriesQuery;
         this.queryStore = queryStore;
         this.percolatorIndexSearcher = percolatorIndexSearcher;
+        this.verifiedQueriesQuery = verifiedQueriesQuery;
     }
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
         Query rewritten = percolatorQueriesQuery.rewrite(reader);
         if (rewritten != percolatorQueriesQuery) {
-            return new PercolateQuery(documentType, queryStore, documentSource, rewritten, percolatorIndexSearcher);
+            return new PercolateQuery(documentType, queryStore, documentSource, rewritten, percolatorIndexSearcher,
+                    verifiedQueriesQuery);
         } else {
             return this;
         }
@@ -133,6 +152,7 @@ public final class PercolateQuery extends Query implements Accountable {
 
     @Override
     public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+        final Weight verifiedQueriesQueryWeight = verifiedQueriesQuery.createWeight(searcher, false);
         final Weight innerWeight = percolatorQueriesQuery.createWeight(searcher, needsScores);
         return new Weight(this) {
             @Override
@@ -206,6 +226,8 @@ public final class PercolateQuery extends Query implements Accountable {
                         }
                     };
                 } else {
+                    Scorer verifiedDocsScorer = verifiedQueriesQueryWeight.scorer(leafReaderContext);
+                    Bits verifiedDocsBits = Lucene.asSequentialAccessBits(leafReaderContext.reader().maxDoc(), verifiedDocsScorer);
                     return new BaseScorer(this, approximation, queries, percolatorIndexSearcher) {
 
                         @Override
@@ -214,6 +236,14 @@ public final class PercolateQuery extends Query implements Accountable {
                         }
 
                         boolean matchDocId(int docId) throws IOException {
+                            // We use the verifiedDocsBits to skip the expensive MemoryIndex verification.
+                            // If docId also appears in the verifiedDocsBits then that means during indexing
+                            // we were able to extract all query terms and for this candidate match
+                            // and we determined based on the nature of the query that it is safe to skip
+                            // the MemoryIndex verification.
+                            if (verifiedDocsBits.get(docId)) {
+                                return true;
+                            }
                             Query query = percolatorQueries.getQuery(docId);
                             return query != null && Lucene.exists(percolatorIndexSearcher, query);
                         }
@@ -262,19 +292,13 @@ public final class PercolateQuery extends Query implements Accountable {
 
     @Override
     public String toString(String s) {
-        return "PercolateQuery{document_type={" + documentType + "},document_source={" + documentSource.toUtf8() +
+        return "PercolateQuery{document_type={" + documentType + "},document_source={" + documentSource.utf8ToString() +
                 "},inner={" + percolatorQueriesQuery.toString(s)  + "}}";
     }
 
     @Override
     public long ramBytesUsed() {
-        long sizeInBytes = 0;
-        if (documentSource.hasArray()) {
-            sizeInBytes += documentSource.array().length;
-        } else {
-            sizeInBytes += documentSource.length();
-        }
-        return sizeInBytes;
+        return documentSource.ramBytesUsed();
     }
 
     @FunctionalInterface
@@ -291,7 +315,7 @@ public final class PercolateQuery extends Query implements Accountable {
 
     }
 
-    static abstract class BaseScorer extends Scorer {
+    abstract static class BaseScorer extends Scorer {
 
         final Scorer approximation;
         final QueryStore.Leaf percolatorQueries;

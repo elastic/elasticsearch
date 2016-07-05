@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.cat;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
@@ -44,15 +44,15 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestAliasAction extends AbstractCatAction {
 
     @Inject
-    public RestAliasAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestAliasAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/_cat/aliases", this);
         controller.registerHandler(GET, "/_cat/aliases/{alias}", this);
     }
 
 
     @Override
-    protected void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    protected void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final GetAliasesRequest getAliasesRequest = request.hasParam("alias") ?
                 new GetAliasesRequest(request.param("alias")) :
                 new GetAliasesRequest();

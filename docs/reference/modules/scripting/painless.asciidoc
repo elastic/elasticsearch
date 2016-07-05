@@ -8,9 +8,7 @@ by default. It is designed specifically for use with Elasticsearch and can
 safely be used with `inline` and `stored` scripting, which is enabled by
 default.
 
-A Painless script is essentially a single function. Painless does not provide support
-for defining multiple functions within a script. The Painless syntax is similar to
-http://groovy-lang.org/index.html[Groovy].
+The Painless syntax is similar to http://groovy-lang.org/index.html[Groovy].
 
 You can use Painless anywhere a script can be used in Elasticsearch--simply set the `lang` parameter
 to `painless`.
@@ -19,22 +17,15 @@ to `painless`.
 [float]
 == Painless Features
 
-* Control flow: `for` loops, `while` loops, `do/while` loops, `if/else`
+* Fast performance: https://benchmarks.elastic.co/index.html#search_qps_scripts[several times faster] than the alternatives.
 
-* Fully Typed: all available types/methods described in <<painless-api, Painless API>>
+* Safety: Fine-grained <<painless-api, whitelist>> with method call/field granularity.
 
-* Arithmetic operators: multiplication `*`, division `/`, addition `+`, subtraction `-`, precedence `( )`
+* Optional typing: Variables and parameters can use explicit types or the dynamic `def` type.
 
-* Comparison operators: less than `<`, less than or equal to `<=`, greater than `>`, greater than or equal to `>=`, equal to `==`, and not equal to `!=`, reference equals `===`, reference not equals `!==`
+* Syntax: Extends Java's syntax with a subset of Groovy for ease of use. See the <<modules-scripting-painless-syntax, Syntax Overview>>.
 
-* Boolean operators: not `!`, and `&&`, or `||`
-
-* Bitwise operators: shift left `<<`, shift right `>>`, unsigned shift `>>>`, and `&`, or `|`, xor `^`, not `~`
-
-* Shortcuts for list, map access using the dot `.` operator
-
-* Native support for regular expressions with `/pattern/`, `=~`, and `==~`
-
+* Optimizations: Designed specifically for Elasticsearch scripting.
 
 [[painless-examples]]
 [float]
@@ -74,7 +65,7 @@ PUT hockey/player/_bulk?refresh
 [float]
 === Accessing Doc Values from Painless
 
-Document values can be accessed from a `Map<String,def>` named `doc`.
+Document values can be accessed from a `Map` named `doc`.
 
 For example, the following script calculates a player's total goals. This example uses a strongly typed `int` and a `for` loop.
 
@@ -246,8 +237,8 @@ POST hockey/player/_update_by_query
 ----------------------------------------------------------------
 // CONSOLE
 
-Or you can use the `Pattern.matcher` directory to get a `Matcher` instance and
-remove all of the vowels in all of their names:
+You can use the `Pattern.matcher` directly to get a `Matcher` instance and
+remove all of the vowels in all of their last names:
 
 [source,js]
 ----------------------------------------------------------------
@@ -261,6 +252,59 @@ POST hockey/player/_update_by_query
 ----------------------------------------------------------------
 // CONSOLE
 
+`Matcher.replaceAll` is just a call to Java's `Matcher`'s
+http://docs.oracle.com/javase/8/docs/api/java/util/regex/Matcher.html#replaceAll-java.lang.String-[replaceAll]
+method so it supports `$1` and `\1` for replacements:
+
+[source,js]
+----------------------------------------------------------------
+POST hockey/player/_update_by_query
+{
+  "script": {
+    "lang": "painless",
+    "inline": "ctx._source.last = /n([aeiou])/.matcher(ctx._source.last).replaceAll('$1')"
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+
+If you need more control over replacements you can call `replaceAll` on a
+`CharSequence` with a `Function<Matcher, String>` that builds the replacement.
+This does not support `$1` or `\1` to access replacements because you already
+have a reference to the matcher and can get them with `m.group(1)`.
+
+IMPORTANT: Calling `Matcher.find` inside of the function that builds the
+replacement is rude and will likely break the replacement process.
+
+This will make all of the vowels in the hockey player's last names upper case:
+
+[source,js]
+----------------------------------------------------------------
+POST hockey/player/_update_by_query
+{
+  "script": {
+    "lang": "painless",
+    "inline": "ctx._source.last = ctx._source.last.replaceAll(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))"
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+
+Or you can use the `CharSequence.replaceFirst` to make the first vowel in their
+last names upper case:
+
+[source,js]
+----------------------------------------------------------------
+POST hockey/player/_update_by_query
+{
+  "script": {
+    "lang": "painless",
+    "inline": "ctx._source.last = ctx._source.last.replaceFirst(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))"
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+
 
 Note: all of the `_update_by_query` examples above could really do with a
 `query` to limit the data that they pull back. While you *could* use a
@@ -268,528 +312,27 @@ Note: all of the `_update_by_query` examples above could really do with a
 because script queries aren't able to use the inverted index to limit the
 documents that they have to check.
 
-We intentionally don't allow scripts to call `Pattern.compile` to get a new
-pattern on the fly because building a `Pattern` is (comparatively) slow.
-Pattern literals (`/apattern/`) have fancy constant extraction so no matter
-where they show up in the painless script they are built only when the script
-is first used. It is fairly similar to how `String` literals work in Java.
-
 [float]
-[[modules-scripting-painless-regex-flags]]
-==== Regular expression flags
-
-You can define flags on patterns in Painless by adding characters after the
-trailing `/` like `/foo/i` or `/foo \w #comment/iUx`. Painless exposes all the
-flags from
-https://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html[Java's Pattern class]
-using these characters:
-
-[cols="<,<,<",options="header",]
-|=======================================================================
-| Character | Java Constant | Example
-|`c` | CANON_EQ                  | `'å' ==~ /å/c` (open in hex editor to see)
-|`i` | CASE_INSENSITIVE          | `'A' ==~ /a/i`
-|`l` | LITERAL                   | `'[a]' ==~ /[a]/l`
-|`m` | MULTILINE                 | `'a\nb\nc' =~ /^b$/m`
-|`s` | DOTALL (aka single line)  | `'a\nb\nc' =~ /.b./s`
-|`U` | UNICODE_CHARACTER_CLASS   | `'Ɛ' ==~ /\\w/U`
-|`u` | UNICODE_CASE              | `'Ɛ' ==~ /ɛ/iu`
-|`x` | COMMENTS (aka extended)   | `'a' ==~ /a #comment/x`
-|=======================================================================
-
-
 [[painless-api]]
-[float]
 == Painless API
 
-The following types are available for use in the Painless language. Most types and methods map directly to their Java equivalents--for more information, see the corresponding https://docs.oracle.com/javase/8/docs/api/java/lang/package-summary.html[Javadoc].
+The following Java packages are available for use in the Painless language:
 
+* https://docs.oracle.com/javase/8/docs/api/java/lang/package-summary.html[java.lang]
+* https://docs.oracle.com/javase/8/docs/api/java/math/package-summary.html[java.math]
+* https://docs.oracle.com/javase/8/docs/api/java/text/package-summary.html[java.text]
+* https://docs.oracle.com/javase/8/docs/api/java/time/package-summary.html[java.time]
+* https://docs.oracle.com/javase/8/docs/api/java/time/chrono/package-summary.html[java.time.chrono]
+* https://docs.oracle.com/javase/8/docs/api/java/time/format/package-summary.html[java.time.format]
+* https://docs.oracle.com/javase/8/docs/api/java/time/temporal/package-summary.html[java.time.temporal]
+* https://docs.oracle.com/javase/8/docs/api/java/time/zone/package-summary.html[java.time.zone]
+* https://docs.oracle.com/javase/8/docs/api/java/util/package-summary.html[java.util]
+* https://docs.oracle.com/javase/8/docs/api/java/util/function/package-summary.html[java.util.function]
+* https://docs.oracle.com/javase/8/docs/api/java/util/regex/package-summary.html[java.util.regex]
+* https://docs.oracle.com/javase/8/docs/api/java/util/stream/package-summary.html[java.util.stream]
 
-[float]
-=== Dynamic Types
+Note that unsafe classes and methods are not included, there is no support for:
 
-* `def` (This type can be used to represent any other type.)
-
-[float]
-=== Basic Types
-
-* `void`
-* `boolean`
-* `short`
-* `char`
-* `int`
-* `long`
-* `float`
-* `double`
-
-[float]
-=== Complex Types
-
-Non-static methods/members in superclasses are available to subclasses.
-Generic types with unspecified generic parameters are parameters of type `def`.
-
------
-ArithmeticException extends Exception
-   <init>()
------
-
------
-ArrayList extends List
-   <init>()
------
-
------
-ArrayList<Object> extends List<Object>
-   <init>()
------
-
------
-ArrayList<String> extends List<String>
-    <init>()
------
-
------
-Boolean extends Object
-   <init>(boolean)
-   static Boolean valueOf(boolean)
-   boolean booleanValue()
------
-
------
-Character extends Object
-    <init>(char)
-    static Character valueOf(char)
-    char charValue()
-    static char MIN_VALUE
-    static char MAX_VALUE
------
-
------
-CharSequence extends Object
-    char charAt(int)
-    int length()
------
-
------
-Collection extends Object
-    boolean add(def)
-    void clear()
-    boolean contains(def)
-    boolean isEmpty()
-    Iterator iterator()
-    boolean remove(def)
-    int size()
------
-
------
-Collection<Object> extends Object
-    boolean add(Object)
-    void clear()
-    boolean contains(Object)
-    boolean isEmpty()
-    Iterator iterator()
-    boolean remove(Object)
-    int size()
------
-
------
-Collection<String> extends Object
-    boolean add(String)
-    void clear()
-    boolean contains(String)
-    boolean isEmpty()
-    Iterator iterator()
-    boolean remove(String)
-    int size()
------
-
------
-Double extends Number
-    <init>(double)
-    static Double valueOf(double)
-    static double MIN_VALUE
-    static double MAX_VALUE
------
-
------
-Exception extends Object
-    String getMessage()
------
-
------
-Float extends Number
-    <init>(float)
-    static Float valueOf(float)
-    static float MIN_VALUE
-    static float MAX_VALUE
------
-
------
-HashMap extends Map
-    <init>()
------
-
------
-HashMap<Object,Object> extends Map<Object,Object>
-    <init>()
------
-
------
-HashMap<String,def> extends Map<String,def>
-    <init>()
------
-
------
-HashMap<String,Object> extends Map<String,Object>
-    <init>()
------
-
------
-IllegalArgument extends Exception
-    <init>()
------
-
------
-IllegalState extends Exception
-    <init>()
------
-
------
-Integer extends Number
-    <init>(int)
-    static Integer valueOf(int)
-    static int MIN_VALUE
-    static int MAX_VALUE
------
-
------
-Iterator extends Object
-    boolean hasNext()
-    def next()
-    void remove()
------
-
------
-Iterator<String> extends Object
-    boolean hasNext()
-    String next()
-    void remove()
------
-
------
-List extends Collection
-    def set(int, def)
-    def get(int)
-    def remove(int)
------
-
------
-List<Object> extends Collection
-    Object set(int, Object)
-    Object get(int)
-    Object remove(int)
------
-
------
-List<String> extends Collection
-    String set(int, String)
-    String get(int)
-    String remove(int)
------
-
------
-Long extends Number
-    <init>(long)
-    static Long valueOf(long)
-    static long MIN_VALUE
-    static long MAX_VALUE
------
-
------
-Map extends Object
-    def put (def, def)
-    def get (def)
-    def remove (def)
-    boolean isEmpty()
-    int size()
-    boolean containsKey(def)
-    boolean containsValue(def)
-    Set keySet()
-    Collection values()
------
-
------
-Map<Object,Object> extends Object
-    Object put (Object, Object)
-    Object get (Object)
-    Object remove (Object)
-    boolean isEmpty()
-    int size()
-    boolean containsKey(Object)
-    boolean containsValue(Object)
-    Set keySet()
-    Collection values()
------
-
------
-Map<String,def> extends Object
-    def put (String, def)
-    def get (String)
-    def remove (String)
-    boolean isEmpty()
-    int size()
-    boolean containsKey(String)
-    boolean containsValue(def)
-    Set<String> keySet()
-    Collection values()
------
-
------
-Map<String,Object> extends Object
-    Object put (String, Object)
-    Object get (String)
-    Object remove (String)
-    boolean isEmpty()
-    int size()
-    boolean containsKey(String)
-    boolean containsValue(Object)
-    Set<String> keySet()
-    Collection values()
------
-
------
-Number extends Object
-    short shortValue()
-    short shortValue()
-    int intValue()
-    long longValue()
-    float floatValue()
-    double doubleValue()
------
-
------
-Object
-    String toString()
-    boolean equals(Object)
-    int hashCode()
------
-
------
-Set extends Collection
------
-
------
-Set<Object> extends Collection<Object>
------
-
------
-Set<String> extends Collection<String>
------
-
------
-Short extends Number
-    <init>(short)
-    static Short valueOf(short)
-    static short MIN_VALUE
-    static short MAX_VALUE
------
-
------
-String extends CharSequence
-    <init>(String)
-    int codePointAt(int)
-    int compareTo(String)
-    String concat(String)
-    boolean endsWith(String)
-    int indexOf(String, int)
-    boolean isEmpty()
-    String replace(CharSequence, CharSequence)
-    boolean startsWith(String)
-    String substring(int, int)
-    char[] toCharArray()
-    String trim()
------
-
------
-NumberFormatException extends Exception
-    <init>()
------
-
------
-Void extends Object
------
-
-[float]
-==== Utility Classes
-
------
-Math
-   static double abs(double)
-   static float fabs(float)
-   static long labs(long)
-   static int iabs(int)
-   static double acos(double)
-   static double asin(double)
-   static double atan(double)
-   static double atan2(double)
-   static double cbrt(double)
-   static double ceil(double)
-   static double cos(double)
-   static double cosh(double)
-   static double exp(double)
-   static double expm1(double)
-   static double floor(double)
-   static double hypt(double, double)
-   static double abs(double)
-   static double log(double)
-   static double log10(double)
-   static double log1p(double)
-   static double max(double, double)
-   static float fmax(float, float)
-   static long lmax(long, long)
-   static int imax(int, int)
-   static double min(double, double)
-   static float fmin(float, float)
-   static long lmin(long, long)
-   static int imin(int, int)
-   static double pow(double, double)
-   static double random()
-   static double rint(double)
-   static long round(double)
-   static double sin(double)
-   static double sinh(double)
-   static double sqrt(double)
-   static double tan(double)
-   static double tanh(double)
-   static double toDegrees(double)
-   static double toRadians(double)
------
-
------
-Utility
-   static boolean NumberToboolean(Number)
-   static char NumberTochar(Number)
-   static Boolean NumberToBoolean(Number)
-   static Short NumberToShort(Number)
-   static Character NumberToCharacter(Number)
-   static Integer NumberToInteger(Number)
-   static Long NumberToLong(Number)
-   static Float NumberToFloat(Number)
-   static Double NumberToDouble(Number)
-   static byte booleanTobyte(boolean)
-   static short booleanToshort(boolean)
-   static char booleanTochar(boolean)
-   static int booleanToint(boolean)
-   static long booleanTolong(boolean)
-   static float booleanTofloat(boolean)
-   static double booleanTodouble(boolean)
-   static Integer booleanToInteger(boolean)
-   static byte BooleanTobyte(Boolean)
-   static short BooleanToshort(Boolean)
-   static char BooleanTochar(Boolean)
-   static int BooleanToint(Boolean)
-   static long BooleanTolong(Boolean)
-   static float BooleanTofloat(Boolean)
-   static double BooleanTodouble(Boolean)
-   static Byte BooleanToByte(Boolean)
-   static Short BooleanToShort(Boolean)
-   static Character BooleanToCharacter(Boolean)
-   static Integer BooleanToInteger(Boolean)
-   static Long BooleanToLong(Boolean)
-   static Float BooleanToFloat(Boolean)
-   static Double BooleanToDouble(Boolean)
-   static boolean byteToboolean(byte)
-   static Short byteToShort(byte)
-   static Character byteToCharacter(byte)
-   static Integer byteToInteger(byte)
-   static Long byteToLong(byte)
-   static Float byteToFloat(byte)
-   static Double byteToDouble(byte)
-   static boolean ByteToboolean(Byte)
-   static char ByteTochar(Byte)
-   static boolean shortToboolean(short)
-   static Byte shortToByte(short)
-   static Character shortToCharacter(short)
-   static Integer shortToInteger(short)
-   static Long shortToLong(short)
-   static Float shortToFloat(short)
-   static Double shortToDouble(short)
-   static boolean ShortToboolean(Short)
-   static char ShortTochar(Short)
-   static boolean charToboolean(char)
-   static Byte charToByte(char)
-   static Short charToShort(char)
-   static Integer charToInteger(char)
-   static Long charToLong(char)
-   static Float charToFloat(char)
-   static Double charToDouble(char)
-   static boolean CharacterToboolean(Character)
-   static byte CharacterTobyte(Character)
-   static short CharacterToshort(Character)
-   static int CharacterToint(Character)
-   static long CharacterTolong(Character)
-   static float CharacterTofloat(Character)
-   static double CharacterTodouble(Character)
-   static Boolean CharacterToBoolean(Character)
-   static Byte CharacterToByte(Character)
-   static Short CharacterToShort(Character)
-   static Integer CharacterToInteger(Character)
-   static Long CharacterToLong(Character)
-   static Float CharacterToFloat(Character)
-   static Double CharacterToDouble(Character)
-   static boolean intToboolean(int)
-   static Byte intToByte(int)
-   static Short intToShort(int)
-   static Character intToCharacter(int)
-   static Long intToLong(int)
-   static Float intToFloat(int)
-   static Double intToDouble(int)
-   static boolean IntegerToboolean(Integer)
-   static char IntegerTochar(Integer)
-   static boolean longToboolean(long)
-   static Byte longToByte(long)
-   static Short longToShort(long)
-   static Character longToCharacter(long)
-   static Integer longToInteger(long)
-   static Float longToFloat(long)
-   static Double longToDouble(long)
-   static boolean LongToboolean(Long)
-   static char LongTochar(Long)
-   static boolean floatToboolean(float)
-   static Byte floatToByte(float)
-   static Short floatToShort(float)
-   static Character floatToCharacter(float)
-   static Integer floatToInteger(float)
-   static Long floatToLong(float)
-   static Double floatToDouble(float)
-   static boolean FloatToboolean(Float)
-   static char FloatTochar(Float)
-   static boolean doubleToboolean(double)
-   static Byte doubleToByte(double)
-   static Short doubleToShort(double)
-   static Character doubleToCharacter(double)
-   static Integer doubleToInteger(double)
-   static Long doubleToLong(double)
-   static Float doubleToFloat(double)
-   static boolean DoubleToboolean(Double)
-   static char DoubleTochar(Double)
------
-
------
-Def
-    static boolean defToboolean(def)
-    static byte defTobyte(def)
-    static short defToshort(def)
-    static char defTochar(def)
-    static int defToint(def)
-    static long defTolong(def)
-    static float defTofloat(def)
-    static double defTodouble(def)
-    static Boolean defToBoolean(def)
-    static Byte defToByte(def)
-    static Character defToCharacter(def)
-    static Integer defToInteger(def)
-    static Long defToLong(def)
-    static Float defToFloat(def)
-    static Double defToDouble(def)
------
+* Manipulation of processes and threads
+* Input/Output
+* Reflection

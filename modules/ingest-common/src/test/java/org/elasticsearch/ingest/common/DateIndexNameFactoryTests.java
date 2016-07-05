@@ -36,7 +36,7 @@ public class DateIndexNameFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("date_rounding", "y");
 
-        DateIndexNameProcessor processor = factory.create(config);
+        DateIndexNameProcessor processor = factory.create(null, config);
         assertThat(processor.getDateFormats().size(), Matchers.equalTo(1));
         assertThat(processor.getField(), Matchers.equalTo("_field"));
         assertThat(processor.getIndexNamePrefix(), Matchers.equalTo(""));
@@ -53,7 +53,7 @@ public class DateIndexNameFactoryTests extends ESTestCase {
         config.put("date_rounding", "y");
         config.put("date_formats", Arrays.asList("UNIX", "UNIX_MS"));
 
-        DateIndexNameProcessor processor = factory.create(config);
+        DateIndexNameProcessor processor = factory.create(null, config);
         assertThat(processor.getDateFormats().size(), Matchers.equalTo(2));
 
         config = new HashMap<>();
@@ -62,7 +62,7 @@ public class DateIndexNameFactoryTests extends ESTestCase {
         config.put("date_rounding", "y");
         config.put("index_name_format", "yyyyMMdd");
 
-        processor = factory.create(config);
+        processor = factory.create(null, config);
         assertThat(processor.getIndexNameFormat(), Matchers.equalTo("yyyyMMdd"));
 
         config = new HashMap<>();
@@ -71,7 +71,7 @@ public class DateIndexNameFactoryTests extends ESTestCase {
         config.put("date_rounding", "y");
         config.put("timezone", "+02:00");
 
-        processor = factory.create(config);
+        processor = factory.create(null, config);
         assertThat(processor.getTimezone(), Matchers.equalTo(DateTimeZone.forOffsetHours(2)));
 
         config = new HashMap<>();
@@ -79,7 +79,7 @@ public class DateIndexNameFactoryTests extends ESTestCase {
         config.put("index_name_prefix", "_prefix");
         config.put("date_rounding", "y");
 
-        processor = factory.create(config);
+        processor = factory.create(null, config);
         assertThat(processor.getIndexNamePrefix(), Matchers.equalTo("_prefix"));
     }
 
@@ -87,12 +87,12 @@ public class DateIndexNameFactoryTests extends ESTestCase {
         DateIndexNameProcessor.Factory factory = new DateIndexNameProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("date_rounding", "y");
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(config));
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, config));
         assertThat(e.getMessage(), Matchers.equalTo("[field] required property is missing"));
 
         config.clear();
         config.put("field", "_field");
-        e = expectThrows(ElasticsearchParseException.class, () -> factory.create(config));
+        e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, config));
         assertThat(e.getMessage(), Matchers.equalTo("[date_rounding] required property is missing"));
     }
 

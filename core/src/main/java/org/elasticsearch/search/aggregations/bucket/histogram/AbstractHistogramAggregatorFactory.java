@@ -69,9 +69,7 @@ public abstract class AbstractHistogramAggregatorFactory<AF extends AbstractHist
     @Override
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        Rounding rounding = createRounding();
-        return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, extendedBounds, null, config.format(),
-                histogramFactory, context, parent, pipelineAggregators, metaData);
+        return createAggregator(null, parent, pipelineAggregators, metaData);
     }
 
     protected Rounding createRounding() {
@@ -92,6 +90,11 @@ public abstract class AbstractHistogramAggregatorFactory<AF extends AbstractHist
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, context, parent);
         }
+        return createAggregator(valuesSource, parent, pipelineAggregators, metaData);
+    }
+
+    private Aggregator createAggregator(ValuesSource.Numeric valuesSource, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) throws IOException {
         Rounding rounding = createRounding();
         // we need to round the bounds given by the user and we have to do it
         // for every aggregator we create

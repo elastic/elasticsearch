@@ -121,6 +121,14 @@ indexed and the new version number used. If the value provided is less
 than or equal to the stored document's version number, a version
 conflict will occur and the index operation will fail.
 
+WARNING: External versioning supports the value 0 as a valid version number.
+This allows the version to be in sync with an external versioning system
+where version numbers start from zero instead of one. It has the side effect
+that documents with version number equal to zero cannot neither be updated
+using the <<docs-update-by-query,Update-By-Query API>> nor be deleted
+using the <<docs-delete-by-query,Delete By Query API>> as long as their
+version number is equal to zero.
+
 A nice side effect is that there is no need to maintain strict ordering
 of async indexing operations executed as a result of changes to a source
 database, as long as version numbers from the source database are used.

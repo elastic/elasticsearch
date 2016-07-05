@@ -64,6 +64,13 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitEach(PainlessParser.EachContext ctx);
   /**
+   * Visit a parse tree produced by the {@code ineach}
+   * labeled alternative in {@link PainlessParser#statement}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitIneach(PainlessParser.IneachContext ctx);
+  /**
    * Visit a parse tree produced by the {@code decl}
    * labeled alternative in {@link PainlessParser#statement}.
    * @param ctx the parse tree
@@ -214,6 +221,13 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitBinary(PainlessParser.BinaryContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code instanceof}
+   * labeled alternative in {@link PainlessParser#expression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitInstanceof(PainlessParser.InstanceofContext ctx);
   /**
    * Visit a parse tree produced by the {@code pre}
    * labeled alternative in {@link PainlessParser#unary}.

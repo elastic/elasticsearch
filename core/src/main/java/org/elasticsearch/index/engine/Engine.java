@@ -103,7 +103,7 @@ public abstract class Engine implements Closeable {
     protected final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
     protected final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
     protected final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
-    protected volatile Throwable failedEngine = null;
+    protected volatile Exception failedEngine = null;
     /*
      * on <tt>lastWriteNanos</tt> we use System.nanoTime() to initialize this since:
      *  - we use the value for figuring out if the shard / engine is active so if we startup and no write has happened yet we still consider it active
@@ -298,12 +298,12 @@ public abstract class Engine implements Closeable {
         PENDING_OPERATIONS
     }
 
-    final protected GetResult getFromSearcher(Get get, Function<String, Searcher> searcherFactory) throws EngineException {
+    protected final GetResult getFromSearcher(Get get, Function<String, Searcher> searcherFactory) throws EngineException {
         final Searcher searcher = searcherFactory.apply("get");
         final Versions.DocIdAndVersion docIdAndVersion;
         try {
             docIdAndVersion = Versions.loadDocIdAndVersion(searcher.reader(), get.uid());
-        } catch (Throwable e) {
+        } catch (Exception e) {
             Releasables.closeWhileHandlingException(searcher);
             //TODO: A better exception goes here
             throw new EngineException(shardId, "Couldn't resolve version", e);
@@ -363,7 +363,7 @@ public abstract class Engine implements Closeable {
             }
         } catch (EngineClosedException ex) {
             throw ex;
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             ensureOpen(); // throw EngineCloseException here if we are already closed
             logger.error("failed to acquire searcher, source {}", ex, source);
             throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
@@ -510,7 +510,7 @@ public abstract class Engine implements Closeable {
     }
 
     /** How much heap is used that would be freed by a refresh.  Note that this may throw {@link AlreadyClosedException}. */
-    abstract public long getIndexBufferRAMBytesUsed();
+    public abstract  long getIndexBufferRAMBytesUsed();
 
     protected Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
         ensureOpen();
@@ -664,7 +664,7 @@ public abstract class Engine implements Closeable {
      * fail engine due to some error. the engine will also be closed.
      * The underlying store is marked corrupted iff failure is caused by index corruption
      */
-    public void failEngine(String reason, @Nullable Throwable failure) {
+    public void failEngine(String reason, @Nullable Exception failure) {
         if (failEngineLock.tryLock()) {
             store.incRef();
             try {
@@ -692,9 +692,10 @@ public abstract class Engine implements Closeable {
                     }
                     eventListener.onFailedEngine(reason, failure);
                 }
-            } catch (Throwable t) {
+            } catch (Exception inner) {
+                if (failure != null) inner.addSuppressed(failure);
                 // don't bubble up these exceptions up
-                logger.warn("failEngine threw exception", t);
+                logger.warn("failEngine threw exception", inner);
             } finally {
                 store.decRef();
             }
@@ -704,12 +705,12 @@ public abstract class Engine implements Closeable {
     }
 
     /** Check whether the engine should be failed */
-    protected boolean maybeFailEngine(String source, Throwable t) {
-        if (Lucene.isCorruptionException(t)) {
-            failEngine("corrupt file (source: [" + source + "])", t);
+    protected boolean maybeFailEngine(String source, Exception e) {
+        if (Lucene.isCorruptionException(e)) {
+            failEngine("corrupt file (source: [" + source + "])", e);
             return true;
-        } else if (ExceptionsHelper.isOOM(t)) {
-            failEngine("out of memory (source: [" + source + "])", t);
+        } else if (ExceptionsHelper.isOOM(e)) {
+            failEngine("out of memory (source: [" + source + "])", e);
             return true;
         }
         return false;
@@ -720,7 +721,7 @@ public abstract class Engine implements Closeable {
         /**
          * Called when a fatal exception occurred
          */
-        default void onFailedEngine(String reason, @Nullable Throwable t) {
+        default void onFailedEngine(String reason, @Nullable Exception e) {
         }
     }
 
@@ -762,7 +763,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public static abstract class Operation {
+    public abstract static class Operation {
         private final Term uid;
         private long version;
         private long seqNo;

@@ -49,7 +49,7 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
         }
     }
 
-    final static class ArrayMap extends AbstractMap<Object, Object> implements Iterable<Object> {
+    static final class ArrayMap extends AbstractMap<Object, Object> implements Iterable<Object> {
 
         private final Object array;
         private final int length;
@@ -109,7 +109,7 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
 
     }
 
-    final static class CollectionMap extends AbstractMap<Object, Object> implements Iterable<Object> {
+    static final class CollectionMap extends AbstractMap<Object, Object> implements Iterable<Object> {
 
         private final Collection<Object> col;
 

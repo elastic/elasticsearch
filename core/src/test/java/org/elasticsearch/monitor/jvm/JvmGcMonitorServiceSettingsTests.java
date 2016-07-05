@@ -54,9 +54,9 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
     public void testNegativeSetting() throws InterruptedException {
         String collector = randomAsciiOfLength(5);
         Settings settings = Settings.builder().put("monitor.jvm.gc.collector." + collector + ".warn", "-" + randomTimeValue()).build();
-        execute(settings, (command, interval) -> null, t -> {
-            assertThat(t, instanceOf(IllegalArgumentException.class));
-            assertThat(t.getMessage(), allOf(containsString("invalid gc_threshold"), containsString("for [monitor.jvm.gc.collector." + collector + ".")));
+        execute(settings, (command, interval) -> null, e -> {
+            assertThat(e, instanceOf(IllegalArgumentException.class));
+            assertThat(e.getMessage(), allOf(containsString("invalid gc_threshold"), containsString("for [monitor.jvm.gc.collector." + collector + ".")));
         }, true, null);
     }
 
@@ -74,9 +74,9 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
         }
 
         // we should get an exception that a setting is missing
-        execute(builder.build(), (command, interval) -> null, t -> {
-            assertThat(t, instanceOf(IllegalArgumentException.class));
-            assertThat(t.getMessage(), containsString("missing gc_threshold for [monitor.jvm.gc.collector." + collector + "."));
+        execute(builder.build(), (command, interval) -> null, e -> {
+            assertThat(e, instanceOf(IllegalArgumentException.class));
+            assertThat(e.getMessage(), containsString("missing gc_threshold for [monitor.jvm.gc.collector." + collector + "."));
         }, true, null);
     }
 
@@ -84,18 +84,18 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
         for (final String threshold : new String[] { "warn", "info", "debug" }) {
             final Settings.Builder builder = Settings.builder();
             builder.put("monitor.jvm.gc.overhead." + threshold, randomIntBetween(Integer.MIN_VALUE, -1));
-            execute(builder.build(), (command, interval) -> null, t -> {
-                assertThat(t, instanceOf(IllegalArgumentException.class));
-                assertThat(t.getMessage(), containsString("setting [monitor.jvm.gc.overhead." + threshold + "] must be >= 0"));
+            execute(builder.build(), (command, interval) -> null, e -> {
+                assertThat(e, instanceOf(IllegalArgumentException.class));
+                assertThat(e.getMessage(), containsString("setting [monitor.jvm.gc.overhead." + threshold + "] must be >= 0"));
             }, true, null);
         }
 
         for (final String threshold : new String[] { "warn", "info", "debug" }) {
             final Settings.Builder builder = Settings.builder();
             builder.put("monitor.jvm.gc.overhead." + threshold, randomIntBetween(100 + 1, Integer.MAX_VALUE));
-            execute(builder.build(), (command, interval) -> null, t -> {
-                assertThat(t, instanceOf(IllegalArgumentException.class));
-                assertThat(t.getMessage(), containsString("setting [monitor.jvm.gc.overhead." + threshold + "] must be <= 100"));
+            execute(builder.build(), (command, interval) -> null, e -> {
+                assertThat(e, instanceOf(IllegalArgumentException.class));
+                assertThat(e.getMessage(), containsString("setting [monitor.jvm.gc.overhead." + threshold + "] must be <= 100"));
             }, true, null);
         }
 
@@ -104,9 +104,9 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
         infoWarnOutOfOrderBuilder.put("monitor.jvm.gc.overhead.info", info);
         final int warn = randomIntBetween(1, info - 1);
         infoWarnOutOfOrderBuilder.put("monitor.jvm.gc.overhead.warn", warn);
-        execute(infoWarnOutOfOrderBuilder.build(), (command, interval) -> null, t -> {
-            assertThat(t, instanceOf(IllegalArgumentException.class));
-            assertThat(t.getMessage(), containsString("[monitor.jvm.gc.overhead.warn] must be greater than [monitor.jvm.gc.overhead.info] [" + info + "] but was [" + warn + "]"));
+        execute(infoWarnOutOfOrderBuilder.build(), (command, interval) -> null, e -> {
+            assertThat(e, instanceOf(IllegalArgumentException.class));
+            assertThat(e.getMessage(), containsString("[monitor.jvm.gc.overhead.warn] must be greater than [monitor.jvm.gc.overhead.info] [" + info + "] but was [" + warn + "]"));
         }, true, null);
 
         final Settings.Builder debugInfoOutOfOrderBuilder = Settings.builder();
@@ -114,9 +114,9 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
         final int debug = randomIntBetween(info + 1, 99);
         debugInfoOutOfOrderBuilder.put("monitor.jvm.gc.overhead.debug", debug);
         debugInfoOutOfOrderBuilder.put("monitor.jvm.gc.overhead.warn", randomIntBetween(debug + 1, 100)); // or the test will fail for the wrong reason
-        execute(debugInfoOutOfOrderBuilder.build(), (command, interval) -> null, t -> {
-            assertThat(t, instanceOf(IllegalArgumentException.class));
-            assertThat(t.getMessage(), containsString("[monitor.jvm.gc.overhead.info] must be greater than [monitor.jvm.gc.overhead.debug] [" + debug + "] but was [" + info + "]"));
+        execute(debugInfoOutOfOrderBuilder.build(), (command, interval) -> null, e -> {
+            assertThat(e, instanceOf(IllegalArgumentException.class));
+            assertThat(e.getMessage(), containsString("[monitor.jvm.gc.overhead.info] must be greater than [monitor.jvm.gc.overhead.debug] [" + debug + "] but was [" + info + "]"));
         }, true, null);
     }
 
@@ -124,7 +124,7 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
         execute(settings, scheduler, null, false, asserts);
     }
 
-    private static void execute(Settings settings, BiFunction<Runnable, TimeValue, ScheduledFuture<?>> scheduler, Consumer<Throwable> consumer, boolean constructionShouldFail, Runnable asserts) throws InterruptedException {
+    private static void execute(Settings settings, BiFunction<Runnable, TimeValue, ScheduledFuture<?>> scheduler, Consumer<Exception> consumer, boolean constructionShouldFail, Runnable asserts) throws InterruptedException {
         assert constructionShouldFail == (consumer != null);
         assert constructionShouldFail == (asserts == null);
         ThreadPool threadPool = null;
@@ -143,7 +143,7 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
                 service.doStart();
                 asserts.run();
                 service.doStop();
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 consumer.accept(t);
             }
         } finally {

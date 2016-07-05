@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery.zen.ping.unicast;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -28,6 +27,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -86,7 +86,7 @@ import static org.elasticsearch.discovery.zen.ping.ZenPing.PingResponse.readPing
 /**
  *
  */
-public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implements ZenPing {
+public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPing {
 
     public static final String ACTION_NAME = "internal:discovery/zen/unicast";
     public static final Setting<List<String>> DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING =
@@ -262,16 +262,16 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                         }
 
                         @Override
-                        public void onFailure(Throwable t) {
-                            logger.debug("Ping execution failed", t);
+                        public void onFailure(Exception e) {
+                            logger.debug("Ping execution failed", e);
                             sendPingsHandler.close();
                         }
                     });
                 }
 
                 @Override
-                public void onFailure(Throwable t) {
-                    logger.debug("Ping execution failed", t);
+                public void onFailure(Exception e) {
+                    logger.debug("Ping execution failed", e);
                     sendPingsHandler.close();
                 }
             });
@@ -373,9 +373,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 if (!nodeFoundByAddress) {
                     if (!nodeToSend.getId().startsWith(UNICAST_NODE_PREFIX)) {
                         DiscoveryNode tempNode = new DiscoveryNode("",
-                                UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "_" + nodeToSend.getId() + "#",
-                                nodeToSend.getHostName(), nodeToSend.getHostAddress(), nodeToSend.getAddress(), nodeToSend.getAttributes(),
-                                nodeToSend.getRoles(), nodeToSend.getVersion());
+                            UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "_" + nodeToSend.getId() + "#",
+                            UUIDs.randomBase64UUID(), nodeToSend.getHostName(), nodeToSend.getHostAddress(), nodeToSend.getAddress(),
+                            nodeToSend.getAttributes(), nodeToSend.getRoles(), nodeToSend.getVersion());
 
                         logger.trace("replacing {} with temp node {}", nodeToSend, tempNode);
                         nodeToSend = tempNode;
@@ -418,7 +418,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                             // something went wrong on the other side
                             logger.debug("[{}] received a remote error as a response to ping {}", e,
                                     sendPingsHandler.id(), finalNodeToSend);
-                        } catch (Throwable e) {
+                        } catch (Exception e) {
                             logger.warn("[{}] failed send ping to {}", e, sendPingsHandler.id(), finalNodeToSend);
                         } finally {
                             if (!success) {
@@ -462,7 +462,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 try {
                     DiscoveryNodes discoveryNodes = contextProvider.nodes();
                     for (PingResponse pingResponse : response.pingResponses) {
-                        if (pingResponse.node().getId().equals(discoveryNodes.getLocalNodeId())) {
+                        if (pingResponse.node().equals(discoveryNodes.getLocalNode())) {
                             // that's us, ignore
                             continue;
                         }

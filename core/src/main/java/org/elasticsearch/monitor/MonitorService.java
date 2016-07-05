@@ -31,7 +31,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 
-public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
+public class MonitorService extends AbstractLifecycleComponent {
 
     private final JvmGcMonitorService jvmGcMonitorService;
     private final OsService osService;

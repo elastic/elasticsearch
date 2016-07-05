@@ -551,13 +551,16 @@ public class SearchModule extends AbstractModule {
                 CardinalityAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalCardinality::new));
         registerAggregation(new AggregationSpec(GlobalAggregationBuilder::new, GlobalAggregationBuilder::parse,
                 GlobalAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalGlobal::new));
-        registerAggregation(MissingAggregationBuilder::new, new MissingParser(), MissingAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(
+                new AggregationSpec(MissingAggregationBuilder::new, new MissingParser(), MissingAggregationBuilder.AGGREGATION_NAME_FIELD)
+                        .addResultReader(InternalMissing::new));
         registerAggregation(new AggregationSpec(FilterAggregationBuilder::new, FilterAggregationBuilder::parse,
                 FilterAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalFilter::new));
         registerAggregation(new AggregationSpec(FiltersAggregationBuilder::new, FiltersAggregationBuilder::parse,
                 FiltersAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalFilters::new));
-        registerAggregation(SamplerAggregationBuilder::new, SamplerAggregationBuilder::parse,
-                SamplerAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(new AggregationSpec(SamplerAggregationBuilder::new, SamplerAggregationBuilder::parse,
+                SamplerAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalSampler.NAME, InternalSampler::new)
+                        .addResultReader(UnmappedSampler.NAME, UnmappedSampler::new));
         registerAggregation(DiversifiedAggregationBuilder::new, new DiversifiedSamplerParser(),
                 DiversifiedAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(TermsAggregationBuilder::new, new TermsParser(), TermsAggregationBuilder.AGGREGATION_NAME_FIELD);
@@ -767,9 +770,6 @@ public class SearchModule extends AbstractModule {
 
     static {
         // buckets
-        InternalSampler.registerStreams();
-        UnmappedSampler.registerStreams();
-        InternalMissing.registerStreams();
         StringTerms.registerStreams();
         LongTerms.registerStreams();
         SignificantStringTerms.registerStreams();

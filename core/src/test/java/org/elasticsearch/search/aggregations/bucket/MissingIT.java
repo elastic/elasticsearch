@@ -40,9 +40,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-/**
- *
- */
 @ESIntegTestCase.SuiteScopeTestCase
 public class MissingIT extends ESIntegTestCase {
 

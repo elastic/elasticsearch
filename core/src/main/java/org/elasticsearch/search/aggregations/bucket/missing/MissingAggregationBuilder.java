@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -36,18 +37,19 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 
 public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, MissingAggregationBuilder> {
-    public static final String NAME = InternalMissing.TYPE.name();
+    public static final String NAME = "missing";
+    public static final Type TYPE = new Type(NAME);
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public MissingAggregationBuilder(String name, ValueType targetValueType) {
-        super(name, InternalMissing.TYPE, ValuesSourceType.ANY, targetValueType);
+        super(name, TYPE, ValuesSourceType.ANY, targetValueType);
     }
 
     /**
      * Read from a stream.
      */
     public MissingAggregationBuilder(StreamInput in) throws IOException {
-        super(in, InternalMissing.TYPE, ValuesSourceType.ANY);
+        super(in, TYPE, ValuesSourceType.ANY);
     }
 
     @Override

@@ -36,16 +36,8 @@ public abstract class AbstractExecutableCompareCondition<C extends Condition, R 
     @Override
     public R execute(WatchExecutionContext ctx) {
         Map<String, Object> resolvedValues = new HashMap<>();
-        try {
-            Map<String, Object> model = Variables.createCtxModel(ctx, ctx.payload());
-            return doExecute(model, resolvedValues);
-        } catch (Exception e) {
-            logger.error("failed to execute [{}] condition for [{}]", e, type(), ctx.id());
-            if (resolvedValues.isEmpty()) {
-                resolvedValues = null;
-            }
-            return doFailure(resolvedValues, e);
-        }
+        Map<String, Object> model = Variables.createCtxModel(ctx, ctx.payload());
+        return doExecute(model, resolvedValues);
     }
 
     protected Object resolveConfiguredValue(Map<String, Object> resolvedValues, Map<String, Object> model, Object configuredValue) {
@@ -70,7 +62,5 @@ public abstract class AbstractExecutableCompareCondition<C extends Condition, R 
         return configuredValue;
     }
 
-    protected abstract R doExecute(Map<String, Object> model, Map<String, Object> resolvedValues) throws Exception;
-
-    protected abstract R doFailure(Map<String, Object> resolvedValues, Exception e);
+    protected abstract R doExecute(Map<String, Object> model, Map<String, Object> resolvedValues);
 }

@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.watcher.condition.compare.array;
 
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.xpack.watcher.condition.compare.AbstractExecutableCompareCondition;
 import org.elasticsearch.xpack.support.clock.Clock;
+import org.elasticsearch.xpack.watcher.condition.compare.AbstractExecutableCompareCondition;
 import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 
 import java.util.ArrayList;
@@ -22,8 +22,7 @@ public class ExecutableArrayCompareCondition extends AbstractExecutableCompareCo
         super(condition, logger, clock);
     }
 
-    @SuppressWarnings("unchecked")
-    public ArrayCompareCondition.Result doExecute(Map<String, Object> model, Map<String, Object> resolvedValues) throws Exception {
+    public ArrayCompareCondition.Result doExecute(Map<String, Object> model, Map<String, Object> resolvedValues) {
         Object configuredValue = resolveConfiguredValue(resolvedValues, model, condition.getValue());
 
         Object object = ObjectPath.eval(condition.getArrayPath(), model);
@@ -31,6 +30,7 @@ public class ExecutableArrayCompareCondition extends AbstractExecutableCompareCo
             throw new IllegalStateException("array path " + condition.getArrayPath() + " did not evaluate to array, was " + object);
         }
 
+        @SuppressWarnings("unchecked")
         List<Object> resolvedArray = object != null ? (List<Object>) object : Collections.emptyList();
 
         List<Object> resolvedValue = new ArrayList<>(resolvedArray.size());
@@ -41,10 +41,5 @@ public class ExecutableArrayCompareCondition extends AbstractExecutableCompareCo
 
         return new ArrayCompareCondition.Result(resolvedValues, condition.getQuantifier().eval(resolvedValue, configuredValue,
                 condition.getOp()));
-    }
-
-    @Override
-    protected ArrayCompareCondition.Result doFailure(Map<String, Object> resolvedValues, Exception e) {
-        return new ArrayCompareCondition.Result(resolvedValues, e);
     }
 }

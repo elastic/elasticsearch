@@ -96,7 +96,6 @@ public class WatchExecutionResult implements ToXContent {
         ParseField INPUT = new ParseField("input");
         ParseField CONDITION = new ParseField("condition");
         ParseField ACTIONS = new ParseField("actions");
-
         ParseField TYPE = new ParseField("type");
     }
 }

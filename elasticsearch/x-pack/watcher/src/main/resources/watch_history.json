@@ -93,6 +93,10 @@
         "messages": {
           "type": "text"
         },
+        "exception" : {
+          "type" : "object",
+          "enabled" : false
+        },
         "result": {
           "type": "object",
           "dynamic": true,

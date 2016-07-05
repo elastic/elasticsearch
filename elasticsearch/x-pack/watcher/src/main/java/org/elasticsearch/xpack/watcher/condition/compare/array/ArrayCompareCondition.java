@@ -11,9 +11,9 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.common.xcontent.XContentUtils;
 import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.condition.compare.LenientCompare;
-import org.elasticsearch.xpack.common.xcontent.XContentUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -206,11 +206,6 @@ public class ArrayCompareCondition implements Condition {
 
         Result(Map<String, Object> resolvedValues, boolean met) {
             super(TYPE, met);
-            this.resolvedValues = resolvedValues;
-        }
-
-        Result(@Nullable Map<String, Object> resolvedValues, Exception e) {
-            super(TYPE, e);
             this.resolvedValues = resolvedValues;
         }
 

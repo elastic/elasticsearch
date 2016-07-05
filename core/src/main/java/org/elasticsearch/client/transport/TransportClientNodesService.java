@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -61,7 +62,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
@@ -97,7 +97,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
 
     private volatile ScheduledFuture nodesSamplerFuture;
 
-    private final AtomicInteger randomNodeGenerator = new AtomicInteger(ThreadLocalRandom.current().nextInt());
+    private final AtomicInteger randomNodeGenerator = new AtomicInteger(Randomness.get().nextInt());
 
     private final boolean ignoreClusterName;
 

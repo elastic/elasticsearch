@@ -11,7 +11,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.SettingCommand;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.UserError;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -88,7 +88,7 @@ public class UsersTool extends MultiCommand {
             String username = parseUsername(arguments.values(options));
             Validation.Error validationError = Users.validateUsername(username);
             if (validationError != null) {
-                throw new UserError(ExitCodes.DATA_ERROR, "Invalid username [" + username + "]... " + validationError);
+                throw new UserException(ExitCodes.DATA_ERROR, "Invalid username [" + username + "]... " + validationError);
             }
 
             char[] password = parsePassword(terminal, passwordOption.value(options));
@@ -102,7 +102,7 @@ public class UsersTool extends MultiCommand {
 
             Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(passwordFile, null));
             if (users.containsKey(username)) {
-                throw new UserError(ExitCodes.CODE_ERROR, "User [" + username + "] already exists");
+                throw new UserException(ExitCodes.CODE_ERROR, "User [" + username + "] already exists");
             }
             Hasher hasher = Hasher.BCRYPT;
             users.put(username, hasher.hash(new SecuredString(password)));
@@ -149,7 +149,7 @@ public class UsersTool extends MultiCommand {
 
             Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(passwordFile, null));
             if (users.containsKey(username) == false) {
-                throw new UserError(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
+                throw new UserException(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
             }
             if (Files.exists(passwordFile)) {
                 char[] passwd = users.remove(username);
@@ -205,7 +205,7 @@ public class UsersTool extends MultiCommand {
             FileAttributesChecker attributesChecker = new FileAttributesChecker(file);
             Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(file, null));
             if (users.containsKey(username) == false) {
-                throw new UserError(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
+                throw new UserException(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
             }
             users.put(username, Hasher.BCRYPT.hash(new SecuredString(password)));
             FileUserPasswdStore.writeFile(users, file);
@@ -261,7 +261,7 @@ public class UsersTool extends MultiCommand {
 
             Map<String, char[]> usersMap = FileUserPasswdStore.parseFile(usersFile, null);
             if (!usersMap.containsKey(username)) {
-                throw new UserError(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
+                throw new UserException(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
             }
 
             Map<String, String[]> userRoles = FileUserRolesStore.parseFile(rolesFile, null);
@@ -325,7 +325,7 @@ public class UsersTool extends MultiCommand {
 
         if (username != null) {
             if (!users.contains(username)) {
-                throw new UserError(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
+                throw new UserException(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
             }
 
             if (userRoles.containsKey(username)) {
@@ -394,38 +394,38 @@ public class UsersTool extends MultiCommand {
     }
 
     // pkg private for testing
-    static String parseUsername(List<String> args) throws UserError {
+    static String parseUsername(List<String> args) throws UserException {
         if (args.isEmpty()) {
-            throw new UserError(ExitCodes.USAGE, "Missing username argument");
+            throw new UserException(ExitCodes.USAGE, "Missing username argument");
         } else if (args.size() > 1) {
-            throw new UserError(ExitCodes.USAGE, "Expected a single username argument, found extra: " + args.toString());
+            throw new UserException(ExitCodes.USAGE, "Expected a single username argument, found extra: " + args.toString());
         }
         String username = args.get(0);
         Validation.Error validationError = Users.validateUsername(username);
         if (validationError != null) {
-            throw new UserError(ExitCodes.DATA_ERROR, "Invalid username [" + username + "]... " + validationError);
+            throw new UserException(ExitCodes.DATA_ERROR, "Invalid username [" + username + "]... " + validationError);
         }
         return username;
     }
 
     // pkg private for testing
-    static char[] parsePassword(Terminal terminal, String passwordStr) throws UserError {
+    static char[] parsePassword(Terminal terminal, String passwordStr) throws UserException {
         char[] password;
         if (passwordStr != null) {
             password = passwordStr.toCharArray();
             Validation.Error validationError = Users.validatePassword(password);
             if (validationError != null) {
-                throw new UserError(ExitCodes.DATA_ERROR, "Invalid password..." + validationError);
+                throw new UserException(ExitCodes.DATA_ERROR, "Invalid password..." + validationError);
             }
         } else {
             password = terminal.readSecret("Enter new password: ");
             Validation.Error validationError = Users.validatePassword(password);
             if (validationError != null) {
-                throw new UserError(ExitCodes.DATA_ERROR, "Invalid password..." + validationError);
+                throw new UserException(ExitCodes.DATA_ERROR, "Invalid password..." + validationError);
             }
             char[] retyped = terminal.readSecret("Retype new password: ");
             if (Arrays.equals(password, retyped) == false) {
-                throw new UserError(ExitCodes.DATA_ERROR, "Password mismatch");
+                throw new UserException(ExitCodes.DATA_ERROR, "Password mismatch");
             }
         }
         return password;
@@ -446,7 +446,7 @@ public class UsersTool extends MultiCommand {
     }
 
     // pkg private for testing
-    static String[] parseRoles(Terminal terminal, Environment env, String rolesStr) throws UserError {
+    static String[] parseRoles(Terminal terminal, Environment env, String rolesStr) throws UserException {
         if (rolesStr.isEmpty()) {
             return Strings.EMPTY_ARRAY;
         }
@@ -454,7 +454,7 @@ public class UsersTool extends MultiCommand {
         for (String role : roles) {
             Validation.Error validationError = Validation.Roles.validateRoleName(role);
             if (validationError != null) {
-                throw new UserError(ExitCodes.DATA_ERROR, "Invalid role [" + role + "]... " + validationError);
+                throw new UserException(ExitCodes.DATA_ERROR, "Invalid role [" + role + "]... " + validationError);
             }
         }
 

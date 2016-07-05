@@ -56,9 +56,9 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         ldapServer.setProcessingDelayMillis(500L);
         try (LdapSession session = sessionFactory.session(user, userPass)) {
             fail("expected connection timeout error here");
-        } catch (Throwable t) {
-            assertThat(t, instanceOf(ElasticsearchSecurityException.class));
-            assertThat(t.getCause().getMessage(), containsString("A client-side timeout was encountered while waiting "));
+        } catch (Exception e) {
+            assertThat(e, instanceOf(ElasticsearchSecurityException.class));
+            assertThat(e.getCause().getMessage(), containsString("A client-side timeout was encountered while waiting "));
         } finally {
             ldapServer.setProcessingDelayMillis(0L);
         }
@@ -85,11 +85,11 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         long start = System.currentTimeMillis();
         try (LdapSession session = sessionFactory.session(user, userPass)) {
             fail("expected connection timeout error here");
-        } catch (Throwable t) {
+        } catch (Exception e) {
             long time = System.currentTimeMillis() - start;
             assertThat(time, lessThan(10000L));
-            assertThat(t, instanceOf(IOException.class));
-            assertThat(t.getCause().getCause().getMessage(), containsString("within the configured timeout of"));
+            assertThat(e, instanceOf(IOException.class));
+            assertThat(e.getCause().getCause().getMessage(), containsString("within the configured timeout of"));
         }
     }
 

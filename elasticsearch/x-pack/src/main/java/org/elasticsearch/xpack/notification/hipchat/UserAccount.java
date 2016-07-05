@@ -165,11 +165,11 @@ public class UserAccount extends HipChatAccount {
 
     static class Defaults {
 
-        final @Nullable String[] rooms;
-        final @Nullable String[] users;
-        final @Nullable Format format;
-        final @Nullable Color color;
-        final @Nullable Boolean notify;
+        @Nullable final String[] rooms;
+        @Nullable final String[] users;
+        @Nullable final Format format;
+        @Nullable final Color color;
+        @Nullable final Boolean notify;
 
         public Defaults(Settings settings) {
             this.rooms = settings.getAsArray(DEFAULT_ROOM_SETTING, null);

@@ -48,8 +48,8 @@ import static org.junit.Assert.assertThat;
 
 public class TestUtils {
 
-    private final static FormatDateTimeFormatter formatDateTimeFormatter = Joda.forPattern("yyyy-MM-dd");
-    private final static DateMathParser dateMathParser = new DateMathParser(formatDateTimeFormatter);
+    private static final FormatDateTimeFormatter formatDateTimeFormatter = Joda.forPattern("yyyy-MM-dd");
+    private static final DateMathParser dateMathParser = new DateMathParser(formatDateTimeFormatter);
 
     public static long dateMath(String time, final long now) {
         return dateMathParser.parse(time, new Callable<Long>() {
@@ -146,7 +146,7 @@ public class TestUtils {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 latch.countDown();
             }
         });

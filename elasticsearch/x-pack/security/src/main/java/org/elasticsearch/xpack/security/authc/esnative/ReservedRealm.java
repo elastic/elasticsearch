@@ -131,7 +131,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 return DEFAULT_PASSWORD_HASH;
             }
             return passwordHash;
-        } catch (Throwable e) {
+        } catch (Exception e) {
             logger.error("failed to retrieve password hash for reserved user [{}]", e, username);
             return null;
         }

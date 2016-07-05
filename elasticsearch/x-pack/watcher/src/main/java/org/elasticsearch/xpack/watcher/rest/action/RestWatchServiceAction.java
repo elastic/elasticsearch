@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestChannel;
@@ -22,38 +22,38 @@ import org.elasticsearch.xpack.watcher.transport.actions.service.WatcherServiceR
 public class RestWatchServiceAction extends WatcherRestHandler {
 
     @Inject
-    public RestWatchServiceAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestWatchServiceAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/_restart", this);
-        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/_start", new StartRestHandler(settings, client));
-        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/_stop", new StopRestHandler(settings, client));
+        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/_start", new StartRestHandler(settings));
+        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/_stop", new StopRestHandler(settings));
     }
 
     @Override
-    protected void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
+    public void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
         client.watcherService(new WatcherServiceRequest().restart(), new AcknowledgedRestListener<WatcherServiceResponse>(channel));
     }
 
     static class StartRestHandler extends WatcherRestHandler {
 
-        public StartRestHandler(Settings settings, Client client) {
-            super(settings, client);
+        public StartRestHandler(Settings settings) {
+            super(settings);
         }
 
         @Override
-        protected void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
+        public void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
             client.watcherService(new WatcherServiceRequest().start(), new AcknowledgedRestListener<WatcherServiceResponse>(channel));
         }
     }
 
     static class StopRestHandler extends WatcherRestHandler {
 
-        public StopRestHandler(Settings settings, Client client) {
-            super(settings, client);
+        public StopRestHandler(Settings settings) {
+            super(settings);
         }
 
         @Override
-        protected void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
+        public void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
             client.watcherService(new WatcherServiceRequest().stop(), new AcknowledgedRestListener<WatcherServiceResponse>(channel));
         }
     }

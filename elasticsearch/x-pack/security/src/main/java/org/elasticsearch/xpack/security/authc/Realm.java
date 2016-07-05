@@ -111,7 +111,7 @@ public abstract class Realm<T extends AuthenticationToken> implements Comparable
      * settings. The factory will be called when creating a realm during the parsing of realms defined in the
      * elasticsearch.yml file
      */
-    public static abstract class Factory<R extends Realm> {
+    public abstract static class Factory<R extends Realm> {
 
         private final String type;
         private final boolean internal;

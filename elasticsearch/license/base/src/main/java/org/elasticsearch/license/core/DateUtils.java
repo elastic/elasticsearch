@@ -13,11 +13,11 @@ import org.joda.time.format.ISODateTimeFormat;
 
 public class DateUtils {
 
-    private final static FormatDateTimeFormatter formatDateOnlyFormatter = Joda.forPattern("yyyy-MM-dd");
+    private static final FormatDateTimeFormatter formatDateOnlyFormatter = Joda.forPattern("yyyy-MM-dd");
 
-    private final static DateTimeFormatter dateOnlyFormatter = formatDateOnlyFormatter.parser().withZoneUTC();
+    private static final DateTimeFormatter dateOnlyFormatter = formatDateOnlyFormatter.parser().withZoneUTC();
 
-    private final static DateTimeFormatter dateTimeFormatter = ISODateTimeFormat.dateTime().withZoneUTC();
+    private static final DateTimeFormatter dateTimeFormatter = ISODateTimeFormat.dateTime().withZoneUTC();
 
     public static long endOfTheDay(String date) {
         try {

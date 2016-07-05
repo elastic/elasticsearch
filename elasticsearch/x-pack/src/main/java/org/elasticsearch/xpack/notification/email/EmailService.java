@@ -12,7 +12,7 @@ import javax.mail.MessagingException;
 /**
  *
  */
-public interface EmailService extends LifecycleComponent<EmailService>{
+public interface EmailService extends LifecycleComponent{
 
     EmailSent send(Email email, Authentication auth, Profile profile) throws MessagingException;
 

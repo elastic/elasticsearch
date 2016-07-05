@@ -18,7 +18,7 @@ import org.joda.time.PeriodType;
  */
 public class PeriodThrottler implements Throttler {
 
-    private final @Nullable TimeValue period;
+    @Nullable private final TimeValue period;
     private final PeriodType periodType;
     private final Clock clock;
 

@@ -35,8 +35,8 @@ public class User implements ToXContent {
     private final User runAs;
     private final Map<String, Object> metadata;
 
-    private final @Nullable String fullName;
-    private final @Nullable String email;
+    @Nullable private final String fullName;
+    @Nullable private final String email;
 
     public User(String username, String... roles) {
         this(username, roles, null, null, null);
@@ -294,6 +294,7 @@ public class User implements ToXContent {
     public interface Fields {
         ParseField USERNAME = new ParseField("username");
         ParseField PASSWORD = new ParseField("password");
+        ParseField PASSWORD_HASH = new ParseField("password_hash");
         ParseField ROLES = new ParseField("roles");
         ParseField FULL_NAME = new ParseField("full_name");
         ParseField EMAIL = new ParseField("email");

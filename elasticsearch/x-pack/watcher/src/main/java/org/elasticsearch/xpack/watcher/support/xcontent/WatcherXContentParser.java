@@ -67,7 +67,7 @@ public class WatcherXContentParser implements XContentParser {
 
     private final Clock clock;
     private final XContentParser parser;
-    private final @Nullable SecretService secretService;
+    @Nullable private final SecretService secretService;
 
     public WatcherXContentParser(XContentParser parser, Clock clock, @Nullable SecretService secretService) {
         this.clock = clock;

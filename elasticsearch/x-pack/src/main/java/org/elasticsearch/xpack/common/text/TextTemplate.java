@@ -27,9 +27,9 @@ import java.util.Map;
 public class TextTemplate implements ToXContent {
 
     private final String template;
-    private final @Nullable XContentType contentType;
-    private final @Nullable ScriptType type;
-    private final @Nullable Map<String, Object> params;
+    @Nullable private final XContentType contentType;
+    @Nullable private final ScriptType type;
+    @Nullable private final Map<String, Object> params;
 
     public TextTemplate(String template) {
         this(template, null, null, null);
@@ -134,7 +134,7 @@ public class TextTemplate implements ToXContent {
                 } else {
                     contentType = parser.contentType();
                     XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-                    template = builder.copyCurrentStructure(parser).bytes().toUtf8();
+                    template = builder.copyCurrentStructure(parser).bytes().utf8ToString();
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.FILE)) {
                 type = ScriptType.FILE;
@@ -171,7 +171,7 @@ public class TextTemplate implements ToXContent {
     }
 
     public static Builder inline(XContentBuilder template) {
-        return new Builder.Inline(template.bytes().toUtf8()).contentType(template.contentType());
+        return new Builder.Inline(template.bytes().utf8ToString()).contentType(template.contentType());
     }
 
     public static Builder<Builder.Inline> inline(String text) {
@@ -190,7 +190,7 @@ public class TextTemplate implements ToXContent {
         return new Builder.DefaultType(text);
     }
 
-    public static abstract class Builder<B extends Builder> {
+    public abstract static class Builder<B extends Builder> {
 
         protected final ScriptType type;
         protected final String template;

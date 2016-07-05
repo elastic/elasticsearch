@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.watcher.support;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
 import java.util.Arrays;
@@ -27,7 +29,7 @@ public final class SearchRequestEquivalence {
     private SearchRequestEquivalence() {
     }
 
-    public final boolean equivalent(@Nullable SearchRequest a, @Nullable SearchRequest b) {
+    public boolean equivalent(@Nullable SearchRequest a, @Nullable SearchRequest b) {
         return a == b ? true : (a != null && b != null ? this.doEquivalent(a, b) : false);
     }
 
@@ -35,13 +37,13 @@ public final class SearchRequestEquivalence {
         try {
             BytesStreamOutput output1 = new BytesStreamOutput();
             r1.writeTo(output1);
-            byte[] bytes1 = output1.bytes().toBytes();
+            byte[] bytes1 = BytesReference.toBytes(output1.bytes());
             output1.reset();
             r2.writeTo(output1);
-            byte[] bytes2 = output1.bytes().toBytes();
+            byte[] bytes2 = BytesReference.toBytes(output1.bytes());
             return Arrays.equals(bytes1, bytes2);
-        } catch (Throwable t) {
-            throw illegalState("could not compare search requests", t);
+        } catch (Exception e) {
+            throw illegalState("could not compare search requests", e);
         }
     }
 }

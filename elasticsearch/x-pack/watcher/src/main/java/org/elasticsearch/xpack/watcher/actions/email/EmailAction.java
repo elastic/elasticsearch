@@ -35,11 +35,11 @@ public class EmailAction implements Action {
     public static final String TYPE = "email";
 
     private final EmailTemplate email;
-    private final @Nullable String account;
-    private final @Nullable Authentication auth;
-    private final @Nullable Profile profile;
-    private final @Nullable DataAttachment dataAttachment;
-    private final @Nullable EmailAttachments emailAttachments;
+    @Nullable private final String account;
+    @Nullable private final Authentication auth;
+    @Nullable private final Profile profile;
+    @Nullable private final DataAttachment dataAttachment;
+    @Nullable private final EmailAttachments emailAttachments;
 
     public EmailAction(EmailTemplate email, @Nullable String account, @Nullable Authentication auth, @Nullable Profile profile,
                        @Nullable DataAttachment dataAttachment, @Nullable EmailAttachments emailAttachments) {
@@ -186,7 +186,7 @@ public class EmailAction implements Action {
         return new Builder(email);
     }
 
-    public static abstract class Result extends Action.Result {
+    public abstract static class Result extends Action.Result {
 
         protected Result(Status status) {
             super(TYPE, status);

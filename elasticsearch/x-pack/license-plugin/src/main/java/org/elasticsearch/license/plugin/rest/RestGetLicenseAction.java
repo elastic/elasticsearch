@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.license.plugin.rest;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -32,8 +32,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetLicenseAction extends BaseRestHandler {
 
     @Inject
-    public RestGetLicenseAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestGetLicenseAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/_xpack/license", this);
     }
 
@@ -44,7 +44,7 @@ public class RestGetLicenseAction extends BaseRestHandler {
      * The licenses are sorted by latest issue_date
      */
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final Map<String, String> overrideParams = new HashMap<>(2);
         overrideParams.put(License.REST_VIEW_MODE, "true");
         overrideParams.put(License.LICENSE_VERSION_MODE, String.valueOf(License.VERSION_CURRENT));

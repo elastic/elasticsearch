@@ -141,8 +141,12 @@ public class Security implements ActionPlugin {
         }
 
         modules.add(new AuthenticationModule(settings));
+        modules.add(new AuthorizationModule(settings));
         if (enabled == false) {
             modules.add(new SecurityModule(settings, securityLicenseState));
+            modules.add(new CryptoModule(settings));
+            modules.add(new AuditTrailModule(settings));
+            modules.add(new SecurityTransportModule(settings));
             return modules;
         }
 
@@ -152,7 +156,6 @@ public class Security implements ActionPlugin {
         securityLicenseState = new SecurityLicenseState();
         modules.add(new SecurityModule(settings, securityLicenseState));
         modules.add(new CryptoModule(settings));
-        modules.add(new AuthorizationModule(settings));
         modules.add(new AuditTrailModule(settings));
         modules.add(new SecurityRestModule(settings));
         modules.add(new SecurityActionModule(settings));

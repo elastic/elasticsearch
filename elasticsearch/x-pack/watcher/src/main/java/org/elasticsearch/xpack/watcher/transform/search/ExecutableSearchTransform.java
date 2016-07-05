@@ -26,7 +26,7 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
 
     protected final WatcherClientProxy client;
     private final WatcherSearchTemplateService searchTemplateService;
-    protected final @Nullable TimeValue timeout;
+    @Nullable protected final TimeValue timeout;
 
     public ExecutableSearchTransform(SearchTransform transform, ESLogger logger, WatcherClientProxy client,
                                      WatcherSearchTemplateService searchTemplateService, @Nullable TimeValue defaultTimeout) {

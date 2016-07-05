@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.is;
  * This test assumes all subclass tests will be of type SUITE.  It picks a random realm configuration for the tests, and
  * writes a group to role mapping file for each node.
  */
-abstract public class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase {
+public abstract  class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase {
 
     public static final String XPACK_SECURITY_AUTHC_REALMS_EXTERNAL = "xpack.security.authc.realms.external";
     public static final String PASSWORD = "NickFuryHeartsES";
@@ -55,9 +55,9 @@ abstract public class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
                     "Gods: [ \"cn=Gods,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\" ] \n" +
                     "Philanthropists: [ \"cn=Philanthropists,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\" ] \n";
 
-    static protected RealmConfig realmConfig;
-    static protected boolean useGlobalSSL;
-    static protected boolean sslEnabled;
+    protected static RealmConfig realmConfig;
+    protected static boolean useGlobalSSL;
+    protected static boolean sslEnabled;
 
     @BeforeClass
     public static void setupRealm() {

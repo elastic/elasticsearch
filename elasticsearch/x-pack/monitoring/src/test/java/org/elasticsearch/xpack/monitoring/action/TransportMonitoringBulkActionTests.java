@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.test.ESTestCase;
@@ -90,7 +90,8 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         clusterService =  new ClusterService(Settings.builder().put("cluster.name",
                 TransportMonitoringBulkActionTests.class.getName()).build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool);
-        clusterService.setLocalNode(new DiscoveryNode("node", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT));
+        clusterService.setLocalNode(new DiscoveryNode("node", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(),
+                Version.CURRENT));
         clusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
             public void connectToAddedNodes(ClusterChangedEvent event) {
@@ -152,8 +153,8 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                fail("unexpected exception: " + t);
+            public void onFailure(String source, Exception e) {
+                fail("unexpected exception: " + e);
             }
         });
 

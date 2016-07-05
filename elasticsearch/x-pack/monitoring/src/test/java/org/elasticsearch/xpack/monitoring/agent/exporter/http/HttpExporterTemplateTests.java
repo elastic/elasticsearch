@@ -139,7 +139,7 @@ public class HttpExporterTemplateTests extends AbstractExporterTemplateTestCase 
                         boolean templateExist = templates.containsKey(templateName);
 
                         if ("GET".equals(request.getMethod())) {
-                            return templateExist ? newResponse(200, templates.get(templateName).toUtf8()) : NOT_FOUND;
+                            return templateExist ? newResponse(200, templates.get(templateName).utf8ToString()) : NOT_FOUND;
                         }
                         if ("PUT".equals(request.getMethod())) {
                             templates.put(templateName, new BytesArray(request.getBody().readByteArray()));

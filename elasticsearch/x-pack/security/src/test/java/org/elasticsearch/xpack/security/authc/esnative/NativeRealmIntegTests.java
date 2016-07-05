@@ -18,6 +18,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
 import org.elasticsearch.xpack.security.action.role.DeleteRoleResponse;
 import org.elasticsearch.xpack.security.action.role.GetRolesResponse;
+import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.security.action.user.AuthenticateResponse;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.KibanaRole;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.permission.SuperuserRole;
+import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.ElasticUser;
@@ -43,6 +45,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -548,5 +551,48 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                         Collections.singletonMap("Authorization", basicAuthHeaderValue("joe", new SecuredString("changeme".toCharArray()))))
                 .admin().cluster().prepareHealth().get();
         assertThat(response.isTimedOut(), is(false));
+    }
+
+    public void testRolesUsageStats() throws Exception {
+        NativeRolesStore rolesStore = internalCluster().getInstance(NativeRolesStore.class);
+        Map<String, Object> usage = rolesStore.usageStats();
+        assertThat(usage.get("size"), is(0L));
+        assertThat(usage.get("fls"), is(false));
+        assertThat(usage.get("dls"), is(false));
+
+        long roles = 0;
+        final boolean fls = randomBoolean();
+        final boolean dls = randomBoolean();
+        SecurityClient client = new SecurityClient(client());
+        PutRoleResponse putRoleResponse = client.preparePutRole("admin_role")
+                .cluster("all")
+                .addIndices(new String[]{"*"}, new String[]{"all"}, null, null)
+                .get();
+        assertThat(putRoleResponse.isCreated(), is(true));
+        roles++;
+        if (fls) {
+            PutRoleResponse roleResponse = client.preparePutRole("admin_role_fls")
+                    .cluster("all")
+                    .addIndices(new String[]{"*"}, new String[]{"all"}, new String[] { "foo" }, null)
+                    .get();
+            assertThat(roleResponse.isCreated(), is(true));
+            roles++;
+        }
+
+        if (dls) {
+            PutRoleResponse roleResponse = client.preparePutRole("admin_role_dls")
+                    .cluster("all")
+                    .addIndices(new String[]{"*"}, new String[]{"all"}, null, new BytesArray("{ \"match_all\": {} }"))
+                    .get();
+            assertThat(roleResponse.isCreated(), is(true));
+            roles++;
+        }
+
+        client.prepareClearRolesCache().get();
+
+        usage = rolesStore.usageStats();
+        assertThat(usage.get("size"), is(roles));
+        assertThat(usage.get("fls"), is(fls));
+        assertThat(usage.get("dls"), is(dls));
     }
 }

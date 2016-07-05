@@ -1,0 +1,34 @@
+NAME
+
+    migrate - Migrates elasticsearch file based users and roles to native realm
+
+SYNOPSIS
+
+    migrate native -U <url> [OPTIONS]
+
+DESCRIPTION
+
+    This tool migrates file based users[1] and roles[2] to the native realm in
+    elasticsearch, saving the administrator from needing to manually transition
+    them from the file.
+
+OPTIONS
+
+    -U --url         URL to connect to to user/role import
+
+    -u --username    [Optional] Username for authenticating with Elasticsearch
+
+    -p --password    [Optional] Password for authenticating with Elasticsearch
+
+    -n --users       [Optional] Users to migrate from file to native realm,
+                     if not specified all users will be migrated
+
+    -r --roles       [Optional] Roles to migrate from file to native realm
+                     if not specified all roles will be migrated
+
+    -c --config      [Optional] Path to Elasticsearch config directory
+
+NOTES
+
+    [1] https://www.elastic.co/guide/en/shield/current/setting-up-authentication.html
+    [2] https://www.elastic.co/guide/en/shield/current/configuring-rbac.html

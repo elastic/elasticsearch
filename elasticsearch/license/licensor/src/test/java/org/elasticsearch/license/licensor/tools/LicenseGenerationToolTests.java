@@ -12,12 +12,9 @@ import java.nio.file.Path;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.UserError;
-import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.licensor.TestUtils;
-import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 public class LicenseGenerationToolTests extends CommandTestCase {
@@ -38,14 +35,14 @@ public class LicenseGenerationToolTests extends CommandTestCase {
     public void testMissingKeyPaths() throws Exception {
         Path pub = createTempDir().resolve("pub");
         Path pri = createTempDir().resolve("pri");
-        UserError e = expectThrows(UserError.class, () -> {
+        UserException e = expectThrows(UserException.class, () -> {
             execute("--publicKeyPath", pub.toString(), "--privateKeyPath", pri.toString());
         });
         assertTrue(e.getMessage(), e.getMessage().contains("pri does not exist"));
         assertEquals(ExitCodes.USAGE, e.exitCode);
 
         Files.createFile(pri);
-        e = expectThrows(UserError.class, () -> {
+        e = expectThrows(UserException.class, () -> {
             execute("--publicKeyPath", pub.toString(), "--privateKeyPath", pri.toString());
         });
         assertTrue(e.getMessage(), e.getMessage().contains("pub does not exist"));
@@ -53,7 +50,7 @@ public class LicenseGenerationToolTests extends CommandTestCase {
     }
 
     public void testMissingLicenseSpec() throws Exception {
-        UserError e = expectThrows(UserError.class, () -> {
+        UserException e = expectThrows(UserException.class, () -> {
             execute("--publicKeyPath", pubKeyPath.toString(), "--privateKeyPath", priKeyPath.toString());
         });
         assertTrue(e.getMessage(), e.getMessage().contains("Must specify either --license or --licenseFile"));

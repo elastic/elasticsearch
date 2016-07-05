@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.extensions;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cli.UserError;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -58,7 +58,7 @@ public class RemoveXPackExtensionCommandTests extends ESTestCase {
 
     public void testMissing() throws Exception {
         Path extDir = createExtensionDir(env);
-        UserError e = expectThrows(UserError.class, () -> removeExtension("dne", home));
+        UserException e = expectThrows(UserException.class, () -> removeExtension("dne", home));
         assertTrue(e.getMessage(), e.getMessage().contains("Extension dne not found"));
         assertRemoveCleaned(extDir);
     }

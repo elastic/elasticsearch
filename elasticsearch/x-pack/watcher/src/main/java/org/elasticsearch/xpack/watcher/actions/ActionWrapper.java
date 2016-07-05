@@ -33,7 +33,7 @@ import java.io.IOException;
 public class ActionWrapper implements ToXContent {
 
     private String id;
-    private final @Nullable ExecutableTransform transform;
+    @Nullable private final ExecutableTransform transform;
     private final ActionThrottler throttler;
     private final ExecutableAction action;
 
@@ -185,7 +185,7 @@ public class ActionWrapper implements ToXContent {
     public static class Result implements ToXContent {
 
         private final String id;
-        private final @Nullable Transform.Result transform;
+        @Nullable private final Transform.Result transform;
         private final Action.Result action;
 
         public Result(String id, Action.Result action) {

@@ -197,7 +197,6 @@ public class EmailActionTests extends ESTestCase {
 
     public void testParser() throws Exception {
         TextTemplateEngine engine = mock(TextTemplateEngine.class);
-        HtmlSanitizer htmlSanitizer = mock(HtmlSanitizer.class);
         EmailService emailService = mock(EmailService.class);
         Profile profile = randomFrom(Profile.values());
         Email.Priority priority = randomFrom(Email.Priority.values());
@@ -297,11 +296,11 @@ public class EmailActionTests extends ESTestCase {
         builder.endObject();
 
         BytesReference bytes = builder.bytes();
-        logger.info("email action json [{}]", bytes.toUtf8());
+        logger.info("email action json [{}]", bytes.utf8ToString());
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
 
-        ExecutableEmailAction executable = new EmailActionFactory(Settings.EMPTY, emailService, engine, htmlSanitizer,
+        ExecutableEmailAction executable = new EmailActionFactory(Settings.EMPTY, emailService, engine,
                 emailAttachmentParser)
                 .parseExecutable(randomAsciiOfLength(8), randomAsciiOfLength(3), parser);
 
@@ -392,11 +391,11 @@ public class EmailActionTests extends ESTestCase {
         XContentBuilder builder = jsonBuilder();
         executable.toXContent(builder, params);
         BytesReference bytes = builder.bytes();
-        logger.info("{}", bytes.toUtf8());
+        logger.info("{}", bytes.utf8ToString());
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
 
-        ExecutableEmailAction parsed = new EmailActionFactory(Settings.EMPTY, service, engine, htmlSanitizer, emailAttachmentParser)
+        ExecutableEmailAction parsed = new EmailActionFactory(Settings.EMPTY, service, engine, emailAttachmentParser)
                 .parseExecutable(randomAsciiOfLength(4), randomAsciiOfLength(10), parser);
 
         if (!hideSecrets) {
@@ -420,14 +419,13 @@ public class EmailActionTests extends ESTestCase {
     public void testParserInvalid() throws Exception {
         EmailService emailService = mock(EmailService.class);
         TextTemplateEngine engine = mock(TextTemplateEngine.class);
-        HtmlSanitizer htmlSanitizer = mock(HtmlSanitizer.class);
         EmailAttachmentsParser emailAttachmentsParser = mock(EmailAttachmentsParser.class);
 
         XContentBuilder builder = jsonBuilder().startObject().field("unknown_field", "value").endObject();
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
         try {
-            new EmailActionFactory(Settings.EMPTY, emailService, engine, htmlSanitizer, emailAttachmentsParser)
+            new EmailActionFactory(Settings.EMPTY, emailService, engine, emailAttachmentsParser)
                     .parseExecutable(randomAsciiOfLength(3), randomAsciiOfLength(7), parser);
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("unexpected string field [unknown_field]"));
@@ -518,7 +516,6 @@ public class EmailActionTests extends ESTestCase {
     public void testThatOneFailedEmailAttachmentResultsInActionFailure() throws Exception {
         EmailService emailService = new AbstractWatcherIntegrationTestCase.NoopEmailService();
         TextTemplateEngine engine = mock(TextTemplateEngine.class);
-        HtmlSanitizer htmlSanitizer = mock(HtmlSanitizer.class);
         HttpClient httpClient = mock(HttpClient.class);
 
         // setup mock response, second one is an error
@@ -554,7 +551,7 @@ public class EmailActionTests extends ESTestCase {
 
         parser.nextToken();
 
-        ExecutableEmailAction executableEmailAction = new EmailActionFactory(Settings.EMPTY, emailService, engine, htmlSanitizer,
+        ExecutableEmailAction executableEmailAction = new EmailActionFactory(Settings.EMPTY, emailService, engine,
                 emailAttachmentsParser).parseExecutable(randomAsciiOfLength(3), randomAsciiOfLength(7), parser);
 
         DateTime now = DateTime.now(DateTimeZone.UTC);
@@ -577,9 +574,8 @@ public class EmailActionTests extends ESTestCase {
     private EmailActionFactory createEmailActionFactory() {
         EmailService emailService = new AbstractWatcherIntegrationTestCase.NoopEmailService();
         TextTemplateEngine engine = mock(TextTemplateEngine.class);
-        HtmlSanitizer htmlSanitizer = mock(HtmlSanitizer.class);
 
-        return new EmailActionFactory(Settings.EMPTY, emailService, engine, htmlSanitizer, emailAttachmentParser);
+        return new EmailActionFactory(Settings.EMPTY, emailService, engine, emailAttachmentParser);
     }
 
     private WatchExecutionContext createWatchExecutionContext() {

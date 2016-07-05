@@ -34,7 +34,7 @@ import java.util.List;
  * This collector runs on the master node only and collect a {@link IndexStatsMonitoringDoc} document
  * for each existing index in the cluster.
  */
-public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> {
+public class IndexStatsCollector extends AbstractCollector {
 
     public static final String NAME = "index-stats-collector";
 

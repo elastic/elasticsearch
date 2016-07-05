@@ -18,7 +18,7 @@ import java.util.List;
 /**
  *
  */
-public class WatcherSettingsValidation extends AbstractLifecycleComponent<WatcherSettingsValidation> {
+public class WatcherSettingsValidation extends AbstractLifecycleComponent {
 
     private List<String> errors = new ArrayList<>();
 

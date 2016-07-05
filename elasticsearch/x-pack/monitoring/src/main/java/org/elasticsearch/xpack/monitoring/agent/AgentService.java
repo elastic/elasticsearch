@@ -41,7 +41,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * @see #stopCollection()
  * @see #startCollection()
  */
-public class AgentService extends AbstractLifecycleComponent<AgentService> {
+public class AgentService extends AbstractLifecycleComponent {
 
     private volatile ExportingWorker exportingWorker;
 
@@ -204,8 +204,8 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> {
                 } catch (InterruptedException e) {
                     logger.trace("interrupted");
                     Thread.currentThread().interrupt();
-                } catch (Throwable t) {
-                    logger.error("background thread had an uncaught exception", t);
+                } catch (Exception e) {
+                    logger.error("background thread had an uncaught exception", e);
                 }
             }
             logger.debug("worker shutdown");

@@ -156,7 +156,7 @@ public class SlackActionTests extends ESTestCase {
         builder.endObject();
 
         BytesReference bytes = builder.bytes();
-        logger.info("slack action json [{}]", bytes.toUtf8());
+        logger.info("slack action json [{}]", bytes.utf8ToString());
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
 
@@ -177,7 +177,7 @@ public class SlackActionTests extends ESTestCase {
         XContentBuilder builder = jsonBuilder();
         action.toXContent(builder, ToXContent.EMPTY_PARAMS);
         BytesReference bytes = builder.bytes();
-        logger.info("{}", bytes.toUtf8());
+        logger.info("{}", bytes.utf8ToString());
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
 

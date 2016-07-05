@@ -23,7 +23,8 @@ public abstract class Exporter implements AutoCloseable {
     protected final Config config;
     protected final ESLogger logger;
 
-    protected final @Nullable TimeValue bulkTimeout;
+    @Nullable protected final TimeValue bulkTimeout;
+
     private AtomicBoolean closed = new AtomicBoolean(false);
 
     public Exporter(String type, Config config) {
@@ -103,7 +104,7 @@ public abstract class Exporter implements AutoCloseable {
         }
     }
 
-    public static abstract class Factory<E extends Exporter> {
+    public abstract static class Factory<E extends Exporter> {
 
         private final String type;
         private final boolean singleton;

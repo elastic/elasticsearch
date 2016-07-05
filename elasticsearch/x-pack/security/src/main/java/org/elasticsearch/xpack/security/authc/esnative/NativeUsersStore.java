@@ -159,7 +159,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
                 if (t instanceof IndexNotFoundException) {
                     logger.trace("failed to retrieve user [{}] since security index does not exist", username);
                     // We don't invoke the onFailure listener here, instead
@@ -228,7 +228,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                 }
 
                 @Override
-                public void onFailure(Throwable t) {
+                public void onFailure(Exception t) {
                     // attempt to clear scroll response
                     if (lastResponse != null && lastResponse.getScrollId() != null) {
                         clearScrollResponse(lastResponse.getScrollId());
@@ -260,7 +260,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
                 if (t instanceof IndexNotFoundException) {
                     logger.trace("failed to retrieve user [{}] since security index does not exist", t, username);
                 } else {
@@ -287,7 +287,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                 }
 
                 @Override
-                public void onFailure(Throwable t) {
+                public void onFailure(Exception t) {
                     if (t instanceof IndexNotFoundException) {
                         logger.trace("could not retrieve user [{}] because security index does not exist", t, user);
                     } else {
@@ -334,7 +334,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         Throwable cause = e;
                         if (e instanceof ElasticsearchException) {
                             cause = ExceptionsHelper.unwrapCause(e);
@@ -368,7 +368,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         listener.onFailure(e);
                     }
                 });
@@ -410,7 +410,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         Throwable cause = e;
                         if (e instanceof ElasticsearchException) {
                             cause = ExceptionsHelper.unwrapCause(e);
@@ -455,7 +455,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         listener.onFailure(e);
                     }
                 });
@@ -479,7 +479,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
             });
@@ -550,9 +550,9 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         if (state.compareAndSet(State.STARTED, State.STOPPING)) {
             try {
                 userPoller.stop();
-            } catch (Throwable t) {
+            } catch (Exception e) {
                 state.set(State.FAILED);
-                throw t;
+                throw e;
             } finally {
                 state.set(State.STOPPED);
             }
@@ -594,10 +594,10 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         return securityIndexExists;
     }
 
-    char[] reservedUserPassword(String username) throws Throwable {
+    char[] reservedUserPassword(String username) throws Exception {
         assert started();
         final AtomicReference<char[]> passwordHash = new AtomicReference<>();
-        final AtomicReference<Throwable> failure = new AtomicReference<>();
+        final AtomicReference<Exception> failure = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
         client.prepareGet(SecurityTemplateService.SECURITY_INDEX_NAME, RESERVED_USER_DOC_TYPE, username)
                 .execute(new LatchedActionListener<>(new ActionListener<GetResponse>() {
@@ -615,7 +615,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         if (e instanceof IndexNotFoundException) {
                             logger.trace("could not retrieve built in user [{}] password since security index does not exist", e, username);
                         } else {
@@ -634,7 +634,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
             failure.set(e);
         }
 
-        Throwable failureCause = failure.get();
+        Exception failureCause = failure.get();
         if (failureCause != null) {
             // if there is any sort of failure we need to throw an exception to prevent the fallback to the default password...
             throw failureCause;
@@ -651,7 +651,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
                 // Not really much to do here except for warn about it...
                 logger.warn("failed to clear scroll [{}]", t, scrollId);
             }
@@ -669,7 +669,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 logger.error("unable to clear realm cache for user [{}]", e, username);
                 ElasticsearchException exception = new ElasticsearchException("clearing the cache for [" + username
                         + "] failed. please clear the realm cache manually", e);
@@ -838,21 +838,22 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
             }
 
             // call listeners
-            Throwable th = null;
+            RuntimeException ex = null;
             for (ChangeListener listener : listeners) {
                 try {
                     listener.onUsersChanged(changedUsers);
-                } catch (Throwable t) {
-                    th = ExceptionsHelper.useOrSuppress(th, t);
+                } catch (Exception e) {
+                    if (ex == null) ex = new RuntimeException("exception while notifying listeners");
+                    ex.addSuppressed(e);
                 }
             }
 
-            ExceptionsHelper.reThrowIfNotNull(th);
+            if (ex != null) throw ex;
         }
 
         @Override
-        public void onFailure(Throwable t) {
-            logger.error("error occurred while checking the native users for changes", t);
+        public void onFailure(Exception e) {
+            logger.error("error occurred while checking the native users for changes", e);
         }
 
         private boolean isStopped() {

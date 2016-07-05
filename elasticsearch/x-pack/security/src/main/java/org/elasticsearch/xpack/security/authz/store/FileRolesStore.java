@@ -8,19 +8,20 @@ package org.elasticsearch.xpack.security.authz.store;
 import com.fasterxml.jackson.dataformat.yaml.snakeyaml.error.YAMLException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.RefreshListener;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.security.authz.permission.IndicesPermission.Group;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.support.NoOpLogger;
 import org.elasticsearch.xpack.security.support.Validation;
@@ -45,10 +46,7 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.xpack.security.Security.setting;
 
-/**
- *
- */
-public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> implements RolesStore {
+public class FileRolesStore extends AbstractLifecycleComponent implements RolesStore {
 
     public static final Setting<String> ROLES_FILE_SETTING =
             Setting.simpleString(setting("authz.store.files.roles"), Property.NodeScope);
@@ -97,6 +95,28 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
     @Override
     public Role role(String role) {
         return permissions.get(role);
+    }
+
+    @Override
+    public Map<String, Object> usageStats() {
+        Map<String, Object> usageStats = new HashMap<>();
+        usageStats.put("size", permissions.size());
+
+        boolean dls = false;
+        boolean fls = false;
+        for (Role role : permissions.values()) {
+            for (Group group : role.indices()) {
+                fls = fls || group.hasFields();
+                dls = dls || group.hasQuery();
+            }
+            if (fls && dls) {
+                break;
+            }
+        }
+        usageStats.put("fls", fls);
+        usageStats.put("dls", dls);
+
+        return usageStats;
     }
 
     public static Path resolveFile(Settings settings, Environment env) {
@@ -150,7 +170,55 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
         return unmodifiableMap(roles);
     }
 
+    public static Map<String, RoleDescriptor> parseRoleDescriptors(Path path, ESLogger logger,
+                                                                   boolean resolvePermission, Settings settings) {
+        if (logger == null) {
+            logger = NoOpLogger.INSTANCE;
+        }
+
+        Map<String, RoleDescriptor> roles = new HashMap<>();
+        logger.trace("attempted to read roles file located at [{}]", path.toAbsolutePath());
+        if (Files.exists(path)) {
+            try {
+                List<String> roleSegments = roleSegments(path);
+                for (String segment : roleSegments) {
+                    RoleDescriptor rd = parseRoleDescriptor(segment, path, logger, resolvePermission, settings);
+                    if (rd != null) {
+                        roles.put(rd.getName(), rd);
+                    }
+                }
+            } catch (IOException ioe) {
+                logger.error("failed to read roles file [{}]. skipping all roles...", ioe, path.toAbsolutePath());
+            }
+        }
+        return unmodifiableMap(roles);
+    }
+
+    @Nullable
     private static Role parseRole(String segment, Path path, ESLogger logger, boolean resolvePermissions, Settings settings) {
+        RoleDescriptor descriptor = parseRoleDescriptor(segment, path, logger, resolvePermissions, settings);
+
+        if (descriptor != null) {
+            String roleName = descriptor.getName();
+            // first check if FLS/DLS is enabled on the role...
+            for (RoleDescriptor.IndicesPrivileges privilege : descriptor.getIndicesPrivileges()) {
+                if ((privilege.getQuery() != null || privilege.getFields() != null)
+                        && Security.flsDlsEnabled(settings) == false) {
+                    logger.error("invalid role definition [{}] in roles file [{}]. document and field level security is not " +
+                                    "enabled. set [{}] to [true] in the configuration file. skipping role...", roleName, path
+                            .toAbsolutePath(), XPackPlugin.featureEnabledSetting(Security.DLS_FLS_FEATURE));
+                    return null;
+                }
+            }
+            return Role.builder(descriptor).build();
+        } else {
+            return null;
+        }
+    }
+
+    @Nullable
+    private static RoleDescriptor parseRoleDescriptor(String segment, Path path, ESLogger logger,
+                                                      boolean resolvePermissions, Settings settings) {
         String roleName = null;
         try {
             XContentParser parser = YamlXContent.yamlXContent.createParser(segment);
@@ -167,25 +235,13 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                     }
 
                     if (resolvePermissions == false) {
-                        return Role.builder(roleName).build();
+                        return new RoleDescriptor(roleName, null, null, null);
                     }
 
                     token = parser.nextToken();
                     if (token == XContentParser.Token.START_OBJECT) {
                         RoleDescriptor descriptor = RoleDescriptor.parse(roleName, parser);
-
-                        // first check if FLS/DLS is enabled on the role...
-                        for (RoleDescriptor.IndicesPrivileges privilege : descriptor.getIndicesPrivileges()) {
-                            if ((privilege.getQuery() != null || privilege.getFields() != null)
-                                    && Security.flsDlsEnabled(settings) == false) {
-                                logger.error("invalid role definition [{}] in roles file [{}]. document and field level security is not " +
-                                        "enabled. set [{}] to [true] in the configuration file. skipping role...", roleName, path
-                                        .toAbsolutePath(), XPackPlugin.featureEnabledSetting(Security.DLS_FLS_FEATURE));
-                                return null;
-                            }
-                        }
-
-                        return Role.builder(descriptor).build();
+                        return descriptor;
                     } else {
                         logger.error("invalid role definition [{}] in roles file [{}]. skipping role...", roleName, path.toAbsolutePath());
                         return null;
@@ -251,8 +307,8 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                 try {
                     permissions = parseFile(file, logger, settings);
                     logger.info("updated roles (roles file [{}] changed)", file.toAbsolutePath());
-                } catch (Throwable t) {
-                    logger.error("could not reload roles file [{}]. Current roles remain unmodified", t, file.toAbsolutePath());
+                } catch (Exception e) {
+                    logger.error("could not reload roles file [{}]. Current roles remain unmodified", e, file.toAbsolutePath());
                     return;
                 }
                 listener.onRefresh();

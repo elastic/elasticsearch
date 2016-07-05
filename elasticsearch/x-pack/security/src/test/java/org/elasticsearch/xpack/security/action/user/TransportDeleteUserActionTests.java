@@ -63,7 +63,7 @@ public class TransportDeleteUserActionTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 throwableRef.set(e);
             }
         });
@@ -90,7 +90,7 @@ public class TransportDeleteUserActionTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 throwableRef.set(e);
             }
         });
@@ -118,7 +118,7 @@ public class TransportDeleteUserActionTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 throwableRef.set(e);
             }
         });
@@ -156,7 +156,7 @@ public class TransportDeleteUserActionTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 throwableRef.set(e);
             }
         });
@@ -168,7 +168,7 @@ public class TransportDeleteUserActionTests extends ESTestCase {
     }
 
     public void testException() {
-        final Throwable t = randomFrom(new ElasticsearchSecurityException(""), new IllegalStateException(), new RuntimeException());
+        final Exception e = randomFrom(new ElasticsearchSecurityException(""), new IllegalStateException(), new RuntimeException());
         final User user = new User("joe");
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportDeleteUserAction action = new TransportDeleteUserAction(Settings.EMPTY, mock(ThreadPool.class),
@@ -180,7 +180,7 @@ public class TransportDeleteUserActionTests extends ESTestCase {
                 Object[] args = invocation.getArguments();
                 assert args.length == 2;
                 ActionListener<Boolean> listener = (ActionListener<Boolean>) args[1];
-                listener.onFailure(t);
+                listener.onFailure(e);
                 return null;
             }
         }).when(usersStore).deleteUser(eq(request), any(ActionListener.class));
@@ -194,14 +194,14 @@ public class TransportDeleteUserActionTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 throwableRef.set(e);
             }
         });
 
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), is(notNullValue()));
-        assertThat(throwableRef.get(), sameInstance(t));
+        assertThat(throwableRef.get(), sameInstance(e));
         verify(usersStore, times(1)).deleteUser(eq(request), any(ActionListener.class));
     }
 }

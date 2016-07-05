@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -303,7 +302,7 @@ public class RoleDescriptor implements ToXContent {
             sb.append("], privileges=[").append(Strings.arrayToCommaDelimitedString(privileges));
             sb.append("], fields=[").append(Strings.arrayToCommaDelimitedString(fields));
             if (query != null) {
-                sb.append("], query=").append(query.toUtf8());
+                sb.append("], query=").append(query.utf8ToString());
             }
             sb.append("]");
             return sb.toString();
@@ -340,7 +339,7 @@ public class RoleDescriptor implements ToXContent {
                 builder.array("fields", fields);
             }
             if (query != null) {
-                builder.field("query", query.toUtf8());
+                builder.field("query", query.utf8ToString());
             }
             return builder.endObject();
         }
@@ -368,7 +367,7 @@ public class RoleDescriptor implements ToXContent {
             out.writeStringArray(privileges);
             if (query != null) {
                 out.writeBoolean(true);
-                out.writeByteArray(query.array());
+                out.writeByteArray(BytesReference.toBytes(query));
             } else {
                 out.writeBoolean(false);
             }

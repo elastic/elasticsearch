@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.common.http.HttpClient;
 /**
  *
  */
-public class InternalHipChatService extends AbstractLifecycleComponent<HipChatService> implements HipChatService {
+public class InternalHipChatService extends AbstractLifecycleComponent implements HipChatService {
 
     private final HttpClient httpClient;
     private volatile HipChatAccounts accounts;

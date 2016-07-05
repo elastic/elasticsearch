@@ -8,6 +8,9 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * A composite roles store that combines built in roles, file-based roles, and index-based roles. Checks the built in roles first, then the
  * file roles, and finally the index roles.
@@ -39,5 +42,13 @@ public class CompositeRolesStore implements RolesStore {
         }
 
         return nativeRolesStore.role(role);
+    }
+
+    @Override
+    public Map<String, Object> usageStats() {
+        Map<String, Object> usage = new HashMap<>(2);
+        usage.put("file", fileRolesStore.usageStats());
+        usage.put("native", nativeRolesStore.usageStats());
+        return usage;
     }
 }

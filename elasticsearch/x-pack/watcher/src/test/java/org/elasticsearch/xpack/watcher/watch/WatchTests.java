@@ -207,7 +207,7 @@ public class WatchTests extends ESTestCase {
         Watch watch = new Watch("_name", trigger, input, condition, transform, throttlePeriod, actions, metadata, watchStatus);
 
         BytesReference bytes = XContentFactory.jsonBuilder().value(watch).bytes();
-        logger.info("{}", bytes.toUtf8());
+        logger.info("{}", bytes.utf8ToString());
         Watch.Parser watchParser = new Watch.Parser(settings, conditionRegistry, triggerService, transformRegistry, actionRegistry,
                 inputRegistry, secretService, clock);
 
@@ -469,7 +469,7 @@ public class WatchTests extends ESTestCase {
         for (ActionWrapper action : actions) {
             switch (action.action().type()) {
                 case EmailAction.TYPE:
-                    parsers.put(EmailAction.TYPE, new EmailActionFactory(settings, emailService, templateEngine, htmlSanitizer,
+                    parsers.put(EmailAction.TYPE, new EmailActionFactory(settings, emailService, templateEngine,
                             new EmailAttachmentsParser(Collections.emptyMap())));
                     break;
                 case IndexAction.TYPE:

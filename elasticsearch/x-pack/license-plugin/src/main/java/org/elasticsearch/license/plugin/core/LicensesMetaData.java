@@ -9,6 +9,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -186,7 +187,7 @@ public class LicensesMetaData extends AbstractDiffable<MetaData.Custom> implemen
                 XContentBuilder contentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
                 license.toXContent(contentBuilder,
                         new ToXContent.MapParams(Collections.singletonMap(License.LICENSE_SPEC_VIEW_MODE, "true")));
-                streamOutput.writeString(Base64.getEncoder().encodeToString(encrypt(contentBuilder.bytes().toBytes())));
+                streamOutput.writeString(Base64.getEncoder().encodeToString(encrypt(BytesReference.toBytes(contentBuilder.bytes()))));
             }
         } else {
             if (license == LICENSE_TOMBSTONE) {
@@ -238,7 +239,7 @@ public class LicensesMetaData extends AbstractDiffable<MetaData.Custom> implemen
         return new LicensesMetaData(license);
     }
 
-    private final static class Fields {
+    private static final class Fields {
         private static final String SIGNED_LICENCES = "signed_licenses";
         private static final String TRIAL_LICENSES = "trial_licenses";
         private static final String LICENSE = "license";

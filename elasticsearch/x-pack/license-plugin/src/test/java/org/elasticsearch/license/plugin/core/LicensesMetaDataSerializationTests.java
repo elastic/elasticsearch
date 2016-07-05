@@ -9,8 +9,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -24,7 +25,6 @@ import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.license.plugin.TestUtils;
 import org.elasticsearch.test.ESTestCase;
 
-import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.UUID;
@@ -42,9 +42,7 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
         builder.startObject("licenses");
         licensesMetaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        byte[] serializedBytes = builder.bytes().toBytes();
-
-        LicensesMetaData licensesMetaDataFromXContent = getLicensesMetaDataFromXContent(serializedBytes);
+        LicensesMetaData licensesMetaDataFromXContent = getLicensesMetaDataFromXContent(builder.bytes());
         assertThat(licensesMetaDataFromXContent.getLicense(), equalTo(license));
     }
 
@@ -90,9 +88,7 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
         builder.startObject("licenses");
         licensesMetaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        byte[] serializedBytes = builder.bytes().toBytes();
-
-        LicensesMetaData licensesMetaDataFromXContent = getLicensesMetaDataFromXContent(serializedBytes);
+        LicensesMetaData licensesMetaDataFromXContent = getLicensesMetaDataFromXContent(builder.bytes());
         assertThat(licensesMetaDataFromXContent.getLicense(), equalTo(trialLicense));
     }
 
@@ -113,13 +109,13 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
         builder.startArray("trial_licenses");
         XContentBuilder contentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
         trialLicense.toXContent(contentBuilder, new ToXContent.MapParams(Collections.singletonMap(License.LICENSE_SPEC_VIEW_MODE, "true")));
-        builder.value(Base64.getEncoder().encodeToString(encrypt(contentBuilder.bytes().toBytes())));
+        builder.value(Base64.getEncoder().encodeToString(encrypt(BytesReference.toBytes(contentBuilder.bytes()))));
         builder.endArray();
         builder.startArray("signed_licenses");
         builder.endArray();
         builder.endObject();
         builder.endObject();
-        LicensesMetaData licensesMetaDataFromXContent = getLicensesMetaDataFromXContent(builder.bytes().toBytes());
+        LicensesMetaData licensesMetaDataFromXContent = getLicensesMetaDataFromXContent(builder.bytes());
         assertThat(licensesMetaDataFromXContent.getLicense(), equalTo(trialLicense));
 
         // signed license
@@ -133,7 +129,7 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
         builder.endArray();
         builder.endObject();
         builder.endObject();
-        licensesMetaDataFromXContent = getLicensesMetaDataFromXContent(builder.bytes().toBytes());
+        licensesMetaDataFromXContent = getLicensesMetaDataFromXContent(builder.bytes());
         assertThat(licensesMetaDataFromXContent.getLicense(), equalTo(signedLicense));
 
         // trial and signed license
@@ -143,14 +139,14 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
         builder.startArray("trial_licenses");
         contentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
         trialLicense.toXContent(contentBuilder, new ToXContent.MapParams(Collections.singletonMap(License.LICENSE_SPEC_VIEW_MODE, "true")));
-        builder.value(Base64.getEncoder().encodeToString(encrypt(contentBuilder.bytes().toBytes())));
+        builder.value(Base64.getEncoder().encodeToString(encrypt(BytesReference.toBytes(contentBuilder.bytes()))));
         builder.endArray();
         builder.startArray("signed_licenses");
         signedLicense.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endArray();
         builder.endObject();
         builder.endObject();
-        licensesMetaDataFromXContent = getLicensesMetaDataFromXContent(builder.bytes().toBytes());
+        licensesMetaDataFromXContent = getLicensesMetaDataFromXContent(builder.bytes());
         assertThat(licensesMetaDataFromXContent.getLicense(), equalTo(signedLicense));
 
         // license with later issue date is selected
@@ -162,7 +158,7 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
         builder.startArray("trial_licenses");
         contentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
         trialLicense.toXContent(contentBuilder, new ToXContent.MapParams(Collections.singletonMap(License.LICENSE_SPEC_VIEW_MODE, "true")));
-        builder.value(Base64.getEncoder().encodeToString(encrypt(contentBuilder.bytes().toBytes())));
+        builder.value(Base64.getEncoder().encodeToString(encrypt(BytesReference.toBytes(contentBuilder.bytes()))));
         builder.endArray();
         builder.startArray("signed_licenses");
         signedLicense.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -170,7 +166,7 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
         builder.endArray();
         builder.endObject();
         builder.endObject();
-        licensesMetaDataFromXContent = getLicensesMetaDataFromXContent(builder.bytes().toBytes());
+        licensesMetaDataFromXContent = getLicensesMetaDataFromXContent(builder.bytes());
         assertThat(licensesMetaDataFromXContent.getLicense(), equalTo(signedLicenseIssuedLater));
 
     }
@@ -190,13 +186,12 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
         output.writeVInt(1);
         XContentBuilder contentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
         trialLicense.toXContent(contentBuilder, new ToXContent.MapParams(Collections.singletonMap(License.LICENSE_SPEC_VIEW_MODE, "true")));
-        output.writeString(Base64.getEncoder().encodeToString(encrypt(contentBuilder.bytes().toBytes())));
-        byte[] bytes = output.bytes().toBytes();
-        ByteBufferStreamInput input = new ByteBufferStreamInput(ByteBuffer.wrap(bytes));
-
-        input.setVersion(Version.V_2_0_0_beta1);
-        LicensesMetaData licensesMetaData = LicensesMetaData.PROTO.readFrom(input);
-        assertThat(licensesMetaData.getLicense(), equalTo(trialLicense));
+        output.writeString(Base64.getEncoder().encodeToString(encrypt(BytesReference.toBytes(contentBuilder.bytes()))));
+        try (StreamInput input = output.bytes().streamInput()) {
+            input.setVersion(Version.V_2_0_0_beta1);
+            LicensesMetaData licensesMetaData = LicensesMetaData.PROTO.readFrom(input);
+            assertThat(licensesMetaData.getLicense(), equalTo(trialLicense));
+        }
 
         // signed license
         License signedLicense = TestUtils.generateSignedLicense(TimeValue.timeValueHours(2));
@@ -204,11 +199,11 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
         output.writeVInt(1);
         signedLicense.writeTo(output);
         output.writeVInt(0);
-        bytes = output.bytes().toBytes();
-        input = new ByteBufferStreamInput(ByteBuffer.wrap(bytes));
-        input.setVersion(Version.V_2_0_0_beta1);
-        licensesMetaData = LicensesMetaData.PROTO.readFrom(input);
-        assertThat(licensesMetaData.getLicense(), equalTo(signedLicense));
+        try (StreamInput input = output.bytes().streamInput()) {
+            input.setVersion(Version.V_2_0_0_beta1);
+            LicensesMetaData licensesMetaData = LicensesMetaData.PROTO.readFrom(input);
+            assertThat(licensesMetaData.getLicense(), equalTo(signedLicense));
+        }
     }
 
     public void testLicenseTombstoneFromXContext() throws Exception {
@@ -216,11 +211,11 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
         builder.startObject("licenses");
         builder.nullField("license");
         builder.endObject();
-        LicensesMetaData metaDataFromXContent = getLicensesMetaDataFromXContent(builder.bytes().toBytes());
+        LicensesMetaData metaDataFromXContent = getLicensesMetaDataFromXContent(builder.bytes());
         assertThat(metaDataFromXContent.getLicense(), equalTo(LicensesMetaData.LICENSE_TOMBSTONE));
     }
 
-    private static LicensesMetaData getLicensesMetaDataFromXContent(byte[] bytes) throws Exception {
+    private static LicensesMetaData getLicensesMetaDataFromXContent(BytesReference bytes) throws Exception {
         final XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(bytes);
         parser.nextToken(); // consume null
         parser.nextToken(); // consume "licenses"

@@ -1,3 +1,4 @@
+---
 setup:
   - skip:
       features: headers
@@ -15,6 +16,13 @@ setup:
             "roles" : [ "superuser" ],
             "full_name" : "Authenticate User"
           }
+
+---
+teardown:
+  - do:
+      xpack.security.delete_user:
+        username: "authenticate_user"
+        ignore: 404
 
 ---
 "Test authenticate api":

@@ -33,8 +33,8 @@ public class HttpInput implements Input {
     public static final String TYPE = "http";
 
     private final HttpRequestTemplate request;
-    private final @Nullable HttpContentType expectedResponseXContentType;
-    private final @Nullable Set<String> extractKeys;
+    @Nullable private final HttpContentType expectedResponseXContentType;
+    @Nullable private final Set<String> extractKeys;
 
     public HttpInput(HttpRequestTemplate request, @Nullable HttpContentType expectedResponseXContentType,
                      @Nullable Set<String> extractKeys) {
@@ -142,7 +142,7 @@ public class HttpInput implements Input {
 
     public static class Result extends Input.Result {
 
-        private final @Nullable HttpRequest request;
+        @Nullable private final HttpRequest request;
         private final int statusCode;
 
         public Result(HttpRequest request, int statusCode, Payload payload) {

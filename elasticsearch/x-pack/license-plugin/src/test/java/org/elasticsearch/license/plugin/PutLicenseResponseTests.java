@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.license.plugin;
 
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -16,7 +16,6 @@ import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -70,7 +69,7 @@ public class PutLicenseResponseTests extends ESTestCase {
         // write it out
         response.writeTo(output);
 
-        ByteBufferStreamInput input = new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytes()));
+        StreamInput input = output.bytes().streamInput();
 
         // read it back in
         response.readFrom(input);

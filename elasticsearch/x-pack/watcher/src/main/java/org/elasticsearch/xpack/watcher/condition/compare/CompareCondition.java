@@ -131,16 +131,11 @@ public class CompareCondition implements Condition {
 
     public static class Result extends Condition.Result {
 
-        private final @Nullable Map<String, Object> resolveValues;
+        @Nullable private final Map<String, Object> resolveValues;
 
         Result(Map<String, Object> resolveValues, boolean met) {
             super(TYPE, met);
             this.resolveValues = resolveValues;
-        }
-
-        Result(@Nullable Map<String, Object> resolvedValues, Exception e) {
-            super(TYPE, e);
-            this.resolveValues = resolvedValues;
         }
 
         public Map<String, Object> getResolveValues() {

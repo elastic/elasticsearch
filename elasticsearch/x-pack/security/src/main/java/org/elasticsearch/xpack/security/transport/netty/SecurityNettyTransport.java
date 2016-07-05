@@ -26,14 +26,12 @@ import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
 import org.jboss.netty.channel.ChannelStateEvent;
-import org.jboss.netty.channel.ExceptionEvent;
 import org.jboss.netty.channel.SimpleChannelHandler;
 import org.jboss.netty.handler.ssl.SslHandler;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 import java.net.InetSocketAddress;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.security.Security.featureEnabledSetting;
@@ -79,7 +77,7 @@ public class SecurityNettyTransport extends NettyTransport {
 
     private final ServerSSLService serverSslService;
     private final ClientSSLService clientSSLService;
-    private final @Nullable IPFilter authenticator;
+    @Nullable private final IPFilter authenticator;
     private final boolean ssl;
 
     @Inject
@@ -113,7 +111,7 @@ public class SecurityNettyTransport extends NettyTransport {
     }
 
     @Override
-    protected void onException(Channel channel, Throwable e) {
+    protected void onException(Channel channel, Exception e) {
         if (isNotSslRecordException(e)) {
             if (logger.isTraceEnabled()) {
                 logger.trace("received plaintext traffic on a encrypted channel, closing connection {}", e, channel);

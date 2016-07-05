@@ -44,7 +44,7 @@ import static org.elasticsearch.xpack.security.Security.setting;
 /**
  *
  */
-public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTrail> implements AuditTrail {
+public class LoggingAuditTrail extends AbstractLifecycleComponent implements AuditTrail {
 
     public static final String NAME = "logfile";
     public static final Setting<Boolean> HOST_ADDRESS_SETTING =

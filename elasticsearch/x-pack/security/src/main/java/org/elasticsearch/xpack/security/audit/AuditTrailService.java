@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 import org.elasticsearch.transport.TransportMessage;
 
 import java.net.InetAddress;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -196,5 +198,12 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
                 auditTrail.runAsDenied(user, request);
             }
         }
+    }
+
+    public Map<String, Object> usageStats() {
+        Map<String, Object> map = new HashMap<>(2);
+        map.put("enabled", AuditTrailModule.ENABLED_SETTING.get(settings));
+        map.put("outputs", AuditTrailModule.OUTPUTS_SETTING.get(settings));
+        return map;
     }
 }

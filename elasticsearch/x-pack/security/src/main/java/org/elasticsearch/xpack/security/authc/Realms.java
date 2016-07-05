@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.security.Security.setting;
 /**
  * Serves as a realms registry (also responsible for ordering the realms appropriately)
  */
-public class Realms extends AbstractLifecycleComponent<Realms> implements Iterable<Realm> {
+public class Realms extends AbstractLifecycleComponent implements Iterable<Realm> {
 
     public static final Setting<Settings> REALMS_GROUPS_SETTINGS = Setting.groupSetting(setting("authc.realms."), Property.NodeScope);
 

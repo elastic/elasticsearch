@@ -84,12 +84,12 @@ public class MonitoringBulkResponse extends ActionResponse {
         }
 
         Error(StreamInput in) throws IOException {
-            this(in.<Throwable>readThrowable());
+            this(in.readException());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeThrowable(getCause());
+            out.writeException(getCause());
         }
 
         /**

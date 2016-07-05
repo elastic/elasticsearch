@@ -85,9 +85,9 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
                 listener.onFailure(e);
             }
 
-        } catch (Throwable t) {
-            logger.error("failed to get watch [{}]", t, request.getId());
-            throw t;
+        } catch (Exception e) {
+            logger.error("failed to get watch [{}]", e, request.getId());
+            throw e;
         }
     }
 

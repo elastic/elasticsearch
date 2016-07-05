@@ -70,9 +70,9 @@ public class SentMessages implements ToXContent, Iterable<SentMessages.SentMessa
         final String targetName;
         final TargetType targetType;
         final HipChatMessage message;
-        final @Nullable HttpRequest request;
-        final @Nullable HttpResponse response;
-        final @Nullable String failureReason;
+        @Nullable final HttpRequest request;
+        @Nullable final HttpResponse response;
+        @Nullable final String failureReason;
 
         public static SentMessage responded(String targetName, TargetType targetType, HipChatMessage message, HttpRequest request,
                                             HttpResponse response) {

@@ -150,7 +150,7 @@ public class HttpResponse implements ToXContent {
             sb.append("]");
         }
         if (hasContent()) {
-            sb.append(", body=[").append(body.toUtf8()).append("]");
+            sb.append(", body=[").append(body.utf8ToString()).append("]");
         }
         return sb.toString();
     }
@@ -168,7 +168,7 @@ public class HttpResponse implements ToXContent {
             builder.endObject();
         }
         if (hasContent()) {
-            builder = builder.field(Field.BODY.getPreferredName(), body.toUtf8());
+            builder = builder.field(Field.BODY.getPreferredName(), body.utf8ToString());
         }
         builder.endObject();
         return builder;

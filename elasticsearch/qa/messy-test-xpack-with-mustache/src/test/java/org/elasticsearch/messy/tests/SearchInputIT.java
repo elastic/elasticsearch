@@ -93,7 +93,7 @@ public class SearchInputIT extends ESIntegTestCase {
         return types;
     }
 
-    private final static String TEMPLATE_QUERY = "{\"query\":{\"bool\":{\"must\":{\"match\":{\"event_type\":{\"query\":\"a\"," +
+    private static final String TEMPLATE_QUERY = "{\"query\":{\"bool\":{\"must\":{\"match\":{\"event_type\":{\"query\":\"a\"," +
             "\"type\":\"boolean\"}}},\"filter\":{\"range\":{\"_timestamp\":" +
             "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\"," +
             "\"include_lower\":true,\"include_upper\":true}}}}}}";

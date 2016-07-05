@@ -30,8 +30,8 @@ public interface Transform extends ToXContent {
 
         protected final String type;
         protected final Status status;
-        protected final @Nullable Payload payload;
-        protected final @Nullable String reason;
+        @Nullable protected final Payload payload;
+        @Nullable protected final String reason;
 
         public Result(String type, Payload payload) {
             this.type = type;

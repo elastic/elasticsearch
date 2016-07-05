@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.monitoring.agent.resolver;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
@@ -40,7 +40,7 @@ public class TimestampedResolverTests extends MonitoringIndexNameResolverTestCas
         MonitoringDoc doc = new MonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2));
         doc.setClusterUUID(randomAsciiOfLength(5));
         doc.setTimestamp(Math.abs(randomLong()));
-        doc.setSourceNode(new DiscoveryNode(randomAsciiOfLength(5), DummyTransportAddress.INSTANCE,
+        doc.setSourceNode(new DiscoveryNode(randomAsciiOfLength(5), LocalTransportAddress.buildUnique(),
                 emptyMap(), emptySet(), Version.CURRENT));
         return doc;
     }

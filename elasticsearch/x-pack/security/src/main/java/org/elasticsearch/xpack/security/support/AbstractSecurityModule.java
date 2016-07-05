@@ -33,7 +33,7 @@ public abstract class AbstractSecurityModule extends AbstractModule {
 
     protected abstract void configure(boolean clientMode);
 
-    public static abstract class Node extends AbstractSecurityModule {
+    public abstract static class Node extends AbstractSecurityModule {
 
         protected Node(Settings settings) {
             super(settings);

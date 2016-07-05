@@ -20,6 +20,7 @@
 package org.elasticsearch.client.transport;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -33,6 +34,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -95,7 +97,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
 
     private volatile ScheduledFuture nodesSamplerFuture;
 
-    private final AtomicInteger randomNodeGenerator = new AtomicInteger();
+    private final AtomicInteger randomNodeGenerator = new AtomicInteger(Randomness.get().nextInt());
 
     private final boolean ignoreClusterName;
 

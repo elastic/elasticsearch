@@ -179,8 +179,8 @@ public class CleanerService extends AbstractLifecycleComponent {
             for (Listener listener : listeners) {
                 try {
                     listener.onCleanUpIndices(retention);
-                } catch (Throwable t) {
-                    logger.error("listener failed to clean indices", t);
+                } catch (Exception e) {
+                    logger.error("listener failed to clean indices", e);
                 }
             }
 
@@ -209,8 +209,8 @@ public class CleanerService extends AbstractLifecycleComponent {
         }
 
         @Override
-        public void onFailure(Throwable t) {
-            logger.error("failed to clean indices", t);
+        public void onFailure(Exception e) {
+            logger.error("failed to clean indices", e);
         }
 
         /**

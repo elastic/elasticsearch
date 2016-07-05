@@ -14,18 +14,18 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.GeneralScriptException;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.watcher.condition.Condition;
+import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.watcher.condition.script.ExecutableScriptCondition;
 import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.xpack.watcher.condition.script.ScriptConditionFactory;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Script;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -41,12 +41,10 @@ import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
-/**
- */
 public class ScriptConditionTests extends ESTestCase {
-    ThreadPool tp = null;
+
+    private ThreadPool tp = null;
     
     @Before
     public void init() {
@@ -54,8 +52,8 @@ public class ScriptConditionTests extends ESTestCase {
     }
 
     @After
-    public void cleanup() {
-        tp.shutdownNow();
+    public void cleanup() throws InterruptedException {
+        terminate(tp);
     }
 
     public void testExecute() throws Exception {
@@ -136,13 +134,8 @@ public class ScriptConditionTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
         ScriptCondition scriptCondition = conditionParser.parseCondition("_watch", parser);
-        try {
-            conditionParser.createExecutable(scriptCondition);
-            fail("expected a condition validation exception trying to create an executable with a bad or missing script");
-        } catch (GeneralScriptException e) {
-            // TODO add these when the test if fixed
-            // assertThat(e.getMessage(), is("ASDF"));
-        }
+        GeneralScriptException exception = expectThrows(GeneralScriptException.class,
+                () -> conditionParser.createExecutable(scriptCondition));
     }
 
     public void testScriptConditionParser_badLang() throws Exception {
@@ -153,39 +146,30 @@ public class ScriptConditionTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
         ScriptCondition scriptCondition = conditionParser.parseCondition("_watch", parser);
-        try {
-            conditionParser.createExecutable(scriptCondition);
-            fail("expected a condition validation exception trying to create an executable with an invalid language");
-        } catch (GeneralScriptException e) {
-            // TODO add these when the test if fixed
-            // assertThat(e.getMessage(), is("ASDF"));
-        }
+        GeneralScriptException exception = expectThrows(GeneralScriptException.class,
+                () -> conditionParser.createExecutable(scriptCondition));
+        assertThat(exception.getMessage(), containsString("script_lang not supported [not_a_valid_lang]]"));
     }
 
     public void testScriptConditionThrowException() throws Exception {
         ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
         ExecutableScriptCondition condition = new ExecutableScriptCondition(
-                new ScriptCondition(Script.inline("assert false").build()), logger, scriptService);
+                new ScriptCondition(Script.inline("null.foo").build()), logger, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500L, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
-        ScriptCondition.Result result = condition.execute(ctx);
-        assertThat(result, notNullValue());
-        assertThat(result.status(), is(Condition.Result.Status.FAILURE));
-        assertThat(result.reason(), notNullValue());
-        assertThat(result.reason(), containsString("Assertion"));
+        ScriptException exception = expectThrows(ScriptException.class, () -> condition.execute(ctx));
+        assertThat(exception.getMessage(), containsString("Error evaluating null.foo"));
     }
 
-    public void testScriptConditionReturnObject() throws Exception {
+    public void testScriptConditionReturnObjectThrowsException() throws Exception {
         ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
         ExecutableScriptCondition condition = new ExecutableScriptCondition(
                 new ScriptCondition(Script.inline("return new Object()").build()), logger, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500L, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
-        ScriptCondition.Result result = condition.execute(ctx);
-        assertThat(result, notNullValue());
-        assertThat(result.status(), is(Condition.Result.Status.FAILURE));
-        assertThat(result.reason(), notNullValue());
-        assertThat(result.reason(), containsString("ScriptException"));
+        Exception exception = expectThrows(GeneralScriptException.class, () -> condition.execute(ctx));
+        assertThat(exception.getMessage(),
+                containsString("condition [script] must return a boolean value (true|false) but instead returned [_name]"));
     }
 
     public void testScriptConditionAccessCtx() throws Exception {

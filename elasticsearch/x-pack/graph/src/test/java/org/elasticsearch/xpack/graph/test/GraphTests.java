@@ -270,11 +270,10 @@ public class GraphTests extends ESSingleNodeTestCase {
         try {
             GraphExploreResponse response = grb.get();
             if (response.getShardFailures().length > 0) {
-                throw ((ShardSearchFailure) response.getShardFailures()[0]).getCause();
+                expectedError = response.getShardFailures()[0].getCause();
             }
-        } catch (Throwable rte) {
+        } catch (Exception rte) {
             expectedError = rte;
-
         }
         assertNotNull(expectedError);
         String message = expectedError.toString();

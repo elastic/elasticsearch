@@ -21,21 +21,11 @@ import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail.Message;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
-import org.elasticsearch.xpack.security.user.SystemUser;
-import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.xpack.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.security.crypto.InternalCryptoService;
-import org.elasticsearch.xpack.security.transport.filter.IPFilter;
-import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -46,6 +36,15 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail.Message;
+import org.elasticsearch.xpack.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.security.crypto.InternalCryptoService;
+import org.elasticsearch.xpack.security.transport.filter.IPFilter;
+import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
+import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
+import org.elasticsearch.xpack.security.user.SystemUser;
+import org.elasticsearch.xpack.security.user.User;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
@@ -64,12 +63,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.elasticsearch.test.InternalTestCluster.clusterName;
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.Rollover.DAILY;
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.Rollover.HOURLY;
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.Rollover.MONTHLY;
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.Rollover.WEEKLY;
-import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
-import static org.elasticsearch.test.InternalTestCluster.clusterName;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -255,8 +254,8 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         Settings settings = builder.put(settings(rollover, includes, excludes)).build();
         logger.info("--> settings: [{}]", settings.getAsMap().toString());
         Transport transport = mock(Transport.class);
-        BoundTransportAddress boundTransportAddress = new BoundTransportAddress(new TransportAddress[]{DummyTransportAddress.INSTANCE},
-                DummyTransportAddress.INSTANCE);
+        BoundTransportAddress boundTransportAddress = new BoundTransportAddress(new TransportAddress[]{ remoteHostAddress()},
+                remoteHostAddress());
         when(transport.boundAddress()).thenReturn(boundTransportAddress);
         threadPool = new TestThreadPool("index audit trail tests");
         enqueuedMessage = new SetOnce<>();
@@ -279,7 +278,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertAuditMessage(hit, "transport", "anonymous_access_denied");
         Map<String, Object> sourceMap = hit.sourceAsMap();
         if (message instanceof RemoteHostMockMessage) {
-            assertEquals(remoteHostAddress(), sourceMap.get("origin_address"));
+            assertEquals(remoteHostAddress().toString(), sourceMap.get("origin_address"));
         } else {
             assertEquals("local[local_host]", sourceMap.get("origin_address"));
         }
@@ -316,7 +315,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertAuditMessage(hit, "transport", "authentication_failed");
 
         if (message instanceof RemoteHostMockMessage) {
-            assertEquals(remoteHostAddress(), sourceMap.get("origin_address"));
+            assertEquals(remoteHostAddress().toString(), sourceMap.get("origin_address"));
         } else {
             assertEquals("local[local_host]", sourceMap.get("origin_address"));
         }
@@ -336,7 +335,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertAuditMessage(hit, "transport", "authentication_failed");
         Map<String, Object> sourceMap = hit.sourceAsMap();
         if (message instanceof RemoteHostMockMessage) {
-            assertEquals(remoteHostAddress(), sourceMap.get("origin_address"));
+            assertEquals(remoteHostAddress().toString(), sourceMap.get("origin_address"));
         } else {
             assertEquals("local[local_host]", sourceMap.get("origin_address"));
         }
@@ -391,7 +390,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         Map<String, Object> sourceMap = hit.sourceAsMap();
 
         if (message instanceof RemoteHostMockMessage) {
-            assertEquals(remoteHostAddress(), sourceMap.get("origin_address"));
+            assertEquals(remoteHostAddress().toString(), sourceMap.get("origin_address"));
         } else {
             assertEquals("local[local_host]", sourceMap.get("origin_address"));
         }
@@ -621,8 +620,8 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         DateTime dateTime = ISODateTimeFormat.dateTimeParser().withZoneUTC().parseDateTime((String) sourceMap.get("@timestamp"));
         assertThat(dateTime.isBefore(DateTime.now(DateTimeZone.UTC)), is(true));
 
-        assertThat(DummyTransportAddress.INSTANCE.getHost(), equalTo(sourceMap.get("node_host_name")));
-        assertThat(DummyTransportAddress.INSTANCE.getAddress(), equalTo(sourceMap.get("node_host_address")));
+        assertThat(remoteHostAddress().getHost(), equalTo(sourceMap.get("node_host_name")));
+        assertThat(remoteHostAddress().getAddress(), equalTo(sourceMap.get("node_host_address")));
 
         assertEquals(layer, sourceMap.get("layer"));
         assertEquals(type, sourceMap.get("event_type"));
@@ -636,13 +635,13 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
 
     private static class RemoteHostMockMessage extends TransportMessage {
         RemoteHostMockMessage() throws Exception {
-            remoteAddress(DummyTransportAddress.INSTANCE);
+            remoteAddress(remoteHostAddress());
         }
     }
 
     private static class RemoteHostMockTransportRequest extends TransportRequest {
         RemoteHostMockTransportRequest() throws Exception {
-            remoteAddress(DummyTransportAddress.INSTANCE);
+            remoteAddress(remoteHostAddress());
         }
     }
 
@@ -738,8 +737,8 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         return actionGet.getStatus();
     }
 
-    static String remoteHostAddress() throws Exception {
-        return DummyTransportAddress.INSTANCE.toString();
+    private static LocalTransportAddress remoteHostAddress() {
+        return new LocalTransportAddress("_remote_host_");
     }
 }
 

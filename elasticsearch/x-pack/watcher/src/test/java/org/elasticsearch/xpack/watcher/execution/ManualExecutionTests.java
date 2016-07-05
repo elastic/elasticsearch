@@ -332,8 +332,8 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
                 WatchRecord record = executionService.execute(ctxBuilder.build());
                 assertThat(record, notNullValue());
                 assertThat(record.state(), is(ExecutionState.NOT_EXECUTED_WATCH_MISSING));
-            } catch (Throwable t) {
-                throw new ElasticsearchException("Failure mode execution of [{}] failed in an unexpected way", t, watchId);
+            } catch (Exception e) {
+                throw new ElasticsearchException("Failure mode execution of [{}] failed in an unexpected way", e, watchId);
             }
         }
     }

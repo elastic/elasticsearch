@@ -146,7 +146,7 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     error.set(e);
                     latch.countDown();
                 }

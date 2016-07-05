@@ -21,6 +21,11 @@ public class SecurityTransportModule extends AbstractSecurityModule {
 
     @Override
     protected void configure(boolean clientMode) {
+        if (securityEnabled == false) {
+            bind(IPFilter.class).toProvider(Providers.<IPFilter>of(null));
+            return;
+        }
+
         if (clientMode) {
             // no ip filtering on the client
             bind(IPFilter.class).toProvider(Providers.<IPFilter>of(null));

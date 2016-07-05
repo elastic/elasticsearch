@@ -146,7 +146,7 @@ public class TestUtils {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 latch.countDown();
             }
         });

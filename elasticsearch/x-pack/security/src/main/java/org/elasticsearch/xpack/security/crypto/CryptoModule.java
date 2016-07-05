@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.crypto;
 
+import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.support.AbstractSecurityModule;
 
@@ -19,6 +20,10 @@ public class CryptoModule extends AbstractSecurityModule.Node {
 
     @Override
     protected void configureNode() {
+        if (securityEnabled == false) {
+            bind(CryptoService.class).toProvider(Providers.of(null));
+            return;
+        }
         bind(InternalCryptoService.class).asEagerSingleton();
         bind(CryptoService.class).to(InternalCryptoService.class).asEagerSingleton();
     }

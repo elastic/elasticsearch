@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.monitoring.agent.resolver.indices;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -32,9 +32,9 @@ public class IndexRecoveryResolverTests extends MonitoringIndexNameResolverTestC
         IndexRecoveryMonitoringDoc doc = new IndexRecoveryMonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2));
         doc.setClusterUUID(randomAsciiOfLength(5));
         doc.setTimestamp(Math.abs(randomLong()));
-        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT));
+        doc.setSourceNode(new DiscoveryNode("id", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT));
 
-        DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
         Map<String, java.util.List<RecoveryState>> shardRecoveryStates = new HashMap<>();
         shardRecoveryStates.put("test", Collections.singletonList(new RecoveryState(new ShardId("test", "uuid", 0), true,
                 RecoveryState.Type.STORE, localNode, localNode)));

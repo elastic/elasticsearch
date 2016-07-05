@@ -21,17 +21,12 @@ public class ExecutableCompareCondition extends AbstractExecutableCompareConditi
     }
 
     @Override
-    protected CompareCondition.Result doExecute(Map<String, Object> model, Map<String, Object> resolvedValues) throws Exception {
+    protected CompareCondition.Result doExecute(Map<String, Object> model, Map<String, Object> resolvedValues) {
         Object configuredValue = resolveConfiguredValue(resolvedValues, model, condition.getValue());
 
         Object resolvedValue = ObjectPath.eval(condition.getPath(), model);
         resolvedValues.put(condition.getPath(), resolvedValue);
 
         return new CompareCondition.Result(resolvedValues, condition.getOp().eval(resolvedValue, configuredValue));
-    }
-
-    @Override
-    protected CompareCondition.Result doFailure(Map<String, Object> resolvedValues, Exception e) {
-        return new CompareCondition.Result(resolvedValues, e);
     }
 }

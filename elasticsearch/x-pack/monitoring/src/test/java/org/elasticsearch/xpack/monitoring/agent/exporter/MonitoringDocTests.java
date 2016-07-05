@@ -9,7 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -130,7 +130,7 @@ public class MonitoringDocTests extends ESTestCase {
             }
         }
         Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values())));
-        return new DiscoveryNode(randomAsciiOfLength(5), randomAsciiOfLength(3), randomAsciiOfLength(3), randomAsciiOfLength(3),
-                DummyTransportAddress.INSTANCE, attributes, roles, randomVersion(random()));
+        return new DiscoveryNode(randomAsciiOfLength(5), randomAsciiOfLength(3), LocalTransportAddress.buildUnique(),
+                attributes, roles, randomVersion(random()));
     }
 }

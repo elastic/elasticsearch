@@ -76,7 +76,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
             if (nativeUserStore.canStart(event.state(), master)) {
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
-                    public void onFailure(Throwable throwable) {
+                    public void onFailure(Exception throwable) {
                         logger.error("failed to start native user store service", throwable);
                         assert false : "security lifecycle services startup failed";
                     }
@@ -95,7 +95,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
             if (nativeRolesStore.canStart(event.state(), master)) {
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
-                    public void onFailure(Throwable throwable) {
+                    public void onFailure(Exception throwable) {
                         logger.error("failed to start native roles store services", throwable);
                         assert false : "security lifecycle services startup failed";
                     }
@@ -117,7 +117,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
                     threadPool.generic().execute(new AbstractRunnable() {
 
                         @Override
-                        public void onFailure(Throwable throwable) {
+                        public void onFailure(Exception throwable) {
                             logger.error("failed to start index audit trail services", throwable);
                             assert false : "security lifecycle services startup failed";
                         }

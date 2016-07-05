@@ -10,7 +10,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -49,8 +49,8 @@ public class IndexAuditTrailUpdateMappingTests extends SecurityIntegTestCase {
         Settings settings = Settings.builder().put("xpack.security.audit.index.rollover", rollover.name().toLowerCase(Locale.ENGLISH))
                 .put("path.home", createTempDir()).build();
         Transport transport = mock(Transport.class);
-        when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { DummyTransportAddress.INSTANCE },
-                DummyTransportAddress.INSTANCE));
+        when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { LocalTransportAddress.buildUnique() },
+                LocalTransportAddress.buildUnique()));
         auditor = new IndexAuditTrail(settings, transport, Providers.of(internalClient()), threadPool,
                 mock(ClusterService.class));
 

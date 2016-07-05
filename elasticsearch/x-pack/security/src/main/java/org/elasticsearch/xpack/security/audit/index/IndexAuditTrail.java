@@ -886,7 +886,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                     INDEX_TEMPLATE_NAME);
             threadPool.generic().execute(new AbstractRunnable() {
                 @Override
-                public void onFailure(Throwable throwable) {
+                public void onFailure(Exception throwable) {
                     logger.error("failed to update security audit index template [{}]", throwable, INDEX_TEMPLATE_NAME);
                 }
 

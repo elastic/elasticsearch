@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
-import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,7 +49,7 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
         });

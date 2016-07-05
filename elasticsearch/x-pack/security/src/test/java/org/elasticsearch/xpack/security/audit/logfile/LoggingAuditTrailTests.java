@@ -13,22 +13,21 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.xpack.security.user.SystemUser;
-import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.security.audit.logfile.CapturingLogger.Level;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.xpack.security.user.SystemUser;
+import org.elasticsearch.xpack.security.user.User;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -115,8 +114,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .build();
         transport = mock(Transport.class);
         when(transport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
-        when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { DummyTransportAddress.INSTANCE },
-                DummyTransportAddress.INSTANCE));
+        when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { LocalTransportAddress.buildUnique() },
+                LocalTransportAddress.buildUnique()));
         prefix = LoggingAuditTrail.resolvePrefix(settings, transport);
     }
 

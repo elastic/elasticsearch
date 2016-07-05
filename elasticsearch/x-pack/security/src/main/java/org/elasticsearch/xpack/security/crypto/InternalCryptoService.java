@@ -12,13 +12,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.security.authc.support.CharArrays;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.security.authc.support.CharArrays;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -28,6 +27,7 @@ import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -45,12 +45,9 @@ import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.xpack.security.authc.support.SecuredString.constantTimeEquals;
 import static org.elasticsearch.xpack.security.Security.setting;
+import static org.elasticsearch.xpack.security.authc.support.SecuredString.constantTimeEquals;
 
-/**
- *
- */
 public class InternalCryptoService extends AbstractLifecycleComponent implements CryptoService {
 
     public static final String KEY_ALGO = "HmacSHA512";
@@ -232,8 +229,8 @@ public class InternalCryptoService extends AbstractLifecycleComponent implements
             base64RandomKey = pieces[2];
             receivedSignature = pieces[3].substring(0, length);
             text = pieces[3].substring(length);
-        } catch (Throwable t) {
-            logger.error("error occurred while parsing signed text", t);
+        } catch (Exception e) {
+            logger.error("error occurred while parsing signed text", e);
             throw new IllegalArgumentException("tampered signed text");
         }
 
@@ -270,8 +267,8 @@ public class InternalCryptoService extends AbstractLifecycleComponent implements
             if (constantTimeEquals(sig, receivedSignature)) {
                 return text;
             }
-        } catch (Throwable t) {
-            logger.error("error occurred while verifying signed text", t);
+        } catch (Exception e) {
+            logger.error("error occurred while verifying signed text", e);
             throw new IllegalStateException("error while verifying the signed text");
         }
 
@@ -543,29 +540,20 @@ public class InternalCryptoService extends AbstractLifecycleComponent implements
         }
 
         private void callListeners(SecretKey oldSystemKey, SecretKey oldEncryptionKey) {
-            Throwable th = null;
+            RuntimeException ex = null;
             for (Listener listener : listeners) {
                 try {
                     listener.onKeyChange(oldSystemKey, oldEncryptionKey);
-                } catch (Throwable t) {
-                    if (th == null) {
-                        th = t;
-                    } else {
-                        th.addSuppressed(t);
-                    }
+                } catch (Exception e) {
+                    if (ex == null) ex = new RuntimeException("exception calling key change listeners");
+                    ex.addSuppressed(e);
                 }
             }
 
             // all listeners were notified now rethrow
-            if (th != null) {
-                logger.error("called all key change listeners but one or more exceptions was thrown", th);
-                if (th instanceof RuntimeException) {
-                    throw (RuntimeException) th;
-                } else if (th instanceof Error) {
-                    throw (Error) th;
-                } else {
-                    throw new RuntimeException(th);
-                }
+            if (ex != null) {
+                logger.error("called all key change listeners but one or more exceptions was thrown", ex);
+                throw ex;
             }
         }
     }

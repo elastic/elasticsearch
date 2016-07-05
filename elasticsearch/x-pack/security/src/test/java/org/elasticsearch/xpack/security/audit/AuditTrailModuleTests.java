@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.inject.Guice;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -15,20 +14,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.local.LocalTransport;
+import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 public class AuditTrailModuleTests extends ESTestCase {
     public void testEnabled() throws Exception {
         Settings settings = Settings.builder()
@@ -93,7 +89,7 @@ public class AuditTrailModuleTests extends ESTestCase {
         try {
             Guice.createInjector(settingsModule, new AuditTrailModule(settings));
             fail("Expect initialization to fail when an unknown audit trail output is configured");
-        } catch (Throwable t) {
+        } catch (Exception e) {
             // expected
         }
     }

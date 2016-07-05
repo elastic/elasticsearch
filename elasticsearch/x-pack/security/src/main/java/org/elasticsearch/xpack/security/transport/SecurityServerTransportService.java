@@ -38,9 +38,6 @@ import static org.elasticsearch.xpack.security.transport.netty.SecurityNettyTran
 import static org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport.PROFILE_CLIENT_AUTH_SETTING;
 import static org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport.SSL_SETTING;
 
-/**
- *
- */
 public class SecurityServerTransportService extends TransportService {
 
     public static final String SETTING_NAME = "xpack.security.type";
@@ -81,16 +78,16 @@ public class SecurityServerTransportService extends TransportService {
                 try {
                     clientFilter.outbound(action, request);
                     super.sendRequest(node, action, request, options, new ContextRestoreResponseHandler<>(original, handler));
-                } catch (Throwable t) {
-                    handler.handleException(new TransportException("failed sending request", t));
+                } catch (Exception e) {
+                    handler.handleException(new TransportException("failed sending request", e));
                 }
             }
         } else {
             try {
                 clientFilter.outbound(action, request);
                 super.sendRequest(node, action, request, options, handler);
-            } catch (Throwable t) {
-                handler.handleException(new TransportException("failed sending request", t));
+            } catch (Exception e) {
+                handler.handleException(new TransportException("failed sending request", e));
             }
         }
     }
@@ -194,8 +191,8 @@ public class SecurityServerTransportService extends TransportService {
                 RequestContext context = new RequestContext(request, threadContext);
                 RequestContext.setCurrent(context);
                 handler.messageReceived(request, channel, task);
-            } catch (Throwable t) {
-                channel.sendResponse(t);
+            } catch (Exception e) {
+                channel.sendResponse(e);
             } finally {
                 RequestContext.removeCurrent();
             }

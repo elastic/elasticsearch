@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.watcher.condition.script;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
 
 import java.util.Map;
 
@@ -38,15 +38,10 @@ public class ExecutableScriptCondition extends ExecutableCondition<ScriptConditi
 
     @Override
     public ScriptCondition.Result execute(WatchExecutionContext ctx) {
-        try {
-            return doExecute(ctx);
-        } catch (Exception e) {
-            logger.error("failed to execute [{}] condition for [{}]", e, ScriptCondition.TYPE, ctx.id());
-            return new ScriptCondition.Result(e);
-        }
+        return doExecute(ctx);
     }
 
-    public ScriptCondition.Result doExecute(WatchExecutionContext ctx) throws Exception {
+    public ScriptCondition.Result doExecute(WatchExecutionContext ctx) {
         Map<String, Object> parameters = Variables.createCtxModel(ctx, ctx.payload());
         if (condition.script.params() != null && !condition.script.params().isEmpty()) {
             parameters.putAll(condition.script.params());

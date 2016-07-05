@@ -19,9 +19,10 @@ Wait for the changes made by the request to be made visible by a refresh before
 replying. This doesn't force an immediate refresh, rather, it waits for a
 refresh to happen. Elasticsearch automatically refreshes shards that have changed
 every `index.refresh_interval` which defaults to one second. That setting is
-<<dynamic-index-settings,dynamic>>. The <<indices-refresh>> API will also
-cause an immediate refresh, as will setting `refresh` to `true` on any of the
-APIs that support it.
+<<dynamic-index-settings,dynamic>>. Calling the <<indices-refresh>> API or
+setting `refresh` to `true` on any of the APIs that support it will also
+cause a refresh, in turn causing already running requests with `refresh=wait_for`
+to return.
 
 `false` (the default)::
 

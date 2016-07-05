@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,7 +45,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.blobId;
-import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.parseNameUUIDFromBlobName;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -108,7 +106,90 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         assertThat(snapshotIds, equalTo(originalSnapshots));
     }
 
-    public void testSnapshotIndexFile() throws Exception {
+    public void testReadAndWriteSnapshotsThroughIndexFile() throws Exception {
+        final BlobStoreRepository repository = setupRepo();
+
+        // write to and read from a snapshot file with no entries
+        assertThat(repository.snapshots().size(), equalTo(0));
+        repository.writeSnapshotsToIndexGen(Collections.emptyList());
+        assertThat(repository.snapshots().size(), equalTo(0));
+
+        // write to and read from a snapshot file with a random number of entries
+        final int numSnapshots = randomIntBetween(1, 1000);
+        final List<SnapshotId> snapshotIds = new ArrayList<>(numSnapshots);
+        for (int i = 0; i < numSnapshots; i++) {
+            snapshotIds.add(new SnapshotId(randomAsciiOfLength(8), UUIDs.randomBase64UUID()));
+        }
+        repository.writeSnapshotsToIndexGen(snapshotIds);
+        assertThat(repository.snapshots(), equalTo(snapshotIds));
+    }
+
+    public void testIndexGenerationalFiles() throws Exception {
+        final BlobStoreRepository repository = setupRepo();
+
+        // write to index generational file
+        final int numSnapshots = randomIntBetween(1, 1000);
+        final List<SnapshotId> snapshotIds = new ArrayList<>(numSnapshots);
+        for (int i = 0; i < numSnapshots; i++) {
+            snapshotIds.add(new SnapshotId(randomAsciiOfLength(8), UUIDs.randomBase64UUID()));
+        }
+        repository.writeSnapshotsToIndexGen(snapshotIds);
+        assertThat(Sets.newHashSet(repository.readSnapshotsFromIndex()), equalTo(Sets.newHashSet(snapshotIds)));
+        assertThat(repository.latestIndexBlobId(), equalTo(0L));
+        assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(0L));
+
+        // adding more and writing to a new index generational file
+        for (int i = 0; i < 10; i++) {
+            snapshotIds.add(new SnapshotId(randomAsciiOfLength(8), UUIDs.randomBase64UUID()));
+        }
+        repository.writeSnapshotsToIndexGen(snapshotIds);
+        assertThat(Sets.newHashSet(repository.readSnapshotsFromIndex()), equalTo(Sets.newHashSet(snapshotIds)));
+        assertThat(repository.latestIndexBlobId(), equalTo(1L));
+        assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(1L));
+
+        // removing a snapshot adn writing to a new index generational file
+        snapshotIds.remove(0);
+        repository.writeSnapshotsToIndexGen(snapshotIds);
+        assertThat(Sets.newHashSet(repository.readSnapshotsFromIndex()), equalTo(Sets.newHashSet(snapshotIds)));
+        assertThat(repository.latestIndexBlobId(), equalTo(2L));
+        assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(2L));
+    }
+
+    public void testOldIndexFileFormat() throws Exception {
+        final BlobStoreRepository repository = setupRepo();
+
+        // write old index file format
+        final int numOldSnapshots = randomIntBetween(1, 50);
+        final List<SnapshotId> snapshotIds = new ArrayList<>();
+        for (int i = 0; i < numOldSnapshots; i++) {
+            snapshotIds.add(new SnapshotId(randomAsciiOfLength(8), SnapshotId.UNASSIGNED_UUID));
+        }
+        writeOldFormat(repository, snapshotIds.stream().map(SnapshotId::getName).collect(Collectors.toList()));
+        assertThat(Sets.newHashSet(repository.snapshots()), equalTo(Sets.newHashSet(snapshotIds)));
+
+        // write to and read from a snapshot file with a random number of new entries added
+        final int numSnapshots = randomIntBetween(1, 1000);
+        for (int i = 0; i < numSnapshots; i++) {
+            snapshotIds.add(new SnapshotId(randomAsciiOfLength(8), UUIDs.randomBase64UUID()));
+        }
+        repository.writeSnapshotsToIndexGen(snapshotIds);
+        assertThat(Sets.newHashSet(repository.snapshots()), equalTo(Sets.newHashSet(snapshotIds)));
+    }
+
+    public void testBlobId() {
+        SnapshotId snapshotId = new SnapshotId("abc123", SnapshotId.UNASSIGNED_UUID);
+        assertThat(blobId(snapshotId), equalTo("abc123")); // just the snapshot name
+        snapshotId = new SnapshotId("abc-123", SnapshotId.UNASSIGNED_UUID);
+        assertThat(blobId(snapshotId), equalTo("abc-123")); // just the snapshot name
+        String uuid = UUIDs.randomBase64UUID();
+        snapshotId = new SnapshotId("abc123", uuid);
+        assertThat(blobId(snapshotId), equalTo("abc123-" + uuid)); // snapshot name + '-' + uuid
+        uuid = UUIDs.randomBase64UUID();
+        snapshotId = new SnapshotId("abc-123", uuid);
+        assertThat(blobId(snapshotId), equalTo("abc-123-" + uuid)); // snapshot name + '-' + uuid
+    }
+
+    private BlobStoreRepository setupRepo() {
         final Client client = client();
         final Path location = ESIntegTestCase.randomRepoPath(node().settings());
         final String repositoryName = "test-repo";
@@ -123,89 +204,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         final RepositoriesService repositoriesService = getInstanceFromNode(RepositoriesService.class);
         @SuppressWarnings("unchecked") final BlobStoreRepository repository =
             (BlobStoreRepository) repositoriesService.repository(repositoryName);
-
-        // write to and read from a snapshot file with no entries
-        repository.writeSnapshotList(Collections.emptyList());
-        List<SnapshotId> readSnapshotIds = repository.readSnapshotList();
-        assertThat(readSnapshotIds.size(), equalTo(0));
-
-        // write to and read from a snapshot file with a random number of entries
-        final int numSnapshots = randomIntBetween(1, 1000);
-        final List<SnapshotId> snapshotIds = new ArrayList<>(numSnapshots);
-        for (int i = 0; i < numSnapshots; i++) {
-            snapshotIds.add(new SnapshotId(randomAsciiOfLength(8), UUIDs.randomBase64UUID()));
-        }
-        repository.writeSnapshotList(snapshotIds);
-        readSnapshotIds = repository.readSnapshotList();
-        assertThat(readSnapshotIds, equalTo(snapshotIds));
-    }
-
-    public void testOldIndexFileFormat() throws Exception {
-        final Client client = client();
-        final Path location = ESIntegTestCase.randomRepoPath(node().settings());
-        final String repositoryName = "test-repo";
-
-        PutRepositoryResponse putRepositoryResponse =
-            client.admin().cluster().preparePutRepository(repositoryName)
-                .setType("fs")
-                .setSettings(Settings.builder().put(node().settings()).put("location", location))
-                .get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
-
-        final RepositoriesService repositoriesService = getInstanceFromNode(RepositoriesService.class);
-        @SuppressWarnings("unchecked") final BlobStoreRepository repository =
-            (BlobStoreRepository) repositoriesService.repository(repositoryName);
-
-        // write old index file format
-        final int numOldSnapshots = randomIntBetween(1, 50);
-        final List<SnapshotId> snapshotIds = new ArrayList<>();
-        for (int i = 0; i < numOldSnapshots; i++) {
-            snapshotIds.add(new SnapshotId(randomAsciiOfLength(8), SnapshotId.UNASSIGNED_UUID));
-        }
-        writeOldFormat(repository, snapshotIds.stream().map(SnapshotId::getName).collect(Collectors.toList()));
-        List<SnapshotId> readSnapshotIds = repository.readSnapshotList();
-        assertThat(Sets.newHashSet(readSnapshotIds), equalTo(Sets.newHashSet(snapshotIds)));
-
-        // write to and read from a snapshot file with a random number of new entries added
-        final int numSnapshots = randomIntBetween(1, 1000);
-        for (int i = 0; i < numSnapshots; i++) {
-            snapshotIds.add(new SnapshotId(randomAsciiOfLength(8), UUIDs.randomBase64UUID()));
-        }
-        repository.writeSnapshotList(snapshotIds);
-        readSnapshotIds = repository.readSnapshotList();
-        assertThat(Sets.newHashSet(readSnapshotIds), equalTo(Sets.newHashSet(snapshotIds)));
-    }
-
-    public void testParseUUIDFromBlobName() {
-        String blobStr = "abc123";
-        Tuple<String, String> pair = parseNameUUIDFromBlobName(blobStr);
-        assertThat(pair.v1(), equalTo(blobStr)); // snapshot name
-        assertThat(pair.v2(), equalTo(SnapshotId.UNASSIGNED_UUID)); // snapshot uuid
-        blobStr = "abcefghijklmnopqrstuvwxyz";
-        pair = parseNameUUIDFromBlobName(blobStr);
-        assertThat(pair.v1(), equalTo(blobStr));
-        assertThat(pair.v2(), equalTo(SnapshotId.UNASSIGNED_UUID));
-        blobStr = "abc123-xyz"; // not enough characters after '-' to have a uuid
-        pair = parseNameUUIDFromBlobName(blobStr);
-        assertThat(pair.v1(), equalTo(blobStr));
-        assertThat(pair.v2(), equalTo(SnapshotId.UNASSIGNED_UUID));
-        blobStr = "abc123-a1b2c3d4e5f6g7h8i9j0k1";
-        pair = parseNameUUIDFromBlobName(blobStr);
-        assertThat(pair.v1(), equalTo("abc123"));
-        assertThat(pair.v2(), equalTo("a1b2c3d4e5f6g7h8i9j0k1"));
-    }
-
-    public void testBlobId() {
-        SnapshotId snapshotId = new SnapshotId("abc123", SnapshotId.UNASSIGNED_UUID);
-        assertThat(blobId(snapshotId), equalTo("abc123")); // just the snapshot name
-        snapshotId = new SnapshotId("abc-123", SnapshotId.UNASSIGNED_UUID);
-        assertThat(blobId(snapshotId), equalTo("abc-123")); // just the snapshot name
-        String uuid = UUIDs.randomBase64UUID();
-        snapshotId = new SnapshotId("abc123", uuid);
-        assertThat(blobId(snapshotId), equalTo("abc123-" + uuid)); // snapshot name + '-' + uuid
-        uuid = UUIDs.randomBase64UUID();
-        snapshotId = new SnapshotId("abc-123", uuid);
-        assertThat(blobId(snapshotId), equalTo("abc-123-" + uuid)); // snapshot name + '-' + uuid
+        return repository;
     }
 
     private void writeOldFormat(final BlobStoreRepository repository, final List<String> snapshotNames) throws Exception {

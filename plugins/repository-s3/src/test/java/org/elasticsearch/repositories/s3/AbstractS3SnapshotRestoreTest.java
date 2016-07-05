@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  */
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 2, numClientNodes = 0, transportClientRatio = 0.0)
-abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase {
+public abstract  class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase {
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
@@ -512,7 +512,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
                     multiObjectDeleteRequest.setKeys(keys);
                     client.deleteObjects(multiObjectDeleteRequest);
                 }
-            } catch (Throwable ex) {
+            } catch (Exception ex) {
                 logger.warn("Failed to delete S3 repository [{}] in [{}]", ex, bucketName, region);
             }
         }

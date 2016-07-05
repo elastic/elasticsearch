@@ -151,9 +151,13 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         } else {
             pipelineAggregators = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                BytesReference type = in.readBytesReference();
-                PipelineAggregator pipelineAggregator = PipelineAggregatorStreams.stream(type).readResult(in);
-                pipelineAggregators.add(pipelineAggregator);
+                if (in.readBoolean()) {
+                    pipelineAggregators.add(in.readNamedWriteable(PipelineAggregator.class));
+                } else {
+                    BytesReference type = in.readBytesReference();
+                    PipelineAggregator pipelineAggregator = PipelineAggregatorStreams.stream(type).readResult(in);
+                    pipelineAggregators.add(pipelineAggregator);
+                }
             }
         }
     }
@@ -174,9 +178,13 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         } else {
             pipelineAggregators = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                BytesReference type = in.readBytesReference();
-                PipelineAggregator pipelineAggregator = PipelineAggregatorStreams.stream(type).readResult(in);
-                pipelineAggregators.add(pipelineAggregator);
+                if (in.readBoolean()) {
+                    pipelineAggregators.add(in.readNamedWriteable(PipelineAggregator.class));
+                } else {
+                    BytesReference type = in.readBytesReference();
+                    PipelineAggregator pipelineAggregator = PipelineAggregatorStreams.stream(type).readResult(in);
+                    pipelineAggregators.add(pipelineAggregator);
+                }
             }
         }
         doReadFrom(in);
@@ -188,12 +196,20 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);    // NORELEASE remote writing the name - it is automatically handled with writeNamedWriteable
+        out.writeString(name);    // NORELEASE remote writing the name? it is automatically handled with writeNamedWriteable
         out.writeGenericValue(metaData);
         out.writeVInt(pipelineAggregators.size());
         for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
-            out.writeBytesReference(pipelineAggregator.type().stream());
-            pipelineAggregator.writeTo(out);
+            // NORELEASE temporary hack to support old style streams and new style NamedWriteable
+            try {
+                pipelineAggregator.getWriteableName(); // Throws UnsupportedOperationException if we should use old style streams.
+                out.writeBoolean(true);
+                out.writeNamedWriteable(pipelineAggregator);
+            } catch (UnsupportedOperationException e) {
+                out.writeBoolean(false);
+                out.writeBytesReference(pipelineAggregator.type().stream());
+                pipelineAggregator.writeTo(out);
+            }
         }
         doWriteTo(out);
     }
@@ -201,21 +217,22 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
     protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
     @Override
-    public String getName() {
-        return name;
-    }
-
-    @Override
     public String getWriteableName() {
         // NORELEASE remove me when all InternalAggregations override it
         throw new UnsupportedOperationException("Override on every class");
+    }
+
+    @Override
+    public String getName() {
+        return name;
     }
 
     /**
      * @return The {@link Type} of this aggregation
      */
     public Type type() {
-        throw new UnsupportedOperationException("Use getWriteableName instead"); // NORELEASE remove me
+        // NORELEASE remove this method
+        throw new UnsupportedOperationException(getClass().getName() + " used type but should Use getWriteableName instead");
     }
 
     /**

@@ -152,21 +152,21 @@ public class PublishClusterStateAction extends AbstractComponent {
 
             final BlockingClusterStatePublishResponseHandler publishResponseHandler = new AckClusterStatePublishResponseHandler(nodesToPublishTo, ackListener);
             sendingController = new SendingController(clusterChangedEvent.state(), minMasterNodes, totalMasterNodes, publishResponseHandler);
-        } catch (Throwable t) {
-            throw new Discovery.FailedToCommitClusterStateException("unexpected error while preparing to publish", t);
+        } catch (Exception e) {
+            throw new Discovery.FailedToCommitClusterStateException("unexpected error while preparing to publish", e);
         }
 
         try {
             innerPublish(clusterChangedEvent, nodesToPublishTo, sendingController, sendFullVersion, serializedStates, serializedDiffs);
         } catch (Discovery.FailedToCommitClusterStateException t) {
             throw t;
-        } catch (Throwable t) {
+        } catch (Exception e) {
             // try to fail committing, in cause it's still on going
-            if (sendingController.markAsFailed("unexpected error", t)) {
+            if (sendingController.markAsFailed("unexpected error", e)) {
                 // signal the change should be rejected
-                throw new Discovery.FailedToCommitClusterStateException("unexpected error", t);
+                throw new Discovery.FailedToCommitClusterStateException("unexpected error", e);
             } else {
-                throw t;
+                throw e;
             }
         }
     }
@@ -185,7 +185,7 @@ public class PublishClusterStateAction extends AbstractComponent {
             // try and serialize the cluster state once (or per version), so we don't serialize it
             // per node when we send it over the wire, compress it while we are at it...
             // we don't send full version if node didn't exist in the previous version of cluster state
-            if (sendFullVersion || !previousState.nodes().nodeExists(node.getId())) {
+            if (sendFullVersion || !previousState.nodes().nodeExists(node)) {
                 sendFullClusterState(clusterState, serializedStates, node, publishTimeout, sendingController);
             } else {
                 sendClusterStateDiff(clusterState, serializedDiffs, serializedStates, node, publishTimeout, sendingController);
@@ -216,7 +216,7 @@ public class PublishClusterStateAction extends AbstractComponent {
         Diff<ClusterState> diff = null;
         for (final DiscoveryNode node : nodesToPublishTo) {
             try {
-                if (sendFullVersion || !previousState.nodes().nodeExists(node.getId())) {
+                if (sendFullVersion || !previousState.nodes().nodeExists(node)) {
                     // will send a full reference
                     if (serializedStates.containsKey(node.getVersion()) == false) {
                         serializedStates.put(node.getVersion(), serializeFullClusterState(clusterState, node.getVersion()));
@@ -243,7 +243,7 @@ public class PublishClusterStateAction extends AbstractComponent {
             try {
                 bytes = serializeFullClusterState(clusterState, node.getVersion());
                 serializedStates.put(node.getVersion(), bytes);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 logger.warn("failed to serialize cluster_state before publishing it to node {}", e, node);
                 sendingController.onNodeSendFailed(node, e);
                 return;
@@ -295,9 +295,9 @@ public class PublishClusterStateAction extends AbstractComponent {
                             }
                         }
                     });
-        } catch (Throwable t) {
-            logger.warn("error sending cluster state to {}", t, node);
-            sendingController.onNodeSendFailed(node, t);
+        } catch (Exception e) {
+            logger.warn("error sending cluster state to {}", e, node);
+            sendingController.onNodeSendFailed(node, e);
         }
     }
 
@@ -326,7 +326,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                             sendingController.getPublishResponseHandler().onFailure(node, exp);
                         }
                     });
-        } catch (Throwable t) {
+        } catch (Exception t) {
             logger.warn("error sending cluster state commit (uuid [{}], version [{}]) to {}", t, clusterState.stateUUID(), clusterState.version(), node);
             sendingController.getPublishResponseHandler().onFailure(node, t);
         }
@@ -428,18 +428,19 @@ public class PublishClusterStateAction extends AbstractComponent {
                 try {
                     // send a response to the master to indicate that this cluster state has been processed post committing it.
                     channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     logger.debug("failed to send response on cluster state processed", e);
                     onNewClusterStateFailed(e);
                 }
             }
 
             @Override
-            public void onNewClusterStateFailed(Throwable t) {
+            public void onNewClusterStateFailed(Exception e) {
                 try {
-                    channel.sendResponse(t);
-                } catch (Throwable e) {
-                    logger.debug("failed to send response on cluster state processed", e);
+                    channel.sendResponse(e);
+                } catch (Exception inner) {
+                    inner.addSuppressed(e);
+                    logger.debug("failed to send response on cluster state processed", inner);
                 }
             }
         });
@@ -543,11 +544,11 @@ public class PublishClusterStateAction extends AbstractComponent {
             }
         }
 
-        synchronized public boolean isCommitted() {
+        public synchronized boolean isCommitted() {
             return committed;
         }
 
-        synchronized public void onNodeSendAck(DiscoveryNode node) {
+        public synchronized void onNodeSendAck(DiscoveryNode node) {
             if (committed) {
                 assert sendAckedBeforeCommit.isEmpty();
                 sendCommitToNode(node, clusterState, this);
@@ -570,7 +571,7 @@ public class PublishClusterStateAction extends AbstractComponent {
          * check if enough master node responded to commit the change. fails the commit
          * if there are no more pending master nodes but not enough acks to commit.
          */
-        synchronized private void checkForCommitOrFailIfNoPending(DiscoveryNode masterNode) {
+        private synchronized void checkForCommitOrFailIfNoPending(DiscoveryNode masterNode) {
             logger.trace("master node {} acked cluster state version [{}]. processing ... (current pending [{}], needed [{}])",
                     masterNode, clusterState.version(), pendingMasterNodes, neededMastersToCommit);
             neededMastersToCommit--;
@@ -585,20 +586,20 @@ public class PublishClusterStateAction extends AbstractComponent {
             decrementPendingMasterAcksAndChangeForFailure();
         }
 
-        synchronized private void decrementPendingMasterAcksAndChangeForFailure() {
+        private synchronized void decrementPendingMasterAcksAndChangeForFailure() {
             pendingMasterNodes--;
             if (pendingMasterNodes == 0 && neededMastersToCommit > 0) {
                 markAsFailed("no more pending master nodes, but failed to reach needed acks ([" + neededMastersToCommit + "] left)");
             }
         }
 
-        synchronized public void onNodeSendFailed(DiscoveryNode node, Throwable t) {
+        public synchronized void onNodeSendFailed(DiscoveryNode node, Exception e) {
             if (node.isMasterNode()) {
                 logger.trace("master node {} failed to ack cluster state version [{}]. processing ... (current pending [{}], needed [{}])",
                         node, clusterState.version(), pendingMasterNodes, neededMastersToCommit);
                 decrementPendingMasterAcksAndChangeForFailure();
             }
-            publishResponseHandler.onFailure(node, t);
+            publishResponseHandler.onFailure(node, e);
         }
 
         /**
@@ -606,7 +607,7 @@ public class PublishClusterStateAction extends AbstractComponent {
          *
          * @return true if successful
          */
-        synchronized private boolean markAsCommitted() {
+        private synchronized boolean markAsCommitted() {
             if (committedOrFailed()) {
                 return committed;
             }
@@ -621,7 +622,7 @@ public class PublishClusterStateAction extends AbstractComponent {
          *
          * @return true if the publishing was failed and the cluster state is *not* committed
          **/
-        synchronized private boolean markAsFailed(String details, Throwable reason) {
+        private synchronized boolean markAsFailed(String details, Exception reason) {
             if (committedOrFailed()) {
                 return committed == false;
             }
@@ -636,7 +637,7 @@ public class PublishClusterStateAction extends AbstractComponent {
          *
          * @return true if the publishing was failed and the cluster state is *not* committed
          **/
-        synchronized private boolean markAsFailed(String reason) {
+        private synchronized boolean markAsFailed(String reason) {
             if (committedOrFailed()) {
                 return committed == false;
             }

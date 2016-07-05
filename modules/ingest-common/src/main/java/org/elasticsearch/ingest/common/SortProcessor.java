@@ -111,7 +111,7 @@ public final class SortProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public final static class Factory implements Processor.Factory {
+    public static final class Factory implements Processor.Factory {
 
         @Override
         public SortProcessor create(String processorTag, Map<String, Object> config) throws Exception {

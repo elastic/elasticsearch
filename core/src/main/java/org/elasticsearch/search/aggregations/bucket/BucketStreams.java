@@ -35,7 +35,7 @@ public class BucketStreams {
     /**
      * A stream that knows how to read a bucket from the input.
      */
-    public static interface Stream<B extends MultiBucketsAggregation.Bucket> {
+    public interface Stream<B extends MultiBucketsAggregation.Bucket> {
         B readResult(StreamInput in, BucketStreamContext context) throws IOException;
         BucketStreamContext getBucketStreamContext(B bucket);
     }

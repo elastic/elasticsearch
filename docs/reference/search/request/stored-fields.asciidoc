@@ -1,7 +1,7 @@
 [[search-request-fields]]
 === Fields
 
-WARNING: The `fields` parameter is about fields that are explicitly marked as
+WARNING: The `stored_fields` parameter is about fields that are explicitly marked as
 stored in the mapping, which is off by default and generally not recommended.
 Use <<search-request-source-filtering,source filtering>> instead to select
 subsets of the original source document to be returned.
@@ -13,7 +13,7 @@ by a search hit.
 --------------------------------------------------
 GET /_search
 {
-    "fields" : ["user", "postDate"],
+    "stored_fields" : ["user", "postDate"],
     "query" : {
         "term" : { "user" : "kimchy" }
     }
@@ -30,7 +30,7 @@ returned, for example:
 --------------------------------------------------
 GET /_search
 {
-    "fields" : [],
+    "stored_fields" : [],
     "query" : {
         "term" : { "user" : "kimchy" }
     }

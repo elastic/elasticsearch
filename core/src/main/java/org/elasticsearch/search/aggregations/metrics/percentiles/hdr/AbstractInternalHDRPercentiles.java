@@ -36,11 +36,9 @@ import java.util.zip.DataFormatException;
 
 abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
-    protected double[] keys;
-    protected DoubleHistogram state;
-    private boolean keyed;
-
-    AbstractInternalHDRPercentiles() {} // for serialization
+    protected final double[] keys;
+    protected final DoubleHistogram state;
+    private final boolean keyed;
 
     public AbstractInternalHDRPercentiles(String name, double[] keys, DoubleHistogram state, boolean keyed, DocValueFormat format,
             List<PipelineAggregator> pipelineAggregators,
@@ -50,6 +48,38 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
         this.state = state;
         this.keyed = keyed;
         this.format = format;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    protected AbstractInternalHDRPercentiles(StreamInput in) throws IOException {
+        super(in);
+        format = in.readNamedWriteable(DocValueFormat.class);
+        keys = in.readDoubleArray();
+        long minBarForHighestToLowestValueRatio = in.readLong();
+        final int serializedLen = in.readVInt();
+        byte[] bytes = new byte[serializedLen];
+        in.readBytes(bytes, 0, serializedLen);
+        ByteBuffer stateBuffer = ByteBuffer.wrap(bytes);
+        try {
+            state = DoubleHistogram.decodeFromCompressedByteBuffer(stateBuffer, minBarForHighestToLowestValueRatio);
+        } catch (DataFormatException e) {
+            throw new IOException("Failed to decode DoubleHistogram for aggregation [" + name + "]", e);
+        }
+        keyed = in.readBoolean();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(format);
+        out.writeDoubleArray(keys);
+        out.writeLong(state.getHighestToLowestValueRatio());
+        ByteBuffer stateBuffer = ByteBuffer.allocate(state.getNeededByteBufferCapacity());
+        final int serializedLen = state.encodeIntoCompressedByteBuffer(stateBuffer);
+        out.writeVInt(serializedLen);
+        out.writeBytes(stateBuffer.array(), 0, serializedLen);
+        out.writeBoolean(keyed);
     }
 
     @Override
@@ -79,41 +109,6 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
 
     protected abstract AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        format = in.readNamedWriteable(DocValueFormat.class);
-        keys = new double[in.readInt()];
-        for (int i = 0; i < keys.length; ++i) {
-            keys[i] = in.readDouble();
-        }
-        long minBarForHighestToLowestValueRatio = in.readLong();
-        final int serializedLen = in.readVInt();
-        byte[] bytes = new byte[serializedLen];
-        in.readBytes(bytes, 0, serializedLen);
-        ByteBuffer stateBuffer = ByteBuffer.wrap(bytes);
-        try {
-            state = DoubleHistogram.decodeFromCompressedByteBuffer(stateBuffer, minBarForHighestToLowestValueRatio);
-        } catch (DataFormatException e) {
-            throw new IOException("Failed to decode DoubleHistogram for aggregation [" + name + "]", e);
-        }
-        keyed = in.readBoolean();
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(format);
-        out.writeInt(keys.length);
-        for (int i = 0 ; i < keys.length; ++i) {
-            out.writeDouble(keys[i]);
-        }
-        out.writeLong(state.getHighestToLowestValueRatio());
-        ByteBuffer stateBuffer = ByteBuffer.allocate(state.getNeededByteBufferCapacity());
-        final int serializedLen = state.encodeIntoCompressedByteBuffer(stateBuffer);
-        out.writeVInt(serializedLen);
-        out.writeBytes(stateBuffer.array(), 0, serializedLen);
-        out.writeBoolean(keyed);
-    }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {

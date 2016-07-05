@@ -458,9 +458,9 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
 
                 @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.warn("[{}] failed to restore snapshot", t, snapshotId);
-                    listener.onFailure(t);
+                public void onFailure(String source, Exception e) {
+                    logger.warn("[{}] failed to restore snapshot", e, snapshotId);
+                    listener.onFailure(e);
                 }
 
                 @Override
@@ -475,7 +475,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             });
 
 
-        } catch (Throwable e) {
+        } catch (Exception e) {
             logger.warn("[{}] failed to restore snapshot", e, request.repositoryName + ":" + request.snapshotName);
             listener.onFailure(e);
         }
@@ -496,7 +496,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                 UPDATE_RESTORE_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
     }
 
-    public final static class RestoreCompletionResponse {
+    public static final class RestoreCompletionResponse {
         private final Snapshot snapshot;
         private final RestoreInfo restoreInfo;
 
@@ -598,9 +598,9 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             }
 
             @Override
-            public void onFailure(String source, @Nullable Throwable t) {
+            public void onFailure(String source, @Nullable Exception e) {
                 for (UpdateIndexShardRestoreStatusRequest request : drainedRequests) {
-                    logger.warn("[{}][{}] failed to update snapshot status to [{}]", t, request.snapshot(), request.shardId(), request.status());
+                    logger.warn("[{}][{}] failed to update snapshot status to [{}]", e, request.snapshot(), request.shardId(), request.status());
                 }
             }
 
@@ -667,7 +667,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                 for (ActionListener<RestoreCompletionResponse> listener : listeners) {
                     try {
                         listener.onResponse(new RestoreCompletionResponse(snapshot, restoreInfo));
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         logger.warn("failed to update snapshot status for [{}]", e, listener);
                     }
                 }
@@ -840,7 +840,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             if (event.localNodeMaster()) {
                 processDeletedIndices(event);
             }
-        } catch (Throwable t) {
+        } catch (Exception t) {
             logger.warn("Failed to update restore state ", t);
         }
     }
@@ -869,33 +869,33 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
      */
     public static class RestoreRequest {
 
-        final private String cause;
+        private final String cause;
 
-        final private String repositoryName;
+        private final String repositoryName;
 
-        final private String snapshotName;
+        private final String snapshotName;
 
-        final private String[] indices;
+        private final String[] indices;
 
-        final private String renamePattern;
+        private final String renamePattern;
 
-        final private String renameReplacement;
+        private final String renameReplacement;
 
-        final private IndicesOptions indicesOptions;
+        private final IndicesOptions indicesOptions;
 
-        final private Settings settings;
+        private final Settings settings;
 
-        final private TimeValue masterNodeTimeout;
+        private final TimeValue masterNodeTimeout;
 
-        final private boolean includeGlobalState;
+        private final boolean includeGlobalState;
 
-        final private boolean partial;
+        private final boolean partial;
 
-        final private boolean includeAliases;
+        private final boolean includeAliases;
 
-        final private Settings indexSettings;
+        private final Settings indexSettings;
 
-        final private String[] ignoreIndexSettings;
+        private final String[] ignoreIndexSettings;
 
         /**
          * Constructs new restore request

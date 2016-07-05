@@ -39,7 +39,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,7 +54,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -391,19 +389,15 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         TestConfig[] testConfigs = generateTestConfigs(20, testDocs, testFieldSettings);
 
         for (TestConfig test : testConfigs) {
-            try {
-                TermVectorsRequestBuilder request = getRequestForConfig(test);
-                if (test.expectedException != null) {
-                    assertThrows(request, test.expectedException);
-                    continue;
-                }
-
-                TermVectorsResponse response = request.get();
-                Fields luceneTermVectors = getTermVectorsFromLucene(directoryReader, test.doc);
-                validateResponse(response, luceneTermVectors, test);
-            } catch (Throwable t) {
-                throw new Exception("Test exception while running " + test.toString(), t);
+            TermVectorsRequestBuilder request = getRequestForConfig(test);
+            if (test.expectedException != null) {
+                assertThrows(request, test.expectedException);
+                continue;
             }
+
+            TermVectorsResponse response = request.get();
+            Fields luceneTermVectors = getTermVectorsFromLucene(directoryReader, test.doc);
+            validateResponse(response, luceneTermVectors, test);
         }
     }
 
@@ -961,21 +955,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
     private static String indexOrAlias() {
         return randomBoolean() ? "test" : "alias";
-    }
-
-    private Map<String, Integer> getFieldStatistics(Map<String, Object> stats, String fieldName) throws IOException {
-        return (Map<String, Integer>) ((Map<String, Object>) stats.get(fieldName)).get("field_statistics");
-    }
-
-    private Map<String, Integer> getTermStatistics(Map<String, Object> stats, String fieldName, String term) {
-        return (Map<String, Integer>) ((Map<String, Object>) ((Map<String, Object>) stats.get(fieldName)).get("terms")).get(term);
-    }
-
-    private Matcher<Integer> equalOrLessThanTo(Integer value, boolean isEqual) {
-        if (isEqual) {
-            return equalTo(value);
-        }
-        return lessThan(value);
     }
 
     public void testTermVectorsWithVersion() {

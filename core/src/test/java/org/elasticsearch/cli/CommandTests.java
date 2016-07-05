@@ -30,7 +30,7 @@ public class CommandTests extends ESTestCase {
         }
         @Override
         protected void execute(Terminal terminal, OptionSet options) throws Exception {
-            throw new UserError(ExitCodes.DATA_ERROR, "Bad input");
+            throw new UserException(ExitCodes.DATA_ERROR, "Bad input");
         }
     }
 
@@ -40,7 +40,7 @@ public class CommandTests extends ESTestCase {
         }
         @Override
         protected void execute(Terminal terminal, OptionSet options) throws Exception {
-            throw new UserError(ExitCodes.USAGE, "something was no good");
+            throw new UserException(ExitCodes.USAGE, "something was no good");
         }
     }
 
@@ -87,7 +87,7 @@ public class CommandTests extends ESTestCase {
         MockTerminal terminal = new MockTerminal();
         NoopCommand command = new NoopCommand();
         String[] args = {"-v", "-s"};
-        UserError e = expectThrows(UserError.class, () -> {
+        UserException e = expectThrows(UserException.class, () -> {
             command.mainWithoutErrorHandling(args, terminal);
         });
         assertTrue(e.getMessage(), e.getMessage().contains("Cannot specify -s and -v together"));

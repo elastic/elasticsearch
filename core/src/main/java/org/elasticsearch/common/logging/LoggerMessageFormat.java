@@ -153,7 +153,7 @@ public class LoggerMessageFormat {
         try {
             String oAsString = o.toString();
             sbuf.append(oAsString);
-        } catch (Throwable t) {
+        } catch (Exception e) {
             sbuf.append("[FAILED toString()]");
         }
 

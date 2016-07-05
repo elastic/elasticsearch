@@ -25,7 +25,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.SettingCommand;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.UserError;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
@@ -73,11 +73,11 @@ class Elasticsearch extends SettingCommand {
     @Override
     protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
         if (options.nonOptionArguments().isEmpty() == false) {
-            throw new UserError(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
+            throw new UserException(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
         }
         if (options.has(versionOption)) {
             if (options.has(daemonizeOption) || options.has(pidfileOption)) {
-                throw new UserError(ExitCodes.USAGE, "Elasticsearch version option is mutually exclusive with any other option");
+                throw new UserException(ExitCodes.USAGE, "Elasticsearch version option is mutually exclusive with any other option");
             }
             terminal.println("Version: " + org.elasticsearch.Version.CURRENT
                     + ", Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date()

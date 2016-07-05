@@ -738,12 +738,12 @@ public class TasksIT extends ESIntegTestCase {
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         throw new RuntimeException(e);
                     }
                 });
         b.await();
- 
+
         // Now we can find it!
         GetTaskResponse response = expectFinishedTask(new TaskId("fake:1"));
         assertEquals("test", response.getTask().getTask().getAction());

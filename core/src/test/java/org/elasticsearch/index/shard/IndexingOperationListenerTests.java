@@ -51,7 +51,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
             }
 
             @Override
-            public void postIndex(Engine.Index index, Throwable ex) {
+            public void postIndex(Engine.Index index, Exception ex) {
                 postIndexException.incrementAndGet();
             }
 
@@ -67,7 +67,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
             }
 
             @Override
-            public void postDelete(Engine.Delete delete, Throwable ex) {
+            public void postDelete(Engine.Delete delete, Exception ex) {
                 postDeleteException.incrementAndGet();
             }
         };
@@ -83,7 +83,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
                 throw new RuntimeException();            }
 
             @Override
-            public void postIndex(Engine.Index index, Throwable ex) {
+            public void postIndex(Engine.Index index, Exception ex) {
                 throw new RuntimeException();            }
 
             @Override
@@ -96,7 +96,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
                 throw new RuntimeException();            }
 
             @Override
-            public void postDelete(Engine.Delete delete, Throwable ex) {
+            public void postDelete(Engine.Delete delete, Exception ex) {
                 throw new RuntimeException();
             }
         };

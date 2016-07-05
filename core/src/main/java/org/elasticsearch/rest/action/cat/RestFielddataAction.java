@@ -44,7 +44,7 @@ public class RestFielddataAction extends AbstractCatAction {
 
     @Inject
     public RestFielddataAction(Settings settings, RestController controller) {
-        super(settings, controller);
+        super(settings);
         controller.registerHandler(GET, "/_cat/fielddata", this);
         controller.registerHandler(GET, "/_cat/fielddata/{fields}", this);
     }

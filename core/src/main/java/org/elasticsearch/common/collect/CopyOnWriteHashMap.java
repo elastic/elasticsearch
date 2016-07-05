@@ -75,7 +75,7 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
     /**
      * Abstraction of a node, implemented by both inner and leaf nodes.
      */
-    private static abstract class Node<K, V> {
+    private abstract static class Node<K, V> {
 
         /**
          * Recursively get the key with the given hash.

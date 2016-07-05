@@ -263,8 +263,7 @@ public final class ThreadContext implements Closeable, Writeable {
         }
 
         private void putSingleHeader(String key, String value, Map<String, String> newHeaders) {
-            final String existingValue;
-            if ((existingValue = newHeaders.putIfAbsent(key, value)) != null) {
+            if (newHeaders.putIfAbsent(key, value) != null) {
                 throw new IllegalArgumentException("value for key [" + key + "] already present");
             }
         }
@@ -434,13 +433,13 @@ public final class ThreadContext implements Closeable, Writeable {
         }
 
         @Override
-        public void onFailure(Throwable t) {
-            in.onFailure(t);
+        public void onFailure(Exception e) {
+            in.onFailure(e);
         }
 
         @Override
-        public void onRejection(Throwable t) {
-            in.onRejection(t);
+        public void onRejection(Exception e) {
+            in.onRejection(e);
         }
 
         @Override

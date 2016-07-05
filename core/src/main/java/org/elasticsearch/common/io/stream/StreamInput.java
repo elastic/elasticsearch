@@ -27,6 +27,7 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -60,7 +61,6 @@ import java.util.Map;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.ElasticsearchException.readException;
 import static org.elasticsearch.ElasticsearchException.readStackTrace;
 
 /**
@@ -381,12 +381,6 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Resets the stream.
-     */
-    @Override
-    public abstract void reset() throws IOException;
-
-    /**
      * Closes the stream to further operations.
      */
     @Override
@@ -648,17 +642,17 @@ public abstract class StreamInput extends InputStream {
         }
     }
 
-    public <T extends Throwable> T readThrowable() throws IOException {
+    public <T extends Exception> T readException() throws IOException {
         if (readBoolean()) {
             int key = readVInt();
             switch (key) {
                 case 0:
                     final int ord = readVInt();
-                    return (T) readException(this, ord);
+                    return (T) ElasticsearchException.readException(this, ord);
                 case 1:
                     String msg1 = readOptionalString();
                     String resource1 = readOptionalString();
-                    return (T) readStackTrace(new CorruptIndexException(msg1, resource1, readThrowable()), this);
+                    return (T) readStackTrace(new CorruptIndexException(msg1, resource1, readException()), this);
                 case 2:
                     String resource2 = readOptionalString();
                     int version2 = readInt();
@@ -681,67 +675,63 @@ public abstract class StreamInput extends InputStream {
                 case 5:
                     return (T) readStackTrace(new NumberFormatException(readOptionalString()), this);
                 case 6:
-                    return (T) readStackTrace(new IllegalArgumentException(readOptionalString(), readThrowable()), this);
+                    return (T) readStackTrace(new IllegalArgumentException(readOptionalString(), readException()), this);
                 case 7:
-                    return (T) readStackTrace(new AlreadyClosedException(readOptionalString(), readThrowable()), this);
+                    return (T) readStackTrace(new AlreadyClosedException(readOptionalString(), readException()), this);
                 case 8:
                     return (T) readStackTrace(new EOFException(readOptionalString()), this);
                 case 9:
-                    return (T) readStackTrace(new SecurityException(readOptionalString(), readThrowable()), this);
+                    return (T) readStackTrace(new SecurityException(readOptionalString(), readException()), this);
                 case 10:
                     return (T) readStackTrace(new StringIndexOutOfBoundsException(readOptionalString()), this);
                 case 11:
                     return (T) readStackTrace(new ArrayIndexOutOfBoundsException(readOptionalString()), this);
                 case 12:
-                    return (T) readStackTrace(new AssertionError(readOptionalString(), readThrowable()), this);
-                case 13:
                     return (T) readStackTrace(new FileNotFoundException(readOptionalString()), this);
-                case 14:
+                case 13:
                     final int subclass = readVInt();
                     final String file = readOptionalString();
                     final String other = readOptionalString();
                     final String reason = readOptionalString();
                     readOptionalString(); // skip the msg - it's composed from file, other and reason
-                    final Throwable throwable;
+                    final Exception exception;
                     switch (subclass) {
                         case 0:
-                            throwable = new NoSuchFileException(file, other, reason);
+                            exception = new NoSuchFileException(file, other, reason);
                             break;
                         case 1:
-                            throwable = new NotDirectoryException(file);
+                            exception = new NotDirectoryException(file);
                             break;
                         case 2:
-                            throwable = new DirectoryNotEmptyException(file);
+                            exception = new DirectoryNotEmptyException(file);
                             break;
                         case 3:
-                            throwable = new AtomicMoveNotSupportedException(file, other, reason);
+                            exception = new AtomicMoveNotSupportedException(file, other, reason);
                             break;
                         case 4:
-                            throwable = new FileAlreadyExistsException(file, other, reason);
+                            exception = new FileAlreadyExistsException(file, other, reason);
                             break;
                         case 5:
-                            throwable = new AccessDeniedException(file, other, reason);
+                            exception = new AccessDeniedException(file, other, reason);
                             break;
                         case 6:
-                            throwable = new FileSystemLoopException(file);
+                            exception = new FileSystemLoopException(file);
                             break;
                         case 7:
-                            throwable = new FileSystemException(file, other, reason);
+                            exception = new FileSystemException(file, other, reason);
                             break;
                         default:
                             throw new IllegalStateException("unknown FileSystemException with index " + subclass);
                     }
-                    return (T) readStackTrace(throwable, this);
+                    return (T) readStackTrace(exception, this);
+                case 14:
+                    return (T) readStackTrace(new IllegalStateException(readOptionalString(), readException()), this);
                 case 15:
-                    return (T) readStackTrace(new OutOfMemoryError(readOptionalString()), this);
+                    return (T) readStackTrace(new LockObtainFailedException(readOptionalString(), readException()), this);
                 case 16:
-                    return (T) readStackTrace(new IllegalStateException(readOptionalString(), readThrowable()), this);
-                case 17:
-                    return (T) readStackTrace(new LockObtainFailedException(readOptionalString(), readThrowable()), this);
-                case 18:
                     return (T) readStackTrace(new InterruptedException(readOptionalString()), this);
-                case 19:
-                    return (T) readStackTrace(new IOException(readOptionalString(), readThrowable()), this);
+                case 17:
+                    return (T) readStackTrace(new IOException(readOptionalString(), readException()), this);
                 default:
                     assert false : "no such exception for id: " + key;
             }
@@ -803,13 +793,6 @@ public abstract class StreamInput extends InputStream {
             builder.add(reader.read(this));
         }
         return builder;
-    }
-
-    public static StreamInput wrap(BytesReference reference) {
-        if (reference.hasArray() == false) {
-            reference = reference.toBytesArray();
-        }
-        return wrap(reference.array(), reference.arrayOffset(), reference.length());
     }
 
     public static StreamInput wrap(byte[] bytes) {

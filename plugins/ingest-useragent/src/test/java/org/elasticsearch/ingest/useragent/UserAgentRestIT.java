@@ -17,19 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.cli;
+package org.elasticsearch.ingest.useragent;
 
-/**
- * An exception representing a user fixable problem in {@link Command} usage.
- */
-public class UserError extends Exception {
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.RestTestCandidate;
+import org.elasticsearch.test.rest.parser.RestTestParseException;
 
-    /** The exist status the cli should use when catching this user error. */
-    public final int exitCode;
+import java.io.IOException;
 
-    /** Constructs a UserError with an exit status and message to show the user. */
-    public UserError(int exitCode, String msg) {
-        super(msg);
-        this.exitCode = exitCode;
+public class UserAgentRestIT extends ESRestTestCase {
+
+    public UserAgentRestIT(@Name("yaml") RestTestCandidate testCandidate) {
+        super(testCandidate);
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+        return ESRestTestCase.createParameters(0, 1);
     }
 }

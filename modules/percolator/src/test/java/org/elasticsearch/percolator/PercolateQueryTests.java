@@ -82,9 +82,9 @@ import static org.hamcrest.Matchers.is;
 
 public class PercolateQueryTests extends ESTestCase {
 
-    public final static String EXTRACTED_TERMS_FIELD_NAME = "extracted_terms";
-    public final static String UNKNOWN_QUERY_FIELD_NAME = "unknown_query";
-    public final static FieldType EXTRACTED_TERMS_FIELD_TYPE = new FieldType();
+    public static final String EXTRACTED_TERMS_FIELD_NAME = "extracted_terms";
+    public static final String UNKNOWN_QUERY_FIELD_NAME = "unknown_query";
+    public static final FieldType EXTRACTED_TERMS_FIELD_TYPE = new FieldType();
 
     static {
         EXTRACTED_TERMS_FIELD_TYPE.setTokenized(false);
@@ -433,7 +433,7 @@ public class PercolateQueryTests extends ESTestCase {
         }
     }
 
-    private final static class CustomQuery extends Query {
+    private static final class CustomQuery extends Query {
 
         private final Term term;
 
@@ -462,7 +462,7 @@ public class PercolateQueryTests extends ESTestCase {
         }
     }
 
-    private final static class ControlQuery extends Query {
+    private static final class ControlQuery extends Query {
 
         private final MemoryIndex memoryIndex;
         private final PercolateQuery.QueryStore queryStore;

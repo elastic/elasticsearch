@@ -488,7 +488,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         return false;
     }
 
-    final static class Context {
+    static final class Context {
 
         private final ClusterState state;
         private final IndicesOptions options;
@@ -551,7 +551,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     /**
      * Resolves alias/index name expressions with wildcards into the corresponding concrete indices/aliases
      */
-    final static class WildcardExpressionResolver implements ExpressionResolver {
+    static final class WildcardExpressionResolver implements ExpressionResolver {
 
         @Override
         public List<String> resolve(Context context, List<String> expressions) {
@@ -738,7 +738,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         }
     }
 
-    final static class DateMathExpressionResolver implements ExpressionResolver {
+    static final class DateMathExpressionResolver implements ExpressionResolver {
 
         private static final String EXPRESSION_LEFT_BOUND = "<";
         private static final String EXPRESSION_RIGHT_BOUND = ">";

@@ -138,8 +138,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                         firstSearchRequest.types() == null || firstSearchRequest.types().length == 0 ? ""
                                 : firstSearchRequest.types());
             }
-        } catch (Throwable t) {
-            finishHim(t);
+        } catch (Exception e) {
+            finishHim(e);
             return;
         }
         searchWithRetry(listener -> client.search(firstSearchRequest, listener), (SearchResponse response) -> {
@@ -185,8 +185,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                finishHim(t);
+            public void onFailure(Exception e) {
+                finishHim(e);
             }
         };
         prepareBulkRequestRunnable = (AbstractRunnable) threadPool.getThreadContext().preserveContext(prepareBulkRequestRunnable);
@@ -250,7 +250,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 finishHim(e);
             }
         });
@@ -308,7 +308,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             }
 
             startNextScroll(thisBatchStartTime, response.getItems().length);
-        } catch (Throwable t) {
+        } catch (Exception t) {
             finishHim(t);
         }
     }
@@ -360,7 +360,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 finishHim(e);
             }
         });
@@ -371,19 +371,18 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      *
      * @param failure if non null then the request failed catastrophically with this exception
      */
-    void finishHim(Throwable failure) {
+    void finishHim(Exception failure) {
         finishHim(failure, emptyList(), emptyList(), false);
     }
 
     /**
      * Finish the request.
-     *
-     * @param failure if non null then the request failed catastrophically with this exception
+     *  @param failure if non null then the request failed catastrophically with this exception
      * @param indexingFailures any indexing failures accumulated during the request
      * @param searchFailures any search failures accumulated during the request
      * @param timedOut have any of the sub-requests timed out?
      */
-    void finishHim(Throwable failure, List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures, boolean timedOut) {
+    void finishHim(Exception failure, List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures, boolean timedOut) {
         String scrollId = scroll.get();
         if (Strings.hasLength(scrollId)) {
             /*
@@ -403,7 +402,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     logger.warn("Failed to clear scroll [{}]", e, scrollId);
                 }
             });
@@ -487,7 +486,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 if (ExceptionsHelper.unwrap(e, EsRejectedExecutionException.class) != null) {
                     if (retries.hasNext()) {
                         TimeValue delay = retries.next();

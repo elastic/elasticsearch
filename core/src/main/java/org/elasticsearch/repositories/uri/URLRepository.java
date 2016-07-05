@@ -19,7 +19,6 @@
 
 package org.elasticsearch.repositories.uri;
 
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.url.URLBlobStore;
@@ -42,7 +41,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 /**
  * Read-only URL-based implementation of the BlobStoreRepository
@@ -55,7 +53,7 @@ import java.util.function.Predicate;
  */
 public class URLRepository extends BlobStoreRepository {
 
-    public final static String TYPE = "url";
+    public static final String TYPE = "url";
 
     public static final Setting<List<String>> SUPPORTED_PROTOCOLS_SETTING =
         Setting.listSetting("repositories.url.supported_protocols", Arrays.asList("http", "https", "ftp", "file", "jar"),
@@ -69,11 +67,6 @@ public class URLRepository extends BlobStoreRepository {
         new Setting<>("repositories.url.url", (s) -> s.get("repositories.uri.url", "http:"), URLRepository::parseURL,
             Property.NodeScope);
 
-    public static final Setting<Boolean> LIST_DIRECTORIES_SETTING =
-        Setting.boolSetting("list_directories", true, Property.NodeScope);
-    public static final Setting<Boolean> REPOSITORIES_LIST_DIRECTORIES_SETTING =
-        Setting.boolSetting("repositories.uri.list_directories", true, Property.NodeScope);
-
     private final List<String> supportedProtocols;
 
     private final URIPattern[] urlWhiteList;
@@ -83,8 +76,6 @@ public class URLRepository extends BlobStoreRepository {
     private final URLBlobStore blobStore;
 
     private final BlobPath basePath;
-
-    private boolean listDirectories;
 
     /**
      * Constructs new read-only URL-based repository
@@ -103,7 +94,6 @@ public class URLRepository extends BlobStoreRepository {
         supportedProtocols = SUPPORTED_PROTOCOLS_SETTING.get(settings);
         urlWhiteList = ALLOWED_URLS_SETTING.get(settings).toArray(new URIPattern[]{});
         this.environment = environment;
-        listDirectories = LIST_DIRECTORIES_SETTING.exists(repositorySettings.settings()) ? LIST_DIRECTORIES_SETTING.get(repositorySettings.settings()) : REPOSITORIES_LIST_DIRECTORIES_SETTING.get(settings);
 
         URL url = URL_SETTING.exists(repositorySettings.settings()) ? URL_SETTING.get(repositorySettings.settings()) : REPOSITORIES_URL_SETTING.get(settings);
         URL normalizedURL = checkURL(url);
@@ -122,19 +112,6 @@ public class URLRepository extends BlobStoreRepository {
     @Override
     protected BlobPath basePath() {
         return basePath;
-    }
-
-    @Override
-    public List<SnapshotId> snapshots() {
-        if (listDirectories) {
-            return super.snapshots();
-        } else {
-            try {
-                return readSnapshotList();
-            } catch (IOException ex) {
-                throw new RepositoryException(repositoryName, "failed to get snapshot list in repository", ex);
-            }
-        }
     }
 
     /**

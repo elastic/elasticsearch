@@ -218,8 +218,8 @@ public class InnerHitBuilderTests extends ESTestCase {
         innerHits.setExplain(randomBoolean());
         innerHits.setVersion(randomBoolean());
         innerHits.setTrackScores(randomBoolean());
-        innerHits.setFieldNames(randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16)));
-        innerHits.setFieldDataFields(randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16)));
+        innerHits.setStoredFieldNames(randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16)));
+        innerHits.setDocValueFields(randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16)));
         // Random script fields deduped on their field name.
         Map<String, SearchSourceBuilder.ScriptField> scriptFields = new HashMap<>();
         for (SearchSourceBuilder.ScriptField field: randomListStuff(16, InnerHitBuilderTests::randomScript)) {
@@ -294,11 +294,11 @@ public class InnerHitBuilderTests extends ESTestCase {
                 break;
             case 6:
                 if (randomBoolean()) {
-                    instance.setFieldDataFields(randomValueOtherThan(instance.getFieldDataFields(), () -> {
+                    instance.setDocValueFields(randomValueOtherThan(instance.getDocValueFields(), () -> {
                         return randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16));
                     }));
                 } else {
-                    instance.addFieldDataField(randomAsciiOfLengthBetween(1, 16));
+                    instance.addDocValueField(randomAsciiOfLengthBetween(1, 16));
                 }
                 break;
             case 7:
@@ -341,12 +341,12 @@ public class InnerHitBuilderTests extends ESTestCase {
                         HighlightBuilderTests::randomHighlighterBuilder));
                 break;
             case 11:
-                if (instance.getFieldNames() == null || randomBoolean()) {
-                    instance.setFieldNames(randomValueOtherThan(instance.getFieldNames(), () -> {
+                if (instance.getStoredFieldNames() == null || randomBoolean()) {
+                    instance.setStoredFieldNames(randomValueOtherThan(instance.getStoredFieldNames(), () -> {
                         return randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16));
                     }));
                 } else {
-                    instance.getFieldNames().add(randomAsciiOfLengthBetween(1, 16));
+                    instance.getStoredFieldNames().add(randomAsciiOfLengthBetween(1, 16));
                 }
                 break;
             default:
@@ -381,7 +381,7 @@ public class InnerHitBuilderTests extends ESTestCase {
     private static InnerHitBuilder serializedCopy(InnerHitBuilder original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 return new InnerHitBuilder(in);
             }
         }

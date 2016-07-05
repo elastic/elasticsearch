@@ -261,7 +261,7 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     }
 
     /** Evaluates with reduced privileges */
-    private final PyObject evalRestricted(final PyCode code) {
+    private PyObject evalRestricted(final PyCode code) {
         // eval the script with reduced privileges
         return AccessController.doPrivileged(new PrivilegedAction<PyObject>() {
             @Override

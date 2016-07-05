@@ -27,7 +27,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.cli.UserError;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -72,7 +72,7 @@ public class RemovePluginCommandTests extends ESTestCase {
     }
 
     public void testMissing() throws Exception {
-        UserError e = expectThrows(UserError.class, () -> removePlugin("dne", home));
+        UserException e = expectThrows(UserException.class, () -> removePlugin("dne", home));
         assertTrue(e.getMessage(), e.getMessage().contains("plugin dne not found"));
         assertRemoveCleaned(env);
     }
@@ -102,7 +102,7 @@ public class RemovePluginCommandTests extends ESTestCase {
 
     public void testBinNotDir() throws Exception {
         Files.createDirectories(env.pluginsFile().resolve("elasticsearch"));
-        UserError e = expectThrows(UserError.class, () -> removePlugin("elasticsearch", home));
+        UserException e = expectThrows(UserException.class, () -> removePlugin("elasticsearch", home));
         assertTrue(e.getMessage(), e.getMessage().contains("not a directory"));
         assertTrue(Files.exists(env.pluginsFile().resolve("elasticsearch"))); // did not remove
         assertTrue(Files.exists(env.binFile().resolve("elasticsearch")));

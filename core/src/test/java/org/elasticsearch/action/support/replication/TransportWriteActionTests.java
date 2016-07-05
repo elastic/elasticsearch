@@ -179,7 +179,7 @@ public class TransportWriteActionTests extends ESTestCase {
         }
 
         @Override
-        public void onFailure(Throwable e) {
+        public void onFailure(Exception e) {
             throw new RuntimeException(e);
         }
     }

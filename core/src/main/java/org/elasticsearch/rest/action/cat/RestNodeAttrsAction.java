@@ -48,7 +48,7 @@ public class RestNodeAttrsAction extends AbstractCatAction {
 
     @Inject
     public RestNodeAttrsAction(Settings settings, RestController controller) {
-        super(settings, controller);
+        super(settings);
         controller.registerHandler(GET, "/_cat/nodeattrs", this);
     }
 

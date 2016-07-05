@@ -46,7 +46,7 @@ import static org.elasticsearch.common.settings.Setting.positiveTimeSetting;
  * to pings. This is done by {@link org.elasticsearch.discovery.zen.fd.NodesFaultDetection}. Master fault detection
  * is done by {@link org.elasticsearch.discovery.zen.fd.MasterFaultDetection}.
  */
-public class NodeConnectionsService extends AbstractLifecycleComponent<NodeConnectionsService> {
+public class NodeConnectionsService extends AbstractLifecycleComponent {
 
     public static final Setting<TimeValue> CLUSTER_NODE_RECONNECT_INTERVAL_SETTING =
             positiveTimeSetting("cluster.nodes.reconnect_interval", TimeValue.timeValueSeconds(10), Property.NodeScope);
@@ -57,7 +57,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent<NodeConne
     // if a node doesn't appear in this list it shouldn't be monitored
     private ConcurrentMap<DiscoveryNode, Integer> nodes = ConcurrentCollections.newConcurrentMap();
 
-    final private KeyedLock<DiscoveryNode> nodeLocks = new KeyedLock<>();
+    private final KeyedLock<DiscoveryNode> nodeLocks = new KeyedLock<>();
 
     private final TimeValue reconnectInterval;
 
@@ -90,7 +90,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent<NodeConne
                 assert current != null : "node " + node + " was removed in event but not in internal nodes";
                 try {
                     transportService.disconnectFromNode(node);
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     logger.warn("failed to disconnect to node [{}]", e, node);
                 }
             }
@@ -123,8 +123,8 @@ public class NodeConnectionsService extends AbstractLifecycleComponent<NodeConne
     class ConnectionChecker extends AbstractRunnable {
 
         @Override
-        public void onFailure(Throwable t) {
-            logger.warn("unexpected error while checking for node reconnects", t);
+        public void onFailure(Exception e) {
+            logger.warn("unexpected error while checking for node reconnects", e);
         }
 
         protected void doRun() {

@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -136,7 +137,7 @@ public final class Mapping implements ToXContent {
             toXContent(builder, new ToXContent.MapParams(emptyMap()));
             return builder.endObject().string();
         } catch (IOException bogus) {
-            throw new AssertionError(bogus);
+            throw new UncheckedIOException(bogus);
         }
     }
 }

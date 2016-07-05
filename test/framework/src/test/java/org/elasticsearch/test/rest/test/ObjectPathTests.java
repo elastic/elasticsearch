@@ -190,19 +190,47 @@ public class ObjectPathTests extends ESTestCase {
             objectPath.evaluate("field1.$placeholder.element1");
             fail("evaluate should have failed due to unresolved placeholder");
         } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("stashed value not found for key [$placeholder]"));
+            assertThat(e.getMessage(), containsString("stashed value not found for key [placeholder]"));
         }
 
+        // Stashed value is whole property name
         Stash stash = new Stash();
         stash.stashValue("placeholder", "elements");
         Object object = objectPath.evaluate("field1.$placeholder.element1", stash);
         assertThat(object, notNullValue());
         assertThat(object.toString(), equalTo("value1"));
 
+        // Stash key has dots
         Map<String, Object> stashedObject = new HashMap<>();
         stashedObject.put("subobject", "elements");
         stash.stashValue("object", stashedObject);
         object = objectPath.evaluate("field1.$object\\.subobject.element1", stash);
+        assertThat(object, notNullValue());
+        assertThat(object.toString(), equalTo("value1"));
+
+        // Stashed value is part of property name
+        stash.stashValue("placeholder", "ele");
+        object = objectPath.evaluate("field1.${placeholder}ments.element1", stash);
+        assertThat(object, notNullValue());
+        assertThat(object.toString(), equalTo("value1"));
+
+        // Stashed value is inside of property name
+        stash.stashValue("placeholder", "le");
+        object = objectPath.evaluate("field1.e${placeholder}ments.element1", stash);
+        assertThat(object, notNullValue());
+        assertThat(object.toString(), equalTo("value1"));
+
+        // Multiple stashed values in property name
+        stash.stashValue("placeholder", "le");
+        stash.stashValue("placeholder2", "nts");
+        object = objectPath.evaluate("field1.e${placeholder}me${placeholder2}.element1", stash);
+        assertThat(object, notNullValue());
+        assertThat(object.toString(), equalTo("value1"));
+
+        // Stashed value is part of property name and has dots
+        stashedObject.put("subobject", "ele");
+        stash.stashValue("object", stashedObject);
+        object = objectPath.evaluate("field1.${object\\.subobject}ments.element1", stash);
         assertThat(object, notNullValue());
         assertThat(object.toString(), equalTo("value1"));
     }

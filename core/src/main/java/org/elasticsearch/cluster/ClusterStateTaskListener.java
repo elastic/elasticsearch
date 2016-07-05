@@ -25,7 +25,7 @@ public interface ClusterStateTaskListener {
     /**
      * A callback called when execute fails.
      */
-    void onFailure(String source, Throwable t);
+    void onFailure(String source, Exception e);
 
     /**
      * called when the task was rejected because the local node is no longer master

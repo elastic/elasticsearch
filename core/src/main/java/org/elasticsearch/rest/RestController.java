@@ -44,7 +44,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class RestController extends AbstractLifecycleComponent<RestController> {
+public class RestController extends AbstractLifecycleComponent {
     private final PathTrie<RestHandler> getHandlers = new PathTrie<>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> postHandlers = new PathTrie<>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> putHandlers = new PathTrie<>(RestUtils.REST_DECODER);
@@ -171,11 +171,12 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         }
     }
 
-    public void sendErrorResponse(RestRequest request, RestChannel channel, Throwable e) {
+    public void sendErrorResponse(RestRequest request, RestChannel channel, Exception e) {
         try {
             channel.sendResponse(new BytesRestResponse(channel, e));
-        } catch (Throwable e1) {
-            logger.error("failed to send failure response for uri [{}]", e1, request.uri());
+        } catch (Exception inner) {
+            inner.addSuppressed(e);
+            logger.error("failed to send failure response for uri [{}]", inner, request.uri());
         }
     }
 

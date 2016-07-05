@@ -92,7 +92,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
     /**
      * Base class for custom Mustache functions
      */
-    static abstract class CustomCode extends IterableCode {
+    abstract static class CustomCode extends IterableCode {
 
         private final String code;
 

@@ -118,8 +118,8 @@ public class ClusterStateHealthTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                logger.warn("unexpected failure", t);
+            public void onFailure(String source, Exception e) {
+                logger.warn("unexpected failure", e);
             }
         });
 
@@ -169,7 +169,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         if (randomBoolean()) {
             BytesStreamOutput out = new BytesStreamOutput();
             clusterStateHealth.writeTo(out);
-            StreamInput in = StreamInput.wrap(out.bytes());
+            StreamInput in = out.bytes().streamInput();
             clusterStateHealth = new ClusterStateHealth(in);
         }
         return clusterStateHealth;

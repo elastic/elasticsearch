@@ -64,12 +64,11 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.settings.Setting.listSetting;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  *
  */
-public class TransportService extends AbstractLifecycleComponent<TransportService> {
+public class TransportService extends AbstractLifecycleComponent {
 
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
     private static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";
@@ -204,13 +203,13 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                     // want handlers to worry about stack overflows
                     threadPool.generic().execute(new AbstractRunnable() {
                         @Override
-                        public void onRejection(Throwable t) {
+                        public void onRejection(Exception e) {
                             // if we get rejected during node shutdown we don't wanna bubble it up
-                            logger.debug("failed to notify response handler on rejection, action: {}", t, holderToNotify.action());
+                            logger.debug("failed to notify response handler on rejection, action: {}", e, holderToNotify.action());
                         }
                         @Override
-                        public void onFailure(Throwable t) {
-                            logger.warn("failed to notify response handler on exception, action: {}", t, holderToNotify.action());
+                        public void onFailure(Exception e) {
+                            logger.warn("failed to notify response handler on exception, action: {}", e, holderToNotify.action());
                         }
                         @Override
                         public void doRun() {
@@ -470,7 +469,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             } else {
                 transport.sendRequest(node, requestId, action, request, options);
             }
-        } catch (final Throwable e) {
+        } catch (final Exception e) {
             // usually happen either because we failed to connect to the node
             // or because we failed serializing the message
             final RequestHolder holderToNotify = clientHandlers.remove(requestId);
@@ -482,13 +481,13 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 final SendRequestTransportException sendRequestException = new SendRequestTransportException(node, action, e);
                 threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
                     @Override
-                    public void onRejection(Throwable t) {
+                    public void onRejection(Exception e) {
                         // if we get rejected during node shutdown we don't wanna bubble it up
-                        logger.debug("failed to notify response handler on rejection, action: {}", t, holderToNotify.action());
+                        logger.debug("failed to notify response handler on rejection, action: {}", e, holderToNotify.action());
                     }
                     @Override
-                    public void onFailure(Throwable t) {
-                        logger.warn("failed to notify response handler on exception, action: {}", t, holderToNotify.action());
+                    public void onFailure(Exception e) {
+                        logger.warn("failed to notify response handler on exception, action: {}", e, holderToNotify.action());
                     }
                     @Override
                     protected void doRun() throws Exception {
@@ -524,23 +523,23 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         try {
                             channel.sendResponse(e);
-                        } catch (Throwable e1) {
-                            logger.warn("failed to notify channel of error message for action [{}]", e1, action);
-                            logger.warn("actual exception", e);
+                        } catch (Exception inner) {
+                            inner.addSuppressed(e);
+                            logger.warn("failed to notify channel of error message for action [{}]", inner, action);
                         }
                     }
                 });
             }
 
-        } catch (Throwable e) {
+        } catch (Exception e) {
             try {
                 channel.sendResponse(e);
-            } catch (Throwable e1) {
-                logger.warn("failed to notify channel of error message for action [{}]", e1, action);
-                logger.warn("actual exception", e1);
+            } catch (Exception inner) {
+                inner.addSuppressed(e);
+                logger.warn("failed to notify channel of error message for action [{}]", inner, action);
             }
         }
 
@@ -655,14 +654,14 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
 
         @Override
-        public void onResponseSent(long requestId, String action, Throwable t) {
+        public void onResponseSent(long requestId, String action, Exception e) {
             if (traceEnabled() && shouldTraceAction(action)) {
-                traceResponseSent(requestId, action, t);
+                traceResponseSent(requestId, action, e);
             }
         }
 
-        protected void traceResponseSent(long requestId, String action, Throwable t) {
-            tracerLog.trace("[{}][{}] sent error response", t, requestId, action);
+        protected void traceResponseSent(long requestId, String action, Exception e) {
+            tracerLog.trace("[{}][{}] sent error response", e, requestId, action);
         }
 
         @Override
@@ -909,7 +908,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
      * This handler wrapper ensures that the response thread executes with the correct thread context. Before any of the4 handle methods
      * are invoked we restore the context.
      */
-    private final static class ContextRestoreResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
+    private static final class ContextRestoreResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
         private final TransportResponseHandler<T> delegate;
         private final ThreadContext.StoredContext threadContext;
 
@@ -944,8 +943,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     static class DirectResponseChannel implements TransportChannel {
         final ESLogger logger;
         final DiscoveryNode localNode;
-        final private String action;
-        final private long requestId;
+        private final String action;
+        private final long requestId;
         final TransportServiceAdapter adapter;
         final ThreadPool threadPool;
 
@@ -998,17 +997,17 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         protected void processResponse(TransportResponseHandler handler, TransportResponse response) {
             try {
                 handler.handleResponse(response);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 processException(handler, wrapInRemote(new ResponseHandlerFailureTransportException(e)));
             }
         }
 
         @Override
-        public void sendResponse(Throwable error) throws IOException {
+        public void sendResponse(Exception exception) throws IOException {
             final TransportResponseHandler handler = adapter.onResponseReceived(requestId);
             // ignore if its null, the adapter logs it
             if (handler != null) {
-                final RemoteTransportException rtx = wrapInRemote(error);
+                final RemoteTransportException rtx = wrapInRemote(exception);
                 final String executor = handler.executor();
                 if (ThreadPool.Names.SAME.equals(executor)) {
                     processException(handler, rtx);
@@ -1024,17 +1023,17 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             }
         }
 
-        protected RemoteTransportException wrapInRemote(Throwable t) {
-            if (t instanceof RemoteTransportException) {
-                return (RemoteTransportException) t;
+        protected RemoteTransportException wrapInRemote(Exception e) {
+            if (e instanceof RemoteTransportException) {
+                return (RemoteTransportException) e;
             }
-            return new RemoteTransportException(localNode.getName(), localNode.getAddress(), action, t);
+            return new RemoteTransportException(localNode.getName(), localNode.getAddress(), action, e);
         }
 
         protected void processException(final TransportResponseHandler handler, final RemoteTransportException rtx) {
             try {
                 handler.handleException(rtx);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 logger.error("failed to handle exception for action [{}], handler [{}]", e, action, handler);
             }
         }

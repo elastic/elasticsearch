@@ -92,7 +92,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
                 logger.debug("failed to open indices [{}]", t, (Object)concreteIndices);
                 listener.onFailure(t);
             }

@@ -73,7 +73,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
             XContentType type = XContentFactory.xContentType(RestActions.getRestContent(request));
             if (type == null) {
                 if (scrollId == null) {
-                    scrollId = RestActions.getRestContent(request).toUtf8();
+                    scrollId = RestActions.getRestContent(request).utf8ToString();
                     searchScrollRequest.scrollId(scrollId);
                 }
             } else {

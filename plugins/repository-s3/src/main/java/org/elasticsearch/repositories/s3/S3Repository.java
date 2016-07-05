@@ -57,7 +57,7 @@ import java.util.function.Function;
  */
 public class S3Repository extends BlobStoreRepository {
 
-    public final static String TYPE = "s3";
+    public static final String TYPE = "s3";
 
     /**
      * Global S3 repositories settings. Starting with: repositories.s3

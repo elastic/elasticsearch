@@ -23,6 +23,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -51,8 +52,8 @@ import java.util.Map;
 
 public class PercolatorFieldMapper extends FieldMapper {
 
-    public final static XContentType QUERY_BUILDER_CONTENT_TYPE = XContentType.SMILE;
-    public final static Setting<Boolean> INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING =
+    public static final XContentType QUERY_BUILDER_CONTENT_TYPE = XContentType.SMILE;
+    public static final Setting<Boolean> INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING =
             Setting.boolSetting("index.percolator.map_unmapped_fields_as_string", false, Setting.Property.IndexScope);
     public static final String CONTENT_TYPE = "percolator";
     private static final PercolatorFieldType FIELD_TYPE = new PercolatorFieldType();
@@ -216,7 +217,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         try (XContentBuilder builder = XContentFactory.contentBuilder(QUERY_BUILDER_CONTENT_TYPE)) {
             queryBuilder.toXContent(builder, new MapParams(Collections.emptyMap()));
             builder.flush();
-            byte[] queryBuilderAsBytes = builder.bytes().toBytes();
+            byte[] queryBuilderAsBytes = BytesReference.toBytes(builder.bytes());
             context.doc().add(new Field(queryBuilderField.name(), queryBuilderAsBytes, queryBuilderField.fieldType()));
         }
 

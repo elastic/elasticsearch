@@ -36,8 +36,8 @@ import java.util.Map;
  */
 public class InternalMatrixStats extends InternalMetricsAggregation implements MatrixStats {
 
-    public final static Type TYPE = new Type("matrix_stats");
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final Type TYPE = new Type("matrix_stats");
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalMatrixStats readResult(StreamInput in) throws IOException {
             InternalMatrixStats result = new InternalMatrixStats();

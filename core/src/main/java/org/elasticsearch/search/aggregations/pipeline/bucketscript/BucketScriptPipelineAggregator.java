@@ -51,9 +51,9 @@ import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resol
 
 public class BucketScriptPipelineAggregator extends PipelineAggregator {
 
-    public final static Type TYPE = new Type("bucket_script");
+    public static final Type TYPE = new Type("bucket_script");
 
-    public final static PipelineAggregatorStreams.Stream STREAM = in -> {
+    public static final PipelineAggregatorStreams.Stream STREAM = in -> {
         BucketScriptPipelineAggregator result = new BucketScriptPipelineAggregator();
         result.readFrom(in);
         return result;

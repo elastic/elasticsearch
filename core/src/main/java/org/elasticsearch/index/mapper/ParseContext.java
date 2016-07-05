@@ -310,8 +310,6 @@ public abstract class ParseContext {
 
         private Field version;
 
-        private StringBuilder stringBuilder = new StringBuilder();
-
         private final AllEntries allEntries;
 
         private final List<Mapper> dynamicMappers;

@@ -124,7 +124,7 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
+            public void onFailure(String source, Exception e) {
                 countDownLatch.countDown();
             }
         });

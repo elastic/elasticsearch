@@ -68,7 +68,7 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
         updateSettingsRequest.indicesOptions(IndicesOptions.fromRequest(request, updateSettingsRequest.indicesOptions()));
 
         Settings.Builder updateSettings = Settings.builder();
-        String bodySettingsStr = request.content().toUtf8();
+        String bodySettingsStr = request.content().utf8ToString();
         if (Strings.hasText(bodySettingsStr)) {
             Settings buildSettings = Settings.builder().loadFromSource(bodySettingsStr).build();
             for (Map.Entry<String, String> entry : buildSettings.getAsMap().entrySet()) {

@@ -35,7 +35,7 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
 
     protected DocValueFormat format = DEFAULT_FORMAT;
 
-    public static abstract class SingleValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.SingleValue {
+    public abstract static class SingleValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.SingleValue {
 
         protected SingleValue() {}
 
@@ -68,7 +68,7 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
 
     }
 
-    public static abstract class MultiValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.MultiValue {
+    public abstract static class MultiValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.MultiValue {
 
         protected MultiValue() {}
 

@@ -45,7 +45,7 @@ public class RestPluginsAction extends AbstractCatAction {
 
     @Inject
     public RestPluginsAction(Settings settings, RestController controller) {
-        super(settings, controller);
+        super(settings);
         controller.registerHandler(GET, "/_cat/plugins", this);
     }
 

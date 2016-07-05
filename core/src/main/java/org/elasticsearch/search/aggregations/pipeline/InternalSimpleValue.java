@@ -34,9 +34,9 @@ import java.util.Map;
 
 public class InternalSimpleValue extends InternalNumericMetricsAggregation.SingleValue implements SimpleValue {
 
-    public final static Type TYPE = new Type("simple_value");
+    public static final Type TYPE = new Type("simple_value");
 
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalSimpleValue readResult(StreamInput in) throws IOException {
             InternalSimpleValue result = new InternalSimpleValue();

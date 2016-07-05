@@ -113,7 +113,7 @@ import static org.elasticsearch.http.netty.cors.CorsHandler.ANY_ORIGIN;
 /**
  *
  */
-public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpServerTransport> implements HttpServerTransport {
+public class NettyHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
 
     static {
         NettyUtils.setup();

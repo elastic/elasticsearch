@@ -70,7 +70,7 @@ public class ObjectPath {
 
     @SuppressWarnings("unchecked")
     private Object evaluate(String key, Object object, Stash stash) throws IOException {
-        if (stash.isStashedValue(key)) {
+        if (stash.containsStashedValue(key)) {
             key = stash.getValue(key).toString();
         }
 

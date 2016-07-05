@@ -22,7 +22,6 @@ package org.elasticsearch.bwcompat;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESBackcompatTestCase;
@@ -46,7 +45,7 @@ public class NodesStatsBasicBackwardsCompatIT extends ESBackcompatTestCase {
         for (NodeInfo n : nodesInfo.getNodes()) {
             TransportClient tc = TransportClient.builder().settings(settings).build().addTransportAddress(n.getNode().getAddress());
             // Just verify that the NS can be sent and serialized/deserialized between nodes with basic indices
-            NodesStatsResponse ns = tc.admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
+            tc.admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
             tc.close();
         }
     }
@@ -78,7 +77,7 @@ public class NodesStatsBasicBackwardsCompatIT extends ESBackcompatTestCase {
                     method.invoke(nsBuilder);
                 }
             }
-            NodesStatsResponse ns = nsBuilder.execute().actionGet();
+            nsBuilder.execute().actionGet();
             tc.close();
 
         }

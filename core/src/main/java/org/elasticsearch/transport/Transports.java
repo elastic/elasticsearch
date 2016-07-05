@@ -27,7 +27,7 @@ public enum Transports {
     ;
 
     /** threads whose name is prefixed by this string will be considered network threads, even though they aren't */
-    public final static String TEST_MOCK_TRANSPORT_THREAD_PREFIX = "__mock_network_thread";
+    public static final String TEST_MOCK_TRANSPORT_THREAD_PREFIX = "__mock_network_thread";
 
     /**
      * Utility method to detect whether a thread is a network thread. Typically

@@ -372,7 +372,7 @@ query and the rescore query in `highlight_query`.
 --------------------------------------------------
 GET /_search
 {
-    "fields": [ "_id" ],
+    "stored_fields": [ "_id" ],
     "query" : {
         "match": {
             "content": {

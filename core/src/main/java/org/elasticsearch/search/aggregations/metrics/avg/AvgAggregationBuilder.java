@@ -38,7 +38,7 @@ import java.io.IOException;
 
 public class AvgAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, AvgAggregationBuilder> {
     public static final String NAME = "avg";
-    private final static Type TYPE = new Type(NAME);
+    private static final Type TYPE = new Type(NAME);
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public AvgAggregationBuilder(String name) {

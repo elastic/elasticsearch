@@ -48,7 +48,7 @@ public class AbstractLifecycleRunnableTests extends ESTestCase {
 
         AbstractLifecycleRunnable runnable = new AbstractLifecycleRunnable(lifecycle, logger) {
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception e) {
                 fail("It should not fail");
             }
 
@@ -77,7 +77,7 @@ public class AbstractLifecycleRunnableTests extends ESTestCase {
 
         AbstractLifecycleRunnable runnable = new AbstractLifecycleRunnable(lifecycle, logger) {
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception e) {
                 fail("It should not fail");
             }
 
@@ -106,7 +106,7 @@ public class AbstractLifecycleRunnableTests extends ESTestCase {
 
         AbstractLifecycleRunnable runnable = new AbstractLifecycleRunnable(lifecycle, logger) {
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception e) {
                 fail("It should not fail");
             }
 
@@ -145,7 +145,7 @@ public class AbstractLifecycleRunnableTests extends ESTestCase {
 
         AbstractLifecycleRunnable runnable = new AbstractLifecycleRunnable(lifecycle, logger) {
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception e) {
                 fail("It should not fail");
             }
 

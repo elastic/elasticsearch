@@ -114,7 +114,7 @@ public final class GrokProcessor extends AbstractProcessor {
         return combinedPattern;
     }
 
-    public final static class Factory implements Processor.Factory {
+    public static final class Factory implements Processor.Factory {
 
         private final Map<String, String> builtinPatterns;
 

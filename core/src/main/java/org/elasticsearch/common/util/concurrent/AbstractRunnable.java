@@ -35,7 +35,7 @@ public abstract class AbstractRunnable implements Runnable {
     public final void run() {
         try {
             doRun();
-        } catch (Throwable t) {
+        } catch (Exception t) {
             onFailure(t);
         } finally {
             onAfter();
@@ -53,14 +53,14 @@ public abstract class AbstractRunnable implements Runnable {
     /**
      * This method is invoked for all exception thrown by {@link #doRun()}
      */
-    public abstract void onFailure(Throwable t);
+    public abstract void onFailure(Exception e);
 
     /**
      * This should be executed if the thread-pool executing this action rejected the execution.
-     * The default implementation forwards to {@link #onFailure(Throwable)}
+     * The default implementation forwards to {@link #onFailure(Exception)}
      */
-    public void onRejection(Throwable t) {
-        onFailure(t);
+    public void onRejection(Exception e) {
+        onFailure(e);
     }
 
     /**

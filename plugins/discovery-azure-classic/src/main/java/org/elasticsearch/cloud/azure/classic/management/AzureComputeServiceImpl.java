@@ -39,7 +39,7 @@ import java.util.ServiceLoader;
 /**
  *
  */
-public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureComputeServiceImpl>
+public class AzureComputeServiceImpl extends AbstractLifecycleComponent
     implements AzureComputeService {
 
     private final ComputeManagementClient client;

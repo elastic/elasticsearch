@@ -33,7 +33,7 @@ public class PercentilesParser extends AbstractPercentilesParser {
         super(true);
     }
 
-    public final static double[] DEFAULT_PERCENTS = new double[] { 1, 5, 25, 50, 75, 95, 99 };
+    public static final double[] DEFAULT_PERCENTS = new double[] { 1, 5, 25, 50, 75, 95, 99 };
 
     @Override
     protected ParseField keysField() {

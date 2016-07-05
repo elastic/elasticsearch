@@ -53,7 +53,7 @@ public class ConcurrentDocumentOperationIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     logger.error("Unexpected exception while indexing", e);
                     failure.set(e);
                     latch.countDown();

@@ -221,12 +221,12 @@ public class SearchSourceBuilderTests extends ESTestCase {
             for (int i = 0; i < fieldsSize; i++) {
                 fields.add(randomAsciiOfLengthBetween(5, 50));
             }
-            builder.fields(fields);
+            builder.storedFields(fields);
         }
         if (randomBoolean()) {
             int fieldDataFieldsSize = randomInt(25);
             for (int i = 0; i < fieldDataFieldsSize; i++) {
-                builder.fieldDataField(randomAsciiOfLengthBetween(5, 50));
+                builder.docValueField(randomAsciiOfLengthBetween(5, 50));
             }
         }
         if (randomBoolean()) {
@@ -444,7 +444,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
         SearchSourceBuilder testBuilder = createSearchSourceBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testBuilder.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 SearchSourceBuilder deserializedBuilder = new SearchSourceBuilder(in);
                 assertEquals(deserializedBuilder, testBuilder);
                 assertEquals(deserializedBuilder.hashCode(), testBuilder.hashCode());
@@ -484,7 +484,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
     protected SearchSourceBuilder copyBuilder(SearchSourceBuilder builder) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             builder.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 return new SearchSourceBuilder(in);
             }
         }

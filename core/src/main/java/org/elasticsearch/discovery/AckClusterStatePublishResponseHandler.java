@@ -55,19 +55,20 @@ public class AckClusterStatePublishResponseHandler extends BlockingClusterStateP
     }
 
     @Override
-    public void onFailure(DiscoveryNode node, Throwable t) {
+    public void onFailure(DiscoveryNode node, Exception e) {
         try {
-            super.onFailure(node, t);
+            super.onFailure(node, e);
         } finally {
-            onNodeAck(ackListener, node, t);
+            onNodeAck(ackListener, node, e);
         }
     }
 
-    private void onNodeAck(final Discovery.AckListener ackListener, DiscoveryNode node, Throwable t) {
+    private void onNodeAck(final Discovery.AckListener ackListener, DiscoveryNode node, Exception e) {
         try {
-            ackListener.onNodeAck(node, t);
-        } catch (Throwable t1) {
-            logger.debug("error while processing ack for node [{}]", t1, node);
+            ackListener.onNodeAck(node, e);
+        } catch (Exception inner) {
+            inner.addSuppressed(e);
+            logger.debug("error while processing ack for node [{}]", inner, node);
         }
     }
 }

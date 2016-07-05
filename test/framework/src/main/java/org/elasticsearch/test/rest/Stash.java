@@ -29,12 +29,15 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Allows to cache the last obtained test response and or part of it within variables
  * that can be used as input values in following requests and assertions.
  */
 public class Stash implements ToXContent {
+    private static final Pattern EXTENDED_KEY = Pattern.compile("\\$\\{([^}]+)\\}");
 
     private static final ESLogger logger = Loggers.getLogger(Stash.class);
 
@@ -67,12 +70,18 @@ public class Stash implements ToXContent {
      * The stash contains fields eventually extracted from previous responses that can be reused
      * as arguments for following requests (e.g. scroll_id)
      */
-    public boolean isStashedValue(Object key) {
+    public boolean containsStashedValue(Object key) {
         if (key == null) {
             return false;
         }
         String stashKey = key.toString();
-        return Strings.hasLength(stashKey) && stashKey.startsWith("$");
+        if (false == Strings.hasLength(stashKey)) {
+            return false;
+        }
+        if (stashKey.startsWith("$")) {
+            return true;
+        }
+        return EXTENDED_KEY.matcher(stashKey).find();
     }
 
     /**
@@ -81,7 +90,27 @@ public class Stash implements ToXContent {
      * as arguments for following requests (e.g. scroll_id)
      */
     public Object getValue(String key) throws IOException {
-        Object stashedValue = stashObjectPath.evaluate(key.substring(1));
+        if (key.charAt(0) == '$' && key.charAt(1) != '{') {
+            return unstash(key.substring(1));
+        }
+        Matcher matcher = EXTENDED_KEY.matcher(key);
+        /*
+         * String*Buffer* because that is what the Matcher API takes. In modern versions of java the uncontended synchronization is very,
+         * very cheap so that should not be a problem.
+         */
+        StringBuffer result = new StringBuffer(key.length());
+        if (false == matcher.find()) {
+            throw new IllegalArgumentException("Doesn't contain any stash keys [" + key + "]");
+        }
+        do {
+            matcher.appendReplacement(result, Matcher.quoteReplacement(unstash(matcher.group(1)).toString()));
+        } while (matcher.find());
+        matcher.appendTail(result);
+        return result.toString();
+    }
+
+    private Object unstash(String key) throws IOException {
+        Object stashedValue = stashObjectPath.evaluate(key);
         if (stashedValue == null) {
             throw new IllegalArgumentException("stashed value not found for key [" + key + "]");
         }
@@ -104,7 +133,7 @@ public class Stash implements ToXContent {
             List list = (List) obj;
             for (int i = 0; i < list.size(); i++) {
                 Object o = list.get(i);
-                if (isStashedValue(o)) {
+                if (containsStashedValue(o)) {
                     list.set(i, getValue(o.toString()));
                 } else {
                     unstashObject(o);
@@ -114,7 +143,7 @@ public class Stash implements ToXContent {
         if (obj instanceof Map) {
             Map<String, Object> map = (Map) obj;
             for (Map.Entry<String, Object> entry : map.entrySet()) {
-                if (isStashedValue(entry.getValue())) {
+                if (containsStashedValue(entry.getValue())) {
                     entry.setValue(getValue(entry.getValue().toString()));
                 } else {
                     unstashObject(entry.getValue());

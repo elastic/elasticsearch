@@ -21,7 +21,7 @@ package org.elasticsearch.discovery;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.ESTestCase;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.not;
 
 public class BlockingClusterStatePublishResponseHandlerTests extends ESTestCase {
 
-    static private class PublishResponder extends AbstractRunnable {
+    private static class PublishResponder extends AbstractRunnable {
 
         final boolean fail;
         final DiscoveryNode node;
@@ -58,8 +58,8 @@ public class BlockingClusterStatePublishResponseHandlerTests extends ESTestCase 
         }
 
         @Override
-        public void onFailure(Throwable t) {
-            logger.error("unexpected error", t);
+        public void onFailure(Exception e) {
+            logger.error("unexpected error", e);
         }
 
         @Override
@@ -77,7 +77,7 @@ public class BlockingClusterStatePublishResponseHandlerTests extends ESTestCase 
         int nodeCount = scaledRandomIntBetween(10, 20);
         DiscoveryNode[] allNodes = new DiscoveryNode[nodeCount];
         for (int i = 0; i < nodeCount; i++) {
-            DiscoveryNode node = new DiscoveryNode("node_" + i, DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
+            DiscoveryNode node = new DiscoveryNode("node_" + i, LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
             allNodes[i] = node;
         }
 

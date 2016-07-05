@@ -88,8 +88,8 @@ public class EsExecutorsTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                throw new AssertionError(t);
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
             }
         });
 
@@ -178,7 +178,7 @@ public class EsExecutorsTests extends ESTestCase {
                     try {
                         barrier.await();
                         barrier.await();
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         barrier.reset(e);
                     }
                 }
@@ -214,7 +214,7 @@ public class EsExecutorsTests extends ESTestCase {
                     try {
                         barrier.await();
                         barrier.await();
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         barrier.reset(e);
                     }
                 }

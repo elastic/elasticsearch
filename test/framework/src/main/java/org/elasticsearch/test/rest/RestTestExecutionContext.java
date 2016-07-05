@@ -66,7 +66,7 @@ public class RestTestExecutionContext implements Closeable {
         //makes a copy of the parameters before modifying them for this specific request
         HashMap<String, String> requestParams = new HashMap<>(params);
         for (Map.Entry<String, String> entry : requestParams.entrySet()) {
-            if (stash.isStashedValue(entry.getValue())) {
+            if (stash.containsStashedValue(entry.getValue())) {
                 entry.setValue(stash.getValue(entry.getValue()).toString());
             }
         }

@@ -32,7 +32,7 @@ public interface Histogram extends MultiBucketsAggregation {
     /**
      * A bucket in the histogram where documents fall in
      */
-    static interface Bucket extends MultiBucketsAggregation.Bucket {
+    interface Bucket extends MultiBucketsAggregation.Bucket {
 
     }
 
@@ -46,7 +46,7 @@ public interface Histogram extends MultiBucketsAggregation {
     /**
      * A strategy defining the order in which the buckets in this histogram are ordered.
      */
-    static abstract class Order implements ToXContent {
+    abstract class Order implements ToXContent {
 
         public static final Order KEY_ASC = new InternalOrder((byte) 1, "_key", true, new Comparator<InternalHistogram.Bucket>() {
             @Override

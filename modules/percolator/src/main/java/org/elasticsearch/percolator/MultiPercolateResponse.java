@@ -77,7 +77,7 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
         for (MultiPercolateResponse.Item item : items) {
             builder.startObject();
             if (item.isFailure()) {
-                ElasticsearchException.renderThrowable(builder, params, item.getFailure());
+                ElasticsearchException.renderException(builder, params, item.getFailure());
             } else {
                 item.getResponse().toXContent(builder, params);
             }
@@ -113,14 +113,14 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
     public static class Item implements Streamable {
 
         private PercolateResponse response;
-        private Throwable throwable;
+        private Exception exception;
 
         Item(PercolateResponse response) {
             this.response = response;
         }
 
-        Item(Throwable Throwable) {
-            this.throwable = Throwable;
+        Item(Exception exception) {
+            this.exception = exception;
         }
 
         Item() {
@@ -140,7 +140,7 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
          */
         @Nullable
         public String getErrorMessage() {
-            return throwable == null ? null : throwable.getMessage();
+            return exception == null ? null : exception.getMessage();
         }
 
         /**
@@ -148,11 +148,11 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
          * <code>false</code> is returned.
          */
         public boolean isFailure() {
-            return throwable != null;
+            return exception != null;
         }
 
-        public Throwable getFailure() {
-            return throwable;
+        public Exception getFailure() {
+            return exception;
         }
 
         @Override
@@ -161,7 +161,7 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
                 response = new PercolateResponse();
                 response.readFrom(in);
             } else {
-                throwable = in.readThrowable();
+                exception = in.readException();
             }
         }
 
@@ -172,7 +172,7 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
                 response.writeTo(out);
             } else {
                 out.writeBoolean(false);
-                out.writeThrowable(throwable);
+                out.writeThrowable(exception);
             }
         }
     }

@@ -49,7 +49,7 @@ import java.util.Random;
 /**
  *
  */
-public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service> implements AwsEc2Service {
+public class AwsEc2ServiceImpl extends AbstractLifecycleComponent implements AwsEc2Service {
 
     public static final String EC2_METADATA_URL = "http://169.254.169.254/latest/meta-data/";
 

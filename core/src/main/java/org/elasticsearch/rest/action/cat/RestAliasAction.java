@@ -45,7 +45,7 @@ public class RestAliasAction extends AbstractCatAction {
 
     @Inject
     public RestAliasAction(Settings settings, RestController controller) {
-        super(settings, controller);
+        super(settings);
         controller.registerHandler(GET, "/_cat/aliases", this);
         controller.registerHandler(GET, "/_cat/aliases/{alias}", this);
     }

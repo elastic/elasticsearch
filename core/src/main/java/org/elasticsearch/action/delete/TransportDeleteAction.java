@@ -77,7 +77,7 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
                         // we have the index, do it
                         innerExecute(task, request, listener);

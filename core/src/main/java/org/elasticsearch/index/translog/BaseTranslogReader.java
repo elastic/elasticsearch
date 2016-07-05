@@ -52,7 +52,7 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
 
     public abstract long sizeInBytes();
 
-    abstract public int totalOperations();
+    public abstract  int totalOperations();
 
     public final long getFirstOperationOffset() {
         return firstOperationOffset;
@@ -117,7 +117,7 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
     /**
      * reads bytes at position into the given buffer, filling it.
      */
-    abstract protected void readBytes(ByteBuffer buffer, long position) throws IOException;
+    protected abstract  void readBytes(ByteBuffer buffer, long position) throws IOException;
 
     @Override
     public String toString() {

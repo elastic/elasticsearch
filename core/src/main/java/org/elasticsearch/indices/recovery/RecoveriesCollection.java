@@ -32,7 +32,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
 
 /**
  * This class holds a collection of all on going recoveries on the current node (i.e., the node is the target node
@@ -45,8 +44,8 @@ public class RecoveriesCollection {
     /** This is the single source of truth for ongoing recoveries. If it's not here, it was canceled or done */
     private final ConcurrentMap<Long, RecoveryTarget> onGoingRecoveries = ConcurrentCollections.newConcurrentMap();
 
-    final private ESLogger logger;
-    final private ThreadPool threadPool;
+    private final ESLogger logger;
+    private final ThreadPool threadPool;
 
     public RecoveriesCollection(ESLogger logger, ThreadPool threadPool) {
         this.logger = logger;
@@ -198,8 +197,8 @@ public class RecoveriesCollection {
         }
 
         @Override
-        public void onFailure(Throwable t) {
-            logger.error("unexpected error while monitoring recovery [{}]", t, recoveryId);
+        public void onFailure(Exception e) {
+            logger.error("unexpected error while monitoring recovery [{}]", e, recoveryId);
         }
 
         @Override

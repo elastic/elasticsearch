@@ -46,9 +46,9 @@ import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resol
 
 public class BucketSelectorPipelineAggregator extends PipelineAggregator {
 
-    public final static Type TYPE = new Type("bucket_selector");
+    public static final Type TYPE = new Type("bucket_selector");
 
-    public final static PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
+    public static final PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
         @Override
         public BucketSelectorPipelineAggregator readResult(StreamInput in) throws IOException {
             BucketSelectorPipelineAggregator result = new BucketSelectorPipelineAggregator();

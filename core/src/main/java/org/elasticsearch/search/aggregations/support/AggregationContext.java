@@ -35,9 +35,6 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class AggregationContext {
 
     private final SearchContext searchContext;
@@ -58,7 +55,10 @@ public class AggregationContext {
      *  no value source could be built. */
     @Nullable
     public <VS extends ValuesSource> VS valuesSource(ValuesSourceConfig<VS> config, SearchContext context) throws IOException {
-        assert config.valid() : "value source config is invalid - must have either a field context or a script or marked as unmapped";
+        if (!config.valid()) {
+            throw new IllegalStateException(
+                    "value source config is invalid; must have either a field context or a script or marked as unwrapped");
+        }
 
         final VS vs;
         if (config.unmapped()) {

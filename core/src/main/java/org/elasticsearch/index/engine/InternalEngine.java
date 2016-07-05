@@ -185,10 +185,14 @@ public class InternalEngine extends Engine {
             }
             try {
                 recoverFromTranslog(engineConfig.getTranslogRecoveryPerformer());
-            } catch (Throwable t) {
-                allowCommits.set(false); // just play safe and never allow commits on this
-                failEngine("failed to recover from translog", t);
-                throw t;
+            } catch (Exception e) {
+                try {
+                    allowCommits.set(false); // just play safe and never allow commits on this
+                    failEngine("failed to recover from translog", e);
+                } catch (Exception inner) {
+                    e.addSuppressed(inner);
+                }
+                throw e;
             }
         } finally {
             flushLock.unlock();
@@ -202,7 +206,7 @@ public class InternalEngine extends Engine {
         try {
             Translog.Snapshot snapshot = translog.newSnapshot();
             opsRecovered = handler.recoveryFromSnapshot(this, snapshot);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new EngineException(shardId, "failed to recover from translog", e);
         }
         // flush if we recovered something or if we have references to older translogs
@@ -297,8 +301,8 @@ public class InternalEngine extends Engine {
                 maybeFailEngine("start", e);
                 try {
                     indexWriter.rollback();
-                } catch (IOException e1) { // iw is closed below
-                    e.addSuppressed(e1);
+                } catch (IOException inner) { // iw is closed below
+                    e.addSuppressed(inner);
                 }
                 throw new EngineCreationFailureException(shardId, "failed to open reader on writer", e);
             }
@@ -402,9 +406,13 @@ public class InternalEngine extends Engine {
                     created = innerIndex(index);
                 }
             }
-        } catch (OutOfMemoryError | IllegalStateException | IOException t) {
-            maybeFailEngine("index", t);
-            throw new IndexFailedEngineException(shardId, index.type(), index.id(), t);
+        } catch (IllegalStateException | IOException e) {
+            try {
+                maybeFailEngine("index", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw new IndexFailedEngineException(shardId, index.type(), index.id(), e);
         }
         return created;
     }
@@ -483,9 +491,13 @@ public class InternalEngine extends Engine {
             ensureOpen();
             // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
             innerDelete(delete);
-        } catch (OutOfMemoryError | IllegalStateException | IOException t) {
-            maybeFailEngine("delete", t);
-            throw new DeleteFailedEngineException(shardId, delete, t);
+        } catch (IllegalStateException | IOException e) {
+            try {
+                maybeFailEngine("delete", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw new DeleteFailedEngineException(shardId, delete, e);
         }
 
         maybePruneDeletedTombstones();
@@ -554,9 +566,13 @@ public class InternalEngine extends Engine {
             maybeFailEngine("refresh", e);
         } catch (EngineClosedException e) {
             throw e;
-        } catch (Throwable t) {
-            failEngine("refresh failed", t);
-            throw new RefreshFailedEngineException(shardId, t);
+        } catch (Exception e) {
+            try {
+                failEngine("refresh failed", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw new RefreshFailedEngineException(shardId, e);
         }
 
         // TODO: maybe we should just put a scheduled job in threadPool?
@@ -598,9 +614,13 @@ public class InternalEngine extends Engine {
             maybeFailEngine("writeIndexingBuffer", e);
         } catch (EngineClosedException e) {
             throw e;
-        } catch (Throwable t) {
-            failEngine("writeIndexingBuffer failed", t);
-            throw new RefreshFailedEngineException(shardId, t);
+        } catch (Exception e) {
+            try {
+                failEngine("writeIndexingBuffer failed", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw new RefreshFailedEngineException(shardId, e);
         }
     }
 
@@ -703,7 +723,7 @@ public class InternalEngine extends Engine {
                         refresh("version_table_flush");
                         // after refresh documents can be retrieved from the index so we can now commit the translog
                         translog.commit();
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         throw new FlushFailedEngineException(shardId, e);
                     }
                 }
@@ -717,9 +737,13 @@ public class InternalEngine extends Engine {
                 try {
                     // reread the last committed segment infos
                     lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     if (isClosed.get() == false) {
-                        logger.warn("failed to read latest segment infos on flush", e);
+                        try {
+                            logger.warn("failed to read latest segment infos on flush", e);
+                        } catch (Exception inner) {
+                            e.addSuppressed(inner);
+                        }
                         if (Lucene.isCorruptionException(e)) {
                             throw new FlushFailedEngineException(shardId, e);
                         }
@@ -811,9 +835,13 @@ public class InternalEngine extends Engine {
             } finally {
                 store.decRef();
             }
-        } catch (Throwable t) {
-            maybeFailEngine("force merge", t);
-            throw t;
+        } catch (Exception e) {
+            try {
+                maybeFailEngine("force merge", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw e;
         } finally {
             try {
                 mp.setUpgradeInProgress(false, false); // reset it just to make sure we reset it in a case of an error
@@ -842,29 +870,32 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    protected boolean maybeFailEngine(String source, Throwable t) {
-        boolean shouldFail = super.maybeFailEngine(source, t);
+    protected boolean maybeFailEngine(String source, Exception e) {
+        boolean shouldFail = super.maybeFailEngine(source, e);
         if (shouldFail) {
             return true;
         }
 
         // Check for AlreadyClosedException
-        if (t instanceof AlreadyClosedException) {
+        if (e instanceof AlreadyClosedException) {
             // if we are already closed due to some tragic exception
             // we need to fail the engine. it might have already been failed before
             // but we are double-checking it's failed and closed
             if (indexWriter.isOpen() == false && indexWriter.getTragicException() != null) {
-                failEngine("already closed by tragic event on the index writer", indexWriter.getTragicException());
+                final Exception tragedy = indexWriter.getTragicException() instanceof Exception ?
+                        (Exception) indexWriter.getTragicException() :
+                        new Exception(indexWriter.getTragicException());
+                failEngine("already closed by tragic event on the index writer", tragedy);
             } else if (translog.isOpen() == false && translog.getTragicException() != null) {
                 failEngine("already closed by tragic event on the translog", translog.getTragicException());
             }
             return true;
-        } else if (t != null &&
-            ((indexWriter.isOpen() == false && indexWriter.getTragicException() == t)
-                || (translog.isOpen() == false && translog.getTragicException() == t))) {
+        } else if (e != null &&
+            ((indexWriter.isOpen() == false && indexWriter.getTragicException() == e)
+                || (translog.isOpen() == false && translog.getTragicException() == e))) {
             // this spot on - we are handling the tragic event exception here so we have to fail the engine
             // right away
-            failEngine(source, t);
+            failEngine(source, e);
             return true;
         }
         return false;
@@ -920,13 +951,13 @@ public class InternalEngine extends Engine {
                 this.versionMap.clear();
                 try {
                     IOUtils.close(searcherManager);
-                } catch (Throwable t) {
-                    logger.warn("Failed to close SearcherManager", t);
+                } catch (Exception e) {
+                    logger.warn("Failed to close SearcherManager", e);
                 }
                 try {
                     IOUtils.close(translog);
-                } catch (Throwable t) {
-                    logger.warn("Failed to close translog", t);
+                } catch (Exception e) {
+                    logger.warn("Failed to close translog", e);
                 }
                 // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
                 logger.trace("rollback indexWriter");
@@ -936,7 +967,7 @@ public class InternalEngine extends Engine {
                     // ignore
                 }
                 logger.trace("rollback indexWriter done");
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 logger.warn("failed to rollback writer on close", e);
             } finally {
                 store.decRef();
@@ -974,7 +1005,7 @@ public class InternalEngine extends Engine {
             boolean verbose = false;
             try {
                 verbose = Boolean.parseBoolean(System.getProperty("tests.verbose"));
-            } catch (Throwable ignore) {
+            } catch (Exception ignore) {
             }
             iwc.setInfoStream(verbose ? InfoStream.getDefault() : new LoggerInfoStream(logger));
             iwc.setMergeScheduler(mergeScheduler);
@@ -995,7 +1026,7 @@ public class InternalEngine extends Engine {
     }
 
     /** Extended SearcherFactory that warms the segments if needed when acquiring a new searcher */
-    final static class SearchFactory extends EngineSearcherFactory {
+    static final class SearchFactory extends EngineSearcherFactory {
         private final Engine.Warmer warmer;
         private final ESLogger logger;
         private final AtomicBoolean isEngineClosed;
@@ -1020,7 +1051,7 @@ public class InternalEngine extends Engine {
                 try {
                     assert searcher.getIndexReader() instanceof ElasticsearchDirectoryReader : "this class needs an ElasticsearchDirectoryReader but got: " + searcher.getIndexReader().getClass();
                     warmer.warm(new Searcher("top_reader_warming", searcher));
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     if (isEngineClosed.get() == false) {
                         logger.warn("failed to prepare/warm", e);
                     }
@@ -1093,7 +1124,7 @@ public class InternalEngine extends Engine {
                 // we deadlock on engine#close for instance.
                 engineConfig.getThreadPool().executor(ThreadPool.Names.FLUSH).execute(new AbstractRunnable() {
                     @Override
-                    public void onFailure(Throwable t) {
+                    public void onFailure(Exception e) {
                         if (isClosed.get() == false) {
                             logger.warn("failed to flush after merge has finished");
                         }
@@ -1121,8 +1152,8 @@ public class InternalEngine extends Engine {
             logger.error("failed to merge", exc);
             engineConfig.getThreadPool().generic().execute(new AbstractRunnable() {
                 @Override
-                public void onFailure(Throwable t) {
-                    logger.debug("merge failure action rejected", t);
+                public void onFailure(Exception e) {
+                    logger.debug("merge failure action rejected", e);
                 }
 
                 @Override
@@ -1147,8 +1178,12 @@ public class InternalEngine extends Engine {
             }
             indexWriter.setCommitData(commitData);
             writer.commit();
-        } catch (Throwable ex) {
-            failEngine("lucene commit failed", ex);
+        } catch (Exception ex) {
+            try {
+                failEngine("lucene commit failed", ex);
+            } catch (Exception inner) {
+                ex.addSuppressed(inner);
+            }
             throw ex;
         }
     }

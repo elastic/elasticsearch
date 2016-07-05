@@ -36,7 +36,7 @@ List projects = [
   'plugins:discovery-gce',
   'plugins:ingest-geoip',
   'plugins:ingest-attachment',
-  'plugins:ingest-useragent',
+  'plugins:ingest-user-agent',
   'plugins:lang-javascript',
   'plugins:lang-python',
   'plugins:mapper-attachments',

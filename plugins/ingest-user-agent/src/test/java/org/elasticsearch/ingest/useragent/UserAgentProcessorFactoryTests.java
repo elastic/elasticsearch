@@ -52,7 +52,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
     @BeforeClass
     public static void createUserAgentParsers() throws IOException {
         Path configDir = createTempDir();
-        userAgentConfigDir = configDir.resolve("ingest-useragent");
+        userAgentConfigDir = configDir.resolve("ingest-user-agent");
         Files.createDirectories(userAgentConfigDir);
 
         // Copy file, leaving out the device parsers at the end
@@ -84,7 +84,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         UserAgentProcessor processor = factory.create(null, processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getTargetField(), equalTo("useragent"));
+        assertThat(processor.getTargetField(), equalTo("user_agent"));
         assertThat(processor.getUaParser().getUaPatterns().size(), greaterThan(0));
         assertThat(processor.getUaParser().getOsPatterns().size(), greaterThan(0));
         assertThat(processor.getUaParser().getDevicePatterns().size(), greaterThan(0));

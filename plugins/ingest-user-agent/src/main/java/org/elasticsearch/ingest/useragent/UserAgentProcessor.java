@@ -39,7 +39,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public class UserAgentProcessor extends AbstractProcessor {
 
-    public static final String TYPE = "useragent";
+    public static final String TYPE = "user_agent";
 
     private final String field;
     private final String targetField;
@@ -197,7 +197,7 @@ public class UserAgentProcessor extends AbstractProcessor {
         public UserAgentProcessor create(Map<String, Processor.Factory> factories, String processorTag,
                                          Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, processorTag, config, "field");
-            String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "useragent");
+            String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "user_agent");
             String regexFilename = readStringProperty(TYPE, processorTag, config, "regex_file", IngestUserAgentPlugin.DEFAULT_PARSER_NAME);
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
 

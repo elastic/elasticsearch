@@ -24,6 +24,6 @@ esplugin {
 
 integTest {
   cluster {
-    extraConfigFile 'ingest-useragent/test-regexes.yaml', 'test/test-regexes.yaml'
+    extraConfigFile 'ingest-user-agent/test-regexes.yaml', 'test/test-regexes.yaml'
   }
 }

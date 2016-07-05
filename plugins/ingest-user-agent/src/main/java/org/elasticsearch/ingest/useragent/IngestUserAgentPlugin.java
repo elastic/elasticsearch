@@ -42,7 +42,7 @@ import java.util.stream.Stream;
 
 public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
 
-    private final Setting<Long> CACHE_SIZE_SETTING = Setting.longSetting("ingest.useragent.cache_size", 1000, 0,
+    private final Setting<Long> CACHE_SIZE_SETTING = Setting.longSetting("ingest.user_agent.cache_size", 1000, 0,
             Setting.Property.NodeScope);
 
     static final String DEFAULT_PARSER_NAME = "_default_";
@@ -76,7 +76,7 @@ public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
 
         if (Files.exists(userAgentConfigDirectory) && Files.isDirectory(userAgentConfigDirectory)) {
             PathMatcher pathMatcher = userAgentConfigDirectory.getFileSystem().getPathMatcher("glob:**.yaml");
-    
+
             try (Stream<Path> regexFiles = Files.find(userAgentConfigDirectory, 1,
                     (path, attr) -> attr.isRegularFile() && pathMatcher.matches(path))) {
                 Iterable<Path> iterable = regexFiles::iterator;

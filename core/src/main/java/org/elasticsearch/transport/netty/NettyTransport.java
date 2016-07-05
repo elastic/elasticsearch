@@ -63,6 +63,7 @@ import org.jboss.netty.channel.socket.oio.OioClientSocketChannelFactory;
 import org.jboss.netty.channel.socket.oio.OioServerSocketChannelFactory;
 import org.jboss.netty.util.HashedWheelTimer;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -336,7 +337,7 @@ public class NettyTransport extends TcpTransport<Channel> {
         channels[0].getCloseFuture().addListener(new ChannelCloseListener(node));
         return new NodeChannels(channels, channels, channels, channels, channels);
     }
-    protected NodeChannels connectToChannels(DiscoveryNode node) {
+    protected NodeChannels connectToChannels(DiscoveryNode node) throws IOException {
         final NodeChannels nodeChannels = new NodeChannels(new Channel[connectionsPerNodeRecovery], new Channel[connectionsPerNodeBulk],
             new Channel[connectionsPerNodeReg], new Channel[connectionsPerNodeState],
             new Channel[connectionsPerNodePing]);
@@ -476,7 +477,9 @@ public class NettyTransport extends TcpTransport<Channel> {
         public void operationComplete(final ChannelFuture future) throws Exception {
             NodeChannels nodeChannels = connectedNodes.get(node);
             if (nodeChannels != null && nodeChannels.hasChannel(future.getChannel())) {
-                threadPool.generic().execute(() -> disconnectFromNode(node, future.getChannel(), "channel closed event"));
+                threadPool.generic().execute(() -> {
+                    disconnectFromNode(node, future.getChannel(), "channel closed event");
+                });
             }
         }
     }

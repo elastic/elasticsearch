@@ -65,6 +65,7 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
         BytesRef ref;
         while ((ref = iterator.next()) != null) {
             os.write(ref.bytes, ref.offset, ref.length);
+            os.flush();
         }
     }
 

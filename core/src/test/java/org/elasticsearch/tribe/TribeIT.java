@@ -32,24 +32,22 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.TestCluster;
 import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
@@ -74,31 +72,18 @@ public class TribeIT extends ESIntegTestCase {
     private Node tribeNode;
     private Client tribeClient;
 
-    @BeforeClass
-    public static void setupSecondCluster() throws Exception {
-        ESIntegTestCase.beforeClass();
-        NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
-            @Override
-            public Settings nodeSettings(int nodeOrdinal) {
-                return Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).build();
-            }
-
-            @Override
-            public Collection<Class<? extends Plugin>> nodePlugins() {
-                return Collections.emptyList();
-            }
-
-            @Override
-            public Settings transportClientSettings() {
-                return null;
-            }
-
-        };
-        cluster2 = new InternalTestCluster(InternalTestCluster.configuredNodeMode(), randomLong(), createTempDir(), true, 2, 2,
-                UUIDs.randomBase64UUID(random()), nodeConfigurationSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, Collections.emptyList(), Function.identity());
-
-        cluster2.beforeTest(random(), 0.1);
-        cluster2.ensureAtLeastNumDataNodes(2);
+    @Before
+    public  void setupSecondCluster() throws Exception {
+        if (cluster2 == null) {
+            final Tuple<String, NodeConfigurationSource> configSource = getNodeConfigSource();
+            final String nodeMode = configSource.v1();
+            final NodeConfigurationSource nodeConfigurationSource = configSource.v2();
+            cluster2 = new InternalTestCluster(nodeMode, randomLong(), createTempDir(), true, 2, 2,
+                UUIDs.randomBase64UUID(random()), nodeConfigurationSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, getMockPlugins(),
+                Function.identity());
+            cluster2.beforeTest(random(), 0.1);
+            cluster2.ensureAtLeastNumDataNodes(2);
+        }
     }
 
     @AfterClass

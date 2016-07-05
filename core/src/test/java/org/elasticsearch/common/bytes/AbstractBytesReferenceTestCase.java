@@ -462,9 +462,16 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         // get a BytesRef from a slice
         int sliceOffset = randomIntBetween(0, pbr.length());
         int sliceLength = randomIntBetween(0, pbr.length() - sliceOffset);
+
         BytesRef sliceRef = pbr.slice(sliceOffset, sliceLength).toBytesRef();
-        // note that these are only true if we have <= than a page, otherwise offset/length are shifted
-        assertEquals(sliceOffset, sliceRef.offset);
+
+        if (sliceLength == 0 && sliceOffset != sliceRef.offset) {
+            // some impls optimize this to an empty instance then the offset will be 0
+            assertEquals(0, sliceRef.offset);
+        } else {
+            // note that these are only true if we have <= than a page, otherwise offset/length are shifted
+            assertEquals(sliceOffset, sliceRef.offset);
+        }
         assertEquals(sliceLength, sliceRef.length);
     }
 

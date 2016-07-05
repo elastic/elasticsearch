@@ -151,7 +151,7 @@ Filtering by frequency::
 +
 --
 
-The frequency filter allows you to only load terms whose term frequency falls
+The frequency filter allows you to only load terms whose document frequency falls
 between a `min` and `max` value, which can be expressed an absolute
 number (when the number is bigger than 1.0) or as a percentage
 (eg `0.01` is `1%` and `1.0` is `100%`). Frequency is calculated

@@ -84,6 +84,8 @@ See the {client}/groovy-api/current/index.html[official Elasticsearch Groovy cli
 
 Also see the {client}/java-api/current/index.html[official Elasticsearch Java client].
 
+* [Flummi](https://github.com/otto-de/flummi):
+  Java Rest client with comprehensive query DSL API
 * https://github.com/searchbox-io/Jest[Jest]:
   Java Rest client.
 

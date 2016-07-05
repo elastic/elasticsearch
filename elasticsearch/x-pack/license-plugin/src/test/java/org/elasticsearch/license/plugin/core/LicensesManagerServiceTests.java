@@ -7,17 +7,16 @@ package org.elasticsearch.license.plugin.core;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.graph.Graph;
+import org.elasticsearch.xpack.graph.Graph;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.TestUtils;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequest;
 import org.elasticsearch.marvel.Monitoring;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.Security;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.watcher.Watcher;
@@ -194,7 +193,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            public void onFailure(Throwable throwable) {
+            public void onFailure(Exception throwable) {
                 latch.countDown();
             }
         });

@@ -18,6 +18,8 @@ import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.TestUtils;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportRequest;
+import org.junit.After;
+import org.junit.Before;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -29,11 +31,23 @@ import static org.mockito.Mockito.verify;
 
 public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
 
-    public void testNotificationOnNewLicense() throws Exception {
+    private TestUtils.AssertingLicensee licensee;
+
+    @Before
+    public void setup() {
         setInitialState(null);
         licensesService.start();
-        final TestUtils.AssertingLicensee licensee = new TestUtils.AssertingLicensee("testNotificationOnNewLicense", logger);
+        licensee = new TestUtils.AssertingLicensee("LicenseClusterChangeTests", logger);
         licensesService.register(licensee);
+    }
+
+    @After
+    public void teardown() {
+        licensesService.stop();
+    }
+
+
+    public void testNotificationOnNewLicense() throws Exception {
         ClusterState oldState = ClusterState.builder(new ClusterName("a")).build();
         final License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
         MetaData metaData = MetaData.builder().putCustom(LicensesMetaData.TYPE, new LicensesMetaData(license)).build();
@@ -41,28 +55,18 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
         licensesService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
         assertThat(licensee.statuses.size(), equalTo(1));
         assertTrue(licensee.statuses.get(0).getLicenseState() == LicenseState.ENABLED);
-        licensesService.stop();
     }
 
     public void testNoNotificationOnExistingLicense() throws Exception {
-        setInitialState(null);
-        licensesService.start();
-        final TestUtils.AssertingLicensee licensee = new TestUtils.AssertingLicensee("testNoNotificationOnExistingLicense", logger);
-        licensesService.register(licensee);
         final License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
         MetaData metaData = MetaData.builder().putCustom(LicensesMetaData.TYPE, new LicensesMetaData(license)).build();
         ClusterState newState = ClusterState.builder(new ClusterName("a")).metaData(metaData).build();
         ClusterState oldState = ClusterState.builder(newState).build();
         licensesService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
         assertThat(licensee.statuses.size(), equalTo(0));
-        licensesService.stop();
     }
 
     public void testTrialLicenseGeneration() throws Exception {
-        setInitialState(null);
-        licensesService.start();
-        final TestUtils.AssertingLicensee licensee = new TestUtils.AssertingLicensee("testNotificationOnNewLicense", logger);
-        licensesService.register(licensee);
         DiscoveryNode master = new DiscoveryNode("b", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
         ClusterState oldState = ClusterState.builder(new ClusterName("a"))
                 .nodes(DiscoveryNodes.builder().masterNodeId(master.getId()).put(master)).build();
@@ -72,6 +76,5 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
                 .sendRequest(any(DiscoveryNode.class),
                         eq(LicensesService.REGISTER_TRIAL_LICENSE_ACTION_NAME),
                         any(TransportRequest.Empty.class), any(EmptyTransportResponseHandler.class));
-        licensesService.stop();
     }
 }

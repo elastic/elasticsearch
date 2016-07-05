@@ -30,7 +30,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherManager;
@@ -98,7 +97,6 @@ public abstract class Engine implements Closeable {
     protected final Store store;
     protected final AtomicBoolean isClosed = new AtomicBoolean(false);
     protected final EventListener eventListener;
-    protected final SnapshotDeletionPolicy deletionPolicy;
     protected final ReentrantLock failEngineLock = new ReentrantLock();
     protected final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
     protected final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
@@ -119,7 +117,6 @@ public abstract class Engine implements Closeable {
 
     protected Engine(EngineConfig engineConfig) {
         Objects.requireNonNull(engineConfig.getStore(), "Store must be provided to the engine");
-        Objects.requireNonNull(engineConfig.getDeletionPolicy(), "Snapshot deletion policy must be provided to the engine");
 
         this.engineConfig = engineConfig;
         this.shardId = engineConfig.getShardId();
@@ -127,7 +124,6 @@ public abstract class Engine implements Closeable {
         this.logger = Loggers.getLogger(Engine.class, // we use the engine class directly here to make sure all subclasses have the same logger name
                 engineConfig.getIndexSettings().getSettings(), engineConfig.getShardId());
         this.eventListener = engineConfig.getEventListener();
-        this.deletionPolicy = engineConfig.getDeletionPolicy();
     }
 
     /** Returns 0 in the case where accountable is null, otherwise returns {@code ramBytesUsed()} */
@@ -659,6 +655,12 @@ public abstract class Engine implements Closeable {
      * @param flushFirst indicates whether the engine should flush before returning the snapshot
      */
     public abstract IndexCommit snapshotIndex(boolean flushFirst) throws EngineException;
+
+    /**
+     * Releases a snapshot taken from {@link #snapshotIndex(boolean)} this must be called to release the resources
+     * referenced by the given snapshot {@link IndexCommit}.
+     */
+    public abstract void releaseSnapshot(IndexCommit snapshot) throws IOException;
 
     /**
      * fail engine due to some error. the engine will also be closed.

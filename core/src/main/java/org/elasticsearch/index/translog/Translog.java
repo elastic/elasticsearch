@@ -64,6 +64,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -128,6 +129,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private volatile long currentCommittingGeneration = NOT_SET_GENERATION;
     private volatile long lastCommittedTranslogFileGeneration = NOT_SET_GENERATION;
     private final AtomicBoolean closed = new AtomicBoolean();
+    // nocommit - this more naturally belongs in the TranslogConfig, but that one is currently fixed on the shard level
+    private final LongSupplier seqNoGlobalCheckpointSupplier;
     private final TranslogConfig config;
     private final String translogUUID;
 
@@ -145,9 +148,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @see TranslogConfig#getTranslogPath()
      *
      */
-    public Translog(TranslogConfig config, TranslogGeneration translogGeneration) throws IOException {
+    public Translog(TranslogConfig config, TranslogGeneration translogGeneration,
+                    LongSupplier seqNoGlobalCheckpointSupplier) throws IOException {
         super(config.getShardId(), config.getIndexSettings());
         this.config = config;
+        this.seqNoGlobalCheckpointSupplier = seqNoGlobalCheckpointSupplier;
         if (translogGeneration == null || translogGeneration.translogUUID == null) { // legacy case
             translogUUID = UUIDs.randomBase64UUID();
         } else {
@@ -200,7 +205,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 logger.debug("wipe translog location - creating new translog");
                 Files.createDirectories(location);
                 final long generation = 1;
-                Checkpoint checkpoint = new Checkpoint(0, 0, generation);
+                Checkpoint checkpoint = new Checkpoint(0, 0, generation, seqNoGlobalCheckpointSupplier.getAsLong());
                 Checkpoint.write(getChannelFactory(), location.resolve(CHECKPOINT_FILE_NAME), checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
                 current = createWriter(generation);
                 this.lastCommittedTranslogFileGeneration = NOT_SET_GENERATION;
@@ -379,7 +384,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     TranslogWriter createWriter(long fileGeneration) throws IOException {
         TranslogWriter newFile;
         try {
-            newFile = TranslogWriter.create(shardId, translogUUID, fileGeneration, location.resolve(getFilename(fileGeneration)), getChannelFactory(), config.getBufferSize());
+            newFile = TranslogWriter.create(shardId, translogUUID, fileGeneration, location.resolve(getFilename(fileGeneration)),
+                getChannelFactory(), config.getBufferSize(), seqNoGlobalCheckpointSupplier);
         } catch (IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
         }

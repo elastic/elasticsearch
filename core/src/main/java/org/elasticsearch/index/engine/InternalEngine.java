@@ -22,6 +22,7 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -30,6 +31,7 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherFactory;
@@ -97,6 +99,7 @@ public class InternalEngine extends Engine {
     private final ElasticsearchConcurrentMergeScheduler mergeScheduler;
 
     private final IndexWriter indexWriter;
+    protected final SnapshotDeletionPolicy deletionPolicy;
 
     private final SearcherFactory searcherFactory;
     private final SearcherManager searcherManager;
@@ -144,8 +147,28 @@ public class InternalEngine extends Engine {
             throttle = new IndexThrottle();
             this.searcherFactory = new SearchFactory(logger, isClosed, engineConfig);
             try {
-                writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG);
-                final SeqNoStats seqNoStats = loadSeqNoStatsFromCommit(writer);
+                final SeqNoStats seqNoStats;
+                final IndexCommit commitToOpen;
+                if (openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG) {
+                    assert engineConfig.getCommitIdToOpen() == null;
+                    commitToOpen = null;
+                    seqNoStats = new SeqNoStats(NO_OPS_PERFORMED, NO_OPS_PERFORMED, NO_OPS_PERFORMED);
+                } else if (engineConfig.getCommitIdToOpen() != null) {
+                    commitToOpen = findCommitById(store.directory(), engineConfig.getCommitIdToOpen());
+                    seqNoStats = loadSeqNoStatsFromCommit(commitToOpen);
+                } else {
+                    // nocommit: there should be a better way
+                    commitToOpen = findCommitById(store.directory(), new CommitId(store.readLastCommittedSegmentsInfo().getId()));
+                    seqNoStats = loadSeqNoStatsFromCommit(commitToOpen);
+                }
+                seqNoService =
+                    new SequenceNumbersService(
+                        shardId,
+                        engineConfig.getIndexSettings(),
+                        seqNoStats.getMaxSeqNo(), seqNoStats.getLocalCheckpoint(), seqNoStats.getGlobalCheckpoint(),
+                        this::onGlobalCheckpointUpdate);
+                deletionPolicy = new SnapshotDeletionPolicy(new SeqNoAwareDeletionPolicy(seqNoService::getGlobalCheckpoint, logger));
+                writer = createWriter(commitToOpen);
                 if (logger.isTraceEnabled()) {
                     logger.trace(
                             "recovering max sequence number: [{}], local checkpoint: [{}], global checkpoint: [{}]",
@@ -153,13 +176,6 @@ public class InternalEngine extends Engine {
                             seqNoStats.getLocalCheckpoint(),
                             seqNoStats.getGlobalCheckpoint());
                 }
-                seqNoService =
-                        new SequenceNumbersService(
-                                shardId,
-                                engineConfig.getIndexSettings(),
-                                seqNoStats.getMaxSeqNo(),
-                                seqNoStats.getLocalCheckpoint(),
-                                seqNoStats.getGlobalCheckpoint());
                 indexWriter = writer;
                 translog = openTranslog(engineConfig, writer);
                 assert translog.getGeneration() != null;
@@ -197,6 +213,16 @@ public class InternalEngine extends Engine {
             }
         }
         logger.trace("created new InternalEngine");
+    }
+
+    private static IndexCommit findCommitById(Directory directory, CommitId commitIdToOpen) throws IOException {
+        for (IndexCommit commit: DirectoryReader.listCommits(directory)) {
+            SegmentInfos commitInfos = SegmentInfos.readCommit(directory, commit.getSegmentsFileName());
+            if (commitIdToOpen.equals(new CommitId(commitInfos.getId()))) {
+                return commit;
+            }
+        }
+        throw new IndexNotFoundException("can't find request commit [" + commitIdToOpen + "]");
     }
 
     @Override
@@ -258,7 +284,7 @@ public class InternalEngine extends Engine {
                 throw new IndexFormatTooOldException("trasnlog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
             }
         }
-        final Translog translog = new Translog(translogConfig, generation);
+        final Translog translog = new Translog(translogConfig, generation, seqNoService::getGlobalCheckpoint);
         if (generation == null || generation.translogUUID == null) {
             assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG : "OpenMode must not be "
                 + EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;
@@ -339,6 +365,38 @@ public class InternalEngine extends Engine {
 
         return new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
     }
+
+
+    public static SeqNoStats loadSeqNoStatsFromCommit(IndexCommit commit) throws IOException {
+        final long maxSeqNo;
+        try (IndexReader reader = DirectoryReader.open(commit)) {
+            final FieldStats stats = SeqNoFieldMapper.Defaults.FIELD_TYPE.stats(reader);
+            if (stats != null) {
+                maxSeqNo = (long) stats.getMaxValue();
+            } else {
+                maxSeqNo = NO_OPS_PERFORMED;
+            }
+        }
+
+        final Map<String, String> commitUserData = commit.getUserData();
+
+        final long localCheckpoint;
+        if (commitUserData.containsKey(LOCAL_CHECKPOINT_KEY)) {
+            localCheckpoint = Long.parseLong(commitUserData.get(LOCAL_CHECKPOINT_KEY));
+        } else {
+            localCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
+        }
+
+        final long globalCheckpoint;
+        if (commitUserData.containsKey(GLOBAL_CHECKPOINT_KEY)) {
+            globalCheckpoint = Long.parseLong(commitUserData.get(GLOBAL_CHECKPOINT_KEY));
+        } else {
+            globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        }
+
+        return new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
+    }
+
 
     private SearcherManager createSearcherManager() throws EngineException {
         boolean success = false;
@@ -912,6 +970,11 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public void releaseSnapshot(IndexCommit snapshot) throws IOException {
+        deletionPolicy.release(snapshot);
+    }
+
+    @Override
     protected boolean maybeFailEngine(String source, Throwable t) {
         boolean shouldFail = super.maybeFailEngine(source, t);
         if (shouldFail) {
@@ -1034,11 +1097,12 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private IndexWriter createWriter(boolean create) throws IOException {
+    private IndexWriter createWriter(IndexCommit commitToOpen) throws IOException {
         try {
             final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
             iwc.setCommitOnClose(false); // we by default don't commit on close
-            iwc.setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
+            iwc.setOpenMode(commitToOpen == null ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
+            iwc.setIndexCommit(commitToOpen);
             iwc.setIndexDeletionPolicy(deletionPolicy);
             // with tests.verbose, lucene sets this up: plumb to align with filesystem stream
             boolean verbose = false;
@@ -1246,6 +1310,19 @@ public class InternalEngine extends Engine {
         mergeScheduler.refreshConfig();
         // config().isEnableGcDeletes() or config.getGcDeletesInMillis() may have changed:
         maybePruneDeletedTombstones();
+    }
+
+
+    private void onGlobalCheckpointUpdate() {
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+            translog.sync();
+            indexWriter.deleteUnusedFiles();
+        } catch (IOException e) {
+            maybeFailEngine("global checkpoint update", e);
+            throw new EngineException(shardId, "failed during gloabl checkpoint update", e);
+        }
+
     }
 
     public MergeStats getMergeStats() {

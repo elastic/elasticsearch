@@ -207,6 +207,11 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
+    public void releaseSnapshot(IndexCommit snapshot) throws IOException {
+        throw new UnsupportedOperationException("Can not take snapshot from a shadow engine, how did you get yours?");
+    }
+
+    @Override
     protected SearcherManager getSearcherManager() {
         return searcherManager;
     }

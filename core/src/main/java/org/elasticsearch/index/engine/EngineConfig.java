@@ -21,7 +21,6 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.similarities.Similarity;
@@ -48,6 +47,7 @@ import org.elasticsearch.threadpool.ThreadPool;
  */
 public final class EngineConfig {
     private final ShardId shardId;
+    private final Engine.CommitId commitIdToOpen;
     private final TranslogRecoveryPerformer translogRecoveryPerformer;
     private final IndexSettings indexSettings;
     private final ByteSizeValue indexingBufferSize;
@@ -57,7 +57,6 @@ public final class EngineConfig {
     private final ThreadPool threadPool;
     private final Engine.Warmer warmer;
     private final Store store;
-    private final SnapshotDeletionPolicy deletionPolicy;
     private final MergePolicy mergePolicy;
     private final Analyzer analyzer;
     private final Similarity similarity;
@@ -95,9 +94,9 @@ public final class EngineConfig {
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
-    public EngineConfig(OpenMode openMode, ShardId shardId, ThreadPool threadPool,
-                        IndexSettings indexSettings, Engine.Warmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
-                        MergePolicy mergePolicy,Analyzer analyzer,
+    public EngineConfig(OpenMode openMode, ShardId shardId, Engine.CommitId commitIdToOpen, ThreadPool threadPool,
+                        IndexSettings indexSettings, Engine.Warmer warmer, Store store,
+                        MergePolicy mergePolicy, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
                         TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
                         TranslogConfig translogConfig, TimeValue flushMergesAfter, RefreshListeners refreshListeners) {
@@ -109,7 +108,6 @@ public final class EngineConfig {
         this.threadPool = threadPool;
         this.warmer = warmer == null ? (a) -> {} : warmer;
         this.store = store;
-        this.deletionPolicy = deletionPolicy;
         this.mergePolicy = mergePolicy;
         this.analyzer = analyzer;
         this.similarity = similarity;
@@ -126,6 +124,10 @@ public final class EngineConfig {
         this.translogConfig = translogConfig;
         this.flushMergesAfter = flushMergesAfter;
         this.openMode = openMode;
+        if (openMode == OpenMode.CREATE_INDEX_AND_TRANSLOG && commitIdToOpen != null) {
+            throw new IllegalArgumentException("can not open a specific commit when open mode is CREATE_INDEX_AND_TRANSLOG");
+        }
+        this.commitIdToOpen = commitIdToOpen;
         this.refreshListeners = refreshListeners;
     }
 
@@ -197,14 +199,6 @@ public final class EngineConfig {
      */
     public Store getStore() {
         return store;
-    }
-
-    /**
-     * Returns a {@link SnapshotDeletionPolicy} used in the engines
-     * {@link org.apache.lucene.index.IndexWriter}.
-     */
-    public SnapshotDeletionPolicy getDeletionPolicy() {
-        return deletionPolicy;
     }
 
     /**
@@ -292,6 +286,15 @@ public final class EngineConfig {
     }
 
     /**
+     * returns the {@link org.elasticsearch.index.engine.Engine.CommitId} the engine should open. Use null to
+     * indicate the engine should the latest commit available (or create a new one if needed).
+     */
+    @Nullable
+    public Engine.CommitId getCommitIdToOpen() {
+        return commitIdToOpen;
+    }
+
+    /**
      * Engine open mode defines how the engine should be opened or in other words what the engine should expect
      * to recover from. We either create a brand new engine with a new index and translog or we recover from an existing index.
      * If the index exists we also have the ability open only the index and create a new transaction log which happens
@@ -300,6 +303,7 @@ public final class EngineConfig {
      * See also {@link Engine#recoverFromTranslog()}
      */
     public enum OpenMode {
+
         CREATE_INDEX_AND_TRANSLOG,
         OPEN_INDEX_CREATE_TRANSLOG,
         OPEN_INDEX_AND_TRANSLOG;

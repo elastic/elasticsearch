@@ -64,6 +64,15 @@ public class SeqNoStats implements ToXContent, Writeable {
     }
 
     @Override
+    public String toString() {
+        return "SeqNoStats{" +
+            "max=" + maxSeqNo +
+            ", local=" + localCheckpoint +
+            ", global=" + globalCheckpoint +
+            '}';
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeZLong(maxSeqNo);
         out.writeZLong(localCheckpoint);

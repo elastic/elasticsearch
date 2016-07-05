@@ -39,6 +39,8 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     final LocalCheckpointService localCheckpointService;
     final GlobalCheckpointService globalCheckpointService;
 
+    final Runnable onGlobalpointUpdate;
+
     /**
      * Initialize the sequence number service. The {@code maxSeqNo}
      * should be set to the last sequence number assigned by this
@@ -49,25 +51,28 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      * {@code globalCheckpoint} should be set to the last known global
      * checkpoint for this shard, or
      * {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}.
-     *
-     * @param shardId          the shard this service is providing tracking
+     *  @param shardId          the shard this service is providing tracking
      *                         local checkpoints for
      * @param indexSettings    the index settings
      * @param maxSeqNo         the last sequence number assigned by this
-     *                         shard, or
-     *                         {@link SequenceNumbersService#NO_OPS_PERFORMED}
+ *                         shard, or
+ *                         {@link SequenceNumbersService#NO_OPS_PERFORMED}
      * @param localCheckpoint  the last known local checkpoint for this shard,
-     *                         or {@link SequenceNumbersService#NO_OPS_PERFORMED}
+*                         or {@link SequenceNumbersService#NO_OPS_PERFORMED}
      * @param globalCheckpoint the last known global checkpoint for this shard,
-     *                         or {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}
+*                         or {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}
+     * @param onGlobalCheckpointUpdate a call back to call when the global check point is updated.
+     *                                 Note that this may be called at other times as well
+     *
      */
     public SequenceNumbersService(
         final ShardId shardId,
         final IndexSettings indexSettings,
         final long maxSeqNo,
         final long localCheckpoint,
-        final long globalCheckpoint) {
+        final long globalCheckpoint, Runnable onGlobalCheckpointUpdate) {
         super(shardId, indexSettings);
+        this.onGlobalpointUpdate = onGlobalCheckpointUpdate;
         localCheckpointService = new LocalCheckpointService(shardId, indexSettings, maxSeqNo, localCheckpoint);
         globalCheckpointService = new GlobalCheckpointService(shardId, indexSettings, globalCheckpoint);
     }
@@ -129,6 +134,7 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      */
     public void updateGlobalCheckpointOnReplica(long checkpoint) {
         globalCheckpointService.updateCheckpointOnReplica(checkpoint);
+        onGlobalpointUpdate.run();
     }
 
     /**
@@ -149,6 +155,10 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      * of one of the active allocations is not known.
      */
     public boolean updateGlobalCheckpointOnPrimary() {
-        return globalCheckpointService.updateCheckpointOnPrimary();
+        boolean maybeUpdate = globalCheckpointService.updateCheckpointOnPrimary();
+        if (maybeUpdate) {
+            onGlobalpointUpdate.run();
+        }
+        return maybeUpdate;
     }
 }

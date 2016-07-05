@@ -37,21 +37,26 @@ class Checkpoint {
 
    static final int BUFFER_SIZE = Integer.BYTES  // ops
             + Long.BYTES // offset
-            + Long.BYTES;// generation
+            + Long.BYTES // generation
+            + Long.BYTES; // seq no global checkpoint
     final long offset;
     final int numOps;
     final long generation;
+    final long seqNoGlobalCheckpoint;
 
-    Checkpoint(long offset, int numOps, long generation) {
+    Checkpoint(long offset, int numOps, long generation, long seqNoGlobalCheckpoint) {
         this.offset = offset;
         this.numOps = numOps;
         this.generation = generation;
+        this.seqNoGlobalCheckpoint = seqNoGlobalCheckpoint;
     }
 
     Checkpoint(DataInput in) throws IOException {
+        // no comment - use first byte of offset for versioning
         offset = in.readLong();
         numOps = in.readInt();
         generation = in.readLong();
+        seqNoGlobalCheckpoint = in.readLong();
     }
 
     private void write(FileChannel channel) throws IOException {
@@ -65,6 +70,7 @@ class Checkpoint {
         out.writeLong(offset);
         out.writeInt(numOps);
         out.writeLong(generation);
+        out.writeLong(seqNoGlobalCheckpoint);
     }
 
     @Override
@@ -73,6 +79,7 @@ class Checkpoint {
                 "offset=" + offset +
                 ", numOps=" + numOps +
                 ", translogFileGeneration= " + generation +
+                ", seqNoGlobalCheckpoint= " + seqNoGlobalCheckpoint +
                 '}';
     }
 

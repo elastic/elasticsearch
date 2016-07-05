@@ -68,7 +68,7 @@ public final class TaskOperationFailure implements Writeable, ToXContent {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeId);
         out.writeLong(taskId);
-        out.writeThrowable(reason);
+        out.writeException(reason);
         RestStatus.writeTo(out, status);
     }
 

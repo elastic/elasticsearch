@@ -101,7 +101,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
                 response.writeTo(out);
             } else {
                 out.writeBoolean(false);
-                out.writeThrowable(exception);
+                out.writeException(exception);
             }
         }
 

@@ -115,7 +115,7 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
             out.writeString(getIndex());
             out.writeString(getType());
             out.writeOptionalString(getId());
-            out.writeThrowable(getCause());
+            out.writeException(getCause());
         }
 
 

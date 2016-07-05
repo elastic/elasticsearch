@@ -682,7 +682,7 @@ public class ElasticsearchAssertions {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeThrowable(exception);
+            out.writeException(exception);
         }
 
     }

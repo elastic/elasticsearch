@@ -631,7 +631,7 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public void writeThrowable(Throwable throwable) throws IOException {
+    public void writeException(Throwable throwable) throws IOException {
         if (throwable == null) {
             writeBoolean(false);
         } else {
@@ -739,7 +739,7 @@ public abstract class StreamOutput extends OutputStream {
                 writeOptionalString(throwable.getMessage());
             }
             if (writeCause) {
-                writeThrowable(throwable.getCause());
+                writeException(throwable.getCause());
             }
             ElasticsearchException.writeStackTraces(throwable, this);
         }

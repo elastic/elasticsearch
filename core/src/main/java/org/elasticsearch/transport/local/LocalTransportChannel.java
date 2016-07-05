@@ -96,7 +96,7 @@ public class LocalTransportChannel implements TransportChannel {
         writeResponseExceptionHeader(stream);
         RemoteTransportException tx = new RemoteTransportException(targetTransport.nodeName(),
                 targetTransport.boundAddress().boundAddresses()[0], action, exception);
-        stream.writeThrowable(tx);
+        stream.writeException(tx);
         sendResponseData(BytesReference.toBytes(stream.bytes()));
         sourceTransportServiceAdapter.onResponseSent(requestId, action, exception);
     }

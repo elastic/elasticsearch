@@ -111,7 +111,7 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
             out.writeString(index);
         }
         out.writeVInt(shardId);
-        out.writeThrowable(reason);
+        out.writeException(reason);
         RestStatus.writeTo(out, status);
     }
 

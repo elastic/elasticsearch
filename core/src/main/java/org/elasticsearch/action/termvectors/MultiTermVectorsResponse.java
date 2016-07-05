@@ -100,7 +100,7 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
             out.writeString(index);
             out.writeOptionalString(type);
             out.writeString(id);
-            out.writeThrowable(cause);
+            out.writeException(cause);
         }
     }
 

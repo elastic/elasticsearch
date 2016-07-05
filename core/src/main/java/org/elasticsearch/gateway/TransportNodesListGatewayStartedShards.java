@@ -298,7 +298,7 @@ public class TransportNodesListGatewayStartedShards extends
             out.writeBoolean(primary);
             if (storeException != null) {
                 out.writeBoolean(true);
-                out.writeThrowable(storeException);
+                out.writeException(storeException);
             } else {
                 out.writeBoolean(false);
             }

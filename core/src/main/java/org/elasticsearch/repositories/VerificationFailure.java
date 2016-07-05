@@ -59,7 +59,7 @@ public class VerificationFailure implements Streamable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(nodeId);
-        out.writeThrowable(cause);
+        out.writeException(cause);
     }
 
     public static VerificationFailure readNode(StreamInput in) throws IOException {

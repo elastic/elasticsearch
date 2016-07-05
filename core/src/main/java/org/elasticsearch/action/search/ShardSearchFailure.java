@@ -148,7 +148,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         }
         out.writeString(reason);
         RestStatus.writeTo(out, status);
-        out.writeThrowable(cause);
+        out.writeException(cause);
     }
 
     @Override

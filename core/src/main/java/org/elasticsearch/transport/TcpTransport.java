@@ -940,7 +940,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             stream.setVersion(nodeVersion);
             RemoteTransportException tx = new RemoteTransportException(
                 nodeName(), new InetSocketTransportAddress(getLocalAddress(channel)), action, error);
-            stream.writeThrowable(tx);
+            stream.writeException(tx);
             byte status = 0;
             status = TransportStatus.setResponse(status);
             status = TransportStatus.setError(status);

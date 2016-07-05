@@ -204,7 +204,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(this.getMessage());
-        out.writeThrowable(this.getCause());
+        out.writeException(this.getCause());
         writeStackTraces(this, out);
         out.writeVInt(headers.size());
         for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
@@ -435,7 +435,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         Throwable[] suppressed = throwable.getSuppressed();
         out.writeVInt(suppressed.length);
         for (Throwable t : suppressed) {
-            out.writeThrowable(t);
+            out.writeException(t);
         }
         return throwable;
     }

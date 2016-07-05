@@ -167,7 +167,7 @@ public final class UnassignedInfo implements ToXContent, Writeable {
         // Do not serialize unassignedTimeNanos as System.nanoTime() cannot be compared across different JVMs
         out.writeBoolean(delayed);
         out.writeOptionalString(message);
-        out.writeThrowable(failure);
+        out.writeException(failure);
         out.writeVInt(failedAllocations);
     }
 

@@ -147,10 +147,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
             }
             assertEquals(si.readByte(), wrap.readByte());
             assertEquals(si.available(), wrap.available());
-
         }
-
-
     }
 
     public void testStreamInputBulkReadWithOffset() throws IOException {

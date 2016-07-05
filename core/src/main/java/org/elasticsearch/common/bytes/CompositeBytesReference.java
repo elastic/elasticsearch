@@ -112,7 +112,7 @@ public final class CompositeBytesReference extends BytesReference {
                 builder.append(spare);
             }
         } catch (IOException ex) {
-            throw new AssertionError("won't happen", ex);
+            throw new AssertionError("won't happen", ex); // this is really an error since we don't do IO in our bytesreferences
         }
         return builder.toBytesRef();
     }

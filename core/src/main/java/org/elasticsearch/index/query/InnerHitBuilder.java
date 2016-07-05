@@ -74,7 +74,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         PARSER.declareStringArray(InnerHitBuilder::setStoredFieldNames, SearchSourceBuilder.STORED_FIELDS_FIELD);
         PARSER.declareField((p, i, c) -> {
             throw new ParsingException(p.getTokenLocation(), "The field [" +
-                SearchSourceBuilder.FIELDS_FIELD + "] is not longer supported, please use [" +
+                SearchSourceBuilder.FIELDS_FIELD + "] is no longer supported, please use [" +
                 SearchSourceBuilder.STORED_FIELDS_FIELD + "] to retrieve stored fields or _source filtering " +
                 "if the field is not stored");
         }, SearchSourceBuilder.FIELDS_FIELD, ObjectParser.ValueType.STRING_ARRAY);

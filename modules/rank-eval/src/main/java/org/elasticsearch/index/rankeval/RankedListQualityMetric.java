@@ -24,7 +24,7 @@ import org.elasticsearch.search.SearchHit;
 /**
  * Classes implementing this interface provide a means to compute the quality of a result list
  * returned by some search.
- * 
+ *
  * RelevancyLevel specifies the type of object determining the relevancy level of some known docid.
  * */
 public interface RankedListQualityMetric extends Evaluator {
@@ -36,5 +36,6 @@ public interface RankedListQualityMetric extends Evaluator {
      * @param hits the result hits as returned by some search
      * @return some metric representing the quality of the result hit list wrt. to relevant doc ids.
      * */
-    public EvalQueryQuality evaluate(SearchHit[] hits, RatedQuery intent);
+    @Override
+    EvalQueryQuality evaluate(SearchHit[] hits, RatedQuery intent);
 }

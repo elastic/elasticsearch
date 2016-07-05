@@ -23,6 +23,6 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.search.SearchHit;
 
 public interface Evaluator extends NamedWriteable {
-    
-    public Object evaluate(SearchHit[] hits, RatedQuery intent);
+
+    Object evaluate(SearchHit[] hits, RatedQuery intent);
 }

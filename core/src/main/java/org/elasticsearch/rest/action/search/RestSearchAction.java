@@ -178,7 +178,7 @@ public class RestSearchAction extends BaseRestHandler {
 
         if (request.param("fields") != null) {
             throw new IllegalArgumentException("The parameter [" +
-                SearchSourceBuilder.FIELDS_FIELD + "] is not longer supported, please use [" +
+                SearchSourceBuilder.FIELDS_FIELD + "] is no longer supported, please use [" +
                 SearchSourceBuilder.STORED_FIELDS_FIELD + "] to retrieve stored fields or _source filtering " +
                 "if the field is not stored");
         }

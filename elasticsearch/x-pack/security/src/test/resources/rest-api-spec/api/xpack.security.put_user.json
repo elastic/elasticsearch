@@ -1,6 +1,6 @@
 {
   "xpack.security.put_user": {
-    "documentation": "Update or create a user for the native realm",
+    "documentation": "https://www.elastic.co/guide/en/x-pack/master/security-api-users.html#security-api-put-user",
     "methods": [ "PUT", "POST" ],
     "url": {
       "path": "/_xpack/security/user/{username}",

@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interva
  */
 public class WatcherExecutorServiceBenchmark {
 
-    private final static Settings SETTINGS = Settings.builder()
+    private static final Settings SETTINGS = Settings.builder()
             .put("xpack.security.enabled", false)
             .put("cluster.name", "bench")
             .put("network.host", "localhost")

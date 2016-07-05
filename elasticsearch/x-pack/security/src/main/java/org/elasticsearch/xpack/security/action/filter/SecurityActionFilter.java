@@ -44,9 +44,6 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.security.support.Exceptions.authorizationError;
 
-/**
- *
- */
 public class SecurityActionFilter extends AbstractComponent implements ActionFilter {
 
     private static final Predicate<String> LICENSE_EXPIRATION_ACTION_MATCHER = HealthAndStatsPrivilege.INSTANCE.predicate();
@@ -109,8 +106,8 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
             } else {
                 chain.proceed(task, action, request, listener);
             }
-        } catch (Throwable t) {
-            listener.onFailure(t);
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
     }
 
@@ -231,7 +228,7 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
         }
 
         @Override
-        public void onFailure(Throwable e) {
+        public void onFailure(Exception e) {
             if (threadContext != null) {
                 threadContext.restore();
             }

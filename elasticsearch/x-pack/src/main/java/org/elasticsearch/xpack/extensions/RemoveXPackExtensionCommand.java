@@ -11,7 +11,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.SettingCommand;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.UserError;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -44,7 +44,7 @@ class RemoveXPackExtensionCommand  extends SettingCommand {
         // TODO: in jopt-simple 5.0 we can enforce a min/max number of positional args
         List<String> args = arguments.values(options);
         if (args.size() != 1) {
-            throw new UserError(ExitCodes.USAGE, "Must supply a single extension id argument");
+            throw new UserException(ExitCodes.USAGE, "Must supply a single extension id argument");
         }
         execute(terminal, args.get(0), settings);
     }
@@ -56,7 +56,7 @@ class RemoveXPackExtensionCommand  extends SettingCommand {
         Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
         Path extensionDir = resolveXPackExtensionsFile(env).resolve(extensionName);
         if (Files.exists(extensionDir) == false) {
-            throw new UserError(ExitCodes.USAGE,
+            throw new UserException(ExitCodes.USAGE,
                     "Extension " + extensionName + " not found. Run 'bin/x-pack/extension list' to get list of installed extensions.");
         }
 

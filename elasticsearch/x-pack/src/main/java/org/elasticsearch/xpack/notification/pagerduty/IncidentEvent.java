@@ -41,13 +41,13 @@ public class IncidentEvent implements ToXContent {
     static final String PATH = "/generic/2010-04-15/create_event.json";
 
     final String description;
-    final @Nullable String incidentKey;
-    final @Nullable String client;
-    final @Nullable String clientUrl;
-    final @Nullable String account;
+    @Nullable final String incidentKey;
+    @Nullable final String client;
+    @Nullable final String clientUrl;
+    @Nullable final String account;
     final String eventType;
     final boolean attachPayload;
-    final @Nullable IncidentEventContext[] contexts;
+    @Nullable final IncidentEventContext[] contexts;
 
     public IncidentEvent(String description, @Nullable String eventType, @Nullable String incidentKey, @Nullable String client,
                          @Nullable String clientUrl, @Nullable String account, boolean attachPayload,

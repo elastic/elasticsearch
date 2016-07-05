@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -31,14 +31,14 @@ public class RestAuthenticateAction extends BaseRestHandler {
     private final SecurityContext securityContext;
 
     @Inject
-    public RestAuthenticateAction(Settings settings, RestController controller, Client client, SecurityContext securityContext) {
-        super(settings, client);
+    public RestAuthenticateAction(Settings settings, RestController controller, SecurityContext securityContext) {
+        super(settings);
         this.securityContext = securityContext;
         controller.registerHandler(GET, "/_xpack/security/_authenticate", this);
     }
 
     @Override
-    protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {
+    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         final User user = securityContext.getUser();
         assert user != null;
         final String username = user.runAs() == null ? user.principal() : user.runAs().principal();

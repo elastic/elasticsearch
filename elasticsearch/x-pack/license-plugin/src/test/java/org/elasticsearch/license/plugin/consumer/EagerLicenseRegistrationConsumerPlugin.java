@@ -16,7 +16,7 @@ import org.elasticsearch.common.settings.Settings;
  */
 public class EagerLicenseRegistrationConsumerPlugin extends TestConsumerPluginBase {
 
-    public final static String NAME = "test_consumer_plugin_1";
+    public static final String NAME = "test_consumer_plugin_1";
 
     @Inject
     public EagerLicenseRegistrationConsumerPlugin(Settings settings) {

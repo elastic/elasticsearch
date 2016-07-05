@@ -25,9 +25,9 @@ public class WatchExecutionResult implements ToXContent {
 
     private final DateTime executionTime;
     private final long executionDurationMs;
-    private final @Nullable Input.Result inputResult;
-    private final @Nullable Condition.Result conditionResult;
-    private final @Nullable Transform.Result transformResult;
+    @Nullable private final Input.Result inputResult;
+    @Nullable private final Condition.Result conditionResult;
+    @Nullable private final Transform.Result transformResult;
     private final ExecutableActions.Results actionsResults;
 
     public WatchExecutionResult(WatchExecutionContext context, long executionDurationMs) {
@@ -96,7 +96,6 @@ public class WatchExecutionResult implements ToXContent {
         ParseField INPUT = new ParseField("input");
         ParseField CONDITION = new ParseField("condition");
         ParseField ACTIONS = new ParseField("actions");
-
         ParseField TYPE = new ParseField("type");
     }
 }

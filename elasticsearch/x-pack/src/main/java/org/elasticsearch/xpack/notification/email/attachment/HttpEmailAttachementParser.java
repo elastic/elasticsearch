@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -98,7 +99,8 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
                 if (response.hasContent()) {
                     String contentType = attachment.getContentType();
                     String attachmentContentType = Strings.hasLength(contentType) ? contentType : response.contentType();
-                    return new Attachment.Bytes(attachment.id(), response.body().toBytes(), attachmentContentType, attachment.inline());
+                    return new Attachment.Bytes(attachment.id(), BytesReference.toBytes(response.body()), attachmentContentType,
+                            attachment.inline());
                 } else {
                     logger.error("Empty response body: [host[{}], port[{}], method[{}], path[{}]: response status [{}]", httpRequest.host(),
                             httpRequest.port(), httpRequest.method(), httpRequest.path(), response.status());

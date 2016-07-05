@@ -32,8 +32,8 @@ public class SearchTransform implements Transform {
     public static final String TYPE = "search";
 
     private final WatcherSearchTemplateRequest request;
-    private final @Nullable TimeValue timeout;
-    private final @Nullable DateTimeZone dynamicNameTimeZone;
+    @Nullable private final TimeValue timeout;
+    @Nullable private final DateTimeZone dynamicNameTimeZone;
 
     public SearchTransform(WatcherSearchTemplateRequest request, @Nullable TimeValue timeout, @Nullable DateTimeZone dynamicNameTimeZone) {
         this.request = request;
@@ -142,7 +142,7 @@ public class SearchTransform implements Transform {
 
     public static class Result extends Transform.Result {
 
-        private final @Nullable SearchRequest request;
+        @Nullable private final SearchRequest request;
 
         public Result(SearchRequest request, Payload payload) {
             super(TYPE, payload);

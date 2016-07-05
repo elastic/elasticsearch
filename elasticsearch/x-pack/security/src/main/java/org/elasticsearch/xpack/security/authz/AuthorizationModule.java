@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
@@ -24,6 +25,10 @@ public class AuthorizationModule extends AbstractSecurityModule.Node {
 
     @Override
     protected void configureNode() {
+        if (securityEnabled == false) {
+            bind(RolesStore.class).toProvider(Providers.of(null));
+            return;
+        }
 
         // First the file and native roles stores must be bound...
         bind(ReservedRolesStore.class).asEagerSingleton();

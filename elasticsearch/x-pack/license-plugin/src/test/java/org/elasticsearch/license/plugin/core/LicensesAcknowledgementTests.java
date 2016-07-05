@@ -122,7 +122,7 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
         }
 
         @Override
-        public void onFailure(Throwable throwable) {
+        public void onFailure(Exception throwable) {
         }
     }
 }

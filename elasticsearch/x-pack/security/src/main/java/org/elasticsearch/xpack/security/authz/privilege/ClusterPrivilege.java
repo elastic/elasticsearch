@@ -40,7 +40,7 @@ public class ClusterPrivilege extends AbstractAutomatonPrivilege<ClusterPrivileg
     public static final ClusterPrivilege TRANSPORT_CLIENT =      new ClusterPrivilege("transport_client",       TRANSPORT_CLIENT_AUTOMATON);
     public static final ClusterPrivilege MANAGE_SECURITY =       new ClusterPrivilege("manage_security",        MANAGE_SECURITY_AUTOMATON);
 
-    public final static Predicate<String> ACTION_MATCHER = ClusterPrivilege.ALL.predicate();
+    public static final Predicate<String> ACTION_MATCHER = ClusterPrivilege.ALL.predicate();
 
     private static final Set<ClusterPrivilege> values = new CopyOnWriteArraySet<>();
 

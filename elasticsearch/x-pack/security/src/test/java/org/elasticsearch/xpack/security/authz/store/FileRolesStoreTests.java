@@ -46,6 +46,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
 
 /**
  *
@@ -363,5 +364,30 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(messages.get(1).text, containsString("role [superuser] is reserved"));
         assertThat(messages.get(2).text, containsString("role [kibana] is reserved"));
         assertThat(messages.get(3).text, containsString("role [transport_client] is reserved"));
+    }
+
+    public void testUsageStats() throws Exception {
+        Path roles = getDataPath("roles.yml");
+        Path tmp = createTempFile();
+        try (OutputStream stream = Files.newOutputStream(tmp)) {
+            Files.copy(roles, stream);
+        }
+
+        final boolean flsDlsEnabled = randomBoolean();
+        Settings settings = Settings.builder()
+                .put("resource.reload.interval.high", "500ms")
+                .put(FileRolesStore.ROLES_FILE_SETTING.getKey(), tmp.toAbsolutePath())
+                .put("path.home", createTempDir())
+                .put(XPackPlugin.featureEnabledSetting(Security.DLS_FLS_FEATURE), flsDlsEnabled)
+                .build();
+        Environment env = new Environment(settings);
+        FileRolesStore store = new FileRolesStore(settings, env, mock(ResourceWatcherService.class));
+        store.start();
+
+        Map<String, Object> usageStats = store.usageStats();
+
+        assertThat(usageStats.get("size"), is(flsDlsEnabled ? 9 : 6));
+        assertThat(usageStats.get("fls"), is(flsDlsEnabled));
+        assertThat(usageStats.get("dls"), is(flsDlsEnabled));
     }
 }

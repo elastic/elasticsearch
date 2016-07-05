@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -31,8 +31,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestPutWatchAction extends WatcherRestHandler {
 
     @Inject
-    public RestPutWatchAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestPutWatchAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(POST, URI_BASE + "/watch/{id}", this);
         controller.registerHandler(PUT, URI_BASE + "/watch/{id}", this);
     }

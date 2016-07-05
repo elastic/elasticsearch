@@ -65,7 +65,7 @@ public class AnonymousUserTests extends ESTestCase {
         BytesStreamOutput output = new BytesStreamOutput();
         User.writeTo(user, output);
 
-        User anonymousSerialized = User.readFrom(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytes())));
+        User anonymousSerialized = User.readFrom(output.bytes().streamInput());
         assertThat(AnonymousUser.is(anonymousSerialized), is(true));
 
         // test with null anonymous

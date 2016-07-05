@@ -25,9 +25,8 @@ public class SlackAction implements Action {
 
     public static final String TYPE = "slack";
 
-    final
-    @Nullable
-    String account;
+    @Nullable final String account;
+
     final SlackMessage.Template message;
 
     public SlackAction(@Nullable String account, SlackMessage.Template message) {

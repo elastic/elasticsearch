@@ -37,9 +37,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.xpack.security.support.SecurityFiles.openAtomicMoveWriter;
 
-/**
- *
- */
 public class FileUserPasswdStore {
 
     private final ESLogger logger;
@@ -111,8 +108,8 @@ public class FileUserPasswdStore {
     static Map<String, char[]> parseFileLenient(Path path, ESLogger logger) {
         try {
             return parseFile(path, logger);
-        } catch (Throwable t) {
-            logger.error("failed to parse users file [{}]. skipping/removing all users...", t, path.toAbsolutePath());
+        } catch (Exception e) {
+            logger.error("failed to parse users file [{}]. skipping/removing all users...", e, path.toAbsolutePath());
             return emptyMap();
         }
     }

@@ -13,12 +13,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.watcher.input.Input;
-import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.support.validation.WatcherSettingsValidation;
 import org.elasticsearch.xpack.watcher.transform.Transform;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
@@ -37,8 +37,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 /**
  */
@@ -206,7 +204,7 @@ public class ExecutionService extends AbstractComponent {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 Throwable cause = ExceptionsHelper.unwrapCause(e);
                 if (cause instanceof EsRejectedExecutionException) {
                     logger.debug("failed to store watch records due to overloaded threadpool [{}]", ExceptionsHelper.detailedMessage(e));
@@ -264,32 +262,14 @@ public class ExecutionService extends AbstractComponent {
             } else {
                 logger.debug("executing watch [{}]", ctx.id().watchId());
 
-                try {
-                    record = executeInner(ctx);
-                } catch (Exception e) {
-                    logger.warn("failed to execute watch [{}]", e, ctx.id());
-                    record = ctx.abortFailedExecution(ExceptionsHelper.detailedMessage(e));
-                }
-
-                if (record != null && ctx.recordExecution()) {
-                    try {
-                        watchStore.updateStatus(ctx.watch());
-                    } catch (Exception e) {
-                        logger.warn("failed to update watch status [{}]", e, ctx.id());
-                        record = new WatchRecord(record, ExecutionState.FAILED, format("failed to update watch status [{}]...{}", ctx.id(),
-                                ExceptionsHelper.detailedMessage(e)));
-                    }
+                record = executeInner(ctx);
+                if (ctx.recordExecution()) {
+                    watchStore.updateStatus(ctx.watch());
                 }
             }
         } catch (Exception e) {
-            logger.warn("failed to execute watch [{}]", e, ctx.id());
-            if (record != null) {
-                record = new WatchRecord(record, ExecutionState.FAILED, format("failed to execute watch. {}",
-                        ExceptionsHelper.detailedMessage(e)));
-            } else {
-                record = ctx.abortFailedExecution(ExceptionsHelper.detailedMessage(e));
-            }
-
+            record = createWatchRecord(record, ctx, e);
+            logWatchRecord(ctx, e);
         } finally {
             if (ctx.knownWatch() && record != null && ctx.recordExecution()) {
                 try {
@@ -300,6 +280,7 @@ public class ExecutionService extends AbstractComponent {
                     }
                 } catch (Exception e) {
                     logger.error("failed to update watch record [{}]", e, ctx.id());
+                    // TODO log watch record in logger, when saving in history store failed, otherwise the info is gone!
                 }
             }
             try {
@@ -315,6 +296,28 @@ public class ExecutionService extends AbstractComponent {
             logger.trace("finished [{}]/[{}]", ctx.watch().id(), ctx.id());
         }
         return record;
+    }
+
+    private WatchRecord createWatchRecord(WatchRecord existingRecord, WatchExecutionContext ctx, Exception e) {
+        // it is possible that the watch store update failed, the execution phase is finished
+        if (ctx.executionPhase().sealed()) {
+            if (existingRecord == null) {
+                return new WatchRecord.ExceptionWatchRecord(ctx, e);
+            } else {
+                return new WatchRecord.ExceptionWatchRecord(existingRecord, e);
+            }
+        } else {
+            return ctx.abortFailedExecution(e);
+        }
+    }
+
+    private void logWatchRecord(WatchExecutionContext ctx, Exception e) {
+        // failed watches stack traces are only logged in debug, otherwise they should be checked out in the history
+        if (logger.isDebugEnabled()) {
+            logger.debug("failed to execute watch [{}]", e, ctx.id());
+        } else {
+            logger.warn("Failed to execute watch [{}]", ctx.id());
+        }
     }
 
     /*
@@ -398,7 +401,7 @@ public class ExecutionService extends AbstractComponent {
             if (watch == null) {
                 String message = "unable to find watch for record [" + triggeredWatch.id().watchId() + "]/[" + triggeredWatch.id() +
                         "], perhaps it has been deleted, ignoring...";
-                WatchRecord record = new WatchRecord(triggeredWatch.id(), triggeredWatch.triggerEvent(),
+                WatchRecord record = new WatchRecord.MessageWatchRecord(triggeredWatch.id(), triggeredWatch.triggerEvent(),
                         ExecutionState.NOT_EXECUTED_WATCH_MISSING, message);
                 historyStore.forcePut(record);
                 triggeredWatchStore.delete(triggeredWatch.id());
@@ -412,7 +415,7 @@ public class ExecutionService extends AbstractComponent {
         logger.debug("executed [{}] watches from the watch history", counter);
     }
 
-    private final static class StartupExecutionContext extends TriggeredExecutionContext {
+    private static final class StartupExecutionContext extends TriggeredExecutionContext {
 
         public StartupExecutionContext(Watch watch, DateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
             super(watch, executionTime, triggerEvent, defaultThrottlePeriod);

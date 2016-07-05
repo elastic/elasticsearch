@@ -29,12 +29,12 @@ import java.util.Map;
 public class HipChatMessage implements ToXContent {
 
     final String body;
-    final @Nullable String[] rooms;
-    final @Nullable String[] users;
-    final @Nullable String from;
-    final @Nullable Format format;
-    final @Nullable Color color;
-    final @Nullable Boolean notify;
+    @Nullable final String[] rooms;
+    @Nullable final String[] users;
+    @Nullable final String from;
+    @Nullable final Format format;
+    @Nullable final Color color;
+    @Nullable final Boolean notify;
 
     public HipChatMessage(String body, String[] rooms, String[] users, String from, Format format, Color color, Boolean notify) {
         this.body = body;
@@ -141,13 +141,13 @@ public class HipChatMessage implements ToXContent {
     public static class Template implements ToXContent {
 
         final TextTemplate body;
-        final @Nullable TextTemplate[] rooms;
-        final @Nullable TextTemplate[] users;
-        final @Nullable String from;
-        final @Nullable Format format;
-        final @Nullable
+        @Nullable final TextTemplate[] rooms;
+        @Nullable final TextTemplate[] users;
+        @Nullable final String from;
+        @Nullable final Format format;
+        @Nullable final
         TextTemplate color;
-        final @Nullable Boolean notify;
+        @Nullable final Boolean notify;
 
         public Template(TextTemplate body,
                         TextTemplate[] rooms,

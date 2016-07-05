@@ -84,7 +84,7 @@ public class HttpResponseTests extends ESTestCase {
         if (body == null) {
             assertThat(parsedResponse.body(), nullValue());
         } else {
-            assertThat(parsedResponse.body().toUtf8(), is(body));
+            assertThat(parsedResponse.body().utf8ToString(), is(body));
         }
         for (Map.Entry<String, String[]> headerEntry : headers.entrySet()) {
             assertThat(headerEntry.getValue(), arrayContaining(parsedResponse.header(headerEntry.getKey())));

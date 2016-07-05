@@ -28,9 +28,9 @@ import java.util.Objects;
 public class SentEvent implements ToXContent {
 
     final IncidentEvent event;
-    final @Nullable HttpRequest request;
-    final @Nullable HttpResponse response;
-    final @Nullable String failureReason;
+    @Nullable final HttpRequest request;
+    @Nullable final HttpResponse response;
+    @Nullable final String failureReason;
 
     public static SentEvent responded(IncidentEvent event, HttpRequest request, HttpResponse response) {
         String failureReason = resolveFailureReason(response);

@@ -156,7 +156,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
                     Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(bytes, true);
                     Map<String, Object> transformedSource = XContentMapValues.filter(result.v2(), fieldNames, null);
                     XContentBuilder xContentBuilder = XContentBuilder.builder(result.v1().xContent()).map(transformedSource);
-                    visitor.binaryField(fieldInfo, xContentBuilder.bytes().toBytes());
+                    visitor.binaryField(fieldInfo, BytesReference.toBytes(xContentBuilder.bytes()));
                 } else {
                     visitor.binaryField(fieldInfo, value);
                 }

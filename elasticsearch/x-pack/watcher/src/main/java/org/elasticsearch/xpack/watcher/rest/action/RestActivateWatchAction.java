@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -29,17 +29,17 @@ import org.elasticsearch.xpack.watcher.watch.Watch;
 public class RestActivateWatchAction extends WatcherRestHandler {
 
     @Inject
-    public RestActivateWatchAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestActivateWatchAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/{id}/_activate", this);
         controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/{id}/_activate", this);
-        DeactivateRestHandler deactivateRestHandler = new DeactivateRestHandler(settings, client);
+        DeactivateRestHandler deactivateRestHandler = new DeactivateRestHandler(settings);
         controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/{id}/_deactivate", deactivateRestHandler);
         controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/{id}/_deactivate", deactivateRestHandler);
     }
 
     @Override
-    protected void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
+    public void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
         String watchId = request.param("id");
         client.activateWatch(new ActivateWatchRequest(watchId, true), new RestBuilderListener<ActivateWatchResponse>(channel) {
             @Override
@@ -53,12 +53,12 @@ public class RestActivateWatchAction extends WatcherRestHandler {
 
     static class DeactivateRestHandler extends WatcherRestHandler {
 
-        public DeactivateRestHandler(Settings settings, Client client) {
-            super(settings, client);
+        public DeactivateRestHandler(Settings settings) {
+            super(settings);
         }
 
         @Override
-        protected void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
+        public void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
             String watchId = request.param("id");
             client.activateWatch(new ActivateWatchRequest(watchId, false), new RestBuilderListener<ActivateWatchResponse>(channel) {
                 @Override

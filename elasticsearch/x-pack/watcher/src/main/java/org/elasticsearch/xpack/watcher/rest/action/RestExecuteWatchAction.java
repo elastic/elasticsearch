@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.Inject;
@@ -42,8 +42,8 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
     final TriggerService triggerService;
 
     @Inject
-    public RestExecuteWatchAction(Settings settings, RestController controller, Client client, TriggerService triggerService) {
-        super(settings, client);
+    public RestExecuteWatchAction(Settings settings, RestController controller, TriggerService triggerService) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/{id}/_execute", this);
         controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/{id}/_execute", this);
         controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/_execute", this);

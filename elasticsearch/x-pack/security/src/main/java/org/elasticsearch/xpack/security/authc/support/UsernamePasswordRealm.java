@@ -31,7 +31,7 @@ public abstract class UsernamePasswordRealm extends Realm<UsernamePasswordToken>
         return token instanceof UsernamePasswordToken;
     }
 
-    public static abstract class Factory<R extends UsernamePasswordRealm> extends Realm.Factory<R> {
+    public abstract static class Factory<R extends UsernamePasswordRealm> extends Realm.Factory<R> {
 
         protected Factory(String type, RestController restController, boolean internal) {
             super(type, internal);

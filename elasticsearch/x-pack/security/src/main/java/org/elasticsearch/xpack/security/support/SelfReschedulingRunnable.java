@@ -49,8 +49,8 @@ public class SelfReschedulingRunnable extends AbstractRunnable {
     }
 
     @Override
-    public void onFailure(Throwable t) {
-        logger.warn("failed to run scheduled task", t);
+    public void onFailure(Exception e) {
+        logger.warn("failed to run scheduled task", e);
     }
 
     @Override

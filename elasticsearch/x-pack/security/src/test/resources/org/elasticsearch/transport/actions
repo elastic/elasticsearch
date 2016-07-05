@@ -79,6 +79,7 @@ cluster:monitor/xpack/usage
 cluster:monitor/xpack/license/get
 cluster:admin/xpack/license/delete
 cluster:admin/xpack/license/put
+cluster:admin/xpack/monitoring/bulk
 cluster:admin/xpack/security/realm/cache/clear
 cluster:admin/xpack/security/roles/cache/clear
 cluster:admin/xpack/security/user/authenticate

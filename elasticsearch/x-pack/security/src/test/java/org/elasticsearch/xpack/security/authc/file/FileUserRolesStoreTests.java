@@ -49,9 +49,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-/**
- *
- */
 public class FileUserRolesStoreTests extends ESTestCase {
     private Settings settings;
     private Environment env;
@@ -217,8 +214,8 @@ public class FileUserRolesStoreTests extends ESTestCase {
         try {
             FileUserRolesStore.parseFile(file, logger);
             fail("expected a parse failure");
-        } catch (Throwable t) {
-            this.logger.info("expected", t);
+        } catch (Exception e) {
+            this.logger.info("expected", e);
         }
     }
 

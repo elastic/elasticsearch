@@ -102,7 +102,7 @@ public class FairKeyedLock<T>  {
 
 
     @SuppressWarnings("serial")
-    private final static class KeyLock extends ReentrantLock {
+    private static final class KeyLock extends ReentrantLock {
         private final AtomicInteger count = new AtomicInteger(1);
 
         public KeyLock(boolean fair) {
@@ -118,7 +118,7 @@ public class FairKeyedLock<T>  {
      * A {@link FairKeyedLock} that allows to acquire a global lock that guarantees
      * exclusive access to the resource the KeyedLock is guarding.
      */
-    public final static class GlobalLockable<T> extends FairKeyedLock<T> {
+    public static final class GlobalLockable<T> extends FairKeyedLock<T> {
 
         private final ReadWriteLock lock = new ReentrantReadWriteLock(true);
 

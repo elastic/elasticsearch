@@ -12,7 +12,7 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.UserError;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.xpack.watcher.trigger.schedule.Cron;
 import org.joda.time.DateTime;
@@ -46,7 +46,7 @@ public class CronEvalTool extends Command {
         int count = Integer.parseInt(countOption.value(options));
         List<String> args = arguments.values(options);
         if (args.size() != 1) {
-            throw new UserError(ExitCodes.USAGE, "expecting a single argument that is the cron expression to evaluate");
+            throw new UserException(ExitCodes.USAGE, "expecting a single argument that is the cron expression to evaluate");
         }
         execute(terminal, args.get(0), count);
     }
@@ -65,7 +65,7 @@ public class CronEvalTool extends Command {
             long prevTime = time;
             time = cron.getNextValidTimeAfter(time);
             if (time < 0) {
-                throw new UserError(ExitCodes.OK, (i + 1) + ".\t Could not compute future times since ["
+                throw new UserException(ExitCodes.OK, (i + 1) + ".\t Could not compute future times since ["
                     + formatter.print(prevTime) + "] " + "(perhaps the cron expression only points to times in the past?)");
             }
             terminal.println((i+1) + ".\t" + formatter.print(time));

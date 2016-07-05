@@ -77,7 +77,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Registered listeners are notified using {@link #onUpdate(LicensesMetaData)}
  */
 @Singleton
-public class LicensesService extends AbstractLifecycleComponent<LicensesService> implements ClusterStateListener, LicensesManagerService,
+public class LicensesService extends AbstractLifecycleComponent implements ClusterStateListener, LicensesManagerService,
         LicenseeRegistry, SchedulerEngine.Listener {
 
     public static final String REGISTER_TRIAL_LICENSE_ACTION_NAME = "internal:plugin/license/cluster/register_trial_license";
@@ -404,8 +404,8 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             }
 
             @Override
-            public void onFailure(String source, @Nullable Throwable t) {
-                logger.error("unexpected failure during [{}]", t, source);
+            public void onFailure(String source, @Nullable Exception e) {
+                logger.error("unexpected failure during [{}]", e, source);
             }
 
         });

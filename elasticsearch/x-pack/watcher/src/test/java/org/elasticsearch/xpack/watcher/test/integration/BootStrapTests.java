@@ -375,7 +375,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
                     .setSource(jsonBuilder().value(triggeredWatch))
                     .get();
 
-            WatchRecord watchRecord = new WatchRecord(wid, event, ExecutionState.EXECUTED, "executed");
+            WatchRecord watchRecord = new WatchRecord.MessageWatchRecord(wid, event, ExecutionState.EXECUTED, "executed");
             client().prepareIndex(watchRecordIndex, HistoryStore.DOC_TYPE, watchRecord.id().value())
                     .setSource(jsonBuilder().value(watchRecord))
                     .get();

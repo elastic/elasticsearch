@@ -89,7 +89,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 throwableRef.set(e);
             }
         });
@@ -158,7 +158,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 throwableRef.set(e);
             }
         });
@@ -251,7 +251,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 throwableRef.set(e);
             }
         });
@@ -273,7 +273,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
     }
 
     public void testException() {
-        final Throwable t = randomFrom(new ElasticsearchSecurityException(""), new IllegalStateException());
+        final Exception e = randomFrom(new ElasticsearchSecurityException(""), new IllegalStateException());
         final List<RoleDescriptor> storeRoleDescriptors = randomRoleDescriptors();
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         SecurityContext context = mock(SecurityContext.class);
@@ -290,7 +290,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
                     Object[] args = invocation.getArguments();
                     assert args.length == 2;
                     ActionListener<RoleDescriptor> listener = (ActionListener<RoleDescriptor>) args[1];
-                    listener.onFailure(t);
+                    listener.onFailure(e);
                     return null;
                 }
             }).when(rolesStore).getRoleDescriptor(eq(request.names()[0]), any(ActionListener.class));
@@ -301,7 +301,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
                     Object[] args = invocation.getArguments();
                     assert args.length == 2;
                     ActionListener<List<RoleDescriptor>> listener = (ActionListener<List<RoleDescriptor>>) args[1];
-                    listener.onFailure(t);
+                    listener.onFailure(e);
                     return null;
                 }
             }).when(rolesStore).getRoleDescriptors(aryEq(request.names()), any(ActionListener.class));
@@ -316,13 +316,13 @@ public class TransportGetRolesActionTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 throwableRef.set(e);
             }
         });
 
         assertThat(throwableRef.get(), is(notNullValue()));
-        assertThat(throwableRef.get(), is(t));
+        assertThat(throwableRef.get(), is(e));
         assertThat(responseRef.get(), is(nullValue()));
     }
 

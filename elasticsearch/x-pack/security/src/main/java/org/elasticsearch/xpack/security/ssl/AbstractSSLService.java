@@ -123,8 +123,8 @@ public abstract class AbstractSSLService extends AbstractComponent {
             sslEngine.setEnabledCipherSuites(supportedCiphers(sslEngine.getSupportedCipherSuites(), ciphers, false));
         } catch (ElasticsearchException e) {
             throw e;
-        } catch (Throwable t) {
-            throw new IllegalArgumentException("failed loading cipher suites [" + Arrays.asList(ciphers) + "]", t);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("failed loading cipher suites [" + Arrays.asList(ciphers) + "]", e);
         }
 
         try {

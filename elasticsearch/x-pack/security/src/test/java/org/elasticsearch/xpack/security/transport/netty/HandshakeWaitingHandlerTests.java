@@ -192,13 +192,13 @@ public class HandshakeWaitingHandlerTests extends ESTestCase {
             try {
                 serverBootstrap.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), randomPort));
                 break;
-            } catch (Throwable t) {
-                if (t.getCause() instanceof BindException) {
+            } catch (Exception e) {
+                if (e.getCause() instanceof BindException) {
                     logger.error("Tried to bind to port [{}], going to retry", randomPort);
                     randomPort = randomIntBetween(49000, 65500);
                 }
                 if (tries >= maxTries) {
-                    throw new RuntimeException("Failed to start server bootstrap [" + tries + "] times, stopping", t);
+                    throw new RuntimeException("Failed to start server bootstrap [" + tries + "] times, stopping", e);
                 }
                 tries++;
             }

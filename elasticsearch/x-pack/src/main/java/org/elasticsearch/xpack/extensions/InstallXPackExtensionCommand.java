@@ -13,7 +13,7 @@ import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.SettingCommand;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.UserError;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -83,7 +83,7 @@ final class InstallXPackExtensionCommand extends SettingCommand {
         // TODO: in jopt-simple 5.0 we can enforce a min/max number of positional args
         List<String> args = arguments.values(options);
         if (args.size() != 1) {
-            throw new UserError(ExitCodes.USAGE, "Must supply a single extension id argument");
+            throw new UserException(ExitCodes.USAGE, "Must supply a single extension id argument");
         }
         String extensionURL = args.get(0);
         boolean isBatch = options.has(batchOption) || System.console() == null;
@@ -116,7 +116,7 @@ final class InstallXPackExtensionCommand extends SettingCommand {
         return zip;
     }
 
-    private Path unzip(Path zip, Path extensionDir) throws IOException, UserError {
+    private Path unzip(Path zip, Path extensionDir) throws IOException, UserException {
         // unzip extension to a staging temp dir
         Path target = Files.createTempDirectory(extensionDir, ".installing-");
         Files.createDirectories(target);
@@ -195,7 +195,7 @@ final class InstallXPackExtensionCommand extends SettingCommand {
             XPackExtensionInfo info = verify(terminal, tmpRoot, env, isBatch);
             final Path destination = resolveXPackExtensionsFile(env).resolve(info.getName());
             if (Files.exists(destination)) {
-                throw new UserError(ExitCodes.USAGE,
+                throw new UserException(ExitCodes.USAGE,
                         "extension directory " + destination.toAbsolutePath() +
                                 " already exists. To update the extension, uninstall it first using 'remove " +
                                 info.getName() + "' command");

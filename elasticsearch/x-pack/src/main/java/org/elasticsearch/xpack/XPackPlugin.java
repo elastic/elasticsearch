@@ -5,6 +5,14 @@
  */
 package org.elasticsearch.xpack;
 
+import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -21,11 +29,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.plugin.Licensing;
-import org.elasticsearch.marvel.Monitoring;
-import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.xpack.action.TransportXPackInfoAction;
@@ -39,6 +46,8 @@ import org.elasticsearch.xpack.common.text.TextTemplateModule;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.extensions.XPackExtensionsService;
 import org.elasticsearch.xpack.graph.Graph;
+import org.elasticsearch.xpack.monitoring.Monitoring;
+import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.notification.Notification;
 import org.elasticsearch.xpack.notification.email.Account;
 import org.elasticsearch.xpack.notification.email.support.BodyPartSource;
@@ -48,14 +57,6 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.AuthenticationModule;
 import org.elasticsearch.xpack.support.clock.ClockModule;
 import org.elasticsearch.xpack.watcher.Watcher;
-
-import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 
 public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
 
@@ -212,15 +213,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
     }
 
     public void onModule(NetworkModule module) {
-        if (!transportClientMode) {
-            module.registerRestHandler(RestXPackInfoAction.class);
-            module.registerRestHandler(RestXPackUsageAction.class);
-        }
-        licensing.onModule(module);
-        monitoring.onModule(module);
         security.onModule(module);
-        watcher.onModule(module);
-        graph.onModule(module);
     }
 
     @Override
@@ -245,6 +238,19 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
         filters.addAll(watcher.getActionFilters());
         filters.addAll(graph.getActionFilters());
         return filters;
+    }
+
+    @Override
+    public List<Class<? extends RestHandler>> getRestHandlers() {
+        List<Class<? extends RestHandler>> handlers = new ArrayList<>();
+        handlers.add(RestXPackInfoAction.class);
+        handlers.add(RestXPackUsageAction.class);
+        handlers.addAll(licensing.getRestHandlers());
+        handlers.addAll(monitoring.getRestHandlers());
+        handlers.addAll(security.getRestHandlers());
+        handlers.addAll(watcher.getRestHandlers());
+        handlers.addAll(graph.getRestHandlers());
+        return handlers;
     }
 
     public void onModule(AuthenticationModule module) {

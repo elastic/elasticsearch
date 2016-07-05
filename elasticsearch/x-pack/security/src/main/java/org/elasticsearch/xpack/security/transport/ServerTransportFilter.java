@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.transport;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.transport.TcpTransportChannel;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
@@ -16,7 +17,6 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.transport.DelegatingTransportChannel;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.netty.NettyTransportChannel;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.handler.ssl.SslHandler;
 
@@ -81,8 +81,9 @@ public interface ServerTransportFilter {
                 unwrappedChannel = ((DelegatingTransportChannel) unwrappedChannel).getChannel();
             }
 
-            if (extractClientCert && (unwrappedChannel instanceof NettyTransportChannel)) {
-                Channel channel = ((NettyTransportChannel) unwrappedChannel).getChannel();
+            if (extractClientCert && (unwrappedChannel instanceof TcpTransportChannel)
+                    && ((TcpTransportChannel) unwrappedChannel).getChannel() instanceof Channel) {
+                Channel channel = (Channel) ((TcpTransportChannel) unwrappedChannel).getChannel();
                 SslHandler sslHandler = channel.getPipeline().get(SslHandler.class);
                 assert sslHandler != null;
 

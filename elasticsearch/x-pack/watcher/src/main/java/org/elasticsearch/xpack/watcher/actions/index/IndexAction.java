@@ -28,9 +28,9 @@ public class IndexAction implements Action {
 
     final String index;
     final String docType;
-    final @Nullable String executionTimeField;
-    final @Nullable TimeValue timeout;
-    final @Nullable DateTimeZone dynamicNameTimeZone;
+    @Nullable final String executionTimeField;
+    @Nullable final TimeValue timeout;
+    @Nullable final DateTimeZone dynamicNameTimeZone;
 
     public IndexAction(String index, String docType, @Nullable String executionTimeField,
                        @Nullable TimeValue timeout, @Nullable DateTimeZone dynamicNameTimeZone) {

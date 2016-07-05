@@ -44,7 +44,7 @@ public class TransportDeleteRoleAction extends HandledTransportAction<DeleteRole
                 }
 
                 @Override
-                public void onFailure(Throwable t) {
+                public void onFailure(Exception t) {
                     listener.onFailure(t);
                 }
             });

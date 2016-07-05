@@ -13,14 +13,13 @@ import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
-import org.elasticsearch.marvel.Monitoring;
+import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -271,11 +270,10 @@ public class GraphTests extends ESSingleNodeTestCase {
         try {
             GraphExploreResponse response = grb.get();
             if (response.getShardFailures().length > 0) {
-                throw ((ShardSearchFailure) response.getShardFailures()[0]).getCause();
+                expectedError = response.getShardFailures()[0].getCause();
             }
-        } catch (Throwable rte) {
+        } catch (Exception rte) {
             expectedError = rte;
-
         }
         assertNotNull(expectedError);
         String message = expectedError.toString();

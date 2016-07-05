@@ -35,7 +35,7 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
 
     private final WatcherClientProxy client;
     private final WatcherSearchTemplateService searchTemplateService;
-    private final @Nullable TimeValue timeout;
+    @Nullable private final TimeValue timeout;
 
     public ExecutableSearchInput(SearchInput input, ESLogger logger, WatcherClientProxy client,
                                  WatcherSearchTemplateService searchTemplateService, @Nullable TimeValue defaultTimeout) {

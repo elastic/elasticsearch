@@ -19,8 +19,8 @@ import java.util.EnumSet;
 
 public class WatcherMetaData extends AbstractDiffable<MetaData.Custom> implements MetaData.Custom {
 
-    public final static String TYPE = "watcher";
-    public final static WatcherMetaData PROTO = new WatcherMetaData(false);
+    public static final String TYPE = "watcher";
+    public static final WatcherMetaData PROTO = new WatcherMetaData(false);
 
     private final boolean manuallyStopped;
 

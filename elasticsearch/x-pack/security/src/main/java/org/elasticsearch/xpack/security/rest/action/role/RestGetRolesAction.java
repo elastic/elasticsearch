@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action.role;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -28,14 +28,14 @@ import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 public class RestGetRolesAction extends BaseRestHandler {
 
     @Inject
-    public RestGetRolesAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestGetRolesAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.GET, "/_xpack/security/role/", this);
         controller.registerHandler(RestRequest.Method.GET, "/_xpack/security/role/{name}", this);
     }
 
     @Override
-    protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {
+    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         final String[] roles = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
         new SecurityClient(client).prepareGetRoles(roles).execute(new RestBuilderListener<GetRolesResponse>(channel) {
             @Override

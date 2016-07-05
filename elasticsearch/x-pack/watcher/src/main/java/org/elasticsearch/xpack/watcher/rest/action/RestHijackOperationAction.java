@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -26,10 +26,10 @@ public class RestHijackOperationAction extends WatcherRestHandler {
 
 
     @Inject
-    public RestHijackOperationAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestHijackOperationAction(Settings settings, RestController controller) {
+        super(settings);
         if (!settings.getAsBoolean(ALLOW_DIRECT_ACCESS_TO_WATCH_INDEX_SETTING, false)) {
-            WatcherRestHandler unsupportedHandler = new UnsupportedHandler(settings, client);
+            WatcherRestHandler unsupportedHandler = new UnsupportedHandler(settings);
             controller.registerHandler(RestRequest.Method.POST, WatchStore.INDEX + "/watch", this);
             controller.registerHandler(RestRequest.Method.POST, WatchStore.INDEX + "/watch/{id}", this);
             controller.registerHandler(RestRequest.Method.PUT, WatchStore.INDEX + "/watch/{id}", this);
@@ -46,7 +46,7 @@ public class RestHijackOperationAction extends WatcherRestHandler {
     }
 
     @Override
-    protected void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
+    public void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         jsonBuilder.startObject().field("error","This endpoint is not supported for " +
                 request.method().name() + " on " + WatchStore.INDEX + " index. Please use " +
@@ -58,12 +58,12 @@ public class RestHijackOperationAction extends WatcherRestHandler {
 
     public static class UnsupportedHandler extends WatcherRestHandler {
 
-        public UnsupportedHandler(Settings settings, Client client) {
-            super(settings, client);
+        public UnsupportedHandler(Settings settings) {
+            super(settings);
         }
 
         @Override
-        protected void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
+        public void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
             request.path();
             XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
             jsonBuilder.startObject().field("error","This endpoint is not supported for " +

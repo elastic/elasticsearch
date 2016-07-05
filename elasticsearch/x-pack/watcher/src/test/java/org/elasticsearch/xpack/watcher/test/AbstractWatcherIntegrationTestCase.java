@@ -22,7 +22,7 @@ import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.marvel.Monitoring;
+import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
 import org.elasticsearch.search.SearchHit;
@@ -594,7 +594,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         assertThat("watcher should only run on the elected master node, but it is running on [" + running + "] nodes", running, equalTo(1));
     }
 
-    public static class NoopEmailService extends AbstractLifecycleComponent<EmailService> implements EmailService {
+    public static class NoopEmailService extends AbstractLifecycleComponent implements EmailService {
 
         public NoopEmailService() {
             super(Settings.EMPTY);

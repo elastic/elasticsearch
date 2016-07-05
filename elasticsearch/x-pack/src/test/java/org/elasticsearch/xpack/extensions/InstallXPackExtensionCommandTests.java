@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.extensions;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cli.UserError;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -162,7 +162,7 @@ public class InstallXPackExtensionCommandTests extends ESTestCase {
     public void testExistingExtension() throws Exception {
         String extZip = createExtension("fake", createTempDir());
         installExtension(extZip, home);
-        UserError e = expectThrows(UserError.class, () -> installExtension(extZip, home));
+        UserException e = expectThrows(UserException.class, () -> installExtension(extZip, home));
         assertTrue(e.getMessage(), e.getMessage().contains("already exists"));
         assertInstallCleaned(env);
     }

@@ -48,7 +48,7 @@ public class TransportPutRoleAction extends HandledTransportAction<PutRoleReques
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
                 listener.onFailure(t);
             }
         });

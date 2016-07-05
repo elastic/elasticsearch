@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.transport.netty;
 
-import org.elasticsearch.common.netty.OpenChannelsHandler;
-
 import static org.mockito.Mockito.mock;
 
 /** Allows setting a mock into NettyTransport */

@@ -39,7 +39,7 @@ public class RestExecuteWatchActionTests extends ESTestCase {
                     ExecuteWatchRequestBuilder builder = new ExecuteWatchRequestBuilder(client);
                     when(watcherClient.prepareExecuteWatch()).thenReturn(builder);
 
-                    RestExecuteWatchAction restExecuteWatchAction = new RestExecuteWatchAction(Settings.EMPTY, restController, client,
+                    RestExecuteWatchAction restExecuteWatchAction = new RestExecuteWatchAction(Settings.EMPTY, restController,
                             triggerService);
                     restExecuteWatchAction.handleRequest(createFakeRestRequest(randomId, recordExecution, ignoreCondition,
                             debugCondition), restChannel, watcherClient);

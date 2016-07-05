@@ -95,8 +95,8 @@ public class DnRoleMapper {
     public static Map<DN, Set<String>> parseFileLenient(Path path, ESLogger logger, String realmType, String realmName) {
         try {
             return parseFile(path, logger, realmType, realmName);
-        } catch (Throwable t) {
-            logger.error("failed to parse role mappings file [{}]. skipping/removing all mappings...", t, path.toAbsolutePath());
+        } catch (Exception e) {
+            logger.error("failed to parse role mappings file [{}]. skipping/removing all mappings...", e, path.toAbsolutePath());
             return emptyMap();
         }
     }

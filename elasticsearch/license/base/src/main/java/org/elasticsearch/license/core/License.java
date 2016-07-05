@@ -29,9 +29,9 @@ import java.util.Locale;
  * Provides serialization/deserialization &amp; validation methods for license object
  */
 public class License implements ToXContent {
-    public final static int VERSION_START = 1;
-    public final static int VERSION_NO_FEATURE_TYPE = 2;
-    public final static int VERSION_CURRENT = VERSION_NO_FEATURE_TYPE;
+    public static final int VERSION_START = 1;
+    public static final int VERSION_NO_FEATURE_TYPE = 2;
+    public static final int VERSION_CURRENT = VERSION_NO_FEATURE_TYPE;
 
     /**
      * XContent param name to deserialize license(s) with
@@ -51,7 +51,7 @@ public class License implements ToXContent {
      */
     public static final String LICENSE_VERSION_MODE = "license_version";
 
-    public final static Comparator<License> LATEST_ISSUE_DATE_FIRST = new Comparator<License>() {
+    public static final Comparator<License> LATEST_ISSUE_DATE_FIRST = new Comparator<License>() {
         @Override
         public int compare(License right, License left) {
             return Long.compare(left.issueDate(), right.issueDate());
@@ -506,7 +506,7 @@ public class License implements ToXContent {
         return result;
     }
 
-    public final static class Fields {
+    public static final class Fields {
         public static final String STATUS = "status";
         public static final String UID = "uid";
         public static final String TYPE = "type";

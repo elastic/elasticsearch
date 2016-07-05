@@ -1,11 +1,32 @@
 ---
-"Test put role api using as array of index names":
+setup:
   - skip:
       features: headers
-
   - do:
       cluster.health:
-          wait_for_status: yellow
+        wait_for_status: yellow
+
+---
+teardown:
+  - do:
+      xpack.security.delete_role:
+        name: "admin_role2"
+        ignore: 404
+
+  - do:
+      xpack.security.delete_user:
+        username: "joe"
+        ignore: 404
+
+  - do:
+      delete:
+        index: foo
+        type: doc
+        id: 1
+        ignore: 404
+
+---
+"Test put role api using as array of index names":
 
   - do:
       xpack.security.put_role:
@@ -50,7 +71,6 @@
   - match: { _index: foo }
   - match: { _type: doc }
   - match: { _id: "1"}
-  - match: { _version: 1}
   - match: { _source: { foo: bar }}
 
 # test that the role works on the cluster level

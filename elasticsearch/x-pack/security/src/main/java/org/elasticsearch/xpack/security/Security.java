@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.action.SecurityActionModule;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
@@ -140,8 +141,12 @@ public class Security implements ActionPlugin {
         }
 
         modules.add(new AuthenticationModule(settings));
+        modules.add(new AuthorizationModule(settings));
         if (enabled == false) {
             modules.add(new SecurityModule(settings, securityLicenseState));
+            modules.add(new CryptoModule(settings));
+            modules.add(new AuditTrailModule(settings));
+            modules.add(new SecurityTransportModule(settings));
             return modules;
         }
 
@@ -151,7 +156,6 @@ public class Security implements ActionPlugin {
         securityLicenseState = new SecurityLicenseState();
         modules.add(new SecurityModule(settings, securityLicenseState));
         modules.add(new CryptoModule(settings));
-        modules.add(new AuthorizationModule(settings));
         modules.add(new AuditTrailModule(settings));
         modules.add(new SecurityRestModule(settings));
         modules.add(new SecurityActionModule(settings));
@@ -308,6 +312,23 @@ public class Security implements ActionPlugin {
         return emptyList();
     }
 
+    @Override
+    public List<Class<? extends RestHandler>> getRestHandlers() {
+        if (enabled == false) {
+            return emptyList();
+        }
+        return Arrays.asList(RestAuthenticateAction.class,
+                RestClearRealmCacheAction.class,
+                RestClearRolesCacheAction.class,
+                RestGetUsersAction.class,
+                RestPutUserAction.class,
+                RestDeleteUserAction.class,
+                RestGetRolesAction.class,
+                RestPutRoleAction.class,
+                RestDeleteRoleAction.class,
+                RestChangePasswordAction.class);
+    }
+
     public void onModule(NetworkModule module) {
 
         if (transportClientMode) {
@@ -321,16 +342,6 @@ public class Security implements ActionPlugin {
         if (enabled) {
             module.registerTransport(Security.NAME, SecurityNettyTransport.class);
             module.registerTransportService(Security.NAME, SecurityServerTransportService.class);
-            module.registerRestHandler(RestAuthenticateAction.class);
-            module.registerRestHandler(RestClearRealmCacheAction.class);
-            module.registerRestHandler(RestClearRolesCacheAction.class);
-            module.registerRestHandler(RestGetUsersAction.class);
-            module.registerRestHandler(RestPutUserAction.class);
-            module.registerRestHandler(RestDeleteUserAction.class);
-            module.registerRestHandler(RestGetRolesAction.class);
-            module.registerRestHandler(RestPutRoleAction.class);
-            module.registerRestHandler(RestDeleteRoleAction.class);
-            module.registerRestHandler(RestChangePasswordAction.class);
             module.registerHttpTransport(Security.NAME, SecurityNettyHttpServerTransport.class);
         }
     }

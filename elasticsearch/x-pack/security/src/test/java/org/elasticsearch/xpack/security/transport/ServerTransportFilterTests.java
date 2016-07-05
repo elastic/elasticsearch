@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.transport;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
@@ -15,7 +16,6 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportSettings;
-import org.elasticsearch.transport.netty.NettyTransportChannel;
 import org.junit.Before;
 
 import static org.elasticsearch.xpack.security.support.Exceptions.authenticationError;
@@ -34,13 +34,13 @@ public class ServerTransportFilterTests extends ESTestCase {
     private AuthenticationService authcService;
     private AuthorizationService authzService;
     private ServerTransportFilter filter;
-    private NettyTransportChannel channel;
+    private TransportChannel channel;
 
     @Before
     public void init() throws Exception {
         authcService = mock(AuthenticationService.class);
         authzService = mock(AuthorizationService.class);
-        channel = mock(NettyTransportChannel.class);
+        channel = mock(TransportChannel.class);
         when(channel.getProfileName()).thenReturn(TransportSettings.DEFAULT_PROFILE);
         filter = new ServerTransportFilter.NodeProfile(authcService, authzService, new SecurityActionMapper(),
                 new ThreadContext(Settings.EMPTY), false);

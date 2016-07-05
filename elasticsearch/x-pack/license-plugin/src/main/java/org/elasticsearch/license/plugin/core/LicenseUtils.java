@@ -10,7 +10,7 @@ import org.elasticsearch.rest.RestStatus;
 
 public class LicenseUtils {
 
-    public final static String EXPIRED_FEATURE_HEADER = "es.license.expired.feature";
+    public static final String EXPIRED_FEATURE_HEADER = "es.license.expired.feature";
 
     /**
      * Exception to be thrown when a feature action requires a valid license, but license
@@ -21,7 +21,7 @@ public class LicenseUtils {
      */
     public static ElasticsearchSecurityException newComplianceException(String feature) {
         ElasticsearchSecurityException e = new ElasticsearchSecurityException("current license is non-compliant for [{}]",
-                RestStatus.UNAUTHORIZED, feature);
+                RestStatus.FORBIDDEN, feature);
         e.addHeader(EXPIRED_FEATURE_HEADER, feature);
         return e;
     }

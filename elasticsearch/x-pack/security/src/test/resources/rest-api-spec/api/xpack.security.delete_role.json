@@ -1,6 +1,6 @@
 {
   "xpack.security.delete_role": {
-    "documentation": "Remove a role from the native realm",
+    "documentation": "https://www.elastic.co/guide/en/x-pack/master/security-api-roles.html#security-api-delete-role",
     "methods": [ "DELETE" ],
     "url": {
       "path": "/_xpack/security/role/{name}",

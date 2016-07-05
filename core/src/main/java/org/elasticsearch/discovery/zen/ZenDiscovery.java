@@ -40,6 +40,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
@@ -112,6 +113,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     public static final String DISCOVERY_REJOIN_ACTION_NAME = "internal:discovery/zen/rejoin";
 
     private final TransportService transportService;
+    private final NamedWriteableRegistry namedWriteableRegistry;
     private final ClusterService clusterService;
     private AllocationService allocationService;
     private final ClusterName clusterName;
@@ -152,11 +154,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     @Inject
     public ZenDiscovery(Settings settings, ThreadPool threadPool,
                         TransportService transportService, final ClusterService clusterService, ClusterSettings clusterSettings,
-                        ZenPingService pingService, ElectMasterService electMasterService) {
+                        NamedWriteableRegistry namedWriteableRegistry, ZenPingService pingService, ElectMasterService electMasterService) {
         super(settings);
         this.clusterService = clusterService;
         this.clusterName = clusterService.getClusterName();
         this.transportService = transportService;
+        this.namedWriteableRegistry = namedWriteableRegistry;
         this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
         this.pingService = pingService;
         this.electMaster = electMasterService;
@@ -192,6 +195,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 new PublishClusterStateAction(
                         settings,
                         transportService,
+                        namedWriteableRegistry,
                         clusterService::state,
                         new NewPendingClusterStateListener(),
                         discoverySettings,

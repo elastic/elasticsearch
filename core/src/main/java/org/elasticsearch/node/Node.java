@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cockroach.CockroachService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -405,6 +406,7 @@ public class Node implements Closeable {
         TransportService transportService = injector.getInstance(TransportService.class);
         transportService.getTaskManager().setTaskResultsService(injector.getInstance(TaskPersistenceService.class));
         transportService.start();
+        injector.getInstance(CockroachService.class).start();
 
         validateNodeBeforeAcceptingRequests(settings, transportService.boundAddress());
 
@@ -504,6 +506,7 @@ public class Node implements Closeable {
         injector.getInstance(SearchService.class).stop();
         injector.getInstance(RestController.class).stop();
         injector.getInstance(TransportService.class).stop();
+        injector.getInstance(CockroachService.class).stop();
 
         for (Class<? extends LifecycleComponent> plugin : pluginsService.nodeServices()) {
             injector.getInstance(plugin).stop();
@@ -568,6 +571,8 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(SearchService.class));
         toClose.add(() -> stopWatch.stop().start("rest"));
         toClose.add(injector.getInstance(RestController.class));
+        toClose.add(() -> stopWatch.stop().start("cockroach"));
+        toClose.add(injector.getInstance(CockroachService.class));
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
 

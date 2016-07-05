@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cockroach.CockroachTasksInProgress;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -128,6 +129,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         // register non plugin custom parts
         registerPrototype(SnapshotsInProgress.TYPE, SnapshotsInProgress.PROTO);
         registerPrototype(RestoreInProgress.TYPE, RestoreInProgress.PROTO);
+        registerPrototype(CockroachTasksInProgress.TYPE, CockroachTasksInProgress.PROTO);
     }
 
     @Nullable

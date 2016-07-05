@@ -293,8 +293,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
     private Task startBlockingTestNodesAction(CountDownLatch checkLatch, NodesRequest request, ActionListener<NodesResponse> listener)
             throws InterruptedException {
-        CountDownLatch actionLatch = new CountDownLatch(nodesCount);
-        TestNodesAction[] actions = new TestNodesAction[nodesCount];
+        CountDownLatch actionLatch = new CountDownLatch(testNodes.length);
+        TestNodesAction[] actions = new TestNodesAction[testNodes.length];
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
             actions[i] = new TestNodesAction(CLUSTER_SETTINGS, "testAction", threadPool, testNodes[i].clusterService,
@@ -578,7 +578,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         Settings settings = Settings.builder().put(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.getKey(), true).build();
         setupTestNodes(settings);
         connectNodes(testNodes);
-        TestNodesAction[] actions = new TestNodesAction[nodesCount];
+        TestNodesAction[] actions = new TestNodesAction[testNodes.length];
         RecordingTaskManagerListener[] listeners = setupListeners(testNodes, "testAction*");
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
@@ -597,7 +597,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
         NodesRequest request = new NodesRequest("Test Request");
         NodesResponse responses = actions[0].execute(request).get();
-        assertEquals(nodesCount, responses.failureCount());
+        assertEquals(testNodes.length, responses.failureCount());
 
         // Make sure that actions are still registered in the task manager on all nodes
         // Twice on the coordinating node and once on all other nodes.
@@ -617,8 +617,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         CountDownLatch checkLatch = new CountDownLatch(1);
         ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch);
 
-        TestTasksAction[] tasksActions = new TestTasksAction[nodesCount];
-        final int failTaskOnNode = randomIntBetween(1, nodesCount - 1);
+        TestTasksAction[] tasksActions = new TestTasksAction[testNodes.length];
+        final int failTaskOnNode = randomIntBetween(1, testNodes.length - 1);
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
             // Simulate task action that fails on one of the tasks on one of the nodes
@@ -675,7 +675,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         Set<String> filterNodes = new HashSet<>(randomSubsetOf(filterNodesSize, allNodes));
         logger.info("Filtering out nodes {} size: {}", filterNodes, filterNodesSize);
 
-        TestTasksAction[] tasksActions = new TestTasksAction[nodesCount];
+        TestTasksAction[] tasksActions = new TestTasksAction[testNodes.length];
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
             // Simulate a task action that works on all nodes except nodes listed in filterNodes.
@@ -706,7 +706,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         // should be successful on all nodes except nodes that we filtered out
         TestTasksRequest testTasksRequest = new TestTasksRequest();
         testTasksRequest.setActions("testAction[n]"); // pick all test actions
-        TestTasksResponse response = tasksActions[randomIntBetween(0, nodesCount - 1)].execute(testTasksRequest).get();
+        TestTasksResponse response = tasksActions[randomIntBetween(0, testNodes.length - 1)].execute(testTasksRequest).get();
 
         // Get successful responses from all nodes except nodes that we filtered out
         assertEquals(testNodes.length - filterNodes.size(), response.tasks.size());

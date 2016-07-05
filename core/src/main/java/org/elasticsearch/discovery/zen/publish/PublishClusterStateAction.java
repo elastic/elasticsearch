@@ -33,6 +33,8 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -82,6 +84,7 @@ public class PublishClusterStateAction extends AbstractComponent {
     }
 
     private final TransportService transportService;
+    private final NamedWriteableRegistry namedWriteableRegistry;
     private final Supplier<ClusterState> clusterStateSupplier;
     private final NewPendingClusterStateListener newPendingClusterStatelistener;
     private final DiscoverySettings discoverySettings;
@@ -91,6 +94,7 @@ public class PublishClusterStateAction extends AbstractComponent {
     public PublishClusterStateAction(
             Settings settings,
             TransportService transportService,
+            NamedWriteableRegistry namedWriteableRegistry,
             Supplier<ClusterState> clusterStateSupplier,
             NewPendingClusterStateListener listener,
             DiscoverySettings discoverySettings,
@@ -98,6 +102,7 @@ public class PublishClusterStateAction extends AbstractComponent {
         super(settings);
         this.transportService = transportService;
         this.clusterStateSupplier = clusterStateSupplier;
+        this.namedWriteableRegistry = namedWriteableRegistry;
         this.newPendingClusterStatelistener = listener;
         this.discoverySettings = discoverySettings;
         this.clusterName = clusterName;
@@ -364,6 +369,8 @@ public class PublishClusterStateAction extends AbstractComponent {
         } else {
             in = request.bytes().streamInput();
         }
+        in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
+
         in.setVersion(request.version());
         synchronized (lastSeenClusterStateMutex) {
             final ClusterState incomingState;

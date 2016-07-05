@@ -30,6 +30,8 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommandRegistry;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cockroach.CockroachActionExecutor;
+import org.elasticsearch.cockroach.CockroachActionResponseProcessor;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.util.Providers;
@@ -94,6 +96,8 @@ public class NetworkModule extends AbstractModule {
         registerTransport(NETTY_TRANSPORT, NettyTransport.class);
         registerTaskStatus(ReplicationTask.Status.NAME, ReplicationTask.Status::new);
         registerTaskStatus(RawTaskStatus.NAME, RawTaskStatus::new);
+        registerTaskStatus(CockroachActionResponseProcessor.Status.NAME, CockroachActionResponseProcessor.Status::new);
+        registerTaskStatus(CockroachActionExecutor.Status.NAME, CockroachActionResponseProcessor.Status::new);
         registerBuiltinAllocationCommands();
 
         if (transportClient == false) {

@@ -36,6 +36,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -245,9 +246,11 @@ public class PublishClusterStateActionTests extends ESTestCase {
     ) {
         DiscoverySettings discoverySettings =
                 new DiscoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         return new MockPublishAction(
                 settings,
                 transportService,
+                namedWriteableRegistry,
                 clusterStateSupplier,
                 listener,
                 discoverySettings,
@@ -852,8 +855,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
         AtomicBoolean timeoutOnCommit = new AtomicBoolean();
         AtomicBoolean errorOnCommit = new AtomicBoolean();
 
-        public MockPublishAction(Settings settings, TransportService transportService, Supplier<ClusterState> clusterStateSupplier, NewPendingClusterStateListener listener, DiscoverySettings discoverySettings, ClusterName clusterName) {
-            super(settings, transportService, clusterStateSupplier, listener, discoverySettings, clusterName);
+        public MockPublishAction(Settings settings, TransportService transportService, NamedWriteableRegistry namedWriteableRegistry, Supplier<ClusterState> clusterStateSupplier, NewPendingClusterStateListener listener, DiscoverySettings discoverySettings, ClusterName clusterName) {
+            super(settings, transportService, namedWriteableRegistry, clusterStateSupplier, listener, discoverySettings, clusterName);
         }
 
         @Override

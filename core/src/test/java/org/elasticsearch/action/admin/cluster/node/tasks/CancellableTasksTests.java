@@ -196,8 +196,8 @@ public class CancellableTasksTests extends TaskManagerTestCase {
 
     private Task startCancellableTestNodesAction(boolean waitForActionToStart, Collection<TestNode> blockOnNodes, CancellableNodesRequest
         request, ActionListener<NodesResponse> listener) throws InterruptedException {
-        CountDownLatch actionLatch = waitForActionToStart ? new CountDownLatch(nodesCount) : null;
-        CancellableTestNodesAction[] actions = new CancellableTestNodesAction[nodesCount];
+        CountDownLatch actionLatch = waitForActionToStart ? new CountDownLatch(testNodes.length) : null;
+        CancellableTestNodesAction[] actions = new CancellableTestNodesAction[testNodes.length];
         for (int i = 0; i < testNodes.length; i++) {
             boolean shouldBlock = blockOnNodes.contains(testNodes[i]);
             logger.info("The action in the node [{}] should block: [{}]", testNodes[i].discoveryNode.getId(), shouldBlock);
@@ -220,8 +220,8 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         boolean waitForActionToStart = randomBoolean();
         logger.info("waitForActionToStart is set to {}", waitForActionToStart);
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
-        final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
-        int blockedNodesCount = randomIntBetween(0, nodesCount);
+        final AtomicReference<Exception> exceptionReference = new AtomicReference<>();
+        int blockedNodesCount = randomIntBetween(0, testNodes.length);
         Task mainTask = startCancellableTestNodesAction(waitForActionToStart, blockedNodesCount, new ActionListener<NodesResponse>() {
             @Override
             public void onResponse(NodesResponse listTasksResponse) {
@@ -231,7 +231,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                throwableReference.set(e);
+                exceptionReference.set(e);
                 responseLatch.countDown();
             }
         });
@@ -252,14 +252,14 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             // That should be rare and can be only in case we didn't block on a single node
             assertEquals(0, blockedNodesCount);
             // Make sure that the request was successful
-            assertNull(throwableReference.get());
+            assertNull(exceptionReference.get());
             assertNotNull(responseReference.get());
-            assertEquals(nodesCount, responseReference.get().getNodes().size());
+            assertEquals(testNodes.length, responseReference.get().getNodes().size());
             assertEquals(0, responseReference.get().failureCount());
         } else {
             // We canceled the request, in this case it should have fail, but we should get partial response
-            assertNull(throwableReference.get());
-            assertEquals(nodesCount, responseReference.get().failureCount() + responseReference.get().getNodes().size());
+            assertNull(exceptionReference.get());
+            assertEquals(testNodes.length, responseReference.get().failureCount() + responseReference.get().getNodes().size());
             // and we should have at least as many failures as the number of blocked operations
             // (we might have cancelled some non-blocked operations before they even started and that's ok)
             assertThat(responseReference.get().failureCount(), greaterThanOrEqualTo(blockedNodesCount));
@@ -294,11 +294,11 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         CountDownLatch responseLatch = new CountDownLatch(1);
         boolean simulateBanBeforeLeaving = randomBoolean();
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
-        final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
-        int blockedNodesCount = randomIntBetween(0, nodesCount - 1);
+        final AtomicReference<Exception> exceptionReference = new AtomicReference<>();
+        int blockedNodesCount = randomIntBetween(0, testNodes.length - 1);
 
         // We shouldn't block on the first node since it's leaving the cluster anyway so it doesn't matter
-        List<TestNode> blockOnNodes = randomSubsetOf(blockedNodesCount, Arrays.copyOfRange(testNodes, 1, nodesCount));
+        List<TestNode> blockOnNodes = randomSubsetOf(blockedNodesCount, Arrays.copyOfRange(testNodes, 1, testNodes.length));
         Task mainTask = startCancellableTestNodesAction(true, blockOnNodes, new CancellableNodesRequest("Test Request"), new
             ActionListener<NodesResponse>() {
             @Override
@@ -309,7 +309,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                throwableReference.set(e);
+                exceptionReference.set(e);
                 responseLatch.countDown();
             }
         });
@@ -342,9 +342,6 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             CancelTasksResponse response = testNodes[0].transportCancelTasksAction.execute(request).get();
             logger.info("--> Done simulating issuing cancel request on the node that is about to leave the cluster");
             // This node still thinks that's part of the cluster, so cancelling should look successful
-            if (response.getTasks().size() == 0) {
-                logger.error("!!!!");
-            }
             assertThat(response.getTasks().size(), lessThanOrEqualTo(1));
             assertThat(response.getTaskFailures().size(), lessThanOrEqualTo(1));
             assertThat(response.getTaskFailures().size() + response.getTasks().size(), lessThanOrEqualTo(1));

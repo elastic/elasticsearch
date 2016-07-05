@@ -96,7 +96,7 @@ public final class CompositeBytesReference extends BytesReference {
         return new CompositeBytesReference(inSlice);
     }
 
-    private final int getOffsetIndex(int offset) {
+    private int getOffsetIndex(int offset) {
         final int i = Arrays.binarySearch(offsets, offset);
         return i < 0 ? (-(i + 1)) - 1 : i;
     }

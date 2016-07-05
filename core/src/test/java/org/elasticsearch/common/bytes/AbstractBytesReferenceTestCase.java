@@ -53,7 +53,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         for (int i = 0; i < probes; i++) {
             int index = randomIntBetween(0, copy.length() - 1);
             assertEquals(pbr.get(index), copy.get(index));
-            index = randomIntBetween(sliceOffset, sliceOffset + sliceLength);
+            index = randomIntBetween(sliceOffset, sliceOffset + sliceLength - 1);
             assertEquals(pbr.get(index), slice.get(index - sliceOffset));
         }
     }

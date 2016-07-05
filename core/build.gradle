@@ -75,7 +75,7 @@ dependencies {
   compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
 
   // network stack
-  compile 'io.netty:netty:3.10.5.Final'
+  compile 'io.netty:netty:3.10.6.Final'
   // percentiles aggregation
   compile 'com.tdunning:t-digest:3.0'
   // precentil ranks aggregation

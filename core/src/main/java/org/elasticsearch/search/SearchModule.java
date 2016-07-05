@@ -563,7 +563,12 @@ public class SearchModule extends AbstractModule {
                         .addResultReader(UnmappedSampler.NAME, UnmappedSampler::new));
         registerAggregation(DiversifiedAggregationBuilder::new, new DiversifiedSamplerParser(),
                 DiversifiedAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(TermsAggregationBuilder::new, new TermsParser(), TermsAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(
+                new AggregationSpec(TermsAggregationBuilder::new, new TermsParser(), TermsAggregationBuilder.AGGREGATION_NAME_FIELD)
+                    .addResultReader(StringTerms.NAME, StringTerms::new)
+                    .addResultReader(UnmappedTerms.NAME, UnmappedTerms::new)
+                    .addResultReader(LongTerms.NAME, LongTerms::new)
+                    .addResultReader(DoubleTerms.NAME, DoubleTerms::new));
         registerAggregation(SignificantTermsAggregationBuilder::new,
                 new SignificantTermsParser(significanceHeuristicParserRegistry, queryParserRegistry),
                 SignificantTermsAggregationBuilder.AGGREGATION_NAME_FIELD);
@@ -770,14 +775,10 @@ public class SearchModule extends AbstractModule {
 
     static {
         // buckets
-        StringTerms.registerStreams();
-        LongTerms.registerStreams();
         SignificantStringTerms.registerStreams();
         SignificantLongTerms.registerStreams();
         UnmappedSignificantTerms.registerStreams();
         InternalGeoHashGrid.registerStreams();
-        DoubleTerms.registerStreams();
-        UnmappedTerms.registerStreams();
         InternalRange.registerStream();
         InternalDateRange.registerStream();
         InternalBinaryRange.registerStream();

@@ -48,6 +48,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -619,6 +620,32 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("" + (double) i);
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (double) i));
+            assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
+            assertThat(bucket.getDocCount(), equalTo(1L));
+        }
+    }
+
+    public void testPartiallyUnmappedWithFormat() throws Exception {
+        SearchResponse response = client().prepareSearch("idx_unmapped", "idx").setTypes("type")
+                .addAggregation(terms("terms")
+                        .field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .format("0000.00"))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(5));
+
+        for (int i = 0; i < 5; i++) {
+            String key = String.format(Locale.ROOT, "%07.2f", (double) i);
+            Terms.Bucket bucket = terms.getBucketByKey(key);
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo(key));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1L));
         }

@@ -41,7 +41,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -156,7 +155,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.getShardSize());
         }
         long otherDocCount = 0;
-        BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
+        BucketPriorityQueue<OrdBucket> ordered = new BucketPriorityQueue<>(size, order.comparator(this));
         OrdBucket spare = new OrdBucket(-1, 0, null, showTermDocCountError, 0);
         for (long globalTermOrd = 0; globalTermOrd < globalOrds.getValueCount(); ++globalTermOrd) {
             if (includeExclude != null && !acceptedGlobalOrdinals.get(globalTermOrd)) {
@@ -172,7 +171,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             spare.bucketOrd = bucketOrd;
             spare.docCount = bucketDocCount;
             if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
-                spare = (OrdBucket) ordered.insertWithOverflow(spare);
+                spare = ordered.insertWithOverflow(spare);
                 if (spare == null) {
                     spare = new OrdBucket(-1, 0, null, showTermDocCountError, 0);
                 }
@@ -180,7 +179,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         // Get the top buckets
-        final InternalTerms.Bucket[] list = new InternalTerms.Bucket[ordered.size()];
+        final StringTerms.Bucket[] list = new StringTerms.Bucket[ordered.size()];
         long survivingBucketOrds[] = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
             final OrdBucket bucket = (OrdBucket) ordered.pop();
@@ -196,20 +195,20 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         //Now build the aggs
         for (int i = 0; i < list.length; i++) {
-            Bucket bucket = list[i];
+            StringTerms.Bucket bucket = list[i];
             bucket.aggregations = bucket.docCount == 0 ? bucketEmptyAggregations() : bucketAggregations(bucket.bucketOrd);
             bucket.docCountError = 0;
         }
 
-        return new StringTerms(name, order, format, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(),
-                bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError, 0, otherDocCount, pipelineAggregators(),
-                metaData());
+        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
+                pipelineAggregators(), metaData(), format, bucketCountThresholds.getShardSize(), showTermDocCountError,
+                otherDocCount, Arrays.asList(list), 0);
     }
 
     /**
      * This is used internally only, just for compare using global ordinal instead of term bytes in the PQ
      */
-    static class OrdBucket extends InternalTerms.Bucket {
+    static class OrdBucket extends InternalTerms.Bucket<OrdBucket> {
         long globalOrd;
 
         OrdBucket(long globalOrd, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError) {
@@ -233,7 +232,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        Bucket newBucket(long docCount, InternalAggregations aggs, long docCountError) {
+        OrdBucket newBucket(long docCount, InternalAggregations aggs, long docCountError) {
             throw new UnsupportedOperationException();
         }
 
@@ -248,7 +247,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        protected void writeTermTo(StreamOutput out) throws IOException {
             throw new UnsupportedOperationException();
         }
 

@@ -22,47 +22,39 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /**
- *
+ * Result of the {@link TermsAggregator} when the field is some kind of whole number like a integer, long, or a date.
  */
-public class LongTerms extends InternalTerms<LongTerms, LongTerms.Bucket> {
+public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> {
+    public static final String NAME = "lterms";
 
-    public static final Type TYPE = new Type("terms", "lterms");
-
-    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public LongTerms readResult(StreamInput in) throws IOException {
-            LongTerms buckets = new LongTerms();
-            buckets.readFrom(in);
-            return buckets;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-    static class Bucket extends InternalTerms.Bucket {
-
+    public static class Bucket extends InternalTerms.Bucket<Bucket> {
         long term;
-
-        public Bucket(DocValueFormat format, boolean showDocCountError) {
-            super(format, showDocCountError);
-        }
 
         public Bucket(long term, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError,
                 DocValueFormat format) {
             super(docCount, aggregations, showDocCountError, docCountError, format);
             this.term = term;
+        }
+
+        /**
+         * Read from a stream.
+         */
+        public Bucket(StreamInput in, DocValueFormat format, boolean showDocCountError) throws IOException {
+            super(in, format, showDocCountError);
+            term = in.readLong();
+        }
+
+        @Override
+        protected void writeTermTo(StreamOutput out) throws IOException {
+            out.writeLong(term);
         }
 
         @Override
@@ -91,27 +83,6 @@ public class LongTerms extends InternalTerms<LongTerms, LongTerms.Bucket> {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            term = in.readLong();
-            docCount = in.readVLong();
-            docCountError = -1;
-            if (showDocCountError) {
-                docCountError = in.readLong();
-            }
-            aggregations = InternalAggregations.readAggregations(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeLong(term);
-            out.writeVLong(getDocCount());
-            if (showDocCountError) {
-                out.writeLong(docCountError);
-            }
-            aggregations.writeTo(out);
-        }
-
-        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(CommonFields.KEY, term);
@@ -128,24 +99,29 @@ public class LongTerms extends InternalTerms<LongTerms, LongTerms.Bucket> {
         }
     }
 
-    LongTerms() {} // for serialization
+    public LongTerms(String name, Terms.Order order, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData, DocValueFormat format, int shardSize, boolean showTermDocCountError, long otherDocCount,
+            List<Bucket> buckets, long docCountError) {
+        super(name, order, requiredSize, minDocCount, pipelineAggregators, metaData, format, shardSize, showTermDocCountError,
+                otherDocCount, buckets, docCountError);
+    }
 
-    public LongTerms(String name, Terms.Order order, DocValueFormat format, int requiredSize, int shardSize, long minDocCount,
-            List<? extends InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, order, format, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount,
-                pipelineAggregators, metaData);
+    /**
+     * Read from a stream.
+     */
+    public LongTerms(StreamInput in) throws IOException {
+        super(in, Bucket::new);
     }
 
     @Override
-    public Type type() {
-        return TYPE;
+    public String getWriteableName() {
+        return NAME;
     }
 
     @Override
     public LongTerms create(List<Bucket> buckets) {
-        return new LongTerms(this.name, this.order, this.format, this.requiredSize, this.shardSize, this.minDocCount, buckets,
-                this.showTermDocCountError, this.docCountError, this.otherDocCount, this.pipelineAggregators(), this.metaData);
+        return new LongTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), metaData, format, shardSize,
+                showTermDocCountError, otherDocCount, buckets, docCountError);
     }
 
     @Override
@@ -155,48 +131,9 @@ public class LongTerms extends InternalTerms<LongTerms, LongTerms.Bucket> {
     }
 
     @Override
-    protected LongTerms create(String name, List<org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.Bucket> buckets,
-            long docCountError, long otherDocCount, InternalTerms prototype) {
-        return new LongTerms(name, prototype.order, ((LongTerms) prototype).format, prototype.requiredSize, prototype.shardSize,
-                prototype.minDocCount, buckets, prototype.showTermDocCountError, docCountError, otherDocCount, prototype.pipelineAggregators(),
-                prototype.getMetaData());
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        this.docCountError = in.readLong();
-        this.order = InternalOrder.Streams.readOrder(in);
-        this.format = in.readNamedWriteable(DocValueFormat.class);
-        this.requiredSize = readSize(in);
-        this.shardSize = readSize(in);
-        this.showTermDocCountError = in.readBoolean();
-        this.minDocCount = in.readVLong();
-        this.otherDocCount = in.readVLong();
-        int size = in.readVInt();
-        List<InternalTerms.Bucket> buckets = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            Bucket bucket = new Bucket(format, showTermDocCountError);
-            bucket.readFrom(in);
-            buckets.add(bucket);
-        }
-        this.buckets = buckets;
-        this.bucketMap = null;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeLong(docCountError);
-        InternalOrder.Streams.writeOrder(order, out);
-        out.writeNamedWriteable(format);
-        writeSize(requiredSize, out);
-        writeSize(shardSize, out);
-        out.writeBoolean(showTermDocCountError);
-        out.writeVLong(minDocCount);
-        out.writeVLong(otherDocCount);
-        out.writeVInt(buckets.size());
-        for (InternalTerms.Bucket bucket : buckets) {
-            bucket.writeTo(out);
-        }
+    protected LongTerms create(String name, List<Bucket> buckets, long docCountError, long otherDocCount) {
+        return new LongTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), getMetaData(), format, shardSize,
+                showTermDocCountError, otherDocCount, buckets, docCountError);
     }
 
     @Override
@@ -204,11 +141,15 @@ public class LongTerms extends InternalTerms<LongTerms, LongTerms.Bucket> {
         builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, docCountError);
         builder.field(SUM_OF_OTHER_DOC_COUNTS, otherDocCount);
         builder.startArray(CommonFields.BUCKETS);
-        for (InternalTerms.Bucket bucket : buckets) {
+        for (Bucket bucket : buckets) {
             bucket.toXContent(builder, params);
         }
         builder.endArray();
         return builder;
     }
 
+    @Override
+    protected Bucket[] createBucketsArray(int size) {
+        return new Bucket[size];
+    }
 }

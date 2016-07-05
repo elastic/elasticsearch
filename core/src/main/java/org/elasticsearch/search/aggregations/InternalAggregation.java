@@ -236,9 +236,9 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
     }
 
     /**
-     * Reduces the given addAggregation to a single one and returns it. In <b>most</b> cases, the assumption will be the all given
-     * addAggregation are of the same type (the same type as this aggregation). For best efficiency, when implementing,
-     * try reusing an existing get instance (typically the first in the given list) to save on redundant object
+     * Reduces the given aggregations to a single one and returns it. In <b>most</b> cases, the assumption will be the all given
+     * aggregations are of the same type (the same type as this aggregation). For best efficiency, when implementing,
+     * try reusing an existing instance (typically the first in the given list) to save on redundant object
      * construction.
      */
     public final InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {

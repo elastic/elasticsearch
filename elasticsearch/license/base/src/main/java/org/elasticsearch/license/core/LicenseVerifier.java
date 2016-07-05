@@ -7,12 +7,15 @@ package org.elasticsearch.license.core;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -71,5 +74,17 @@ public class LicenseVerifier {
                 Arrays.fill(signatureHash, (byte) 0);
             }
         }
+    }
+
+    public static boolean verifyLicense(final License license) {
+        final byte[] publicKeyBytes;
+        try (InputStream is = LicenseVerifier.class.getResourceAsStream("/public.key")) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            Streams.copy(is, out);
+            publicKeyBytes = out.toByteArray();
+        } catch (IOException ex) {
+            throw new IllegalStateException(ex);
+        }
+        return verifyLicense(license, publicKeyBytes);
     }
 }

@@ -118,11 +118,12 @@ public class TestUtils {
     }
 
     public static License generateExpiredLicense() throws Exception {
+        long expiryDate = System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(1, 10)).getMillis();
         final License.Builder builder = License.builder()
                 .uid(UUID.randomUUID().toString())
                 .version(License.VERSION_CURRENT)
-                .expiryDate(System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(1, 10)).getMillis())
-                .issueDate(System.currentTimeMillis())
+                .expiryDate(expiryDate)
+                .issueDate(expiryDate - TimeValue.timeValueMinutes(10).getMillis())
                 .type(randomFrom("basic", "silver", "dev", "gold", "platinum"))
                 .issuedTo("customer")
                 .issuer("elasticsearch")

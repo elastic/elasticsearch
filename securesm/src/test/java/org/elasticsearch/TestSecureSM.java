@@ -19,14 +19,13 @@ package org.elasticsearch;
  * under the License.
  */
 
+import junit.framework.TestCase;
+import org.junit.Test;
+
 import java.security.Permission;
 import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import org.junit.Test;
-
-import junit.framework.TestCase;
 
 /** Simple tests for SecureSM */
 public class TestSecureSM extends TestCase {
@@ -46,7 +45,7 @@ public class TestSecureSM extends TestCase {
         return true;
       }
     });
-    System.setSecurityManager(new SecureSM(true));
+    System.setSecurityManager(SecureSM.createTestSecureSM());
   }
   
   @Test

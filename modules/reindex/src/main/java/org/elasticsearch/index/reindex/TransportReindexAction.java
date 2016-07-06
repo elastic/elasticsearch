@@ -109,7 +109,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
     private void checkRemoteWhitelist(RemoteInfo remoteInfo) {
         TransportAddress publishAddress = null;
-        HttpInfo httpInfo = httpServer.info();
+        HttpInfo httpInfo = httpServer == null ? null : httpServer.info();
         if (httpInfo != null && httpInfo.getAddress() != null) {
             publishAddress = httpInfo.getAddress().publishAddress();
         }

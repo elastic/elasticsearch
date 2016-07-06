@@ -107,7 +107,7 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
             });
@@ -135,7 +135,7 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         listener.onFailure(e);
                     }
                 });

@@ -36,7 +36,7 @@ setup:
 "Basic multi-search template":
 
   - do:
-      template.msearch:
+      msearch_template:
         body:
           - index: index_*
           - inline: '{"query": {"match": {"foo": "{{value}}"} } }'
@@ -71,7 +71,7 @@ setup:
 "Multi-search template with errors":
 
   - do:
-      template.msearch:
+      msearch_template:
         body:
           # Search 0 is OK
           - index: index_*
@@ -109,7 +109,7 @@ setup:
 
   - do:
       catch: /(.)*action_request_validation_exception(.)*template.is.missing(.)*/
-      template.msearch:
+      msearch_template:
         body:
           # Search 0 is OK
           - index: index_*

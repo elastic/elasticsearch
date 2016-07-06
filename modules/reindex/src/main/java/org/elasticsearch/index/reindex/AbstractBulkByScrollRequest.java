@@ -123,8 +123,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         if (searchRequest.source().from() != -1) {
             e = addValidationError("from is not supported in this context", e);
         }
-        if (searchRequest.source().fields() != null) {
-            e = addValidationError("fields is not supported in this context", e);
+        if (searchRequest.source().storedFields() != null) {
+            e = addValidationError("stored_fields is not supported in this context", e);
         }
         if (maxRetries < 0) {
             e = addValidationError("retries cannnot be negative", e);

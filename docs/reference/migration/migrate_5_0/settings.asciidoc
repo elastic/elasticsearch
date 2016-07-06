@@ -26,6 +26,8 @@ should be used instead.
 The `name` setting has been removed and is replaced by `node.name`. Usage of
 `-Dname=some_node_name` is not supported anymore.
 
+The `node.add_id_to_custom_path` was renamed to `add_lock_id_to_custom_path`.
+
 ==== Node attribute settings
 
 Node level attributes used for allocation filtering, forced awareness or other node identification / grouping

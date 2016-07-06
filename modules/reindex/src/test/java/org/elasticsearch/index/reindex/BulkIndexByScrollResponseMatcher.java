@@ -124,7 +124,7 @@ public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkIndexB
                 deletedMatcher.matches(item.getDeleted()) &&
                 (batchesMatcher == null || batchesMatcher.matches(item.getBatches())) &&
                 versionConflictsMatcher.matches(item.getVersionConflicts()) &&
-                failuresMatcher.matches(item.getIndexingFailures().size()) &&
+                failuresMatcher.matches(item.getBulkFailures().size()) &&
                 reasonCancelledMatcher.matches(item.getReasonCancelled());
     }
 

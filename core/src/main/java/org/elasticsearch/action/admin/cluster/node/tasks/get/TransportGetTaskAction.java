@@ -154,8 +154,8 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                     }
 
                     @Override
-                    public void onFailure(Throwable t) {
-                        listener.onFailure(t);
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
                     }
                 });
             } else {
@@ -179,7 +179,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 /*
                  * We couldn't load the task from the task index. Instead of 404 we should use the snapshot we took after it finished. If
                  * the error isn't a 404 then we'll just throw it back to the user.
@@ -207,13 +207,13 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             public void onResponse(GetResponse getResponse) {
                 try {
                     onGetFinishedTaskFromIndex(getResponse, listener);
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     listener.onFailure(e);
                 }
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 if (ExceptionsHelper.unwrap(e, IndexNotFoundException.class) != null) {
                     // We haven't yet created the index for the task results so it can't be found.
                     listener.onFailure(new ResourceNotFoundException("task [{}] isn't running or persisted", e, request.getTaskId()));

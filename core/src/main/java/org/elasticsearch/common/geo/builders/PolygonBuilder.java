@@ -631,7 +631,7 @@ public class PolygonBuilder extends ShapeBuilder {
         return concat(component, direction ^ orientation, points, offset, edges, toffset, length);
     }
 
-    private static final int top(Coordinate[] points, int offset, int length) {
+    private static int top(Coordinate[] points, int offset, int length) {
         int top = 0; // we start at 1 here since top points to 0
         for (int i = 1; i < length; i++) {
             if (points[offset + i].y < points[offset + top].y) {
@@ -645,7 +645,7 @@ public class PolygonBuilder extends ShapeBuilder {
         return top;
     }
 
-    private static final double[] range(Coordinate[] points, int offset, int length) {
+    private static double[] range(Coordinate[] points, int offset, int length) {
         double minX = points[0].x;
         double maxX = points[0].x;
         double minY = points[0].y;

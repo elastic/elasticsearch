@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
@@ -32,7 +31,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -41,6 +39,7 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.membership.MembershipAction;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,6 +49,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -68,6 +69,7 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.shuffle;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -99,10 +101,9 @@ public class NodeJoinControllerTests extends ESTestCase {
         // make sure we have a master
         setState(clusterService, ClusterState.builder(clusterService.state()).nodes(
             DiscoveryNodes.builder(initialNodes).masterNodeId(localNode.getId())));
-        nodeJoinController = new NodeJoinController(clusterService, new NoopRoutingService(Settings.EMPTY),
-            new ElectMasterService(Settings.EMPTY),
-            new DiscoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            Settings.EMPTY);
+        nodeJoinController = new NodeJoinController(clusterService, new NoopAllocationService(Settings.EMPTY),
+            new ElectMasterService(Settings.EMPTY), new DiscoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)), Settings.EMPTY);
     }
 
     @After
@@ -198,17 +199,19 @@ public class NodeJoinControllerTests extends ESTestCase {
         final SimpleFuture electionFuture = new SimpleFuture("master election");
         final Thread masterElection = new Thread(new AbstractRunnable() {
             @Override
-            public void onFailure(Throwable t) {
-                logger.error("unexpected error from waitToBeElectedAsMaster", t);
-                electionFuture.markAsFailed(t);
+            public void onFailure(Exception e) {
+                logger.error("unexpected error from waitToBeElectedAsMaster", e);
+                electionFuture.markAsFailed(e);
             }
 
             @Override
             protected void doRun() throws Exception {
-                nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueHours(30), new NodeJoinController.ElectionCallback() {
+                nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueHours(30),
+                    new NodeJoinController.ElectionCallback() {
                     @Override
                     public void onElectedAsMaster(ClusterState state) {
-                        assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(), equalTo(true));
+                        assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(),
+                            equalTo(true));
                         electionFuture.markAsDone();
                     }
 
@@ -246,17 +249,19 @@ public class NodeJoinControllerTests extends ESTestCase {
         final SimpleFuture electionFuture = new SimpleFuture("master election");
         final Thread masterElection = new Thread(new AbstractRunnable() {
             @Override
-            public void onFailure(Throwable t) {
-                logger.error("unexpected error from waitToBeElectedAsMaster", t);
-                electionFuture.markAsFailed(t);
+            public void onFailure(Exception e) {
+                logger.error("unexpected error from waitToBeElectedAsMaster", e);
+                electionFuture.markAsFailed(e);
             }
 
             @Override
             protected void doRun() throws Exception {
-                nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueHours(30), new NodeJoinController.ElectionCallback() {
+                nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueHours(30),
+                    new NodeJoinController.ElectionCallback() {
                     @Override
                     public void onElectedAsMaster(ClusterState state) {
-                        assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(), equalTo(true));
+                        assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(),
+                            equalTo(true));
                         electionFuture.markAsDone();
                     }
 
@@ -298,7 +303,8 @@ public class NodeJoinControllerTests extends ESTestCase {
         }
 
         logger.debug("--> asserting master election didn't finish yet");
-        assertThat("election finished after [" + initialJoins + "] master nodes but required joins is [" + requiredJoins + "]", electionFuture.isDone(), equalTo(false));
+        assertThat("election finished after [" + initialJoins + "] master nodes but required joins is [" + requiredJoins + "]",
+            electionFuture.isDone(), equalTo(false));
 
         final int finalJoins = requiredJoins - initialJoins + randomInt(5);
         nodesToJoin.clear();
@@ -374,7 +380,8 @@ public class NodeJoinControllerTests extends ESTestCase {
         nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueMillis(1), new NodeJoinController.ElectionCallback() {
             @Override
             public void onElectedAsMaster(ClusterState state) {
-                assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(), equalTo(true));
+                assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(),
+                    equalTo(true));
                 latch.countDown();
             }
 
@@ -403,7 +410,7 @@ public class NodeJoinControllerTests extends ESTestCase {
     public void testNewClusterStateOnExistingNodeJoin() throws InterruptedException, ExecutionException {
         ClusterState state = clusterService.state();
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(state.nodes());
-        final DiscoveryNode other_node = new DiscoveryNode("other_node", DummyTransportAddress.INSTANCE,
+        final DiscoveryNode other_node = new DiscoveryNode("other_node", LocalTransportAddress.buildUnique(),
             emptyMap(), emptySet(), Version.CURRENT);
         nodesBuilder.put(other_node);
         setState(clusterService, ClusterState.builder(state).nodes(nodesBuilder));
@@ -425,9 +432,9 @@ public class NodeJoinControllerTests extends ESTestCase {
             nodes.add(node);
             threads[i] = new Thread(new AbstractRunnable() {
                 @Override
-                public void onFailure(Throwable t) {
-                    logger.error("unexpected error in join thread", t);
-                    backgroundExceptions.add(t);
+                public void onFailure(Exception e) {
+                    logger.error("unexpected error in join thread", e);
+                    backgroundExceptions.add(e);
                 }
 
                 @Override
@@ -468,9 +475,9 @@ public class NodeJoinControllerTests extends ESTestCase {
             nodes.add(node);
             threads[i] = new Thread(new AbstractRunnable() {
                 @Override
-                public void onFailure(Throwable t) {
-                    logger.error("unexpected error in join thread", t);
-                    backgroundExceptions.add(t);
+                public void onFailure(Exception e) {
+                    logger.error("unexpected error in join thread", e);
+                    backgroundExceptions.add(e);
                 }
 
                 @Override
@@ -492,7 +499,8 @@ public class NodeJoinControllerTests extends ESTestCase {
         nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueHours(30), new NodeJoinController.ElectionCallback() {
             @Override
             public void onElectedAsMaster(ClusterState state) {
-                assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(), equalTo(true));
+                assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(),
+                    equalTo(true));
                 latch.countDown();
             }
 
@@ -515,17 +523,37 @@ public class NodeJoinControllerTests extends ESTestCase {
         assertNodesInCurrentState(nodes);
     }
 
+    public void testRejectingJoinWithSameAddressButDifferentId() throws InterruptedException, ExecutionException {
+        ClusterState state = clusterService.state();
+        final DiscoveryNode other_node = new DiscoveryNode("other_node", state.nodes().getLocalNode().getAddress(),
+            emptyMap(), emptySet(), Version.CURRENT);
 
-    static class NoopRoutingService extends RoutingService {
+        ExecutionException e = expectThrows(ExecutionException.class, () -> joinNode(other_node));
+        assertThat(e.getMessage(), containsString("found existing node"));
+    }
 
-        public NoopRoutingService(Settings settings) {
-            super(settings, null, new NoopAllocationService(settings));
-        }
+    public void testRejectingJoinWithSameIdButDifferentAddress() throws InterruptedException, ExecutionException {
+        ClusterState state = clusterService.state();
+        final DiscoveryNode other_node = new DiscoveryNode(state.nodes().getLocalNode().getId(),
+            new LocalTransportAddress(randomAsciiOfLength(20)), emptyMap(), emptySet(), Version.CURRENT);
 
-        @Override
-        protected void performReroute(String reason) {
+        ExecutionException e = expectThrows(ExecutionException.class, () -> joinNode(other_node));
+        assertThat(e.getMessage(), containsString("found existing node"));
+    }
 
-        }
+    public void testJoinWithSameIdSameAddressButDifferentMeta() throws InterruptedException, ExecutionException {
+        ClusterState state = clusterService.state();
+        final DiscoveryNode localNode = state.nodes().getLocalNode();
+        final DiscoveryNode other_node = new DiscoveryNode(
+            randomBoolean() ? localNode.getName() : "other_name",
+            localNode.getId(), localNode.getAddress(),
+            randomBoolean() ? localNode.getAttributes() : Collections.singletonMap("attr", "other"),
+            randomBoolean() ? localNode.getRoles() : new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
+            randomBoolean() ? localNode.getVersion() : VersionUtils.randomVersion(random()));
+
+        joinNode(other_node);
+
+        assertThat(clusterService.localNode(), equalTo(other_node));
     }
 
     static class NoopAllocationService extends AllocationService {
@@ -535,12 +563,14 @@ public class NodeJoinControllerTests extends ESTestCase {
         }
 
         @Override
-        public RoutingAllocation.Result applyStartedShards(ClusterState clusterState, List<? extends ShardRouting> startedShards, boolean withReroute) {
+        public RoutingAllocation.Result applyStartedShards(ClusterState clusterState, List<? extends ShardRouting> startedShards,
+                                                           boolean withReroute) {
             return new RoutingAllocation.Result(false, clusterState.routingTable(), clusterState.metaData());
         }
 
         @Override
-        public RoutingAllocation.Result applyFailedShards(ClusterState clusterState, List<FailedRerouteAllocation.FailedShard> failedShards) {
+        public RoutingAllocation.Result applyFailedShards(ClusterState clusterState,
+                                                          List<FailedRerouteAllocation.FailedShard> failedShards) {
             return new RoutingAllocation.Result(false, clusterState.routingTable(), clusterState.metaData());
         }
 
@@ -596,9 +626,9 @@ public class NodeJoinControllerTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                logger.error("unexpected error for {}", t, future);
-                future.markAsFailed(t);
+            public void onFailure(Exception e) {
+                logger.error("unexpected error for {}", e, future);
+                future.markAsFailed(e);
             }
         });
         return future;
@@ -608,8 +638,8 @@ public class NodeJoinControllerTests extends ESTestCase {
      * creates an object clone of node, so it will be a different object instance
      */
     private DiscoveryNode cloneNode(DiscoveryNode node) {
-        return new DiscoveryNode(node.getName(), node.getId(), node.getHostName(), node.getHostAddress(), node.getAddress(),
-            node.getAttributes(), node.getRoles(), node.getVersion());
+        return new DiscoveryNode(node.getName(), node.getId(), node.getEphemeralId(), node.getHostName(), node.getHostAddress(),
+            node.getAddress(), node.getAttributes(), node.getRoles(), node.getVersion());
     }
 
     private void joinNode(final DiscoveryNode node) throws InterruptedException, ExecutionException {

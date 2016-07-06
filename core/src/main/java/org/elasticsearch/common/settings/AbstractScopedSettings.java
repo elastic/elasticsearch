@@ -457,7 +457,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         return changed;
     }
 
-    private static final boolean applyDeletes(Set<String> deletes, Settings.Builder builder) {
+    private static boolean applyDeletes(Set<String> deletes, Settings.Builder builder) {
         boolean changed = false;
         for (String entry : deletes) {
             Set<String> keysToRemove = new HashSet<>();

@@ -93,7 +93,7 @@ public final class ConvertProcessor extends AbstractProcessor {
         };
 
         @Override
-        public final String toString() {
+        public String toString() {
             return name().toLowerCase(Locale.ROOT);
         }
 

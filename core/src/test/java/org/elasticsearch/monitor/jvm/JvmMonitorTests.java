@@ -48,10 +48,10 @@ public class JvmMonitorTests extends ESTestCase {
         AtomicBoolean invoked = new AtomicBoolean();
         JvmGcMonitorService.JvmMonitor monitor = new JvmGcMonitorService.JvmMonitor(Collections.emptyMap(), IGNORE) {
             @Override
-            void onMonitorFailure(Throwable t) {
+            void onMonitorFailure(Exception e) {
                 invoked.set(true);
-                assertThat(t, instanceOf(RuntimeException.class));
-                assertThat(t, hasToString(containsString("simulated")));
+                assertThat(e, instanceOf(RuntimeException.class));
+                assertThat(e, hasToString(containsString("simulated")));
             }
 
             @Override
@@ -174,7 +174,7 @@ public class JvmMonitorTests extends ESTestCase {
 
         JvmGcMonitorService.JvmMonitor monitor = new JvmGcMonitorService.JvmMonitor(gcThresholds, IGNORE) {
             @Override
-            void onMonitorFailure(Throwable t) {
+            void onMonitorFailure(Exception e) {
             }
 
             @Override
@@ -284,7 +284,7 @@ public class JvmMonitorTests extends ESTestCase {
         final JvmGcMonitorService.JvmMonitor monitor = new JvmGcMonitorService.JvmMonitor(Collections.emptyMap(), IGNORE) {
 
             @Override
-            void onMonitorFailure(Throwable t) {
+            void onMonitorFailure(Exception e) {
             }
 
             @Override
@@ -358,7 +358,7 @@ public class JvmMonitorTests extends ESTestCase {
         final JvmGcMonitorService.JvmMonitor monitor = new JvmGcMonitorService.JvmMonitor(Collections.emptyMap(), gcOverheadThreshold) {
 
             @Override
-            void onMonitorFailure(final Throwable t) {
+            void onMonitorFailure(final Exception e) {
             }
 
             @Override

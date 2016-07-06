@@ -58,7 +58,7 @@ public class TikaDocTests extends ESTestCase {
             assertNotNull(parsedContent);
             assertFalse(parsedContent.isEmpty());
             logger.debug("extracted content: {}", parsedContent);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new RuntimeException("parsing of filename: " + fileName.getFileName() + " failed", e);
         }
     }

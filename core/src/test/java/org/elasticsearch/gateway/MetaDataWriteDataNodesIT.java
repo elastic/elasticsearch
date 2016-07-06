@@ -161,8 +161,8 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
             logger.info("checking if meta state exists...");
             try {
                 assertTrue("Expecting meta state of index " + indexName + " to be on node " + nodeName, getIndicesMetaDataOnNode(nodeName).containsKey(indexName));
-            } catch (Throwable t) {
-                logger.info("failed to load meta state", t);
+            } catch (Exception e) {
+                logger.info("failed to load meta state", e);
                 fail("could not load meta state");
             }
         }

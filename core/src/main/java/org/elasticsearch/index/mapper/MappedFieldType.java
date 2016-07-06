@@ -139,7 +139,7 @@ public abstract class MappedFieldType extends FieldType {
     public abstract String typeName();
 
     /** Checks this type is the same type as other. Adds a conflict if they are different. */
-    private final void checkTypeName(MappedFieldType other) {
+    private void checkTypeName(MappedFieldType other) {
         if (typeName().equals(other.typeName()) == false) {
             throw new IllegalArgumentException("mapper [" + name + "] cannot be changed from type [" + typeName() + "] to [" + other.typeName() + "]");
         } else if (getClass() != other.getClass()) {

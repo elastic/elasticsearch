@@ -178,7 +178,7 @@ public class InternalTestClusterTests extends ESTestCase {
         int maxNumDataNodes = 2;
         final String clusterName1 = "shared1";
         NodeConfigurationSource nodeConfigurationSource = NodeConfigurationSource.EMPTY;
-        int numClientNodes = 0;
+        int numClientNodes = randomIntBetween(0, 2);
         boolean enableHttpPipelining = randomBoolean();
         String nodePrefix = "test";
         Path baseDir = createTempDir();
@@ -218,8 +218,7 @@ public class InternalTestClusterTests extends ESTestCase {
             assertFileNotExists(testMarker); // a new unknown node used this path, it should be cleaned
             assertFileExists(stableTestMarker); // but leaving the structure of existing, reused nodes
             for (String name: cluster.getNodeNames()) {
-                assertThat("data paths for " + name + " changed", getNodePaths(cluster, name),
-                    equalTo(shardNodePaths.get(name)));
+                assertThat("data paths for " + name + " changed", getNodePaths(cluster, name), equalTo(shardNodePaths.get(name)));
             }
 
             cluster.beforeTest(random(), 0.0);

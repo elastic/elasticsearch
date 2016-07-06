@@ -26,7 +26,6 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -43,8 +42,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.IOException;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.script.ScriptContext.Standard.SEARCH;
@@ -102,18 +99,18 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
                         try {
                             response.setResponse(searchResponse);
                             listener.onResponse(response);
-                        } catch (Throwable t) {
+                        } catch (Exception t) {
                             listener.onFailure(t);
                         }
                     }
 
                     @Override
-                    public void onFailure(Throwable t) {
+                    public void onFailure(Exception t) {
                         listener.onFailure(t);
                     }
                 });
             }
-        } catch (Throwable t) {
+        } catch (Exception t) {
             listener.onFailure(t);
         }
     }

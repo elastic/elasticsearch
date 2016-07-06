@@ -94,7 +94,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
 
             }
         };

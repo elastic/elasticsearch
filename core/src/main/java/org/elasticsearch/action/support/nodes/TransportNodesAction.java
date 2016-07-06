@@ -48,9 +48,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
 
-/**
- *
- */
 public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest<NodesRequest>,
                                            NodesResponse extends BaseNodesResponse,
                                            NodeRequest extends BaseNodeRequest,
@@ -226,8 +223,8 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                             }
                         });
                     }
-                } catch (Throwable t) {
-                    onFailure(idx, nodeId, t);
+                } catch (Exception e) {
+                    onFailure(idx, nodeId, e);
                 }
             }
         }
@@ -255,9 +252,9 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
             NodesResponse finalResponse;
             try {
                 finalResponse = newResponse(request, responses);
-            } catch (Throwable t) {
-                logger.debug("failed to combine responses from nodes", t);
-                listener.onFailure(t);
+            } catch (Exception e) {
+                logger.debug("failed to combine responses from nodes", e);
+                listener.onFailure(e);
                 return;
             }
             listener.onResponse(finalResponse);

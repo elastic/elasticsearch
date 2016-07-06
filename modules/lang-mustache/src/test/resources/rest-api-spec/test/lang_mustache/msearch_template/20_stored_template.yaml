@@ -42,7 +42,7 @@ setup:
   - match: { acknowledged: true }
 
   - do:
-      template.msearch:
+      msearch_template:
         body:
           - index: index_*
           - id: stored_template_1

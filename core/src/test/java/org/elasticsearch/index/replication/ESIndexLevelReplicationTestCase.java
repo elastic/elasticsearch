@@ -46,7 +46,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.NodeEnvironment;
@@ -198,7 +198,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
     }
 
     private DiscoveryNode getDiscoveryNode(String id) {
-        return new DiscoveryNode(id, id, DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+        return new DiscoveryNode(id, id, LocalTransportAddress.buildUnique(), Collections.emptyMap(),
             Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT);
     }
 
@@ -408,7 +408,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
         }
 
         @Override
-        public void failShard(String message, Throwable throwable) {
+        public void failShard(String message, Exception exception) {
             throw new UnsupportedOperationException();
         }
 
@@ -436,14 +436,14 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
                     .filter(s -> replicaRouting.isSameAllocation(s.routingEntry())).findFirst().get();
                 TransportIndexAction.executeIndexRequestOnReplica(request, replica);
                 listener.onResponse(TransportResponse.Empty.INSTANCE);
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 listener.onFailure(t);
             }
         }
 
         @Override
-        public void failShard(ShardRouting replica, ShardRouting primary, String message, Throwable throwable, Runnable onSuccess,
-                              Consumer<Throwable> onPrimaryDemoted, Consumer<Throwable> onIgnoredFailure) {
+        public void failShard(ShardRouting replica, ShardRouting primary, String message, Exception exception, Runnable onSuccess,
+                              Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
             throw new UnsupportedOperationException();
         }
     }

@@ -21,10 +21,8 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.Before;
 
 import java.util.ArrayList;

@@ -24,6 +24,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.function.ToIntBiFunction;
 
@@ -52,9 +53,8 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
     /**
      * A stream input of the bytes.
      */
-    public StreamInput streamInput() {
-        BytesRef ref = toBytesRef();
-        return StreamInput.wrap(ref.bytes, ref.offset, ref.length);
+    public StreamInput streamInput() throws IOException {
+        return new MarkSupportingStreamInputWrapper(this);
     }
 
     /**
@@ -155,7 +155,7 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
     /**
      * Compares the two references using the given int function.
      */
-    private static final int compareIterators(final BytesReference a, final BytesReference b, final ToIntBiFunction<BytesRef, BytesRef> f) {
+    private static int compareIterators(final BytesReference a, final BytesReference b, final ToIntBiFunction<BytesRef, BytesRef> f) {
         try {
             // we use the iterators since it's a 0-copy comparison where possible!
             final long lengthToCompare = Math.min(a.length(), b.length());
@@ -201,11 +201,80 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
         }
     }
 
-    private static final void advance(final BytesRef ref, final int length) {
+    private static void advance(final BytesRef ref, final int length) {
         assert ref.length >= length : " ref.length: " + ref.length + " length: " + length;
         assert ref.offset+length < ref.bytes.length || (ref.offset+length == ref.bytes.length && ref.length-length == 0)
             : "offset: " + ref.offset + " ref.bytes.length: " + ref.bytes.length + " length: " + length + " ref.length: " + ref.length;
         ref.length -= length;
         ref.offset += length;
+    }
+
+    /**
+     * Instead of adding the complexity of {@link InputStream#reset()} etc to the actual impl
+     * this wrapper builds it on top of the BytesReferenceStreamInput which is much simpler
+     * that way.
+     */
+    private static final class MarkSupportingStreamInputWrapper extends StreamInput {
+        private final BytesReference reference;
+        private BytesReferenceStreamInput input;
+        private int mark = 0;
+
+        private MarkSupportingStreamInputWrapper(BytesReference reference) throws IOException {
+            this.reference = reference;
+            this.input = new BytesReferenceStreamInput(reference.iterator(), reference.length());
+        }
+
+        @Override
+        public byte readByte() throws IOException {
+            return input.readByte();
+        }
+
+        @Override
+        public void readBytes(byte[] b, int offset, int len) throws IOException {
+            input.readBytes(b, offset, len);
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            return input.read(b, off, len);
+        }
+
+        @Override
+        public void close() throws IOException {
+            input.close();
+        }
+
+        @Override
+        public int read() throws IOException {
+            return input.read();
+        }
+
+        @Override
+        public int available() throws IOException {
+            return input.available();
+        }
+
+        @Override
+        public void reset() throws IOException {
+            input = new BytesReferenceStreamInput(reference.iterator(), reference.length());
+            input.skip(mark);
+        }
+
+        @Override
+        public boolean markSupported() {
+            return true;
+        }
+
+        @Override
+        public void mark(int readLimit) {
+            // readLimit is optional it only guarantees that the stream remembers data upto this limit but it can remember more
+            // which we do in our case
+            this.mark = input.getOffset();
+        }
+
+        @Override
+        public long skip(long n) throws IOException {
+            return input.skip(n);
+        }
     }
 }

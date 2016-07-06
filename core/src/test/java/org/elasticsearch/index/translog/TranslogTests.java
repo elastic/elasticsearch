@@ -20,7 +20,6 @@
 package org.elasticsearch.index.translog;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.mockfile.FilterFileChannel;
@@ -456,7 +455,7 @@ public class TranslogTests extends ESTestCase {
         final BlockingQueue<LocationOperation> writtenOperations = new ArrayBlockingQueue<>(threadCount * opsPerThread);
 
         Thread[] threads = new Thread[threadCount];
-        final Throwable[] threadExceptions = new Throwable[threadCount];
+        final Exception[] threadExceptions = new Exception[threadCount];
         final CountDownLatch downLatch = new CountDownLatch(1);
         for (int i = 0; i < threadCount; i++) {
             final int threadId = i;
@@ -624,7 +623,7 @@ public class TranslogTests extends ESTestCase {
         final AtomicBoolean run = new AtomicBoolean(true);
 
         // any errors on threads
-        final List<Throwable> errors = new CopyOnWriteArrayList<>();
+        final List<Exception> errors = new CopyOnWriteArrayList<>();
         logger.debug("using [{}] readers. [{}] writers. flushing every ~[{}] ops.", readers.length, writers.length, flushEveryOps);
         for (int i = 0; i < writers.length; i++) {
             final String threadName = "writer_" + i;
@@ -663,9 +662,9 @@ public class TranslogTests extends ESTestCase {
                 }
 
                 @Override
-                public void onFailure(Throwable t) {
-                    logger.error("--> writer [{}] had an error", t, threadName);
-                    errors.add(t);
+                public void onFailure(Exception e) {
+                    logger.error("--> writer [{}] had an error", e, threadName);
+                    errors.add(e);
                 }
             }, threadName);
             writers[i].start();
@@ -678,14 +677,14 @@ public class TranslogTests extends ESTestCase {
                 Set<Translog.Operation> writtenOpsAtView;
 
                 @Override
-                public void onFailure(Throwable t) {
-                    logger.error("--> reader [{}] had an error", t, threadId);
-                    errors.add(t);
+                public void onFailure(Exception e) {
+                    logger.error("--> reader [{}] had an error", e, threadId);
+                    errors.add(e);
                     try {
                         closeView();
-                    } catch (IOException e) {
-                        logger.error("unexpected error while closing view, after failure");
-                        t.addSuppressed(e);
+                    } catch (IOException inner) {
+                        inner.addSuppressed(e);
+                        logger.error("unexpected error while closing view, after failure", inner);
                     }
                 }
 
@@ -1240,7 +1239,7 @@ public class TranslogTests extends ESTestCase {
         final BlockingQueue<LocationOperation> writtenOperations = new ArrayBlockingQueue<>(threadCount * opsPerThread);
 
         Thread[] threads = new Thread[threadCount];
-        final Throwable[] threadExceptions = new Throwable[threadCount];
+        final Exception[] threadExceptions = new Exception[threadCount];
         final CountDownLatch downLatch = new CountDownLatch(1);
         for (int i = 0; i < threadCount; i++) {
             final int threadId = i;
@@ -1267,10 +1266,10 @@ public class TranslogTests extends ESTestCase {
         private final int opsPerThread;
         private final int threadId;
         private final Collection<LocationOperation> writtenOperations;
-        private final Throwable[] threadExceptions;
+        private final Exception[] threadExceptions;
         private final Translog translog;
 
-        public TranslogThread(Translog translog, CountDownLatch downLatch, int opsPerThread, int threadId, Collection<LocationOperation> writtenOperations, Throwable[] threadExceptions) {
+        public TranslogThread(Translog translog, CountDownLatch downLatch, int opsPerThread, int threadId, Collection<LocationOperation> writtenOperations, Exception[] threadExceptions) {
             this.translog = translog;
             this.downLatch = downLatch;
             this.opsPerThread = opsPerThread;
@@ -1304,7 +1303,7 @@ public class TranslogTests extends ESTestCase {
                     writtenOperations.add(new LocationOperation(op, loc));
                     afterAdd();
                 }
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 threadExceptions[threadId] = t;
             }
         }
@@ -1446,7 +1445,7 @@ public class TranslogTests extends ESTestCase {
 
         final int threadCount = randomIntBetween(1, 5);
         Thread[] threads = new Thread[threadCount];
-        final Throwable[] threadExceptions = new Throwable[threadCount];
+        final Exception[] threadExceptions = new Exception[threadCount];
         final CountDownLatch downLatch = new CountDownLatch(1);
         final CountDownLatch added = new CountDownLatch(randomIntBetween(10, 100));
         List<LocationOperation> writtenOperations = Collections.synchronizedList(new ArrayList<>());

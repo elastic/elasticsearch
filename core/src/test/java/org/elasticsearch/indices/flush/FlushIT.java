@@ -68,14 +68,14 @@ public class FlushIT extends ESIntegTestCase {
                             // don't use assertAllSuccessful it uses a randomized context that belongs to a different thread
                             assertThat("Unexpected ShardFailures: " + Arrays.toString(flushResponse.getShardFailures()), flushResponse.getFailedShards(), equalTo(0));
                             latch.countDown();
-                        } catch (Throwable ex) {
+                        } catch (Exception ex) {
                             onFailure(ex);
                         }
 
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         errors.add(e);
                         latch.countDown();
                     }

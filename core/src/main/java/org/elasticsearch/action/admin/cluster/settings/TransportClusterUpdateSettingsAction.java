@@ -93,11 +93,11 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             }
 
             @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
+            public void onAllNodesAcked(@Nullable Exception e) {
                 if (changed) {
                     reroute(true);
                 } else {
-                    super.onAllNodesAcked(t);
+                    super.onAllNodesAcked(e);
                 }
             }
 
@@ -146,10 +146,10 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                     }
 
                     @Override
-                    public void onFailure(String source, Throwable t) {
+                    public void onFailure(String source, Exception e) {
                         //if the reroute fails we only log
-                        logger.debug("failed to perform [{}]", t, source);
-                        listener.onFailure(new ElasticsearchException("reroute after update settings failed", t));
+                        logger.debug("failed to perform [{}]", e, source);
+                        listener.onFailure(new ElasticsearchException("reroute after update settings failed", e));
                     }
 
                     @Override
@@ -165,9 +165,9 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                logger.debug("failed to perform [{}]", t, source);
-                super.onFailure(source, t);
+            public void onFailure(String source, Exception e) {
+                logger.debug("failed to perform [{}]", e, source);
+                super.onFailure(source, e);
             }
 
             @Override

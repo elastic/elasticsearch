@@ -76,8 +76,8 @@ public class BlockClusterStateProcessing extends SingleNodeDisruption {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                logger.error("unexpected error during disruption", t);
+            public void onFailure(String source, Exception e) {
+                logger.error("unexpected error during disruption", e);
             }
         });
         try {

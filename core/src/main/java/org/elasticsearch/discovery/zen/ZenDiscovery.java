@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -113,7 +113,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     private final TransportService transportService;
     private final ClusterService clusterService;
-    private RoutingService routingService;
+    private AllocationService allocationService;
     private final ClusterName clusterName;
     private final DiscoverySettings discoverySettings;
     private final ZenPingService pingService;
@@ -146,7 +146,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     /** counts the time this node has joined the cluster or have elected it self as master */
     private final AtomicLong clusterJoinsCounter = new AtomicLong();
 
-    // must initialized in doStart(), when we have the routingService set
+    // must initialized in doStart(), when we have the allocationService set
     private volatile NodeJoinController nodeJoinController;
 
     @Inject
@@ -206,8 +206,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     }
 
     @Override
-    public void setRoutingService(RoutingService routingService) {
-        this.routingService = routingService;
+    public void setAllocationService(AllocationService allocationService) {
+        this.allocationService = allocationService;
     }
 
     @Override
@@ -215,7 +215,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         nodesFD.setLocalNode(clusterService.localNode());
         joinThreadControl.start();
         pingService.start();
-        this.nodeJoinController = new NodeJoinController(clusterService, routingService, electMaster, discoverySettings, settings);
+        this.nodeJoinController = new NodeJoinController(clusterService, allocationService, electMaster, discoverySettings, settings);
     }
 
     @Override
@@ -236,8 +236,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             }
 
             @Override
-            public void onFailure(String source, @org.elasticsearch.common.Nullable Throwable t) {
-                logger.warn("failed to start initial join process", t);
+            public void onFailure(String source, @org.elasticsearch.common.Nullable Exception e) {
+                logger.warn("failed to start initial join process", e);
             }
         });
     }
@@ -326,8 +326,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.error("unexpected failure during [{}]", t, source);
+                public void onFailure(String source, Exception e) {
+                    logger.error("unexpected failure during [{}]", e, source);
                 }
 
             });
@@ -406,7 +406,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             );
         } else {
             // process any incoming joins (they will fail because we are not the master)
-            nodeJoinController.stopElectionContext("not master");
+            nodeJoinController.stopElectionContext(masterNode + " elected");
 
             // send join request
             final boolean success = joinElectedMaster(masterNode);
@@ -446,8 +446,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 }
 
                 @Override
-                public void onFailure(String source, @Nullable Throwable t) {
-                    logger.error("unexpected error while trying to finalize cluster join", t);
+                public void onFailure(String source, @Nullable Exception e) {
+                    logger.error("unexpected error while trying to finalize cluster join", e);
                     joinThreadControl.markThreadAsDoneAndStartNew(currentThread);
                 }
             });
@@ -473,20 +473,20 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 logger.trace("joining master {}", masterNode);
                 membership.sendJoinRequestBlocking(masterNode, clusterService.localNode(), joinTimeout);
                 return true;
-            } catch (Throwable t) {
-                Throwable unwrap = ExceptionsHelper.unwrapCause(t);
+            } catch (Exception e) {
+                final Throwable unwrap = ExceptionsHelper.unwrapCause(e);
                 if (unwrap instanceof NotMasterException) {
                     if (++joinAttempt == this.joinRetryAttempts) {
-                        logger.info("failed to send join request to master [{}], reason [{}], tried [{}] times", masterNode, ExceptionsHelper.detailedMessage(t), joinAttempt);
+                        logger.info("failed to send join request to master [{}], reason [{}], tried [{}] times", masterNode, ExceptionsHelper.detailedMessage(e), joinAttempt);
                         return false;
                     } else {
-                        logger.trace("master {} failed with [{}]. retrying... (attempts done: [{}])", masterNode, ExceptionsHelper.detailedMessage(t), joinAttempt);
+                        logger.trace("master {} failed with [{}]. retrying... (attempts done: [{}])", masterNode, ExceptionsHelper.detailedMessage(e), joinAttempt);
                     }
                 } else {
                     if (logger.isTraceEnabled()) {
-                        logger.trace("failed to send join request to master [{}]", t, masterNode);
+                        logger.trace("failed to send join request to master [{}]", e, masterNode);
                     } else {
-                        logger.info("failed to send join request to master [{}], reason [{}]", masterNode, ExceptionsHelper.detailedMessage(t));
+                        logger.info("failed to send join request to master [{}], reason [{}]", masterNode, ExceptionsHelper.detailedMessage(e));
                     }
                     return false;
                 }
@@ -506,7 +506,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             return;
         }
         if (localNodeMaster()) {
-            clusterService.submitStateUpdateTask("zen-disco-node_left(" + node + ")", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+            clusterService.submitStateUpdateTask("zen-disco-node-left(" + node + ")", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes()).remove(node.getId());
@@ -516,8 +516,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                         return rejoin(currentState, "not enough master nodes");
                     }
                     // eagerly run reroute to remove dead nodes from routing table
-                    RoutingAllocation.Result routingResult = routingService.getAllocationService().reroute(
-                            ClusterState.builder(currentState).build(),
+                    RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(currentState).build(),
                             "[" + node + "] left");
                     return ClusterState.builder(currentState).routingResult(routingResult).build();
                 }
@@ -528,8 +527,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.error("unexpected failure during [{}]", t, source);
+                public void onFailure(String source, Exception e) {
+                    logger.error("unexpected failure during [{}]", e, source);
                 }
             });
         } else if (node.equals(nodes().getMasterNode())) {
@@ -546,22 +545,22 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             // nothing to do here...
             return;
         }
-        clusterService.submitStateUpdateTask("zen-disco-node_failed(" + node + "), reason " + reason, new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+        clusterService.submitStateUpdateTask("zen-disco-node-failed(" + node + "), reason " + reason,
+            new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                if (currentState.nodes().get(node.getId()) == null) {
+                if (currentState.nodes().nodeExists(node) == false) {
                     logger.debug("node [{}] already removed from cluster state. ignoring.", node);
                     return currentState;
                 }
-                DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes())
-                        .remove(node.getId());
+                DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes()).remove(node);
                 currentState = ClusterState.builder(currentState).nodes(builder).build();
                 // check if we have enough master nodes, if not, we need to move into joining the cluster again
                 if (!electMaster.hasEnoughMasterNodes(currentState.nodes())) {
                     return rejoin(currentState, "not enough master nodes");
                 }
                 // eagerly run reroute to remove dead nodes from routing table
-                RoutingAllocation.Result routingResult = routingService.getAllocationService().reroute(
+                RoutingAllocation.Result routingResult = allocationService.reroute(
                         ClusterState.builder(currentState).build(),
                         "[" + node + "] failed");
                 return ClusterState.builder(currentState).routingResult(routingResult).build();
@@ -573,8 +572,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                logger.error("unexpected failure during [{}]", t, source);
+            public void onFailure(String source, Exception e) {
+                logger.error("unexpected failure during [{}]", e, source);
             }
 
             @Override
@@ -594,7 +593,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             // We only set the new value. If the master doesn't see enough nodes it will revoke it's mastership.
             return;
         }
-        clusterService.submitStateUpdateTask("zen-disco-minimum_master_nodes_changed", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+        clusterService.submitStateUpdateTask("zen-disco-mini-master-nodes-changed", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 // check if we have enough master nodes, if not, we need to move into joining the cluster again
@@ -611,8 +610,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                logger.error("unexpected failure during [{}]", t, source);
+            public void onFailure(String source, Exception e) {
+                logger.error("unexpected failure during [{}]", e, source);
             }
 
             @Override
@@ -634,7 +633,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         logger.info("master_left [{}], reason [{}]", cause, masterNode, reason);
 
-        clusterService.submitStateUpdateTask("zen-disco-master_failed (" + masterNode + ")", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+        clusterService.submitStateUpdateTask("master_failed (" + masterNode + ")", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
 
             @Override
             public boolean runOnlyOnMaster() {
@@ -643,14 +642,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                if (!masterNode.getId().equals(currentState.nodes().getMasterNodeId())) {
+                if (!masterNode.equals(currentState.nodes().getMasterNode())) {
                     // master got switched on us, no need to send anything
                     return currentState;
                 }
 
                 DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(currentState.nodes())
                         // make sure the old master node, which has failed, is not part of the nodes we publish
-                        .remove(masterNode.getId())
+                        .remove(masterNode)
                         .masterNodeId(null).build();
 
                 // flush any pending cluster states from old master, so it will not be set as master again
@@ -660,8 +659,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                logger.error("unexpected failure during [{}]", t, source);
+            public void onFailure(String source, Exception e) {
+                logger.error("unexpected failure during [{}]", e, source);
             }
 
             @Override
@@ -745,13 +744,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                logger.error("unexpected failure during [{}]", t, source);
+            public void onFailure(String source, Exception e) {
+                logger.error("unexpected failure during [{}]", e, source);
                 if (newClusterState != null) {
                     try {
-                        publishClusterState.pendingStatesQueue().markAsFailed(newClusterState, t);
-                    } catch (Throwable unexpected) {
-                        logger.error("unexpected exception while failing [{}]", unexpected, source);
+                        publishClusterState.pendingStatesQueue().markAsFailed(newClusterState, e);
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        logger.error("unexpected exception while failing [{}]", inner, source);
                     }
                 }
             }
@@ -762,8 +762,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                     if (newClusterState != null) {
                         publishClusterState.pendingStatesQueue().markAsProcessed(newClusterState);
                     }
-                } catch (Throwable t) {
-                    onFailure(source, t);
+                } catch (Exception e) {
+                    onFailure(source, e);
                 }
             }
         });
@@ -833,7 +833,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             // node calling the join request
             try {
                 membership.sendValidateJoinRequestBlocking(node, state, joinTimeout);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 logger.warn("failed to validate incoming join request from node [{}]", e, node);
                 callback.onFailure(new IllegalStateException("failure when sending a validation request to node", e));
                 return;
@@ -1050,8 +1050,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.debug("unexpected error during cluster state update task after pings from another master", t);
+                public void onFailure(String source, Exception e) {
+                    logger.debug("unexpected error during cluster state update task after pings from another master", e);
                 }
             });
         }
@@ -1110,8 +1110,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.error("unexpected failure during [{}]", t, source);
+                public void onFailure(String source, Exception e) {
+                    logger.error("unexpected failure during [{}]", e, source);
                 }
             });
         }

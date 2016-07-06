@@ -100,7 +100,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     public ElasticsearchException(StreamInput in) throws IOException {
-        super(in.readOptionalString(), in.readThrowable());
+        super(in.readOptionalString(), in.readException());
         readStackTrace(this, in);
         int numKeys = in.readVInt();
         for (int i = 0; i < numKeys; i++) {
@@ -162,7 +162,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * Unwraps the actual cause from the exception for cases when the exception is a
      * {@link ElasticsearchWrapperException}.
      *
-     * @see org.elasticsearch.ExceptionsHelper#unwrapCause(Throwable)
+     * @see ExceptionsHelper#unwrapCause(Throwable)
      */
     public Throwable unwrapCause() {
         return ExceptionsHelper.unwrapCause(this);
@@ -204,7 +204,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(this.getMessage());
-        out.writeThrowable(this.getCause());
+        out.writeException(this.getCause());
         writeStackTraces(this, out);
         out.writeVInt(headers.size());
         for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
@@ -415,7 +415,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
         int numSuppressed = in.readVInt();
         for (int i = 0; i < numSuppressed; i++) {
-            throwable.addSuppressed(in.readThrowable());
+            throwable.addSuppressed(in.readException());
         }
         return throwable;
     }
@@ -435,7 +435,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         Throwable[] suppressed = throwable.getSuppressed();
         out.writeVInt(suppressed.length);
         for (Throwable t : suppressed) {
-            out.writeThrowable(t);
+            out.writeException(t);
         }
         return throwable;
     }
@@ -794,9 +794,9 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         return null;
     }
 
-    public static void renderThrowable(XContentBuilder builder, Params params, Throwable t) throws IOException {
+    public static void renderException(XContentBuilder builder, Params params, Exception e) throws IOException {
         builder.startObject("error");
-        final ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(t);
+        final ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(e);
         builder.field("root_cause");
         builder.startArray();
         for (ElasticsearchException rootCause : rootCauses) {
@@ -806,7 +806,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             builder.endObject();
         }
         builder.endArray();
-        ElasticsearchException.toXContent(builder, params, t);
+        ElasticsearchException.toXContent(builder, params, e);
         builder.endObject();
     }
 

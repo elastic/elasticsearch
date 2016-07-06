@@ -73,7 +73,7 @@ public interface DocValueFormat extends NamedWriteable {
      *  to the original BytesRef. */
     BytesRef parseBytesRef(String value);
 
-    public static final DocValueFormat RAW = new DocValueFormat() {
+    DocValueFormat RAW = new DocValueFormat() {
 
         @Override
         public String getWriteableName() {
@@ -121,7 +121,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
-    public static final class DateTime implements DocValueFormat {
+    final class DateTime implements DocValueFormat {
 
         public static final String NAME = "date_time";
 
@@ -181,7 +181,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
     }
 
-    public static final DocValueFormat GEOHASH = new DocValueFormat() {
+    DocValueFormat GEOHASH = new DocValueFormat() {
 
         @Override
         public String getWriteableName() {
@@ -223,7 +223,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
-    public static final DocValueFormat BOOLEAN = new DocValueFormat() {
+    DocValueFormat BOOLEAN = new DocValueFormat() {
 
         @Override
         public String getWriteableName() {
@@ -271,7 +271,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
-    public static final DocValueFormat IP = new DocValueFormat() {
+    DocValueFormat IP = new DocValueFormat() {
 
         @Override
         public String getWriteableName() {
@@ -315,7 +315,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
-    public static final class Decimal implements DocValueFormat {
+    final class Decimal implements DocValueFormat {
 
         public static final String NAME = "decimal";
         private static final DecimalFormatSymbols SYMBOLS = new DecimalFormatSymbols(Locale.ROOT);

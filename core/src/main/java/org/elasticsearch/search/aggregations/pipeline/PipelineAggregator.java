@@ -41,10 +41,10 @@ public abstract class PipelineAggregator implements Streamable, NamedWriteable {
      * Parse the {@link PipelineAggregationBuilder} from a {@link QueryParseContext}.
      */
     @FunctionalInterface
-    public static interface Parser {
-        public static final ParseField BUCKETS_PATH = new ParseField("buckets_path");
-        public static final ParseField FORMAT = new ParseField("format");
-        public static final ParseField GAP_POLICY = new ParseField("gap_policy");
+    public interface Parser {
+        ParseField BUCKETS_PATH = new ParseField("buckets_path");
+        ParseField FORMAT = new ParseField("format");
+        ParseField GAP_POLICY = new ParseField("gap_policy");
 
         /**
          * Returns the pipeline aggregator factory with which this parser is

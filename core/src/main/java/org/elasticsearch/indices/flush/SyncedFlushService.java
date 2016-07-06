@@ -99,7 +99,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     logger.debug("{} sync flush on inactive shard failed", e, indexShard.shardId());
                 }
             });
@@ -143,7 +143,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         logger.debug("{} unexpected error while executing synced flush", shardId);
                         final int totalShards = indexMetaData.getNumberOfReplicas() + 1;
                         results.get(index).add(new ShardsSyncedFlushResult(shardId, totalShards, e.getMessage()));
@@ -219,7 +219,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                         }
 
                         @Override
-                        public void onFailure(Throwable e) {
+                        public void onFailure(Exception e) {
                             actionListener.onFailure(e);
                         }
                     };
@@ -228,15 +228,15 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     actionListener.onFailure(e);
                 }
             };
 
             // 1. send pre-sync flushes to all replicas
             sendPreSyncRequests(activeShards, state, shardId, commitIdsListener);
-        } catch (Throwable t) {
-            actionListener.onFailure(t);
+        } catch (Exception e) {
+            actionListener.onFailure(e);
         }
     }
 
@@ -292,8 +292,8 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                             return ThreadPool.Names.SAME;
                         }
                     });
-        } catch (Throwable t) {
-            listener.onFailure(t);
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
     }
 

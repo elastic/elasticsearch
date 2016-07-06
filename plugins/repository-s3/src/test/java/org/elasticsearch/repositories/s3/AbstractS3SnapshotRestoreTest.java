@@ -512,7 +512,7 @@ public abstract  class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase
                     multiObjectDeleteRequest.setKeys(keys);
                     client.deleteObjects(multiObjectDeleteRequest);
                 }
-            } catch (Throwable ex) {
+            } catch (Exception ex) {
                 logger.warn("Failed to delete S3 repository [{}] in [{}]", ex, bucketName, region);
             }
         }

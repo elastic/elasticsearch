@@ -450,7 +450,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
 
         @Override
-        public final String toString() {
+        public String toString() {
             try {
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 builder.prettyPrint();

@@ -267,8 +267,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             logger.trace("closing IndexOutput file [{}]", entry.getValue());
             try {
                 entry.getValue().close();
-            } catch (Throwable t) {
-                logger.debug("error while closing recovery output [{}]", t, entry.getValue());
+            } catch (Exception e) {
+                logger.debug("error while closing recovery output [{}]", e, entry.getValue());
             }
             iterator.remove();
         }
@@ -353,7 +353,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 } finally {
                     Lucene.cleanLuceneIndex(store.directory()); // clean up and delete all files
                 }
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 logger.debug("Failed to clean lucene index", e);
                 ex.addSuppressed(e);
             }

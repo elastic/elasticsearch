@@ -32,5 +32,5 @@ public interface ActionListener<Response> {
     /**
      * A failure caused by an exception at some phase of the task.
      */
-    void onFailure(Throwable e);
+    void onFailure(Exception e);
 }

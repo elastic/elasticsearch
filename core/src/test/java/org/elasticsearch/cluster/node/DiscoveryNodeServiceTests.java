@@ -19,9 +19,9 @@
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -55,7 +55,8 @@ public class DiscoveryNodeServiceTests extends ESTestCase {
             }
         }
         DiscoveryNodeService discoveryNodeService = new DiscoveryNodeService(builder.build());
-        DiscoveryNode discoveryNode = discoveryNodeService.buildLocalNode(DummyTransportAddress.INSTANCE);
+        DiscoveryNode discoveryNode = discoveryNodeService.buildLocalNode(LocalTransportAddress.buildUnique(),
+            () -> UUIDs.randomBase64UUID(random()));
         assertThat(discoveryNode.getRoles(), equalTo(selectedRoles));
         assertThat(discoveryNode.getAttributes(), equalTo(expectedAttributes));
     }
@@ -77,7 +78,8 @@ public class DiscoveryNodeServiceTests extends ESTestCase {
         expectedAttributes.putAll(customAttributes);
         discoveryNodeService.addCustomAttributeProvider(() -> customAttributes);
 
-        DiscoveryNode discoveryNode = discoveryNodeService.buildLocalNode(DummyTransportAddress.INSTANCE);
+        DiscoveryNode discoveryNode = discoveryNodeService.buildLocalNode(LocalTransportAddress.buildUnique(),
+            () -> UUIDs.randomBase64UUID(random()));
         assertThat(discoveryNode.getAttributes(), equalTo(expectedAttributes));
     }
 }

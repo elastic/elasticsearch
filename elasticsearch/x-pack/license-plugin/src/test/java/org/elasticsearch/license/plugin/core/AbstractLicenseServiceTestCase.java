@@ -33,20 +33,13 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
     protected ClusterService clusterService;
     protected TransportService transportService;
     protected ClockMock clock;
-    protected SchedulerEngine schedulerEngine;
 
     @Before
     public void init() throws Exception {
         clusterService = mock(ClusterService.class);
         transportService = mock(TransportService.class);
         clock = new ClockMock();
-        schedulerEngine = mock(SchedulerEngine.class);
-        licensesService = new LicensesService(Settings.EMPTY, clusterService, transportService, clock) {
-            @Override
-            protected SchedulerEngine getScheduler() {
-                return schedulerEngine;
-            }
-        };
+        licensesService = new LicensesService(Settings.EMPTY, clusterService, transportService, clock);
     }
 
     protected void setInitialState(License license) {

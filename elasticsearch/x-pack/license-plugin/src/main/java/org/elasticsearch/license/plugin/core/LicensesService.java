@@ -130,10 +130,8 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
         }
         populateExpirationCallbacks();
         this.clock = clock;
-    }
-
-    protected SchedulerEngine getScheduler() {
-        return new SchedulerEngine(clock);
+        this.scheduler = new SchedulerEngine(clock);
+        this.scheduler.register(this);
     }
 
     private void populateExpirationCallbacks() {
@@ -395,10 +393,6 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
 
     @Override
     protected void doStart() throws ElasticsearchException {
-        if (scheduler == null) {
-            this.scheduler = getScheduler();
-            this.scheduler.register(this);
-        }
         clusterService.add(this);
         try {
             scheduler.start(Collections.emptyList());
@@ -523,7 +517,8 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
                 scheduler.add(new SchedulerEngine.Job(LICENSE_JOB, new LicenseSchedule(license)));
                 for (ExpirationCallback expirationCallback : expirationCallbacks) {
                     scheduler.add(new SchedulerEngine.Job(expirationCallback.getId(),
-                            expirationCallback.schedule(license.expiryDate())));
+                            (startTime, now) ->
+                                    expirationCallback.nextScheduledTimeForExpiry(license.expiryDate(), startTime, now)));
                 }
             }
         }

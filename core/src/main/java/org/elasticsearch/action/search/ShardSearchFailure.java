@@ -48,19 +48,19 @@ public class ShardSearchFailure implements ShardOperationFailedException {
 
     }
 
-    public ShardSearchFailure(Throwable t) {
-        this(t, null);
+    public ShardSearchFailure(Exception e) {
+        this(e, null);
     }
 
-    public ShardSearchFailure(Throwable t, @Nullable SearchShardTarget shardTarget) {
-        Throwable actual = ExceptionsHelper.unwrapCause(t);
+    public ShardSearchFailure(Exception e, @Nullable SearchShardTarget shardTarget) {
+        final Throwable actual = ExceptionsHelper.unwrapCause(e);
         if (actual != null && actual instanceof SearchException) {
             this.shardTarget = ((SearchException) actual).shard();
         } else if (shardTarget != null) {
             this.shardTarget = shardTarget;
         }
         status = ExceptionsHelper.status(actual);
-        this.reason = ExceptionsHelper.detailedMessage(t);
+        this.reason = ExceptionsHelper.detailedMessage(e);
         this.cause = actual;
     }
 
@@ -135,7 +135,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         }
         reason = in.readString();
         status = RestStatus.readFrom(in);
-        cause = in.readThrowable();
+        cause = in.readException();
     }
 
     @Override
@@ -148,7 +148,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         }
         out.writeString(reason);
         RestStatus.writeTo(out, status);
-        out.writeThrowable(cause);
+        out.writeException(cause);
     }
 
     @Override

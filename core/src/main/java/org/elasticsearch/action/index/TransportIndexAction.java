@@ -101,13 +101,14 @@ public class TransportIndexAction extends TransportWriteAction<IndexRequest, Ind
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
                         // we have the index, do it
                         try {
                             innerExecute(task, request, listener);
-                        } catch (Throwable e1) {
-                            listener.onFailure(e1);
+                        } catch (Exception inner) {
+                            inner.addSuppressed(e);
+                            listener.onFailure(inner);
                         }
                     } else {
                         listener.onFailure(e);
@@ -196,7 +197,7 @@ public class TransportIndexAction extends TransportWriteAction<IndexRequest, Ind
 
         assert request.versionType().validateVersionForWrites(request.version());
 
-        IndexResponse response = new IndexResponse(shardId, request.type(), request.id(), request.version(), created); 
+        IndexResponse response = new IndexResponse(shardId, request.type(), request.id(), request.version(), created);
         return new WriteResult<>(response, operation.getTranslogLocation());
     }
 }

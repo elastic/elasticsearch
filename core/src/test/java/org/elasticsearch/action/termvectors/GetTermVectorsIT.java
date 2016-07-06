@@ -389,19 +389,15 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         TestConfig[] testConfigs = generateTestConfigs(20, testDocs, testFieldSettings);
 
         for (TestConfig test : testConfigs) {
-            try {
-                TermVectorsRequestBuilder request = getRequestForConfig(test);
-                if (test.expectedException != null) {
-                    assertThrows(request, test.expectedException);
-                    continue;
-                }
-
-                TermVectorsResponse response = request.get();
-                Fields luceneTermVectors = getTermVectorsFromLucene(directoryReader, test.doc);
-                validateResponse(response, luceneTermVectors, test);
-            } catch (Throwable t) {
-                throw new Exception("Test exception while running " + test.toString(), t);
+            TermVectorsRequestBuilder request = getRequestForConfig(test);
+            if (test.expectedException != null) {
+                assertThrows(request, test.expectedException);
+                continue;
             }
+
+            TermVectorsResponse response = request.get();
+            Fields luceneTermVectors = getTermVectorsFromLucene(directoryReader, test.doc);
+            validateResponse(response, luceneTermVectors, test);
         }
     }
 

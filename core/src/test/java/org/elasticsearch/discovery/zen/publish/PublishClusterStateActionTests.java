@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -152,16 +153,17 @@ public class PublishClusterStateActionTests extends ESTestCase {
         return createMockNode(name, settings, null);
     }
 
-    public MockNode createMockNode(String name, Settings settings, @Nullable ClusterStateListener listener) throws Exception {
-        settings = Settings.builder()
+    public MockNode createMockNode(String name, final Settings basSettings, @Nullable ClusterStateListener listener) throws Exception {
+        final Settings settings = Settings.builder()
                 .put("name", name)
                 .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "", TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
-                .put(settings)
+                .put(basSettings)
                 .build();
 
         MockTransportService service = buildTransportService(settings);
         DiscoveryNodeService discoveryNodeService = new DiscoveryNodeService(settings);
-        DiscoveryNode discoveryNode = discoveryNodeService.buildLocalNode(service.boundAddress().publishAddress());
+        DiscoveryNode discoveryNode = discoveryNodeService.buildLocalNode(service.boundAddress().publishAddress(),
+            () -> NodeEnvironment.generateNodeId(settings));
         MockNode node = new MockNode(discoveryNode, service, listener, logger);
         node.action = buildPublishClusterStateAction(settings, service, () -> node.clusterState, node);
         final CountDownLatch latch = new CountDownLatch(nodes.size() * 2 + 1);
@@ -797,9 +799,9 @@ public class PublishClusterStateActionTests extends ESTestCase {
         }
 
         @Override
-        public void onNodeAck(DiscoveryNode node, @Nullable Throwable t) {
-            if (t != null) {
-                errors.add(new Tuple<>(node, t));
+        public void onNodeAck(DiscoveryNode node, @Nullable Exception e) {
+            if (e != null) {
+                errors.add(new Tuple<>(node, e));
             }
             countDown.countDown();
         }
@@ -910,8 +912,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
         }
 
         @Override
-        public void sendResponse(Throwable error) throws IOException {
-            this.error.set(error);
+        public void sendResponse(Exception exception) throws IOException {
+            this.error.set(exception);
             assertThat(response.get(), nullValue());
         }
 

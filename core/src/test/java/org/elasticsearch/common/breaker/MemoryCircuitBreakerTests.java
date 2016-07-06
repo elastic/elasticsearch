@@ -43,7 +43,7 @@ public class MemoryCircuitBreakerTests extends ESTestCase {
         final int BYTES_PER_THREAD = scaledRandomIntBetween(500, 4500);
         final Thread[] threads = new Thread[NUM_THREADS];
         final AtomicBoolean tripped = new AtomicBoolean(false);
-        final AtomicReference<Throwable> lastException = new AtomicReference<>(null);
+        final AtomicReference<Exception> lastException = new AtomicReference<>(null);
 
         final MemoryCircuitBreaker breaker = new MemoryCircuitBreaker(new ByteSizeValue((BYTES_PER_THREAD * NUM_THREADS) - 1), 1.0, logger);
 
@@ -60,8 +60,8 @@ public class MemoryCircuitBreakerTests extends ESTestCase {
                             } else {
                                 assertThat(tripped.compareAndSet(false, true), equalTo(true));
                             }
-                        } catch (Throwable e2) {
-                            lastException.set(e2);
+                        } catch (Exception e) {
+                            lastException.set(e);
                         }
                     }
                 }
@@ -117,8 +117,8 @@ public class MemoryCircuitBreakerTests extends ESTestCase {
                             } else {
                                 assertThat(tripped.compareAndSet(false, true), equalTo(true));
                             }
-                        } catch (Throwable e2) {
-                            lastException.set(e2);
+                        } catch (Exception e) {
+                            lastException.set(e);
                         }
                     }
                 }
@@ -178,8 +178,8 @@ public class MemoryCircuitBreakerTests extends ESTestCase {
                             breaker.addEstimateBytesAndMaybeBreak(1L, "test");
                         } catch (CircuitBreakingException e) {
                             tripped.incrementAndGet();
-                        } catch (Throwable e2) {
-                            lastException.set(e2);
+                        } catch (Exception e) {
+                            lastException.set(e);
                         }
                     }
                 }

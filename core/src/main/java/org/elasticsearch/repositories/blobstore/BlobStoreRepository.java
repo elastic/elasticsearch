@@ -223,7 +223,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     protected void doClose() {
         try {
             blobStore().close();
-        } catch (Throwable t) {
+        } catch (Exception t) {
             logger.warn("cannot close blob store", t);
         }
     }

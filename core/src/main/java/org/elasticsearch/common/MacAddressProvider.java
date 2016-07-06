@@ -59,7 +59,7 @@ public class MacAddressProvider {
         byte[] address = null;
         try {
             address = getMacAddress();
-        } catch (Throwable t) {
+        } catch (SocketException e) {
             // address will be set below
         }
 

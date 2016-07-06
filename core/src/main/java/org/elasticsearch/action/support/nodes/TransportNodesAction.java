@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -48,9 +48,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
 
-/**
- *
- */
 public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest<NodesRequest>,
                                            NodesResponse extends BaseNodesResponse,
                                            NodeRequest extends BaseNodeRequest,
@@ -204,7 +201,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                         }
 
                         transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),
-                                                     new BaseTransportResponseHandler<NodeResponse>() {
+                                                     new TransportResponseHandler<NodeResponse>() {
                             @Override
                             public NodeResponse newInstance() {
                                 return newNodeResponse();
@@ -226,8 +223,8 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                             }
                         });
                     }
-                } catch (Throwable t) {
-                    onFailure(idx, nodeId, t);
+                } catch (Exception e) {
+                    onFailure(idx, nodeId, e);
                 }
             }
         }
@@ -255,9 +252,9 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
             NodesResponse finalResponse;
             try {
                 finalResponse = newResponse(request, responses);
-            } catch (Throwable t) {
-                logger.debug("failed to combine responses from nodes", t);
-                listener.onFailure(t);
+            } catch (Exception e) {
+                logger.debug("failed to combine responses from nodes", e);
+                listener.onFailure(e);
                 return;
             }
             listener.onResponse(finalResponse);

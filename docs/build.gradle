@@ -30,6 +30,8 @@ integTest {
     configFile 'scripts/my_script.py'
     configFile 'userdict_ja.txt'
     configFile 'KeywordTokenizer.rbbi'
+    // Whitelist reindexing from the local node so we can test it.
+    setting 'reindex.remote.whitelist', 'myself'
   }
 }
 
@@ -81,3 +83,15 @@ Closure setupTwitter = { String name, int count ->
   }
 setupTwitter('twitter', 5)
 setupTwitter('big_twitter', 120)
+
+buildRestTests.setups['host'] = '''
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http ]
+  - is_true: nodes.$master.http.publish_address
+  - set: {nodes.$master.http.publish_address: host}
+'''

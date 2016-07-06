@@ -294,8 +294,8 @@ public class ThreadContextTests extends ESTestCase {
         }
         return new AbstractRunnable() {
             @Override
-            public void onFailure(Throwable t) {
-                throw new RuntimeException(t);
+            public void onFailure(Exception e) {
+                throw new RuntimeException(e);
             }
 
             @Override

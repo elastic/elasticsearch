@@ -84,7 +84,7 @@ public class AliasValidator extends AbstractComponent {
         if (Strings.hasLength(alias.filter())) {
             try (XContentParser parser = XContentFactory.xContent(alias.filter()).createParser(alias.filter())) {
                 parser.map();
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 throw new IllegalArgumentException("failed to parse filter for alias [" + alias.name() + "]", e);
             }
         }
@@ -121,7 +121,7 @@ public class AliasValidator extends AbstractComponent {
         assert queryShardContext != null;
         try (XContentParser parser = XContentFactory.xContent(filter).createParser(filter)) {
             validateAliasFilter(parser, queryShardContext);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new IllegalArgumentException("failed to parse filter for alias [" + alias + "]", e);
         }
     }
@@ -135,7 +135,7 @@ public class AliasValidator extends AbstractComponent {
         assert queryShardContext != null;
         try (XContentParser parser = XContentFactory.xContent(filter).createParser(filter)) {
             validateAliasFilter(parser, queryShardContext);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new IllegalArgumentException("failed to parse filter for alias [" + alias + "]", e);
         }
     }

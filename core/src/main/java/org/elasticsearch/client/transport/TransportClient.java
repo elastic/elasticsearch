@@ -19,6 +19,12 @@
 
 package org.elasticsearch.client.transport;
 
+import java.io.Closeable;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -52,11 +58,6 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.Closeable;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one
@@ -143,8 +144,9 @@ public class TransportClient extends AbstractClient {
                 modules.add(new NetworkModule(networkService, settings, true, namedWriteableRegistry));
                 modules.add(b -> b.bind(ThreadPool.class).toInstance(threadPool));
                 modules.add(new SearchModule(settings, namedWriteableRegistry, true));
-                modules.add(new ActionModule(false, true, settings, null, settingsModule.getClusterSettings(),
-                        pluginsService.filterPlugins(ActionPlugin.class)));
+                ActionModule actionModule = new ActionModule(false, true, settings, null, settingsModule.getClusterSettings(),
+                    pluginsService.filterPlugins(ActionPlugin.class));
+                modules.add(actionModule);
 
                 pluginsService.processModules(modules);
                 CircuitBreakerService circuitBreakerService = Node.createCircuitBreakerService(settingsModule.getSettings(),
@@ -161,9 +163,14 @@ public class TransportClient extends AbstractClient {
 
                 Injector injector = modules.createInjector();
                 final TransportService transportService = injector.getInstance(TransportService.class);
+                final TransportClientNodesService nodesService =
+                    new TransportClientNodesService(settings, transportService, threadPool);
+                final TransportProxyClient proxy = new TransportProxyClient(settings, transportService, nodesService,
+                    actionModule.getActions().values().stream().map(x -> x.getAction()).collect(Collectors.toList()));
+
                 transportService.start();
                 transportService.acceptIncomingRequests();
-                TransportClient transportClient = new TransportClient(injector);
+                TransportClient transportClient = new TransportClient(injector, nodesService, proxy);
                 resourcesToClose.clear();
                 return transportClient;
             } finally {
@@ -179,15 +186,11 @@ public class TransportClient extends AbstractClient {
     private final TransportClientNodesService nodesService;
     private final TransportProxyClient proxy;
 
-    private TransportClient(Injector injector) {
+    private TransportClient(Injector injector, TransportClientNodesService nodesService, TransportProxyClient proxy) {
         super(injector.getInstance(Settings.class), injector.getInstance(ThreadPool.class));
         this.injector = injector;
-        nodesService = injector.getInstance(TransportClientNodesService.class);
-        proxy = injector.getInstance(TransportProxyClient.class);
-    }
-
-    TransportClientNodesService nodeService() {
-        return nodesService;
+        this.nodesService = nodesService;
+        this.proxy = proxy;
     }
 
     /**
@@ -263,7 +266,7 @@ public class TransportClient extends AbstractClient {
     @Override
     public void close() {
         List<Closeable> closeables = new ArrayList<>();
-        closeables.add(injector.getInstance(TransportClientNodesService.class));
+        closeables.add(nodesService);
         closeables.add(injector.getInstance(TransportService.class));
 
         for (Class<? extends LifecycleComponent> plugin : injector.getInstance(PluginsService.class).nodeServices()) {

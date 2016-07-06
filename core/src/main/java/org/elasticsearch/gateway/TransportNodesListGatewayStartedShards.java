@@ -245,7 +245,7 @@ public class TransportNodesListGatewayStartedShards extends
         private long legacyVersion = ShardStateMetaData.NO_VERSION; // for pre-3.0 shards that have not yet been active
         private String allocationId = null;
         private boolean primary = false;
-        private Throwable storeException = null;
+        private Exception storeException = null;
 
         public NodeGatewayStartedShards() {
         }
@@ -255,7 +255,7 @@ public class TransportNodesListGatewayStartedShards extends
         }
 
         public NodeGatewayStartedShards(DiscoveryNode node, long legacyVersion, String allocationId, boolean primary,
-                                        Throwable storeException) {
+                                        Exception storeException) {
             super(node);
             this.legacyVersion = legacyVersion;
             this.allocationId = allocationId;
@@ -275,7 +275,7 @@ public class TransportNodesListGatewayStartedShards extends
             return this.primary;
         }
 
-        public Throwable storeException() {
+        public Exception storeException() {
             return this.storeException;
         }
 
@@ -286,7 +286,7 @@ public class TransportNodesListGatewayStartedShards extends
             allocationId = in.readOptionalString();
             primary = in.readBoolean();
             if (in.readBoolean()) {
-                storeException = in.readThrowable();
+                storeException = in.readException();
             }
         }
 
@@ -298,7 +298,7 @@ public class TransportNodesListGatewayStartedShards extends
             out.writeBoolean(primary);
             if (storeException != null) {
                 out.writeBoolean(true);
-                out.writeThrowable(storeException);
+                out.writeException(storeException);
             } else {
                 out.writeBoolean(false);
             }

@@ -571,7 +571,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                     } else {
                         logger.warn("skipping compile of script file [{}] as all scripted operations are disabled for file scripts", file.toAbsolutePath());
                     }
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     logger.warn("failed to load/compile script [{}]", e, scriptNameExt.v1());
                 }
             }

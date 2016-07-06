@@ -122,7 +122,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
                 String length = Strings.hasLength(contentLength) ? contentLength : String.valueOf(parsedContent.length());
                 additionalFields.put(Property.CONTENT_LENGTH.toLowerCase(), length);
             }
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new ElasticsearchParseException("Error parsing document in field [{}]", e, field);
         }
 

@@ -120,7 +120,7 @@ public final class ConfigurationUtils {
         }
         try {
             return Integer.parseInt(value.toString());
-        } catch (Throwable t) {
+        } catch (Exception e) {
             throw newConfigurationException(processorType, processorTag, propertyName,
                 "property cannot be converted to an int [" + value.toString() + "]");
         }

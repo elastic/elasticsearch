@@ -27,15 +27,12 @@ import java.util.List;
 import java.util.Map;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
-
 
 public class ConfigurationUtilsTests extends ESTestCase {
     private Map<String, Object> config;

@@ -51,13 +51,13 @@ public class PipelineExecutionService implements ClusterStateListener {
         this.threadPool = threadPool;
     }
 
-    public void executeIndexRequest(IndexRequest request, Consumer<Throwable> failureHandler, Consumer<Boolean> completionHandler) {
+    public void executeIndexRequest(IndexRequest request, Consumer<Exception> failureHandler, Consumer<Boolean> completionHandler) {
         Pipeline pipeline = getPipeline(request.getPipeline());
         threadPool.executor(ThreadPool.Names.INDEX).execute(new AbstractRunnable() {
 
             @Override
-            public void onFailure(Throwable t) {
-                failureHandler.accept(t);
+            public void onFailure(Exception e) {
+                failureHandler.accept(e);
             }
 
             @Override
@@ -69,13 +69,13 @@ public class PipelineExecutionService implements ClusterStateListener {
     }
 
     public void executeBulkRequest(Iterable<ActionRequest<?>> actionRequests,
-                                   BiConsumer<IndexRequest, Throwable> itemFailureHandler,
-                                   Consumer<Throwable> completionHandler) {
+                                   BiConsumer<IndexRequest, Exception> itemFailureHandler,
+                                   Consumer<Exception> completionHandler) {
         threadPool.executor(ThreadPool.Names.BULK).execute(new AbstractRunnable() {
 
             @Override
-            public void onFailure(Throwable t) {
-                completionHandler.accept(t);
+            public void onFailure(Exception e) {
+                completionHandler.accept(e);
             }
 
             @Override
@@ -89,7 +89,7 @@ public class PipelineExecutionService implements ClusterStateListener {
                                 //this shouldn't be needed here but we do it for consistency with index api
                                 // which requires it to prevent double execution
                                 indexRequest.setPipeline(null);
-                            } catch (Throwable e) {
+                            } catch (Exception e) {
                                 itemFailureHandler.accept(indexRequest, e);
                             }
                         }

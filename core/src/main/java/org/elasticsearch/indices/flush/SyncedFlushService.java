@@ -50,7 +50,7 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -99,7 +99,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     logger.debug("{} sync flush on inactive shard failed", e, indexShard.shardId());
                 }
             });
@@ -143,7 +143,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         logger.debug("{} unexpected error while executing synced flush", shardId);
                         final int totalShards = indexMetaData.getNumberOfReplicas() + 1;
                         results.get(index).add(new ShardsSyncedFlushResult(shardId, totalShards, e.getMessage()));
@@ -219,7 +219,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                         }
 
                         @Override
-                        public void onFailure(Throwable e) {
+                        public void onFailure(Exception e) {
                             actionListener.onFailure(e);
                         }
                     };
@@ -228,15 +228,15 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     actionListener.onFailure(e);
                 }
             };
 
             // 1. send pre-sync flushes to all replicas
             sendPreSyncRequests(activeShards, state, shardId, commitIdsListener);
-        } catch (Throwable t) {
-            actionListener.onFailure(t);
+        } catch (Exception e) {
+            actionListener.onFailure(e);
         }
     }
 
@@ -270,7 +270,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
             }
             logger.trace("{} retrieving in flight operation count", shardId);
             transportService.sendRequest(primaryNode, IN_FLIGHT_OPS_ACTION_NAME, new InFlightOpsRequest(shardId),
-                    new BaseTransportResponseHandler<InFlightOpsResponse>() {
+                    new TransportResponseHandler<InFlightOpsResponse>() {
                         @Override
                         public InFlightOpsResponse newInstance() {
                             return new InFlightOpsResponse();
@@ -292,8 +292,8 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                             return ThreadPool.Names.SAME;
                         }
                     });
-        } catch (Throwable t) {
-            listener.onFailure(t);
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
     }
 
@@ -319,7 +319,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
             }
             logger.trace("{} sending synced flush request to {}. sync id [{}].", shardId, shard, syncId);
             transportService.sendRequest(node, SYNCED_FLUSH_ACTION_NAME, new ShardSyncedFlushRequest(shard.shardId(), syncId, expectedCommitId),
-                    new BaseTransportResponseHandler<ShardSyncedFlushResponse>() {
+                    new TransportResponseHandler<ShardSyncedFlushResponse>() {
                         @Override
                         public ShardSyncedFlushResponse newInstance() {
                             return new ShardSyncedFlushResponse();
@@ -373,7 +373,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                 }
                 continue;
             }
-            transportService.sendRequest(node, PRE_SYNCED_FLUSH_ACTION_NAME, new PreShardSyncedFlushRequest(shard.shardId()), new BaseTransportResponseHandler<PreSyncedFlushResponse>() {
+            transportService.sendRequest(node, PRE_SYNCED_FLUSH_ACTION_NAME, new PreShardSyncedFlushRequest(shard.shardId()), new TransportResponseHandler<PreSyncedFlushResponse>() {
                 @Override
                 public PreSyncedFlushResponse newInstance() {
                     return new PreSyncedFlushResponse();

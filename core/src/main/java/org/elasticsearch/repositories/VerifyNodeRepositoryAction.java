@@ -83,9 +83,9 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
             if (node.equals(localNode)) {
                 try {
                     doVerify(repository, verificationToken);
-                } catch (Throwable t) {
-                    logger.warn("[{}] failed to verify repository", t, repository);
-                    errors.add(new VerificationFailure(node.getId(), t));
+                } catch (Exception e) {
+                    logger.warn("[{}] failed to verify repository", e, repository);
+                    errors.add(new VerificationFailure(node.getId(), e));
                 }
                 if (counter.decrementAndGet() == 0) {
                     finishVerification(listener, nodes, errors);

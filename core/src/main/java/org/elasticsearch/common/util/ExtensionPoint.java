@@ -184,7 +184,7 @@ public abstract class ExtensionPoint {
          * @param extension the extension to register
          * @throws IllegalArgumentException iff the class is already registered
          */
-        public final void registerExtension(Class<? extends T> extension) {
+        public void registerExtension(Class<? extends T> extension) {
             if (extensions.contains(extension)) {
                 throw new IllegalArgumentException("Can't register the same [" + this.name + "] more than once for [" + extension.getName() + "]");
             }
@@ -192,7 +192,7 @@ public abstract class ExtensionPoint {
         }
 
         @Override
-        protected final void bindExtensions(Binder binder) {
+        protected void bindExtensions(Binder binder) {
             Multibinder<T> allocationMultibinder = Multibinder.newSetBinder(binder, extensionClass);
             for (Class<? extends T> clazz : extensions) {
                 binder.bind(clazz).asEagerSingleton();
@@ -227,7 +227,7 @@ public abstract class ExtensionPoint {
          *
          * @throws IllegalArgumentException iff the key is already registered
          */
-        public final void registerExtension(K key, V value) {
+        public void registerExtension(K key, V value) {
             V old = map.put(key, value);
             if (old != null) {
                 throw new IllegalArgumentException("Cannot register [" + this.name + "] with key [" + key + "] to [" + value + "], already registered to [" + old + "]");

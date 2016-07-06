@@ -89,7 +89,7 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
             });
@@ -117,7 +117,7 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
         });

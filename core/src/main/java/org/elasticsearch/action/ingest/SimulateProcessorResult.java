@@ -52,7 +52,7 @@ public class SimulateProcessorResult implements Writeable, ToXContent {
     public SimulateProcessorResult(StreamInput in) throws IOException {
         this.processorTag = in.readString();
         if (in.readBoolean()) {
-            this.failure = in.readThrowable();
+            this.failure = in.readException();
             this.ingestDocument = null;
         } else {
             this.ingestDocument = new WriteableIngestDocument(in);
@@ -68,7 +68,7 @@ public class SimulateProcessorResult implements Writeable, ToXContent {
             ingestDocument.writeTo(out);
         } else {
             out.writeBoolean(true);
-            out.writeThrowable(failure);
+            out.writeException(failure);
         }
     }
 
@@ -96,7 +96,7 @@ public class SimulateProcessorResult implements Writeable, ToXContent {
         if (failure == null) {
             ingestDocument.toXContent(builder, params);
         } else {
-            ElasticsearchException.renderThrowable(builder, params, failure);
+            ElasticsearchException.renderException(builder, params, failure);
         }
         builder.endObject();
         return builder;

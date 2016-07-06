@@ -297,7 +297,7 @@ public class InternalEngineTests extends ESTestCase {
         }
         Engine.EventListener listener = new Engine.EventListener() {
             @Override
-            public void onFailedEngine(String reason, @Nullable Throwable t) {
+            public void onFailedEngine(String reason, @Nullable Exception e) {
                 // we don't need to notify anybody in this test
             }
         };
@@ -2092,7 +2092,7 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     public void testShardNotAvailableExceptionWhenEngineClosedConcurrently() throws IOException, InterruptedException {
-        AtomicReference<Throwable> throwable = new AtomicReference<>();
+        AtomicReference<Exception> exception = new AtomicReference<>();
         String operation = randomFrom("optimize", "refresh", "flush");
         Thread mergeThread = new Thread() {
             @Override
@@ -2115,8 +2115,8 @@ public class InternalEngineTests extends ESTestCase {
                                 break;
                             }
                         }
-                    } catch (Throwable t) {
-                        throwable.set(t);
+                    } catch (Exception e) {
+                        exception.set(e);
                         stop = true;
                     }
                 }
@@ -2125,8 +2125,8 @@ public class InternalEngineTests extends ESTestCase {
         mergeThread.start();
         engine.close();
         mergeThread.join();
-        logger.info("exception caught: ", throwable.get());
-        assertTrue("expected an Exception that signals shard is not available", TransportActions.isShardNotAvailableException(throwable.get()));
+        logger.info("exception caught: ", exception.get());
+        assertTrue("expected an Exception that signals shard is not available", TransportActions.isShardNotAvailableException(exception.get()));
     }
 
     public void testCurrentTranslogIDisCommitted() throws IOException {

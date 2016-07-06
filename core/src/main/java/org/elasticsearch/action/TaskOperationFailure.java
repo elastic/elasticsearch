@@ -43,15 +43,15 @@ public final class TaskOperationFailure implements Writeable, ToXContent {
 
     private final long taskId;
 
-    private final Throwable reason;
+    private final Exception reason;
 
     private final RestStatus status;
 
-    public TaskOperationFailure(String nodeId, long taskId, Throwable t) {
+    public TaskOperationFailure(String nodeId, long taskId, Exception e) {
         this.nodeId = nodeId;
         this.taskId = taskId;
-        this.reason = t;
-        status = ExceptionsHelper.status(t);
+        this.reason = e;
+        status = ExceptionsHelper.status(e);
     }
 
     /**
@@ -60,7 +60,7 @@ public final class TaskOperationFailure implements Writeable, ToXContent {
     public TaskOperationFailure(StreamInput in) throws IOException {
         nodeId = in.readString();
         taskId = in.readLong();
-        reason = in.readThrowable();
+        reason = in.readException();
         status = RestStatus.readFrom(in);
     }
 
@@ -68,7 +68,7 @@ public final class TaskOperationFailure implements Writeable, ToXContent {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeId);
         out.writeLong(taskId);
-        out.writeThrowable(reason);
+        out.writeException(reason);
         RestStatus.writeTo(out, status);
     }
 

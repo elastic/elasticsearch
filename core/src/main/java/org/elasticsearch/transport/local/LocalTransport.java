@@ -274,7 +274,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
                     }
                 }
             }
-        } catch (Throwable e) {
+        } catch (Exception e) {
             if (sendRequestId != null) {
                 TransportResponseHandler handler = sourceTransport.transportServiceAdapter.onResponseReceived(sendRequestId);
                 if (handler != null) {
@@ -329,25 +329,25 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         if (lifecycleState() == Lifecycle.State.STARTED) {
                             // we can only send a response transport is started....
                             try {
                                 transportChannel.sendResponse(e);
-                            } catch (Throwable e1) {
-                                logger.warn("Failed to send error message back to client for action [{}]", e1, action);
-                                logger.warn("Actual Exception", e);
+                            } catch (Exception inner) {
+                                inner.addSuppressed(e);
+                                logger.warn("Failed to send error message back to client for action [{}]", inner, action);
                             }
                         }
                     }
                 });
             }
-        } catch (Throwable e) {
+        } catch (Exception e) {
             try {
                 transportChannel.sendResponse(e);
-            } catch (Throwable e1) {
-                logger.warn("Failed to send error message back to client for action [{}]", e, action);
-                logger.warn("Actual Exception", e1);
+            } catch (Exception inner) {
+                inner.addSuppressed(e);
+                logger.warn("Failed to send error message back to client for action [{}]", inner, action);
             }
 
         }
@@ -359,7 +359,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
         response.remoteAddress(sourceTransport.boundAddress.publishAddress());
         try {
             response.readFrom(buffer);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             handleException(handler, new TransportSerializationException(
                     "Failed to deserialize response of type [" + response.getClass().getName() + "]", e));
             return;
@@ -371,31 +371,31 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
         threadPool.executor(handler.executor()).execute(() -> {
             try {
                 handler.handleResponse(response);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 handleException(handler, new ResponseHandlerFailureTransportException(e));
             }
         });
     }
 
     private void handleResponseError(StreamInput buffer, final TransportResponseHandler handler) {
-        Throwable error;
+        Exception exception;
         try {
-            error = buffer.readThrowable();
-        } catch (Throwable e) {
-            error = new TransportSerializationException("Failed to deserialize exception response from stream", e);
+            exception = buffer.readException();
+        } catch (Exception e) {
+            exception = new TransportSerializationException("Failed to deserialize exception response from stream", e);
         }
-        handleException(handler, error);
+        handleException(handler, exception);
     }
 
-    private void handleException(final TransportResponseHandler handler, Throwable error) {
-        if (!(error instanceof RemoteTransportException)) {
-            error = new RemoteTransportException("None remote transport exception", null, null, error);
+    private void handleException(final TransportResponseHandler handler, Exception exception) {
+        if (!(exception instanceof RemoteTransportException)) {
+            exception = new RemoteTransportException("None remote transport exception", null, null, exception);
         }
-        final RemoteTransportException rtx = (RemoteTransportException) error;
+        final RemoteTransportException rtx = (RemoteTransportException) exception;
         try {
             handler.handleException(rtx);
-        } catch (Throwable t) {
-            logger.error("failed to handle exception response [{}]", t, handler);
+        } catch (Exception e) {
+            logger.error("failed to handle exception response [{}]", e, handler);
         }
     }
 

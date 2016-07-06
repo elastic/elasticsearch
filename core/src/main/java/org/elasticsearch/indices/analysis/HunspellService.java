@@ -96,7 +96,7 @@ public class HunspellService extends AbstractComponent {
         this.loadingFunction = (locale) -> {
             try {
                 return loadDictionary(locale, settings, env);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 throw new IllegalStateException("failed to load hunspell dictionary for locale: " + locale, e);
             }
         };
@@ -135,7 +135,7 @@ public class HunspellService extends AbstractComponent {
                             if (inner.iterator().hasNext()) { // just making sure it's indeed a dictionary dir
                                 try {
                                     getDictionary(file.getFileName().toString());
-                                } catch (Throwable e) {
+                                } catch (Exception e) {
                                     // The cache loader throws unchecked exception (see #loadDictionary()),
                                     // here we simply report the exception and continue loading the dictionaries
                                     logger.error("exception while loading dictionary {}", e, file.getFileName());

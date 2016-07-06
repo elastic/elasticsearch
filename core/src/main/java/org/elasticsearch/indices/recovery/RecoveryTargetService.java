@@ -58,7 +58,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
@@ -152,7 +151,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
     private void retryRecovery(final RecoveryTarget recoveryTarget, TimeValue retryAfter, final StartRecoveryRequest currentRequest) {
         try {
             recoveryTarget.resetRecovery();
-        } catch (Throwable e) {
+        } catch (Exception e) {
             onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(), new RecoveryFailedException(currentRequest, e), true);
         }
         threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(recoveryTarget.recoveryId()));
@@ -220,7 +219,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
             }
         } catch (CancellableThreads.ExecutionCancelledException e) {
             logger.trace("recovery cancelled", e);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}][{}] Got exception on recovery", e, request.shardId().getIndex().getName(), request.shardId().id());
             }
@@ -260,12 +259,6 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
                 logger.debug("delaying recovery of {} for [{}] due to networking error [{}]", recoveryTarget.shardId(), recoverySettings
                         .retryDelayNetwork(), cause.getMessage());
                 retryRecovery(recoveryTarget, cause.getMessage(), recoverySettings.retryDelayNetwork(), request);
-                return;
-            }
-
-            if (cause instanceof IndexShardClosedException) {
-                onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(), new RecoveryFailedException(request, "source shard is " +
-                        "closed", cause), false);
                 return;
             }
 
@@ -438,16 +431,16 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
         }
 
         @Override
-        public void onFailure(Throwable t) {
+        public void onFailure(Exception e) {
             try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
                 if (recoveryRef != null) {
-                    logger.error("unexpected error during recovery [{}], failing shard", t, recoveryId);
+                    logger.error("unexpected error during recovery [{}], failing shard", e, recoveryId);
                     onGoingRecoveries.failRecovery(recoveryId,
-                            new RecoveryFailedException(recoveryRef.status().state(), "unexpected error", t),
+                            new RecoveryFailedException(recoveryRef.status().state(), "unexpected error", e),
                             true // be safe
                     );
                 } else {
-                    logger.debug("unexpected error during recovery, but recovery id [{}] is finished", t, recoveryId);
+                    logger.debug("unexpected error during recovery, but recovery id [{}] is finished", e, recoveryId);
                 }
             }
         }

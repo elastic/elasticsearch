@@ -42,11 +42,20 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
     public void testGet() throws IOException {
         int length = randomIntBetween(1, PAGE_SIZE * 3);
         BytesReference pbr = newBytesReference(length);
+
         int sliceOffset = randomIntBetween(0, length / 2);
         int sliceLength = Math.max(1, length - sliceOffset - 1);
         BytesReference slice = pbr.slice(sliceOffset, sliceLength);
         assertEquals(pbr.get(sliceOffset), slice.get(0));
         assertEquals(pbr.get(sliceOffset + sliceLength - 1), slice.get(sliceLength - 1));
+        final int probes = randomIntBetween(20, 100);
+        BytesReference copy = new BytesArray(pbr.toBytesRef(), true);
+        for (int i = 0; i < probes; i++) {
+            int index = randomIntBetween(0, copy.length() - 1);
+            assertEquals(pbr.get(index), copy.get(index));
+            index = randomIntBetween(sliceOffset, sliceOffset + sliceLength - 1);
+            assertEquals(pbr.get(index), slice.get(index - sliceOffset));
+        }
     }
 
     public void testLength() throws IOException {
@@ -119,6 +128,26 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         si.reset();
         expectThrows(IndexOutOfBoundsException.class, () ->
             si.readBytes(targetBuf, 0, length * 2));
+    }
+
+    public void testStreamInputMarkAndReset() throws IOException {
+        int length = randomIntBetween(10, scaledRandomIntBetween(PAGE_SIZE * 2, PAGE_SIZE * 20));
+        BytesReference pbr = newBytesReference(length);
+        StreamInput si = pbr.streamInput();
+        assertNotNull(si);
+
+        StreamInput wrap = StreamInput.wrap(BytesReference.toBytes(pbr));
+        while(wrap.available() > 0) {
+            if (rarely()) {
+                wrap.mark(Integer.MAX_VALUE);
+                si.mark(Integer.MAX_VALUE);
+            } else if (rarely()) {
+                wrap.reset();
+                si.reset();
+            }
+            assertEquals(si.readByte(), wrap.readByte());
+            assertEquals(si.available(), wrap.available());
+        }
     }
 
     public void testStreamInputBulkReadWithOffset() throws IOException {
@@ -233,6 +262,24 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         out.close();
     }
 
+    public void testInputStreamSkip() throws IOException {
+        int length = randomIntBetween(10, scaledRandomIntBetween(PAGE_SIZE * 2, PAGE_SIZE * 20));
+        BytesReference pbr = newBytesReference(length);
+        final int iters = randomIntBetween(5, 50);
+        for (int i = 0; i < iters; i++) {
+            try (StreamInput input = pbr.streamInput()) {
+                final int offset = randomIntBetween(0, length-1);
+                assertEquals(offset, input.skip(offset));
+                assertEquals(pbr.get(offset), input.readByte());
+                final int nextOffset = randomIntBetween(offset, length-2);
+                assertEquals(nextOffset - offset, input.skip(nextOffset - offset));
+                assertEquals(pbr.get(nextOffset+1), input.readByte()); // +1 for the one byte we read above
+                assertEquals(length - (nextOffset+2), input.skip(Long.MAX_VALUE));
+                assertEquals(0, input.skip(randomIntBetween(0, Integer.MAX_VALUE)));
+            }
+        }
+    }
+
     public void testSliceWriteToOutputStream() throws IOException {
         int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(2, 5));
         BytesReference pbr = newBytesReference(length);
@@ -252,6 +299,9 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
             BytesReference pbr = newBytesReference(sizes[i]);
             byte[] bytes = BytesReference.toBytes(pbr);
             assertEquals(sizes[i], bytes.length);
+            for (int j = 0; j  < bytes.length; j++) {
+                assertEquals(bytes[j], pbr.get(j));
+            }
         }
     }
 
@@ -412,9 +462,16 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         // get a BytesRef from a slice
         int sliceOffset = randomIntBetween(0, pbr.length());
         int sliceLength = randomIntBetween(0, pbr.length() - sliceOffset);
+
         BytesRef sliceRef = pbr.slice(sliceOffset, sliceLength).toBytesRef();
-        // note that these are only true if we have <= than a page, otherwise offset/length are shifted
-        assertEquals(sliceOffset, sliceRef.offset);
+
+        if (sliceLength == 0 && sliceOffset != sliceRef.offset) {
+            // some impls optimize this to an empty instance then the offset will be 0
+            assertEquals(0, sliceRef.offset);
+        } else {
+            // note that these are only true if we have <= than a page, otherwise offset/length are shifted
+            assertEquals(sliceOffset, sliceRef.offset);
+        }
         assertEquals(sliceLength, sliceRef.length);
     }
 

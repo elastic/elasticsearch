@@ -29,6 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.Compressor;
@@ -103,8 +104,6 @@ import static org.elasticsearch.common.transport.NetworkExceptionHelper.isCloseC
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
-/**
- */
 public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent implements Transport {
 
     public static final String HTTP_SERVER_WORKER_THREAD_NAME_PREFIX = "http_server_worker";
@@ -257,12 +256,12 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 for (Channel channel : channels.allChannels) {
                     try {
                         sendMessage(channel, pingHeader, successfulPings::inc, false);
-                    } catch (Throwable t) {
+                    } catch (Exception e) {
                         if (isOpen(channel)) {
-                            logger.debug("[{}] failed to send ping transport message", t, node);
+                            logger.debug("[{}] failed to send ping transport message", e, node);
                             failedPings.inc();
                         } else {
-                            logger.trace("[{}] failed to send ping transport message (channel closed)", t, node);
+                            logger.trace("[{}] failed to send ping transport message (channel closed)", e, node);
                         }
                     }
                 }
@@ -283,11 +282,11 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
 
         @Override
-        public void onFailure(Throwable t) {
+        public void onFailure(Exception e) {
             if (lifecycle.stoppedOrClosed()) {
-                logger.trace("failed to send ping transport message", t);
+                logger.trace("failed to send ping transport message", e);
             } else {
-                logger.warn("failed to send ping transport message", t);
+                logger.warn("failed to send ping transport message", e);
             }
         }
     }
@@ -349,6 +348,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             }
         }
 
+        public List<Channel[]> getChannelArrays() {
+            return Arrays.asList(recovery, bulk, reg, state, ping);
+        }
+
         public synchronized void close() {
             closeChannels(allChannels);
         }
@@ -393,7 +396,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     } else {
                         try {
                             nodeChannels = connectToChannels(node);
-                        } catch (Throwable e) {
+                        } catch (Exception e) {
                             logger.trace("failed to connect to [{}], cleaning dangling connections", e, node);
                             throw e;
                         }
@@ -445,7 +448,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     /**
      * Disconnects from a node if a channel is found as part of that nodes channels.
      */
-    protected final void disconnectFromNodeChannel(final Channel channel, final Throwable failure) {
+    protected final void disconnectFromNodeChannel(final Channel channel, final Exception failure) {
         threadPool.generic().execute(() -> {
             try {
                 closeChannels(Collections.singletonList(channel));
@@ -769,8 +772,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 for (Map.Entry<String, List<Channel>> entry : serverChannels.entrySet()) {
                     try {
                         closeChannels(entry.getValue());
-                    } catch (Throwable t) {
-                        logger.debug("Error closing serverChannel for profile [{}]", t, entry.getKey());
+                    } catch (Exception e) {
+                        logger.debug("Error closing serverChannel for profile [{}]", e, entry.getKey());
                     }
                 }
                 try {
@@ -797,7 +800,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
     }
 
-    protected void onException(Channel channel, Throwable e) {
+    protected void onException(Channel channel, Exception e) {
         if (!lifecycle.started()) {
             // ignore
             return;
@@ -871,7 +874,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     protected void stopInternal() {}
 
     public boolean canCompress(TransportRequest request) {
-        return compress;
+        return compress && (!(request instanceof BytesTransportRequest));
     }
 
     @Override
@@ -887,9 +890,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         status = TransportStatus.setRequest(status);
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
         boolean addedReleaseListener = false;
+        StreamOutput stream = bStream;
         try {
-            bStream.skip(TcpHeader.HEADER_SIZE);
-            StreamOutput stream = bStream;
             // only compress if asked, and, the request is not bytes, since then only
             // the header part is compressed, and the "body" can't be extracted as compressed
             if (options.compress() && canCompress(request)) {
@@ -905,12 +907,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             stream.setVersion(version);
             threadPool.getThreadContext().writeTo(stream);
             stream.writeString(action);
-
-            Message<Channel> writeable = prepareSend(node.getVersion(), request, stream, bStream);
-            try (StreamOutput headerOutput = writeable.getHeaderOutput()) {
-                TcpHeader.writeHeader(headerOutput, requestId, status, version,
-                    writeable.size());
-            }
+            BytesReference message = buildMessage(requestId, status, node.getVersion(), request, stream, bStream);
             final TransportRequestOptions finalOptions = options;
             Runnable onRequestSent = () -> {
                 try {
@@ -919,10 +916,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions);
                 }
             };
-            writeable.send(targetChannel, onRequestSent);
+            sendMessage(targetChannel, message, onRequestSent, false);
             addedReleaseListener = true;
-
         } finally {
+            IOUtils.close(stream);
             if (!addedReleaseListener) {
                 Releasables.close(bStream.bytes());
             }
@@ -937,34 +934,27 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      * @param requestId the request ID this response replies to
      * @param action the action this response replies to
      */
-    public void sendErrorResponse(Version nodeVersion, Channel channel, final Throwable error, final long requestId,
+    public void sendErrorResponse(Version nodeVersion, Channel channel, final Exception error, final long requestId,
                                   final String action) throws IOException {
-        BytesStreamOutput stream = new BytesStreamOutput();
-        stream.setVersion(nodeVersion);
-        stream.skip(TcpHeader.HEADER_SIZE);
-        RemoteTransportException tx = new RemoteTransportException(
-            nodeName(), new InetSocketTransportAddress(getLocalAddress(channel)), action, error);
-        stream.writeThrowable(tx);
-        byte status = 0;
-        status = TransportStatus.setResponse(status);
-        status = TransportStatus.setError(status);
-
-        final BytesReference bytes = stream.bytes();
-        Message<Channel> writeable = prepareSend(nodeVersion, bytes);
-        try (StreamOutput headerOutput = writeable.getHeaderOutput()) {
-            TcpHeader.writeHeader(headerOutput, requestId, status, nodeVersion,
-                writeable.size());
+        try(BytesStreamOutput stream = new BytesStreamOutput()) {
+            stream.setVersion(nodeVersion);
+            RemoteTransportException tx = new RemoteTransportException(
+                nodeName(), new InetSocketTransportAddress(getLocalAddress(channel)), action, error);
+            stream.writeException(tx);
+            byte status = 0;
+            status = TransportStatus.setResponse(status);
+            status = TransportStatus.setError(status);
+            final BytesReference bytes = stream.bytes();
+            final BytesReference header = buildHeader(requestId, status, nodeVersion, bytes.length());
+            Runnable onRequestSent = () -> transportServiceAdapter.onResponseSent(requestId, action, error);
+            sendMessage(channel, new CompositeBytesReference(header, bytes), onRequestSent, false);
         }
-        Runnable onRequestSent = () -> {
-            transportServiceAdapter.onResponseSent(requestId, action, error);
-        };
-        writeable.send(channel, onRequestSent);
     }
 
     /**
      * Sends the response to the given channel. This method should be used to send {@link TransportResponse} objects back to the caller.
      *
-     * @see #sendErrorResponse(Version, Object, Throwable, long, String) for sending back errors to the caller
+     * @see #sendErrorResponse(Version, Object, Exception, long, String) for sending back errors to the caller
      */
     public void sendResponse(Version nodeVersion, Channel channel, final TransportResponse response, final long requestId,
                              final String action, TransportResponseOptions options) throws IOException {
@@ -976,19 +966,15 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         status = TransportStatus.setResponse(status); // TODO share some code with sendRequest
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
         boolean addedReleaseListener = false;
+        StreamOutput stream = bStream;
         try {
-            bStream.skip(TcpHeader.HEADER_SIZE);
-            StreamOutput stream = bStream;
             if (options.compress()) {
                 status = TransportStatus.setCompress(status);
                 stream = CompressorFactory.COMPRESSOR.streamOutput(stream);
             }
             stream.setVersion(nodeVersion);
-            Message<Channel> writeable = prepareSend(nodeVersion, response, stream, bStream);
-            try (StreamOutput headerOutput = writeable.getHeaderOutput()) {
-                TcpHeader.writeHeader(headerOutput, requestId, status, nodeVersion,
-                    writeable.size());
-            }
+            BytesReference reference = buildMessage(requestId, status,nodeVersion, response, stream, bStream);
+
             final TransportResponseOptions finalOptions = options;
             Runnable onRequestSent = () -> {
                 try {
@@ -997,10 +983,11 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     transportServiceAdapter.onResponseSent(requestId, action, response, finalOptions);
                 }
             };
-            writeable.send(channel, onRequestSent);
+            sendMessage(channel, reference, onRequestSent, false);
             addedReleaseListener = true;
 
         } finally {
+            IOUtils.close(stream);
             if (!addedReleaseListener) {
                 Releasables.close(bStream.bytes());
             }
@@ -1008,43 +995,50 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     }
 
     /**
-     * Serializes the given message into a bytes representation and forwards to {@link #prepareSend(Version, TransportMessage,
-     * StreamOutput, ReleasableBytesStream)}
+     * Writes the Tcp message header into a bytes reference.
+     *
+     * @param requestId       the request ID
+     * @param status          the request status
+     * @param protocolVersion the protocol version used to serialize the data in the message
+     * @param length          the payload length in bytes
+     * @see TcpHeader
      */
-    protected Message<Channel> prepareSend(Version nodeVersion, TransportMessage message, StreamOutput stream,
-                                                    ReleasableBytesStream writtenBytes) throws IOException {
-        message.writeTo(stream);
+    private BytesReference buildHeader(long requestId, byte status, Version protocolVersion, int length) throws IOException {
+        try (BytesStreamOutput headerOutput = new BytesStreamOutput(TcpHeader.HEADER_SIZE)) {
+            headerOutput.setVersion(protocolVersion);
+            TcpHeader.writeHeader(headerOutput, requestId, status, protocolVersion,
+                length);
+            final BytesReference bytes = headerOutput.bytes();
+            assert bytes.length() == TcpHeader.HEADER_SIZE : "header size mismatch expected: " + TcpHeader.HEADER_SIZE + " but was: "
+                + bytes.length();
+            return bytes;
+        }
+    }
+
+    /**
+     * Serializes the given message into a bytes representation
+     */
+    private BytesReference buildMessage(long requestId, byte status, Version nodeVersion, TransportMessage message, StreamOutput stream,
+                                        ReleasableBytesStream writtenBytes) throws IOException {
+        final BytesReference zeroCopyBuffer;
+        if (message instanceof BytesTransportRequest) { // what a shitty optimization - we should use a direct send method instead
+            BytesTransportRequest bRequest = (BytesTransportRequest) message;
+            assert nodeVersion.equals(bRequest.version());
+            bRequest.writeThin(stream);
+            zeroCopyBuffer = bRequest.bytes;
+        } else {
+            message.writeTo(stream);
+            zeroCopyBuffer = BytesArray.EMPTY;
+        }
+        // we have to close the stream here - flush is not enough since we might be compressing the content
+        // and if we do that the close method will write some marker bytes (EOS marker) and otherwise
+        // we barf on the decompressing end when we read past EOF on purpose in the #validateRequest method.
+        // this might be a problem in deflate after all but it's important to close it for now.
         stream.close();
-        return prepareSend(nodeVersion, writtenBytes.bytes());
+        final BytesReference messageBody = writtenBytes.bytes();
+        final BytesReference header = buildHeader(requestId, status, stream.getVersion(), messageBody.length() + zeroCopyBuffer.length());
+        return new CompositeBytesReference(header, messageBody, zeroCopyBuffer);
     }
-
-    /**
-     * prepares a implementation specific message to send across the network
-     */
-    protected abstract Message<Channel> prepareSend(Version nodeVersion, BytesReference bytesReference) throws IOException;
-
-    /**
-     * Allows implementations to transform TransportMessages into implementation specific messages
-     */
-    protected interface Message<Channel> {
-        /**
-         * Creates an output to write the message header to.
-         */
-        StreamOutput getHeaderOutput();
-
-        /**
-         * Returns the size of the message in bytes
-         */
-        int size();
-
-        /**
-         * sends the message to the channel
-         * @param channel the channe to send the message to
-         * @param onRequestSent a callback executed once the message has been fully send
-         */
-        void send(Channel channel, Runnable onRequestSent);
-    }
-
 
     /**
      * Validates the first N bytes of the message header and returns <code>true</code> if the message is
@@ -1216,15 +1210,15 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         response.remoteAddress(new InetSocketTransportAddress(remoteAddress));
         try {
             response.readFrom(stream);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             handleException(handler, new TransportSerializationException(
                 "Failed to deserialize response of type [" + response.getClass().getName() + "]", e));
             return;
         }
         threadPool.executor(handler.executor()).execute(new AbstractRunnable() {
             @Override
-            public void onFailure(Throwable t) {
-                handleException(handler, new ResponseHandlerFailureTransportException(t));
+            public void onFailure(Exception e) {
+                handleException(handler, new ResponseHandlerFailureTransportException(e));
             }
 
             @Override
@@ -1238,10 +1232,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      * Executed for a received response error
      */
     private void handlerResponseError(StreamInput stream, final TransportResponseHandler handler) {
-        Throwable error;
+        Exception error;
         try {
-            error = stream.readThrowable();
-        } catch (Throwable e) {
+            error = stream.readException();
+        } catch (Exception e) {
             error = new TransportSerializationException("Failed to deserialize exception response from stream", e);
         }
         handleException(handler, error);
@@ -1255,7 +1249,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         threadPool.executor(handler.executor()).execute(() -> {
             try {
                 handler.handleException(rtx);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 logger.error("failed to handle exception response [{}]", e, handler);
             }
         });
@@ -1284,16 +1278,16 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
             validateRequest(stream, requestId, action);
             threadPool.executor(reg.getExecutor()).execute(new RequestHandler(reg, request, transportChannel));
-        } catch (Throwable e) {
+        } catch (Exception e) {
             // the circuit breaker tripped
             if (transportChannel == null) {
                 transportChannel = new TcpTransportChannel<>(this, channel, transportName, action, requestId, version, profileName, 0);
             }
             try {
                 transportChannel.sendResponse(e);
-            } catch (IOException e1) {
-                logger.warn("Failed to send error message back to client for action [{}]", e, action);
-                logger.warn("Actual Exception", e1);
+            } catch (IOException inner) {
+                inner.addSuppressed(e);
+                logger.warn("Failed to send error message back to client for action [{}]", inner, action);
             }
         }
         return action;
@@ -1332,14 +1326,14 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
 
         @Override
-        public void onFailure(Throwable e) {
+        public void onFailure(Exception e) {
             if (lifecycleState() == Lifecycle.State.STARTED) {
                 // we can only send a response transport is started....
                 try {
                     transportChannel.sendResponse(e);
-                } catch (Throwable e1) {
-                    logger.warn("Failed to send error message back to client for action [{}]", e1, reg.getAction());
-                    logger.warn("Actual Exception", e);
+                } catch (Exception inner) {
+                    inner.addSuppressed(e);
+                    logger.warn("Failed to send error message back to client for action [{}]", inner, reg.getAction());
                 }
             }
         }

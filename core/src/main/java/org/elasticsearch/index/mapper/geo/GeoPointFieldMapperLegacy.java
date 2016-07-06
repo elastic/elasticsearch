@@ -155,7 +155,7 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
         }
 
         /** Get an instance based on the number of bytes that has been used to encode values. */
-        public static final Encoding of(int numBytesPerValue) {
+        public static Encoding of(int numBytesPerValue) {
             final Encoding instance = INSTANCES[numBytesPerValue];
             if (instance == null) {
                 throw new IllegalStateException("No encoding for " + numBytesPerValue + " bytes per value");
@@ -170,7 +170,7 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
          *  <li>1m: 8 bytes</li>
          *  <li>1cm: 8 bytes</li>
          *  <li>1mm: 10 bytes</li></ul> */
-        public static final Encoding of(DistanceUnit.Distance precision) {
+        public static Encoding of(DistanceUnit.Distance precision) {
             for (Encoding encoding : INSTANCES) {
                 if (encoding != null && encoding.precision().compareTo(precision) <= 0) {
                     return encoding;
@@ -206,7 +206,7 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
         }
 
         /** The number of bytes required to encode a single geo point. */
-        public final int numBytes() {
+        public int numBytes() {
             return numBytes;
         }
 

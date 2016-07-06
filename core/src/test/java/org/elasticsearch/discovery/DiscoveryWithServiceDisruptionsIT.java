@@ -503,8 +503,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                             }
                         } catch (InterruptedException e) {
                             // fine - semaphore interrupt
-                        } catch (Throwable t) {
-                            logger.info("unexpected exception in background thread of [{}]", t, node);
+                        } catch (AssertionError | Exception e) {
+                            logger.info("unexpected exception in background thread of [{}]", e, node);
                         }
                     }
                 });
@@ -690,8 +690,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                logger.warn("failure [{}]", t, source);
+            public void onFailure(String source, Exception e) {
+                logger.warn("failure [{}]", e, source);
             }
         });
 
@@ -960,7 +960,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception e) {
                 success.set(false);
                 latch.countDown();
                 assert false;

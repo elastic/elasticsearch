@@ -38,7 +38,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -215,9 +215,9 @@ public abstract class TransportTasksAction<
                 // nothing to do
                 try {
                     listener.onResponse(newResponse(request, responses));
-                } catch (Throwable t) {
-                    logger.debug("failed to generate empty response", t);
-                    listener.onFailure(t);
+                } catch (Exception e) {
+                    logger.debug("failed to generate empty response", e);
+                    listener.onFailure(e);
                 }
             } else {
                 TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
@@ -237,7 +237,7 @@ public abstract class TransportTasksAction<
                             nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                             taskManager.registerChildTask(task, node.getId());
                             transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),
-                                new BaseTransportResponseHandler<NodeTasksResponse>() {
+                                new TransportResponseHandler<NodeTasksResponse>() {
                                     @Override
                                     public NodeTasksResponse newInstance() {
                                         return new NodeTasksResponse();
@@ -259,8 +259,8 @@ public abstract class TransportTasksAction<
                                     }
                                 });
                         }
-                    } catch (Throwable t) {
-                        onFailure(idx, nodeId, t);
+                    } catch (Exception e) {
+                        onFailure(idx, nodeId, e);
                     }
                 }
             }
@@ -289,9 +289,9 @@ public abstract class TransportTasksAction<
             TasksResponse finalResponse;
             try {
                 finalResponse = newResponse(request, responses);
-            } catch (Throwable t) {
-                logger.debug("failed to combine responses from nodes", t);
-                listener.onFailure(t);
+            } catch (Exception e) {
+                logger.debug("failed to combine responses from nodes", e);
+                listener.onFailure(e);
                 return;
             }
             listener.onResponse(finalResponse);

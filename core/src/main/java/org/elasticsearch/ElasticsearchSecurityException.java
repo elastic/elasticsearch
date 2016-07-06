@@ -36,7 +36,7 @@ public class ElasticsearchSecurityException extends ElasticsearchException {
         this.status = status ;
     }
 
-    public ElasticsearchSecurityException(String msg, Throwable cause, Object... args) {
+    public ElasticsearchSecurityException(String msg, Exception cause, Object... args) {
         this(msg, ExceptionsHelper.status(cause), cause, args);
     }
 

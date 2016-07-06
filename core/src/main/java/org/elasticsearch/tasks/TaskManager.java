@@ -155,7 +155,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
     /**
      * Stores the task failure
      */
-    public <Response extends ActionResponse> void persistResult(Task task, Throwable error, ActionListener<Response> listener) {
+    public <Response extends ActionResponse> void persistResult(Task task, Exception error, ActionListener<Response> listener) {
         DiscoveryNode localNode = lastDiscoveryNodes.getLocalNode();
         if (localNode == null) {
             // too early to persist anything, shouldn't really be here - just pass the error along
@@ -177,7 +177,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 logger.warn("couldn't persist error {}", e, ExceptionsHelper.detailedMessage(error));
                 listener.onFailure(e);
             }
@@ -211,7 +211,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 logger.warn("couldn't persist response {}", e, response);
                 listener.onFailure(e);
             }

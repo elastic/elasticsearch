@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.transport;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
@@ -30,7 +29,7 @@ import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -123,7 +122,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                 @SuppressWarnings("unchecked")
                 public void handleResponse(T response) {
                     LivenessResponse livenessResponse = new LivenessResponse(clusterName,
-                            new DiscoveryNode(node.getName(), node.getId(), "liveness-hostname" + node.getId(),
+                            new DiscoveryNode(node.getName(), node.getId(), node.getEphemeralId(), "liveness-hostname" + node.getId(),
                                     "liveness-hostaddress" + node.getId(),
                                     new LocalTransportAddress("liveness-address-" + node.getId()), node.getAttributes(), node.getRoles(),
                                     node.getVersion()));
@@ -171,7 +170,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         finalFailures.incrementAndGet();
                         finalFailure.set(e);
                         latch.countDown();
@@ -188,7 +187,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     }
 
                     iteration.transportService.sendRequest(node, "action", new TestRequest(),
-                            TransportRequestOptions.EMPTY, new BaseTransportResponseHandler<TestResponse>() {
+                            TransportRequestOptions.EMPTY, new TransportResponseHandler<TestResponse>() {
                         @Override
                         public TestResponse newInstance() {
                             return new TestResponse();

@@ -46,20 +46,25 @@ public abstract  class ClusterStateUpdateTask implements ClusterStateTaskConfig,
         return BatchResult.<ClusterStateUpdateTask>builder().successes(tasks).build(result);
     }
 
+    @Override
+    public String describeTasks(List<ClusterStateUpdateTask> tasks) {
+        return ""; // one of task, source is enough
+    }
+
     /**
      * Update the cluster state based on the current state. Return the *same instance* if no state
      * should be changed.
      */
-    public abstract  ClusterState execute(ClusterState currentState) throws Exception;
+    public abstract ClusterState execute(ClusterState currentState) throws Exception;
 
     /**
      * A callback called when execute fails.
      */
-    public abstract  void onFailure(String source, Throwable t);
+    public abstract void onFailure(String source, Exception e);
 
     /**
      * If the cluster state update task wasn't processed by the provided timeout, call
-     * {@link #onFailure(String, Throwable)}. May return null to indicate no timeout is needed (default).
+     * {@link ClusterStateTaskListener#onFailure(String, Exception)}. May return null to indicate no timeout is needed (default).
      */
     @Nullable
     public TimeValue timeout() {

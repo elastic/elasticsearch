@@ -29,6 +29,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -43,7 +44,8 @@ import java.util.Objects;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
 public class FiltersAggregationBuilder extends AbstractAggregationBuilder<FiltersAggregationBuilder> {
-    public static final String NAME = InternalFilters.TYPE.name();
+    public static final String NAME = "filters";
+    private static final Type TYPE = new Type(NAME);
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField FILTERS_FIELD = new ParseField("filters");
@@ -66,7 +68,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     }
 
     private FiltersAggregationBuilder(String name, List<KeyedFilter> filters) {
-        super(name, InternalFilters.TYPE);
+        super(name, TYPE);
         // internally we want to have a fixed order of filters, regardless of the order of the filters in the request
         this.filters = new ArrayList<>(filters);
         Collections.sort(this.filters, (KeyedFilter kf1, KeyedFilter kf2) -> kf1.key().compareTo(kf2.key()));
@@ -80,7 +82,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
      *            the filters to use with this aggregation
      */
     public FiltersAggregationBuilder(String name, QueryBuilder... filters) {
-        super(name, InternalFilters.TYPE);
+        super(name, TYPE);
         List<KeyedFilter> keyedFilters = new ArrayList<>(filters.length);
         for (int i = 0; i < filters.length; i++) {
             keyedFilters.add(new KeyedFilter(String.valueOf(i), filters[i]));
@@ -93,7 +95,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
      * Read from a stream.
      */
     public FiltersAggregationBuilder(StreamInput in) throws IOException {
-        super(in, InternalFilters.TYPE);
+        super(in, TYPE);
         keyed = in.readBoolean();
         int filtersSize = in.readVInt();
         filters = new ArrayList<>(filtersSize);

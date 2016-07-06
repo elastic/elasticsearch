@@ -94,7 +94,7 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
                         }
 
                         @Override
-                        public void onFailure(Throwable e) {
+                        public void onFailure(Exception e) {
                             listener.onFailure(e);
                         }
                     });
@@ -104,7 +104,7 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
                 listener.onFailure(t);
             }
         });

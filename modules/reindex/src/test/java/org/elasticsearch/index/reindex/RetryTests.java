@@ -20,13 +20,18 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.Retry;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -39,6 +44,7 @@ import java.util.List;
 import java.util.concurrent.CyclicBarrier;
 
 import static org.elasticsearch.index.reindex.ReindexTestCase.matcher;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -68,6 +74,10 @@ public class RetryTests extends ESSingleNodeTestCase {
         // Use queues of size 1 because size 0 is broken and because search requests need the queue to function
         settings.put("thread_pool.bulk.queue_size", 1);
         settings.put("thread_pool.search.queue_size", 1);
+        // Enable http so we can test retries on reindex from remote. In this case the "remote" cluster is just this cluster.
+        settings.put(NetworkModule.HTTP_ENABLED.getKey(), true);
+        // Whitelist reindexing from the http host we're going to use
+        settings.put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "myself");
         return settings.build();
     }
 
@@ -97,6 +107,15 @@ public class RetryTests extends ESSingleNodeTestCase {
                 matcher().created(DOC_COUNT));
     }
 
+    public void testReindexFromRemote() throws Exception {
+        NodeInfo nodeInfo = client().admin().cluster().prepareNodesInfo().get().getNodes().get(0);
+        TransportAddress address = nodeInfo.getHttp().getAddress().publishAddress();
+        RemoteInfo remote = new RemoteInfo("http", address.getHost(), address.getPort(), new BytesArray("{\"match_all\":{}}"), null, null);
+        ReindexRequestBuilder request = ReindexAction.INSTANCE.newRequestBuilder(client()).source("source").destination("dest")
+                .setRemoteInfo(remote);
+        testCase(ReindexAction.NAME, request, matcher().created(DOC_COUNT));
+    }
+
     public void testUpdateByQuery() throws Exception {
         testCase(UpdateByQueryAction.NAME, UpdateByQueryAction.INSTANCE.newRequestBuilder(client()).source("source"),
                 matcher().updated(DOC_COUNT));
@@ -118,34 +137,41 @@ public class RetryTests extends ESSingleNodeTestCase {
         logger.info("Starting request");
         ListenableActionFuture<BulkIndexByScrollResponse> responseListener = request.execute();
 
-        logger.info("Waiting for search rejections on the initial search");
-        assertBusy(() -> assertThat(taskStatus(action).getSearchRetries(), greaterThan(0L)));
+        try {
+            logger.info("Waiting for search rejections on the initial search");
+            assertBusy(() -> assertThat(taskStatus(action).getSearchRetries(), greaterThan(0L)));
 
-        logger.info("Blocking bulk and unblocking search so we start to get bulk rejections");
-        CyclicBarrier bulkBlock = blockExecutor(ThreadPool.Names.BULK);
-        initialSearchBlock.await();
+            logger.info("Blocking bulk and unblocking search so we start to get bulk rejections");
+            CyclicBarrier bulkBlock = blockExecutor(ThreadPool.Names.BULK);
+            initialSearchBlock.await();
 
-        logger.info("Waiting for bulk rejections");
-        assertBusy(() -> assertThat(taskStatus(action).getBulkRetries(), greaterThan(0L)));
+            logger.info("Waiting for bulk rejections");
+            assertBusy(() -> assertThat(taskStatus(action).getBulkRetries(), greaterThan(0L)));
 
-        // Keep a copy of the current number of search rejections so we can assert that we get more when we block the scroll
-        long initialSearchRejections = taskStatus(action).getSearchRetries();
+            // Keep a copy of the current number of search rejections so we can assert that we get more when we block the scroll
+            long initialSearchRejections = taskStatus(action).getSearchRetries();
 
-        logger.info("Blocking search and unblocking bulk so we should get search rejections for the scroll");
-        CyclicBarrier scrollBlock = blockExecutor(ThreadPool.Names.SEARCH);
-        bulkBlock.await();
+            logger.info("Blocking search and unblocking bulk so we should get search rejections for the scroll");
+            CyclicBarrier scrollBlock = blockExecutor(ThreadPool.Names.SEARCH);
+            bulkBlock.await();
 
-        logger.info("Waiting for search rejections for the scroll");
-        assertBusy(() -> assertThat(taskStatus(action).getSearchRetries(), greaterThan(initialSearchRejections)));
+            logger.info("Waiting for search rejections for the scroll");
+            assertBusy(() -> assertThat(taskStatus(action).getSearchRetries(), greaterThan(initialSearchRejections)));
 
-        logger.info("Unblocking the scroll");
-        scrollBlock.await();
+            logger.info("Unblocking the scroll");
+            scrollBlock.await();
 
-        logger.info("Waiting for the request to finish");
-        BulkIndexByScrollResponse response = responseListener.get();
-        assertThat(response, matcher);
-        assertThat(response.getBulkRetries(), greaterThan(0L));
-        assertThat(response.getSearchRetries(), greaterThan(initialSearchRejections));
+            logger.info("Waiting for the request to finish");
+            BulkIndexByScrollResponse response = responseListener.get();
+            assertThat(response, matcher);
+            assertThat(response.getBulkRetries(), greaterThan(0L));
+            assertThat(response.getSearchRetries(), greaterThan(initialSearchRejections));
+        } finally {
+            // Fetch the response just in case we blew up half way through. This will make sure the failure is thrown up to the top level.
+            BulkIndexByScrollResponse response = responseListener.get();
+            assertThat(response.getSearchFailures(), empty());
+            assertThat(response.getBulkFailures(), empty());
+        }
     }
 
     /**

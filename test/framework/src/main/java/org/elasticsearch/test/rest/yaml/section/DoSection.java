@@ -142,12 +142,17 @@ public class DoSection implements ExecutableSection {
     private static Map<String, Tuple<String, org.hamcrest.Matcher<Integer>>> catches = new HashMap<>();
 
     static {
-        catches.put("missing", tuple("404", equalTo(404)));
-        catches.put("conflict", tuple("409", equalTo(409)));
+        catches.put("unauthorized", tuple("401", equalTo(401)));
         catches.put("forbidden", tuple("403", equalTo(403)));
+        catches.put("missing", tuple("404", equalTo(404)));
         catches.put("request_timeout", tuple("408", equalTo(408)));
+        catches.put("conflict", tuple("409", equalTo(409)));
         catches.put("unavailable", tuple("503", equalTo(503)));
-        catches.put("request", tuple("4xx|5xx",
-                allOf(greaterThanOrEqualTo(400), not(equalTo(404)), not(equalTo(408)), not(equalTo(409)), not(equalTo(403)))));
+        catches.put("request", tuple("4xx|5xx", allOf(greaterThanOrEqualTo(400),
+                not(equalTo(401)),
+                not(equalTo(403)),
+                not(equalTo(404)),
+                not(equalTo(408)),
+                not(equalTo(409)))));
     }
 }

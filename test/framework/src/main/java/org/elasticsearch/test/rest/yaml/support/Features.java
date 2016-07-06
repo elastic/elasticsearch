@@ -35,8 +35,8 @@ import static java.util.Collections.unmodifiableList;
  * and the related skip sections can be removed from the tests as well.
  */
 public final class Features {
-
     private static final List<String> SUPPORTED = unmodifiableList(Arrays.asList(
+            "catch_unauthorized",
             "embedded_stash_key",
             "groovy_scripting",
             "headers",

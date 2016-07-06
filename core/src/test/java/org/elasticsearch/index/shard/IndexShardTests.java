@@ -18,6 +18,27 @@
  */
 package org.elasticsearch.index.shard;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.CorruptIndexException;
@@ -50,6 +71,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.RestoreSource;
@@ -63,6 +85,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
@@ -91,15 +114,17 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.FieldMaskingReader;
@@ -107,27 +132,6 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -1178,13 +1182,9 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         test_target_shard.updateRoutingEntry(routing);
         DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
         test_target_shard.markAsRecovering("store", new RecoveryState(routing.shardId(), routing.primary(), RecoveryState.Type.SNAPSHOT, routing.restoreSource(), localNode));
-        assertTrue(test_target_shard.restoreFromRepository(new IndexShardRepository() {
+        assertTrue(test_target_shard.restoreFromRepository(new RestoreOnlyRepository() {
             @Override
-            public void snapshot(SnapshotId snapshotId, ShardId shardId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
-            }
-
-            @Override
-            public void restore(SnapshotId snapshotId, Version version, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState) {
+            public void restore(IndexShard shard, SnapshotId snapshotId, Version version, ShardId snapshotShardId, RecoveryState recoveryState) {
                 try {
                     cleanLuceneIndex(targetStore.directory());
                     for (String file : sourceStore.directory().listAll()) {
@@ -1196,15 +1196,6 @@ public class IndexShardTests extends ESSingleNodeTestCase {
                 } catch (Exception ex) {
                     throw new RuntimeException(ex);
                 }
-            }
-
-            @Override
-            public IndexShardSnapshotStatus snapshotStatus(SnapshotId snapshotId, Version version, ShardId shardId) {
-                return null;
-            }
-
-            @Override
-            public void verify(String verificationToken) {
             }
         }));
 
@@ -1648,5 +1639,64 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertNotNull(mappings.get("index_1").get("test"));
         assertEquals(mappings.get("index_1").get("test").get().source().string(), "{\"test\":{\"properties\":{\"foo\":{\"type\":\"text\"}}}}");
 
+    }
+
+    /** A dummy repository for testing which just needs restore overridden */
+    private static abstract class RestoreOnlyRepository extends AbstractLifecycleComponent implements Repository {
+        public RestoreOnlyRepository() {
+            super(Settings.EMPTY);
+        }
+        @Override
+        protected void doStart() {}
+        @Override
+        protected void doStop() {}
+        @Override
+        protected void doClose() {}
+        @Override
+        public SnapshotInfo readSnapshot(SnapshotId snapshotId) {
+            return null;
+        }
+        @Override
+        public MetaData readSnapshotMetaData(SnapshotInfo snapshot, List<String> indices) throws IOException {
+            return null;
+        }
+        @Override
+        public List<SnapshotId> snapshots() {
+            return null;
+        }
+        @Override
+        public void initializeSnapshot(SnapshotId snapshotId, List<String> indices, MetaData metaData) {}
+        @Override
+        public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<String> indices, long startTime, String failure, int totalShards, List<SnapshotShardFailure> shardFailures) {
+            return null;
+        }
+        @Override
+        public void deleteSnapshot(SnapshotId snapshotId) {}
+        @Override
+        public long snapshotThrottleTimeInNanos() {
+            return 0;
+        }
+        @Override
+        public long restoreThrottleTimeInNanos() {
+            return 0;
+        }
+        @Override
+        public String startVerification() {
+            return null;
+        }
+        @Override
+        public void endVerification(String verificationToken) {}
+        @Override
+        public boolean readOnly() {
+            return false;
+        }
+        @Override
+        public void snapshot(IndexShard shard, SnapshotId snapshotId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {}
+        @Override
+        public IndexShardSnapshotStatus snapshotStatus(SnapshotId snapshotId, Version version, ShardId shardId) {
+            return null;
+        }
+        @Override
+        public void verify(String verificationToken, DiscoveryNode localNode) {}
     }
 }

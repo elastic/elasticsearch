@@ -21,8 +21,6 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.repositories.uri.URLRepository;
 import org.elasticsearch.snapshots.RestoreService;
@@ -32,20 +30,20 @@ import org.elasticsearch.snapshots.SnapshotsService;
 /**
  * Sets up classes for Snapshot/Restore.
  *
- * Plugins can add custom repository types by calling {@link #registerRepository(String, Class, Class)}.
+ * Plugins can add custom repository types by calling {@link #registerRepository(String, Class)}.
  */
 public class RepositoriesModule extends AbstractModule {
 
     private final RepositoryTypesRegistry repositoryTypes = new RepositoryTypesRegistry();
 
     public RepositoriesModule() {
-        registerRepository(FsRepository.TYPE, FsRepository.class, BlobStoreIndexShardRepository.class);
-        registerRepository(URLRepository.TYPE, URLRepository.class, BlobStoreIndexShardRepository.class);
+        registerRepository(FsRepository.TYPE, FsRepository.class);
+        registerRepository(URLRepository.TYPE, URLRepository.class);
     }
 
-    /** Registers a custom repository type to the given {@link Repository} and {@link IndexShardRepository}. */
-    public void registerRepository(String type, Class<? extends Repository> repositoryType, Class<? extends IndexShardRepository> shardRepositoryType) {
-        repositoryTypes.registerRepository(type, repositoryType, shardRepositoryType);
+    /** Registers a custom repository type to the given {@link Repository}. */
+    public void registerRepository(String type, Class<? extends Repository> repositoryType) {
+        repositoryTypes.registerRepository(type, repositoryType);
     }
 
     @Override

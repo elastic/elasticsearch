@@ -44,7 +44,6 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -63,8 +62,8 @@ public final class HdfsRepository extends BlobStoreRepository {
     private static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(100, ByteSizeUnit.KB);
 
     @Inject
-    public HdfsRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository) throws IOException {
-        super(name.getName(), repositorySettings, indexShardRepository);
+    public HdfsRepository(RepositoryName name, RepositorySettings repositorySettings) throws IOException {
+        super(name.getName(), repositorySettings);
         this.repositorySettings = repositorySettings;
 
         this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", null);

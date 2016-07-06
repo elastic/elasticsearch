@@ -63,7 +63,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -112,7 +111,7 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
  * method.
  * <p>
  * Individual shards are getting restored as part of normal recovery process in
- * {@link IndexShard#restoreFromRepository(IndexShardRepository)} )}
+ * {@link IndexShard#restoreFromRepository(Repository)} )}
  * method, which detects that shard should be restored from snapshot rather than recovered from gateway by looking
  * at the {@link org.elasticsearch.cluster.routing.ShardRouting#restoreSource()} property.
  * <p>

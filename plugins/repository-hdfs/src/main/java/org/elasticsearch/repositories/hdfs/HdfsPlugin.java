@@ -26,7 +26,6 @@ import java.security.PrivilegedAction;
 
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 
@@ -85,6 +84,6 @@ public final class HdfsPlugin extends Plugin {
     }
 
     public void onModule(RepositoriesModule repositoriesModule) {
-        repositoriesModule.registerRepository("hdfs", HdfsRepository.class, BlobStoreIndexShardRepository.class);
+        repositoriesModule.registerRepository("hdfs", HdfsRepository.class);
     }
 }

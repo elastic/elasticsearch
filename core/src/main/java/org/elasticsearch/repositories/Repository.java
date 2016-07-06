@@ -19,7 +19,11 @@
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -29,22 +33,19 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Predicate;
 
 /**
  * Snapshot repository interface.
  * <p>
- * Responsible for index and cluster level operations. It's called only on master.
- * Shard-level operations are performed using {@link org.elasticsearch.index.snapshots.IndexShardRepository}
- * interface on data nodes.
+ * Responsible for index and cluster and shard level operations.
  * <p>
  * Typical snapshot usage pattern:
  * <ul>
  * <li>Master calls {@link #initializeSnapshot(SnapshotId, List, org.elasticsearch.cluster.metadata.MetaData)}
  * with list of indices that will be included into the snapshot</li>
- * <li>Data nodes call {@link org.elasticsearch.index.snapshots.IndexShardRepository#snapshot(SnapshotId, ShardId, IndexCommit, IndexShardSnapshotStatus)} for each shard</li>
- * <li>When all shard calls return master calls {@link #finalizeSnapshot}
- * with possible list of failures</li>
+ * <li>Data nodes call {@link Repository#snapshot(IndexShard, SnapshotId, IndexCommit, IndexShardSnapshotStatus)}
+ * for each shard</li>
+ * <li>When all shard calls return master calls {@link #finalizeSnapshot} with possible list of failures</li>
  * </ul>
  */
 public interface Repository extends LifecycleComponent {
@@ -141,4 +142,49 @@ public interface Repository extends LifecycleComponent {
      */
     boolean readOnly();
 
+    /**
+     * Creates a snapshot of the shard based on the index commit point.
+     * <p>
+     * The index commit point can be obtained by using {@link org.elasticsearch.index.engine.Engine#snapshotIndex} method.
+     * Repository implementations shouldn't release the snapshot index commit point. It is done by the method caller.
+     * <p>
+     * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
+     * {@link IndexShardSnapshotStatus#aborted()} to see if the snapshot process should be aborted.
+     *
+     * @param shard               shard to be snapshotted
+     * @param snapshotId          snapshot id
+     * @param snapshotIndexCommit commit point
+     * @param snapshotStatus      snapshot status
+     */
+    void snapshot(IndexShard shard, SnapshotId snapshotId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus);
+
+    /**
+     * Restores snapshot of the shard.
+     * <p>
+     * The index can be renamed on restore, hence different {@code shardId} and {@code snapshotShardId} are supplied.
+     *
+     * @param shard           the shard to restore the index into
+     * @param snapshotId      snapshot id
+     * @param version         version of elasticsearch that created this snapshot
+     * @param snapshotShardId shard id (in the snapshot)
+     * @param recoveryState   recovery state
+     */
+    void restore(IndexShard shard, SnapshotId snapshotId, Version version, ShardId snapshotShardId, RecoveryState recoveryState);
+
+    /**
+     * Retrieve shard snapshot status for the stored snapshot
+     *
+     * @param snapshotId snapshot id
+     * @param version   version of elasticsearch that created this snapshot
+     * @param shardId    shard id
+     * @return snapshot status
+     */
+    IndexShardSnapshotStatus snapshotStatus(SnapshotId snapshotId, Version version, ShardId shardId);
+
+    /**
+     * Verifies repository settings on data node.
+     * @param verificationToken value returned by {@link org.elasticsearch.repositories.Repository#startVerification()}
+     * @param localNode         the local node information, for inclusion in verification errors
+     */
+    void verify(String verificationToken, DiscoveryNode localNode);
 }

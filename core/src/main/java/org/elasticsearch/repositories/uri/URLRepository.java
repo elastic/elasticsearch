@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.URIPattern;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
@@ -82,11 +81,10 @@ public class URLRepository extends BlobStoreRepository {
      *
      * @param name                 repository name
      * @param repositorySettings   repository settings
-     * @param indexShardRepository shard repository
      */
     @Inject
-    public URLRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository, Environment environment) throws IOException {
-        super(name.getName(), repositorySettings, indexShardRepository);
+    public URLRepository(RepositoryName name, RepositorySettings repositorySettings, Environment environment) throws IOException {
+        super(name.getName(), repositorySettings);
 
         if (URL_SETTING.exists(repositorySettings.settings()) == false && REPOSITORIES_URL_SETTING.exists(settings) ==  false) {
             throw new RepositoryException(name.name(), "missing url");
@@ -101,9 +99,6 @@ public class URLRepository extends BlobStoreRepository {
         basePath = BlobPath.cleanPath();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     protected BlobStore blobStore() {
         return blobStore;

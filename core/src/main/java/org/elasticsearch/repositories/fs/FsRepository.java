@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
@@ -77,11 +76,10 @@ public class FsRepository extends BlobStoreRepository {
      *
      * @param name                 repository name
      * @param repositorySettings   repository settings
-     * @param indexShardRepository index shard repository
      */
     @Inject
-    public FsRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository, Environment environment) throws IOException {
-        super(name.getName(), repositorySettings, indexShardRepository);
+    public FsRepository(RepositoryName name, RepositorySettings repositorySettings, Environment environment) throws IOException {
+        super(name.getName(), repositorySettings);
         Path locationFile;
         String location = REPOSITORIES_LOCATION_SETTING.get(repositorySettings.settings());
         if (location.isEmpty()) {

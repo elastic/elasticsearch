@@ -34,7 +34,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.RepositoryVerificationException;
@@ -86,9 +85,8 @@ public class AzureRepository extends BlobStoreRepository {
 
     @Inject
     public AzureRepository(RepositoryName name, RepositorySettings repositorySettings,
-                           IndexShardRepository indexShardRepository,
                            AzureBlobStore azureBlobStore) throws IOException, URISyntaxException, StorageException {
-        super(name.getName(), repositorySettings, indexShardRepository);
+        super(name.getName(), repositorySettings);
 
         String container = getValue(repositorySettings, Repository.CONTAINER_SETTING, Storage.CONTAINER_SETTING);
 

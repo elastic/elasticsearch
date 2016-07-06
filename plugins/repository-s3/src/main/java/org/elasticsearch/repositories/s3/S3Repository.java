@@ -32,7 +32,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
@@ -250,12 +249,11 @@ public class S3Repository extends BlobStoreRepository {
      *
      * @param name                 repository name
      * @param repositorySettings   repository settings
-     * @param indexShardRepository index shard repository
      * @param s3Service            S3 service
      */
     @Inject
-    public S3Repository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository, AwsS3Service s3Service) throws IOException {
-        super(name.getName(), repositorySettings, indexShardRepository);
+    public S3Repository(RepositoryName name, RepositorySettings repositorySettings, AwsS3Service s3Service) throws IOException {
+        super(name.getName(), repositorySettings);
 
         String bucket = getValue(repositorySettings, Repository.BUCKET_SETTING, Repositories.BUCKET_SETTING);
         if (bucket == null) {

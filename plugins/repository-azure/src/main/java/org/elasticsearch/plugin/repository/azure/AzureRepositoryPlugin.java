@@ -19,6 +19,11 @@
 
 package org.elasticsearch.plugin.repository.azure;
 
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+
 import org.elasticsearch.cloud.azure.AzureRepositoryModule;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.common.inject.Module;
@@ -26,15 +31,9 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.azure.AzureRepository;
-
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 
 /**
  *
@@ -56,7 +55,7 @@ public class AzureRepositoryPlugin extends Plugin {
 
     public void onModule(RepositoriesModule module) {
         logger.debug("registering repository type [{}]", AzureRepository.TYPE);
-        module.registerRepository(AzureRepository.TYPE, AzureRepository.class, BlobStoreIndexShardRepository.class);
+        module.registerRepository(AzureRepository.TYPE, AzureRepository.class);
     }
 
     @Override

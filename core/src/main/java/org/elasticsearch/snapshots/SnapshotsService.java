@@ -55,7 +55,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -547,7 +546,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                                                  final SnapshotInfo snapshotInfo) throws IOException {
         Map<ShardId, IndexShardSnapshotStatus> shardStatus = new HashMap<>();
         Repository repository = repositoriesService.repository(repositoryName);
-        IndexShardRepository indexShardRepository = repositoriesService.indexShardRepository(repositoryName);
         MetaData metaData = repository.readSnapshotMetaData(snapshotInfo, snapshotInfo.indices());
         for (String index : snapshotInfo.indices()) {
             IndexMetaData indexMetaData = metaData.indices().get(index);
@@ -563,7 +561,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         shardStatus.put(shardId, shardSnapshotStatus);
                     } else {
                         IndexShardSnapshotStatus shardSnapshotStatus =
-                            indexShardRepository.snapshotStatus(snapshotInfo.snapshotId(), snapshotInfo.version(), shardId);
+                            repository.snapshotStatus(snapshotInfo.snapshotId(), snapshotInfo.version(), shardId);
                         shardStatus.put(shardId, shardSnapshotStatus);
                     }
                 }

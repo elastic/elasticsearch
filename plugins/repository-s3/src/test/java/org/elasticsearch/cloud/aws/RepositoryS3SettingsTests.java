@@ -336,7 +336,7 @@ public class RepositoryS3SettingsTests extends ESTestCase {
             .build());
 
         try {
-            new S3Repository(new RepositoryName("s3", "s3repo"), s3RepositorySettings, null, null);
+            new S3Repository(new RepositoryName("s3", "s3repo"), s3RepositorySettings, null);
             fail("We should either raise a NPE or a RepositoryException or a IllegalArgumentException");
         } catch (RepositoryException e) {
             assertThat(e.getDetailedMessage(), containsString(expectedMessage));

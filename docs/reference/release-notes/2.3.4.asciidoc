@@ -1,0 +1,46 @@
+[[release-notes-2.3.4]]
+== 2.3.4 Release Notes
+
+Also see <<breaking-changes-2.3>>.
+
+[[bug-2.3.4]]
+[float]
+=== Bug fixes
+
+Bulk::
+* Copy headers and context to individual requests inside a bulk {pull}18816[#18816]
+
+CAT API::
+* Fix merge stats rendering in RestIndicesAction {pull}18720[#18720]
+* Expand wildcards to closed indices in /_cat/indices {pull}18545[#18545] (issues: {issue}16419[#16419], {issue}17395[#17395])
+
+Cluster::
+* Fix block checks when no indices are specified {pull}19047[#19047] (issue: {issue}8105[#8105])
+
+Core::
+* Fix misplaced cast when parsing seconds {pull}18548[#18548] (issue: {issue}18546[#18546])
+
+Highlighting::
+* Skip all geo point queries in plain highlighter {pull}18495[#18495] (issue: {issue}17537[#17537])
+
+Internal::
+* Fix filtering of node ids for TransportNodesAction {pull}18634[#18634] (issue: {issue}18618[#18618])
+
+Percolator::
+* Fixed NPE when percolator filter option is "empty". {pull}18563[#18563] (issue: {issue}6172[#6172])
+
+REST::
+* Do not decode path when sending error {pull}18477[#18477] (issue: {issue}18476[#18476])
+
+Translog::
+* Translog can delete valid .ckp file when views are closed after the translog {pull}19035[#19035] (issue: {issue}16495[#16495])
+
+
+
+[[upgrade-2.3.4]]
+[float]
+=== Upgrades
+
+Dates::
+* Upgrade joda-time to 2.9.4 {pull}18609[#18609] (issues: {issue}14524[#14524], {issue}18017[#18017])
+

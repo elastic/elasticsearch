@@ -34,6 +34,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -42,6 +43,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
@@ -74,12 +76,12 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     private final AutoCreateIndex autoCreateIndex;
     private final Client client;
     private final Set<String> remoteWhitelist;
-    private final NodeService nodeService;
+    private final HttpServer httpServer;
 
     @Inject
     public TransportReindexAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, ScriptService scriptService,
-            AutoCreateIndex autoCreateIndex, Client client, TransportService transportService, NodeService nodeService) {
+            AutoCreateIndex autoCreateIndex, Client client, TransportService transportService, @Nullable HttpServer httpServer) {
         super(settings, ReindexAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 ReindexRequest::new);
         this.clusterService = clusterService;
@@ -87,7 +89,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         this.autoCreateIndex = autoCreateIndex;
         this.client = client;
         remoteWhitelist = new HashSet<>(REMOTE_CLUSTER_WHITELIST.get(settings));
-        this.nodeService = nodeService;
+        this.httpServer = httpServer;
     }
 
     @Override
@@ -107,7 +109,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
     private void checkRemoteWhitelist(RemoteInfo remoteInfo) {
         TransportAddress publishAddress = null;
-        HttpInfo httpInfo = nodeService.info().getHttp();
+        HttpInfo httpInfo = httpServer.info();
         if (httpInfo != null && httpInfo.getAddress() != null) {
             publishAddress = httpInfo.getAddress().publishAddress();
         }

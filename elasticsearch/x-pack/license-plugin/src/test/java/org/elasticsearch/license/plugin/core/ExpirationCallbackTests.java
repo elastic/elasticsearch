@@ -8,23 +8,41 @@ package org.elasticsearch.license.plugin.core;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.scheduler.SchedulerEngine;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ExpirationCallbackTests extends ESTestCase {
 
-    public void testPostExpiration() throws Exception {
-        int postExpirySeconds = randomIntBetween(5, 10);
-        TimeValue postExpiryDuration = TimeValue.timeValueSeconds(postExpirySeconds);
-        TimeValue min = TimeValue.timeValueSeconds(postExpirySeconds - randomIntBetween(1, 3));
-        TimeValue max = TimeValue.timeValueSeconds(postExpirySeconds + randomIntBetween(1, 10));
-
-        final ExpirationCallback.Post post = new NoopPostExpirationCallback(min, max, timeValueMillis(10));
+    public void testPostExpirationDelay() throws Exception {
+        TimeValue expiryDuration = TimeValue.timeValueSeconds(randomIntBetween(5, 10));
+        TimeValue min = TimeValue.timeValueSeconds(1);
+        TimeValue max = TimeValue.timeValueSeconds(4);
+        TimeValue frequency = TimeValue.timeValueSeconds(1);
+        NoopPostExpirationCallback post = new NoopPostExpirationCallback(min, max, frequency);
         long now = System.currentTimeMillis();
-        assertThat(post.matches(now - postExpiryDuration.millis(), now), equalTo(true));
-        assertThat(post.matches(now + postExpiryDuration.getMillis(), now), equalTo(false));
+        long expiryDate = now + expiryDuration.getMillis();
+        assertThat(post.delay(expiryDate, now),
+                equalTo(TimeValue.timeValueMillis(expiryDuration.getMillis() + min.getMillis()))); // before license expiry
+        assertThat(post.delay(expiryDate, expiryDate), equalTo(min)); // on license expiry
+        int latestValidTriggerDelay = (int) (expiryDuration.getMillis() + max.getMillis());
+        int earliestValidTriggerDelay = (int) (expiryDuration.getMillis() + min.getMillis());
+        assertExpirationCallbackDelay(post, expiryDuration.millis(), latestValidTriggerDelay, earliestValidTriggerDelay);
+    }
+
+    public void testPreExpirationDelay() throws Exception {
+        TimeValue expiryDuration = TimeValue.timeValueSeconds(randomIntBetween(5, 10));
+        TimeValue min = TimeValue.timeValueSeconds(1);
+        TimeValue max = TimeValue.timeValueSeconds(4);
+        TimeValue frequency = TimeValue.timeValueSeconds(1);
+        NoopPreExpirationCallback pre = new NoopPreExpirationCallback(min, max, frequency);
+        long now = System.currentTimeMillis();
+        long expiryDate = now + expiryDuration.getMillis();
+        assertThat(pre.delay(expiryDate, expiryDate), nullValue()); // on license expiry
+        int latestValidTriggerDelay = (int) (expiryDuration.getMillis() - min.getMillis());
+        int earliestValidTriggerDelay = (int) (expiryDuration.getMillis() - max.getMillis());
+        assertExpirationCallbackDelay(pre, expiryDuration.millis(), latestValidTriggerDelay, earliestValidTriggerDelay);
     }
 
     public void testPostExpirationWithNullMax() throws Exception {
@@ -34,7 +52,7 @@ public class ExpirationCallbackTests extends ESTestCase {
 
         final ExpirationCallback.Post post = new NoopPostExpirationCallback(min, null, timeValueMillis(10));
         long now = System.currentTimeMillis();
-        assertThat(post.matches(now - postExpiryDuration.millis(), now), equalTo(true));
+        assertThat(post.delay(now - postExpiryDuration.millis(), now), equalTo(TimeValue.timeValueMillis(0)));
     }
 
     public void testPreExpirationWithNullMin() throws Exception {
@@ -44,73 +62,75 @@ public class ExpirationCallbackTests extends ESTestCase {
 
         final ExpirationCallback.Pre pre = new NoopPreExpirationCallback(null, max, timeValueMillis(10));
         long now = System.currentTimeMillis();
-        assertThat(pre.matches(expiryDuration.millis() + now, now), equalTo(true));
+        assertThat(pre.delay(expiryDuration.millis() + now, now), equalTo(TimeValue.timeValueMillis(0)));
     }
 
-    public void testPreExpiration() throws Exception {
-        int expirySeconds = randomIntBetween(5, 10);
-        TimeValue expiryDuration = TimeValue.timeValueSeconds(expirySeconds);
-        TimeValue min = TimeValue.timeValueSeconds(expirySeconds - randomIntBetween(0, 3));
-        TimeValue max = TimeValue.timeValueSeconds(expirySeconds + randomIntBetween(1, 10));
-        final ExpirationCallback.Pre pre = new NoopPreExpirationCallback(min, max, timeValueMillis(10));
+    public void testPreExpirationScheduleTime() throws Exception {
+        TimeValue expiryDuration = TimeValue.timeValueSeconds(randomIntBetween(5, 10));
+        TimeValue min = TimeValue.timeValueSeconds(1);
+        TimeValue max = TimeValue.timeValueSeconds(4);
+        TimeValue frequency = TimeValue.timeValueSeconds(1);
+        NoopPreExpirationCallback pre = new NoopPreExpirationCallback(min, max, frequency);
+        int latestValidTriggerDelay = (int) (expiryDuration.getMillis() - min.getMillis());
+        int earliestValidTriggerDelay = (int) (expiryDuration.getMillis() - max.getMillis());
+        assertExpirationCallbackScheduleTime(pre, expiryDuration.millis(), latestValidTriggerDelay, earliestValidTriggerDelay);
+    }
+
+    public void testPostExpirationScheduleTime() throws Exception {
+        TimeValue expiryDuration = TimeValue.timeValueSeconds(randomIntBetween(5, 10));
+        TimeValue min = TimeValue.timeValueSeconds(1);
+        TimeValue max = TimeValue.timeValueSeconds(4);
+        TimeValue frequency = TimeValue.timeValueSeconds(1);
+        NoopPostExpirationCallback pre = new NoopPostExpirationCallback(min, max, frequency);
+        int latestValidTriggerDelay = (int) (expiryDuration.getMillis() + max.getMillis());
+        int earliestValidTriggerDelay = (int) (expiryDuration.getMillis() + min.getMillis());
+        assertExpirationCallbackScheduleTime(pre, expiryDuration.millis(), latestValidTriggerDelay, earliestValidTriggerDelay);
+    }
+
+    private void assertExpirationCallbackDelay(ExpirationCallback expirationCallback, long expiryDuration,
+                                               int latestValidTriggerDelay, int earliestValidTriggerDelay) {
         long now = System.currentTimeMillis();
-        assertThat(pre.matches(expiryDuration.millis() + now, now), equalTo(true));
-        assertThat(pre.matches(now - expiryDuration.getMillis(), now), equalTo(false));
+        long expiryDate = now + expiryDuration;
+        // bounds
+        assertThat(expirationCallback.delay(expiryDate, now + earliestValidTriggerDelay), equalTo(TimeValue.timeValueMillis(0)));
+        assertThat(expirationCallback.delay(expiryDate, now + latestValidTriggerDelay), equalTo(TimeValue.timeValueMillis(0)));
+        // in match
+        assertThat(expirationCallback.delay(expiryDate,
+                now + randomIntBetween(earliestValidTriggerDelay, latestValidTriggerDelay)),
+                equalTo(TimeValue.timeValueMillis(0)));
+        // out of bounds
+        int deltaBeforeEarliestMatch = between(1, earliestValidTriggerDelay);
+        assertThat(expirationCallback.delay(expiryDate, now + deltaBeforeEarliestMatch),
+                equalTo(TimeValue.timeValueMillis(earliestValidTriggerDelay - deltaBeforeEarliestMatch)));
+        int deltaAfterLatestMatch = between(latestValidTriggerDelay + 1, Integer.MAX_VALUE); // after expiry and after max
+        assertThat(expirationCallback.delay(expiryDate, expiryDate + deltaAfterLatestMatch), nullValue());
     }
 
-    public void testPreExpirationMatchSchedule() throws Exception {
-        long expirySeconds = randomIntBetween(5, 10);
-        TimeValue expiryDuration = TimeValue.timeValueSeconds(expirySeconds);
-        TimeValue min = TimeValue.timeValueSeconds(expirySeconds - randomIntBetween(0, 3));
-        TimeValue max = TimeValue.timeValueSeconds(expirySeconds + randomIntBetween(1, 10));
-        final ExpirationCallback.Pre pre = new NoopPreExpirationCallback(min, max, timeValueMillis(10));
-        long expiryDate = System.currentTimeMillis() + expiryDuration.getMillis();
-        final SchedulerEngine.Schedule schedule = pre.schedule(expiryDate);
-        final long now = expiryDate - max.millis() + randomIntBetween(1, ((int) min.getMillis()));
-        assertThat(schedule.nextScheduledTimeAfter(0, now), equalTo(now + pre.frequency().getMillis()));
-        assertThat(schedule.nextScheduledTimeAfter(now, now), equalTo(now));
-    }
+    public void assertExpirationCallbackScheduleTime(ExpirationCallback expirationCallback, long expiryDuration,
+                                                      int latestValidTriggerDelay, int earliestValidTriggerDelay) {
+        long now = System.currentTimeMillis();
+        long expiryDate = now + expiryDuration;
+        int validTriggerInterval = between(earliestValidTriggerDelay, latestValidTriggerDelay);
+        assertThat(expirationCallback.nextScheduledTimeForExpiry(expiryDate,
+                now + validTriggerInterval, now + validTriggerInterval),
+                equalTo(now + validTriggerInterval));
+        assertThat(expirationCallback.nextScheduledTimeForExpiry(expiryDate, now, now + validTriggerInterval),
+                equalTo(now + validTriggerInterval + expirationCallback.getFrequency()));
 
-    public void testPreExpirationNotMatchSchedule() throws Exception {
-        long expirySeconds = randomIntBetween(5, 10);
-        TimeValue expiryDuration = TimeValue.timeValueSeconds(expirySeconds);
-        TimeValue min = TimeValue.timeValueSeconds(expirySeconds - randomIntBetween(0, 3));
-        TimeValue max = TimeValue.timeValueSeconds(expirySeconds + randomIntBetween(1, 10));
-        final ExpirationCallback.Pre pre = new NoopPreExpirationCallback(min, max, timeValueMillis(10));
-        long expiryDate = System.currentTimeMillis() + expiryDuration.getMillis();
-        final SchedulerEngine.Schedule schedule = pre.schedule(expiryDate);
-        int delta = randomIntBetween(1, 1000);
-        final long now = expiryDate - max.millis() - delta;
-        assertThat(schedule.nextScheduledTimeAfter(now, now), equalTo(now + delta));
-        assertThat(schedule.nextScheduledTimeAfter(1, now), equalTo(-1L));
-    }
+        int deltaBeforeEarliestMatch = between(1, earliestValidTriggerDelay);
+        assertThat(expirationCallback.nextScheduledTimeForExpiry(expiryDate, now, now + deltaBeforeEarliestMatch),
+                equalTo(now + deltaBeforeEarliestMatch +
+                        expirationCallback.delay(expiryDate, now + deltaBeforeEarliestMatch).getMillis()));
+        assertThat(expirationCallback.nextScheduledTimeForExpiry(expiryDate,
+                now + deltaBeforeEarliestMatch, now + deltaBeforeEarliestMatch),
+                equalTo(now + deltaBeforeEarliestMatch +
+                        expirationCallback.delay(expiryDate, now + deltaBeforeEarliestMatch).getMillis()));
 
-    public void testPostExpirationMatchSchedule() throws Exception {
-        long expirySeconds = randomIntBetween(5, 10);
-        TimeValue expiryDuration = TimeValue.timeValueSeconds(expirySeconds);
-        TimeValue min = TimeValue.timeValueSeconds(expirySeconds - randomIntBetween(0, 3));
-        TimeValue max = TimeValue.timeValueSeconds(expirySeconds + randomIntBetween(1, 10));
-        final ExpirationCallback.Post post = new NoopPostExpirationCallback(min, max, timeValueMillis(10));
-        long expiryDate = System.currentTimeMillis() + expiryDuration.getMillis();
-        final SchedulerEngine.Schedule schedule = post.schedule(expiryDate);
-        final long now = expiryDate + min.millis() + randomIntBetween(1, ((int) (max.getMillis() - min.getMillis())));
-        assertThat(schedule.nextScheduledTimeAfter(0, now), equalTo(now + post.frequency().getMillis()));
-        assertThat(schedule.nextScheduledTimeAfter(now, now), equalTo(now));
-    }
-
-    public void testPostExpirationNotMatchSchedule() throws Exception {
-        long expirySeconds = randomIntBetween(5, 10);
-        TimeValue expiryDuration = TimeValue.timeValueSeconds(expirySeconds);
-        TimeValue min = TimeValue.timeValueSeconds(expirySeconds - randomIntBetween(0, 3));
-        TimeValue max = TimeValue.timeValueSeconds(expirySeconds + randomIntBetween(1, 10));
-        final ExpirationCallback.Post post = new NoopPostExpirationCallback(min, max, timeValueMillis(10));
-        long expiryDate = System.currentTimeMillis() + expiryDuration.getMillis();
-        final SchedulerEngine.Schedule schedule = post.schedule(expiryDate);
-        int delta = randomIntBetween(1, 1000);
-        final long now = expiryDate - delta;
-        assertThat(schedule.nextScheduledTimeAfter(expiryDate, expiryDate), equalTo(expiryDate + min.getMillis()));
-        assertThat(schedule.nextScheduledTimeAfter(now, now), equalTo(expiryDate + min.getMillis()));
-        assertThat(schedule.nextScheduledTimeAfter(1, now), equalTo(-1L));
+        int deltaAfterLatestMatch = between(latestValidTriggerDelay + 1, Integer.MAX_VALUE); // after expiry and after max
+        assertThat(expirationCallback.nextScheduledTimeForExpiry(expiryDate, now, now + deltaAfterLatestMatch), equalTo(-1L));
+        assertThat(expirationCallback.nextScheduledTimeForExpiry(expiryDate,
+                now + deltaAfterLatestMatch, now + deltaAfterLatestMatch),
+                equalTo(-1L));
     }
 
     private static class NoopPostExpirationCallback extends ExpirationCallback.Post {

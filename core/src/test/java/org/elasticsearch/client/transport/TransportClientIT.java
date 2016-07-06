@@ -51,7 +51,6 @@ public class TransportClientIT extends ESIntegTestCase {
 
     public void testNodeVersionIsUpdated() throws IOException {
         TransportClient client = (TransportClient)  internalCluster().client();
-        TransportClientNodesService nodeService = client.nodeService();
         Node node = new Node(Settings.builder()
                 .put(internalCluster().getDefaultSettings())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
@@ -65,19 +64,19 @@ public class TransportClientIT extends ESIntegTestCase {
             TransportAddress transportAddress = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();
             client.addTransportAddress(transportAddress);
             // since we force transport clients there has to be one node started that we connect to.
-            assertThat(nodeService.connectedNodes().size(), greaterThanOrEqualTo(1));
+            assertThat(client.connectedNodes().size(), greaterThanOrEqualTo(1));
             // connected nodes have updated version
-            for (DiscoveryNode discoveryNode : nodeService.connectedNodes()) {
+            for (DiscoveryNode discoveryNode : client.connectedNodes()) {
                 assertThat(discoveryNode.getVersion(), equalTo(Version.CURRENT));
             }
 
-            for (DiscoveryNode discoveryNode : nodeService.listedNodes()) {
+            for (DiscoveryNode discoveryNode : client.listedNodes()) {
                 assertThat(discoveryNode.getId(), startsWith("#transport#-"));
                 assertThat(discoveryNode.getVersion(), equalTo(Version.CURRENT.minimumCompatibilityVersion()));
             }
 
-            assertThat(nodeService.filteredNodes().size(), equalTo(1));
-            for (DiscoveryNode discoveryNode : nodeService.filteredNodes()) {
+            assertThat(client.filteredNodes().size(), equalTo(1));
+            for (DiscoveryNode discoveryNode : client.filteredNodes()) {
                 assertThat(discoveryNode.getVersion(), equalTo(Version.CURRENT.minimumCompatibilityVersion()));
             }
         } finally {

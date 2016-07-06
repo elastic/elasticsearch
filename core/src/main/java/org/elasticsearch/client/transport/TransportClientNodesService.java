@@ -113,7 +113,6 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
     public static final Setting<Boolean> CLIENT_TRANSPORT_SNIFF =
         Setting.boolSetting("client.transport.sniff", false, Property.NodeScope);
 
-    @Inject
     public TransportClientNodesService(Settings settings,TransportService transportService,
                                        ThreadPool threadPool) {
         super(settings);
@@ -282,6 +281,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
 
     }
 
+    @Override
     public void close() {
         synchronized (mutex) {
             if (closed) {

@@ -8,6 +8,7 @@ package org.elasticsearch.license.plugin.core;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
+import org.elasticsearch.xpack.scheduler.SchedulerEngine;
 
 import java.util.UUID;
 
@@ -17,6 +18,11 @@ public abstract class ExpirationCallback {
 
     public enum Orientation {PRE, POST}
 
+    /**
+     * Callback that is triggered every <code>frequency</code> when
+     * current time is between <code>max</code> and <code>min</code>
+     * before license expiry.
+     */
     public abstract static class Pre extends ExpirationCallback {
 
         /**
@@ -31,6 +37,11 @@ public abstract class ExpirationCallback {
         }
     }
 
+    /**
+     * Callback that is triggered every <code>frequency</code> when
+     * current time is between <code>min</code> and <code>max</code>
+     * after license expiry.
+     */
     public abstract static class Post extends ExpirationCallback {
 
         /**
@@ -68,11 +79,14 @@ public abstract class ExpirationCallback {
     }
 
     /**
-     * The delay for the first notification, when the current time
-     * is not in the valid time bracket for this callback
+     * Calculates the delay for the next trigger time. When <code>now</code> is in a
+     * valid time bracket with respect to <code>expirationDate</code>, the delay is 0.
+     * When <code>now</code> is before the time bracket, than delay to the start of the
+     * time bracket and when <code>now</code> is passed the valid time bracket, the delay
+     * is <code>null</code>
      * @param expirationDate license expiry date in milliseconds
      * @param now current time in milliseconds
-     * @return time delay for the first notification
+     * @return time delay
      */
     final TimeValue delay(long expirationDate, long now) {
         final TimeValue delay;
@@ -121,6 +135,10 @@ public abstract class ExpirationCallback {
         return delay;
     }
 
+    /**
+     * {@link SchedulerEngine.Schedule#nextScheduledTimeAfter(long, long)} with respect to
+     * license expiry date
+     */
     public final long nextScheduledTimeForExpiry(long expiryDate, long startTime, long time) {
         TimeValue delay = delay(expiryDate, time);
         if (delay != null) {

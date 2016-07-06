@@ -114,7 +114,8 @@ public final class SortProcessor extends AbstractProcessor {
     public static final class Factory implements Processor.Factory {
 
         @Override
-        public SortProcessor create(String processorTag, Map<String, Object> config) throws Exception {
+        public SortProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+                                    Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, FIELD);
             try {
                 SortOrder direction = SortOrder.fromString(

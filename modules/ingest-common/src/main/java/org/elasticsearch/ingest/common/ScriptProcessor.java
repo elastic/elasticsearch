@@ -86,7 +86,8 @@ public final class ScriptProcessor extends AbstractProcessor {
         }
 
         @Override
-        public ScriptProcessor create(String processorTag, Map<String, Object> config) throws Exception {
+        public ScriptProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+                                      Map<String, Object> config) throws Exception {
             String field = readOptionalStringProperty(TYPE, processorTag, config, "field");
             String lang = readStringProperty(TYPE, processorTag, config, "lang");
             String inline = readOptionalStringProperty(TYPE, processorTag, config, "inline");

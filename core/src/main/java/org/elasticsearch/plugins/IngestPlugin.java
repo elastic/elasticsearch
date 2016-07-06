@@ -17,29 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest;
+package org.elasticsearch.plugins;
 
 import java.util.Collections;
 import java.util.Map;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.TemplateService;
 import org.elasticsearch.script.ScriptService;
 
 /**
- * Adds an ingest processor to be used in tests.
+ * An extension point for {@link Plugin} implementations to add custom ingest processors
  */
-public class IngestTestPlugin extends Plugin implements IngestPlugin {
-    @Override
-    public Map<String, Processor.Factory> getProcessors(
+public interface IngestPlugin {
+
+    /**
+     * Returns additional ingest processor types added by this plugin.
+     *
+     * The key of the returned {@link Map} is the unique name for the processor which is specified
+     * in pipeline configurations, and the value is a {@link org.elasticsearch.ingest.Processor.Factory}
+     * to create the processor from a given pipeline configuration.
+     */
+    default Map<String, Processor.Factory> getProcessors(
         Environment env, ScriptService scriptService, TemplateService templateService) {
-        return Collections.singletonMap("test", (factories, tag, config) ->
-            new TestProcessor("id", "test", doc -> {
-                doc.setFieldValue("processed", true);
-                if (doc.hasField("fail") && doc.getFieldValue("fail", Boolean.class)) {
-                    throw new IllegalArgumentException("test processor failed");
-                }
-            }));
+        return Collections.emptyMap();
     }
 }

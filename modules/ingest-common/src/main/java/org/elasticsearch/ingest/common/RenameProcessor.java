@@ -77,7 +77,8 @@ public final class RenameProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
         @Override
-        public RenameProcessor create(String processorTag, Map<String, Object> config) throws Exception {
+        public RenameProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+                                      Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field");
             return new RenameProcessor(processorTag, field, targetField);

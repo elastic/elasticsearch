@@ -19,6 +19,14 @@
 
 package org.elasticsearch.ingest.common;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IllformedLocaleException;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.function.Function;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -28,14 +36,6 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IllformedLocaleException;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.function.Function;
 
 public final class DateIndexNameProcessor extends AbstractProcessor {
 
@@ -123,7 +123,8 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
     public static final class Factory implements Processor.Factory {
 
         @Override
-        public DateIndexNameProcessor create(String tag, Map<String, Object> config) throws Exception {
+        public DateIndexNameProcessor create(Map<String, Processor.Factory> registry, String tag,
+                                             Map<String, Object> config) throws Exception {
             String localeString = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "locale");
             String timezoneString = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "timezone");
             DateTimeZone timezone = timezoneString == null ? DateTimeZone.UTC : DateTimeZone.forID(timezoneString);

@@ -98,13 +98,13 @@ public final class Pipeline {
 
     public static final class Factory {
 
-        public Pipeline create(String id, Map<String, Object> config, ProcessorsRegistry processorRegistry) throws Exception {
+        public Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorFactories) throws Exception {
             String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
             List<Map<String, Map<String, Object>>> processorConfigs = ConfigurationUtils.readList(null, null, config, PROCESSORS_KEY);
-            List<Processor> processors = ConfigurationUtils.readProcessorConfigs(processorConfigs, processorRegistry);
+            List<Processor> processors = ConfigurationUtils.readProcessorConfigs(processorConfigs, processorFactories);
             List<Map<String, Map<String, Object>>> onFailureProcessorConfigs =
                     ConfigurationUtils.readOptionalList(null, null, config, ON_FAILURE_KEY);
-            List<Processor> onFailureProcessors = ConfigurationUtils.readProcessorConfigs(onFailureProcessorConfigs, processorRegistry);
+            List<Processor> onFailureProcessors = ConfigurationUtils.readProcessorConfigs(onFailureProcessorConfigs, processorFactories);
             if (config.isEmpty() == false) {
                 throw new ElasticsearchParseException("pipeline [" + id +
                         "] doesn't support one or more provided configuration parameters " + Arrays.toString(config.keySet().toArray()));

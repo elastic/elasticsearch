@@ -50,12 +50,14 @@ public interface Processor {
         /**
          * Creates a processor based on the specified map of maps config.
          *
+         * @param processorFactories Other processors which may be created inside this processor
          * @param tag The tag for the processor
-         * @param config Configuration for the processor to create
+         * @param config The configuration for the processor
          *
-         * Implementations are responsible for removing the used keys, so that after creating a pipeline ingest can
-         * verify if all configurations settings have been used.
+         * <b>Note:</b> Implementations are responsible for removing the used configuration keys, so that after
+         * creating a pipeline ingest can verify if all configurations settings have been used.
          */
-        Processor create(String tag, Map<String, Object> config) throws Exception;
+        Processor create(Map<String, Processor.Factory> processorFactories, String tag,
+                         Map<String, Object> config) throws Exception;
     }
 }

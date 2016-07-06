@@ -84,7 +84,8 @@ public final class SetProcessor extends AbstractProcessor {
         }
 
         @Override
-        public SetProcessor create(String processorTag, Map<String, Object> config) throws Exception {
+        public SetProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+                                   Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             Object value = ConfigurationUtils.readObject(TYPE, processorTag, config, "value");
             boolean overrideEnabled = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "override", true);

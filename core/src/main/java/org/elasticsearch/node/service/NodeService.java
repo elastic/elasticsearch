@@ -38,7 +38,6 @@ import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.ScriptService;
@@ -57,7 +56,6 @@ public class NodeService extends AbstractComponent implements Closeable {
     private final CircuitBreakerService circuitBreakerService;
     private final IngestService ingestService;
     private final SettingsFilter settingsFilter;
-    private ClusterService clusterService;
     private ScriptService scriptService;
 
     @Nullable
@@ -68,9 +66,8 @@ public class NodeService extends AbstractComponent implements Closeable {
     @Inject
     public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery,
                        TransportService transportService, IndicesService indicesService, PluginsService pluginService,
-                       CircuitBreakerService circuitBreakerService, @Nullable HttpServer httpServer,
-                       ProcessorsRegistry.Builder processorsRegistryBuilder, ClusterService clusterService,
-                       SettingsFilter settingsFilter) {
+                       CircuitBreakerService circuitBreakerService, ScriptService scriptService, @Nullable HttpServer httpServer,
+                       IngestService ingestService, ClusterService clusterService, SettingsFilter settingsFilter) {
         super(settings);
         this.threadPool = threadPool;
         this.monitorService = monitorService;
@@ -80,18 +77,11 @@ public class NodeService extends AbstractComponent implements Closeable {
         this.pluginService = pluginService;
         this.circuitBreakerService = circuitBreakerService;
         this.httpServer = httpServer;
-        this.clusterService = clusterService;
-        this.ingestService = new IngestService(settings, threadPool, processorsRegistryBuilder);
+        this.ingestService = ingestService;
         this.settingsFilter = settingsFilter;
+        this.scriptService = scriptService;
         clusterService.add(ingestService.getPipelineStore());
         clusterService.add(ingestService.getPipelineExecutionService());
-    }
-
-    // can not use constructor injection or there will be a circular dependency
-    @Inject(optional = true)
-    public void setScriptService(ScriptService scriptService) {
-        this.scriptService = scriptService;
-        this.ingestService.buildProcessorsFactoryRegistry(scriptService, clusterService);
     }
 
     public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,

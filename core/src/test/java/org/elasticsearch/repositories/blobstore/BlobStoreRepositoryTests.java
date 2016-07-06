@@ -183,10 +183,10 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         assertThat(blobId(snapshotId), equalTo("abc-123")); // just the snapshot name
         String uuid = UUIDs.randomBase64UUID();
         snapshotId = new SnapshotId("abc123", uuid);
-        assertThat(blobId(snapshotId), equalTo("abc123-" + uuid)); // snapshot name + '-' + uuid
+        assertThat(blobId(snapshotId), equalTo(uuid)); // uuid only
         uuid = UUIDs.randomBase64UUID();
         snapshotId = new SnapshotId("abc-123", uuid);
-        assertThat(blobId(snapshotId), equalTo("abc-123-" + uuid)); // snapshot name + '-' + uuid
+        assertThat(blobId(snapshotId), equalTo(uuid)); // uuid only
     }
 
     private BlobStoreRepository setupRepo() {

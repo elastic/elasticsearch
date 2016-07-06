@@ -35,6 +35,7 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
 import java.util.Map;
@@ -106,8 +107,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
         final Path file = path.resolve(blobName);
-        // TODO: why is this not specifying CREATE_NEW? Do we really need to be able to truncate existing files?
-        try (OutputStream outputStream = Files.newOutputStream(file)) {
+        try (OutputStream outputStream = Files.newOutputStream(file, StandardOpenOption.CREATE_NEW)) {
             Streams.copy(inputStream, outputStream, new byte[blobStore.bufferSizeInBytes()]);
         }
         IOUtils.fsync(file, false);

@@ -1073,7 +1073,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     searchAfterBuilder = SearchAfterBuilder.fromXContent(parser, context.getParseFieldMatcher());
                 } else if (context.getParseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
                     throw new ParsingException(parser.getTokenLocation(), "The field [" +
-                        SearchSourceBuilder.FIELDS_FIELD + "] is not longer supported, please use [" +
+                        SearchSourceBuilder.FIELDS_FIELD + "] is no longer supported, please use [" +
                         SearchSourceBuilder.STORED_FIELDS_FIELD + "] to retrieve stored fields or _source filtering " +
                         "if the field is not stored");
                 } else {

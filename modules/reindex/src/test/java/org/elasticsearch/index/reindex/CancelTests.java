@@ -141,7 +141,7 @@ public class CancelTests extends ReindexTestCase {
         // And check the status of the response
         BulkIndexByScrollResponse response = future.get();
         assertThat(response.getReasonCancelled(), equalTo("by user request"));
-        assertThat(response.getIndexingFailures(), emptyIterable());
+        assertThat(response.getBulkFailures(), emptyIterable());
         assertThat(response.getSearchFailures(), emptyIterable());
 
         flushAndRefresh(INDEX);

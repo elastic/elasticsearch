@@ -437,7 +437,7 @@ public class ShardStateAction extends AbstractComponent {
             shardRouting.writeTo(out);
             sourceShardRouting.writeTo(out);
             out.writeString(message);
-            out.writeThrowable(failure);
+            out.writeException(failure);
         }
 
         @Override

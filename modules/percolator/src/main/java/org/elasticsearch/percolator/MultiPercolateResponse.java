@@ -172,7 +172,7 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
                 response.writeTo(out);
             } else {
                 out.writeBoolean(false);
-                out.writeThrowable(exception);
+                out.writeException(exception);
             }
         }
     }

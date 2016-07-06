@@ -100,7 +100,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
             out.writeString(index);
             out.writeOptionalString(type);
             out.writeString(id);
-            out.writeThrowable(exception);
+            out.writeException(exception);
         }
 
         public Exception getFailure() {

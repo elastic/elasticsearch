@@ -21,9 +21,9 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
@@ -61,13 +61,13 @@ public class BulkIndexByScrollResponseContentListener<R extends BulkIndexByScrol
         if (response.isTimedOut()) {
             status = RestStatus.REQUEST_TIMEOUT;
         }
-        for (Failure failure : response.getIndexingFailures()) {
+        for (Failure failure : response.getBulkFailures()) {
             if (failure.getStatus().getStatus() > status.getStatus()) {
                 status = failure.getStatus();
             }
         }
-        for (ShardSearchFailure failure: response.getSearchFailures()) {
-            RestStatus failureStatus = ExceptionsHelper.status(failure.getCause());
+        for (SearchFailure failure: response.getSearchFailures()) {
+            RestStatus failureStatus = ExceptionsHelper.status(failure.getReason());
             if (failureStatus.getStatus() > status.getStatus()) {
                 status = failureStatus;
             }

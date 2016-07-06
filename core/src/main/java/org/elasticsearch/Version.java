@@ -77,7 +77,9 @@ public class Version {
     public static final Version V_5_0_0_alpha3 = new Version(V_5_0_0_alpha3_ID, org.apache.lucene.util.Version.LUCENE_6_0_0);
     public static final int V_5_0_0_alpha4_ID = 5000004;
     public static final Version V_5_0_0_alpha4 = new Version(V_5_0_0_alpha4_ID, org.apache.lucene.util.Version.LUCENE_6_1_0);
-    public static final Version CURRENT = V_5_0_0_alpha4;
+    public static final int V_5_0_0_alpha5_ID = 5000005;
+    public static final Version V_5_0_0_alpha5 = new Version(V_5_0_0_alpha5_ID, org.apache.lucene.util.Version.LUCENE_6_1_0);
+    public static final Version CURRENT = V_5_0_0_alpha5;
 
     static {
         assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) : "Version must be upgraded to ["
@@ -90,6 +92,8 @@ public class Version {
 
     public static Version fromId(int id) {
         switch (id) {
+            case V_5_0_0_alpha5_ID:
+                return V_5_0_0_alpha5;
             case V_5_0_0_alpha4_ID:
                 return V_5_0_0_alpha4;
             case V_5_0_0_alpha3_ID:

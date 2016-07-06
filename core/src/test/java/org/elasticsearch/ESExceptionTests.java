@@ -301,7 +301,7 @@ public class ESExceptionTests extends ESTestCase {
     public void testSerializeElasticsearchException() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         ParsingException ex = new ParsingException(1, 2, "foobar", null);
-        out.writeThrowable(ex);
+        out.writeException(ex);
 
         StreamInput in = out.bytes().streamInput();
         ParsingException e = in.readException();
@@ -315,7 +315,7 @@ public class ESExceptionTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         ParsingException parsingException = new ParsingException(1, 2, "foobar", null);
         final Exception ex = new UnknownException("eggplant", parsingException);
-        out.writeThrowable(ex);
+        out.writeException(ex);
 
         StreamInput in = out.bytes().streamInput();
         Throwable throwable = in.readException();
@@ -354,7 +354,7 @@ public class ESExceptionTests extends ESTestCase {
         for (final Exception cause : causes) {
             BytesStreamOutput out = new BytesStreamOutput();
             ElasticsearchException ex = new ElasticsearchException("topLevel", cause);
-            out.writeThrowable(ex);
+            out.writeException(ex);
             StreamInput in = out.bytes().streamInput();
             ElasticsearchException e = in.readException();
             assertEquals(e.getMessage(), ex.getMessage());

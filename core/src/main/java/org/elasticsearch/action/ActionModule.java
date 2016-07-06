@@ -19,6 +19,12 @@
 
 package org.elasticsearch.action;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
@@ -303,12 +309,6 @@ import org.elasticsearch.rest.action.termvectors.RestMultiTermVectorsAction;
 import org.elasticsearch.rest.action.termvectors.RestTermVectorsAction;
 import org.elasticsearch.rest.action.update.RestUpdateAction;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
 
@@ -336,6 +336,10 @@ public class ActionModule extends AbstractModule {
         autoCreateIndex = transportClient ? null : new AutoCreateIndex(settings, resolver);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         restController = new RestController(settings);
+    }
+
+    public Map<String, ActionHandler<?, ?>> getActions() {
+        return actions;
     }
 
     static Map<String, ActionHandler<?, ?>> setupActions(List<ActionPlugin> actionPlugins) {
@@ -621,14 +625,6 @@ public class ActionModule extends AbstractModule {
         bind(ActionFilters.class).asEagerSingleton();
         bind(DestructiveOperations.class).toInstance(destructiveOperations);
 
-        // register Name -> GenericAction Map that can be injected to instances.
-        @SuppressWarnings("rawtypes")
-        MapBinder<String, GenericAction> actionsBinder
-                = MapBinder.newMapBinder(binder(), String.class, GenericAction.class);
-
-        for (Map.Entry<String, ActionHandler<?, ?>> entry : actions.entrySet()) {
-            actionsBinder.addBinding(entry.getKey()).toInstance(entry.getValue().getAction());
-        }
         if (false == transportClient) {
             // Supporting classes only used when not a transport client
             bind(AutoCreateIndex.class).toInstance(autoCreateIndex);

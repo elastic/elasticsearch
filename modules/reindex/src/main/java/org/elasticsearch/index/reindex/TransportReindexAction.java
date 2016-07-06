@@ -19,8 +19,10 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.http.HttpHost;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -28,51 +30,74 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
+import org.elasticsearch.index.reindex.remote.RemoteInfo;
+import org.elasticsearch.index.reindex.remote.RemoteScrollableHitSource;
+import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
+import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 
 public class TransportReindexAction extends HandledTransportAction<ReindexRequest, BulkIndexByScrollResponse> {
+    public static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST =
+            Setting.listSetting("reindex.remote.whitelist", emptyList(), Function.identity(), Property.NodeScope);
+
     private final ClusterService clusterService;
     private final ScriptService scriptService;
     private final AutoCreateIndex autoCreateIndex;
     private final Client client;
+    private final Set<String> remoteWhitelist;
+    private final HttpServer httpServer;
 
     @Inject
     public TransportReindexAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, ScriptService scriptService,
-            AutoCreateIndex autoCreateIndex, Client client, TransportService transportService) {
+            AutoCreateIndex autoCreateIndex, Client client, TransportService transportService, @Nullable HttpServer httpServer) {
         super(settings, ReindexAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 ReindexRequest::new);
         this.clusterService = clusterService;
         this.scriptService = scriptService;
         this.autoCreateIndex = autoCreateIndex;
         this.client = client;
+        remoteWhitelist = new HashSet<>(REMOTE_CLUSTER_WHITELIST.get(settings));
+        this.httpServer = httpServer;
     }
 
     @Override
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
+        checkRemoteWhitelist(request.getRemoteInfo());
         ClusterState state = clusterService.state();
-        validateAgainstAliases(request.getSearchRequest(), request.getDestination(), indexNameExpressionResolver, autoCreateIndex, state);
+        validateAgainstAliases(request.getSearchRequest(), request.getDestination(), request.getRemoteInfo(), indexNameExpressionResolver,
+                autoCreateIndex, state);
         ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
         new AsyncIndexBySearchAction((BulkByScrollTask) task, logger, client, threadPool, request, listener, scriptService, state).start();
     }
@@ -82,15 +107,43 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         throw new UnsupportedOperationException("task required");
     }
 
+    private void checkRemoteWhitelist(RemoteInfo remoteInfo) {
+        TransportAddress publishAddress = null;
+        HttpInfo httpInfo = httpServer == null ? null : httpServer.info();
+        if (httpInfo != null && httpInfo.getAddress() != null) {
+            publishAddress = httpInfo.getAddress().publishAddress();
+        }
+        checkRemoteWhitelist(remoteWhitelist, remoteInfo, publishAddress);
+    }
+
+    static void checkRemoteWhitelist(Set<String> whitelist, RemoteInfo remoteInfo, TransportAddress publishAddress) {
+        if (remoteInfo == null) return;
+        String check = remoteInfo.getHost() + ':' + remoteInfo.getPort();
+        if (whitelist.contains(check)) return;
+        /*
+         * For testing we support the key "myself" to allow connecting to the local node. We can't just change the setting to include the
+         * local node because it is intentionally not a dynamic setting for security purposes. We can't use something like "localhost:9200"
+         * because we don't know up front which port we'll get because the tests bind to port 0. Instead we try to resolve it here, taking
+         * "myself" to mean "my published http address".
+         */
+        if (whitelist.contains("myself") && publishAddress != null && publishAddress.toString().equals(check)) {
+            return;
+        }
+        throw new IllegalArgumentException('[' + check + "] not whitelisted in " + REMOTE_CLUSTER_WHITELIST.getKey());
+    }
+
     /**
      * Throws an ActionRequestValidationException if the request tries to index
      * back into the same index or into an index that points to two indexes.
      * This cannot be done during request validation because the cluster state
      * isn't available then. Package private for testing.
      */
-    static String validateAgainstAliases(SearchRequest source, IndexRequest destination,
+    static void validateAgainstAliases(SearchRequest source, IndexRequest destination, RemoteInfo remoteInfo,
                                          IndexNameExpressionResolver indexNameExpressionResolver, AutoCreateIndex autoCreateIndex,
                                          ClusterState clusterState) {
+        if (remoteInfo != null) {
+            return;
+        }
         String target = destination.index();
         if (false == autoCreateIndex.shouldAutoCreate(target, clusterState)) {
             /*
@@ -107,7 +160,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                 throw e;
             }
         }
-        return target;
     }
 
     /**
@@ -121,11 +173,30 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         public AsyncIndexBySearchAction(BulkByScrollTask task, ESLogger logger, ParentTaskAssigningClient client, ThreadPool threadPool,
                                         ReindexRequest request, ActionListener<BulkIndexByScrollResponse> listener,
                                         ScriptService scriptService, ClusterState clusterState) {
-            super(task, logger, client, threadPool, request, request.getSearchRequest(), listener, scriptService, clusterState);
+            super(task, logger, client, threadPool, request, listener, scriptService, clusterState);
         }
 
         @Override
-        protected BiFunction<RequestWrapper<?>, SearchHit, RequestWrapper<?>> buildScriptApplier() {
+        protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy) {
+            if (mainRequest.getRemoteInfo() != null) {
+                // NORELEASE track 500-level retries that are builtin to the client
+                RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
+                if (remoteInfo.getUsername() != null) {
+                    // NORELEASE support auth
+                    throw new UnsupportedOperationException("Auth is unsupported");
+                }
+                RestClient restClient = RestClient.builder(new HttpHost(remoteInfo.getHost(), remoteInfo.getPort(), remoteInfo.getScheme()))
+                        .build();
+                RemoteScrollableHitSource.AsyncClient client = new RemoteScrollableHitSource.AsynchronizingRestClient(threadPool,
+                        restClient);
+                return new RemoteScrollableHitSource(logger, backoffPolicy, threadPool, task::countSearchRetry, this::finishHim, client,
+                        remoteInfo.getQuery(), mainRequest.getSearchRequest());
+            }
+            return super.buildScrollableResultSource(backoffPolicy);
+        }
+
+        @Override
+        protected BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
             Script script = mainRequest.getScript();
             if (script != null) {
                 return new ReindexScriptApplier(task, scriptService, script, script.getParams());
@@ -134,7 +205,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         }
 
         @Override
-        protected RequestWrapper<IndexRequest> buildRequest(SearchHit doc) {
+        protected RequestWrapper<IndexRequest> buildRequest(ScrollableHitSource.Hit doc) {
             IndexRequest index = new IndexRequest();
 
             // Copy the index from the request so we always write where it asked to write
@@ -142,7 +213,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
             // If the request override's type then the user wants all documents in that type. Otherwise keep the doc's type.
             if (mainRequest.getDestination().type() == null) {
-                index.type(doc.type());
+                index.type(doc.getType());
             } else {
                 index.type(mainRequest.getDestination().type());
             }
@@ -155,12 +226,12 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             if (index.versionType() == INTERNAL) {
                 index.version(mainRequest.getDestination().version());
             } else {
-                index.version(doc.version());
+                index.version(doc.getVersion());
             }
 
             // id and source always come from the found doc. Scripts can change them but they operate on the index request.
-            index.id(doc.id());
-            index.source(doc.sourceRef());
+            index.id(doc.getId());
+            index.source(doc.getSource());
 
             /*
              * The rest of the index request just has to be copied from the template. It may be changed later from scripts or the superclass

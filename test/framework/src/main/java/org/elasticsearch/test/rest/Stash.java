@@ -71,7 +71,7 @@ public class Stash implements ToXContent {
      * as arguments for following requests (e.g. scroll_id)
      */
     public boolean containsStashedValue(Object key) {
-        if (key == null) {
+        if (key == null || false == key instanceof CharSequence) {
             return false;
         }
         String stashKey = key.toString();

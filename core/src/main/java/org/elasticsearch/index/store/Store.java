@@ -1337,7 +1337,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             try (IndexOutput output = this.directory().createOutput(uuid, IOContext.DEFAULT)) {
                 CodecUtil.writeHeader(output, CODEC, VERSION);
                 BytesStreamOutput out = new BytesStreamOutput();
-                out.writeThrowable(exception);
+                out.writeException(exception);
                 BytesReference bytes = out.bytes();
                 output.writeVInt(bytes.length());
                 BytesRef ref = bytes.toBytesRef();

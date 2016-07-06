@@ -260,7 +260,7 @@ public class ReplicationResponse extends ActionResponse {
             public void writeTo(StreamOutput out) throws IOException {
                 shardId.writeTo(out);
                 out.writeOptionalString(nodeId);
-                out.writeThrowable(cause);
+                out.writeException(cause);
                 RestStatus.writeTo(out, status);
                 out.writeBoolean(primary);
             }

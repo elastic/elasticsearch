@@ -189,7 +189,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
             allocationStatus.writeTo(out);
             if (storeException != null) {
                 out.writeBoolean(true);
-                out.writeThrowable(storeException);
+                out.writeException(storeException);
             } else {
                 out.writeBoolean(false);
             }

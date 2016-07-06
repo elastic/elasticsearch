@@ -20,6 +20,7 @@
 package org.elasticsearch.client.transport;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -33,6 +34,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -41,7 +43,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.FutureTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
@@ -95,7 +97,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
 
     private volatile ScheduledFuture nodesSamplerFuture;
 
-    private final AtomicInteger randomNodeGenerator = new AtomicInteger();
+    private final AtomicInteger randomNodeGenerator = new AtomicInteger(Randomness.get().nextInt());
 
     private final boolean ignoreClusterName;
 
@@ -111,7 +113,6 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
     public static final Setting<Boolean> CLIENT_TRANSPORT_SNIFF =
         Setting.boolSetting("client.transport.sniff", false, Property.NodeScope);
 
-    @Inject
     public TransportClientNodesService(Settings settings,TransportService transportService,
                                        ThreadPool threadPool) {
         super(settings);
@@ -280,6 +281,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
 
     }
 
+    @Override
     public void close() {
         synchronized (mutex) {
             if (closed) {
@@ -460,7 +462,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                                     Requests.clusterStateRequest().clear().nodes(true).local(true),
                                     TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE)
                                             .withTimeout(pingTimeout).build(),
-                                    new BaseTransportResponseHandler<ClusterStateResponse>() {
+                                    new TransportResponseHandler<ClusterStateResponse>() {
 
                                         @Override
                                         public ClusterStateResponse newInstance() {

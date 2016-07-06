@@ -66,7 +66,8 @@ public class TestProcessor implements Processor {
 
     public static final class Factory implements Processor.Factory {
         @Override
-        public TestProcessor create(String processorTag, Map<String, Object> config) throws Exception {
+        public TestProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+                                    Map<String, Object> config) throws Exception {
             return new TestProcessor(processorTag, "test-processor", ingestDocument -> {});
         }
     }

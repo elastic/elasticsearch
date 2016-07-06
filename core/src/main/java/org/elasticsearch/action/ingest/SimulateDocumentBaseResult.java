@@ -63,7 +63,7 @@ public final class SimulateDocumentBaseResult implements SimulateDocumentResult 
             ingestDocument.writeTo(out);
         } else {
             out.writeBoolean(true);
-            out.writeThrowable(failure);
+            out.writeException(failure);
         }
     }
 

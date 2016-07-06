@@ -61,9 +61,10 @@ abstract class AbstractStringProcessor extends AbstractProcessor {
         }
 
         @Override
-        public AbstractStringProcessor create(String processorTag, Map<String, Object> config) throws Exception {
-            String field = ConfigurationUtils.readStringProperty(processorType, processorTag, config, "field");
-            return newProcessor(processorTag, field);
+        public AbstractStringProcessor create(Map<String, Processor.Factory> registry, String tag,
+                                              Map<String, Object> config) throws Exception {
+            String field = ConfigurationUtils.readStringProperty(processorType, tag, config, "field");
+            return newProcessor(tag, field);
         }
 
         protected abstract AbstractStringProcessor newProcessor(String processorTag, String field);

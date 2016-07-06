@@ -19,16 +19,18 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.threadpool.ThreadPool;
-
-import java.io.Closeable;
-import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  * Holder class for several ingest related services.
@@ -37,11 +39,20 @@ public class IngestService {
 
     private final PipelineStore pipelineStore;
     private final PipelineExecutionService pipelineExecutionService;
-    private final ProcessorsRegistry.Builder processorsRegistryBuilder;
 
-    public IngestService(Settings settings, ThreadPool threadPool, ProcessorsRegistry.Builder processorsRegistryBuilder) {
-        this.processorsRegistryBuilder = processorsRegistryBuilder;
-        this.pipelineStore = new PipelineStore(settings);
+    public IngestService(Settings settings, ThreadPool threadPool,
+                         Environment env, ScriptService scriptService, List<IngestPlugin> ingestPlugins) {
+        final TemplateService templateService = new InternalTemplateService(scriptService);
+        Map<String, Processor.Factory> processorFactories = new HashMap<>();
+        for (IngestPlugin ingestPlugin : ingestPlugins) {
+            Map<String, Processor.Factory> newProcessors = ingestPlugin.getProcessors(env, scriptService, templateService);
+            for (Map.Entry<String, Processor.Factory> entry : newProcessors.entrySet()) {
+                if (processorFactories.put(entry.getKey(), entry.getValue()) != null) {
+                    throw new IllegalArgumentException("Ingest processor [" + entry.getKey() + "] is already registered");
+                }
+            }
+        }
+        this.pipelineStore = new PipelineStore(settings, Collections.unmodifiableMap(processorFactories));
         this.pipelineExecutionService = new PipelineExecutionService(pipelineStore, threadPool);
     }
 
@@ -53,12 +64,8 @@ public class IngestService {
         return pipelineExecutionService;
     }
 
-    public void buildProcessorsFactoryRegistry(ScriptService scriptService, ClusterService clusterService) {
-        pipelineStore.buildProcessorFactoryRegistry(processorsRegistryBuilder, scriptService, clusterService);
-    }
-
     public IngestInfo info() {
-        Map<String, Processor.Factory> processorFactories = pipelineStore.getProcessorRegistry().getProcessorFactories();
+        Map<String, Processor.Factory> processorFactories = pipelineStore.getProcessorFactories();
         List<ProcessorInfo> processorInfoList = new ArrayList<>(processorFactories.size());
         for (Map.Entry<String, Processor.Factory> entry : processorFactories.entrySet()) {
             processorInfoList.add(new ProcessorInfo(entry.getKey()));

@@ -162,7 +162,8 @@ public final class ConvertProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
         @Override
-        public ConvertProcessor create(String processorTag, Map<String, Object> config) throws Exception {
+        public ConvertProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+                                         Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String typeProperty = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "type");
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", field);

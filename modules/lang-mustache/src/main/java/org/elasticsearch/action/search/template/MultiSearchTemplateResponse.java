@@ -96,7 +96,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
                 response.writeTo(out);
             } else {
                 out.writeBoolean(false);
-                out.writeThrowable(exception);
+                out.writeException(exception);
             }
         }
 

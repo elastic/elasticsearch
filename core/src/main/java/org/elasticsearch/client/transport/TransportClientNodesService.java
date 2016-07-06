@@ -43,7 +43,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.FutureTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
@@ -462,7 +462,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                                     Requests.clusterStateRequest().clear().nodes(true).local(true),
                                     TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE)
                                             .withTimeout(pingTimeout).build(),
-                                    new BaseTransportResponseHandler<ClusterStateResponse>() {
+                                    new TransportResponseHandler<ClusterStateResponse>() {
 
                                         @Override
                                         public ClusterStateResponse newInstance() {

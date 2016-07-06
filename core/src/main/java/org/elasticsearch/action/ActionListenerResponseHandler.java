@@ -20,7 +20,7 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 
@@ -31,7 +31,7 @@ import java.util.function.Supplier;
  * A simple base class for action response listeners, defaulting to using the SAME executor (as its
  * very common on response handlers).
  */
-public class ActionListenerResponseHandler<Response extends TransportResponse> extends BaseTransportResponseHandler<Response> {
+public class ActionListenerResponseHandler<Response extends TransportResponse> implements TransportResponseHandler<Response> {
 
     private final ActionListener<Response> listener;
     private final Supplier<Response> responseSupplier;

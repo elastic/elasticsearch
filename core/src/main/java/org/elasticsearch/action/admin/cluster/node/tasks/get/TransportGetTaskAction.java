@@ -44,9 +44,9 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskPersistenceService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -111,7 +111,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         GetTaskRequest nodeRequest = request.nodeRequest(clusterService.localNode().getId(), thisTask.getId());
         taskManager.registerChildTask(thisTask, node.getId());
         transportService.sendRequest(node, GetTaskAction.NAME, nodeRequest, builder.build(),
-                new BaseTransportResponseHandler<GetTaskResponse>() {
+                new TransportResponseHandler<GetTaskResponse>() {
                     @Override
                     public GetTaskResponse newInstance() {
                         return new GetTaskResponse();

@@ -31,7 +31,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -114,7 +114,7 @@ public class NettyScheduledPingTests extends ESTestCase {
         for (int i = 0; i < rounds; i++) {
             serviceB.submitRequest(nodeA, "sayHello",
                     TransportRequest.Empty.INSTANCE, TransportRequestOptions.builder().withCompress(randomBoolean()).build(),
-                new BaseTransportResponseHandler<TransportResponse.Empty>() {
+                new TransportResponseHandler<TransportResponse.Empty>() {
                         @Override
                         public TransportResponse.Empty newInstance() {
                             return TransportResponse.Empty.INSTANCE;

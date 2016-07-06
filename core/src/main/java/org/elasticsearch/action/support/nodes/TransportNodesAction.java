@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -201,7 +201,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                         }
 
                         transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),
-                                                     new BaseTransportResponseHandler<NodeResponse>() {
+                                                     new TransportResponseHandler<NodeResponse>() {
                             @Override
                             public NodeResponse newInstance() {
                                 return newNodeResponse();

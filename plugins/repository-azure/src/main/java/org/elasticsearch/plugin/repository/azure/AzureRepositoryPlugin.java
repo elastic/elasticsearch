@@ -26,7 +26,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesModule;
@@ -62,13 +61,13 @@ public class AzureRepositoryPlugin extends Plugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(AzureStorageService.Storage.ACCOUNT_SETTING,
-        AzureStorageService.Storage.COMPRESS_SETTING,
-        AzureStorageService.Storage.CONTAINER_SETTING,
-        AzureStorageService.Storage.BASE_PATH_SETTING,
-        AzureStorageService.Storage.CHUNK_SIZE_SETTING,
-        AzureStorageService.Storage.LOCATION_MODE_SETTING);
-
+        return Arrays.asList(AzureStorageService.Storage.STORAGE_ACCOUNTS,
+                AzureStorageService.Storage.ACCOUNT_SETTING,
+                AzureStorageService.Storage.COMPRESS_SETTING,
+                AzureStorageService.Storage.CONTAINER_SETTING,
+                AzureStorageService.Storage.BASE_PATH_SETTING,
+                AzureStorageService.Storage.CHUNK_SIZE_SETTING,
+                AzureStorageService.Storage.LOCATION_MODE_SETTING);
     }
 
     @Override

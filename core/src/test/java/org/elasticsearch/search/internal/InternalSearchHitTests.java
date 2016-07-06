@@ -67,7 +67,7 @@ public class InternalSearchHitTests extends ESTestCase {
         context.streamShardTarget(InternalSearchHits.StreamContext.ShardTargetType.STREAM);
         BytesStreamOutput output = new BytesStreamOutput();
         hits.writeTo(output, context);
-        InputStream input = new ByteArrayInputStream(output.bytes().toBytes());
+        InputStream input = output.bytes().streamInput();
         context = new InternalSearchHits.StreamContext();
         context.streamShardTarget(InternalSearchHits.StreamContext.ShardTargetType.STREAM);
         InternalSearchHits results = InternalSearchHits.readSearchHits(new InputStreamStreamInput(input), context);

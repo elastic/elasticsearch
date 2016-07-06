@@ -23,7 +23,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
@@ -57,8 +57,8 @@ public class RestGetIndicesAction extends BaseRestHandler {
     private final SettingsFilter settingsFilter;
 
     @Inject
-    public RestGetIndicesAction(Settings settings, RestController controller, Client client, IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter) {
-        super(settings, client);
+    public RestGetIndicesAction(Settings settings, RestController controller, IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter) {
+        super(settings);
         this.indexScopedSettings = indexScopedSettings;
         controller.registerHandler(GET, "/{index}", this);
         controller.registerHandler(GET, "/{index}/{type}", this);
@@ -66,7 +66,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] featureParams = request.paramAsStringArray("type", null);
         // Work out if the indices is a list of features

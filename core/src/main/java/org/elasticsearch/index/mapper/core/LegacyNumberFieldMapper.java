@@ -120,7 +120,7 @@ public abstract class LegacyNumberFieldMapper extends FieldMapper implements All
         protected abstract int maxPrecisionStep();
     }
 
-    public static abstract class NumberFieldType extends TermBasedFieldType {
+    public abstract static class NumberFieldType extends TermBasedFieldType {
 
         public NumberFieldType(LegacyNumericType numericType) {
             setTokenized(false);

@@ -187,19 +187,13 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     }
 
     @Override
-    public Transport start() {
-        return null;
-    }
+    public void start() {}
 
     @Override
-    public Transport stop() {
-        return null;
-    }
+    public void stop() {}
 
     @Override
-    public void close() {
-
-    }
+    public void close() {}
 
     @Override
     public Map<String, BoundTransportAddress> profileBoundAddresses() {

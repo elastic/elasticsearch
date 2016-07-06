@@ -56,21 +56,16 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
 
         for (int i = 0; i < testConfigs.length; i++) {
             TestConfig test = testConfigs[i];
-            try {
-                MultiTermVectorsItemResponse item = responseItems[i];
-                if (test.expectedException != null) {
-                    assertTrue(item.isFailed());
-                    continue;
-                } else if (item.isFailed()) {
-                    fail(item.getFailure().getCause().getMessage());
-                }
-                Fields luceneTermVectors = getTermVectorsFromLucene(directoryReader, test.doc);
-                validateResponse(item.getResponse(), luceneTermVectors, test);
-            } catch (Throwable t) {
-                throw new Exception("Test exception while running " + test.toString(), t);
+            MultiTermVectorsItemResponse item = responseItems[i];
+            if (test.expectedException != null) {
+                assertTrue(item.isFailed());
+                continue;
+            } else if (item.isFailed()) {
+                fail(item.getFailure().getCause().getMessage());
             }
+            Fields luceneTermVectors = getTermVectorsFromLucene(directoryReader, test.doc);
+            validateResponse(item.getResponse(), luceneTermVectors, test);
         }
-
     }
 
     public void testMissingIndexThrowsMissingIndex() throws Exception {

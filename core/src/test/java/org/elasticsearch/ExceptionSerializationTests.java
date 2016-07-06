@@ -80,6 +80,7 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.ActionTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -218,12 +219,12 @@ public class ExceptionSerializationTests extends ESTestCase {
         }
     }
 
-    private <T extends Throwable> T serialize(T exception) throws IOException {
+    private <T extends Exception> T serialize(T exception) throws IOException {
         ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(random()), exception);
         BytesStreamOutput out = new BytesStreamOutput();
-        out.writeThrowable(exception);
-        StreamInput in = StreamInput.wrap(out.bytes());
-        return in.readThrowable();
+        out.writeException(exception);
+        StreamInput in = out.bytes().streamInput();
+        return in.readException();
     }
 
     public void testIllegalShardRoutingStateException() throws IOException {
@@ -545,12 +546,20 @@ public class ExceptionSerializationTests extends ESTestCase {
         ex = serialize(new NotSerializableExceptionWrapper(new IllegalArgumentException("nono!")));
         assertEquals("{\"type\":\"illegal_argument_exception\",\"reason\":\"illegal_argument_exception: nono!\"}", toXContent(ex));
 
-        Throwable[] unknowns = new Throwable[]{
+        class UnknownException extends Exception {
+
+            public UnknownException(final String message) {
+                super(message);
+            }
+
+        }
+
+        Exception[] unknowns = new Exception[]{
                 new Exception("foobar"),
                 new ClassCastException("boom boom boom"),
-                new UnsatisfiedLinkError("booom")
+                new UnknownException("boom")
         };
-        for (Throwable t : unknowns) {
+        for (Exception t : unknowns) {
             if (randomBoolean()) {
                 t.addSuppressed(new UnsatisfiedLinkError("suppressed"));
                 t.addSuppressed(new NullPointerException());
@@ -763,7 +772,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(122, null);
         ids.put(123, org.elasticsearch.indices.IndexAlreadyExistsException.class);
         ids.put(124, org.elasticsearch.script.Script.ScriptParseException.class);
-        ids.put(125, org.elasticsearch.transport.netty.SizeHeaderFrameDecoder.HttpOnTransportException.class);
+        ids.put(125, TcpTransport.HttpOnTransportException.class);
         ids.put(126, org.elasticsearch.index.mapper.MapperParsingException.class);
         ids.put(127, org.elasticsearch.search.SearchContextException.class);
         ids.put(128, org.elasticsearch.search.builder.SearchSourceBuilderException.class);

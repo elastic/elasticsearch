@@ -25,8 +25,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -44,12 +42,14 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
@@ -307,11 +307,11 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     public void testRebalanceDoesNotAllocatePrimaryAndReplicasOnDifferentVersionNodes() {
         ShardId shard1 = new ShardId("test1", "_na_", 0);
         ShardId shard2 = new ShardId("test2", "_na_", 0);
-        final DiscoveryNode newNode = new DiscoveryNode("newNode", DummyTransportAddress.INSTANCE, emptyMap(),
+        final DiscoveryNode newNode = new DiscoveryNode("newNode", LocalTransportAddress.buildUnique(), emptyMap(),
                 MASTER_DATA_ROLES, Version.CURRENT);
-        final DiscoveryNode oldNode1 = new DiscoveryNode("oldNode1", DummyTransportAddress.INSTANCE, emptyMap(),
+        final DiscoveryNode oldNode1 = new DiscoveryNode("oldNode1", LocalTransportAddress.buildUnique(), emptyMap(),
                 MASTER_DATA_ROLES, VersionUtils.getPreviousVersion());
-        final DiscoveryNode oldNode2 = new DiscoveryNode("oldNode2", DummyTransportAddress.INSTANCE, emptyMap(),
+        final DiscoveryNode oldNode2 = new DiscoveryNode("oldNode2", LocalTransportAddress.buildUnique(), emptyMap(),
                 MASTER_DATA_ROLES, VersionUtils.getPreviousVersion());
         MetaData metaData = MetaData.builder()
             .put(IndexMetaData.builder(shard1.getIndexName()).settings(settings(Version.CURRENT).put(Settings.EMPTY)).numberOfShards(1).numberOfReplicas(1))
@@ -347,11 +347,11 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testRestoreDoesNotAllocateSnapshotOnOlderNodes() {
-        final DiscoveryNode newNode = new DiscoveryNode("newNode", DummyTransportAddress.INSTANCE, emptyMap(),
+        final DiscoveryNode newNode = new DiscoveryNode("newNode", LocalTransportAddress.buildUnique(), emptyMap(),
                 MASTER_DATA_ROLES, Version.CURRENT);
-        final DiscoveryNode oldNode1 = new DiscoveryNode("oldNode1", DummyTransportAddress.INSTANCE, emptyMap(),
+        final DiscoveryNode oldNode1 = new DiscoveryNode("oldNode1", LocalTransportAddress.buildUnique(), emptyMap(),
                 MASTER_DATA_ROLES, VersionUtils.getPreviousVersion());
-        final DiscoveryNode oldNode2 = new DiscoveryNode("oldNode2", DummyTransportAddress.INSTANCE, emptyMap(),
+        final DiscoveryNode oldNode2 = new DiscoveryNode("oldNode2", LocalTransportAddress.buildUnique(), emptyMap(),
                 MASTER_DATA_ROLES, VersionUtils.getPreviousVersion());
 
         int numberOfShards = randomIntBetween(1, 3);
@@ -407,7 +407,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         return clusterState;
     }
 
-    private final void assertRecoveryNodeVersions(RoutingNodes routingNodes) {
+    private void assertRecoveryNodeVersions(RoutingNodes routingNodes) {
         logger.trace("RoutingNodes: {}", routingNodes.prettyPrint());
 
         List<ShardRouting> mutableShardRoutings = routingNodes.shardsWithState(ShardRoutingState.RELOCATING);

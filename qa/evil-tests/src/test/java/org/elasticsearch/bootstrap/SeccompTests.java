@@ -40,7 +40,7 @@ public class SeccompTests extends ESTestCase {
         if (!JNANatives.LOCAL_SECCOMP_ALL) {
             try {
                 Seccomp.init(createTempDir());
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 throw new RuntimeException("unable to forcefully apply seccomp to test thread", e);
             }
         }

@@ -39,7 +39,6 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.index.engine.RecoveryEngineException;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -83,7 +82,7 @@ public class RecoverySourceHandler {
 
     private final CancellableThreads cancellableThreads = new CancellableThreads() {
         @Override
-        protected void onCancel(String reason, @Nullable Throwable suppressedException) {
+        protected void onCancel(String reason, @Nullable Exception suppressedException) {
             RuntimeException e;
             if (shard.state() == IndexShardState.CLOSED) { // check if the shard got closed on us
                 e = new IndexShardClosedException(shard.shardId(), "shard is closed and recovery was canceled reason [" + reason + "]");
@@ -120,14 +119,14 @@ public class RecoverySourceHandler {
             final IndexCommit phase1Snapshot;
             try {
                 phase1Snapshot = shard.snapshotIndex(false);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 IOUtils.closeWhileHandlingException(translogView);
                 throw new RecoveryEngineException(shard.shardId(), 1, "Snapshot failed", e);
             }
 
             try {
                 phase1(phase1Snapshot, translogView);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 throw new RecoveryEngineException(shard.shardId(), 1, "phase1 failed", e);
             } finally {
                 try {
@@ -140,7 +139,7 @@ public class RecoverySourceHandler {
             logger.trace("{} snapshot translog for recovery. current size is [{}]", shard.shardId(), translogView.totalOperations());
             try {
                 phase2(translogView.snapshot());
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 throw new RecoveryEngineException(shard.shardId(), 2, "phase2 failed", e);
             }
 
@@ -302,7 +301,7 @@ public class RecoverySourceHandler {
 
             logger.trace("[{}][{}] recovery [phase1] to {}: took [{}]", indexName, shardId, request.targetNode(), stopWatch.totalTime());
             response.phase1Time = stopWatch.totalTime().millis();
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new RecoverFilesRecoveryException(request.shardId(), response.phase1FileNames.size(), new ByteSizeValue(totalSize), e);
         } finally {
             store.decRef();
@@ -360,25 +359,23 @@ public class RecoverySourceHandler {
         cancellableThreads.checkForCancel();
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("[{}][{}] finalizing recovery to {}", indexName, shardId, request.targetNode());
-
-
         cancellableThreads.execute(() -> {
             RecoveryTarget.FinalizeResponse response = recoveryTarget.finalizeRecovery();
             shard.markAllocationIdAsInSync(response.getAllocationId(), response.getLocalCheckpoint());
         });
 
         if (isPrimaryRelocation()) {
+            logger.trace("[{}][{}] performing relocation hand-off to {}", indexName, shardId, request.targetNode());
+            try {
+                cancellableThreads.execute(() -> shard.relocated("to " + request.targetNode()));
+            } catch (Exception e) {
+                logger.debug("[{}][{}] completing relocation hand-off to {} failed", e, indexName, shardId, request.targetNode());
+                throw e;
+            }
             /**
              * if the recovery process fails after setting the shard state to RELOCATED, both relocation source and
              * target are failed (see {@link IndexShard#updateRoutingEntry}).
              */
-            try {
-                shard.relocated("to " + request.targetNode());
-            } catch (IllegalIndexShardStateException e) {
-                // we can ignore this exception since, on the other node, when it moved to phase3
-                // it will also send shard started, which might cause the index shard we work against
-                // to move be closed by the time we get to the relocated method
-            }
         }
         stopWatch.stop();
         logger.trace("[{}][{}] finalizing recovery to {}: took [{}]",
@@ -492,12 +489,12 @@ public class RecoverySourceHandler {
         }
 
         @Override
-        public final void write(int b) throws IOException {
+        public void write(int b) throws IOException {
             throw new UnsupportedOperationException("we can't send single bytes over the wire");
         }
 
         @Override
-        public final void write(byte[] b, int offset, int length) throws IOException {
+        public void write(byte[] b, int offset, int length) throws IOException {
             sendNextChunk(position, new BytesArray(b, offset, length), md.length() == position + length);
             position += length;
             assert md.length() >= position : "length: " + md.length() + " but positions was: " + position;
@@ -514,7 +511,7 @@ public class RecoverySourceHandler {
         }
     }
 
-    void sendFiles(Store store, StoreFileMetaData[] files, Function<StoreFileMetaData, OutputStream> outputStreamFactory) throws Throwable {
+    void sendFiles(Store store, StoreFileMetaData[] files, Function<StoreFileMetaData, OutputStream> outputStreamFactory) throws Exception {
         store.incRef();
         try {
             ArrayUtil.timSort(files, (a, b) -> Long.compare(a.length(), b.length())); // send smallest first
@@ -524,9 +521,9 @@ public class RecoverySourceHandler {
                     // it's fine that we are only having the indexInput in the try/with block. The copy methods handles
                     // exceptions during close correctly and doesn't hide the original exception.
                     Streams.copy(new InputStreamIndexInput(indexInput, md.length()), outputStreamFactory.apply(md));
-                } catch (Throwable t) {
+                } catch (Exception e) {
                     final IOException corruptIndexException;
-                    if ((corruptIndexException = ExceptionsHelper.unwrapCorruption(t)) != null) {
+                    if ((corruptIndexException = ExceptionsHelper.unwrapCorruption(e)) != null) {
                         if (store.checkIntegrityNoException(md) == false) { // we are corrupted on the primary -- fail!
                             logger.warn("{} Corrupted file detected {} checksum mismatch", shardId, md);
                             failEngine(corruptIndexException);
@@ -534,13 +531,13 @@ public class RecoverySourceHandler {
                         } else { // corruption has happened on the way to replica
                             RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but " +
                                     "checksums are ok", null);
-                            exception.addSuppressed(t);
+                            exception.addSuppressed(e);
                             logger.warn("{} Remote file corruption on node {}, recovering {}. local checksum OK",
                                     corruptIndexException, shardId, request.targetNode(), md);
                             throw exception;
                         }
                     } else {
-                        throw t;
+                        throw e;
                     }
                 }
             }

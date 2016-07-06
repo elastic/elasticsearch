@@ -81,7 +81,10 @@ GET my_index/_search
   },
   "script_fields": {
     "parent": {
-      "script": "doc['_parent']" <3>
+      "script": {
+         "lang": "painless",
+         "inline": "doc['_parent']" <3>
+      }
     }
   }
 }
@@ -91,7 +94,7 @@ GET my_index/_search
 
 <1> Querying on the `_parent` field (also see the <<query-dsl-has-parent-query,`has_parent` query>> and the <<query-dsl-has-child-query,`has_child` query>>)
 <2> Aggregating on the `_parent` field (also see the <<search-aggregations-bucket-children-aggregation,`children`>> aggregation)
-<3> Accessing the `_parent` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)
+<3> Accessing the `_parent` field in scripts
 
 
 ==== Parent-child restrictions

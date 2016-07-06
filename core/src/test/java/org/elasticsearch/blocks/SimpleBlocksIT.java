@@ -141,15 +141,6 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         }
     }
 
-    private void canNotIndexExists(String index) {
-        try {
-            IndicesExistsResponse r = client().admin().indices().prepareExists(index).execute().actionGet();
-            fail();
-        } catch (ClusterBlockException e) {
-            // all is well
-        }
-    }
-
     private void setIndexReadOnly(String index, Object value) {
         HashMap<String, Object> newSettings = new HashMap<>();
         newSettings.put(IndexMetaData.SETTING_READ_ONLY, value);

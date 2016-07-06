@@ -128,6 +128,17 @@ public final class IndexModule {
     }
 
     /**
+     * Adds a Setting, it's consumer and validator for this index.
+     */
+    public <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer, Consumer<T> validator) {
+        ensureNotFrozen();
+        if (setting == null) {
+            throw new IllegalArgumentException("setting must not be null");
+        }
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(setting, consumer, validator);
+    }
+
+    /**
      * Returns the index {@link Settings} for this index
      */
     public Settings getSettings() {

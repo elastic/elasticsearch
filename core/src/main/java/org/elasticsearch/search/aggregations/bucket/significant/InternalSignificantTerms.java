@@ -53,12 +53,12 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     protected InternalSignificantTerms() {} // for serialization
 
     @SuppressWarnings("PMD.ConstructorCallsOverridableMethod")
-    public static abstract class Bucket extends SignificantTerms.Bucket {
+    public abstract static class Bucket extends SignificantTerms.Bucket {
 
         long bucketOrd;
         protected InternalAggregations aggregations;
         double score;
-        transient final DocValueFormat format;
+        final transient DocValueFormat format;
 
         protected Bucket(long subsetSize, long supersetSize, DocValueFormat format) {
             // for serialization

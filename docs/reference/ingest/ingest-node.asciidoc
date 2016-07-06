@@ -46,7 +46,6 @@ PUT _ingest/pipeline/my-pipeline-id
         "value": "bar"
       }
     }
-    // other processors
   ]
 }
 --------------------------------------------------
@@ -83,7 +82,6 @@ Example response:
             "value": "bar"
           }
         }
-        // other processors
       ]
     }
   } ]

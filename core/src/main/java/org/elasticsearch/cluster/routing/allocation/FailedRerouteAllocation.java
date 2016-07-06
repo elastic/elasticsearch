@@ -41,9 +41,9 @@ public class FailedRerouteAllocation extends RoutingAllocation {
     public static class FailedShard {
         public final ShardRouting shard;
         public final String message;
-        public final Throwable failure;
+        public final Exception failure;
 
-        public FailedShard(ShardRouting shard, String message, Throwable failure) {
+        public FailedShard(ShardRouting shard, String message, Exception failure) {
             this.shard = shard;
             this.message = message;
             this.failure = failure;

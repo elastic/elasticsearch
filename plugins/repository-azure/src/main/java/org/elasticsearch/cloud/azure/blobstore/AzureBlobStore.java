@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
@@ -56,7 +57,8 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
     public AzureBlobStore(RepositoryName name, Settings settings, RepositorySettings repositorySettings,
                           AzureStorageService client) throws URISyntaxException, StorageException {
         super(settings);
-        this.client = client.start();
+        this.client = client;
+        client.start();
         this.container = getValue(repositorySettings, Repository.CONTAINER_SETTING, Storage.CONTAINER_SETTING);
         this.repositoryName = name.getName();
         this.accountName = getValue(repositorySettings, Repository.ACCOUNT_SETTING, Storage.ACCOUNT_SETTING);
@@ -127,7 +129,7 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
         this.client.deleteBlob(this.accountName, this.locMode, container, blob);
     }
 
-    public InputStream getInputStream(String container, String blob) throws URISyntaxException, StorageException
+    public InputStream getInputStream(String container, String blob) throws URISyntaxException, StorageException, IOException
     {
         return this.client.getInputStream(this.accountName, this.locMode, container, blob);
     }

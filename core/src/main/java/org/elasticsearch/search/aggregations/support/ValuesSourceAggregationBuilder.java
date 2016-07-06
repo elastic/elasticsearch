@@ -49,7 +49,7 @@ import java.util.Objects;
 public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<VS, AB>>
         extends AbstractAggregationBuilder<AB> {
 
-    public static abstract class LeafOnly<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<VS, AB>>
+    public abstract static class LeafOnly<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<VS, AB>>
             extends ValuesSourceAggregationBuilder<VS, AB> {
 
         protected LeafOnly(String name, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) {
@@ -377,8 +377,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
 
     private SearchScript createScript(Script script, SearchContext context) {
         return script == null ? null
-                : context.scriptService().search(context.lookup(), script, ScriptContext.Standard.AGGS, Collections.emptyMap(),
-                context.getQueryShardContext().getClusterState());
+                : context.scriptService().search(context.lookup(), script, ScriptContext.Standard.AGGS, Collections.emptyMap());
     }
 
     private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {

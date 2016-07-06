@@ -113,7 +113,7 @@ public class RefreshListenersTests extends ESTestCase {
                 BigArrays.NON_RECYCLING_INSTANCE);
         Engine.EventListener eventListener = new Engine.EventListener() {
             @Override
-            public void onFailedEngine(String reason, @Nullable Throwable t) {
+            public void onFailedEngine(String reason, @Nullable Exception e) {
                 // we don't need to notify anybody in this test
             }
         };
@@ -249,7 +249,7 @@ public class RefreshListenersTests extends ESTestCase {
                             getResult.docIdAndVersion().context.reader().document(getResult.docIdAndVersion().docId, visitor);
                             assertEquals(Arrays.asList(testFieldValue), visitor.fields().get("test"));
                         }
-                    } catch (Throwable t) {
+                    } catch (Exception t) {
                         throw new RuntimeException("failure on the [" + iteration + "] iteration of thread [" + threadId + "]", t);
                     }
                 }
@@ -289,7 +289,7 @@ public class RefreshListenersTests extends ESTestCase {
          * When the listener is called this captures it's only argument.
          */
         AtomicReference<Boolean> forcedRefresh = new AtomicReference<>();
-        private volatile Throwable error;
+        private volatile Exception error;
 
         @Override
         public void accept(Boolean forcedRefresh) {
@@ -297,7 +297,7 @@ public class RefreshListenersTests extends ESTestCase {
                 assertNotNull(forcedRefresh);
                 Boolean oldValue = this.forcedRefresh.getAndSet(forcedRefresh);
                 assertNull("Listener called twice", oldValue);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 error = e;
             }
         }

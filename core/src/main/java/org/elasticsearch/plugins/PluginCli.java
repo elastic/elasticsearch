@@ -26,8 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
-import java.util.Collections;
-
 /**
  * A cli tool for adding, removing and listing plugins for elasticsearch.
  */

@@ -37,25 +37,22 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/**
- *
- */
 public final class ExceptionsHelper {
 
     private static final ESLogger logger = Loggers.getLogger(ExceptionsHelper.class);
 
-    public static RuntimeException convertToRuntime(Throwable t) {
-        if (t instanceof RuntimeException) {
-            return (RuntimeException) t;
+    public static RuntimeException convertToRuntime(Exception e) {
+        if (e instanceof RuntimeException) {
+            return (RuntimeException) e;
         }
-        return new ElasticsearchException(t);
+        return new ElasticsearchException(e);
     }
 
-    public static ElasticsearchException convertToElastic(Throwable t) {
-        if (t instanceof ElasticsearchException) {
-            return (ElasticsearchException) t;
+    public static ElasticsearchException convertToElastic(Exception e) {
+        if (e instanceof ElasticsearchException) {
+            return (ElasticsearchException) e;
         }
-        return new ElasticsearchException(t);
+        return new ElasticsearchException(e);
     }
 
     public static RestStatus status(Throwable t) {
@@ -89,15 +86,14 @@ public final class ExceptionsHelper {
         return result;
     }
 
+    /**
+     * @deprecated Don't swallow exceptions, allow them to propagate.
+     */
+    @Deprecated
     public static String detailedMessage(Throwable t) {
-        return detailedMessage(t, false, 0);
-    }
-
-    public static String detailedMessage(Throwable t, boolean newLines, int initialCounter) {
         if (t == null) {
             return "Unknown";
         }
-        int counter = initialCounter + 1;
         if (t.getCause() != null) {
             StringBuilder sb = new StringBuilder();
             while (t != null) {
@@ -107,21 +103,11 @@ public final class ExceptionsHelper {
                     sb.append(t.getMessage());
                     sb.append("]");
                 }
-                if (!newLines) {
-                    sb.append("; ");
-                }
+                sb.append("; ");
                 t = t.getCause();
                 if (t != null) {
-                    if (newLines) {
-                        sb.append("\n");
-                        for (int i = 0; i < counter; i++) {
-                            sb.append("\t");
-                        }
-                    } else {
-                        sb.append("nested: ");
-                    }
+                    sb.append("nested: ");
                 }
-                counter++;
             }
             return sb.toString();
         } else {
@@ -175,8 +161,8 @@ public final class ExceptionsHelper {
     }
 
     public static IOException unwrapCorruption(Throwable t) {
-        return (IOException) unwrap(t, CorruptIndexException.class, 
-                                       IndexFormatTooOldException.class, 
+        return (IOException) unwrap(t, CorruptIndexException.class,
+                                       IndexFormatTooOldException.class,
                                        IndexFormatTooNewException.class);
     }
 
@@ -219,7 +205,6 @@ public final class ExceptionsHelper {
         }
         return true;
     }
-
 
     /**
      * Deduplicate the failures by exception message and index.

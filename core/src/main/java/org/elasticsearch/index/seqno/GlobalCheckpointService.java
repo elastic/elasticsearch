@@ -46,7 +46,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
      * All shard copies in this map participate in determining the global checkpoint
      * keyed by allocation ids
      */
-    final private ObjectLongMap<String> activeLocalCheckpoints;
+    private final ObjectLongMap<String> activeLocalCheckpoints;
 
     /**
      * This map holds the last known local checkpoint for every initializing shard copy that's has been brought up
@@ -55,7 +55,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
      * <p>
      * Keyed by allocation ids.
      */
-    final private ObjectLongMap<String> inSyncLocalCheckpoints; // keyed by allocation ids
+    private final ObjectLongMap<String> inSyncLocalCheckpoints; // keyed by allocation ids
 
 
     /**
@@ -65,7 +65,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
      * while recovering the shard.
      * Keyed by allocation ids
      */
-    final private ObjectLongMap<String> trackingLocalCheckpoint;
+    private final ObjectLongMap<String> trackingLocalCheckpoint;
 
     private long globalCheckpoint;
 
@@ -94,7 +94,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
      * this is a noop. Last, if the allocation id is not yet known, it is ignored. This to prevent late
      * arrivals from shards that are removed to be re-added.
      */
-    synchronized public void updateLocalCheckpoint(String allocationId, long localCheckpoint) {
+    public synchronized void updateLocalCheckpoint(String allocationId, long localCheckpoint) {
         if (updateLocalCheckpointInMap(allocationId, localCheckpoint, activeLocalCheckpoints, "active")) {
             return;
         }
@@ -169,7 +169,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
     /**
      * gets the current global checkpoint. See java docs for {@link GlobalCheckpointService} for more details
      */
-    synchronized public long getCheckpoint() {
+    public synchronized long getCheckpoint() {
         return globalCheckpoint;
     }
 
@@ -195,7 +195,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
      * @param activeAllocationIds       the allocation ids of the currently active shard copies
      * @param initializingAllocationIds the allocation ids of the currently initializing shard copies
      */
-    synchronized public void updateAllocationIdsFromMaster(Set<String> activeAllocationIds,
+    public synchronized void updateAllocationIdsFromMaster(Set<String> activeAllocationIds,
                                                            Set<String> initializingAllocationIds) {
         activeLocalCheckpoints.removeAll(key -> activeAllocationIds.contains(key) == false);
         for (String activeId : activeAllocationIds) {
@@ -229,7 +229,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
      * @param allocationId    allocationId of the recovering shard
      * @param localCheckpoint the local checkpoint of the shard in question
      */
-    synchronized public void markAllocationIdAsInSync(String allocationId, long localCheckpoint) {
+    public synchronized void markAllocationIdAsInSync(String allocationId, long localCheckpoint) {
         if (trackingLocalCheckpoint.containsKey(allocationId) == false) {
             // master have change its mind and removed this allocation, ignore.
             return;

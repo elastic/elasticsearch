@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
@@ -37,19 +36,10 @@ import org.elasticsearch.common.settings.Settings;
 public abstract class BaseRestHandler extends AbstractComponent implements RestHandler {
     public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX =
         Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
-    private final Client client;
     protected final ParseFieldMatcher parseFieldMatcher;
 
-    protected BaseRestHandler(Settings settings, Client client) {
+    protected BaseRestHandler(Settings settings) {
         super(settings);
-        this.client = client;
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
     }
-
-    @Override
-    public final void handleRequest(RestRequest request, RestChannel channel) throws Exception {
-        handleRequest(request, channel, client);
-    }
-
-    protected abstract void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception;
 }

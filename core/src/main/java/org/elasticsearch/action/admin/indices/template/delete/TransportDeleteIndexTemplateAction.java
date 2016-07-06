@@ -72,9 +72,9 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeActio
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                logger.debug("failed to delete templates [{}]", t, request.name());
-                listener.onFailure(t);
+            public void onFailure(Exception e) {
+                logger.debug("failed to delete templates [{}]", e, request.name());
+                listener.onFailure(e);
             }
         });
     }

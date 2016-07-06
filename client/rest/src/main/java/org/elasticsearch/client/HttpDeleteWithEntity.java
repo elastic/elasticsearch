@@ -28,7 +28,7 @@ import java.net.URI;
  */
 final class HttpDeleteWithEntity extends HttpEntityEnclosingRequestBase {
 
-    final static String METHOD_NAME = HttpDelete.METHOD_NAME;
+    static final String METHOD_NAME = HttpDelete.METHOD_NAME;
 
     HttpDeleteWithEntity(final URI uri) {
         setURI(uri);

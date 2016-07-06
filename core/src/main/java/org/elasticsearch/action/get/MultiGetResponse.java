@@ -40,17 +40,17 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         private String index;
         private String type;
         private String id;
-        private Throwable throwable;
+        private Exception exception;
 
         Failure() {
 
         }
 
-        public Failure(String index, String type, String id, Throwable throwable) {
+        public Failure(String index, String type, String id, Exception exception) {
             this.index = index;
             this.type = type;
             this.id = id;
-            this.throwable = throwable;
+            this.exception = exception;
         }
 
         /**
@@ -78,7 +78,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
          * The failure message.
          */
         public String getMessage() {
-            return throwable != null ? throwable.getMessage() : null;
+            return exception != null ? exception.getMessage() : null;
         }
 
         public static Failure readFailure(StreamInput in) throws IOException {
@@ -92,7 +92,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
             index = in.readString();
             type = in.readOptionalString();
             id = in.readString();
-            throwable = in.readThrowable();
+            exception = in.readException();
         }
 
         @Override
@@ -100,11 +100,11 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
             out.writeString(index);
             out.writeOptionalString(type);
             out.writeString(id);
-            out.writeThrowable(throwable);
+            out.writeException(exception);
         }
 
-        public Throwable getFailure() {
-            return throwable;
+        public Exception getFailure() {
+            return exception;
         }
     }
 
@@ -136,7 +136,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
                 builder.field(Fields._INDEX, failure.getIndex());
                 builder.field(Fields._TYPE, failure.getType());
                 builder.field(Fields._ID, failure.getId());
-                ElasticsearchException.renderThrowable(builder, params, failure.getFailure());
+                ElasticsearchException.renderException(builder, params, failure.getFailure());
                 builder.endObject();
             } else {
                 GetResponse getResponse = response.getResponse();

@@ -38,7 +38,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
@@ -140,7 +140,7 @@ public class TransportShrinkActionTests extends ESTestCase {
     }
 
     private DiscoveryNode newNode(String nodeId) {
-        return new DiscoveryNode(nodeId, DummyTransportAddress.INSTANCE, emptyMap(),
+        return new DiscoveryNode(nodeId, LocalTransportAddress.buildUnique(), emptyMap(),
             Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA))), Version.CURRENT);
     }
 }

@@ -209,8 +209,8 @@ fi
     install_and_check_plugin discovery gce google-api-client-*.jar
 }
 
-@test "[$GROUP] install discovery-azure plugin" {
-    install_and_check_plugin discovery azure azure-core-*.jar
+@test "[$GROUP] install discovery-azure-classic plugin" {
+    install_and_check_plugin discovery azure-classic azure-core-*.jar
 }
 
 @test "[$GROUP] install discovery-ec2 plugin" {
@@ -226,6 +226,10 @@ fi
 
 @test "[$GROUP] install ingest-geoip plugin" {
     install_and_check_plugin ingest geoip geoip2-*.jar jackson-annotations-*.jar jackson-databind-*.jar maxmind-db-*.jar
+}
+
+@test "[$GROUP] install ingest-useragent plugin" {
+    install_and_check_plugin ingest useragent
 }
 
 @test "[$GROUP] check ingest-common module" {
@@ -341,8 +345,8 @@ fi
     remove_plugin discovery-gce
 }
 
-@test "[$GROUP] remove discovery-azure plugin" {
-    remove_plugin discovery-azure
+@test "[$GROUP] remove discovery-azure-classic plugin" {
+    remove_plugin discovery-azure-classic
 }
 
 @test "[$GROUP] remove discovery-ec2 plugin" {
@@ -355,6 +359,10 @@ fi
 
 @test "[$GROUP] remove ingest-geoip plugin" {
     remove_plugin ingest-geoip
+}
+
+@test "[$GROUP] remove ingest-useragent plugin" {
+    remove_plugin ingest-useragent
 }
 
 @test "[$GROUP] remove javascript plugin" {
@@ -418,17 +426,18 @@ fi
 @test "[$GROUP] install jvm-example with different logging modes and check output" {
     local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
     sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" > /tmp/plugin-cli-output
-    local loglines=$(cat /tmp/plugin-cli-output | wc -l)
+    # exclude progress line
+    local loglines=$(cat /tmp/plugin-cli-output | grep -v "^[[:cntrl:]]" | wc -l)
     if [ "$GROUP" == "TAR PLUGINS" ]; then
     # tar extraction does not create the plugins directory so the plugin tool will print an additional line that the directory will be created
         [ "$loglines" -eq "3" ] || {
-            echo "Expected 3 lines but the output was:"
+            echo "Expected 3 lines excluding progress bar but the output had $loglines lines and was:"
             cat /tmp/plugin-cli-output
             false
         }
     else
         [ "$loglines" -eq "2" ] || {
-            echo "Expected 2 lines but the output was:"
+            echo "Expected 2 lines excluding progress bar but the output had $loglines lines and was:"
             cat /tmp/plugin-cli-output
             false
         }
@@ -437,16 +446,16 @@ fi
 
     local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
     sudo -E -u $ESPLUGIN_COMMAND_USER ES_JAVA_OPTS="-Des.logger.level=DEBUG" "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" > /tmp/plugin-cli-output
-    local loglines=$(cat /tmp/plugin-cli-output | wc -l)
+    local loglines=$(cat /tmp/plugin-cli-output | grep -v "^[[:cntrl:]]" | wc -l)
     if [ "$GROUP" == "TAR PLUGINS" ]; then
         [ "$loglines" -gt "3" ] || {
-            echo "Expected more than 3 lines but the output was:"
+            echo "Expected more than 3 lines excluding progress bar but the output had $loglines lines and was:"
             cat /tmp/plugin-cli-output
             false
         }
     else
         [ "$loglines" -gt "2" ] || {
-            echo "Expected more than 2 lines but the output was:"
+            echo "Expected more than 2 lines excluding progress bar but the output had $loglines lines and was:"
             cat /tmp/plugin-cli-output
             false
         }

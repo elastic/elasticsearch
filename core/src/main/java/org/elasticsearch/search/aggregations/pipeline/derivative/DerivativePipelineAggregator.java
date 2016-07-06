@@ -44,9 +44,9 @@ import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resol
 
 public class DerivativePipelineAggregator extends PipelineAggregator {
 
-    public final static Type TYPE = new Type("derivative");
+    public static final Type TYPE = new Type("derivative");
 
-    public final static PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
+    public static final PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
         @Override
         public DerivativePipelineAggregator readResult(StreamInput in) throws IOException {
             DerivativePipelineAggregator result = new DerivativePipelineAggregator();

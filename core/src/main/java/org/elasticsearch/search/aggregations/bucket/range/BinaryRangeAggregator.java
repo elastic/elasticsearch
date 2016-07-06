@@ -117,7 +117,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
         }
     }
 
-    static abstract class SortedSetRangeLeafCollector extends LeafBucketCollectorBase {
+    abstract static class SortedSetRangeLeafCollector extends LeafBucketCollectorBase {
 
         final long[] froms, tos, maxTos;
         final SortedSetDocValues values;
@@ -223,7 +223,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
         protected abstract void doCollect(LeafBucketCollector sub, int doc, long bucket) throws IOException;
     }
 
-    static abstract class SortedBinaryRangeLeafCollector extends LeafBucketCollectorBase {
+    abstract static class SortedBinaryRangeLeafCollector extends LeafBucketCollectorBase {
 
         final Range[] ranges;
         final BytesRef[] maxTos;

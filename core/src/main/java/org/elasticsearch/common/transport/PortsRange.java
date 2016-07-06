@@ -80,7 +80,7 @@ public class PortsRange {
         return success;
     }
 
-    public static interface PortCallback {
+    public interface PortCallback {
         boolean onPortNumber(int portNumber);
     }
 }

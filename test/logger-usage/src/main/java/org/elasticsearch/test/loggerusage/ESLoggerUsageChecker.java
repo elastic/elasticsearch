@@ -82,7 +82,7 @@ public class ESLoggerUsageChecker {
             Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    if (Files.isRegularFile(file) && file.endsWith(".class")) {
+                    if (Files.isRegularFile(file) && file.getFileName().toString().endsWith(".class")) {
                         try (InputStream in = Files.newInputStream(file)) {
                             ESLoggerUsageChecker.check(wrongUsageCallback, in);
                         }
@@ -248,19 +248,6 @@ public class ESLoggerUsageChecker {
                     if (LOGGER_METHODS.contains(methodInsn.name) == false) {
                         continue;
                     }
-                    Type[] argumentTypes = Type.getArgumentTypes(methodInsn.desc);
-                    BasicValue logMessageLengthObject = getStackValue(stringFrames[i], argumentTypes.length - 1); // first argument
-                    if (logMessageLengthObject instanceof PlaceHolderStringBasicValue == false) {
-                        wrongUsageCallback.accept(new WrongLoggerUsage(className, methodNode.name, methodInsn.name, lineNumber,
-                            "First argument must be a string constant so that we can statically ensure proper place holder usage"));
-                        continue;
-                    }
-                    PlaceHolderStringBasicValue logMessageLength = (PlaceHolderStringBasicValue) logMessageLengthObject;
-                    if (logMessageLength.minValue != logMessageLength.maxValue) {
-                        wrongUsageCallback.accept(new WrongLoggerUsage(className, methodNode.name, methodInsn.name, lineNumber,
-                            "Multiple log messages with conflicting number of place holders"));
-                        continue;
-                    }
                     BasicValue varArgsSizeObject = getStackValue(arraySizeFrames[i], 0); // last argument
                     if (varArgsSizeObject instanceof ArraySizeBasicValue == false) {
                         wrongUsageCallback.accept(new WrongLoggerUsage(className, methodNode.name, methodInsn.name, lineNumber,
@@ -268,6 +255,24 @@ public class ESLoggerUsageChecker {
                         continue;
                     }
                     ArraySizeBasicValue varArgsSize = (ArraySizeBasicValue) varArgsSizeObject;
+                    Type[] argumentTypes = Type.getArgumentTypes(methodInsn.desc);
+                    BasicValue logMessageLengthObject = getStackValue(stringFrames[i], argumentTypes.length - 1); // first argument
+                    if (logMessageLengthObject instanceof PlaceHolderStringBasicValue == false) {
+                        if (varArgsSize.minValue > 0) {
+                            wrongUsageCallback.accept(new WrongLoggerUsage(className, methodNode.name, methodInsn.name, lineNumber,
+                                "First argument must be a string constant so that we can statically ensure proper place holder usage"));
+                            continue;
+                        } else {
+                            // don't check logger usage for logger.warn(someObject) as someObject will be fully logged
+                            continue;
+                        }
+                    }
+                    PlaceHolderStringBasicValue logMessageLength = (PlaceHolderStringBasicValue) logMessageLengthObject;
+                    if (logMessageLength.minValue != logMessageLength.maxValue) {
+                        wrongUsageCallback.accept(new WrongLoggerUsage(className, methodNode.name, methodInsn.name, lineNumber,
+                            "Multiple log messages with conflicting number of place holders"));
+                        continue;
+                    }
                     if (varArgsSize.minValue != varArgsSize.maxValue) {
                         wrongUsageCallback.accept(new WrongLoggerUsage(className, methodNode.name, methodInsn.name, lineNumber,
                             "Multiple parameter arrays with conflicting sizes"));

@@ -31,8 +31,6 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
-import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
@@ -52,9 +50,9 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         Histogram {
 
     public static final Factory<Bucket> HISTOGRAM_FACTORY = new Factory<Bucket>();
-    final static Type TYPE = new Type("histogram", "histo");
+    static final Type TYPE = new Type("histogram", "histo");
 
-    private final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    private static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @SuppressWarnings("rawtypes")
         @Override
         public InternalHistogram readResult(StreamInput in) throws IOException {
@@ -64,31 +62,9 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         }
     };
 
-    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
-        @Override
-        public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
-            Factory<?> factory = (Factory<?>) context.attributes().get("factory");
-            if (factory == null) {
-                throw new IllegalStateException("No factory found for histogram buckets");
-            }
-            Bucket histogram = new Bucket(context.keyed(), context.format(), factory);
-            histogram.readFrom(in);
-            return histogram;
-        }
-
-        @Override
-        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
-            BucketStreamContext context = new BucketStreamContext();
-            context.format(bucket.format);
-            context.keyed(bucket.keyed);
-            return context;
-        }
-    };
-
     public static void registerStream() {
 
         AggregationStreams.registerStream(STREAM, TYPE.stream());
-        BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Histogram.Bucket {
@@ -96,8 +72,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         long key;
         long docCount;
         InternalAggregations aggregations;
-        private transient final boolean keyed;
-        protected transient final DocValueFormat format;
+        private final transient boolean keyed;
+        protected final transient DocValueFormat format;
         private Factory<?> factory;
 
         public Bucket(boolean keyed, DocValueFormat formatter, Factory<?> factory) {

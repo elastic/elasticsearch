@@ -172,7 +172,7 @@ public final class MockEngineSupport {
         return reader;
     }
 
-    public static abstract class DirectoryReaderWrapper extends FilterDirectoryReader {
+    public abstract static class DirectoryReaderWrapper extends FilterDirectoryReader {
         protected final SubReaderWrapper subReaderWrapper;
 
         public DirectoryReaderWrapper(DirectoryReader in, SubReaderWrapper subReaderWrapper) throws IOException {

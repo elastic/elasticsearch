@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -46,22 +46,22 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public class RestClearScrollAction extends BaseRestHandler {
 
     @Inject
-    public RestClearScrollAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestClearScrollAction(Settings settings, RestController controller) {
+        super(settings);
 
         controller.registerHandler(DELETE, "/_search/scroll", this);
         controller.registerHandler(DELETE, "/_search/scroll/{scroll_id}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         String scrollIds = request.param("scroll_id");
         ClearScrollRequest clearRequest = new ClearScrollRequest();
         clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));
         if (RestActions.hasBodyContent(request)) {
             XContentType type = RestActions.guessBodyContentType(request);
            if (type == null) {
-               scrollIds = RestActions.getRestContent(request).toUtf8();
+               scrollIds = RestActions.getRestContent(request).utf8ToString();
                clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));
            } else {
                // NOTE: if rest request with xcontent body has request parameters, these parameters does not override xcontent value

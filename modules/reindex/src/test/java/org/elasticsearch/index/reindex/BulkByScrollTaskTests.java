@@ -190,8 +190,8 @@ public class BulkByScrollTaskTests extends ESTestCase {
                 }
 
                 @Override
-                public void onFailure(Throwable t) {
-                    errors.add(t);
+                public void onFailure(Exception e) {
+                    errors.add(e);
                 }
             });
 
@@ -271,7 +271,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
                 protected void doRun() throws Exception {
                 }
                 @Override
-                public void onFailure(Throwable t) {
+                public void onFailure(Exception e) {
                     throw new UnsupportedOperationException();
                 }
             });

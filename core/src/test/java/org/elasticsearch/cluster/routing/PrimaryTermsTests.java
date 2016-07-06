@@ -50,7 +50,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
     private RoutingTable testRoutingTable;
     private int numberOfShards;
     private int numberOfReplicas;
-    private final static Settings DEFAULT_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+    private static final Settings DEFAULT_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
     private AllocationService allocationService;
     private ClusterState clusterState;
 
@@ -65,7 +65,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
                 .build());
         this.numberOfShards = randomIntBetween(1, 5);
         this.numberOfReplicas = randomIntBetween(1, 5);
-        logger.info("Setup test with " + this.numberOfShards + " shards and " + this.numberOfReplicas + " replicas.");
+        logger.info("Setup test with {} shards and {} replicas.", this.numberOfShards, this.numberOfReplicas);
         this.primaryTermsPerIndex.clear();
         MetaData metaData = MetaData.builder()
                 .put(createIndexMetaData(TEST_INDEX_1))
@@ -87,7 +87,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
      * puts primary shard routings into initializing state
      */
     private void initPrimaries() {
-        logger.info("adding " + (this.numberOfReplicas + 1) + " nodes and performing rerouting");
+        logger.info("adding {} nodes and performing rerouting", this.numberOfReplicas + 1);
         Builder discoBuilder = DiscoveryNodes.builder();
         for (int i = 0; i < this.numberOfReplicas + 1; i++) {
             discoBuilder = discoBuilder.put(newNode("node" + i));

@@ -107,7 +107,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
                 logger.debug("failed to close indices [{}]", t, (Object)concreteIndices);
                 listener.onFailure(t);
             }

@@ -172,7 +172,7 @@ public class GeoHashUtils {
         return BitUtil.flipFlop(((geoHashLong >>> 4) << odd) << (((12 - level) * 5) + (MORTON_OFFSET - odd)));
     }
 
-    private static final char encode(int x, int y) {
+    private static char encode(int x, int y) {
         return BASE_32[((x & 1) + ((y & 1) * 2) + ((x & 2) * 2) + ((y & 2) * 4) + ((x & 4) * 4)) % 32];
     }
 
@@ -195,7 +195,7 @@ public class GeoHashUtils {
      * @param dy      delta of the second grid coordinate (must be -1, 0 or +1)
      * @return geohash of the defined cell
      */
-    public final static String neighbor(String geohash, int level, int dx, int dy) {
+    public static final String neighbor(String geohash, int level, int dx, int dy) {
         int cell = BASE_32_STRING.indexOf(geohash.charAt(level -1));
 
         // Decoding the Geohash bit pattern to determine grid coordinates

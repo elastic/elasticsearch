@@ -40,9 +40,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-
-/**
- */
 public class IcuTokenizerFactory extends AbstractTokenizerFactory {
 
     private final ICUTokenizerConfig config;
@@ -101,8 +98,8 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
                 };
                 return config;
             }
-        } catch (Throwable t) {
-            throw new ElasticsearchException("failed to load ICU rule files", t);
+        } catch (Exception e) {
+            throw new ElasticsearchException("failed to load ICU rule files", e);
         }
     }
 

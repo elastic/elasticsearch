@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -47,13 +47,13 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 public class RestSnapshotAction extends AbstractCatAction {
     @Inject
-    public RestSnapshotAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestSnapshotAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/_cat/snapshots/{repository}", this);
     }
 
     @Override
-    protected void doRequest(final RestRequest request, RestChannel channel, Client client) {
+    protected void doRequest(final RestRequest request, RestChannel channel, NodeClient client) {
         GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest()
                 .repository(request.param("repository"))
                 .snapshots(new String[]{GetSnapshotsRequest.ALL_SNAPSHOTS});

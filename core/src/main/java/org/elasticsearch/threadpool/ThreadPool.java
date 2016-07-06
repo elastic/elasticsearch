@@ -93,7 +93,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
             this.type = type;
         }
 
-        private final static Map<String, ThreadPoolType> TYPE_MAP;
+        private static final Map<String, ThreadPoolType> TYPE_MAP;
 
         static {
             Map<String, ThreadPoolType> typeMap = new HashMap<>();
@@ -196,7 +196,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
             if (executors.containsKey(executorHolder.info.getName())) {
                 throw new IllegalStateException("duplicate executors with name [" + executorHolder.info.getName() + "] registered");
             }
-            logger.debug("created thread pool: " + entry.getValue().formatInfo(executorHolder.info));
+            logger.debug("created thread pool: {}", entry.getValue().formatInfo(executorHolder.info));
             executors.put(entry.getKey(), executorHolder);
         }
 
@@ -405,9 +405,9 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         public void run() {
             try {
                 runnable.run();
-            } catch (Throwable t) {
-                logger.warn("failed to run {}", t, runnable.toString());
-                throw t;
+            } catch (Exception e) {
+                logger.warn("failed to run {}", e, runnable.toString());
+                throw e;
             }
         }
 

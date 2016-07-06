@@ -127,7 +127,7 @@ public final class LinearInterpolation extends SmoothingModel {
     }
 
     @Override
-    protected final int doHashCode() {
+    protected int doHashCode() {
         return Objects.hash(trigramLambda, bigramLambda, unigramLambda);
     }
 

@@ -19,20 +19,17 @@
 
 package org.elasticsearch.ingest;
 
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.script.ScriptService;
-
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-public final class ProcessorsRegistry implements Closeable {
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.script.ScriptService;
+
+public final class ProcessorsRegistry {
 
     private final Map<String, Processor.Factory> processorFactories;
     private final TemplateService templateService;
@@ -40,12 +37,12 @@ public final class ProcessorsRegistry implements Closeable {
     private final ClusterService clusterService;
 
     private ProcessorsRegistry(ScriptService scriptService, ClusterService clusterService,
-                               Map<String, Function<ProcessorsRegistry, Processor.Factory<?>>> providers) {
+                               Map<String, Function<ProcessorsRegistry, Processor.Factory>> providers) {
         this.templateService = new InternalTemplateService(scriptService);
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         Map<String, Processor.Factory> processorFactories = new HashMap<>();
-        for (Map.Entry<String, Function<ProcessorsRegistry, Processor.Factory<?>>> entry : providers.entrySet()) {
+        for (Map.Entry<String, Function<ProcessorsRegistry, Processor.Factory>> entry : providers.entrySet()) {
             processorFactories.put(entry.getKey(), entry.getValue().apply(this));
         }
         this.processorFactories = Collections.unmodifiableMap(processorFactories);
@@ -67,17 +64,6 @@ public final class ProcessorsRegistry implements Closeable {
         return processorFactories.get(name);
     }
 
-    @Override
-    public void close() throws IOException {
-        List<Closeable> closeables = new ArrayList<>();
-        for (Processor.Factory factory : processorFactories.values()) {
-            if (factory instanceof Closeable) {
-                closeables.add((Closeable) factory);
-            }
-        }
-        IOUtils.close(closeables);
-    }
-
     // For testing:
     Map<String, Processor.Factory> getProcessorFactories() {
         return processorFactories;
@@ -85,13 +71,13 @@ public final class ProcessorsRegistry implements Closeable {
 
     public static final class Builder {
 
-        private final Map<String, Function<ProcessorsRegistry, Processor.Factory<?>>> providers = new HashMap<>();
+        private final Map<String, Function<ProcessorsRegistry, Processor.Factory>> providers = new HashMap<>();
 
         /**
          * Adds a processor factory under a specific name.
          */
-        public void registerProcessor(String name, Function<ProcessorsRegistry, Processor.Factory<?>> provider) {
-            Function<ProcessorsRegistry, Processor.Factory<?>> previous = this.providers.putIfAbsent(name, provider);
+        public void registerProcessor(String name, Function<ProcessorsRegistry, Processor.Factory> provider) {
+            Function<ProcessorsRegistry, Processor.Factory> previous = this.providers.putIfAbsent(name, provider);
             if (previous != null) {
                 throw new IllegalArgumentException("Processor factory already registered for name [" + name + "]");
             }

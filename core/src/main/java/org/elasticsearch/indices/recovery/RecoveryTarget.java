@@ -24,6 +24,8 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -61,7 +63,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     private final ESLogger logger;
 
-    private final static AtomicLong idGenerator = new AtomicLong();
+    private static final AtomicLong idGenerator = new AtomicLong();
 
     private final String RECOVERY_PREFIX = "recovery.";
 
@@ -265,8 +267,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             logger.trace("closing IndexOutput file [{}]", entry.getValue());
             try {
                 entry.getValue().close();
-            } catch (Throwable t) {
-                logger.debug("error while closing recovery output [{}]", t, entry.getValue());
+            } catch (Exception e) {
+                logger.debug("error while closing recovery output [{}]", e, entry.getValue());
             }
             iterator.remove();
         }
@@ -353,7 +355,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 } finally {
                     Lucene.cleanLuceneIndex(store.directory()); // clean up and delete all files
                 }
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 logger.debug("Failed to clean lucene index", e);
                 ex.addSuppressed(e);
             }
@@ -380,10 +382,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         } else {
             indexOutput = getOpenIndexOutput(name);
         }
-        if (content.hasArray() == false) {
-            content = content.toBytesArray();
+        BytesRefIterator iterator = content.iterator();
+        BytesRef scratch;
+        while((scratch = iterator.next()) != null) { // we iterate over all pages - this is a 0-copy for all core impls
+            indexOutput.writeBytes(scratch.bytes, scratch.offset, scratch.length);
         }
-        indexOutput.writeBytes(content.array(), content.arrayOffset(), content.length());
         indexState.addRecoveredBytesToFile(name, content.length());
         if (indexOutput.getFilePointer() >= fileMetaData.length() || lastChunk) {
             try {

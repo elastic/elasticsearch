@@ -35,9 +35,9 @@ import java.util.Map;
 
 public class SumBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
 
-    public final static Type TYPE = new Type("sum_bucket");
+    public static final Type TYPE = new Type("sum_bucket");
 
-    public final static PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
+    public static final PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
         @Override
         public SumBucketPipelineAggregator readResult(StreamInput in) throws IOException {
             SumBucketPipelineAggregator result = new SumBucketPipelineAggregator();

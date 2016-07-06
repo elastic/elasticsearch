@@ -51,7 +51,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * {@link AllocationService#removeDelayMarkers(RoutingAllocation)}, triggering yet
  * another cluster change event.
  */
-public class DelayedAllocationService extends AbstractLifecycleComponent<DelayedAllocationService> implements ClusterStateListener {
+public class DelayedAllocationService extends AbstractLifecycleComponent implements ClusterStateListener {
 
     static final String CLUSTER_UPDATE_TASK_SOURCE = "delayed_allocation_reroute";
 
@@ -96,8 +96,8 @@ public class DelayedAllocationService extends AbstractLifecycleComponent<Delayed
                 }
 
                 @Override
-                public void onFailure(Throwable t) {
-                    logger.warn("failed to submit schedule/execute reroute post unassigned shard", t);
+                public void onFailure(Exception e) {
+                    logger.warn("failed to submit schedule/execute reroute post unassigned shard", e);
                     removeIfSameTask(DelayedRerouteTask.this);
                 }
             });
@@ -125,9 +125,9 @@ public class DelayedAllocationService extends AbstractLifecycleComponent<Delayed
         }
 
         @Override
-        public void onFailure(String source, Throwable t) {
+        public void onFailure(String source, Exception e) {
             removeIfSameTask(this);
-            logger.warn("failed to schedule/execute reroute post unassigned shard", t);
+            logger.warn("failed to schedule/execute reroute post unassigned shard", e);
         }
     }
 

@@ -137,7 +137,7 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
     static ShapeBuilder copyShape(ShapeBuilder original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 return namedWriteableRegistry.getReader(ShapeBuilder.class, original.getWriteableName()).read(in);
             }
         }

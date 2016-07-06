@@ -28,6 +28,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -69,7 +70,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public abstract class SearchContext implements Releasable {
 
     private static ThreadLocal<SearchContext> current = new ThreadLocal<>();
-    public final static int DEFAULT_TERMINATE_AFTER = 0;
+    public static final int DEFAULT_TERMINATE_AFTER = 0;
 
     public static void setCurrent(SearchContext value) {
         current.set(value);
@@ -226,9 +227,9 @@ public abstract class SearchContext implements Releasable {
 
     public abstract IndexFieldDataService fieldData();
 
-    public abstract long timeoutInMillis();
+    public abstract TimeValue timeout();
 
-    public abstract void timeoutInMillis(long timeoutInMillis);
+    public abstract void timeout(TimeValue timeout);
 
     public abstract int terminateAfter();
 

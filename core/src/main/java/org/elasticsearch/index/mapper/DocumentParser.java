@@ -66,7 +66,7 @@ final class DocumentParser {
         this.docMapper = docMapper;
     }
 
-    final ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
+    ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
         validateType(source);
 
         final Mapping mapping = docMapper.mapping();
@@ -76,9 +76,9 @@ final class DocumentParser {
                     docMapperParser, docMapper, source, parser);
             validateStart(parser);
             internalParseDocument(mapping, context, parser);
-            validateEnd(source, parser);
-        } catch (Throwable t) {
-            throw wrapInMapperParsingException(source, t);
+            validateEnd(parser);
+        } catch (Exception e) {
+            throw wrapInMapperParsingException(source, e);
         }
         String remainingPath = context.path().pathAsText("");
         if (remainingPath.isEmpty() == false) {
@@ -128,7 +128,7 @@ final class DocumentParser {
         }
     }
 
-    private static void validateEnd(SourceToParse source, XContentParser parser) throws IOException {
+    private static void validateEnd(XContentParser parser) throws IOException {
         XContentParser.Token token;// only check for end of tokens if we created the parser here
         // try to parse the next token, this should be null if the object is ended properly
         // but will throw a JSON exception if the extra tokens is not valid JSON (this will be handled by the catch)
@@ -174,7 +174,7 @@ final class DocumentParser {
     }
 
 
-    private static MapperParsingException wrapInMapperParsingException(SourceToParse source, Throwable e) {
+    private static MapperParsingException wrapInMapperParsingException(SourceToParse source, Exception e) {
         // if its already a mapper parsing exception, no need to wrap it...
         if (e instanceof MapperParsingException) {
             return (MapperParsingException) e;
@@ -369,7 +369,6 @@ final class DocumentParser {
             token = parser.nextToken();
         }
 
-        ObjectMapper update = null;
         innerParseObject(context, mapper, parser, currentFieldName, token);
         // restore the enable path flag
         if (nested.isNested()) {

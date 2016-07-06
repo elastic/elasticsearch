@@ -48,9 +48,9 @@ import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resol
 
 public class MovAvgPipelineAggregator extends PipelineAggregator {
 
-    public final static Type TYPE = new Type("moving_avg");
+    public static final Type TYPE = new Type("moving_avg");
 
-    public final static PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
+    public static final PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
         @Override
         public MovAvgPipelineAggregator readResult(StreamInput in) throws IOException {
             MovAvgPipelineAggregator result = new MovAvgPipelineAggregator();

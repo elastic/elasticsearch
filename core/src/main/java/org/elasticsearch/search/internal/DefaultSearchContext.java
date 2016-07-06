@@ -24,8 +24,8 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
@@ -99,8 +99,7 @@ public class DefaultSearchContext extends SearchContext {
     private final QuerySearchResult queryResult;
     private final FetchSearchResult fetchResult;
     private float queryBoost = 1.0f;
-    // timeout in millis
-    private long timeoutInMillis;
+    private TimeValue timeout;
     // terminate after count
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private List<String> groupStats;
@@ -174,7 +173,7 @@ public class DefaultSearchContext extends SearchContext {
         this.indexService = indexService;
         this.searcher = new ContextIndexSearcher(engineSearcher, indexService.cache().query(), indexShard.getQueryCachingPolicy());
         this.timeEstimateCounter = timeEstimateCounter;
-        this.timeoutInMillis = timeout.millis();
+        this.timeout = timeout;
         queryShardContext = indexService.newQueryShardContext(searcher.getIndexReader());
         queryShardContext.setTypes(request.types());
     }
@@ -512,13 +511,13 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public long timeoutInMillis() {
-        return timeoutInMillis;
+    public TimeValue timeout() {
+        return timeout;
     }
 
     @Override
-    public void timeoutInMillis(long timeoutInMillis) {
-        this.timeoutInMillis = timeoutInMillis;
+    public void timeout(TimeValue timeout) {
+        this.timeout = timeout;
     }
 
     @Override

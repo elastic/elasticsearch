@@ -19,6 +19,7 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,7 +38,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
@@ -49,6 +49,7 @@ import static org.elasticsearch.index.query.QueryBuilders.spanNotQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -156,6 +157,29 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
+    }
+
+    public void testPercolatorQueryExistingDocumentSourceDisabled() throws Exception {
+        createIndex("test", client().admin().indices().prepareCreate("test")
+            .addMapping("type", "_source", "enabled=false", "field1", "type=keyword")
+            .addMapping("queries", "query", "type=percolator")
+        );
+
+        client().prepareIndex("test", "queries", "1")
+            .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
+            .get();
+
+        client().prepareIndex("test", "type", "1").setSource("{}").get();
+        client().admin().indices().prepareRefresh().get();
+
+        logger.info("percolating empty doc with source disabled");
+        Throwable e = expectThrows(SearchPhaseExecutionException.class, () -> {
+            client().prepareSearch()
+                .setQuery(new PercolateQueryBuilder("query", "type", "test", "type", "1", null, null, null))
+                .get();
+        }).getRootCause();
+        assertThat(e, instanceOf(IllegalArgumentException.class));
+        assertThat(e.getMessage(), containsString("source disabled"));
     }
 
     public void testPercolatorSpecificQueries()  throws Exception {
@@ -397,12 +421,16 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
                 .addMapping("employee", mapping)
                 .addMapping("queries", "query", "type=percolator")
         );
-        client().prepareIndex("test", "queries", "q").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "queries", "q1").setSource(jsonBuilder().startObject()
                 .field("query", QueryBuilders.nestedQuery("employee",
                         QueryBuilders.matchQuery("employee.name", "virginia potts").operator(Operator.AND), ScoreMode.Avg)
                 ).endObject())
-                .setRefreshPolicy(IMMEDIATE)
                 .get();
+        // this query should never match as it doesn't use nested query:
+        client().prepareIndex("test", "queries", "q2").setSource(jsonBuilder().startObject()
+                .field("query", QueryBuilders.matchQuery("employee.name", "virginia")).endObject())
+                .get();
+        client().admin().indices().prepareRefresh().get();
 
         SearchResponse response = client().prepareSearch()
                 .setQuery(new PercolateQueryBuilder("query", "employee",
@@ -413,9 +441,10 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
                                     .startObject().field("name", "tony stark").endObject()
                                 .endArray()
                             .endObject().bytes()))
+                .addSort("_doc", SortOrder.ASC)
                 .get();
         assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("q"));
+        assertThat(response.getHits().getAt(0).getId(), equalTo("q1"));
 
         response = client().prepareSearch()
                 .setQuery(new PercolateQueryBuilder("query", "employee",
@@ -426,12 +455,14 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
                                     .startObject().field("name", "tony stark").endObject()
                                 .endArray()
                             .endObject().bytes()))
+                .addSort("_doc", SortOrder.ASC)
                 .get();
         assertHitCount(response, 0);
 
         response = client().prepareSearch()
                 .setQuery(new PercolateQueryBuilder("query", "employee",
                         XContentFactory.jsonBuilder().startObject().field("companyname", "notstark").endObject().bytes()))
+                .addSort("_doc", SortOrder.ASC)
                 .get();
         assertHitCount(response, 0);
     }

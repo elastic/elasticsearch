@@ -129,7 +129,7 @@ public enum PreBuiltTokenizers {
 
     ;
 
-    abstract protected Tokenizer create(Version version);
+    protected abstract  Tokenizer create(Version version);
 
     protected final PreBuiltCacheFactory.PreBuiltCache<TokenizerFactory> cache;
 

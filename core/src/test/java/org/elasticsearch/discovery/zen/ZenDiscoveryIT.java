@@ -261,8 +261,8 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                holder.set((IllegalStateException) t);
+            public void onFailure(Exception e) {
+                holder.set((IllegalStateException) e);
             }
         });
 
@@ -297,7 +297,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         Settings nodeSettings = Settings.builder()
                 .put("discovery.type", "zen") // <-- To override the local setting if set externally
                 .build();
-        String nodeName = internalCluster().startNode(nodeSettings, Version.CURRENT);
+        String nodeName = internalCluster().startNode(nodeSettings);
         ZenDiscovery zenDiscovery = (ZenDiscovery) internalCluster().getInstance(Discovery.class, nodeName);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeName);
         DiscoveryNode node = new DiscoveryNode("_node_id", new InetSocketTransportAddress(InetAddress.getByName("0.0.0.0"), 0),
@@ -309,8 +309,8 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                holder.set((IllegalStateException) t);
+            public void onFailure(Exception e) {
+                holder.set((IllegalStateException) e);
             }
         });
 

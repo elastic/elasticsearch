@@ -27,6 +27,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
+import static org.elasticsearch.test.ESTestCase.createAnalysisService;
+
 public class StopAnalyzerTests extends ESTokenStreamTestCase {
     public void testDefaultsCompoundAnalysis() throws Exception {
         String json = "/org/elasticsearch/index/analysis/stop.json";
@@ -36,7 +38,7 @@ public class StopAnalyzerTests extends ESTokenStreamTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
+        AnalysisService analysisService = createAnalysisService(idxSettings, settings);
 
         NamedAnalyzer analyzer1 = analysisService.analyzer("analyzer1");
 

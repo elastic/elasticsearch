@@ -56,6 +56,14 @@ If you encounter an issue, https://github.com/elastic/elasticsearch/issues[pleas
 We are committed to tracking down and fixing all the issues that are posted.
 
 [float]
+==== Jepsen Tests
+
+The Jepsen platform is specifically designed to test distributed systems. It is not a single test and is regularly adapted
+to create new scenarios. We have ported all published scenarios to our testing infrastructure. Of course
+as the system evolves, new scenarios can come up that are not yet covered. We are committed to investigating all new scenarios and will
+report issues that we find on this page and in our GitHub repository.
+
+[float]
 === Better request retry mechanism when nodes are disconnected (STATUS: ONGOING)
 
 If the node holding a primary shard is disconnected for whatever reason, the
@@ -90,7 +98,7 @@ space.  The following issues have been identified:
 * Set a hard limit on `from`/`size` parameters {GIT}9311[#9311]. (STATUS: DONE, v2.1.0)
 * Prevent combinatorial explosion in aggregations from causing OOM {GIT}8081[#8081]. (STATUS: ONGOING)
 * Add the byte size of each hit to the request circuit breaker {GIT}9310[#9310]. (STATUS: ONGOING)
-* Limit the size of individual requests and also add a circuit breaker for the total memory used by in-flight request objects {GIT}16011[#16011]. (STATUS: ONGOING)
+* Limit the size of individual requests and also add a circuit breaker for the total memory used by in-flight request objects {GIT}16011[#16011]. (STATUS: DONE, v5.0.0)
 
 Other safeguards are tracked in the meta-issue {GIT}11511[#11511].
 
@@ -102,16 +110,30 @@ Indices stats and indices segments requests reach out to all nodes that have sha
 while the stats request arrives will make that part of the request fail and are just ignored in the overall stats result. {GIT}13719[#13719]
 
 [float]
-=== Jepsen Test Failures (STATUS: ONGOING)
+=== Documentation of guarantees and handling of failures (STATUS: ONGOING)
 
-We have increased our test coverage to include scenarios tested by Jepsen. We make heavy use of randomization to expand on the scenarios that can be tested and to introduce new error conditions. You can follow the work on the master branch of the https://github.com/elastic/elasticsearch/blob/master/core/src/test/java/org/elasticsearch/discovery/DiscoveryWithServiceDisruptionsIT.java[`DiscoveryWithServiceDisruptionsIT` class], where we will add more tests as time progresses.
+This status page is a start, but we can do a better job of explicitly documenting the processes at work in Elasticsearch and what happens
+in the case of each type of failure. The plan is to have a test case that validates each behavior under simulated conditions. Every test
+ will document the expected results, the associated test code, and an explicit PASS or FAIL status for each simulated case.
 
 [float]
-=== Document guarantees and handling of failure (STATUS: ONGOING)
+=== Run Jepsen (STATUS: ONGOING)
 
-This status page is a start, but we can do a better job of explicitly documenting the processes at work in Elasticsearch, and what happens in the case of each type of failure. The plan is to have a test case that validates each behavior under simulated conditions. Every test will document the expected results, the associated test code and an explicit PASS or FAIL status for each simulated case.
+We have ported all of the known scenarios in the Jepsen blogs to our testing infrastructure. The new tests are run continuously in our
+testing farm and are passing. We are also working on running Jepsen independently to verify that no failures are found.
+
 
 == Unreleased
+
+[float]
+=== Port Jepsen tests to our testing framework (STATUS: UNRELEASED, V5.0.0)
+
+We have increased our test coverage to include scenarios tested by Jepsen, as described in the Elasticsearch related blogs. We make heavy
+use of randomization to expand on the scenarios that can be tested and to introduce new error conditions.
+You can follow the work on the master branch of the
+https://github.com/elastic/elasticsearch/blob/master/core/src/test/java/org/elasticsearch/discovery/DiscoveryWithServiceDisruptionsIT.java[`DiscoveryWithServiceDisruptionsIT` class],
+where the `testAckedIndexing` test was specifically added to cover known Jepsen related scenarios.
+
 
 [float]
 === Loss of documents during network partition (STATUS: UNRELEASED, v5.0.0)

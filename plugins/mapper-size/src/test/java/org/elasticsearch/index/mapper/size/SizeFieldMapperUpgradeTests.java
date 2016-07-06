@@ -67,7 +67,8 @@ public class SizeFieldMapperUpgradeTests extends ESIntegTestCase {
         Settings settings = Settings.builder()
                 .put(Environment.PATH_DATA_SETTING.getKey(), dataPath)
                 .build();
-        final String node = internalCluster().startDataOnlyNode(settings); // workaround for dangling index loading issue when node is master
+        // workaround for dangling index loading issue when node is master
+        final String node = internalCluster().startDataOnlyNode(settings);
         Path[] nodePaths = internalCluster().getInstance(NodeEnvironment.class, node).nodeDataPaths();
         assertEquals(1, nodePaths.length);
         dataPath = nodePaths[0].resolve(NodeEnvironment.INDICES_FOLDER);

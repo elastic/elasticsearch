@@ -49,7 +49,7 @@ import java.util.Random;
 /**
  *
  */
-public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service> implements AwsEc2Service {
+public class AwsEc2ServiceImpl extends AbstractLifecycleComponent implements AwsEc2Service {
 
     public static final String EC2_METADATA_URL = "http://169.254.169.254/latest/meta-data/";
 
@@ -148,6 +148,8 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
                 endpoint = "ec2.ap-southeast-1.amazonaws.com";
             } else if (region.equals("us-gov-west") || region.equals("us-gov-west-1")) {
                 endpoint = "ec2.us-gov-west-1.amazonaws.com";
+            } else if (region.equals("ap-south-1")) {
+                endpoint = "ec2.ap-south-1.amazonaws.com";
             } else if (region.equals("ap-southeast-2")) {
                 endpoint = "ec2.ap-southeast-2.amazonaws.com";
             } else if (region.equals("ap-northeast") || region.equals("ap-northeast-1")) {

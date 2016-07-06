@@ -35,8 +35,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
@@ -83,8 +83,8 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                listener.onFailure(t);
+            public void onFailure(String source, Exception e) {
+                listener.onFailure(e);
             }
 
             @Override
@@ -134,7 +134,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
         try {
             validate(request);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             listener.onFailure(e);
             return;
         }
@@ -150,8 +150,8 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                listener.onFailure(t);
+            public void onFailure(String source, Exception e) {
+                listener.onFailure(e);
             }
 
             @Override
@@ -160,7 +160,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                     throw new IndexTemplateAlreadyExistsException(request.name);
                 }
 
-                validateAndAddTemplate(request, templateBuilder, indicesService, nodeServicesProvider, metaDataCreateIndexService);
+                validateAndAddTemplate(request, templateBuilder, indicesService, nodeServicesProvider);
 
                 for (Alias alias : request.aliases) {
                     AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
@@ -185,7 +185,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
     }
 
     private static void validateAndAddTemplate(final PutRequest request, IndexTemplateMetaData.Builder templateBuilder, IndicesService indicesService,
-                                               NodeServicesProvider nodeServicesProvider, MetaDataCreateIndexService metaDataCreateIndexService) throws Exception {
+                                               NodeServicesProvider nodeServicesProvider) throws Exception {
         Index createdIndex = null;
         final String temporaryIndexName = UUIDs.randomBase64UUID();
         try {
@@ -276,11 +276,11 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         }
     }
 
-    public static interface PutListener {
+    public interface PutListener {
 
         void onResponse(PutResponse response);
 
-        void onFailure(Throwable t);
+        void onFailure(Exception e);
     }
 
     public static class PutRequest {
@@ -391,10 +391,10 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         }
     }
 
-    public static interface RemoveListener {
+    public interface RemoveListener {
 
         void onResponse(RemoveResponse response);
 
-        void onFailure(Throwable t);
+        void onFailure(Exception e);
     }
 }

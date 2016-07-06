@@ -303,7 +303,7 @@ public class InternalEngineTests extends ESTestCase {
         }
         Engine.EventListener listener = new Engine.EventListener() {
             @Override
-            public void onFailedEngine(String reason, @Nullable Throwable t) {
+            public void onFailedEngine(String reason, @Nullable Exception e) {
                 // we don't need to notify anybody in this test
             }
         };
@@ -763,7 +763,7 @@ public class InternalEngineTests extends ESTestCase {
 
         // create a document
         Document document = testDocumentWithTextField();
-        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
         engine.index(new Engine.Index(newUid("1"), doc));
 
@@ -776,7 +776,7 @@ public class InternalEngineTests extends ESTestCase {
         // but, we can still get it (in realtime)
         Engine.GetResult getResult = engine.get(new Engine.Get(true, newUid("1")));
         assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.source().source.toBytesArray(), equalTo(B_1.toBytesArray()));
+        assertThat(getResult.source().source, equalTo(B_1));
         assertThat(getResult.docIdAndVersion(), nullValue());
         getResult.release();
 
@@ -802,7 +802,7 @@ public class InternalEngineTests extends ESTestCase {
         // now do an update
         document = testDocument();
         document.add(new TextField("value", "test1", Field.Store.YES));
-        document.add(new Field(SourceFieldMapper.NAME, B_2.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_2), SourceFieldMapper.Defaults.FIELD_TYPE));
         doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_2, null);
         engine.index(new Engine.Index(newUid("1"), doc));
 
@@ -816,7 +816,7 @@ public class InternalEngineTests extends ESTestCase {
         // but, we can still get it (in realtime)
         getResult = engine.get(new Engine.Get(true, newUid("1")));
         assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.source().source.toBytesArray(), equalTo(B_2.toBytesArray()));
+        assertThat(getResult.source().source, equalTo(B_2));
         assertThat(getResult.docIdAndVersion(), nullValue());
         getResult.release();
 
@@ -855,7 +855,7 @@ public class InternalEngineTests extends ESTestCase {
 
         // add it back
         document = testDocumentWithTextField();
-        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
         doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
         engine.index(new Engine.Index(newUid("1"), doc, Versions.MATCH_DELETED));
 
@@ -2144,7 +2144,7 @@ public class InternalEngineTests extends ESTestCase {
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
             AnalysisService analysisService = new AnalysisService(indexSettings, Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
             SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
-            MapperRegistry mapperRegistry = new IndicesModule(new NamedWriteableRegistry()).getMapperRegistry();
+            MapperRegistry mapperRegistry = new IndicesModule(new NamedWriteableRegistry(), Collections.emptyList()).getMapperRegistry();
             MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry, () -> null);
             DocumentMapper.Builder b = new DocumentMapper.Builder(rootBuilder, mapperService);
             this.docMapper = b.build(mapperService);
@@ -2214,7 +2214,7 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     public void testShardNotAvailableExceptionWhenEngineClosedConcurrently() throws IOException, InterruptedException {
-        AtomicReference<Throwable> throwable = new AtomicReference<>();
+        AtomicReference<Exception> exception = new AtomicReference<>();
         String operation = randomFrom("optimize", "refresh", "flush");
         Thread mergeThread = new Thread() {
             @Override
@@ -2237,8 +2237,8 @@ public class InternalEngineTests extends ESTestCase {
                                 break;
                             }
                         }
-                    } catch (Throwable t) {
-                        throwable.set(t);
+                    } catch (Exception e) {
+                        exception.set(e);
                         stop = true;
                     }
                 }
@@ -2247,8 +2247,8 @@ public class InternalEngineTests extends ESTestCase {
         mergeThread.start();
         engine.close();
         mergeThread.join();
-        logger.info("exception caught: ", throwable.get());
-        assertTrue("expected an Exception that signals shard is not available", TransportActions.isShardNotAvailableException(throwable.get()));
+        logger.info("exception caught: ", exception.get());
+        assertTrue("expected an Exception that signals shard is not available", TransportActions.isShardNotAvailableException(exception.get()));
     }
 
     public void testCurrentTranslogIDisCommitted() throws IOException {

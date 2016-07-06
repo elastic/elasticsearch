@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngineService;
@@ -207,8 +208,8 @@ public class PluginsService extends AbstractComponent {
                 }
                 Class moduleClass = method.getParameterTypes()[0];
                 if (!Module.class.isAssignableFrom(moduleClass)) {
-                    if (moduleClass == ScriptModule.class) {
-                        // This is still part of the Plugin class to point the user to the new implementation
+                    if (method.getDeclaringClass() == Plugin.class) {
+                        // These are still part of the Plugin class to point the user to the new implementations
                         continue;
                     }
                     throw new RuntimeException(
@@ -456,7 +457,7 @@ public class PluginsService extends AbstractComponent {
                         "Settings instance");
                 }
             }
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new ElasticsearchException("Failed to load plugin class [" + pluginClass.getName() + "]", e);
         }
     }

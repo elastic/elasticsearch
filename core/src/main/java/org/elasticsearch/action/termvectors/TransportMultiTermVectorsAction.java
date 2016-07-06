@@ -107,7 +107,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     // create failures for all relevant requests
                     for (int i = 0; i < shardRequest.locations.size(); i++) {
                         TermVectorsRequest termVectorsRequest = shardRequest.requests.get(i);

@@ -104,7 +104,7 @@ public class NettyHttpClient implements Closeable {
     }
 
     @SafeVarargs // Safe not because it doesn't do anything with the type parameters but because it won't leak them into other methods.
-    private final Collection<HttpResponse> processRequestsWithBody(HttpMethod method, SocketAddress remoteAddress, Tuple<String,
+    final Collection<HttpResponse> processRequestsWithBody(HttpMethod method, SocketAddress remoteAddress, Tuple<String,
         CharSequence>... urisAndBodies) throws InterruptedException {
         Collection<HttpRequest> requests = new ArrayList<>(urisAndBodies.length);
         for (Tuple<String, CharSequence> uriAndBody : urisAndBodies) {

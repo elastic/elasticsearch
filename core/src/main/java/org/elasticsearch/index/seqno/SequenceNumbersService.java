@@ -29,12 +29,12 @@ import java.util.Set;
  */
 public class SequenceNumbersService extends AbstractIndexShardComponent {
 
-    public final static long UNASSIGNED_SEQ_NO = -2L;
+    public static final long UNASSIGNED_SEQ_NO = -2L;
 
     /**
      * Represents no operations have been performed on the shard.
      */
-    public final static long NO_OPS_PERFORMED = -1L;
+    public static final long NO_OPS_PERFORMED = -1L;
 
     final LocalCheckpointService localCheckpointService;
     final GlobalCheckpointService globalCheckpointService;

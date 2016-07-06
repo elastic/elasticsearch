@@ -54,13 +54,30 @@ public class RestTestParserTests extends ESTestCase {
         parser.close();
     }
 
-    public void testParseTestSetupAndSections() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+    public void testParseTestSetupTeardownAndSections() throws Exception {
+        final boolean includeSetup = randomBoolean();
+        final boolean includeTeardown = randomBoolean();
+        StringBuilder testSpecBuilder = new StringBuilder();
+        if (includeSetup) {
+            testSpecBuilder
+                .append("---\n" +
                         "setup:\n" +
                         "  - do:\n" +
                         "        indices.create:\n" +
                         "          index: test_index\n" +
-                        "\n" +
+                        "\n");
+        }
+        if (includeTeardown) {
+            testSpecBuilder
+                .append("---\n" +
+                        "teardown:\n" +
+                        "  - do:\n" +
+                        "      indices.delete:\n" +
+                        "        index: test_index\n" +
+                        "\n");
+        }
+        parser = YamlXContent.yamlXContent.createParser(
+                        testSpecBuilder.toString() +
                         "---\n" +
                         "\"Get index mapping\":\n" +
                         "  - do:\n" +
@@ -92,12 +109,30 @@ public class RestTestParserTests extends ESTestCase {
         assertThat(restTestSuite, notNullValue());
         assertThat(restTestSuite.getName(), equalTo("suite"));
         assertThat(restTestSuite.getSetupSection(), notNullValue());
-        assertThat(restTestSuite.getSetupSection().getSkipSection().isEmpty(), equalTo(true));
-
-        assertThat(restTestSuite.getSetupSection().getDoSections().size(), equalTo(1));
-        assertThat(restTestSuite.getSetupSection().getDoSections().get(0).getApiCallSection().getApi(), equalTo("indices.create"));
-        assertThat(restTestSuite.getSetupSection().getDoSections().get(0).getApiCallSection().getParams().size(), equalTo(1));
-        assertThat(restTestSuite.getSetupSection().getDoSections().get(0).getApiCallSection().getParams().get("index"), equalTo("test_index"));
+        if (includeSetup) {
+            assertThat(restTestSuite.getSetupSection().isEmpty(), equalTo(false));
+            assertThat(restTestSuite.getSetupSection().getSkipSection().isEmpty(), equalTo(true));
+            assertThat(restTestSuite.getSetupSection().getDoSections().size(), equalTo(1));
+            assertThat(restTestSuite.getSetupSection().getDoSections().get(0).getApiCallSection().getApi(), equalTo("indices.create"));
+            assertThat(restTestSuite.getSetupSection().getDoSections().get(0).getApiCallSection().getParams().size(), equalTo(1));
+            assertThat(restTestSuite.getSetupSection().getDoSections().get(0).getApiCallSection().getParams().get("index"),
+                    equalTo("test_index"));
+        } else {
+            assertThat(restTestSuite.getSetupSection().isEmpty(), equalTo(true));
+        }
+        
+        assertThat(restTestSuite.getTeardownSection(), notNullValue());
+        if (includeTeardown) {
+            assertThat(restTestSuite.getTeardownSection().isEmpty(), equalTo(false));
+            assertThat(restTestSuite.getTeardownSection().getSkipSection().isEmpty(), equalTo(true));
+            assertThat(restTestSuite.getTeardownSection().getDoSections().size(), equalTo(1));
+            assertThat(restTestSuite.getTeardownSection().getDoSections().get(0).getApiCallSection().getApi(), equalTo("indices.delete"));
+            assertThat(restTestSuite.getTeardownSection().getDoSections().get(0).getApiCallSection().getParams().size(), equalTo(1));
+            assertThat(restTestSuite.getTeardownSection().getDoSections().get(0).getApiCallSection().getParams().get("index"),
+                equalTo("test_index"));
+        } else {
+            assertThat(restTestSuite.getTeardownSection().isEmpty(), equalTo(true));
+        }
 
         assertThat(restTestSuite.getTestSections().size(), equalTo(2));
 
@@ -120,7 +155,8 @@ public class RestTestParserTests extends ESTestCase {
 
         assertThat(restTestSuite.getTestSections().get(1).getName(), equalTo("Get type mapping - pre 1.0"));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().isEmpty(), equalTo(false));
-        assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getReason(), equalTo("for newer versions the index name is always returned"));
+        assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getReason(),
+                equalTo("for newer versions the index name is always returned"));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getLowerVersion(), equalTo(Version.V_2_0_0));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getUpperVersion(), equalTo(Version.CURRENT));
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().size(), equalTo(3));

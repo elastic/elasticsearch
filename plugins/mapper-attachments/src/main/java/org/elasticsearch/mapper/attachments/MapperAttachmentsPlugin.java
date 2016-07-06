@@ -19,18 +19,20 @@
 
 package org.elasticsearch.mapper.attachments;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 
-import java.util.Arrays;
-import java.util.List;
-
-public class MapperAttachmentsPlugin extends Plugin {
+public class MapperAttachmentsPlugin extends Plugin implements MapperPlugin {
 
     private static ESLogger logger = ESLoggerFactory.getLogger("mapper.attachment");
     private static DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
@@ -44,7 +46,8 @@ public class MapperAttachmentsPlugin extends Plugin {
         AttachmentMapper.INDEX_ATTACHMENT_INDEXED_CHARS_SETTING);
     }
 
-    public void onModule(IndicesModule indicesModule) {
-        indicesModule.registerMapper("attachment", new AttachmentMapper.TypeParser());
+    @Override
+    public Map<String, Mapper.TypeParser> getMappers() {
+        return Collections.singletonMap("attachment", new AttachmentMapper.TypeParser());
     }
 }

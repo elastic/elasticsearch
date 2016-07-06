@@ -109,7 +109,8 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             Supplier<Request> request,
             String executor,
             boolean canTripCircuitBreaker) {
-        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
+        super(settings, actionName, canTripCircuitBreaker, threadPool, transportService, actionFilters, indexNameExpressionResolver,
+            request);
 
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -298,7 +299,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             if (nodeIds.size() == 0) {
                 try {
                     onCompletion();
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     listener.onFailure(e);
                 }
             } else {
@@ -339,7 +340,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                         return ThreadPool.Names.SAME;
                     }
                 });
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 onNodeFailure(node, nodeIndex, e);
             }
         }
@@ -379,15 +380,15 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             Response response = null;
             try {
                 response = newResponse(request, responses, unavailableShardExceptions, nodeIds, clusterState);
-            } catch (Throwable t) {
-                logger.debug("failed to combine responses from nodes", t);
-                listener.onFailure(t);
+            } catch (Exception e) {
+                logger.debug("failed to combine responses from nodes", e);
+                listener.onFailure(e);
             }
             if (response != null) {
                 try {
                     listener.onResponse(response);
-                } catch (Throwable t) {
-                    listener.onFailure(t);
+                } catch (Exception e) {
+                    listener.onFailure(e);
                 }
             }
         }
@@ -432,18 +433,19 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 if (logger.isTraceEnabled()) {
                     logger.trace("[{}]  completed operation for shard [{}]", actionName, shardRouting.shortSummary());
                 }
-            } catch (Throwable t) {
-                BroadcastShardOperationFailedException e = new BroadcastShardOperationFailedException(shardRouting.shardId(), "operation " + actionName + " failed", t);
-                e.setIndex(shardRouting.getIndexName());
-                e.setShard(shardRouting.shardId());
-                shardResults[shardIndex] = e;
-                if (TransportActions.isShardNotAvailableException(t)) {
+            } catch (Exception e) {
+                BroadcastShardOperationFailedException failure =
+                    new BroadcastShardOperationFailedException(shardRouting.shardId(), "operation " + actionName + " failed", e);
+                failure.setIndex(shardRouting.getIndexName());
+                failure.setShard(shardRouting.shardId());
+                shardResults[shardIndex] = failure;
+                if (TransportActions.isShardNotAvailableException(e)) {
                     if (logger.isTraceEnabled()) {
-                        logger.trace("[{}] failed to execute operation for shard [{}]", t, actionName, shardRouting.shortSummary());
+                        logger.trace("[{}] failed to execute operation for shard [{}]", e, actionName, shardRouting.shortSummary());
                     }
                 } else {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("[{}] failed to execute operation for shard [{}]", t, actionName, shardRouting.shortSummary());
+                        logger.debug("[{}] failed to execute operation for shard [{}]", e, actionName, shardRouting.shortSummary());
                     }
                 }
             }
@@ -590,7 +592,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
      * Can be used for implementations of {@link #shardOperation(BroadcastRequest, ShardRouting) shardOperation} for
      * which there is no shard-level return value.
      */
-    public final static class EmptyResult implements Streamable {
+    public static final class EmptyResult implements Streamable {
         public static EmptyResult INSTANCE = new EmptyResult();
 
         private EmptyResult() {

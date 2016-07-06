@@ -378,7 +378,8 @@ GET /_search
         "_script" : {
             "type" : "number",
             "script" : {
-                "inline": "doc['field_name'].value * factor",
+                "lang": "painless",
+                "inline": "doc['field_name'].value * params.factor",
                 "params" : {
                     "factor" : 1.1
                 }

@@ -37,7 +37,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
 
     @Before
     public void init() {
-        factory = new ScriptProcessor.Factory(mock(ScriptService.class), mock(ClusterService.class));
+        factory = new ScriptProcessor.Factory(mock(ScriptService.class));
     }
 
 
@@ -55,7 +55,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         configMap.put("lang", "mockscript");
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-            () -> factory.doCreate(randomAsciiOfLength(10), configMap));
+            () -> factory.create(randomAsciiOfLength(10), configMap));
 
         assertThat(exception.getMessage(), is("[null] Only one of [file], [id], or [inline] may be configured"));
     }
@@ -66,7 +66,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         configMap.put("lang", "mockscript");
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-            () -> factory.doCreate(randomAsciiOfLength(10), configMap));
+            () -> factory.create(randomAsciiOfLength(10), configMap));
 
         assertThat(exception.getMessage(), is("[null] Need [file], [id], or [inline] parameter to refer to scripts"));
     }

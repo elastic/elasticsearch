@@ -53,12 +53,12 @@ abstract class ESElasticsearchCliTestCase extends ESTestCase {
             assertThat(status, equalTo(expectedStatus));
             assertThat(init.get(), equalTo(expectedInit));
             outputConsumer.accept(terminal.getOutput());
-        } catch (Throwable t) {
+        } catch (Exception e) {
             // if an unexpected exception is thrown, we log
             // terminal output to aid debugging
             logger.info(terminal.getOutput());
             // rethrow so the test fails
-            throw t;
+            throw e;
         }
     }
 

@@ -80,7 +80,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         BytesStreamOutput outStream = new BytesStreamOutput();
         source.writeTo(outStream);
-        StreamInput inStream = StreamInput.wrap(outStream.bytes().toBytes());
+        StreamInput inStream = outStream.bytes().streamInput();
         RoutingTable target = RoutingTable.Builder.readFrom(inStream);
 
         assertThat(target.prettyPrint(), equalTo(source.prettyPrint()));

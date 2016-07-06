@@ -93,9 +93,9 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
                     }
 
                     @Override
-                    public void onFailure(Throwable t) {
-                        logger.debug("failed to put template [{}]", t, request.name());
-                        listener.onFailure(t);
+                    public void onFailure(Exception e) {
+                        logger.debug("failed to put template [{}]", e, request.name());
+                        listener.onFailure(e);
                     }
                 });
     }

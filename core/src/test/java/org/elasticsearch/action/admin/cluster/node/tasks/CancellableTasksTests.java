@@ -230,7 +230,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 throwableReference.set(e);
                 responseLatch.countDown();
             }
@@ -308,7 +308,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 throwableReference.set(e);
                 responseLatch.countDown();
             }

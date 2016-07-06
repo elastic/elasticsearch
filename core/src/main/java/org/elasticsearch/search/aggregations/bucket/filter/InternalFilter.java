@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -28,35 +27,21 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
-*
-*/
 public class InternalFilter extends InternalSingleBucketAggregation implements Filter {
-
-    public final static Type TYPE = new Type("filter");
-
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalFilter readResult(StreamInput in) throws IOException {
-            InternalFilter result = new InternalFilter();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-    InternalFilter() {} // for serialization
-
     InternalFilter(String name, long docCount, InternalAggregations subAggregations, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, docCount, subAggregations, pipelineAggregators, metaData);
     }
 
+    /**
+     * Stream from a stream.
+     */
+    public InternalFilter(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    public String getWriteableName() {
+        return FilterAggregationBuilder.NAME;
     }
 
     @Override

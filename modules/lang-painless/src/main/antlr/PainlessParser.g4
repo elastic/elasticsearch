@@ -42,6 +42,7 @@ statement
     | DO block WHILE LP expression RP delimiter                                                # do
     | FOR LP initializer? SEMICOLON expression? SEMICOLON afterthought? RP ( trailer | empty ) # for
     | FOR LP decltype ID COLON expression RP trailer                                           # each
+    | FOR LP ID IN expression RP trailer                                                       # ineach
     | declaration delimiter                                                                    # decl
     | CONTINUE delimiter                                                                       # continue
     | BREAK delimiter                                                                          # break
@@ -105,6 +106,7 @@ expression returns [boolean s = true]
     |               expression ( FIND | MATCH ) expression                 { $s = false; }          # binary
     |               expression ( LSH | RSH | USH ) expression              { $s = false; }          # binary
     |               expression ( LT | LTE | GT | GTE ) expression          { $s = false; }          # comp
+    |               expression INSTANCEOF decltype                         { $s = false; }          # instanceof
     |               expression ( EQ | EQR | NE | NER ) expression          { $s = false; }          # comp
     |               expression BWAND expression                            { $s = false; }          # binary
     |               expression XOR expression                              { $s = false; }          # binary

@@ -100,7 +100,7 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
                     }
 
                     @Override
-                    public void onFailure(Throwable t) {
+                    public void onFailure(Exception t) {
                         if (t instanceof IndexAlreadyExistsException) {
                             logger.trace("[{}] failed to create shrink index", t, updateRequest.index());
                         } else {
@@ -112,7 +112,7 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
         });

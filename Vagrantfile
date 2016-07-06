@@ -42,7 +42,7 @@ Vagrant.configure(2) do |config|
   # debian and it works fine.
   config.vm.define "debian-8" do |config|
     config.vm.box = "elastic/debian-8-x86_64"
-    deb_common config, 'echo deb http://http.debian.net/debian jessie-backports main > /etc/apt/sources.list.d/backports.list', 'backports'
+    deb_common config, 'echo deb http://cloudfront.debian.net/debian jessie-backports main > /etc/apt/sources.list.d/backports.list', 'backports'
   end
   config.vm.define "centos-6" do |config|
     config.vm.box = "elastic/centos-6-x86_64"

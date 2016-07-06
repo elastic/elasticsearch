@@ -51,7 +51,7 @@ public class ListenerActionIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 threadName.set(Thread.currentThread().getName());
                 failure.set(e);
                 latch.countDown();

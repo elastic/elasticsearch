@@ -235,7 +235,7 @@ public class InternalSearchHit implements SearchHit {
         if (sourceAsBytes != null) {
             return sourceAsBytes;
         }
-        this.sourceAsBytes = sourceRef().toBytes();
+        this.sourceAsBytes = BytesReference.toBytes(sourceRef());
         return this.sourceAsBytes;
     }
 
@@ -762,7 +762,7 @@ public class InternalSearchHit implements SearchHit {
         }
     }
 
-    public final static class InternalNestedIdentity implements NestedIdentity, Streamable, ToXContent {
+    public static final class InternalNestedIdentity implements NestedIdentity, Streamable, ToXContent {
 
         private Text field;
         private int offset;

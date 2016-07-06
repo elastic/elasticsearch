@@ -37,7 +37,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation.FailedShard;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.recovery.RecoveryTargetService;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -124,7 +124,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         for (Iterator<Entry<DiscoveryNode, IndicesClusterStateService>> it = clusterStateServiceMap.entrySet().iterator(); it.hasNext(); ) {
             DiscoveryNode node = it.next().getKey();
-            if (state.nodes().nodeExists(node.getId()) == false) {
+            if (state.nodes().nodeExists(node) == false) {
                 it.remove();
             }
         }
@@ -255,7 +255,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         for (DiscoveryNode.Role mustHaveRole : mustHaveRoles) {
             roles.add(mustHaveRole);
         }
-        return new DiscoveryNode("node_" + randomAsciiOfLength(8), DummyTransportAddress.INSTANCE, Collections.emptyMap(), roles,
+        return new DiscoveryNode("node_" + randomAsciiOfLength(8), LocalTransportAddress.buildUnique(), Collections.emptyMap(), roles,
             Version.CURRENT);
     }
 

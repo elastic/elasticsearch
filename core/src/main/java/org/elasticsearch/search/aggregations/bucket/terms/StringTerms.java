@@ -26,13 +26,10 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
-import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -52,29 +49,8 @@ public class StringTerms extends InternalTerms<StringTerms, StringTerms.Bucket> 
         }
     };
 
-    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
-        @Override
-        public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
-            Bucket buckets = new Bucket(
-                    context.format(),
-                    (boolean) context.attributes().get("showDocCountError"));
-            buckets.readFrom(in);
-            return buckets;
-        }
-
-        @Override
-        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
-            BucketStreamContext context = new BucketStreamContext();
-            Map<String, Object> attributes = new HashMap<>();
-            attributes.put("showDocCountError", bucket.showDocCountError);
-            context.attributes(attributes);
-            return context;
-        }
-    };
-
     public static void registerStreams() {
         AggregationStreams.registerStream(STREAM, TYPE.stream());
-        BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 
     public static class Bucket extends InternalTerms.Bucket {

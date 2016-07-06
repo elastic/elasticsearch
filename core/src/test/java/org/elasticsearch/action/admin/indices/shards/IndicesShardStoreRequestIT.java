@@ -215,7 +215,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet();
     }
 
-    private final static class IndexNodePredicate implements Predicate<Settings> {
+    private static final class IndexNodePredicate implements Predicate<Settings> {
         private final Set<String> nodesWithShard;
 
         public IndexNodePredicate(String index) {

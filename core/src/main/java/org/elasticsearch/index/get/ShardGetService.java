@@ -110,7 +110,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
      * <p>
      * Note: Call <b>must</b> release engine searcher associated with engineGetResult!
      */
-    public GetResult get(Engine.GetResult engineGetResult, String id, String type, String[] fields, FetchSourceContext fetchSourceContext, boolean ignoreErrorsOnGeneratedFields) {
+    public GetResult get(Engine.GetResult engineGetResult, String id, String type, String[] fields, FetchSourceContext fetchSourceContext) {
         if (!engineGetResult.exists()) {
             return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
         }
@@ -119,7 +119,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         try {
             long now = System.nanoTime();
             fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, fields);
-            GetResult getResult = innerGetLoadFromStoredFields(type, id, fields, fetchSourceContext, engineGetResult, mapperService, ignoreErrorsOnGeneratedFields);
+            GetResult getResult = innerGetLoadFromStoredFields(type, id, fields, fetchSourceContext, engineGetResult, mapperService);
             if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
             } else {
@@ -183,7 +183,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         try {
             // break between having loaded it from translog (so we only have _source), and having a document to load
             if (get.docIdAndVersion() != null) {
-                return innerGetLoadFromStoredFields(type, id, gFields, fetchSourceContext, get, mapperService, ignoreErrorsOnGeneratedFields);
+                return innerGetLoadFromStoredFields(type, id, gFields, fetchSourceContext, get, mapperService);
             } else {
                 Translog.Source source = get.source();
 
@@ -316,7 +316,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
     }
 
-    private GetResult innerGetLoadFromStoredFields(String type, String id, String[] gFields, FetchSourceContext fetchSourceContext, Engine.GetResult get, MapperService mapperService, boolean ignoreErrorsOnGeneratedFields) {
+    private GetResult innerGetLoadFromStoredFields(String type, String id, String[] gFields, FetchSourceContext fetchSourceContext, Engine.GetResult get, MapperService mapperService) {
         Map<String, GetField> fields = null;
         BytesReference source = null;
         Versions.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();

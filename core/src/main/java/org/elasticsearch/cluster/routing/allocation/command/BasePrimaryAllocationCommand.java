@@ -71,7 +71,7 @@ public abstract class BasePrimaryAllocationCommand extends AbstractAllocateAlloc
         return acceptDataLoss;
     }
 
-    protected static abstract class Builder<T extends BasePrimaryAllocationCommand> extends AbstractAllocateAllocationCommand.Builder<T> {
+    protected abstract static class Builder<T extends BasePrimaryAllocationCommand> extends AbstractAllocateAllocationCommand.Builder<T> {
         protected boolean acceptDataLoss;
 
         public void setAcceptDataLoss(boolean acceptDataLoss) {

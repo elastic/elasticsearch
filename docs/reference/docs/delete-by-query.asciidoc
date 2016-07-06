@@ -54,6 +54,10 @@ conflict if the document changes between the time when the snapshot was taken
 and when the delete request is processed. When the versions match the document
 is deleted.
 
+NOTE: Since `internal` versioning does not support the value 0 as a valid
+version number, documents with version equal to zero cannot be deleted using
+`_delete_by_query` and will fail the request.
+
 During the `_delete_by_query` execution, multiple search requests are sequentially
 executed in order to find all the matching documents to delete. Every time a batch
 of documents is found, a corresponding bulk request is executed to delete all

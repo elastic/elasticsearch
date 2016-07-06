@@ -158,6 +158,7 @@ public class SFunction extends AStatement {
             access |= Opcodes.ACC_SYNTHETIC;
         }
         final MethodWriter function = new MethodWriter(access, method.method, writer, globals.getStatements(), settings);
+        function.visitCode();
         write(function, globals);
         function.endMethod();
     }

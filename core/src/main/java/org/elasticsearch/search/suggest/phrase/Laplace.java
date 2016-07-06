@@ -99,7 +99,7 @@ public final class Laplace extends SmoothingModel {
     }
 
     @Override
-    protected final int doHashCode() {
+    protected int doHashCode() {
         return Objects.hash(alpha);
     }
 

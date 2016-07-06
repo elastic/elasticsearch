@@ -37,7 +37,7 @@ public interface Rescorer {
     /**
      * Returns the name of this rescorer
      */
-    public String name();
+    String name();
 
     /**
      * Modifies the result of the previously executed search ({@link TopDocs})
@@ -48,7 +48,7 @@ public interface Rescorer {
      * @param rescoreContext the {@link RescoreSearchContext}. This will never be <code>null</code>
      * @throws IOException if an {@link IOException} occurs during rescoring
      */
-    public TopDocs rescore(TopDocs topDocs, SearchContext context, RescoreSearchContext rescoreContext) throws IOException;
+    TopDocs rescore(TopDocs topDocs, SearchContext context, RescoreSearchContext rescoreContext) throws IOException;
 
     /**
      * Executes an {@link Explanation} phase on the rescorer.
@@ -60,8 +60,8 @@ public interface Rescorer {
      * @return the explain for the given top level document ID.
      * @throws IOException if an {@link IOException} occurs
      */
-    public Explanation explain(int topLevelDocId, SearchContext context, RescoreSearchContext rescoreContext,
-            Explanation sourceExplanation) throws IOException;
+    Explanation explain(int topLevelDocId, SearchContext context, RescoreSearchContext rescoreContext,
+                        Explanation sourceExplanation) throws IOException;
 
     /**
      * Extracts all terms needed to execute this {@link Rescorer}. This method
@@ -69,7 +69,7 @@ public interface Rescorer {
      * {@link SearchType#DFS_QUERY_AND_FETCH} and
      * {@link SearchType#DFS_QUERY_THEN_FETCH}
      */
-    public void extractTerms(SearchContext context, RescoreSearchContext rescoreContext, Set<Term> termsSet);
+    void extractTerms(SearchContext context, RescoreSearchContext rescoreContext, Set<Term> termsSet);
 
     /*
      * TODO: At this point we only have one implementation which modifies the

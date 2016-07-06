@@ -95,7 +95,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
      */
     protected abstract void resolveRequest(ClusterState state, Request request);
 
-    protected boolean retryOnFailure(Throwable e) {
+    protected boolean retryOnFailure(Exception e) {
         return false;
     }
 
@@ -150,7 +150,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                     }
                 }
                 shardIt = shards(observer.observedState(), request);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 listener.onFailure(e);
                 return;
             }
@@ -193,11 +193,11 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
 
                 @Override
                 public void handleException(TransportException exp) {
-                    Throwable cause = exp.unwrapCause();
+                    final Throwable cause = exp.unwrapCause();
                     // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
                     if (cause instanceof ConnectTransportException || cause instanceof NodeClosedException ||
                             retryOnFailure(exp)) {
-                        retry(cause);
+                        retry((Exception) cause);
                     } else {
                         listener.onFailure(exp);
                     }
@@ -205,10 +205,10 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
             });
         }
 
-        void retry(final @Nullable Throwable failure) {
+        void retry(@Nullable final Exception failure) {
             if (observer.isTimedOut()) {
                 // we running as a last attempt after a timeout has happened. don't retry
-                Throwable listenFailure = failure;
+                Exception listenFailure = failure;
                 if (listenFailure == null) {
                     if (shardIt == null) {
                         listenFailure = new UnavailableShardsException(request.concreteIndex(), -1, "Timeout waiting for [{}], request: {}", request.timeout(), actionName);
@@ -249,17 +249,18 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                 public void onResponse(Response response) {
                     try {
                         channel.sendResponse(response);
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         onFailure(e);
                     }
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     try {
                         channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("failed to send response for get", e1);
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        logger.warn("failed to send response for get", inner);
                     }
                 }
             });

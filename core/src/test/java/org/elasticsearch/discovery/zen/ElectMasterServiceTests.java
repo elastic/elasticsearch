@@ -22,7 +22,7 @@ package org.elasticsearch.discovery.zen;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -46,7 +46,7 @@ public class ElectMasterServiceTests extends ESTestCase {
             if (randomBoolean()) {
                 roles.add(DiscoveryNode.Role.MASTER);
             }
-            DiscoveryNode node = new DiscoveryNode("n_" + i, "n_" + i, DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+            DiscoveryNode node = new DiscoveryNode("n_" + i, "n_" + i, LocalTransportAddress.buildUnique(), Collections.emptyMap(),
                     roles, Version.CURRENT);
             nodes.add(node);
         }

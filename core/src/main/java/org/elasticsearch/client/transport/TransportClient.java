@@ -44,13 +44,14 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.io.Closeable;
 import java.util.ArrayList;
@@ -106,7 +107,7 @@ public class TransportClient extends AbstractClient {
 
         private PluginsService newPluginService(final Settings settings) {
             final Settings.Builder settingsBuilder = Settings.builder()
-                    .put(NettyTransport.PING_SCHEDULE.getKey(), "5s") // enable by default the transport schedule ping interval
+                    .put(TcpTransport.PING_SCHEDULE.getKey(), "5s") // enable by default the transport schedule ping interval
                     .put(InternalSettingsPreparer.prepareSettings(settings))
                     .put(NetworkService.NETWORK_SERVER.getKey(), false)
                     .put(CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE);
@@ -125,22 +126,6 @@ public class TransportClient extends AbstractClient {
             final NetworkService networkService = new NetworkService(settings);
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
             try {
-                ModulesBuilder modules = new ModulesBuilder();
-                // plugin modules must be added here, before others or we can get crazy injection errors...
-                for (Module pluginModule : pluginsService.nodeModules()) {
-                    modules.add(pluginModule);
-                }
-                modules.add(new NetworkModule(networkService, settings, true, namedWriteableRegistry));
-                modules.add(b -> b.bind(ThreadPool.class).toInstance(threadPool));
-                modules.add(new SearchModule(settings, namedWriteableRegistry) {
-                    @Override
-                    protected void configure() {
-                        // noop
-                    }
-                });
-                modules.add(new ActionModule(false, true));
-
-                pluginsService.processModules(modules);
                 final List<Setting<?>> additionalSettings = new ArrayList<>();
                 final List<String> additionalSettingsFilter = new ArrayList<>();
                 additionalSettings.addAll(pluginsService.getPluginSettings());
@@ -149,6 +134,19 @@ public class TransportClient extends AbstractClient {
                     additionalSettings.addAll(builder.getRegisteredSettings());
                 }
                 SettingsModule settingsModule = new SettingsModule(settings, additionalSettings, additionalSettingsFilter);
+
+                ModulesBuilder modules = new ModulesBuilder();
+                // plugin modules must be added here, before others or we can get crazy injection errors...
+                for (Module pluginModule : pluginsService.nodeModules()) {
+                    modules.add(pluginModule);
+                }
+                modules.add(new NetworkModule(networkService, settings, true, namedWriteableRegistry));
+                modules.add(b -> b.bind(ThreadPool.class).toInstance(threadPool));
+                modules.add(new SearchModule(settings, namedWriteableRegistry, true));
+                modules.add(new ActionModule(false, true, settings, null, settingsModule.getClusterSettings(),
+                        pluginsService.filterPlugins(ActionPlugin.class)));
+
+                pluginsService.processModules(modules);
                 CircuitBreakerService circuitBreakerService = Node.createCircuitBreakerService(settingsModule.getSettings(),
                     settingsModule.getClusterSettings());
                 resourcesToClose.add(circuitBreakerService);

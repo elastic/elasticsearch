@@ -27,21 +27,21 @@ public interface LongArray extends BigArray {
     /**
      * Get an element given its index.
      */
-    public abstract long get(long index);
+    long get(long index);
 
     /**
      * Set a value at the given index and return the previous value.
      */
-    public abstract long set(long index, long value);
+    long set(long index, long value);
 
     /**
      * Increment value at the given index by <code>inc</code> and return the value.
      */
-    public abstract long increment(long index, long inc);
+    long increment(long index, long inc);
 
     /**
      * Fill slots between <code>fromIndex</code> inclusive to <code>toIndex</code> exclusive with <code>value</code>.
      */
-    public abstract void fill(long fromIndex, long toIndex, long value);
+    void fill(long fromIndex, long toIndex, long value);
 
 }

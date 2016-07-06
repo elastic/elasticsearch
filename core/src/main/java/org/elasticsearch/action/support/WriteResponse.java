@@ -36,5 +36,5 @@ public interface WriteResponse {
      * {@link RefreshPolicy#IMMEDIATE} should always mark this as true. Requests that set it to {@link RefreshPolicy#WAIT_UNTIL} will only
      * set this to true if they run out of refresh listener slots (see {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD}).
      */
-    public abstract void setForcedRefresh(boolean forcedRefresh);
+    void setForcedRefresh(boolean forcedRefresh);
 }

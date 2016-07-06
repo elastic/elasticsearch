@@ -145,7 +145,7 @@ public class TransportClusterAllocationExplainAction
             // No copies of the data
             storeCopy = ClusterAllocationExplanation.StoreCopy.NONE;
         } else {
-            final Throwable storeErr = storeStatus.getStoreException();
+            final Exception storeErr = storeStatus.getStoreException();
             if (storeErr != null) {
                 if (ExceptionsHelper.unwrapCause(storeErr) instanceof CorruptIndexException) {
                     storeCopy = ClusterAllocationExplanation.StoreCopy.CORRUPT;
@@ -323,7 +323,7 @@ public class TransportClusterAllocationExplainAction
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
         });

@@ -20,7 +20,7 @@
 package org.elasticsearch.rest.action.ingest;
 
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -34,13 +34,13 @@ import org.elasticsearch.rest.action.support.RestActions;
 public class RestPutPipelineAction extends BaseRestHandler {
 
     @Inject
-    public RestPutPipelineAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestPutPipelineAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.PUT, "/_ingest/pipeline/{id}", this);
     }
 
     @Override
-    protected void handleRequest(RestRequest restRequest, RestChannel channel, Client client) throws Exception {
+    public void handleRequest(RestRequest restRequest, RestChannel channel, NodeClient client) throws Exception {
         PutPipelineRequest request = new PutPipelineRequest(restRequest.param("id"), RestActions.getRestContent(restRequest));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));

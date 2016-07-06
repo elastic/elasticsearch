@@ -46,6 +46,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -60,6 +61,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
 import java.util.Map;
+
+import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 
 /**
  */
@@ -97,7 +100,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     @Override
-    protected boolean retryOnFailure(Throwable e) {
+    protected boolean retryOnFailure(Exception e) {
         return TransportActions.isShardNotAvailableException(e);
     }
 
@@ -125,13 +128,14 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
+                public void onFailure(Exception e) {
+                    if (unwrapCause(e) instanceof IndexAlreadyExistsException) {
                         // we have the index, do it
                         try {
                             innerExecute(request, listener);
-                        } catch (Throwable e1) {
-                            listener.onFailure(e1);
+                        } catch (Exception inner) {
+                            inner.addSuppressed(e);
+                            listener.onFailure(inner);
                         }
                     } else {
                         listener.onFailure(e);
@@ -194,9 +198,9 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
-                        e = ExceptionsHelper.unwrapCause(e);
-                        if (e instanceof VersionConflictEngineException) {
+                    public void onFailure(Exception e) {
+                        final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                        if (cause instanceof VersionConflictEngineException) {
                             if (retryCount < request.retryOnConflict()) {
                                 logger.trace("Retry attempt [{}] of [{}] on version conflict on [{}][{}][{}]",
                                         retryCount + 1, request.retryOnConflict(), request.index(), request.getShardId(), request.id());
@@ -209,7 +213,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                                 return;
                             }
                         }
-                        listener.onFailure(e);
+                        listener.onFailure(cause instanceof Exception ? (Exception) cause : new NotSerializableExceptionWrapper(cause));
                     }
                 });
                 break;
@@ -228,9 +232,9 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
-                        e = ExceptionsHelper.unwrapCause(e);
-                        if (e instanceof VersionConflictEngineException) {
+                    public void onFailure(Exception e) {
+                        final Throwable cause = unwrapCause(e);
+                        if (cause instanceof VersionConflictEngineException) {
                             if (retryCount < request.retryOnConflict()) {
                                 threadPool.executor(executor()).execute(new ActionRunnable<UpdateResponse>(listener) {
                                     @Override
@@ -241,7 +245,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                                 return;
                             }
                         }
-                        listener.onFailure(e);
+                        listener.onFailure(cause instanceof Exception ? (Exception) cause : new NotSerializableExceptionWrapper(cause));
                     }
                 });
                 break;
@@ -258,9 +262,9 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
-                        e = ExceptionsHelper.unwrapCause(e);
-                        if (e instanceof VersionConflictEngineException) {
+                    public void onFailure(Exception e) {
+                        final Throwable cause = unwrapCause(e);
+                        if (cause instanceof VersionConflictEngineException) {
                             if (retryCount < request.retryOnConflict()) {
                                 threadPool.executor(executor()).execute(new ActionRunnable<UpdateResponse>(listener) {
                                     @Override
@@ -271,7 +275,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                                 return;
                             }
                         }
-                        listener.onFailure(e);
+                        listener.onFailure(cause instanceof Exception ? (Exception) cause : new NotSerializableExceptionWrapper(cause));
                     }
                 });
                 break;

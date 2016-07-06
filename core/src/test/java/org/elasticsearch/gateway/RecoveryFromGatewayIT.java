@@ -565,7 +565,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         TransportNodesListGatewayStartedShards.NodesGatewayStartedShards response;
         response = internalCluster().getInstance(TransportNodesListGatewayStartedShards.class)
-            .execute(new TransportNodesListGatewayStartedShards.Request(shardId, new String[]{node.getId()}))
+            .execute(new TransportNodesListGatewayStartedShards.Request(shardId, new DiscoveryNode[]{node}))
             .get();
 
         assertThat(response.getNodes(), hasSize(1));

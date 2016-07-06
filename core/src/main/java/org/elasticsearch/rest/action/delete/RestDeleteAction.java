@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.delete;
 
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
@@ -40,13 +40,13 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public class RestDeleteAction extends BaseRestHandler {
 
     @Inject
-    public RestDeleteAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestDeleteAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(DELETE, "/{index}/{type}/{id}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         DeleteRequest deleteRequest = new DeleteRequest(request.param("index"), request.param("type"), request.param("id"));
         deleteRequest.routing(request.param("routing"));
         deleteRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing

@@ -49,11 +49,11 @@ public class ReplicationOperation<
             ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
             PrimaryResultT extends ReplicationOperation.PrimaryResult<ReplicaRequest>
         > {
-    final private ESLogger logger;
-    final private Request request;
-    final private Supplier<ClusterState> clusterStateSupplier;
-    final private String opType;
-    final private AtomicInteger totalShards = new AtomicInteger();
+    private final ESLogger logger;
+    private final Request request;
+    private final Supplier<ClusterState> clusterStateSupplier;
+    private final String opType;
+    private final AtomicInteger totalShards = new AtomicInteger();
     /**
      * The number of pending sub-operations in this operation. This is incremented when the following operations start and decremented when
      * they complete:
@@ -64,14 +64,14 @@ public class ReplicationOperation<
      * operations and the primary finishes.</li>
      * </ul>
      */
-    final private AtomicInteger pendingShards = new AtomicInteger();
-    final private AtomicInteger successfulShards = new AtomicInteger();
-    final private boolean executeOnReplicas;
-    final private boolean checkWriteConsistency;
-    final private Primary<Request, ReplicaRequest, PrimaryResultT> primary;
-    final private Replicas<ReplicaRequest> replicasProxy;
-    final private AtomicBoolean finished = new AtomicBoolean();
-    final protected ActionListener<PrimaryResultT> resultListener;
+    private final AtomicInteger pendingShards = new AtomicInteger();
+    private final AtomicInteger successfulShards = new AtomicInteger();
+    private final boolean executeOnReplicas;
+    private final boolean checkWriteConsistency;
+    private final Primary<Request, ReplicaRequest, PrimaryResultT> primary;
+    private final Replicas<ReplicaRequest> replicasProxy;
+    private final AtomicBoolean finished = new AtomicBoolean();
+    protected final ActionListener<PrimaryResultT> resultListener;
 
     private volatile PrimaryResultT primaryResult = null;
 
@@ -160,7 +160,7 @@ public class ReplicationOperation<
             }
 
             @Override
-            public void onFailure(Throwable replicaException) {
+            public void onFailure(Exception replicaException) {
                 logger.trace("[{}] failure while performing [{}] on replica {}, request [{}]", replicaException, shard.shardId(), opType,
                     shard, replicaRequest);
                 if (ignoreReplicaException(replicaException)) {
@@ -181,7 +181,7 @@ public class ReplicationOperation<
         });
     }
 
-    private void onPrimaryDemoted(Throwable demotionFailure) {
+    private void onPrimaryDemoted(Exception demotionFailure) {
         String primaryFail = String.format(Locale.ROOT,
             "primary shard [%s] was demoted while failing replica shard",
             primary.routingEntry());
@@ -267,9 +267,9 @@ public class ReplicationOperation<
         }
     }
 
-    private void finishAsFailed(Throwable throwable) {
+    private void finishAsFailed(Exception exception) {
         if (finished.compareAndSet(false, true)) {
-            resultListener.onFailure(throwable);
+            resultListener.onFailure(exception);
         }
     }
 
@@ -277,7 +277,7 @@ public class ReplicationOperation<
     /**
      * Should an exception be ignored when the operation is performed on the replica.
      */
-    public static boolean ignoreReplicaException(Throwable e) {
+    public static boolean ignoreReplicaException(Exception e) {
         if (TransportActions.isShardNotAvailableException(e)) {
             return true;
         }
@@ -289,14 +289,11 @@ public class ReplicationOperation<
         return false;
     }
 
-    public static boolean isConflictException(Throwable e) {
-        Throwable cause = ExceptionsHelper.unwrapCause(e);
+    public static boolean isConflictException(Throwable t) {
+        final Throwable cause = ExceptionsHelper.unwrapCause(t);
         // on version conflict or document missing, it means
         // that a new change has crept into the replica, and it's fine
-        if (cause instanceof VersionConflictEngineException) {
-            return true;
-        }
-        return false;
+        return cause instanceof VersionConflictEngineException;
     }
 
 
@@ -314,7 +311,7 @@ public class ReplicationOperation<
         /**
          * fail the primary, typically due to the fact that the operation has learned the primary has been demoted by the master
          */
-        void failShard(String message, Throwable throwable);
+        void failShard(String message, Exception exception);
 
         /**
          * Performs the given request on this primary. Yes, this returns as soon as it can with the request for the replicas and calls a
@@ -354,20 +351,17 @@ public class ReplicationOperation<
 
         /**
          * Fail the specified shard, removing it from the current set of active shards
-         *
          * @param replica          shard to fail
          * @param primary          the primary shard that requested the failure
          * @param message          a (short) description of the reason
-         * @param throwable        the original exception which caused the ReplicationOperation to request the shard to be failed
+         * @param exception        the original exception which caused the ReplicationOperation to request the shard to be failed
          * @param onSuccess        a callback to call when the shard has been successfully removed from the active set.
          * @param onPrimaryDemoted a callback to call when the shard can not be failed because the current primary has been demoted
-         *                         by the master.
+*                         by the master.
          * @param onIgnoredFailure a callback to call when failing a shard has failed, but it that failure can be safely ignored and the
-         *                         replication operation can finish processing
-         *                         Note: this callback should be used in extreme situations, typically node shutdown.
          */
-        void failShard(ShardRouting replica, ShardRouting primary, String message, Throwable throwable, Runnable onSuccess,
-                       Consumer<Throwable> onPrimaryDemoted, Consumer<Throwable> onIgnoredFailure);
+        void failShard(ShardRouting replica, ShardRouting primary, String message, Exception exception, Runnable onSuccess,
+                       Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure);
     }
 
     /**

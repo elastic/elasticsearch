@@ -96,6 +96,8 @@ include::scripting/groovy.asciidoc[]
 
 include::scripting/painless.asciidoc[]
 
+include::scripting/painless-syntax.asciidoc[]
+
 include::scripting/expression.asciidoc[]
 
 include::scripting/native.asciidoc[]

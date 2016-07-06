@@ -19,14 +19,18 @@
 
 package org.elasticsearch.plugin.mapper;
 
+import java.util.Collections;
+import java.util.Map;
+
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.murmur3.Murmur3FieldMapper;
-import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 
-public class MapperMurmur3Plugin extends Plugin {
+public class MapperMurmur3Plugin extends Plugin implements MapperPlugin {
 
-    public void onModule(IndicesModule indicesModule) {
-        indicesModule.registerMapper(Murmur3FieldMapper.CONTENT_TYPE, new Murmur3FieldMapper.TypeParser());
+    @Override
+    public Map<String, Mapper.TypeParser> getMappers() {
+        return Collections.singletonMap(Murmur3FieldMapper.CONTENT_TYPE, new Murmur3FieldMapper.TypeParser());
     }
-
 }

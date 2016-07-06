@@ -56,8 +56,7 @@ public class JacksonLocationTests extends ESTestCase {
 
         gen.close();
 
-        byte[] data = os.bytes().toBytes();
-        JsonParser parser = new JsonFactory().createParser(data);
+        JsonParser parser = new JsonFactory().createParser(os.bytes().streamInput());
 
         assertThat(parser.nextToken(), equalTo(JsonToken.START_OBJECT));
         assertThat(parser.nextToken(), equalTo(JsonToken.FIELD_NAME)); // "index"

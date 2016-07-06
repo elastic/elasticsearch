@@ -23,8 +23,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
-import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -50,26 +48,8 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
         }
     };
 
-    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
-        @Override
-        public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
-            Bucket buckets = new Bucket(context.keyed());
-            buckets.readFrom(in);
-            return buckets;
-        }
-
-        @Override
-        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
-            BucketStreamContext context = new BucketStreamContext();
-            context.format(DocValueFormat.RAW);
-            context.keyed(bucket.keyed());
-            return context;
-        }
-    };
-
     public static void registerStream() {
         AggregationStreams.registerStream(STREAM, TYPE.stream());
-        BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 
     public static final Factory FACTORY = new Factory();

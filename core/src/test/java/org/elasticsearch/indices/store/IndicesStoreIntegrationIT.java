@@ -263,7 +263,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         assertThat(waitForShardDeletion(node_3, index, 0), equalTo(false));
 
         Path server2Shard = shardDirectory(node_2, index, 0);
-        logger.info("--> stopping node " + node_2);
+        logger.info("--> stopping node {}", node_2);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_2));
 
         logger.info("--> running cluster_health");
@@ -426,7 +426,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
+            public void onFailure(String source, Exception e) {
             }
         });
         waitNoPendingTasksOnAll();

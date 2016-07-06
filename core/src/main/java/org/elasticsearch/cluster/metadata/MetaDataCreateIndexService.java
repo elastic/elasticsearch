@@ -97,7 +97,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_C
  */
 public class MetaDataCreateIndexService extends AbstractComponent {
 
-    public final static int MAX_INDEX_NAME_BYTES = 255;
+    public static final int MAX_INDEX_NAME_BYTES = 255;
     private static final DefaultIndexTemplateFilter DEFAULT_INDEX_TEMPLATE_FILTER = new DefaultIndexTemplateFilter();
 
     private final ClusterService clusterService;

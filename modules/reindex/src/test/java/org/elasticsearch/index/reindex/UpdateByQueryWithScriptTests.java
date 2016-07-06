@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.Date;
@@ -48,7 +49,7 @@ public class UpdateByQueryWithScriptTests
 
     @Override
     protected UpdateByQueryRequest request() {
-        return new UpdateByQueryRequest();
+        return new UpdateByQueryRequest(new SearchRequest());
     }
 
     @Override

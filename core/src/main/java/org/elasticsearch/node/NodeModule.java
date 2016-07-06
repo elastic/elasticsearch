@@ -62,7 +62,7 @@ public class NodeModule extends AbstractModule {
     /**
      * Adds a processor factory under a specific type name.
      */
-    public void registerProcessor(String type, Function<ProcessorsRegistry, Processor.Factory<?>> provider) {
+    public void registerProcessor(String type, Function<ProcessorsRegistry, Processor.Factory> provider) {
         processorsRegistryBuilder.registerProcessor(type, provider);
     }
 }

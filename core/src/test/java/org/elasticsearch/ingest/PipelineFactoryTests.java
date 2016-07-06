@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -40,7 +41,7 @@ public class PipelineFactoryTests extends ESTestCase {
     public void testCreate() throws Exception {
         Map<String, Object> processorConfig0 = new HashMap<>();
         Map<String, Object> processorConfig1 = new HashMap<>();
-        processorConfig0.put(AbstractProcessorFactory.TAG_KEY, "first-processor");
+        processorConfig0.put(ConfigurationUtils.TAG_KEY, "first-processor");
         Map<String, Object> pipelineConfig = new HashMap<>();
         pipelineConfig.put(Pipeline.DESCRIPTION_KEY, "_description");
         pipelineConfig.put(Pipeline.PROCESSORS_KEY,
@@ -67,6 +68,17 @@ public class PipelineFactoryTests extends ESTestCase {
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[processors] required property is missing"));
         }
+    }
+
+    public void testCreateWithEmptyProcessorsField() throws Exception {
+        Map<String, Object> pipelineConfig = new HashMap<>();
+        pipelineConfig.put(Pipeline.DESCRIPTION_KEY, "_description");
+        pipelineConfig.put(Pipeline.PROCESSORS_KEY, Collections.emptyList());
+        Pipeline.Factory factory = new Pipeline.Factory();
+        Pipeline pipeline = factory.create("_id", pipelineConfig, null);
+        assertThat(pipeline.getId(), equalTo("_id"));
+        assertThat(pipeline.getDescription(), equalTo("_description"));
+        assertThat(pipeline.getProcessors(), is(empty()));
     }
 
     public void testCreateWithPipelineOnFailure() throws Exception {

@@ -43,9 +43,9 @@ import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resol
 
 public class CumulativeSumPipelineAggregator extends PipelineAggregator {
 
-    public final static Type TYPE = new Type("cumulative_sum");
+    public static final Type TYPE = new Type("cumulative_sum");
 
-    public final static PipelineAggregatorStreams.Stream STREAM = in -> {
+    public static final PipelineAggregatorStreams.Stream STREAM = in -> {
         CumulativeSumPipelineAggregator result = new CumulativeSumPipelineAggregator();
         result.readFrom(in);
         return result;

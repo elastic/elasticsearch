@@ -1,0 +1,41 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.elasticsearch.gradle.precommit.PrecommitTasks
+
+dependencies {
+  compile 'org.ow2.asm:asm-debug-all:6.0_ALPHA' // use asm-debug-all because WE LIKE LINE NUMBERS!
+  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testCompile "junit:junit:${versions.junit}"
+  testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}" // hamcrest is evil, but randomized runner no worky without
+}
+
+// some things are disabled as they only work if you have es/lucene
+loggerUsageCheck.enabled = false
+namingConventions.enabled = false
+
+// dies on asm Frame with some java 8 versions, not my problem
+javadoc.enabled = false
+
+forbiddenApisMain {
+  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')] // does not depend on core, only jdk signatures
+}
+forbiddenApisTest {
+  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')] // does not depend on core, only jdk signatures
+}

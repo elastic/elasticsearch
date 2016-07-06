@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.common.SwallowsExceptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -157,7 +158,7 @@ public class SnapshotStatus implements ToXContent, Streamable {
         return snapshotInfo;
     }
 
-    @Override
+    @Override @SwallowsExceptions(reason = "?")
     public String toString() {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();

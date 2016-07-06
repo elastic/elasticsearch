@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.SwallowsExceptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -113,7 +114,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         out.writeBytesReference(script);
     }
 
-    @Override
+    @Override @SwallowsExceptions(reason = "?")
     public String toString() {
         String sSource = "_na_";
         try {

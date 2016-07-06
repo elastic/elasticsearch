@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.SwallowsExceptions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -372,7 +373,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     /**
      * Sets the settings and mappings as a single source.
      */
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings("unchecked") @SwallowsExceptions(reason = "?")
     public CreateIndexRequest source(Map<String, ?> source) {
         boolean found = false;
         for (Map.Entry<String, ?> entry : source.entrySet()) {

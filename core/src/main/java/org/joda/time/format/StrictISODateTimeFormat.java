@@ -1,5 +1,7 @@
 package org.joda.time.format;
 
+import org.elasticsearch.common.SwallowsExceptions;
+
 /*
  *  Copyright 2001-2009 Stephen Colebourne
  *
@@ -161,6 +163,7 @@ public class StrictISODateTimeFormat {
      * @throws IllegalArgumentException if there is no format for the fields
      * @since 1.1
      */
+    @SwallowsExceptions(reason = "?")
     public static DateTimeFormatter forFields(
             Collection<DateTimeFieldType> fields,
             boolean extended,

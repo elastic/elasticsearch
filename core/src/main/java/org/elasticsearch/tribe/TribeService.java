@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SwallowsExceptions;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.hash.MurmurHash3;
@@ -287,7 +288,7 @@ public class TribeService extends AbstractLifecycleComponent {
         doClose();
     }
 
-    @Override
+    @Override @SwallowsExceptions(reason = "?")
     protected void doClose() {
         for (Node node : nodes) {
             try {
@@ -338,7 +339,7 @@ public class TribeService extends AbstractLifecycleComponent {
             return tasks.stream().map(ClusterChangedEvent::source).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
         }
 
-        @Override
+        @Override @SwallowsExceptions(reason = "?")
         public BatchResult<ClusterChangedEvent> execute(ClusterState currentState, List<ClusterChangedEvent> tasks) throws Exception {
             ClusterState accumulator = ClusterState.builder(currentState).build();
             BatchResult.Builder<ClusterChangedEvent> builder = BatchResult.builder();

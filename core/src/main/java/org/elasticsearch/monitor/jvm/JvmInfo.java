@@ -20,6 +20,7 @@
 package org.elasticsearch.monitor.jvm;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SwallowsExceptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -44,6 +45,7 @@ import java.util.Map;
 /**
  *
  */
+@SwallowsExceptions(reason = "?")
 public class JvmInfo implements Streamable, ToXContent {
 
     private static JvmInfo INSTANCE;

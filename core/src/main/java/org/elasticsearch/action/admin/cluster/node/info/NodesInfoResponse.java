@@ -23,6 +23,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.SwallowsExceptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -125,7 +126,7 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
         return builder;
     }
 
-    @Override
+    @Override @SwallowsExceptions(reason = "?")
     public String toString() {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();

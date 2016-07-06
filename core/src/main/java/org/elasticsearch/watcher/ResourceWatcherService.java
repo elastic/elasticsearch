@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.watcher;
 
+import org.elasticsearch.common.SwallowsExceptions;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
@@ -190,7 +191,7 @@ public class ResourceWatcherService extends AbstractLifecycleComponent {
             return new WatcherHandle<>(this, watcher);
         }
 
-        @Override
+        @Override @SwallowsExceptions(reason = "?")
         public synchronized void run() {
             for(ResourceWatcher watcher : watchers) {
                 try {

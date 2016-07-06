@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.SwallowsExceptions;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -203,7 +204,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                 request.getTaskId().toString());
         get.setParentTask(clusterService.localNode().getId(), thisTask.getId());
         client.get(get, new ActionListener<GetResponse>() {
-            @Override
+            @Override @SwallowsExceptions(reason = "?")
             public void onResponse(GetResponse getResponse) {
                 try {
                     onGetFinishedTaskFromIndex(getResponse, listener);

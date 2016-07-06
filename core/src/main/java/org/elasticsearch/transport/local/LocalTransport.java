@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.SwallowsExceptions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -248,6 +249,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
         return circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
     }
 
+    @SwallowsExceptions(reason = "?")
     protected void messageReceived(byte[] data, String action, LocalTransport sourceTransport, Version version,
             @Nullable final Long sendRequestId) {
         Transports.assertTransportThread();
@@ -292,6 +294,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
         }
     }
 
+    @SwallowsExceptions(reason = "?")
     private void handleRequest(StreamInput stream, long requestId, int messageLengthBytes, LocalTransport sourceTransport,
                                Version version) throws Exception {
         stream = new NamedWriteableAwareStreamInput(stream, namedWriteableRegistry);
@@ -328,7 +331,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
                         return reg.isForceExecution();
                     }
 
-                    @Override
+                    @Override @SwallowsExceptions(reason = "?")
                     public void onFailure(Exception e) {
                         if (lifecycleState() == Lifecycle.State.STARTED) {
                             // we can only send a response transport is started....
@@ -353,6 +356,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
         }
     }
 
+    @SwallowsExceptions(reason = "?")
     protected void handleResponse(StreamInput buffer, LocalTransport sourceTransport, final TransportResponseHandler handler) {
         buffer = new NamedWriteableAwareStreamInput(buffer, namedWriteableRegistry);
         final TransportResponse response = handler.newInstance();
@@ -377,6 +381,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
         });
     }
 
+    @SwallowsExceptions(reason = "?")
     private void handleResponseError(StreamInput buffer, final TransportResponseHandler handler) {
         Exception exception;
         try {
@@ -387,6 +392,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
         handleException(handler, exception);
     }
 
+    @SwallowsExceptions(reason = "?")
     private void handleException(final TransportResponseHandler handler, Exception exception) {
         if (!(exception instanceof RemoteTransportException)) {
             exception = new RemoteTransportException("None remote transport exception", null, null, exception);

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.netty;
 
+import org.elasticsearch.common.SwallowsExceptions;
 import org.elasticsearch.transport.TcpHeader;
 import org.elasticsearch.transport.TcpTransport;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -31,7 +32,7 @@ import org.jboss.netty.handler.codec.frame.TooLongFrameException;
  */
 final class SizeHeaderFrameDecoder extends FrameDecoder {
 
-    @Override
+    @Override @SwallowsExceptions(reason = "?")
     protected Object decode(ChannelHandlerContext ctx, Channel channel, ChannelBuffer buffer) throws Exception {
         try {
             boolean continueProcessing = TcpTransport.validateMessageHeader(NettyUtils.toBytesReference(buffer));

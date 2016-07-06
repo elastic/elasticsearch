@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.watcher;
 
+import org.elasticsearch.common.SwallowsExceptions;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -51,6 +52,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
     /**
      * Clears any state with the FileWatcher, making all files show up as new
      */
+    @SwallowsExceptions(reason = "?")
     public void clearState() {
         rootFileObserver = new FileObserver(file);
         try {
@@ -249,6 +251,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
             }
         }
 
+        @SwallowsExceptions(reason = "?")
         private void onFileCreated(boolean initial) {
             for (FileChangesListener listener : listeners()) {
                 try {
@@ -263,6 +266,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
             }
         }
 
+        @SwallowsExceptions(reason = "?")
         private void onFileDeleted() {
             for (FileChangesListener listener : listeners()) {
                 try {
@@ -273,6 +277,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
             }
         }
 
+        @SwallowsExceptions(reason = "?")
         private void onFileChanged() {
             for (FileChangesListener listener : listeners()) {
                 try {
@@ -284,6 +289,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
             }
         }
 
+        @SwallowsExceptions(reason = "?")
         private void onDirectoryCreated(boolean initial) throws IOException {
             for (FileChangesListener listener : listeners()) {
                 try {
@@ -299,6 +305,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
             children = listChildren(initial);
         }
 
+        @SwallowsExceptions(reason = "?")
         private void onDirectoryDeleted() {
             // First delete all children
             for (int child = 0; child < children.length; child++) {

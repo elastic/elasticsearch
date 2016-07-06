@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SwallowsExceptions;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -119,7 +120,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             TransportNodesSnapshotsStatus.Request nodesRequest = new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(new String[nodesIds.size()]))
                     .snapshots(snapshots).timeout(request.masterNodeTimeout());
             transportNodesSnapshotsStatus.execute(nodesRequest, new ActionListener<TransportNodesSnapshotsStatus.NodesSnapshotStatus>() {
-                        @Override
+                        @Override @SwallowsExceptions(reason = "?")
                         public void onResponse(TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) {
                             try {
                                 List<SnapshotsInProgress.Entry> currentSnapshots =

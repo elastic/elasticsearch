@@ -18,6 +18,7 @@ List projects = [
   'test:fixtures:example-fixture',
   'test:fixtures:hdfs-fixture',
   'test:logger-usage',
+  'test:tools:catch-analyzer',
   'modules:aggs-matrix-stats',
   'modules:ingest-common',
   'modules:lang-expression',

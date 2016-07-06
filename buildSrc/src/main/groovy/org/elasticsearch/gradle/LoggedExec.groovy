@@ -29,6 +29,10 @@ class LoggedExec extends Exec {
 
     protected ByteArrayOutputStream output = new ByteArrayOutputStream()
 
+    // the failure message to add to a gradle exception the the exec fails
+    // or null to use the default
+    protected String failureMessage
+
     LoggedExec() {
         if (logger.isInfoEnabled() == false) {
             standardOutput = output
@@ -37,7 +41,11 @@ class LoggedExec extends Exec {
             doLast {
                 if (execResult.exitValue != 0) {
                     output.toString('UTF-8').eachLine { line -> logger.error(line) }
-                    throw new GradleException("Process '${executable} ${args.join(' ')}' finished with non-zero exit value ${execResult.exitValue}")
+                    String msg = failureMessage
+                    if (msg == null) {
+                        msg = "Process '${executable} ${args.join(' ')}' finished with non-zero exit value ${execResult.exitValue}"
+                    }
+                    throw new GradleException(msg)
                 }
             }
         }

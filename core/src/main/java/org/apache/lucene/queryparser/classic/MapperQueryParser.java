@@ -36,6 +36,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.SwallowsExceptions;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -176,6 +177,7 @@ public class MapperQueryParser extends QueryParser {
         }
     }
 
+    @SwallowsExceptions(reason = "?")
     private Query getFieldQuerySingle(String field, String queryText, boolean quoted) throws ParseException {
         if (!quoted && queryText.length() > 1) {
             if (queryText.charAt(0) == '>') {
@@ -326,6 +328,7 @@ public class MapperQueryParser extends QueryParser {
         }
     }
 
+    @SwallowsExceptions(reason = "?")
     private Query getRangeQuerySingle(String field, String part1, String part2,
                                       boolean startInclusive, boolean endInclusive) {
         currentFieldType = context.fieldMapper(field);
@@ -395,6 +398,7 @@ public class MapperQueryParser extends QueryParser {
         }
     }
 
+    @SwallowsExceptions(reason = "?")
     private Query getFuzzyQuerySingle(String field, String termStr, String minSimilarity) throws ParseException {
         currentFieldType = context.fieldMapper(field);
         if (currentFieldType != null) {
@@ -461,6 +465,7 @@ public class MapperQueryParser extends QueryParser {
         }
     }
 
+    @SwallowsExceptions(reason = "?")
     private Query getPrefixQuerySingle(String field, String termStr) throws ParseException {
         currentFieldType = null;
         Analyzer oldAnalyzer = getAnalyzer();
@@ -490,6 +495,7 @@ public class MapperQueryParser extends QueryParser {
         }
     }
 
+    @SwallowsExceptions(reason = "?")
     private Query getPossiblyAnalyzedPrefixQuery(String field, String termStr) throws ParseException {
         if (!settings.analyzeWildcard()) {
             return super.getPrefixQuery(field, termStr);
@@ -628,6 +634,7 @@ public class MapperQueryParser extends QueryParser {
         }
     }
 
+    @SwallowsExceptions(reason = "?")
     private Query getWildcardQuerySingle(String field, String termStr) throws ParseException {
         String indexedNameField = field;
         currentFieldType = null;
@@ -652,6 +659,7 @@ public class MapperQueryParser extends QueryParser {
         }
     }
 
+    @SwallowsExceptions(reason = "?")
     private Query getPossiblyAnalyzedWildcardQuery(String field, String termStr) throws ParseException {
         if (!settings.analyzeWildcard()) {
             return super.getWildcardQuery(field, termStr);
@@ -756,6 +764,7 @@ public class MapperQueryParser extends QueryParser {
         }
     }
 
+    @SwallowsExceptions(reason = "?")
     private Query getRegexpQuerySingle(String field, String termStr) throws ParseException {
         currentFieldType = null;
         Analyzer oldAnalyzer = getAnalyzer();

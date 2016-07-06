@@ -19,6 +19,7 @@
 
 package org.elasticsearch.monitor.jvm;
 
+import org.elasticsearch.common.SwallowsExceptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -60,6 +61,7 @@ public class JvmStats implements Streamable, ToXContent {
         classLoadingMXBean = ManagementFactory.getClassLoadingMXBean();
     }
 
+    @SwallowsExceptions(reason = "?")
     public static JvmStats jvmStats() {
         JvmStats stats = new JvmStats(System.currentTimeMillis(), runtimeMXBean.getUptime());
         stats.mem = new Mem();

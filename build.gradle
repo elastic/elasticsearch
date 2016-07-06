@@ -173,6 +173,7 @@ subprojects {
     "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:rpm',
     "org.elasticsearch.distribution.deb:elasticsearch:${version}": ':distribution:deb',
     "org.elasticsearch.test:logger-usage:${version}": ':test:logger-usage',
+    "org.elasticsearch.test.tools:catch-analyzer:${version}": ':test:tools:catch-analyzer',
   ]
   configurations.all {
     resolutionStrategy.dependencySubstitution { DependencySubstitutions subs ->

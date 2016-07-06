@@ -19,6 +19,7 @@
 
 package org.elasticsearch.monitor.fs;
 
+import org.elasticsearch.common.SwallowsExceptions;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Setting;
@@ -55,6 +56,7 @@ public class FsService extends AbstractComponent {
         return cache.getOrRefresh();
     }
 
+    @SwallowsExceptions(reason = "?")
     private static FsInfo stats(FsProbe probe, FsInfo initialValue, ESLogger logger) {
         try {
             return probe.stats(initialValue);

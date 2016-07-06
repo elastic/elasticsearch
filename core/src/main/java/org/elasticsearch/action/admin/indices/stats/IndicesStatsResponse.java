@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.stats;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.SwallowsExceptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -211,7 +212,7 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
         static final String SHARDS = "shards";
     }
 
-    @Override
+    @Override @SwallowsExceptions(reason = "?")
     public String toString() {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();

@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SwallowsExceptions;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -198,6 +199,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         return response;
     }
 
+    @SwallowsExceptions(reason = "?")
     private boolean prepareResponse(final ClusterHealthRequest request, final ClusterHealthResponse response, ClusterState clusterState, final int waitFor) {
         int waitForCounter = 0;
         if (request.waitForStatus() != null && response.getStatus().value() <= request.waitForStatus().value()) {
@@ -269,7 +271,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         return waitForCounter == waitFor;
     }
 
-
+    @SwallowsExceptions(reason = "?")
     private ClusterHealthResponse clusterHealth(ClusterHealthRequest request, ClusterState clusterState, int numberOfPendingTasks, int numberOfInFlightFetch,
                                                 TimeValue pendingTaskTimeInQueue) {
         if (logger.isTraceEnabled()) {

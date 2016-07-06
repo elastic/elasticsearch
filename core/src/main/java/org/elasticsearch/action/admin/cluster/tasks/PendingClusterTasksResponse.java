@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.tasks;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.service.PendingClusterTask;
+import org.elasticsearch.common.SwallowsExceptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -70,7 +71,7 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
         return sb.toString();
     }
 
-    @Override
+    @Override @SwallowsExceptions(reason = "?")
     public String toString() {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();

@@ -22,6 +22,7 @@ package org.elasticsearch.transport.netty;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.SwallowsExceptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -497,7 +498,7 @@ public class NettyTransport extends TcpTransport<Channel> {
         }
     }
 
-    @Override
+    @Override @SwallowsExceptions(reason = "?")
     protected void closeChannels(List<Channel> channels) {
         List<ChannelFuture> futures = new ArrayList<>();
 
@@ -534,7 +535,7 @@ public class NettyTransport extends TcpTransport<Channel> {
         return channel.isOpen();
     }
 
-    @Override
+    @Override @SwallowsExceptions(reason = "?")
     protected void stopInternal() {
         Releasables.close(serverOpenChannels, () ->{
             for (Map.Entry<String, ServerBootstrap> entry : serverBootstraps.entrySet()) {

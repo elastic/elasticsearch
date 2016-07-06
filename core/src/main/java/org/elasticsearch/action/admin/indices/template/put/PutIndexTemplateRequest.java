@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.SwallowsExceptions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -269,7 +270,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     /**
      * The template source definition.
      */
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings("unchecked") @SwallowsExceptions(reason = "?")
     public PutIndexTemplateRequest source(Map templateSource) {
         Map<String, Object> source = templateSource;
         for (Map.Entry<String, Object> entry : source.entrySet()) {

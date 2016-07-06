@@ -29,7 +29,7 @@ public final class SearchRequestEquivalence {
     private SearchRequestEquivalence() {
     }
 
-    public final boolean equivalent(@Nullable SearchRequest a, @Nullable SearchRequest b) {
+    public boolean equivalent(@Nullable SearchRequest a, @Nullable SearchRequest b) {
         return a == b ? true : (a != null && b != null ? this.doEquivalent(a, b) : false);
     }
 
@@ -42,8 +42,8 @@ public final class SearchRequestEquivalence {
             r2.writeTo(output1);
             byte[] bytes2 = BytesReference.toBytes(output1.bytes());
             return Arrays.equals(bytes1, bytes2);
-        } catch (Throwable t) {
-            throw illegalState("could not compare search requests", t);
+        } catch (Exception e) {
+            throw illegalState("could not compare search requests", e);
         }
     }
 }

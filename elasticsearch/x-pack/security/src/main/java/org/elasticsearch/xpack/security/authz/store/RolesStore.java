@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.elasticsearch.xpack.security.authz.permission.Role;
 
+import java.util.Map;
+
 /**
  * An interface for looking up a role given a string role name
  */
@@ -14,4 +16,5 @@ public interface RolesStore {
 
     Role role(String role);
 
+    Map<String, Object> usageStats();
 }

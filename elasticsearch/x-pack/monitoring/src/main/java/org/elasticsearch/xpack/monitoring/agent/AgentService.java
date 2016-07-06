@@ -204,8 +204,8 @@ public class AgentService extends AbstractLifecycleComponent {
                 } catch (InterruptedException e) {
                     logger.trace("interrupted");
                     Thread.currentThread().interrupt();
-                } catch (Throwable t) {
-                    logger.error("background thread had an uncaught exception", t);
+                } catch (Exception e) {
+                    logger.error("background thread had an uncaught exception", e);
                 }
             }
             logger.debug("worker shutdown");

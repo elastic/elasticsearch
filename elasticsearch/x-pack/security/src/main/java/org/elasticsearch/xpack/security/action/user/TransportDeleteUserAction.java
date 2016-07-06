@@ -54,7 +54,7 @@ public class TransportDeleteUserAction extends HandledTransportAction<DeleteUser
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
         });

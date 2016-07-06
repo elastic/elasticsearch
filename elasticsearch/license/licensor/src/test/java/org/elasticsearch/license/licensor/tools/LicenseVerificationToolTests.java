@@ -12,7 +12,7 @@ import java.nio.file.Path;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.UserError;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.licensor.TestUtils;
@@ -36,7 +36,7 @@ public class LicenseVerificationToolTests extends CommandTestCase {
 
     public void testMissingKeyPath() throws Exception {
         Path pub = createTempDir().resolve("pub");
-        UserError e = expectThrows(UserError.class, () -> {
+        UserException e = expectThrows(UserException.class, () -> {
             execute("--publicKeyPath", pub.toString());
         });
         assertTrue(e.getMessage(), e.getMessage().contains("pub does not exist"));
@@ -44,7 +44,7 @@ public class LicenseVerificationToolTests extends CommandTestCase {
     }
 
     public void testMissingLicenseSpec() throws Exception {
-        UserError e = expectThrows(UserError.class, () -> {
+        UserException e = expectThrows(UserException.class, () -> {
             execute("--publicKeyPath", pubKeyPath.toString());
         });
         assertTrue(e.getMessage(), e.getMessage().contains("Must specify either --license or --licenseFile"));
@@ -56,7 +56,7 @@ public class LicenseVerificationToolTests extends CommandTestCase {
         License tamperedLicense = License.builder()
             .fromLicenseSpec(signedLicense, signedLicense.signature())
             .expiryDate(signedLicense.expiryDate() + randomIntBetween(1, 1000)).build();
-        UserError e = expectThrows(UserError.class, () -> {
+        UserException e = expectThrows(UserException.class, () -> {
             execute("--publicKeyPath", pubKeyPath.toString(),
                     "--license", TestUtils.dumpLicense(tamperedLicense));
         });

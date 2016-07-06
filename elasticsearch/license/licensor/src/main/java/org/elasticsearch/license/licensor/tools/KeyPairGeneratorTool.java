@@ -10,7 +10,7 @@ import joptsimple.OptionSpec;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.UserError;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 
@@ -54,9 +54,9 @@ public class KeyPairGeneratorTool extends Command {
         Path publicKeyPath = parsePath(publicKeyPathOption.value(options));
         Path privateKeyPath = parsePath(privateKeyPathOption.value(options));
         if (Files.exists(privateKeyPath)) {
-            throw new UserError(ExitCodes.USAGE, privateKeyPath + " already exists");
+            throw new UserException(ExitCodes.USAGE, privateKeyPath + " already exists");
         } else if (Files.exists(publicKeyPath)) {
-            throw new UserError(ExitCodes.USAGE, publicKeyPath + " already exists");
+            throw new UserException(ExitCodes.USAGE, publicKeyPath + " already exists");
         }
 
         SecureRandom random = new SecureRandom();

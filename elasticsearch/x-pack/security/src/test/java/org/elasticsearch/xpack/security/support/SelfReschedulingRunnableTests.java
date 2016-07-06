@@ -55,7 +55,7 @@ public class SelfReschedulingRunnableTests extends ESTestCase {
         final ThreadPool threadPool = mock(ThreadPool.class);
         final AbstractRunnable runnable = new AbstractRunnable() {
             @Override
-            public void onFailure(Throwable throwable) {
+            public void onFailure(Exception throwable) {
             }
 
             @Override
@@ -88,7 +88,7 @@ public class SelfReschedulingRunnableTests extends ESTestCase {
         final CountDownLatch pauseLatch = new CountDownLatch(1);
         final AbstractRunnable runnable = new AbstractRunnable() {
             @Override
-            public void onFailure(Throwable throwable) {
+            public void onFailure(Exception throwable) {
             }
 
             @Override
@@ -195,7 +195,7 @@ public class SelfReschedulingRunnableTests extends ESTestCase {
         final AtomicInteger runCounter = new AtomicInteger(0);
         final AbstractRunnable runnable = new AbstractRunnable() {
             @Override
-            public void onFailure(Throwable throwable) {
+            public void onFailure(Exception throwable) {
                 failureCounter.incrementAndGet();
             }
 
@@ -238,7 +238,7 @@ public class SelfReschedulingRunnableTests extends ESTestCase {
         final CountDownLatch stopCalledLatch = new CountDownLatch(1);
         final AbstractRunnable runnable = new AbstractRunnable() {
             @Override
-            public void onFailure(Throwable throwable) {
+            public void onFailure(Exception throwable) {
                 throw new IllegalStateException("we should never be in this method!");
             }
 

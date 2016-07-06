@@ -296,9 +296,9 @@ public class ExportersTests extends ESTestCase {
             logger.debug("--> exporting thread [{}] exports {} documents", threadNum, threadDocs);
             threads[i] = new Thread(new AbstractRunnable() {
                 @Override
-                public void onFailure(Throwable t) {
-                    logger.error("unexpected error in exporting thread", t);
-                    exceptions.add(t);
+                public void onFailure(Exception e) {
+                    logger.error("unexpected error in exporting thread", e);
+                    exceptions.add(e);
                 }
 
                 @Override

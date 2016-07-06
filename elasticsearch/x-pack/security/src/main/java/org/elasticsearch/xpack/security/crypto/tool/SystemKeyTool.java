@@ -7,12 +7,10 @@ package org.elasticsearch.xpack.security.crypto.tool;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import joptsimple.util.KeyValuePair;
-import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.SettingCommand;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.UserError;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -26,7 +24,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -65,7 +62,7 @@ public class SystemKeyTool extends SettingCommand {
         if (options.hasArgument(arguments)) {
             List<String> args = arguments.values(options);
             if (args.size() > 1) {
-                throw new UserError(ExitCodes.USAGE, "No more than one key path can be supplied");
+                throw new UserException(ExitCodes.USAGE, "No more than one key path can be supplied");
             }
             keyPath = parsePath(args.get(0));
         } else {

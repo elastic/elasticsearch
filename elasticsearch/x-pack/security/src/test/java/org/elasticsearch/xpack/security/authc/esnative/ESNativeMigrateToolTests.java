@@ -3,24 +3,16 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.securit.authc.esnative;
+package org.elasticsearch.xpack.security.authc.esnative;
 
 import com.google.common.base.Charsets;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
-import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
@@ -29,16 +21,10 @@ import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.transport.netty.SecurityNettyHttpServerTransport;
 import org.junit.BeforeClass;
 
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.arrayContaining;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Integration tests for the {@code ESNativeMigrateTool}

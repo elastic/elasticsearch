@@ -105,7 +105,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 error.set(e);
                 latch.countDown();
             }

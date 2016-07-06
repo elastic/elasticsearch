@@ -14,7 +14,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -59,7 +59,7 @@ public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<
         NodeStatsMonitoringDoc doc = new NodeStatsMonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2));
         doc.setClusterUUID(randomAsciiOfLength(5));
         doc.setTimestamp(Math.abs(randomLong()));
-        doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT));
+        doc.setSourceNode(new DiscoveryNode("id", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT));
         doc.setNodeMaster(randomBoolean());
         doc.setNodeId(UUID.randomUUID().toString());
         doc.setDiskThresholdDeciderEnabled(randomBoolean());
@@ -133,7 +133,7 @@ public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<
                 new ThreadPoolStats.Stats(ThreadPool.Names.SEARCH, 0, 0, 0, 0, 0, 0),
                 new ThreadPoolStats.Stats(InternalWatchExecutor.THREAD_POOL_NAME, 0, 0, 0, 0, 0, 0)
         );
-        return new NodeStats(new DiscoveryNode("node_0", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT), 0,
+        return new NodeStats(new DiscoveryNode("node_0", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT), 0,
                 new NodeIndicesStats(new CommonStats(), statsByShard), OsProbe.getInstance().osStats(),
                 ProcessProbe.getInstance().processStats(), JvmStats.jvmStats(),
                 new ThreadPoolStats(threadPoolStats),

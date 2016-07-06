@@ -37,9 +37,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.xpack.security.support.SecurityFiles.openAtomicMoveWriter;
 
-/**
- *
- */
 public class FileUserRolesStore {
 
     private static final Pattern USERS_DELIM = Pattern.compile("\\s*,\\s*");
@@ -103,8 +100,8 @@ public class FileUserRolesStore {
     static Map<String, String[]> parseFileLenient(Path path, ESLogger logger) {
         try {
             return parseFile(path, logger);
-        } catch (Throwable t) {
-            logger.error("failed to parse users_roles file [{}]. skipping/removing all entries...", t, path.toAbsolutePath());
+        } catch (Exception e) {
+            logger.error("failed to parse users_roles file [{}]. skipping/removing all entries...", e, path.toAbsolutePath());
             return emptyMap();
         }
     }

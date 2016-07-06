@@ -427,8 +427,8 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
             }
 
             @Override
-            public void onFailure(String source, @Nullable Throwable t) {
-                logger.error("unexpected failure during [{}]", t, source);
+            public void onFailure(String source, @Nullable Exception e) {
+                logger.error("unexpected failure during [{}]", e, source);
             }
 
         });

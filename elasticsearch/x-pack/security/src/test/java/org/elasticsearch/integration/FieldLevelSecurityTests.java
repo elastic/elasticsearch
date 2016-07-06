@@ -709,9 +709,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         SearchResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("test")
-                .addField("field1")
-                .addField("field2")
-                .addField("field3")
+                .addStoredField("field1")
+                .addStoredField("field2")
+                .addStoredField("field3")
                 .get();
         assertThat(response.getHits().getAt(0).fields().size(), equalTo(1));
         assertThat(response.getHits().getAt(0).fields().get("field1").<String>getValue(), equalTo("value1"));
@@ -719,9 +719,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // user2 is granted access to field2 only:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareSearch("test")
-                .addField("field1")
-                .addField("field2")
-                .addField("field3")
+                .addStoredField("field1")
+                .addStoredField("field2")
+                .addStoredField("field3")
                 .get();
         assertThat(response.getHits().getAt(0).fields().size(), equalTo(1));
         assertThat(response.getHits().getAt(0).fields().get("field2").<String>getValue(), equalTo("value2"));
@@ -729,9 +729,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // user3 is granted access to field1 and field2:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                 .prepareSearch("test")
-                .addField("field1")
-                .addField("field2")
-                .addField("field3")
+                .addStoredField("field1")
+                .addStoredField("field2")
+                .addStoredField("field3")
                 .get();
         assertThat(response.getHits().getAt(0).fields().size(), equalTo(2));
         assertThat(response.getHits().getAt(0).fields().get("field1").<String>getValue(), equalTo("value1"));
@@ -740,18 +740,18 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // user4 is granted access to no fields:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
                 .prepareSearch("test")
-                .addField("field1")
-                .addField("field2")
-                .addField("field3")
+                .addStoredField("field1")
+                .addStoredField("field2")
+                .addStoredField("field3")
                 .get();
         assertThat(response.getHits().getAt(0).fields().size(), equalTo(0));
 
         // user5 has no field level security configured:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
                 .prepareSearch("test")
-                .addField("field1")
-                .addField("field2")
-                .addField("field3")
+                .addStoredField("field1")
+                .addStoredField("field2")
+                .addStoredField("field3")
                 .get();
         assertThat(response.getHits().getAt(0).fields().size(), equalTo(3));
         assertThat(response.getHits().getAt(0).fields().get("field1").<String>getValue(), equalTo("value1"));
@@ -761,9 +761,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // user6 has field level security configured with access to field*:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
                 .prepareSearch("test")
-                .addField("field1")
-                .addField("field2")
-                .addField("field3")
+                .addStoredField("field1")
+                .addStoredField("field2")
+                .addStoredField("field3")
                 .get();
         assertThat(response.getHits().getAt(0).fields().size(), equalTo(3));
         assertThat(response.getHits().getAt(0).fields().get("field1").<String>getValue(), equalTo("value1"));
@@ -773,9 +773,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // user7 has access to all fields due to a mix of roles without field level security and with:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
                 .prepareSearch("test")
-                .addField("field1")
-                .addField("field2")
-                .addField("field3")
+                .addStoredField("field1")
+                .addStoredField("field2")
+                .addStoredField("field3")
                 .get();
         assertThat(response.getHits().getAt(0).fields().size(), equalTo(3));
         assertThat(response.getHits().getAt(0).fields().get("field1").<String>getValue(), equalTo("value1"));
@@ -785,9 +785,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         // user8 has field level security configured with access to field1 and field2:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user8", USERS_PASSWD)))
                 .prepareSearch("test")
-                .addField("field1")
-                .addField("field2")
-                .addField("field3")
+                .addStoredField("field1")
+                .addStoredField("field2")
+                .addStoredField("field3")
                 .get();
         assertThat(response.getHits().getAt(0).fields().size(), equalTo(2));
         assertThat(response.getHits().getAt(0).fields().get("field1").<String>getValue(), equalTo("value1"));

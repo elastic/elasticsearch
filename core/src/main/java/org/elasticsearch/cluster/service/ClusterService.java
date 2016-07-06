@@ -84,9 +84,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
-/**
- *
- */
 public class ClusterService extends AbstractLifecycleComponent {
 
     public static final Setting<TimeValue> CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING =
@@ -348,6 +345,8 @@ public class ClusterService extends AbstractLifecycleComponent {
      * @param source     the source of the cluster state update task
      * @param updateTask the full context for the cluster state update
      *                   task
+     *
+     * @throws DuplicateClusterStateUpdateTaskException if the submitted update task is already queued
      */
     public void submitStateUpdateTask(final String source, final ClusterStateUpdateTask updateTask) {
         submitStateUpdateTask(source, updateTask, updateTask, updateTask, updateTask);
@@ -371,6 +370,8 @@ public class ClusterService extends AbstractLifecycleComponent {
      * @param listener callback after the cluster state update task
      *                 completes
      * @param <T>      the type of the cluster state update task state
+     *
+     * @throws DuplicateClusterStateUpdateTaskException if the submitted update task is already queued
      */
     public <T> void submitStateUpdateTask(final String source, final T task,
                                           final ClusterStateTaskConfig config,
@@ -390,6 +391,8 @@ public class ClusterService extends AbstractLifecycleComponent {
      *                 that share the same executor will be executed
      *                 batches on this executor
      * @param <T>      the type of the cluster state update task state
+     *
+     * @throws DuplicateClusterStateUpdateTaskException if the submitted update task is already queued
      */
     public <T> void submitStateUpdateTasks(final String source,
                                            final Map<T, ClusterStateTaskListener> tasks, final ClusterStateTaskConfig config,
@@ -411,7 +414,9 @@ public class ClusterService extends AbstractLifecycleComponent {
                 List<UpdateTask> existingTasks = updateTasksPerExecutor.computeIfAbsent(executor, k -> new ArrayList<>());
                 for (@SuppressWarnings("unchecked") UpdateTask<T> existing : existingTasks) {
                     if (tasksIdentity.containsKey(existing.task)) {
-                        throw new IllegalArgumentException("task [" + existing.task + "] is already queued");
+                        throw new DuplicateClusterStateUpdateTaskException(
+                                "task [" + existing.task + "] with source [" + source + "] is already queued",
+                                existing.task);
                     }
                 }
                 existingTasks.addAll(updateTasks);

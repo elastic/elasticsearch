@@ -8,6 +8,7 @@ List projects = [
   'client:rest',
   'client:sniffer',
   'client:test',
+  'client:benchmark',
   'benchmarks',
   'distribution:integ-test-zip',
   'distribution:zip',

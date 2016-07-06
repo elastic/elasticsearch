@@ -160,10 +160,7 @@ public class NetworkModule extends AbstractModule {
         String defaultTransport = DiscoveryNode.isLocalNode(settings) ? LOCAL_TRANSPORT : NETTY_TRANSPORT;
         transportTypes.bindType(binder(), settings, TRANSPORT_TYPE_KEY, defaultTransport);
 
-        if (transportClient) {
-            bind(TransportProxyClient.class).asEagerSingleton();
-            bind(TransportClientNodesService.class).asEagerSingleton();
-        } else {
+        if (transportClient == false) {
             if (HTTP_ENABLED.get(settings)) {
                 bind(HttpServer.class).asEagerSingleton();
                 httpTransportTypes.bindType(binder(), settings, HTTP_TYPE_SETTING.getKey(), NETTY_TRANSPORT);

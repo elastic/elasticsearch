@@ -185,12 +185,7 @@ class InstallPluginCommand extends SettingCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
-        // TODO: in jopt-simple 5.0 we can enforce a min/max number of positional args
-        List<String> args = arguments.values(options);
-        if (args.size() != 1) {
-            throw new UserException(ExitCodes.USAGE, "Must supply a single plugin id argument");
-        }
-        String pluginId = args.get(0);
+        String pluginId = arguments.value(options);
         boolean isBatch = options.has(batchOption) || System.console() == null;
         execute(terminal, pluginId, isBatch, settings);
     }

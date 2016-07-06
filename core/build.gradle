@@ -59,7 +59,7 @@ dependencies {
   compile 'org.elasticsearch:securesm:1.0'
 
   // utilities
-  compile 'net.sf.jopt-simple:jopt-simple:4.9'
+  compile 'net.sf.jopt-simple:jopt-simple:5.0.2'
   compile 'com.carrotsearch:hppc:0.7.1'
 
   // time handling, remove with java 8 time

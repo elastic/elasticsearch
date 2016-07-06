@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.logging.Loggers;
@@ -24,13 +24,12 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.groovy.GroovyPlugin;
+import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Order;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.AbstractNumericTestCase;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesMethod;
@@ -42,6 +41,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
@@ -57,13 +57,11 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-/**
- *
- */
-public class HDRPercentilesTests extends AbstractNumericTestCase {
+public class HDRPercentilesIT extends AbstractNumericTestCase {
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GroovyPlugin.class);
+        return Collections.singleton(AggregationTestScriptsPlugin.class);
     }
 
     private static double[] randomPercentiles() {
@@ -83,7 +81,7 @@ public class HDRPercentilesTests extends AbstractNumericTestCase {
             }
         }
         Arrays.sort(percentiles);
-        Loggers.getLogger(HDRPercentilesTests.class).info("Using percentiles={}", Arrays.toString(percentiles));
+        Loggers.getLogger(HDRPercentilesIT.class).info("Using percentiles={}", Arrays.toString(percentiles));
         return percentiles;
     }
 
@@ -130,8 +128,8 @@ public class HDRPercentilesTests extends AbstractNumericTestCase {
                                         percentiles("percentiles").field("value")
                                                 .numberOfSignificantValueDigits(sigDigits)
                                                 .method(PercentilesMethod.HDR)
-                                                .percentiles(10,
-                                                15))).execute().actionGet();
+                                                .percentiles(10, 15)))
+                .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
@@ -210,7 +208,7 @@ public class HDRPercentilesTests extends AbstractNumericTestCase {
         Percentiles percentiles = global.getAggregations().get("percentiles");
         assertThat(percentiles, notNullValue());
         assertThat(percentiles.getName(), equalTo("percentiles"));
-        assertThat((Percentiles) global.getProperty("percentiles"), sameInstance(percentiles));
+        assertThat(global.getProperty("percentiles"), sameInstance(percentiles));
 
     }
 
@@ -240,8 +238,13 @@ public class HDRPercentilesTests extends AbstractNumericTestCase {
                 .prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        percentiles("percentiles").numberOfSignificantValueDigits(sigDigits).method(PercentilesMethod.HDR).field("value")
-                                .script(new Script("_value - 1")).percentiles(pcts)).execute().actionGet();
+                        percentiles("percentiles")
+                                .numberOfSignificantValueDigits(sigDigits)
+                                .method(PercentilesMethod.HDR)
+                                .field("value")
+                                .script(new Script("_value - 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                .percentiles(pcts))
+                .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -253,15 +256,20 @@ public class HDRPercentilesTests extends AbstractNumericTestCase {
     public void testSingleValuedFieldWithValueScriptWithParams() throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
+
         final double[] pcts = randomPercentiles();
         int sigDigits = randomSignificantDigits();
         SearchResponse searchResponse = client()
                 .prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        percentiles("percentiles").numberOfSignificantValueDigits(sigDigits).method(PercentilesMethod.HDR).field("value")
-                                .script(new Script("_value - dec", ScriptType.INLINE, null, params)).percentiles(pcts)).execute()
-                .actionGet();
+                        percentiles("percentiles")
+                                .numberOfSignificantValueDigits(sigDigits)
+                                .method(PercentilesMethod.HDR)
+                                .field("value")
+                                .script(new Script("_value - dec", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params))
+                                .percentiles(pcts))
+                .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -295,8 +303,13 @@ public class HDRPercentilesTests extends AbstractNumericTestCase {
                 .prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        percentiles("percentiles").numberOfSignificantValueDigits(sigDigits).method(PercentilesMethod.HDR).field("values")
-                                .script(new Script("_value - 1")).percentiles(pcts)).execute().actionGet();
+                        percentiles("percentiles")
+                                .numberOfSignificantValueDigits(sigDigits)
+                                .method(PercentilesMethod.HDR)
+                                .field("values")
+                                .script(new Script("_value - 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                .percentiles(pcts))
+                .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -311,8 +324,13 @@ public class HDRPercentilesTests extends AbstractNumericTestCase {
                 .prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        percentiles("percentiles").numberOfSignificantValueDigits(sigDigits).method(PercentilesMethod.HDR).field("values")
-                                .script(new Script("20 - _value")).percentiles(pcts)).execute().actionGet();
+                        percentiles("percentiles")
+                                .numberOfSignificantValueDigits(sigDigits)
+                                .method(PercentilesMethod.HDR)
+                                .field("values")
+                                .script(new Script("20 - _value", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                .percentiles(pcts))
+                .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -324,15 +342,20 @@ public class HDRPercentilesTests extends AbstractNumericTestCase {
     public void testMultiValuedFieldWithValueScriptWithParams() throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
+
         final double[] pcts = randomPercentiles();
         int sigDigits = randomSignificantDigits();
         SearchResponse searchResponse = client()
                 .prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        percentiles("percentiles").numberOfSignificantValueDigits(sigDigits).method(PercentilesMethod.HDR).field("values")
-                                .script(new Script("_value - dec", ScriptType.INLINE, null, params)).percentiles(pcts)).execute()
-                .actionGet();
+                        percentiles("percentiles")
+                                .numberOfSignificantValueDigits(sigDigits)
+                                .method(PercentilesMethod.HDR)
+                                .field("values")
+                                .script(new Script("_value - dec", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params))
+                                .percentiles(pcts))
+                .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -348,8 +371,12 @@ public class HDRPercentilesTests extends AbstractNumericTestCase {
                 .prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        percentiles("percentiles").numberOfSignificantValueDigits(sigDigits).method(PercentilesMethod.HDR)
-                                .script(new Script("doc['value'].value")).percentiles(pcts)).execute().actionGet();
+                        percentiles("percentiles")
+                                .numberOfSignificantValueDigits(sigDigits)
+                                .method(PercentilesMethod.HDR)
+                                .script(new Script("doc['value'].value", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                .percentiles(pcts))
+                .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -361,14 +388,20 @@ public class HDRPercentilesTests extends AbstractNumericTestCase {
     public void testScriptSingleValuedWithParams() throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
+
+        Script script = new Script("doc['value'].value - dec", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params);
+
         final double[] pcts = randomPercentiles();
         int sigDigits = randomSignificantDigits();
         SearchResponse searchResponse = client()
                 .prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        percentiles("percentiles").numberOfSignificantValueDigits(sigDigits).method(PercentilesMethod.HDR)
-                                .script(new Script("doc['value'].value - dec", ScriptType.INLINE, null, params)).percentiles(pcts))
+                        percentiles("percentiles")
+                                .numberOfSignificantValueDigits(sigDigits)
+                                .method(PercentilesMethod.HDR)
+                                .script(script)
+                                .percentiles(pcts))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -381,12 +414,19 @@ public class HDRPercentilesTests extends AbstractNumericTestCase {
     public void testScriptMultiValued() throws Exception {
         final double[] pcts = randomPercentiles();
         int sigDigits = randomSignificantDigits();
+
+        Script script = new Script("doc['values'].values", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap());
+
         SearchResponse searchResponse = client()
                 .prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        percentiles("percentiles").numberOfSignificantValueDigits(sigDigits).method(PercentilesMethod.HDR)
-                                .script(new Script("doc['values'].values")).percentiles(pcts)).execute().actionGet();
+                        percentiles("percentiles")
+                                .numberOfSignificantValueDigits(sigDigits)
+                                .method(PercentilesMethod.HDR)
+                                .script(script)
+                                .percentiles(pcts))
+                .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -398,6 +438,17 @@ public class HDRPercentilesTests extends AbstractNumericTestCase {
     public void testScriptMultiValuedWithParams() throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
+
+        // Equivalent to:
+        //
+        // List values = doc['values'].values;
+        // double[] res = new double[values.size()];
+        // for (int i = 0; i < res.length; i++) {
+        //      res[i] = values.get(i) - dec;
+        // };
+        // return res;
+        Script script = new Script("decrement all values", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params);
+
         final double[] pcts = randomPercentiles();
         int sigDigits = randomSignificantDigits();
         SearchResponse searchResponse = client()
@@ -407,9 +458,9 @@ public class HDRPercentilesTests extends AbstractNumericTestCase {
                         percentiles("percentiles")
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .method(PercentilesMethod.HDR)
-                                .script(new Script(
-                                        "List values = doc['values'].values; double[] res = new double[values.size()]; for (int i = 0; i < res.length; i++) { res[i] = values.get(i) - dec; }; return res;",
-                                        ScriptType.INLINE, null, params)).percentiles(pcts)).execute().actionGet();
+                                .script(script)
+                                .percentiles(pcts))
+                .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 

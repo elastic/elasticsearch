@@ -24,6 +24,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -41,7 +44,7 @@ public class StoredScriptsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockScriptEngine.TestPlugin.class);
+        return pluginList(CustomScriptPlugin.class);
     }
 
     public void testBasics() {
@@ -79,4 +82,11 @@ public class StoredScriptsIT extends ESIntegTestCase {
         assertEquals("Limit of script size in bytes [64] has been exceeded for script [foobar] with size [65]", e.getMessage());
     }
 
+    public static class CustomScriptPlugin extends MockScriptPlugin {
+
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            return Collections.emptyMap();
+        }
+    }
 }

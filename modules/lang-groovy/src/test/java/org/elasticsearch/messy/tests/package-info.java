@@ -36,8 +36,6 @@
  */
 /* List of renames that took place:
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/metrics/AvgIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/AvgTests.java
-  renamed:    core/src/test/java/org/elasticsearch/search/aggregations/pipeline/BucketScriptIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/BucketScriptTests.java
-  renamed:    core/src/test/java/org/elasticsearch/search/aggregations/pipeline/BucketSelectorIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/BucketSelectorTests.java
   renamed:    core/src/test/java/org/elasticsearch/document/BulkIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/BulkTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/metrics/CardinalityIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/CardinalityTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/child/ChildQuerySearchIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/ChildQuerySearchTests.java
@@ -50,8 +48,6 @@
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/metrics/ExtendedStatsIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/ExtendedStatsTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/functionscore/FunctionScoreIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/FunctionScoreTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/geo/GeoDistanceIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/GeoDistanceTests.java
-  renamed:    core/src/test/java/org/elasticsearch/search/aggregations/metrics/HDRPercentileRanksIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/HDRPercentileRanksTests.java
-  renamed:    core/src/test/java/org/elasticsearch/search/aggregations/metrics/HDRPercentilesIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/HDRPercentilesTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/bucket/HistogramIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/HistogramTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/bucket/IPv4RangeIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/IPv4RangeTests.java
   renamed:    core/src/test/java/org/elasticsearch/script/IndexLookupIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/IndexLookupTests.java

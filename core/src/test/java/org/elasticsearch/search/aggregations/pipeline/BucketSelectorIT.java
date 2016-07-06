@@ -17,17 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.groovy.GroovyPlugin;
-import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
@@ -43,12 +42,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.bucketSelector;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.derivative;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -57,7 +58,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
-public class BucketSelectorTests extends ESIntegTestCase {
+public class BucketSelectorIT extends ESIntegTestCase {
 
     private static final String FIELD_1_NAME = "field1";
     private static final String FIELD_2_NAME = "field2";
@@ -71,7 +72,69 @@ public class BucketSelectorTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GroovyPlugin.class);
+        return Collections.singleton(CustomScriptPlugin.class);
+    }
+
+    public static class CustomScriptPlugin extends MockScriptPlugin {
+
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+
+            scripts.put("Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)", vars -> {
+                double value0 = (double) vars.get("_value0");
+                double value1 = (double) vars.get("_value1");
+                return Double.isNaN(value0) ? false : (value0 + value1 > 100);
+            });
+
+            scripts.put("Double.isNaN(_value0) ? true : (_value0 < 10000)", vars -> {
+                double value0 = (double) vars.get("_value0");
+                return Double.isNaN(value0) ? true : (value0 < 10000);
+            });
+
+            scripts.put("Double.isNaN(_value0) ? false : (_value0 > 10000)", vars -> {
+                double value0 = (double) vars.get("_value0");
+                return Double.isNaN(value0) ? false : (value0 > 10000);
+            });
+
+            scripts.put("Double.isNaN(_value0) ? false : (_value0 < _value1)", vars -> {
+                double value0 = (double) vars.get("_value0");
+                double value1 = (double) vars.get("_value1");
+                return Double.isNaN(value0) ? false : (value0 < value1);
+            });
+
+            scripts.put("Double.isNaN(_value0) ? false : (_value0 > 100)", vars -> {
+                double value0 = (double) vars.get("_value0");
+                return Double.isNaN(value0) ? false : (value0 > 10000);
+            });
+
+            scripts.put("Double.isNaN(my_value1) ? false : (my_value1 + my_value2 > 100)", vars -> {
+                double myValue1 = (double) vars.get("my_value1");
+                double myValue2 = (double) vars.get("my_value2");
+                return Double.isNaN(myValue1) ? false : (myValue1 + myValue2 > 100);
+            });
+
+            scripts.put("Double.isNaN(_value0) ? false : (_value0 + _value1 > threshold)", vars -> {
+                double value0 = (double) vars.get("_value0");
+                double value1 = (double) vars.get("_value1");
+                int threshold = (int) vars.get("threshold");
+                return Double.isNaN(value0) ? false : (value0 + value1 > threshold);
+            });
+
+            scripts.put("_value0 + _value1 > 100", vars -> {
+                double value0 = (double) vars.get("_value0");
+                double value1 = (double) vars.get("_value1");
+                return (value0 + value1 > 100);
+            });
+
+            scripts.put("my_script", vars -> {
+                double value0 = (double) vars.get("_value0");
+                double value1 = (double) vars.get("_value1");
+                return Double.isNaN(value0) ? false : (value0 + value1 > 100);
+            });
+
+            return scripts;
+        }
     }
 
     @Override
@@ -94,9 +157,6 @@ public class BucketSelectorTests extends ESIntegTestCase {
         builders.add(client().prepareIndex("idx_with_gaps", "type").setSource(newDocBuilder(3, 1, 0, 0)));
         builders.add(client().prepareIndex("idx_with_gaps", "type").setSource(newDocBuilder(3, 3, 0, 0)));
 
-        client().admin().cluster().preparePutStoredScript().setId("my_script").setScriptLang(GroovyScriptEngineService.NAME)
-                .setSource(new BytesArray("{ \"script\": \"Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)\" }")).get();
-
         indexRandom(true, builders);
         ensureSearchable();
     }
@@ -118,12 +178,13 @@ public class BucketSelectorTests extends ESIntegTestCase {
     }
 
     public void testInlineScript() {
+        Script script =
+                new Script("Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(FIELD_1_NAME).interval(interval)
                         .subAggregation(sum("field2Sum").field(FIELD_2_NAME)).subAggregation(sum("field3Sum").field(FIELD_3_NAME))
-                        .subAggregation(bucketSelector("bucketSelector",
-                                new Script("Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)", ScriptType.INLINE, null, null),
-                                "field2Sum", "field3Sum")))
+                        .subAggregation(bucketSelector("bucketSelector", script, "field2Sum", "field3Sum")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -146,6 +207,8 @@ public class BucketSelectorTests extends ESIntegTestCase {
     }
 
     public void testInlineScriptNoBucketsPruned() {
+        Script script = new Script("Double.isNaN(_value0) ? true : (_value0 < 10000)", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -154,10 +217,8 @@ public class BucketSelectorTests extends ESIntegTestCase {
                                 .interval(interval)
                                 .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
-                                .subAggregation(
-                                        bucketSelector("bucketSelector", new Script("Double.isNaN(_value0) ? true : (_value0 < 10000)",
-                                                ScriptType.INLINE, null, null), "field2Sum", "field3Sum"))).execute()
-                .actionGet();
+                                .subAggregation(bucketSelector("bucketSelector", script, "field2Sum", "field3Sum")))
+                .execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -179,6 +240,8 @@ public class BucketSelectorTests extends ESIntegTestCase {
     }
 
     public void testInlineScriptNoBucketsLeft() {
+        Script script = new Script("Double.isNaN(_value0) ? false : (_value0 > 10000)", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -187,9 +250,8 @@ public class BucketSelectorTests extends ESIntegTestCase {
                                 .interval(interval)
                                 .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
-                                .subAggregation(
-                                        bucketSelector("bucketSelector", new Script("Double.isNaN(_value0) ? false : (_value0 > 10000)",
-                                                ScriptType.INLINE, null, null), "field2Sum", "field3Sum"))).execute().actionGet();
+                                .subAggregation(bucketSelector("bucketSelector", script, "field2Sum", "field3Sum")))
+                .execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -201,6 +263,8 @@ public class BucketSelectorTests extends ESIntegTestCase {
     }
 
     public void testInlineScript2() {
+        Script script = new Script("Double.isNaN(_value0) ? false : (_value0 < _value1)", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -209,9 +273,8 @@ public class BucketSelectorTests extends ESIntegTestCase {
                                 .interval(interval)
                                 .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
-                                .subAggregation(
-                                        bucketSelector("bucketSelector", new Script("Double.isNaN(_value0) ? false : (_value0 < _value1)",
-                                                ScriptType.INLINE, null, null), "field2Sum", "field3Sum"))).execute().actionGet();
+                                .subAggregation(bucketSelector("bucketSelector", script, "field2Sum", "field3Sum")))
+                .execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -233,6 +296,8 @@ public class BucketSelectorTests extends ESIntegTestCase {
     }
 
     public void testInlineScriptSingleVariable() {
+        Script script = new Script("Double.isNaN(_value0) ? false : (_value0 > 100)", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -240,9 +305,8 @@ public class BucketSelectorTests extends ESIntegTestCase {
                                 .field(FIELD_1_NAME)
                                 .interval(interval)
                                 .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
-                                .subAggregation(
-                                        bucketSelector("bucketSelector", new Script("Double.isNaN(_value0) ? false : (_value0 > 100)",
-                                                ScriptType.INLINE,null, null), "field2Sum"))).execute().actionGet();
+                                .subAggregation(bucketSelector("bucketSelector", script, "field2Sum")))
+                .execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -261,15 +325,21 @@ public class BucketSelectorTests extends ESIntegTestCase {
     }
 
     public void testInlineScriptNamedVars() {
+        Script script = new Script("Double.isNaN(my_value1) ? false : (my_value1 + my_value2 > 100)", ScriptType.INLINE,
+                CustomScriptPlugin.NAME, null);
+
         Map<String, String> bucketPathsMap = new HashMap<>();
         bucketPathsMap.put("my_value1", "field2Sum");
         bucketPathsMap.put("my_value2", "field3Sum");
 
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").field(FIELD_1_NAME).interval(interval)
-                        .subAggregation(sum("field2Sum").field(FIELD_2_NAME)).subAggregation(sum("field3Sum").field(FIELD_3_NAME))
-                        .subAggregation(bucketSelector("bucketSelector", bucketPathsMap, new Script(
-                                "Double.isNaN(my_value1) ? false : (my_value1 + my_value2 > 100)", ScriptType.INLINE, null, null))))
+                .addAggregation(
+                        histogram("histo")
+                                .field(FIELD_1_NAME)
+                                .interval(interval)
+                                .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
+                                .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
+                                .subAggregation(bucketSelector("bucketSelector", bucketPathsMap, script)))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -292,13 +362,17 @@ public class BucketSelectorTests extends ESIntegTestCase {
     }
 
     public void testInlineScriptWithParams() {
-        Map<String, Object> params = new HashMap<>();
-        params.put("threshold", 100);
-        SearchResponse response = client().prepareSearch("idx").addAggregation(histogram("histo").field(FIELD_1_NAME).interval(interval)
-                .subAggregation(sum("field2Sum").field(FIELD_2_NAME)).subAggregation(sum("field3Sum").field(FIELD_3_NAME))
-                .subAggregation(bucketSelector("bucketSelector",
-                        new Script("Double.isNaN(_value0) ? false : (_value0 + _value1 > threshold)", ScriptType.INLINE, null, params),
-                        "field2Sum", "field3Sum")))
+        Script script = new Script("Double.isNaN(_value0) ? false : (_value0 + _value1 > threshold)", ScriptType.INLINE,
+                CustomScriptPlugin.NAME, Collections.singletonMap("threshold", 100));
+
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(
+                        histogram("histo")
+                                .field(FIELD_1_NAME)
+                                .interval(interval)
+                                .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
+                                .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
+                                .subAggregation(bucketSelector("bucketSelector", script, "field2Sum", "field3Sum")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -321,13 +395,17 @@ public class BucketSelectorTests extends ESIntegTestCase {
     }
 
     public void testInlineScriptInsertZeros() {
+        Script script = new Script("_value0 + _value1 > 100", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(
-                        histogram("histo").field(FIELD_1_NAME).interval(interval).subAggregation(sum("field2Sum").field(FIELD_2_NAME))
+                        histogram("histo")
+                                .field(FIELD_1_NAME)
+                                .interval(interval)
+                                .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
-                                .subAggregation(bucketSelector("bucketSelector",
-                                        new Script("_value0 + _value1 > 100", ScriptType.INLINE, null, null), "field2Sum", "field3Sum")
-                                                .gapPolicy(GapPolicy.INSERT_ZEROS)))
+                                .subAggregation(bucketSelector("bucketSelector", script , "field2Sum", "field3Sum")
+                        .gapPolicy(GapPolicy.INSERT_ZEROS)))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -349,7 +427,15 @@ public class BucketSelectorTests extends ESIntegTestCase {
         }
     }
 
-    public void testIndexedScript() {
+    public void testStoredScript() {
+        assertAcked(client().admin().cluster().preparePutStoredScript()
+                .setId("my_script")
+                .setScriptLang(CustomScriptPlugin.NAME)
+                // Source is not interpreted but my_script is defined in CustomScriptPlugin
+                .setSource(new BytesArray("{ \"script\": \"Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)\" }")));
+
+        Script script = new Script("my_script", ScriptType.STORED, CustomScriptPlugin.NAME, null);
+
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -358,9 +444,8 @@ public class BucketSelectorTests extends ESIntegTestCase {
                                 .interval(interval)
                                 .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
-                                .subAggregation(
-                                        bucketSelector("bucketSelector", new Script("my_script", ScriptType.STORED, null, null),
-                                                "field2Sum", "field3Sum"))).execute().actionGet();
+                                .subAggregation(bucketSelector("bucketSelector", script, "field2Sum", "field3Sum")))
+                .execute().actionGet();
 
         assertSearchResponse(response);
 
@@ -382,12 +467,17 @@ public class BucketSelectorTests extends ESIntegTestCase {
     }
 
     public void testUnmapped() throws Exception {
+        Script script = new Script("Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)", ScriptType.INLINE,
+                CustomScriptPlugin.NAME, null);
+
         SearchResponse response = client().prepareSearch("idx_unmapped")
-                .addAggregation(histogram("histo").field(FIELD_1_NAME).interval(interval)
-                        .subAggregation(sum("field2Sum").field(FIELD_2_NAME)).subAggregation(sum("field3Sum").field(FIELD_3_NAME))
-                        .subAggregation(bucketSelector("bucketSelector",
-                                new Script("Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)", ScriptType.INLINE, null, null),
-                                "field2Sum", "field3Sum")))
+                .addAggregation(
+                        histogram("histo")
+                                .field(FIELD_1_NAME)
+                                .interval(interval)
+                                .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
+                                .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
+                                .subAggregation(bucketSelector("bucketSelector", script, "field2Sum", "field3Sum")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -399,12 +489,17 @@ public class BucketSelectorTests extends ESIntegTestCase {
     }
 
     public void testPartiallyUnmapped() throws Exception {
+        Script script = new Script("Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)", ScriptType.INLINE,
+                CustomScriptPlugin.NAME, null);
+
         SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-                .addAggregation(histogram("histo").field(FIELD_1_NAME).interval(interval)
-                        .subAggregation(sum("field2Sum").field(FIELD_2_NAME)).subAggregation(sum("field3Sum").field(FIELD_3_NAME))
-                        .subAggregation(bucketSelector("bucketSelector",
-                                new Script("Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)", ScriptType.INLINE, null, null),
-                                "field2Sum", "field3Sum")))
+                .addAggregation(
+                        histogram("histo")
+                                .field(FIELD_1_NAME)
+                                .interval(interval)
+                                .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
+                                .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
+                                .subAggregation(bucketSelector("bucketSelector", script, "field2Sum", "field3Sum")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -428,9 +523,18 @@ public class BucketSelectorTests extends ESIntegTestCase {
 
     public void testEmptyBuckets() {
         SearchResponse response = client().prepareSearch("idx_with_gaps")
-                .addAggregation(histogram("histo").field(FIELD_1_NAME).interval(1)
-                        .subAggregation(histogram("inner_histo").field(FIELD_1_NAME).interval(1).extendedBounds(new ExtendedBounds(1L, 4L))
-                                .minDocCount(0).subAggregation(derivative("derivative", "_count").gapPolicy(GapPolicy.INSERT_ZEROS))))
+                .addAggregation(
+                        histogram("histo")
+                                .field(FIELD_1_NAME)
+                                .interval(1)
+                                .subAggregation(
+                                        histogram("inner_histo")
+                                                .field(FIELD_1_NAME)
+                                                .interval(1)
+                                                .extendedBounds(new ExtendedBounds(1L, 4L))
+                                .minDocCount(0)
+                                .subAggregation(derivative("derivative", "_count")
+                                .gapPolicy(GapPolicy.INSERT_ZEROS))))
                 .execute().actionGet();
 
         assertSearchResponse(response);

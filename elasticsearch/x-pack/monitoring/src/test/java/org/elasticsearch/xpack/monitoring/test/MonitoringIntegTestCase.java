@@ -440,7 +440,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     public class MockDataIndexNameResolver extends MonitoringIndexNameResolver.Data<MonitoringDoc> {
 
-        public MockDataIndexNameResolver(Integer version) {
+        public MockDataIndexNameResolver(String version) {
             super(version);
         }
 
@@ -462,7 +462,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     protected class MockTimestampedIndexNameResolver extends MonitoringIndexNameResolver.Timestamped<MonitoringDoc> {
 
-        public MockTimestampedIndexNameResolver(MonitoredSystem system, Settings settings, Integer version) {
+        public MockTimestampedIndexNameResolver(MonitoredSystem system, Settings settings, String version) {
             super(system, settings, version);
         }
 

@@ -36,13 +36,13 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         MonitoringBulkDoc doc = new MonitoringBulkDoc(null, null);
 
         assertValidationErrors(new MonitoringBulkRequest().add(doc), hasItems("monitored system id is missing for monitoring document [0]",
-                "monitored system version is missing for monitoring document [0]",
+                "monitored system API version is missing for monitoring document [0]",
                 "type is missing for monitoring document [0]",
                 "source is missing for monitoring document [0]"));
 
         doc = new MonitoringBulkDoc("id", null);
         assertValidationErrors(new MonitoringBulkRequest().add(doc),
-                hasItems("monitored system version is missing for monitoring document [0]",
+                hasItems("monitored system API version is missing for monitoring document [0]",
                 "type is missing for monitoring document [0]",
                 "source is missing for monitoring document [0]"));
 
@@ -92,7 +92,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
 
         assertValidationErrors(request, hasItems("type is missing for monitoring document [1]",
                 "source is missing for monitoring document [2]",
-                "monitored system version is missing for monitoring document [3]",
+                "monitored system API version is missing for monitoring document [3]",
                 "monitored system id is missing for monitoring document [4]"));
 
     }

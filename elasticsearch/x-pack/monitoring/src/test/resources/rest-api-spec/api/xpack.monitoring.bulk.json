@@ -16,9 +16,9 @@
           "type": "string",
           "description" : "Identifier of the monitored system"
         },
-        "system_version" : {
+        "system_api_version" : {
           "type" : "string",
-          "description" : "Version of the monitored system"
+          "description" : "API Version of the monitored system"
         }
       }
     },

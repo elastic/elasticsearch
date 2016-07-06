@@ -21,9 +21,9 @@ public class MonitoringBulkRequestBuilder
         return this;
     }
 
-    public MonitoringBulkRequestBuilder add(BytesReference content, String defaultId, String defaultVersion, String defaultType)
+    public MonitoringBulkRequestBuilder add(BytesReference content, String defaultId, String defaultApiVersion, String defaultType)
             throws Exception {
-        request.add(content, defaultId, defaultVersion, defaultType);
+        request.add(content, defaultId, defaultApiVersion, defaultType);
         return this;
     }
 }

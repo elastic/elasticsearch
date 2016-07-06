@@ -5,13 +5,12 @@
  */
 package org.elasticsearch.xpack.monitoring.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
+import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.agent.resolver.bulk.MonitoringBulkTimestampedResolver;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 
@@ -29,7 +28,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@TestLogging("_root:DEBUG")
 public class MonitoringBulkTests extends MonitoringIntegTestCase {
 
     @Override
@@ -43,7 +41,7 @@ public class MonitoringBulkTests extends MonitoringIntegTestCase {
 
         int numDocs = scaledRandomIntBetween(100, 5000);
         for (int i = 0; i < numDocs; i++) {
-            MonitoringBulkDoc doc = new MonitoringBulkDoc(MonitoredSystem.KIBANA.getSystem(), Version.CURRENT.toString());
+            MonitoringBulkDoc doc = new MonitoringBulkDoc(MonitoredSystem.KIBANA.getSystem(), MonitoringTemplateUtils.TEMPLATE_VERSION);
             doc.setType(randomFrom(types));
             doc.setSource(jsonBuilder().startObject().field("num", numDocs).endObject().bytes());
             requestBuilder.add(doc);
@@ -95,7 +93,8 @@ public class MonitoringBulkTests extends MonitoringIntegTestCase {
 
                         int numDocs = scaledRandomIntBetween(10, 50);
                         for (int k = 0; k < numDocs; k++) {
-                            MonitoringBulkDoc doc = new MonitoringBulkDoc(MonitoredSystem.KIBANA.getSystem(), Version.CURRENT.toString());
+                            MonitoringBulkDoc doc =
+                                    new MonitoringBulkDoc(MonitoredSystem.KIBANA.getSystem(), MonitoringTemplateUtils.TEMPLATE_VERSION);
                             doc.setType("concurrent");
                             doc.setSource(jsonBuilder().startObject().field("num", k).endObject().bytes());
                             requestBuilder.add(doc);
@@ -133,10 +132,10 @@ public class MonitoringBulkTests extends MonitoringIntegTestCase {
         for (int i = 0; i < totalDocs; i++) {
             MonitoringBulkDoc doc;
             if (randomBoolean()) {
-                doc = new MonitoringBulkDoc("unknown", Version.CURRENT.toString());
+                doc = new MonitoringBulkDoc("unknown", MonitoringTemplateUtils.TEMPLATE_VERSION);
                 unsupportedDocs++;
             } else {
-                doc = new MonitoringBulkDoc(MonitoredSystem.KIBANA.getSystem(), Version.CURRENT.toString());
+                doc = new MonitoringBulkDoc(MonitoredSystem.KIBANA.getSystem(), MonitoringTemplateUtils.TEMPLATE_VERSION);
             }
             doc.setType(randomFrom(types));
             doc.setSource(jsonBuilder().startObject().field("num", i).endObject().bytes());

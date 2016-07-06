@@ -58,7 +58,7 @@ public class MonitoringBulkRequest extends ActionRequest<MonitoringBulkRequest> 
                         validationException);
             }
             if (Strings.hasLength(doc.getMonitoringVersion()) == false) {
-                validationException = addValidationError("monitored system version is missing for monitoring document [" + i + "]",
+                validationException = addValidationError("monitored system API version is missing for monitoring document [" + i + "]",
                         validationException);
             }
             if (Strings.hasLength(doc.getType()) == false) {
@@ -84,7 +84,7 @@ public class MonitoringBulkRequest extends ActionRequest<MonitoringBulkRequest> 
     /**
      * Parses a monitoring bulk request and builds the list of documents to be indexed.
      */
-    public MonitoringBulkRequest add(BytesReference content, String defaultMonitoringId, String defaultMonitoringVersion,
+    public MonitoringBulkRequest add(BytesReference content, String defaultMonitoringId, String defaultMonitoringApiVersion,
                                      String defaultType) throws Exception {
         // MonitoringBulkRequest accepts a body request that has the same format as the BulkRequest:
         // instead of duplicating the parsing logic here we use a new BulkRequest instance to parse the content.
@@ -97,7 +97,7 @@ public class MonitoringBulkRequest extends ActionRequest<MonitoringBulkRequest> 
                 // builds a new monitoring document based on the index request
                 MonitoringBulkDoc doc =
                         new MonitoringBulkDoc(defaultMonitoringId,
-                                              defaultMonitoringVersion,
+                                              defaultMonitoringApiVersion,
                                               MonitoringIndex.from(indexRequest.index()),
                                               indexRequest.type(),
                                               indexRequest.id(),

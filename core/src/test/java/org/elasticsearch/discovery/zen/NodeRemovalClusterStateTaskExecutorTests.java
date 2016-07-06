@@ -48,11 +48,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class NodeFailedClusterStateTaskExecutorTests extends ESTestCase {
+public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
 
     public void testRemovingNonExistentNodes() throws Exception {
-        final ZenDiscovery.NodeFailedClusterStateTaskExecutor executor =
-                new ZenDiscovery.NodeFailedClusterStateTaskExecutor(null, null, null, mock(ESLogger.class));
+        final ZenDiscovery.NodeRemovalClusterStateTaskExecutor executor =
+                new ZenDiscovery.NodeRemovalClusterStateTaskExecutor(null, null, null, mock(ESLogger.class));
         final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         final int nodes = randomIntBetween(2, 16);
         for (int i = 0; i < nodes; i++) {
@@ -64,9 +64,14 @@ public class NodeFailedClusterStateTaskExecutorTests extends ESTestCase {
         for (int i = nodes; i < nodes + randomIntBetween(1, 16); i++) {
             removeBuilder.put(node(i));
         }
-        final List<DiscoveryNode> tasks = StreamSupport.stream(removeBuilder.build().spliterator(), false).collect(Collectors.toList());
+        final List<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> tasks =
+                StreamSupport
+                        .stream(removeBuilder.build().spliterator(), false)
+                        .map(node -> new ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task(node, randomBoolean() ? "left" : "failed"))
+                        .collect(Collectors.toList());
 
-        final ClusterStateTaskExecutor.BatchResult<DiscoveryNode> result = executor.execute(clusterState, tasks);
+        final ClusterStateTaskExecutor.BatchResult<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> result
+                = executor.execute(clusterState, tasks);
         assertThat(result.resultingState, equalTo(clusterState));
     }
 
@@ -85,8 +90,8 @@ public class NodeFailedClusterStateTaskExecutorTests extends ESTestCase {
         };
 
         final AtomicReference<ClusterState> remainingNodesClusterState = new AtomicReference<>();
-        final ZenDiscovery.NodeFailedClusterStateTaskExecutor executor =
-                new ZenDiscovery.NodeFailedClusterStateTaskExecutor(allocationService, electMasterService, rejoin, mock(ESLogger.class)) {
+        final ZenDiscovery.NodeRemovalClusterStateTaskExecutor executor =
+                new ZenDiscovery.NodeRemovalClusterStateTaskExecutor(allocationService, electMasterService, rejoin, mock(ESLogger.class)) {
                     @Override
                     ClusterState remainingNodesClusterState(ClusterState currentState, DiscoveryNodes.Builder remainingNodesBuilder) {
                         remainingNodesClusterState.set(super.remainingNodesClusterState(currentState, remainingNodesBuilder));
@@ -96,17 +101,21 @@ public class NodeFailedClusterStateTaskExecutorTests extends ESTestCase {
 
         final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         final int nodes = randomIntBetween(2, 16);
-        final List<DiscoveryNode> tasks = new ArrayList<>();
+        final List<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> tasks = new ArrayList<>();
+        // to ensure there is at least one removal
+        boolean first = true;
         for (int i = 0; i < nodes; i++) {
             final DiscoveryNode node = node(i);
             builder.put(node);
-            if (randomBoolean()) {
-                tasks.add(node);
+            if (first || randomBoolean()) {
+                tasks.add(new ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task(node, randomBoolean() ? "left" : "failed"));
             }
+            first = false;
         }
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(builder).build();
 
-        final ClusterStateTaskExecutor.BatchResult<DiscoveryNode> result = executor.execute(clusterState, tasks);
+        final ClusterStateTaskExecutor.BatchResult<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> result =
+                executor.execute(clusterState, tasks);
         verify(electMasterService).hasEnoughMasterNodes(eq(remainingNodesClusterState.get().nodes()));
         verifyNoMoreInteractions(electMasterService);
 
@@ -115,8 +124,8 @@ public class NodeFailedClusterStateTaskExecutorTests extends ESTestCase {
         assertTrue(rejoined.get());
         assertThat(result.resultingState, equalTo(rejoinedClusterState.get()));
 
-        for (DiscoveryNode task : tasks) {
-            assertNull(result.resultingState.nodes().get(task.getId()));
+        for (final ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task task : tasks) {
+            assertNull(result.resultingState.nodes().get(task.node().getId()));
         }
     }
 
@@ -133,8 +142,8 @@ public class NodeFailedClusterStateTaskExecutorTests extends ESTestCase {
         };
 
         final AtomicReference<ClusterState> remainingNodesClusterState = new AtomicReference<>();
-        final ZenDiscovery.NodeFailedClusterStateTaskExecutor executor =
-                new ZenDiscovery.NodeFailedClusterStateTaskExecutor(allocationService, electMasterService, rejoin, mock(ESLogger.class)) {
+        final ZenDiscovery.NodeRemovalClusterStateTaskExecutor executor =
+                new ZenDiscovery.NodeRemovalClusterStateTaskExecutor(allocationService, electMasterService, rejoin, mock(ESLogger.class)) {
                     @Override
                     ClusterState remainingNodesClusterState(ClusterState currentState, DiscoveryNodes.Builder remainingNodesBuilder) {
                         remainingNodesClusterState.set(super.remainingNodesClusterState(currentState, remainingNodesBuilder));
@@ -144,24 +153,28 @@ public class NodeFailedClusterStateTaskExecutorTests extends ESTestCase {
 
         final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         final int nodes = randomIntBetween(2, 16);
-        final List<DiscoveryNode> tasks = new ArrayList<>();
+        final List<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> tasks = new ArrayList<>();
+        // to ensure that there is at least one removal
+        boolean first = true;
         for (int i = 0; i < nodes; i++) {
             final DiscoveryNode node = node(i);
             builder.put(node);
-            if (randomBoolean()) {
-                tasks.add(node);
+            if (first || randomBoolean()) {
+                tasks.add(new ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task(node, randomBoolean() ? "left" : "failed"));
             }
+            first = false;
         }
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(builder).build();
 
-        final ClusterStateTaskExecutor.BatchResult<DiscoveryNode> result = executor.execute(clusterState, tasks);
+        final ClusterStateTaskExecutor.BatchResult<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> result =
+                executor.execute(clusterState, tasks);
         verify(electMasterService).hasEnoughMasterNodes(eq(remainingNodesClusterState.get().nodes()));
         verifyNoMoreInteractions(electMasterService);
 
         verify(allocationService).reroute(eq(remainingNodesClusterState.get()), any(String.class));
 
-        for (DiscoveryNode task : tasks) {
-            assertNull(result.resultingState.nodes().get(task.getId()));
+        for (final ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task task : tasks) {
+            assertNull(result.resultingState.nodes().get(task.node().getId()));
         }
     }
 

@@ -29,6 +29,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 
 /**
@@ -65,7 +66,9 @@ public class RandomSortScriptTests extends AbstractSearchScriptTestCase {
             .setQuery(matchAllQuery())
             .setFetchSource("name", null)
             .setSize(10)
-            .addSort(SortBuilders.scriptSort(new Script("random", ScriptService.ScriptType.INLINE, "native", MapBuilder.<String, Object>newMapBuilder().put("salt", "1234").map()), "number"))
+            .addSort(SortBuilders.scriptSort(
+                new Script("random", ScriptService.ScriptType.INLINE, "native", MapBuilder.<String, Object>newMapBuilder()
+                    .put("salt", "1234").map()), ScriptSortBuilder.ScriptSortType.NUMBER))
             .execute().actionGet();
 
         assertNoFailures(searchResponse);
@@ -85,7 +88,9 @@ public class RandomSortScriptTests extends AbstractSearchScriptTestCase {
             .setQuery(matchAllQuery())
             .setFetchSource("name", null)
             .setSize(10)
-            .addSort(SortBuilders.scriptSort(new Script("random", ScriptService.ScriptType.INLINE, "native", MapBuilder.<String, Object>newMapBuilder().put("salt", "1234").map()), "number"))
+            .addSort(SortBuilders.scriptSort(new Script("random", ScriptService.ScriptType.INLINE, "native", MapBuilder.<String,
+                Object>newMapBuilder()
+                .put("salt", "1234").map()), ScriptSortBuilder.ScriptSortType.NUMBER))
             .execute().actionGet();
 
         assertNoFailures(searchResponse);
@@ -100,7 +105,8 @@ public class RandomSortScriptTests extends AbstractSearchScriptTestCase {
             .setQuery(matchAllQuery())
             .setFetchSource("name", null)
             .setSize(10)
-            .addSort(SortBuilders.scriptSort(new Script("random", ScriptService.ScriptType.INLINE, "native", null), "number"))
+            .addSort(SortBuilders.scriptSort(new Script("random", ScriptService.ScriptType.INLINE, "native", null),
+                ScriptSortBuilder.ScriptSortType.NUMBER))
             .execute().actionGet();
 
         assertNoFailures(searchResponse);

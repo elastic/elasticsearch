@@ -80,7 +80,8 @@ public class PopularityScoreScriptTests extends AbstractSearchScriptTestCase {
         // Retrieve first 10 hits
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(QueryBuilders.functionScoreQuery(matchQuery("name", "rec"), new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
-                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(ScoreFunctionBuilders.scriptFunction(new Script("popularity", ScriptService.ScriptType.INLINE, "native", params)))})
+                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(ScoreFunctionBuilders.scriptFunction(
+                            new Script("popularity", ScriptService.ScriptType.INLINE, "native", params)))})
                         .boostMode(CombineFunction.REPLACE))
                 .setSize(10)
                 .setFetchSource("name", null)

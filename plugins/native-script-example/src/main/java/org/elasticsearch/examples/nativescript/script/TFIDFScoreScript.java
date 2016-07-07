@@ -16,10 +16,8 @@ package org.elasticsearch.examples.nativescript.script;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.List;
 import java.util.Map;
 
-import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
@@ -42,7 +40,7 @@ public class TFIDFScoreScript extends AbstractSearchScript {
     // terms that are used for scoring
     List<String> terms = null;
 
-    final static public String SCRIPT_NAME = "tfidf_script_score";
+    public static final String SCRIPT_NAME = "tfidf_script_score";
 
     /**
      * Factory that is registered in
@@ -53,7 +51,7 @@ public class TFIDFScoreScript extends AbstractSearchScript {
 
         /**
          * This method is called for every search on every shard.
-         * 
+         *
          * @param params
          *            list of script parameters passed with the query
          * @return new native script
@@ -72,6 +70,11 @@ public class TFIDFScoreScript extends AbstractSearchScript {
         public boolean needsScores() {
             return false;
         }
+
+        @Override
+        public String getName() {
+            return SCRIPT_NAME;
+        }
     }
 
     /**
@@ -87,7 +90,7 @@ public class TFIDFScoreScript extends AbstractSearchScript {
         // get the field
         field = (String) params.get("field");
         if (field == null || terms == null) {
-            throw new ScriptException("cannot initialize " + SCRIPT_NAME + ": field or terms parameter missing!");
+            throw new IllegalArgumentException("cannot initialize " + SCRIPT_NAME + ": field or terms parameter missing!");
         }
     }
 
@@ -110,7 +113,7 @@ public class TFIDFScoreScript extends AbstractSearchScript {
             }
             return score;
         } catch (IOException ex) {
-            throw new ScriptException("Could not compute tfidf: ", ex);
+            throw new IllegalStateException("Could not compute tfidf: ", ex);
         }
     }
 

@@ -16,7 +16,6 @@ package org.elasticsearch.examples.nativescript.plugin;
 
 import org.elasticsearch.examples.nativescript.script.IsPrimeSearchScript;
 import org.elasticsearch.examples.nativescript.script.LanguageModelScoreScript;
-import org.elasticsearch.examples.nativescript.script.LookupScript;
 import org.elasticsearch.examples.nativescript.script.CosineSimilarityScoreScript;
 import org.elasticsearch.examples.nativescript.script.PhraseScoreScript;
 import org.elasticsearch.examples.nativescript.script.TFIDFScoreScript;
@@ -27,51 +26,24 @@ import org.elasticsearch.examples.nativescript.script.stockaggs.InitScriptFactor
 import org.elasticsearch.examples.nativescript.script.stockaggs.MapScriptFactory;
 import org.elasticsearch.examples.nativescript.script.stockaggs.ReduceScriptFactory;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.NativeScriptFactory;
+
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * This class is instantiated when Elasticsearch loads the plugin for the
- * first time. If you change the name of this plugin, make sure to update
- * src/main/resources/es-plugin.properties file that points to this class.
+ * first time.
  */
-public class NativeScriptExamplesPlugin extends Plugin {
+public class NativeScriptExamplesPlugin extends Plugin implements ScriptPlugin {
 
-    /**
-     * The name of the plugin.
-     * <p>
-     * This name will be used by elasticsearch in the log file to refer to this plugin.
-     *
-     * @return plugin name.
-     */
     @Override
-    public String name() {
-        return "native-script-example";
-    }
-
-    /**
-     * The description of the plugin.
-     *
-     * @return plugin description
-     */
-    @Override
-    public String description() {
-        return "Native script examples";
-    }
-
-    public void onModule(ScriptModule module) {
-        // Register each script that we defined in this plugin
-        module.registerScript("is_prime", IsPrimeSearchScript.Factory.class);
-        module.registerScript("lookup", LookupScript.Factory.class);
-        module.registerScript("random", RandomSortScriptFactory.class);
-        module.registerScript("popularity", PopularityScoreScriptFactory.class);
-        module.registerScript(TFIDFScoreScript.SCRIPT_NAME, TFIDFScoreScript.Factory.class);
-        module.registerScript(CosineSimilarityScoreScript.SCRIPT_NAME, CosineSimilarityScoreScript.Factory.class);
-        module.registerScript(PhraseScoreScript.SCRIPT_NAME, PhraseScoreScript.Factory.class);
-        module.registerScript(LanguageModelScoreScript.SCRIPT_NAME, LanguageModelScoreScript.Factory.class);
-        // Scripted Metric Aggregation Scripts
-        module.registerScript("stockaggs_init", InitScriptFactory.class);
-        module.registerScript("stockaggs_map", MapScriptFactory.class);
-        module.registerScript("stockaggs_combine", CombineScriptFactory.class);
-        module.registerScript("stockaggs_reduce", ReduceScriptFactory.class);
+    public List<NativeScriptFactory> getNativeScripts() {
+        return Arrays.asList(new IsPrimeSearchScript.Factory(), new RandomSortScriptFactory(),
+            new PopularityScoreScriptFactory(), new TFIDFScoreScript.Factory(), new CosineSimilarityScoreScript.Factory(),
+            new PhraseScoreScript.Factory(), new LanguageModelScoreScript.Factory(),
+            // Scripted Metric Aggregations Scripts
+            new InitScriptFactory(), new MapScriptFactory(), new CombineScriptFactory(), new ReduceScriptFactory());
     }
 }

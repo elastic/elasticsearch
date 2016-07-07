@@ -8,10 +8,12 @@ setup:
                 settings:
                     index.number_of_shards: 1
                     index.number_of_replicas: 0
-                mappings.type1:
-                      properties:
-                          name.type: string
-                          number.type: integer
+                mappings:
+                    type1:
+                        properties:
+                            name: {type: text}
+                            number: {type: integer}
+
 
     - do:
         index: {index: test_index, type: type1, id: 1, body: {name: "rec 1", number: 1}}

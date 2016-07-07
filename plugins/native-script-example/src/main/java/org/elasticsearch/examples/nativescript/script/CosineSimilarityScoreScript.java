@@ -18,8 +18,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import org.elasticsearch.script.ScriptException;
-
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
@@ -44,7 +42,7 @@ public class CosineSimilarityScoreScript extends AbstractSearchScript {
     // simple case, 1.0 for every term.
     List<Double> weights = null;
 
-    final static public String SCRIPT_NAME = "cosine_sim_script_score";
+    public static final String SCRIPT_NAME = "cosine_sim_script_score";
 
     /**
      * Factory that is registered in
@@ -55,13 +53,13 @@ public class CosineSimilarityScoreScript extends AbstractSearchScript {
 
         /**
          * This method is called for every search on every shard.
-         * 
+         *
          * @param params
          *            list of script parameters passed with the query
          * @return new native script
          */
         @Override
-        public ExecutableScript newScript(@Nullable Map<String, Object> params) throws ScriptException {
+        public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new CosineSimilarityScoreScript(params);
         }
 
@@ -74,6 +72,11 @@ public class CosineSimilarityScoreScript extends AbstractSearchScript {
         public boolean needsScores() {
             return false;
         }
+
+        @Override
+        public String getName() {
+            return SCRIPT_NAME;
+        }
     }
 
     /**
@@ -82,7 +85,7 @@ public class CosineSimilarityScoreScript extends AbstractSearchScript {
      *            them here.
      */
     @SuppressWarnings("unchecked")
-    private CosineSimilarityScoreScript(Map<String, Object> params) throws ScriptException {
+    private CosineSimilarityScoreScript(Map<String, Object> params) {
         params.entrySet();
         // get the terms
         terms = (List<String>) params.get("terms");
@@ -90,10 +93,10 @@ public class CosineSimilarityScoreScript extends AbstractSearchScript {
         // get the field
         field = (String) params.get("field");
         if (field == null || terms == null || weights == null) {
-            throw new ScriptException("cannot initialize " + SCRIPT_NAME + ": field, terms or weights parameter missing!");
+            throw new IllegalArgumentException("cannot initialize " + SCRIPT_NAME + ": field, terms or weights parameter missing!");
         }
         if (weights.size() != terms.size()) {
-            throw new ScriptException("cannot initialize " + SCRIPT_NAME + ": terms and weights array must have same length!");
+            throw new IllegalArgumentException("cannot initialize " + SCRIPT_NAME + ": terms and weights array must have same length!");
         }
     }
 
@@ -121,7 +124,7 @@ public class CosineSimilarityScoreScript extends AbstractSearchScript {
             }
             return score / (Math.sqrt(docWeightSum) * Math.sqrt(queryWeightSum));
         } catch (IOException ex) {
-            throw new ScriptException("Could not compute cosine similarity: ", ex);
+            throw new IllegalStateException("Could not compute cosine similarity: ", ex);
         }
     }
 

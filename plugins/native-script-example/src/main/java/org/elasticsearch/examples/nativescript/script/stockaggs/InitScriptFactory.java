@@ -23,7 +23,8 @@ import java.util.ArrayList;
 import java.util.Map;
 
 /**
- * Init script from https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-scripted-metric-aggregation.html
+ * Init script from
+ * https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-scripted-metric-aggregation.html
  *
  * _agg['transactions'] = []
  */
@@ -33,7 +34,7 @@ public class InitScriptFactory implements NativeScriptFactory {
 
     @Override
     @SuppressWarnings("unchecked")
-    public ExecutableScript newScript(final @Nullable Map<String, Object> params) {
+    public ExecutableScript newScript(@Nullable final Map<String, Object> params) {
         return new AbstractExecutableScript() {
             @Override
             public Object run() {
@@ -46,5 +47,10 @@ public class InitScriptFactory implements NativeScriptFactory {
     @Override
     public boolean needsScores() {
         return false;
+    }
+
+    @Override
+    public String getName() {
+        return "stockaggs_init";
     }
 }

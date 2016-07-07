@@ -24,7 +24,8 @@ import java.util.ArrayList;
 import java.util.Map;
 
 /**
- * Map script from https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-scripted-metric-aggregation.html
+ * Map script from
+ * https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-scripted-metric-aggregation.html
  * <p>
  * if (doc['type'].value == \"sale\") { _agg.transactions.add(doc['amount'].value) } else {_agg.transactions.add(-1 * doc['amount'].value)}
  */
@@ -32,7 +33,7 @@ public class MapScriptFactory implements NativeScriptFactory {
 
     @Override
     @SuppressWarnings("unchecked")
-    public ExecutableScript newScript(final @Nullable Map<String, Object> params) {
+    public ExecutableScript newScript(@Nullable final Map<String, Object> params) {
         Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
         ArrayList<Long> transactions = (ArrayList<Long>) agg.get(InitScriptFactory.TRANSACTIONS_FIELD);
         return new MapScript(transactions);
@@ -41,6 +42,11 @@ public class MapScriptFactory implements NativeScriptFactory {
     @Override
     public boolean needsScores() {
         return false;
+    }
+
+    @Override
+    public String getName() {
+        return "stockaggs_map";
     }
 
     private static class MapScript extends AbstractSearchScript {

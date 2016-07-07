@@ -17,7 +17,6 @@ package org.elasticsearch.examples.nativescript.script;
 import java.math.BigInteger;
 import java.util.Map;
 
-import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -53,7 +52,7 @@ public class IsPrimeSearchScript extends AbstractSearchScript {
             // The XContentMapValues helper class can be used to simplify parameter parsing
             String fieldName = params == null ? null : XContentMapValues.nodeStringValue(params.get("field"), null);
             if (fieldName == null) {
-                throw new ScriptException("Missing the field parameter");
+                throw new IllegalArgumentException("Missing the field parameter");
             }
 
             // Example of an optional integer  parameter
@@ -69,6 +68,11 @@ public class IsPrimeSearchScript extends AbstractSearchScript {
         @Override
         public boolean needsScores() {
             return false;
+        }
+
+        @Override
+        public String getName() {
+            return "is_prime";
         }
 
     }

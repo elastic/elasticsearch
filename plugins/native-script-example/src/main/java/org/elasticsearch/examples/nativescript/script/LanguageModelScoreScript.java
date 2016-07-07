@@ -18,13 +18,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
-import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.lookup.IndexField;
 import org.elasticsearch.search.lookup.IndexFieldTerm;
 
@@ -47,7 +45,7 @@ public class LanguageModelScoreScript extends AbstractSearchScript {
     // lambda parameter
     float lambda;
 
-    final static public String SCRIPT_NAME = "language_model_script_score";
+    public static final String SCRIPT_NAME = "language_model_script_score";
 
     /**
      * Factory that is registered in
@@ -58,7 +56,7 @@ public class LanguageModelScoreScript extends AbstractSearchScript {
 
         /**
          * This method is called for every search on every shard.
-         * 
+         *
          * @param params
          *            list of script parameters passed with the query
          * @return new native script
@@ -72,6 +70,11 @@ public class LanguageModelScoreScript extends AbstractSearchScript {
         @Override
         public boolean needsScores() {
             return false;
+        }
+
+        @Override
+        public String getName() {
+            return SCRIPT_NAME;
         }
 
     }
@@ -93,7 +96,7 @@ public class LanguageModelScoreScript extends AbstractSearchScript {
         // get lambda
         lambda = ((Double) params.get("lambda")).floatValue();
         if (field == null || terms == null || docLengthField == null) {
-            throw new ScriptException("cannot initialize " + SCRIPT_NAME + ": field, terms or length field parameter missing!");
+            throw new IllegalArgumentException("cannot initialize " + SCRIPT_NAME + ": field, terms or length field parameter missing!");
         }
     }
 
@@ -144,11 +147,11 @@ public class LanguageModelScoreScript extends AbstractSearchScript {
                 }
                 return score;
             } else {
-                throw new ScriptException("Could not compute language model score, word count field missing.");
+                throw new IllegalStateException("Could not compute language model score, word count field missing.");
             }
 
         } catch (IOException ex) {
-            throw new ScriptException("Could not compute language model score: ", ex);
+            throw new IllegalStateException("Could not compute language model score: ", ex);
         }
     }
 

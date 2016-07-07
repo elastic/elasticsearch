@@ -22,7 +22,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
-import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.lookup.IndexField;
 import org.elasticsearch.search.lookup.IndexLookup;
 import org.elasticsearch.search.lookup.TermPosition;
@@ -41,7 +40,7 @@ public class PhraseScoreScript extends AbstractSearchScript {
     // terms that are used for scoring
     List<String> terms = null;
 
-    final static public String SCRIPT_NAME = "phrase_script_score";
+    public static final String SCRIPT_NAME = "phrase_script_score";
 
     /**
      * Factory that is registered in
@@ -52,7 +51,7 @@ public class PhraseScoreScript extends AbstractSearchScript {
 
         /**
          * This method is called for every search on every shard.
-         * 
+         *
          * @param params
          *            list of script parameters passed with the query
          * @return new native script
@@ -71,6 +70,11 @@ public class PhraseScoreScript extends AbstractSearchScript {
         public boolean needsScores() {
             return false;
         }
+
+        @Override
+        public String getName() {
+            return SCRIPT_NAME;
+        }
     }
 
     /**
@@ -86,7 +90,7 @@ public class PhraseScoreScript extends AbstractSearchScript {
         // get the field
         field = (String) params.get("field");
         if (field == null || terms == null) {
-            throw new ScriptException("cannot initialize " + SCRIPT_NAME + ": field or terms parameter missing!");
+            throw new IllegalArgumentException("cannot initialize " + SCRIPT_NAME + ": field or terms parameter missing!");
         }
         assert (terms.size() == 2);
     }

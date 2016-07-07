@@ -23,7 +23,8 @@ import java.util.ArrayList;
 import java.util.Map;
 
 /**
- * Combine script from https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-scripted-metric-aggregation.html
+ * Combine script from
+ * https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-scripted-metric-aggregation.html
  * <p>
  * profit = 0; for (t in _agg.transactions) { profit += t }; return profit
  */
@@ -31,7 +32,7 @@ public class ReduceScriptFactory implements NativeScriptFactory {
 
     @Override
     @SuppressWarnings("unchecked")
-    public ExecutableScript newScript(final @Nullable Map<String, Object> params) {
+    public ExecutableScript newScript(@Nullable final Map<String, Object> params) {
         final ArrayList<Long> aggs = (ArrayList<Long>) params.get("_aggs");
         return new ReduceScript(aggs);
     }
@@ -39,6 +40,11 @@ public class ReduceScriptFactory implements NativeScriptFactory {
     @Override
     public boolean needsScores() {
         return false;
+    }
+
+    @Override
+    public String getName() {
+        return "stockaggs_reduce";
     }
 
     private static class ReduceScript extends AbstractExecutableScript {

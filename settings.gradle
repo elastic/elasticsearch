@@ -42,6 +42,7 @@ List projects = [
   'plugins:mapper-attachments',
   'plugins:mapper-murmur3',
   'plugins:mapper-size',
+  'plugins:native-script-example',
   'plugins:repository-azure',
   'plugins:repository-gcs',
   'plugins:repository-hdfs',

@@ -3,15 +3,17 @@
 setup:
     - do:
         indices.create:
-            index: test_index
+            index: transactions
             body:
                 settings:
                     index.number_of_shards: 1
                     index.number_of_replicas: 0
-                mappings.type1:
-                      properties:
-                          type: {type: string, index: not_analyzed}
-                          amount.type: long
+                mappings:
+                    stock:
+                        properties:
+                            type: {type: keyword}
+                            amount: {type: long}
+
 
     - do:
         index: {index: transactions, type: stock, id: 1, body: {type: "sale", amount: 80}}
@@ -33,6 +35,7 @@ setup:
 "Primes Test":
     - do:
         search:
+            index: transactions
             body:
                 aggs:
                     profit:

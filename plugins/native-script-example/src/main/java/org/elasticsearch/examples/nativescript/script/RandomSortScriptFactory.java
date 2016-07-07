@@ -19,7 +19,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.script.AbstractFloatSearchScript;
 import org.elasticsearch.script.AbstractLongSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
@@ -32,7 +31,7 @@ import java.util.Random;
 
 /**
  * This script demonstrates how native scripts can be used to create custom sort order.
- * Since sort operation is expecting float parameter, the {@link AbstractFloatSearchScript} can be used.
+ * Since sort operation is expecting float parameter, the {@link AbstractLongSearchScript} can be used.
  * <p>
  * The script accepts one optional parameter salt. If parameter is specified, a pseudo random sort order is used.
  * Otherwise, a random sort order is used.
@@ -63,6 +62,11 @@ public class RandomSortScriptFactory implements NativeScriptFactory {
     @Override
     public boolean needsScores() {
         return false;
+    }
+
+    @Override
+    public String getName() {
+        return "random";
     }
 
     private static class RandomSortScript extends AbstractLongSearchScript {

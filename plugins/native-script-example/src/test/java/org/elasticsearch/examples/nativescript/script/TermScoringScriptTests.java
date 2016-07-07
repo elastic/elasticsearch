@@ -46,12 +46,12 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class TermScoringScriptTests extends AbstractSearchScriptTestCase {
 
-    final static List<String> searchTerms = Arrays.asList("foo", "bar");
-    final static String field = "field";
-    final static String wordCountField = field + ".word_count";
-    final static String placeholder = "placeholder";
-    final static List<Double> weights = Arrays.asList(1.0, 1.0);
-    final static int numDocs = 100;
+    static final List<String> searchTerms = Arrays.asList("foo", "bar");
+    static final String field = "field";
+    static final String wordCountField = field + ".word_count";
+    static final String placeholder = "placeholder";
+    static final List<Double> weights = Arrays.asList(1.0, 1.0);
+    static final int numDocs = 100;
 
     public void testNoOfShardsIs1() {
         assertAcked(prepareCreate("test").get());
@@ -71,7 +71,8 @@ public class TermScoringScriptTests extends AbstractSearchScriptTestCase {
         SearchResponse searchResponse = client()
             .prepareSearch("test")
             .setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.matchAllQuery(), new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
-                new FunctionScoreQueryBuilder.FilterFunctionBuilder(ScoreFunctionBuilders.scriptFunction(new Script(TFIDFScoreScript.SCRIPT_NAME, ScriptService.ScriptType.INLINE, "native", params)))})
+                new FunctionScoreQueryBuilder.FilterFunctionBuilder(ScoreFunctionBuilders.scriptFunction(
+                    new Script(TFIDFScoreScript.SCRIPT_NAME, ScriptService.ScriptType.INLINE, "native", params)))})
                 .boostMode(CombineFunction.REPLACE)).setSize(numDocs).execute().actionGet();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, numDocs);
@@ -95,7 +96,8 @@ public class TermScoringScriptTests extends AbstractSearchScriptTestCase {
         SearchResponse searchResponse = client()
             .prepareSearch("test")
             .setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.matchAllQuery(), new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
-                new FunctionScoreQueryBuilder.FilterFunctionBuilder(ScoreFunctionBuilders.scriptFunction(new Script(CosineSimilarityScoreScript.SCRIPT_NAME, ScriptService.ScriptType.INLINE, "native", params)))})
+                new FunctionScoreQueryBuilder.FilterFunctionBuilder(ScoreFunctionBuilders.scriptFunction(
+                    new Script(CosineSimilarityScoreScript.SCRIPT_NAME, ScriptService.ScriptType.INLINE, "native", params)))})
                 .boostMode(CombineFunction.REPLACE)).setSize(numDocs).execute().actionGet();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, numDocs);
@@ -145,7 +147,8 @@ public class TermScoringScriptTests extends AbstractSearchScriptTestCase {
         SearchResponse searchResponse = client()
             .prepareSearch("test")
             .setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.matchAllQuery(), new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
-                new FunctionScoreQueryBuilder.FilterFunctionBuilder(ScoreFunctionBuilders.scriptFunction(new Script(LanguageModelScoreScript.SCRIPT_NAME, ScriptService.ScriptType.INLINE, "native", params)))})
+                new FunctionScoreQueryBuilder.FilterFunctionBuilder(ScoreFunctionBuilders.scriptFunction(
+                    new Script(LanguageModelScoreScript.SCRIPT_NAME, ScriptService.ScriptType.INLINE, "native", params)))})
                 .boostMode(CombineFunction.REPLACE)).setSize(numDocs).execute().actionGet();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, numDocs);
@@ -160,7 +163,9 @@ public class TermScoringScriptTests extends AbstractSearchScriptTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
             .startObject(field).field("type", "string")
             .startObject("fields")
-            .startObject("word_count").field("type", "string").field("analyzer", "standard").field("type", "token_count").startObject("fielddata").field("format", "doc_values").endObject().endObject()
+            .startObject("word_count")
+            .field("type", "string").field("analyzer", "standard").field("type", "token_count")
+            .endObject()
             .endObject()
             .endObject().endObject().endObject().endObject().string();
         assertAcked(prepareCreate("test").addMapping("type", mapping));

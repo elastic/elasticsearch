@@ -16,8 +16,12 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.xpack.security.authz.InternalAuthorizationService;
 
+import java.util.HashSet;
+import java.util.Set;
+
 /**
- * Opts out of the query cache if field level security is active for the current request.
+ * Opts out of the query cache if field level security is active for the current request,
+ * and its unsafe to cache.
  */
 public final class OptOutQueryCache extends AbstractIndexComponent implements QueryCache {
 
@@ -64,13 +68,41 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Qu
 
         IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(indexName);
         if (indexAccessControl != null && indexAccessControl.getFields() != null) {
-            logger.debug("opting out of the query cache. request for index [{}] has field level security enabled", indexName);
-            // If in the future there is a Query#extractFields() then we can be smart on when to skip the query cache.
-            // (only cache if all fields in the query also are defined in the role)
-            return weight;
+            if (cachingIsSafe(weight, indexAccessControl)) {
+                logger.trace("not opting out of the query cache. request for index [{}] is safe to cache", indexName);
+                return indicesQueryCache.doCache(weight, policy);
+            } else {
+                logger.trace("opting out of the query cache. request for index [{}] is unsafe to cache", indexName);
+                return weight;
+            }
         } else {
             logger.trace("not opting out of the query cache. request for index [{}] has field level security disabled", indexName);
             return indicesQueryCache.doCache(weight, policy);
         }
+    }
+
+    /**
+     * Returns true if its safe to use the query cache for this query.
+     */
+    static boolean cachingIsSafe(Weight weight, IndicesAccessControl.IndexAccessControl permissions) {
+        // support caching for common queries, by inspecting the field
+        // TODO: If in the future there is a Query#extractFields() then we can do a better job
+        Set<String> fields = new HashSet<>();
+        try {
+            FieldExtractor.extractFields(weight.getQuery(), fields);
+        } catch (UnsupportedOperationException ok) {
+            // we don't know how to safely extract the fields of this query, don't cache.
+            return false;
+        }
+        
+        // we successfully extracted the set of fields: check each one
+        for (String field : fields) {
+            // don't cache any internal fields (e.g. _field_names), these are complicated.
+            if (field.startsWith("_") || permissions.getFields().contains(field) == false) {
+                return false;
+            }
+        }
+        // we can cache, all fields are ok
+        return true;
     }
 }

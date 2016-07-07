@@ -587,6 +587,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             logger.error("unexpected failure during [{}]", e, source);
         }
 
+        @Override
+        public void onNoLongerMaster(String source) {
+            logger.debug("no longer master while processing node removal [{}]", source);
+        }
+
     }
 
     private void removeNode(final DiscoveryNode node, final String source, final String reason) {

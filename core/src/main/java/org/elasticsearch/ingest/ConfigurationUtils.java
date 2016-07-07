@@ -224,16 +224,15 @@ public final class ConfigurationUtils {
     public static ElasticsearchParseException newConfigurationException(String processorType, String processorTag,
                                                                         String propertyName, String reason) {
         ElasticsearchParseException exception = new ElasticsearchParseException("[" + propertyName + "] " + reason);
+        addHeadersToException(exception, processorType, processorTag, propertyName);
+        return exception;
+    }
 
-        if (processorType != null) {
-            exception.addHeader("processor_type", processorType);
-        }
-        if (processorTag != null) {
-            exception.addHeader("processor_tag", processorTag);
-        }
-        if (propertyName != null) {
-            exception.addHeader("property_name", propertyName);
-        }
+    public static ElasticsearchParseException newConfigurationException(String processorType, String processorTag,
+                                                                        String propertyName, Exception cause) {
+        ElasticsearchParseException exception =
+            new ElasticsearchParseException("Exception was thrown when processing field [" + propertyName + "]", cause);
+        addHeadersToException(exception, processorType, processorTag, propertyName);
         return exception;
     }
 
@@ -249,6 +248,28 @@ public final class ConfigurationUtils {
         }
 
         return processors;
+    }
+
+    public static TemplateService.Template compileTemplate(String processorType, String processorTag, String propertyName,
+                                                           String propertyValue, TemplateService templateService) {
+        try {
+            return templateService.compile(propertyValue);
+        } catch (Exception e) {
+            throw ConfigurationUtils.newConfigurationException(processorType, processorTag, propertyName, e);
+        }
+    }
+
+    private static void addHeadersToException(ElasticsearchParseException exception, String processorType,
+                                              String processorTag, String propertyName) {
+        if (processorType != null) {
+            exception.addHeader("processor_type", processorType);
+        }
+        if (processorTag != null) {
+            exception.addHeader("processor_tag", processorTag);
+        }
+        if (propertyName != null) {
+            exception.addHeader("property_name", propertyName);
+        }
     }
 
     public static Processor readProcessor(Map<String, Processor.Factory> processorFactories,

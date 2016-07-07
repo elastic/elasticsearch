@@ -90,4 +90,16 @@ public class AppendProcessorFactoryTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("[value] required property is missing"));
         }
     }
+
+    public void testInvalidMustacheTemplate() throws Exception {
+        AppendProcessor.Factory factory = new AppendProcessor.Factory(TestTemplateService.instance(true));
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        config.put("value", "value1");
+        String processorTag = randomAsciiOfLength(10);
+        ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, processorTag, config));
+        assertThat(exception.getMessage(), equalTo("Exception was thrown when processing field [field]"));
+        assertThat(exception.getHeader("processor_tag").get(0), equalTo(processorTag));
+        assertThat(exception.getCause().getMessage(), equalTo("could not compile script"));
+    }
 }

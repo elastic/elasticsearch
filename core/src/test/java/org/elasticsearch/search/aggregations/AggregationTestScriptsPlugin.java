@@ -21,15 +21,29 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.script.Script;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.script.ScriptService.ScriptType;
+
 /**
  * This class contains various mocked scripts that are used in aggregations integration tests.
  */
 public class AggregationTestScriptsPlugin extends MockScriptPlugin {
+
+    // Equivalent to:
+    //
+    // List values = doc['values'].values;
+    // double[] res = new double[values.size()];
+    // for (int i = 0; i < res.length; i++) {
+    //      res[i] = values.get(i) - dec;
+    // };
+    // return res;
+    public static final Script DECREMENT_ALL_VALUES = new Script("decrement all values", ScriptType.INLINE, NAME, singletonMap("dec", 1));
 
     @Override
     protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
@@ -68,7 +82,7 @@ public class AggregationTestScriptsPlugin extends MockScriptPlugin {
             return doc.get("values");
         });
 
-        scripts.put("decrement all values", vars -> {
+        scripts.put(DECREMENT_ALL_VALUES.getScript(), vars -> {
             int dec = (int) vars.get("dec");
             Map<?, ?> doc = (Map) vars.get("doc");
             ScriptDocValues.Longs values = (ScriptDocValues.Longs) doc.get("values");
@@ -79,6 +93,8 @@ public class AggregationTestScriptsPlugin extends MockScriptPlugin {
             }
             return res;
         });
+
+        scripts.put("_value * -1", vars -> (double) vars.get("_value") * -1);
 
         return scripts;
     }

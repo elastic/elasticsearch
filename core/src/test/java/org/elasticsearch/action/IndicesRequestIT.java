@@ -17,9 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.action;
 
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
@@ -77,15 +76,15 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.groovy.GroovyPlugin;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -109,6 +108,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -120,7 +120,8 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 
 @ClusterScope(scope = Scope.SUITE, numClientNodes = 1, minNumDataNodes = 2)
-public class IndicesRequestTests extends ESIntegTestCase {
+public class IndicesRequestIT extends ESIntegTestCase {
+
     private final List<String> indices = new ArrayList<>();
 
     @Override
@@ -148,7 +149,16 @@ public class IndicesRequestTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InterceptingTransportService.TestPlugin.class, GroovyPlugin.class);
+        return pluginList(InterceptingTransportService.TestPlugin.class, CustomScriptPlugin.class);
+    }
+
+    public static class CustomScriptPlugin extends MockScriptPlugin {
+
+        @Override
+        @SuppressWarnings("unchecked")
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            return Collections.singletonMap("ctx.op='delete'", vars -> ((Map<String, Object>) vars.get("ctx")).put("op", "delete"));
+        }
     }
 
     @Before
@@ -251,7 +261,8 @@ public class IndicesRequestTests extends ESIntegTestCase {
 
         String indexOrAlias = randomIndexOrAlias();
         client().prepareIndex(indexOrAlias, "type", "id").setSource("field", "value").get();
-        UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id").script(new Script("ctx.op='delete'"));
+        UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id")
+                .script(new Script("ctx.op='delete'", ScriptService.ScriptType.INLINE, CustomScriptPlugin.NAME, Collections.emptyMap()));
         UpdateResponse updateResponse = internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet();
         assertThat(updateResponse.isCreated(), equalTo(false));
 
@@ -360,14 +371,16 @@ public class IndicesRequestTests extends ESIntegTestCase {
     }
 
     public void testFlush() {
-        String[] indexShardActions = new String[]{TransportShardFlushAction.NAME, TransportShardFlushAction.NAME + "[r]", TransportShardFlushAction.NAME + "[p]"};
+        String[] indexShardActions = new String[]{TransportShardFlushAction.NAME, TransportShardFlushAction.NAME + "[r]",
+                TransportShardFlushAction.NAME + "[p]"};
         interceptTransportActions(indexShardActions);
 
         FlushRequest flushRequest = new FlushRequest(randomIndicesOrAliases());
         internalCluster().coordOnlyNodeClient().admin().indices().flush(flushRequest).actionGet();
 
         clearInterceptedActions();
-        String[] indices = new IndexNameExpressionResolver(Settings.EMPTY).concreteIndexNames(client().admin().cluster().prepareState().get().getState(), flushRequest);
+        String[] indices = new IndexNameExpressionResolver(Settings.EMPTY)
+                .concreteIndexNames(client().admin().cluster().prepareState().get().getState(), flushRequest);
         assertIndicesSubset(Arrays.asList(indices), indexShardActions);
     }
 
@@ -383,14 +396,16 @@ public class IndicesRequestTests extends ESIntegTestCase {
     }
 
     public void testRefresh() {
-        String[] indexShardActions = new String[]{TransportShardRefreshAction.NAME, TransportShardRefreshAction.NAME + "[r]", TransportShardRefreshAction.NAME + "[p]"};
+        String[] indexShardActions = new String[]{TransportShardRefreshAction.NAME, TransportShardRefreshAction.NAME + "[r]",
+                TransportShardRefreshAction.NAME + "[p]"};
         interceptTransportActions(indexShardActions);
 
         RefreshRequest refreshRequest = new RefreshRequest(randomIndicesOrAliases());
         internalCluster().coordOnlyNodeClient().admin().indices().refresh(refreshRequest).actionGet();
 
         clearInterceptedActions();
-        String[] indices = new IndexNameExpressionResolver(Settings.EMPTY).concreteIndexNames(client().admin().cluster().prepareState().get().getState(), refreshRequest);
+        String[] indices = new IndexNameExpressionResolver(Settings.EMPTY)
+                .concreteIndexNames(client().admin().cluster().prepareState().get().getState(), refreshRequest);
         assertIndicesSubset(Arrays.asList(indices), indexShardActions);
     }
 
@@ -493,7 +508,9 @@ public class IndicesRequestTests extends ESIntegTestCase {
     public void testPutMapping() {
         interceptTransportActions(PutMappingAction.NAME);
 
-        PutMappingRequest putMappingRequest = new PutMappingRequest(randomUniqueIndicesOrAliases()).type("type").source("field", "type=text");
+        PutMappingRequest putMappingRequest = new PutMappingRequest(randomUniqueIndicesOrAliases())
+                .type("type")
+                .source("field", "type=text");
         internalCluster().coordOnlyNodeClient().admin().indices().putMapping(putMappingRequest).actionGet();
 
         clearInterceptedActions();
@@ -513,7 +530,8 @@ public class IndicesRequestTests extends ESIntegTestCase {
     public void testUpdateSettings() {
         interceptTransportActions(UpdateSettingsAction.NAME);
 
-        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(randomIndicesOrAliases()).settings(Settings.builder().put("refresh_interval", -1));
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(randomIndicesOrAliases())
+                .settings(Settings.builder().put("refresh_interval", -1));
         internalCluster().coordOnlyNodeClient().admin().indices().updateSettings(updateSettingsRequest).actionGet();
 
         clearInterceptedActions();
@@ -621,8 +639,9 @@ public class IndicesRequestTests extends ESIntegTestCase {
             }
             for (TransportRequest internalRequest : requests) {
                 assertThat(internalRequest, instanceOf(IndicesRequest.class));
-                assertThat(internalRequest.getClass().getName(), ((IndicesRequest)internalRequest).indices(), equalTo(originalRequest.indices()));
-                assertThat(((IndicesRequest)internalRequest).indicesOptions(), equalTo(originalRequest.indicesOptions()));
+                IndicesRequest indicesRequest = (IndicesRequest) internalRequest;
+                assertThat(internalRequest.getClass().getName(), indicesRequest.indices(), equalTo(originalRequest.indices()));
+                assertThat(indicesRequest.indicesOptions(), equalTo(originalRequest.indicesOptions()));
             }
         }
     }
@@ -736,12 +755,16 @@ public class IndicesRequestTests extends ESIntegTestCase {
         }
 
         @Override
-        public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request, String executor, boolean forceExecution, boolean canTripCircuitBreaker, TransportRequestHandler<Request> handler) {
-            super.registerRequestHandler(action, request, executor, forceExecution, canTripCircuitBreaker, new InterceptingRequestHandler<>(action, handler));
+        public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request, String executor,
+                                                                              boolean forceExecution, boolean canTripCircuitBreaker,
+                                                                              TransportRequestHandler<Request> handler) {
+            super.registerRequestHandler(action, request, executor, forceExecution, canTripCircuitBreaker, new
+                    InterceptingRequestHandler<>(action, handler));
         }
 
         @Override
-        public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory, String executor, TransportRequestHandler<Request> handler) {
+        public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory, String
+                executor, TransportRequestHandler<Request> handler) {
             super.registerRequestHandler(action, requestFactory, executor, new InterceptingRequestHandler<>(action, handler));
         }
 

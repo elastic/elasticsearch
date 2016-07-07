@@ -16,15 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.search.aggregations.bucket;
 
 import com.carrotsearch.hppc.LongHashSet;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.groovy.GroovyPlugin;
+import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -38,8 +40,12 @@ import org.hamcrest.Matchers;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
@@ -56,11 +62,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-/**
- *
- */
 @ESIntegTestCase.SuiteScopeTestCase
-public class HistogramTests extends ESIntegTestCase {
+public class HistogramIT extends ESIntegTestCase {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "l_value";
     private static final String MULTI_VALUED_FIELD_NAME = "l_values";
@@ -72,7 +75,32 @@ public class HistogramTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GroovyPlugin.class);
+        return Collections.singleton(CustomScriptPlugin.class);
+    }
+
+    public static class CustomScriptPlugin extends MockScriptPlugin {
+
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+
+            scripts.put("_value + 1", vars -> {
+                long value = (long) vars.get("_value");
+                return value + 1L;
+            });
+
+            scripts.put("doc['l_value'].value", vars -> {
+                Map<?, ?> doc = (Map) vars.get("doc");
+                return doc.get(SINGLE_VALUED_FIELD_NAME);
+            });
+
+            scripts.put("doc['l_values']", vars -> {
+                Map<?, ?> doc = (Map) vars.get("doc");
+                return doc.get(MULTI_VALUED_FIELD_NAME);
+            });
+
+            return scripts;
+        }
     }
 
     @Override
@@ -349,15 +377,19 @@ public class HistogramTests extends ESIntegTestCase {
                 }
             }
             assertThat(sum.getValue(), equalTo((double) s));
-            assertThat((long) propertiesKeys[i], equalTo((long) i * interval));
-            assertThat((long) propertiesDocCounts[i], equalTo(valueCounts[i]));
-            assertThat((double) propertiesCounts[i], equalTo((double) s));
+            assertEquals(propertiesKeys[i], (long) i * interval);
+            assertThat(propertiesDocCounts[i], equalTo(valueCounts[i]));
+            assertThat(propertiesCounts[i], equalTo((double) s));
         }
     }
 
     public void testSingleValuedFieldOrderedBySubAggregationAsc() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(Histogram.Order.aggregation("sum", true))
+                .addAggregation(
+                        histogram("histo")
+                                .field(SINGLE_VALUED_FIELD_NAME)
+                                .interval(interval)
+                                .order(Histogram.Order.aggregation("sum", true))
                         .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                 .execute().actionGet();
 
@@ -397,7 +429,11 @@ public class HistogramTests extends ESIntegTestCase {
 
     public void testSingleValuedFieldOrderedBySubAggregationDesc() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(Histogram.Order.aggregation("sum", false))
+                .addAggregation(
+                        histogram("histo")
+                                .field(SINGLE_VALUED_FIELD_NAME)
+                                .interval(interval)
+                                .order(Histogram.Order.aggregation("sum", false))
                         .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                 .execute().actionGet();
 
@@ -437,7 +473,11 @@ public class HistogramTests extends ESIntegTestCase {
 
     public void testSingleValuedFieldOrderedByMultiValuedSubAggregationDesc() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(Histogram.Order.aggregation("stats.sum", false))
+                .addAggregation(
+                        histogram("histo")
+                                .field(SINGLE_VALUED_FIELD_NAME)
+                                .interval(interval)
+                                .order(Histogram.Order.aggregation("stats.sum", false))
                         .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME)))
                 .execute().actionGet();
 
@@ -478,9 +518,13 @@ public class HistogramTests extends ESIntegTestCase {
     public void testSingleValuedFieldOrderedBySubAggregationDescDeepOrderPath() throws Exception {
         boolean asc = randomBoolean();
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(Histogram.Order.aggregation("filter>max", asc))
+                .addAggregation(
+                        histogram("histo")
+                                .field(SINGLE_VALUED_FIELD_NAME)
+                                .interval(interval)
+                                .order(Histogram.Order.aggregation("filter>max", asc))
                         .subAggregation(filter("filter", matchAllQuery())
-                                .subAggregation(max("max").field(SINGLE_VALUED_FIELD_NAME))))
+                        .subAggregation(max("max").field(SINGLE_VALUED_FIELD_NAME))))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -515,7 +559,11 @@ public class HistogramTests extends ESIntegTestCase {
 
     public void testSingleValuedFieldWithValueScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).script(new Script("_value + 1")).interval(interval))
+                .addAggregation(
+                        histogram("histo")
+                                .field(SINGLE_VALUED_FIELD_NAME)
+                                .script(new Script("_value + 1", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap()))
+                                .interval(interval))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -588,7 +636,11 @@ public class HistogramTests extends ESIntegTestCase {
 
     public void testMultiValuedFieldWithValueScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").field(MULTI_VALUED_FIELD_NAME).script(new Script("_value + 1")).interval(interval))
+                .addAggregation(
+                        histogram("histo")
+                                .field(MULTI_VALUED_FIELD_NAME)
+                                .script(new Script("_value + 1", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap()))
+                                .interval(interval))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -621,7 +673,10 @@ public class HistogramTests extends ESIntegTestCase {
 
     public void testScriptSingleValue() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").script(new Script("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value")).interval(interval))
+                .addAggregation(
+                        histogram("histo")
+                            .script(new Script("doc['l_value'].value", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap()))
+                            .interval(interval))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -642,7 +697,10 @@ public class HistogramTests extends ESIntegTestCase {
 
     public void testScriptMultiValued() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").script(new Script("doc['" + MULTI_VALUED_FIELD_NAME + "']")).interval(interval))
+                .addAggregation(
+                        histogram("histo")
+                                .script(new Script("doc['l_values']", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap()))
+                                .interval(interval))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -701,8 +759,11 @@ public class HistogramTests extends ESIntegTestCase {
         SearchResponse response = client()
                 .prepareSearch("idx", "idx_unmapped")
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                .extendedBounds(new ExtendedBounds((long) -1 * 2 * interval, (long) valueCounts.length * interval))).execute().actionGet();
+                        histogram("histo")
+                                .field(SINGLE_VALUED_FIELD_NAME)
+                                .interval(interval)
+                                .extendedBounds(new ExtendedBounds((long) -1 * 2 * interval, (long) valueCounts.length * interval)))
+                .get();
 
         assertSearchResponse(response);
 

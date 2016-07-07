@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.search.aggregations;
 
 import com.carrotsearch.hppc.IntHashSet;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -28,9 +28,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -49,6 +49,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.extendedStats;
@@ -71,11 +72,22 @@ import static org.hamcrest.core.IsNull.notNullValue;
  * Additional tests that aim at testing more complex aggregation trees on larger random datasets, so that things like
  * the growth of dynamic arrays is tested.
  */
-public class EquivalenceTests extends ESIntegTestCase {
+public class EquivalenceIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GroovyPlugin.class);
+        return Collections.singleton(CustomScriptPlugin.class);
+    }
+
+    public static class CustomScriptPlugin extends MockScriptPlugin {
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            return Collections.singletonMap("floor(_value / interval)", vars -> {
+                Double value = (Double) vars.get("_value");
+                Integer interval = (Integer) vars.get("interval");
+                return Math.floor(value / interval.doubleValue());
+            });
+        }
     }
 
     // Make sure that unordered, reversed, disjoint and/or overlapping ranges are supported
@@ -102,7 +114,9 @@ public class EquivalenceTests extends ESIntegTestCase {
             source = source.endArray().endObject();
             client().prepareIndex("idx", "type").setSource(source).execute().actionGet();
         }
-        assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
+        assertNoFailures(client().admin().indices().prepareRefresh("idx").
+                setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .get());
 
         final int numRanges = randomIntBetween(1, 20);
         final double[][] ranges = new double[numRanges][];
@@ -234,20 +248,48 @@ public class EquivalenceTests extends ESIntegTestCase {
         }
         indexRandom(true, indexingRequests);
 
-        assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
+        assertNoFailures(client().admin().indices().prepareRefresh("idx")
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .execute().get());
 
         TermsAggregatorFactory.ExecutionMode[] globalOrdinalModes = new TermsAggregatorFactory.ExecutionMode[] {
                 TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS_HASH, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS
         };
 
         SearchResponse resp = client().prepareSearch("idx")
-                .addAggregation(terms("long").field("long_values").size(maxNumTerms).collectMode(randomFrom(SubAggCollectionMode.values())).subAggregation(min("min").field("num")))
-                .addAggregation(terms("double").field("double_values").size(maxNumTerms).collectMode(randomFrom(SubAggCollectionMode.values())).subAggregation(max("max").field("num")))
-                .addAggregation(terms("string_map").field("string_values").collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .executionHint(TermsAggregatorFactory.ExecutionMode.MAP.toString()).size(maxNumTerms)
-                        .subAggregation(stats("stats").field("num")))
-                .addAggregation(terms("string_global_ordinals").field("string_values").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
-                .addAggregation(terms("string_global_ordinals_doc_values").field("string_values.doc_values").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
+                    .addAggregation(
+                            terms("long")
+                                    .field("long_values")
+                                    .size(maxNumTerms)
+                                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                    .subAggregation(min("min").field("num")))
+                    .addAggregation(
+                            terms("double")
+                                    .field("double_values")
+                                    .size(maxNumTerms)
+                                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                    .subAggregation(max("max").field("num")))
+                    .addAggregation(
+                            terms("string_map")
+                                    .field("string_values")
+                                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                    .executionHint(TermsAggregatorFactory.ExecutionMode.MAP.toString())
+                                    .size(maxNumTerms)
+                                    .subAggregation(stats("stats").field("num")))
+                    .addAggregation(
+                            terms("string_global_ordinals")
+                                    .field("string_values")
+                                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                    .executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString())
+                                    .size(maxNumTerms)
+                                    .subAggregation(extendedStats("stats").field("num")))
+                    .addAggregation(
+                            terms("string_global_ordinals_doc_values")
+                                    .field("string_values.doc_values")
+                                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                    .executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString())
+                                    .size(maxNumTerms)
+                                    .subAggregation(extendedStats("stats").field("num")))
                 .execute().actionGet();
         assertAllSuccessful(resp);
         assertEquals(numDocs, resp.getHits().getTotalHits());
@@ -304,15 +346,25 @@ public class EquivalenceTests extends ESIntegTestCase {
             source = source.endArray().endObject();
             client().prepareIndex("idx", "type").setSource(source).execute().actionGet();
         }
-        assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
+        assertNoFailures(client().admin().indices().prepareRefresh("idx")
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .execute().get());
 
         Map<String, Object> params = new HashMap<>();
         params.put("interval", interval);
+
         SearchResponse resp = client().prepareSearch("idx")
                 .addAggregation(
-                        terms("terms").field("values").collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script("floor(_value / interval)", ScriptType.INLINE, null, params)).size(maxNumTerms))
-                .addAggregation(histogram("histo").field("values").interval(interval).minDocCount(1))
+                        terms("terms")
+                                .field("values")
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .script(new Script("floor(_value / interval)", ScriptType.INLINE, CustomScriptPlugin.NAME, params))
+                                .size(maxNumTerms))
+                .addAggregation(
+                        histogram("histo")
+                                .field("values")
+                                .interval(interval)
+                                .minDocCount(1))
                 .execute().actionGet();
 
         assertSearchResponse(resp);
@@ -341,7 +393,13 @@ public class EquivalenceTests extends ESIntegTestCase {
         }
         indexRandom(true, indexingRequests);
 
-        SearchResponse response = client().prepareSearch("idx").addAggregation(terms("terms").field("double_value").collectMode(randomFrom(SubAggCollectionMode.values())).subAggregation(percentiles("pcts").field("double_value"))).execute().actionGet();
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(
+                        terms("terms")
+                                .field("double_value")
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .subAggregation(percentiles("pcts").field("double_value")))
+                .execute().actionGet();
         assertAllSuccessful(response);
         assertEquals(numDocs, response.getHits().getTotalHits());
     }

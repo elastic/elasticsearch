@@ -450,18 +450,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
     @Override
     public void testScriptMultiValuedWithParams() throws Exception {
         int sigDigits = randomSignificantDigits();
-        Map<String, Object> params = new HashMap<>();
-        params.put("dec", 1);
-
-        // Equivalent to:
-        //
-        // List values = doc['values'].values;
-        // double[] res = new double[values.size()];
-        // for (int i = 0; i < res.length; i++) {
-        //      res[i] = values.get(i) - dec;
-        // };
-        // return res;
-        Script script = new Script("decrement all values", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params);
+        Script script = AggregationTestScriptsPlugin.DECREMENT_ALL_VALUES;
 
         final double[] pcts = randomPercents(minValues - 1, maxValues - 1);
         SearchResponse searchResponse = client()

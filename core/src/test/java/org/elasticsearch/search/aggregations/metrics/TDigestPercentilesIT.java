@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.logging.Loggers;
@@ -24,13 +24,12 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.groovy.GroovyPlugin;
+import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Order;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.AbstractNumericTestCase;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesAggregationBuilder;
@@ -43,6 +42,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
@@ -57,13 +57,11 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-/**
- *
- */
-public class TDigestPercentilesTests extends AbstractNumericTestCase {
+public class TDigestPercentilesIT extends AbstractNumericTestCase {
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GroovyPlugin.class);
+        return Collections.singleton(AggregationTestScriptsPlugin.class);
     }
 
     private static double[] randomPercentiles() {
@@ -83,7 +81,7 @@ public class TDigestPercentilesTests extends AbstractNumericTestCase {
             }
         }
         Arrays.sort(percentiles);
-        Loggers.getLogger(TDigestPercentilesTests.class).info("Using percentiles={}", Arrays.toString(percentiles));
+        Loggers.getLogger(TDigestPercentilesIT.class).info("Using percentiles={}", Arrays.toString(percentiles));
         return percentiles;
     }
 
@@ -197,8 +195,7 @@ public class TDigestPercentilesTests extends AbstractNumericTestCase {
         Percentiles percentiles = global.getAggregations().get("percentiles");
         assertThat(percentiles, notNullValue());
         assertThat(percentiles.getName(), equalTo("percentiles"));
-        assertThat((Percentiles) global.getProperty("percentiles"), sameInstance(percentiles));
-
+        assertThat(global.getProperty("percentiles"), sameInstance(percentiles));
     }
 
     @Override
@@ -222,9 +219,12 @@ public class TDigestPercentilesTests extends AbstractNumericTestCase {
         final double[] pcts = randomPercentiles();
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentiles("percentiles"))
-.field("value").script(new Script("_value - 1"))
-                        .percentiles(pcts))
+                .addAggregation(
+                        randomCompression(
+                                percentiles("percentiles"))
+                                    .field("value")
+                                    .script(new Script("_value - 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                    .percentiles(pcts))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -240,10 +240,12 @@ public class TDigestPercentilesTests extends AbstractNumericTestCase {
         final double[] pcts = randomPercentiles();
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentiles("percentiles"))
-.field("value")
-                                .script(new Script("_value - dec", ScriptType.INLINE, null, params))
-                        .percentiles(pcts))
+                .addAggregation(
+                        randomCompression(
+                                percentiles("percentiles"))
+                                    .field("value")
+                                    .script(new Script("_value - dec", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params))
+                                .percentiles(pcts))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -257,9 +259,7 @@ public class TDigestPercentilesTests extends AbstractNumericTestCase {
         final double[] pcts = randomPercentiles();
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentiles("percentiles"))
-                        .field("values")
-                        .percentiles(pcts))
+                .addAggregation(randomCompression(percentiles("percentiles")).field("values").percentiles(pcts))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -273,9 +273,12 @@ public class TDigestPercentilesTests extends AbstractNumericTestCase {
         final double[] pcts = randomPercentiles();
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentiles("percentiles"))
-.field("values").script(new Script("_value - 1"))
-                        .percentiles(pcts))
+                .addAggregation(
+                        randomCompression(
+                                percentiles("percentiles"))
+                                    .field("values")
+                                .script(new Script("_value - 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                .percentiles(pcts))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -288,9 +291,12 @@ public class TDigestPercentilesTests extends AbstractNumericTestCase {
         final double[] pcts = randomPercentiles();
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentiles("percentiles"))
-                        .field("values").script(new Script("_value * -1"))
-                        .percentiles(pcts))
+                .addAggregation(
+                        randomCompression(
+                                percentiles("percentiles"))
+                                    .field("values")
+                                    .script(new Script("_value * -1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                    .percentiles(pcts))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -306,10 +312,12 @@ public class TDigestPercentilesTests extends AbstractNumericTestCase {
         final double[] pcts = randomPercentiles();
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentiles("percentiles"))
-.field("values")
-                                .script(new Script("_value - dec", ScriptType.INLINE, null, params))
-                        .percentiles(pcts))
+                .addAggregation(
+                        randomCompression(
+                                percentiles("percentiles"))
+                                    .field("values")
+                                    .script(new Script("_value - dec", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params))
+                                    .percentiles(pcts))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -320,12 +328,15 @@ public class TDigestPercentilesTests extends AbstractNumericTestCase {
 
     @Override
     public void testScriptSingleValued() throws Exception {
+        Script script = new Script("doc['value'].value", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap());
         final double[] pcts = randomPercentiles();
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentiles("percentiles"))
-.script(new Script("doc['value'].value"))
-                        .percentiles(pcts))
+                .addAggregation(
+                        randomCompression(
+                                percentiles("percentiles"))
+                                    .script(script)
+                                    .percentiles(pcts))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -338,13 +349,17 @@ public class TDigestPercentilesTests extends AbstractNumericTestCase {
     public void testScriptSingleValuedWithParams() throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
+
+        Script script = new Script("doc['value'].value - dec", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params);
+
         final double[] pcts = randomPercentiles();
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentiles("percentiles"))
-                        .script(
-                                new Script("doc['value'].value - dec", ScriptType.INLINE, null, params))
-                        .percentiles(pcts))
+                .addAggregation(
+                        randomCompression(
+                                percentiles("percentiles"))
+                                .script(script)
+                                .percentiles(pcts))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -356,11 +371,15 @@ public class TDigestPercentilesTests extends AbstractNumericTestCase {
     @Override
     public void testScriptMultiValued() throws Exception {
         final double[] pcts = randomPercentiles();
+        Script script = new Script("doc['values'].values", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap());
+
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentiles("percentiles"))
-.script(new Script("doc['values'].values"))
-                        .percentiles(pcts))
+                .addAggregation(
+                        randomCompression(
+                                percentiles("percentiles"))
+                                    .script(script)
+                                    .percentiles(pcts))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -371,16 +390,16 @@ public class TDigestPercentilesTests extends AbstractNumericTestCase {
 
     @Override
     public void testScriptMultiValuedWithParams() throws Exception {
-        Map<String, Object> params = new HashMap<>();
-        params.put("dec", 1);
+        Script script = AggregationTestScriptsPlugin.DECREMENT_ALL_VALUES;
+
         final double[] pcts = randomPercentiles();
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentiles("percentiles"))
-                                .script(new Script(
-                                        "List values = doc['values'].values; double[] res = new double[values.size()]; for (int i = 0; i < res.length; i++) { res[i] = values.get(i) - dec; }; return res;",
-                                        ScriptType.INLINE, null, params))
-                        .percentiles(pcts))
+                .addAggregation(
+                        randomCompression(
+                                percentiles("percentiles"))
+                                    .script(script)
+                                    .percentiles(pcts))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);

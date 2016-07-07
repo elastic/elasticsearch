@@ -34,7 +34,7 @@ import java.nio.file.Path;
 
 /**
  */
-public class Checkpoint {
+class Checkpoint {
 
     static final byte FORMAT_VERSION = 1;
 
@@ -92,22 +92,6 @@ public class Checkpoint {
                 ", translogFileGeneration= " + generation +
                 ", seqNoGlobalCheckpoint= " + seqNoGlobalCheckpoint +
                 '}';
-    }
-
-    public long getOffset() {
-        return offset;
-    }
-
-    public int getNumOps() {
-        return numOps;
-    }
-
-    public long getGeneration() {
-        return generation;
-    }
-
-    public long getSeqNoGlobalCheckpoint() {
-        return seqNoGlobalCheckpoint;
     }
 
     public static Checkpoint read(Path path) throws IOException {

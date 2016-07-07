@@ -66,7 +66,6 @@ import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
-import org.elasticsearch.index.translog.Checkpoint;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -85,7 +84,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.seqno.SequenceNumbersService.NO_OPS_PERFORMED;
-import static org.elasticsearch.index.seqno.SequenceNumbersService.UNASSIGNED_SEQ_NO;
 
 /**
  *
@@ -169,13 +167,7 @@ public class InternalEngine extends Engine {
                         engineConfig.getIndexSettings(),
                         seqNoStats.getMaxSeqNo(), seqNoStats.getLocalCheckpoint(), seqNoStats.getGlobalCheckpoint(),
                         this::onGlobalCheckpointUpdate);
-                deletionPolicy = new SnapshotDeletionPolicy(new SeqNoAwareDeletionPolicy(
-                    // nocommit: can we find a cleaner way to deal with the translog not being initialized yet?
-                    () -> {
-                        final Checkpoint checkpoint = lastTranslogCheckpoint(this);
-                        return checkpoint == null ? UNASSIGNED_SEQ_NO : checkpoint.getSeqNoGlobalCheckpoint();
-                    } // make sure we use persisted seq#
-                , logger));
+                deletionPolicy = new SnapshotDeletionPolicy(new SeqNoAwareDeletionPolicy(seqNoService::getGlobalCheckpoint, logger));
                 writer = createWriter(commitToOpen);
                 if (logger.isTraceEnabled()) {
                     logger.trace(
@@ -221,10 +213,6 @@ public class InternalEngine extends Engine {
             }
         }
         logger.trace("created new InternalEngine");
-    }
-
-    private static Checkpoint lastTranslogCheckpoint(InternalEngine engine) {
-        return engine.translog != null ? engine.translog.getLastCheckpoint() : null;
     }
 
     private static IndexCommit findCommitById(Directory directory, CommitId commitIdToOpen) throws IOException {

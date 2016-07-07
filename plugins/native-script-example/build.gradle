@@ -1,0 +1,42 @@
+buildscript {
+    repositories {
+        mavenCentral()
+        maven {
+            name 'sonatype-snapshots'
+            url "https://oss.sonatype.org/content/repositories/snapshots/"
+        }
+        jcenter()
+    }
+    dependencies {
+        // Version of elasticsearch
+        classpath "org.elasticsearch.gradle:build-tools:3.0.0-SNAPSHOT"
+    }
+}
+
+apply plugin: 'idea'
+apply plugin: 'eclipse'
+apply plugin: 'elasticsearch.esplugin'
+
+// Version of the plugin
+version = '3.0.0-SNAPSHOT'
+
+esplugin {
+    description 'ElasticSearch Plugin with Native Script Examples.'
+    classname 'org.elasticsearch.examples.nativescript.plugin.NativeScriptExamplesPlugin'
+}
+
+dependencies {
+    // Not really used at the moment - just to show how to include dependencies
+    compile "org.apache.commons:commons-math3:3.5"
+}
+
+compileJava.options.compilerArgs << "-Xlint:-deprecation"
+
+// uncomment to disable 3rd party audit - TODO: temporary workaround until it's fixed in elasticsearch
+thirdPartyAudit.enabled = false
+
+// uncomment to disable forbidden patterns checks
+// forbiddenPatterns.enabled = false
+
+// uncomment to disable license headers checks
+// licenseHeaders.enabled = false

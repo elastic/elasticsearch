@@ -1,0 +1,48 @@
+# Integration tests for the lookup script
+#
+setup:
+    - do:
+        indices.create:
+            index: test_index
+            body:
+                settings:
+                    index.number_of_shards: 1
+                    index.number_of_replicas: 0
+                mappings.type1:
+                      properties:
+                          name.type: string
+                          number.type: integer
+
+    - do:
+        index: {index: test_index, type: type1, id: 1, body: {name: "rec 1", number: 1}}
+
+    - do:
+        index: {index: test_index, type: type1, id: 2, body: {name: "rec 2", number: 2}}
+
+    - do:
+        index: {index: test_index, type: type1, id: 3, body: {name: "rec 3", number: 3}}
+
+    - do:
+        index: {index: test_index, type: type1, id: 4, body: {name: "rec 4", number: 4}}
+
+    - do:
+        index: {index: test_index, type: type1, id: 5, body: {name: "rec 5", number: 5}}
+    - do:
+        indices.refresh: {}
+
+---
+
+"Primes Test":
+    - do:
+        search:
+            body:
+                query:
+                    constant_score:
+                        filter:
+                            script:
+                                script: is_prime
+                                lang: native
+                                params:
+                                    field: number
+
+    - match: { hits.total: 3}

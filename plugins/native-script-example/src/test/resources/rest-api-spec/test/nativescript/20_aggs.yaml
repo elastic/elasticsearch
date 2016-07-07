@@ -1,0 +1,42 @@
+# Integration tests for aggregation scripts
+#
+setup:
+    - do:
+        indices.create:
+            index: test_index
+            body:
+                settings:
+                    index.number_of_shards: 1
+                    index.number_of_replicas: 0
+                mappings.type1:
+                      properties:
+                          type: {type: string, index: not_analyzed}
+                          amount.type: long
+
+    - do:
+        index: {index: transactions, type: stock, id: 1, body: {type: "sale", amount: 80}}
+
+    - do:
+        index: {index: transactions, type: stock, id: 2, body: {type: "cost", amount: 10}}
+
+    - do:
+        index: {index: transactions, type: stock, id: 3, body: {type: "cost", amount: 30}}
+
+    - do:
+        index: {index: transactions, type: stock, id: 4, body: {type: "sale", amount: 130}}
+
+    - do:
+        indices.refresh: {}
+
+---
+
+"Primes Test":
+    - do:
+        search:
+            body:
+                aggs:
+                    profit:
+                        scripted_metric: { "init_script" : "stockaggs_init", "map_script" : "stockaggs_map",  "combine_script" : "stockaggs_combine", "reduce_script" : "stockaggs_reduce", "lang": "native"}
+
+    - match: { hits.total: 4}
+    - match: { aggregations.profit.value: 170}

@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.security.action.role.DeleteRoleRequestBuilder;
 import org.elasticsearch.xpack.security.action.role.DeleteRoleResponse;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+
 /**
  * Rest endpoint to delete a Role from the security index
  */
@@ -29,7 +31,13 @@ public class RestDeleteRoleAction extends BaseRestHandler {
     @Inject
     public RestDeleteRoleAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.DELETE, "/_xpack/security/role/{name}", this);
+        controller.registerHandler(DELETE, "/_xpack/security/role/{name}", this);
+
+        // @deprecated: Remove in 6.0
+        controller.registerAsDeprecatedHandler(DELETE, "/_shield/role/{name}", this,
+                                               "[DELETE /_shield/role/{name}] is deprecated! Use " +
+                                               "[DELETE /_xpack/security/role/{name}] instead.",
+                                               deprecationLogger);
     }
 
     @Override

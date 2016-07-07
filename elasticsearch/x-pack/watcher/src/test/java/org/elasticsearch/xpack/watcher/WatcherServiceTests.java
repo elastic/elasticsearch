@@ -56,13 +56,14 @@ public class WatcherServiceTests extends ESTestCase {
     private WatcherService watcherService;
     private WatchLockService watchLockService;
     private ClockMock clock;
+    private ExecutionService executionService;
 
     @Before
     public void init() throws Exception {
         triggerService = mock(TriggerService.class);
         watchStore = mock(WatchStore.class);
         watchParser = mock(Watch.Parser.class);
-        ExecutionService executionService =  mock(ExecutionService.class);
+        executionService =  mock(ExecutionService.class);
         watchLockService = mock(WatchLockService.class);
         clock = new ClockMock();
         WatcherIndexTemplateRegistry watcherIndexTemplateRegistry = mock(WatcherIndexTemplateRegistry.class);

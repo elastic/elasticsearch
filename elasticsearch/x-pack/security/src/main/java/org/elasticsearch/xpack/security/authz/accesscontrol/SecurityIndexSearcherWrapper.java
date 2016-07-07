@@ -144,7 +144,8 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                     allowedFields.addAll(mapperService.simpleMatchToIndexNames(field));
                 }
                 resolveParentChildJoinFields(allowedFields);
-                reader = FieldSubsetReader.wrap(reader, allowedFields);
+                // TODO: support 'denied' fields (pass true as the 3rd parameter in this case)
+                reader = FieldSubsetReader.wrap(reader, allowedFields, false);
             }
 
             return reader;

@@ -13,14 +13,11 @@ setup:
 
 ---
 "Bulk indexing of monitoring data":
-  # Get the current version
-  - do: {info: {}}
-  - set: {version.number: version}
 
   - do:
       xpack.monitoring.bulk:
         system_id:      "kibana"
-        system_version: $version
+        system_api_version: "2"
         body:
           - index:
               _type:  test_type
@@ -54,7 +51,7 @@ setup:
   - do:
       xpack.monitoring.bulk:
         system_id:      "kibana"
-        system_version: $version
+        system_api_version: "2"
         type: "default_type"
         body:
           - '{"index": {}}'

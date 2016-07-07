@@ -93,6 +93,18 @@ public class SecurityFeatureSetTests extends ESTestCase {
         assertThat(featureSet.enabled(), is(true));
     }
 
+    public void testSystemKeyUsageEnabledByCryptoService() {
+        final boolean enabled = randomBoolean();
+
+        when(cryptoService.encryptionEnabled()).thenReturn(enabled);
+
+        assertThat(SecurityFeatureSet.systemKeyUsage(cryptoService), is(enabled));
+    }
+
+    public void testSystemKeyUsageNotEnabledIfNull() {
+        assertThat(SecurityFeatureSet.systemKeyUsage(null), is(false));
+    }
+
     public void testUsage() throws Exception {
 
         boolean authcAuthzAvailable = randomBoolean();

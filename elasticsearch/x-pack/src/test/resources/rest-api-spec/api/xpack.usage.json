@@ -7,6 +7,10 @@
       "paths": [ "/_xpack/usage" ],
       "parts": {},
       "params": {
+        "master_timeout": {
+          "type": "duration",
+          "description": "Specify timeout for watch write operation"
+        }
       }
     },
     "body": null

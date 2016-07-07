@@ -1,0 +1,26 @@
+[2016-07-07 15:37:28,224][INFO ][node                     ] [Honey Lemon] version[2.3.4], pid[20990], build[e455fd0/2016-06-30T11:24:31Z]
+[2016-07-07 15:37:28,224][INFO ][node                     ] [Honey Lemon] initializing ...
+[2016-07-07 15:37:28,945][INFO ][plugins                  ] [Honey Lemon] modules [reindex, lang-expression, lang-groovy], plugins [], sites []
+[2016-07-07 15:37:28,977][INFO ][env                      ] [Honey Lemon] using [1] data paths, mounts [[/ (/dev/disk1)]], net usable_space [68.2gb], net total_space [232.6gb], spins? [unknown], types [hfs]
+[2016-07-07 15:37:28,977][INFO ][env                      ] [Honey Lemon] heap size [990.7mb], compressed ordinary object pointers [true]
+[2016-07-07 15:37:28,978][WARN ][env                      ] [Honey Lemon] max file descriptors [10240] for elasticsearch process likely too low, consider increasing to at least [65536]
+[2016-07-07 15:37:33,182][INFO ][node                     ] [Honey Lemon] initialized
+[2016-07-07 15:37:33,182][INFO ][node                     ] [Honey Lemon] starting ...
+[2016-07-07 15:37:33,376][INFO ][transport                ] [Honey Lemon] publish_address {localhost/127.0.0.1:9300}, bound_addresses {127.0.0.1:9300}, {[::1]:9300}
+[2016-07-07 15:37:33,384][INFO ][discovery                ] [Honey Lemon] bwc_index_2.3.4/2J-Vtmq0SSC01pGvohReOQ
+[2016-07-07 15:37:36,427][INFO ][cluster.service          ] [Honey Lemon] new_master {Honey Lemon}{2J-Vtmq0SSC01pGvohReOQ}{127.0.0.1}{localhost/127.0.0.1:9300}, reason: zen-disco-join(elected_as_master, [0] joins received)
+[2016-07-07 15:37:36,457][INFO ][http                     ] [Honey Lemon] publish_address {localhost/127.0.0.1:9200}, bound_addresses {127.0.0.1:9200}, {[::1]:9200}
+[2016-07-07 15:37:36,457][INFO ][node                     ] [Honey Lemon] started
+[2016-07-07 15:37:36,496][INFO ][gateway                  ] [Honey Lemon] recovered [0] indices into cluster_state
+[2016-07-07 15:37:37,304][INFO ][cluster.metadata         ] [Honey Lemon] [index-2.3.4] creating index, cause [api], templates [], shards [1]/[0], mappings []
+[2016-07-07 15:37:37,902][INFO ][cluster.routing.allocation] [Honey Lemon] Cluster health status changed from [RED] to [GREEN] (reason: [shards started [[index-2.3.4][0]] ...]).
+[2016-07-07 15:37:38,047][INFO ][cluster.metadata         ] [Honey Lemon] [index-2.3.4] create_mapping [doc]
+[2016-07-07 15:38:05,753][WARN ][action.admin.cluster.settings] [Honey Lemon] ignoring persistent setting [discovery.zen.publish_timeout], [Failed to parse setting [discovery.zen.publish_timeout] with value [30000] as a time value: unit is missing or unrecognized]
+[2016-07-07 15:38:05,753][WARN ][action.admin.cluster.settings] [Honey Lemon] ignoring persistent setting [indices.recovery.file_chunk_size], [failed to parse setting [indices.recovery.file_chunk_size] with value [524288] as a size in bytes: unit is missing or unrecognized]
+[2016-07-07 15:38:05,803][INFO ][repositories             ] [Honey Lemon] put repository [test_repo]
+[2016-07-07 15:38:05,862][INFO ][snapshots                ] [Honey Lemon] snapshot [test_repo:test_1] is done
+[2016-07-07 15:38:05,875][INFO ][repositories             ] [Honey Lemon] delete repository [test_repo]
+[2016-07-07 15:38:05,881][INFO ][node                     ] [Honey Lemon] stopping ...
+[2016-07-07 15:38:05,933][INFO ][node                     ] [Honey Lemon] stopped
+[2016-07-07 15:38:05,933][INFO ][node                     ] [Honey Lemon] closing ...
+[2016-07-07 15:38:05,943][INFO ][node                     ] [Honey Lemon] closed

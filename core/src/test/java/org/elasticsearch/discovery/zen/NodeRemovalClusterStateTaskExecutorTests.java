@@ -52,7 +52,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
 
     public void testRemovingNonExistentNodes() throws Exception {
         final ZenDiscovery.NodeRemovalClusterStateTaskExecutor executor =
-                new ZenDiscovery.NodeRemovalClusterStateTaskExecutor(null, null, null, mock(ESLogger.class));
+                new ZenDiscovery.NodeRemovalClusterStateTaskExecutor(null, null, null, logger);
         final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         final int nodes = randomIntBetween(2, 16);
         for (int i = 0; i < nodes; i++) {
@@ -91,7 +91,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
 
         final AtomicReference<ClusterState> remainingNodesClusterState = new AtomicReference<>();
         final ZenDiscovery.NodeRemovalClusterStateTaskExecutor executor =
-                new ZenDiscovery.NodeRemovalClusterStateTaskExecutor(allocationService, electMasterService, rejoin, mock(ESLogger.class)) {
+                new ZenDiscovery.NodeRemovalClusterStateTaskExecutor(allocationService, electMasterService, rejoin, logger) {
                     @Override
                     ClusterState remainingNodesClusterState(ClusterState currentState, DiscoveryNodes.Builder remainingNodesBuilder) {
                         remainingNodesClusterState.set(super.remainingNodesClusterState(currentState, remainingNodesBuilder));
@@ -143,7 +143,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
 
         final AtomicReference<ClusterState> remainingNodesClusterState = new AtomicReference<>();
         final ZenDiscovery.NodeRemovalClusterStateTaskExecutor executor =
-                new ZenDiscovery.NodeRemovalClusterStateTaskExecutor(allocationService, electMasterService, rejoin, mock(ESLogger.class)) {
+                new ZenDiscovery.NodeRemovalClusterStateTaskExecutor(allocationService, electMasterService, rejoin, logger) {
                     @Override
                     ClusterState remainingNodesClusterState(ClusterState currentState, DiscoveryNodes.Builder remainingNodesBuilder) {
                         remainingNodesClusterState.set(super.remainingNodesClusterState(currentState, remainingNodesBuilder));

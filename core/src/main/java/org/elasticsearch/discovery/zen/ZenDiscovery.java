@@ -576,6 +576,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         }
 
         // visible for testing
+        // hook is used in testing to ensure that correct cluster state is used to test whether a
+        // rejoin or reroute is needed
         ClusterState remainingNodesClusterState(final ClusterState currentState, DiscoveryNodes.Builder remainingNodesBuilder) {
             return ClusterState.builder(currentState).nodes(remainingNodesBuilder).build();
         }

@@ -87,7 +87,7 @@ the same field name for the same data.
 Types might sound like a good way to store multiple tenants in a single index.
 They are not: given that types store everything in a single index, having
 multiple types that have different fields in a single index will also cause
-problems due to sparsity as described above. If your types to not have very
+problems due to sparsity as described above. If your types do not have very
 similar mappings, you might want to consider moving them to a dedicated index.
 
 [float]

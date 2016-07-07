@@ -516,7 +516,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             private final DiscoveryNode node;
             private final String reason;
 
-            public Task(DiscoveryNode node, String reason) {
+            public Task(final DiscoveryNode node, final String reason) {
                 this.node = node;
                 this.reason = reason;
             }
@@ -589,7 +589,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     private void removeNode(final DiscoveryNode node, final String source, final String reason) {
         clusterService.submitStateUpdateTask(
-                source,
+                source + "(" + node + "), reason(" + reason + ")",
                 new NodeRemovalClusterStateTaskExecutor.Task(node, reason),
                 ClusterStateTaskConfig.build(Priority.IMMEDIATE),
                 nodeRemovalExecutor,

@@ -11,8 +11,9 @@ functionality provided by your installation.
 
 If you're running Elasticsearch directly, you can stop Elasticsearch by sending control-C if you're
 running Elasticsearch in the console, or by sending `SIGTERM` to the Elasticsearch process on a
-POSIX system. You can obtain the PID to send the signal to via various tools (e.g., `ps` or `jps`)
-or by specifying a location to write a PID file to on startup (`-p <path>`).
+POSIX system. You can obtain the PID to send the signal to via various tools (e.g., `ps` or `jps`),
+from the Elasticsearch statrup logs, or by specifying a location to write a PID file to on startup
+(`-p <path>`).
 
 [source,sh]
 --------------------------------------------------

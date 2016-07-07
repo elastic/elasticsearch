@@ -23,6 +23,7 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.InputStreamDataInput;
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -35,6 +36,8 @@ import java.nio.file.Path;
  */
 class Checkpoint {
 
+    static final byte FORMAT_VERSION = 1;
+
    static final int BUFFER_SIZE = Integer.BYTES  // ops
             + Long.BYTES // offset
             + Long.BYTES // generation
@@ -45,6 +48,9 @@ class Checkpoint {
     final long seqNoGlobalCheckpoint;
 
     Checkpoint(long offset, int numOps, long generation, long seqNoGlobalCheckpoint) {
+        if ((offset & (0xFFL << 56)) != 0L) {
+            throw new IllegalArgumentException("offset should always leave space for a version byte ");
+        }
         this.offset = offset;
         this.numOps = numOps;
         this.generation = generation;
@@ -52,11 +58,16 @@ class Checkpoint {
     }
 
     Checkpoint(DataInput in) throws IOException {
-        // no comment - use first byte of offset for versioning
-        offset = in.readLong();
+        long longOffestAndVersion = in.readLong();
+        byte version = (byte) (longOffestAndVersion >> 56);
+        offset = longOffestAndVersion & 0x00FFFFFFFFFFFFFFL;
         numOps = in.readInt();
         generation = in.readLong();
-        seqNoGlobalCheckpoint = in.readLong();
+        if (version >= 1) {
+            seqNoGlobalCheckpoint = in.readLong();
+        } else {
+            seqNoGlobalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        }
     }
 
     private void write(FileChannel channel) throws IOException {
@@ -67,7 +78,7 @@ class Checkpoint {
     }
 
     private void write(DataOutput out) throws IOException {
-        out.writeLong(offset);
+        out.writeLong(offset | ((long)FORMAT_VERSION << 56));
         out.writeInt(numOps);
         out.writeLong(generation);
         out.writeLong(seqNoGlobalCheckpoint);
@@ -105,6 +116,7 @@ class Checkpoint {
 
         if (offset != that.offset) return false;
         if (numOps != that.numOps) return false;
+        if (seqNoGlobalCheckpoint != that.seqNoGlobalCheckpoint) return false;
         return generation == that.generation;
 
     }
@@ -114,6 +126,7 @@ class Checkpoint {
         int result = Long.hashCode(offset);
         result = 31 * result + numOps;
         result = 31 * result + Long.hashCode(generation);
+        result = 31 * result + Long.hashCode(seqNoGlobalCheckpoint);
         return result;
     }
 }

@@ -5,29 +5,39 @@
  */
 package org.elasticsearch.license.plugin.rest;
 
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseAction;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequest;
-import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
+import org.elasticsearch.xpack.XPackClient;
+import org.elasticsearch.xpack.rest.XPackRestHandler;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
-public class RestDeleteLicenseAction extends BaseRestHandler {
+public class RestDeleteLicenseAction extends XPackRestHandler {
 
     @Inject
     public RestDeleteLicenseAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(DELETE, "/_xpack/license", this);
+        // @deprecated Remove deprecations in 6.0
+        controller.registerWithDeprecatedHandler(DELETE, URI_BASE + "/_license", this,
+                                                 DELETE, "/_license", deprecationLogger);
+
+        // Remove _licenses support entirely in 6.0
+        controller.registerAsDeprecatedHandler(DELETE, "/_licenses", this,
+                                               "[DELETE /_licenses] is deprecated! Use " +
+                                               "[DELETE /_xpack/license] instead.",
+                                               deprecationLogger);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
-        client.admin().cluster().execute(DeleteLicenseAction.INSTANCE, new DeleteLicenseRequest(), new AcknowledgedRestListener<>(channel));
+    public void handleRequest(final RestRequest request, final RestChannel channel, final XPackClient client) {
+        client.es().admin().cluster().execute(DeleteLicenseAction.INSTANCE,
+                                              new DeleteLicenseRequest(),
+                                              new AcknowledgedRestListener<>(channel));
     }
 }

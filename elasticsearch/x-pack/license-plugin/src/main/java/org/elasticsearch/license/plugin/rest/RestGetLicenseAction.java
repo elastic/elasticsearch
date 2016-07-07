@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.license.plugin.rest;
 
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -14,13 +13,14 @@ import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.action.get.GetLicenseAction;
 import org.elasticsearch.license.plugin.action.get.GetLicenseRequest;
 import org.elasticsearch.license.plugin.action.get.GetLicenseResponse;
-import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.xpack.XPackClient;
+import org.elasticsearch.xpack.rest.XPackRestHandler;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -29,12 +29,20 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-public class RestGetLicenseAction extends BaseRestHandler {
+public class RestGetLicenseAction extends XPackRestHandler {
 
     @Inject
     public RestGetLicenseAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(GET, "/_xpack/license", this);
+        // @deprecated Remove deprecations in 6.0
+        controller.registerWithDeprecatedHandler(GET,  URI_BASE + "/_license", this,
+                                                 GET, "/_license", deprecationLogger);
+
+        // Remove _licenses support entirely in 6.0
+        controller.registerAsDeprecatedHandler(GET, "/_licenses", this,
+                                               "[GET /_licenses] is deprecated! Use " +
+                                               "[GET /_xpack/license] instead.",
+                                               deprecationLogger);
     }
 
     /**
@@ -44,14 +52,14 @@ public class RestGetLicenseAction extends BaseRestHandler {
      * The licenses are sorted by latest issue_date
      */
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final XPackClient client) {
         final Map<String, String> overrideParams = new HashMap<>(2);
         overrideParams.put(License.REST_VIEW_MODE, "true");
         overrideParams.put(License.LICENSE_VERSION_MODE, String.valueOf(License.VERSION_CURRENT));
         final ToXContent.Params params = new ToXContent.DelegatingMapParams(overrideParams, request);
         GetLicenseRequest getLicenseRequest = new GetLicenseRequest();
         getLicenseRequest.local(request.paramAsBoolean("local", getLicenseRequest.local()));
-        client.admin().cluster().execute(GetLicenseAction.INSTANCE, getLicenseRequest,
+        client.es().admin().cluster().execute(GetLicenseAction.INSTANCE, getLicenseRequest,
                 new RestBuilderListener<GetLicenseResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(GetLicenseResponse response, XContentBuilder builder) throws Exception {

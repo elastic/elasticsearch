@@ -156,7 +156,7 @@ public class HostsSniffer {
 
         private final RestClient restClient;
         private long sniffRequestTimeoutMillis = DEFAULT_SNIFF_REQUEST_TIMEOUT;
-        private Scheme scheme;
+        private Scheme scheme = Scheme.HTTP;
 
         private Builder(RestClient restClient) {
             Objects.requireNonNull(restClient, "restClient cannot be null");

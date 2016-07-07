@@ -81,13 +81,10 @@ ongoing basis when compared to dedicated local storage. If you put an index on
 `EBS`, be sure to use provisioned IOPS otherwise operations could be quickly
 throttled.
 
-Stripe your index across multiple SSDs by configuring a RAID 0 array. Remember
-that it will increase the risk of failure since the failure of any one SSD
-destroys the index. However this is typically the right tradeoff to make:
-optimize single shards for maximum performance, and then add replicas across
-different nodes so there's redundancy for any node failures. You can also use
-<<modules-snapshots,snapshot and restore>> to backup the index for further
-insurance.
+Use multiple I/O devices (by specifying multiple `path.data` paths) to hold
+the shards on your node to improve I/O performance. Note that an OS-level
+RAID 0 device is a poor choice as you'll lose all shards on that node when any
+device fails, rather than just the shards on the failed device.
 
 [float]
 === Indexing buffer size

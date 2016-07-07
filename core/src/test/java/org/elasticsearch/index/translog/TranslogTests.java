@@ -1878,10 +1878,10 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testCheckpointOnDiskFull() throws IOException {
-        Checkpoint checkpoint = new Checkpoint(randomLong(), randomInt(), randomLong(), randomLong());
+        Checkpoint checkpoint = new Checkpoint(randomInt(Integer.MAX_VALUE), randomInt(), randomLong(), randomLong());
         Path tempDir = createTempDir();
         Checkpoint.write(FileChannel::open, tempDir.resolve("foo.cpk"), checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
-        Checkpoint checkpoint2 = new Checkpoint(randomLong(), randomInt(), randomLong(), randomLong());
+        Checkpoint checkpoint2 = new Checkpoint(randomInt(Integer.MAX_VALUE), randomInt(), randomLong(), randomLong());
         try {
             Checkpoint.write((p, o) -> {
                 if (randomBoolean()) {

@@ -361,7 +361,7 @@ fi
     remove_plugin ingest-geoip
 }
 
-@test "[$GROUP] remove ingest-user0agent plugin" {
+@test "[$GROUP] remove ingest-user-agent plugin" {
     remove_plugin ingest-user-agent
 }
 

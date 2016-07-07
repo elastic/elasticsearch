@@ -1,8 +1,5 @@
 ---
 "Test user agent processor with custom regex file":
-  - skip:
-      version: "all"
-      reason: "awaits fix #19307"
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"

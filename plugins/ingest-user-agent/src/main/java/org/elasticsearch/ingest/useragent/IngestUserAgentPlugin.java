@@ -50,7 +50,7 @@ public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
     @Override
     public Map<String, Processor.Factory> getProcessors(
         Environment env, ScriptService scriptService, TemplateService templateService) {
-        Path userAgentConfigDirectory = env.configFile().resolve("ingest-useragent");
+        Path userAgentConfigDirectory = env.configFile().resolve("ingest-user-agent");
 
         if (Files.exists(userAgentConfigDirectory) == false && Files.isDirectory(userAgentConfigDirectory)) {
             throw new IllegalStateException(

@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.client.benchmark.metrics;
 
-public final class MetricsRecord {
+public final class Sample {
     private final String operation;
     private final long startTimestamp;
     private final long stopTimestamp;
     private final boolean success;
 
-    public MetricsRecord(String operation, long startTimestamp, long stopTimestamp, boolean success) {
+    public Sample(String operation, long startTimestamp, long stopTimestamp, boolean success) {
         this.operation = operation;
         this.startTimestamp = startTimestamp;
         this.stopTimestamp = stopTimestamp;

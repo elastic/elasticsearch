@@ -27,46 +27,42 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-public class Statistics {
-    @SafeVarargs
-    public static List<StatisticsRecord> calculate(Collection<MetricsRecord>... metrics) {
-        Map<String, List<MetricsRecord>> metricsPerOperation = new HashMap<>();
+public final class MetricsCalculator {
+    public static List<Metrics> calculate(Collection<Sample> samples, int operationsPerIteration) {
+        Map<String, List<Sample>> samplesPerOperation = new HashMap<>();
 
-
-        for (Collection<MetricsRecord> metricCollection : metrics) {
-            for (MetricsRecord metricsRecord : metricCollection) {
-                if (!metricsPerOperation.containsKey(metricsRecord.getOperation())) {
-                    metricsPerOperation.put(metricsRecord.getOperation(), new ArrayList<>());
-                }
-                metricsPerOperation.get(metricsRecord.getOperation()).add(metricsRecord);
+        for (Sample sample : samples) {
+            if (!samplesPerOperation.containsKey(sample.getOperation())) {
+                samplesPerOperation.put(sample.getOperation(), new ArrayList<>());
             }
+            samplesPerOperation.get(sample.getOperation()).add(sample);
         }
 
-        List<StatisticsRecord> stats = new ArrayList<>();
+        List<Metrics> metrics = new ArrayList<>();
 
-        for (Map.Entry<String, List<MetricsRecord>> operationAndMetrics : metricsPerOperation.entrySet()) {
-            List<MetricsRecord> m = operationAndMetrics.getValue();
+        for (Map.Entry<String, List<Sample>> operationAndMetrics : samplesPerOperation.entrySet()) {
+            List<Sample> m = operationAndMetrics.getValue();
             double[] serviceTimes = new double[m.size()];
             int it = 0;
             long firstStart = Long.MAX_VALUE;
             long latestEnd = Long.MIN_VALUE;
-            for (MetricsRecord metricsRecord : m) {
-                // very primitive throughput calculation (does not consider warmup!)
-                firstStart = Math.min(metricsRecord.getStartTimestamp(), firstStart);
-                latestEnd = Math.max(metricsRecord.getStopTimestamp(), latestEnd);
-                serviceTimes[it++] = TimeUnit.MILLISECONDS.convert(metricsRecord.getServiceTime(), TimeUnit.NANOSECONDS);
+            for (Sample sample : m) {
+                firstStart = Math.min(sample.getStartTimestamp(), firstStart);
+                latestEnd = Math.max(sample.getStopTimestamp(), latestEnd);
+                serviceTimes[it++] = TimeUnit.MILLISECONDS.convert(sample.getServiceTime(), TimeUnit.NANOSECONDS);
             }
 
-            stats.add(new StatisticsRecord(operationAndMetrics.getKey(),
+            metrics.add(new Metrics(operationAndMetrics.getKey(),
                 m.stream().filter((r) -> r.isSuccess()).count(),
                 m.stream().filter((r) -> !r.isSuccess()).count(),
-                1.0d / TimeUnit.SECONDS.convert(latestEnd - firstStart, TimeUnit.NANOSECONDS),
+                // throughput calculation is based on the total (Wall clock) time it took to generate all samples
+                samples.size() / TimeUnit.SECONDS.convert(latestEnd - firstStart, TimeUnit.NANOSECONDS),
                 StatUtils.percentile(serviceTimes, 90.0d),
                 StatUtils.percentile(serviceTimes, 95.0d),
                 StatUtils.percentile(serviceTimes, 99.0d),
                 StatUtils.percentile(serviceTimes, 99.9d)
             ));
         }
-        return stats;
+        return metrics;
     }
 }

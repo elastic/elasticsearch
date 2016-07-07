@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.client.benchmark.metrics;
 
-public final class StatisticsRecord {
+public final class Metrics {
     public final String operation;
     public final long successCount;
     public final long errorCount;
@@ -28,9 +28,9 @@ public final class StatisticsRecord {
     public final double serviceTimeP99;
     public final double serviceTimeP999;
 
-    public StatisticsRecord(String operation, long successCount, long errorCount, double throughput,
-                            double serviceTimeP90, double serviceTimeP95, double serviceTimeP99,
-                            double serviceTimeP999) {
+    public Metrics(String operation, long successCount, long errorCount, double throughput,
+                   double serviceTimeP90, double serviceTimeP95, double serviceTimeP99,
+                   double serviceTimeP999) {
         this.operation = operation;
         this.successCount = successCount;
         this.errorCount = errorCount;

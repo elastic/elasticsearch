@@ -13,3 +13,20 @@ Example benchmark:
 
 * Download benchmark data from http://benchmarks.elastic.co/corpora/geonames/documents.json.bz2 and decompress
 * Use the mapping file https://github.com/elastic/rally-tracks/blob/master/geonames/mappings.json to create the index
+
+Example command line parameter list:
+
+```
+192.168.2.2 /home/your_user_name/.rally/benchmarks/data/geonames/documents.json geonames type 8647880 5000 "{ \"query\": { \"match_phrase\": { \"name\": \"Sankt Georgen\" } } }\""
+```
+
+The parameters are in order:
+
+* Benchmark target host IP (the host where Elasticsearch is running)
+* full path to the file that should be bulk indexed
+* name of the index
+* name of the (sole) type in the index 
+* number of documents in the file
+* bulk size
+* a search request body (remember to escape double quotes). The `TransportClientBenchmark` uses `QueryBuilders.wrapperQuery()` internally which automatically adds a root key `query`, so it must not be present in the command line parameter. 
+  

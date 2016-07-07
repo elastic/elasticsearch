@@ -394,11 +394,7 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
     @Override
     protected void doStart() throws ElasticsearchException {
         clusterService.add(this);
-        try {
-            scheduler.start(Collections.emptyList());
-        } catch (Exception e) {
-            logger.warn("failed to start license trigger service", e);
-        }
+        scheduler.start(Collections.emptyList());
     }
 
     @Override
@@ -433,16 +429,13 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
                 logger.debug("current [{}]", currentLicensesMetaData);
             }
             // notify all interested plugins
-            if (previousClusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-                onUpdate(currentLicensesMetaData);
-            } else {
-                if (prevLicensesMetaData == null) {
-                    if (currentLicensesMetaData != null) {
-                        onUpdate(currentLicensesMetaData);
-                    }
-                } else if (!prevLicensesMetaData.equals(currentLicensesMetaData)) {
+            if (previousClusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)
+                    || prevLicensesMetaData == null) {
+                if (currentLicensesMetaData != null) {
                     onUpdate(currentLicensesMetaData);
                 }
+            } else if (!prevLicensesMetaData.equals(currentLicensesMetaData)) {
+                onUpdate(currentLicensesMetaData);
             }
             // auto-generate license if no licenses ever existed
             // this will trigger a subsequent cluster changed event

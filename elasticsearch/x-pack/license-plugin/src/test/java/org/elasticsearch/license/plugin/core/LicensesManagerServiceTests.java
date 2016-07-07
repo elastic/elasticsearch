@@ -109,9 +109,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
 
         // ensure that the invalid license never made it to cluster state
         LicensesMetaData licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-        if (licensesMetaData != null) {
-            assertThat(licensesMetaData.getLicense(), not(equalTo(tamperedLicense)));
-        }
+        assertThat(licensesMetaData.getLicense(), not(equalTo(tamperedLicense)));
     }
 
     public void testRemoveLicenses() throws Exception {

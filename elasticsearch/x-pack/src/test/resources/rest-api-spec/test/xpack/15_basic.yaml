@@ -93,8 +93,8 @@
   - is_true:    graph.available
   - is_true:    monitoring.enabled
   - is_true:    monitoring.available
-  - is_true:    watcher.count.total
-  - is_true:    watcher.count.active
+  - gte: { watcher.count.total: 0 }
+  - gte: { watcher.count.active: 0 }
 
   - do:
       xpack.info:

@@ -477,6 +477,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    public Checkpoint getLastCheckpoint() {
+        try (ReleasableLock lock = readLock.acquire()) {
+            return current.getLastCheckpoint();
+        }
+    }
+
     boolean assertBytesAtLocation(Translog.Location location, BytesReference expectedBytes) throws IOException {
         // tests can override this
         ByteBuffer buffer = ByteBuffer.allocate(location.size);

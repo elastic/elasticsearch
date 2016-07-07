@@ -84,6 +84,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.seqno.SequenceNumbersService.NO_OPS_PERFORMED;
+import static org.elasticsearch.index.seqno.SequenceNumbersService.UNASSIGNED_SEQ_NO;
 
 /**
  *
@@ -116,6 +117,7 @@ public class InternalEngine extends Engine {
     private final AtomicBoolean versionMapRefreshPending = new AtomicBoolean();
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
+    private volatile long lastSyncedGlobalCheckpont = UNASSIGNED_SEQ_NO;
 
     private final IndexThrottle throttle;
 
@@ -167,7 +169,7 @@ public class InternalEngine extends Engine {
                         engineConfig.getIndexSettings(),
                         seqNoStats.getMaxSeqNo(), seqNoStats.getLocalCheckpoint(), seqNoStats.getGlobalCheckpoint(),
                         this::onGlobalCheckpointUpdate);
-                deletionPolicy = new SnapshotDeletionPolicy(new SeqNoAwareDeletionPolicy(seqNoService::getGlobalCheckpoint, logger));
+                deletionPolicy = new SnapshotDeletionPolicy(new SeqNoAwareDeletionPolicy(() -> lastSyncedGlobalCheckpont, logger));
                 writer = createWriter(commitToOpen);
                 if (logger.isTraceEnabled()) {
                     logger.trace(
@@ -1351,6 +1353,7 @@ public class InternalEngine extends Engine {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             translog.sync();
+            lastSyncedGlobalCheckpont = seqNoService().getGlobalCheckpoint();
             indexWriter.deleteUnusedFiles();
         } catch (IOException e) {
             maybeFailEngine("global checkpoint update", e);

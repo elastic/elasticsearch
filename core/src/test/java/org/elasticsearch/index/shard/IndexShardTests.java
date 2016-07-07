@@ -1642,7 +1642,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
     }
 
     /** A dummy repository for testing which just needs restore overridden */
-    private static abstract class RestoreOnlyRepository extends AbstractLifecycleComponent implements Repository {
+    private abstract static class RestoreOnlyRepository extends AbstractLifecycleComponent implements Repository {
         public RestoreOnlyRepository() {
             super(Settings.EMPTY);
         }

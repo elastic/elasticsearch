@@ -32,11 +32,29 @@ import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
+import org.elasticsearch.xpack.watcher.actions.ExecutableAction;
+import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
+import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.never.ExecutableNeverCondition;
+import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
+import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
+import org.elasticsearch.xpack.watcher.transform.Transform;
+import org.elasticsearch.xpack.watcher.trigger.schedule.Schedule;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Matchers.any;
@@ -278,6 +296,127 @@ public class WatchStoreTests extends ESTestCase {
         verify(clientProxy, times(1)).search(any(SearchRequest.class), any(TimeValue.class));
         verify(clientProxy, times(2)).searchScroll(anyString(), any(TimeValue.class));
         verify(clientProxy, times(1)).clearScroll(anyString());
+    }
+
+    public void testUsageStats() throws Exception {
+        ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
+        MetaData.Builder metaDateBuilder = MetaData.builder();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        Settings settings = settings(Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .build();
+        metaDateBuilder.put(IndexMetaData.builder(WatchStore.INDEX).settings(settings).numberOfShards(1).numberOfReplicas(1));
+        final Index index = metaDateBuilder.get(WatchStore.INDEX).getIndex();
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
+        indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(index, 0))
+                .addShard(TestShardRouting.newShardRouting(WatchStore.INDEX, 0, "_node_id", null, true, ShardRoutingState.STARTED))
+                .build());
+        indexRoutingTableBuilder.addReplica();
+        routingTableBuilder.add(indexRoutingTableBuilder.build());
+        csBuilder.metaData(metaDateBuilder);
+        csBuilder.routingTable(routingTableBuilder.build());
+
+        RefreshResponse refreshResponse = mockRefreshResponse(1, 1);
+        when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
+
+        BytesReference source = new BytesArray("{}");
+        int hitCount = randomIntBetween(50, 100);
+        int activeHitCount = 0;
+
+        List<InternalSearchHit> hits = new ArrayList<>();
+        for (int i = 0; i < hitCount; i++) {
+            InternalSearchHit hit = new InternalSearchHit(0, "_id" + i, new Text("type"), Collections.<String, SearchHitField>emptyMap());
+            hits.add(hit.sourceRef(source));
+
+            Watch watch = mock(Watch.class);
+            WatchStatus status = mock(WatchStatus.class);
+            when(watch.status()).thenReturn(status);
+
+            boolean isActive = usually();
+            WatchStatus.State state = mock(WatchStatus.State.class);
+            when(state.isActive()).thenReturn(isActive);
+            when(status.state()).thenReturn(state);
+            if (isActive) {
+                activeHitCount++;
+            }
+
+            // random schedule
+            ScheduleTrigger mockTricker = mock(ScheduleTrigger.class);
+            when(watch.trigger()).thenReturn(mockTricker);
+            when(mockTricker.type()).thenReturn("schedule");
+            String scheduleType = randomFrom("a", "b", "c");
+            Schedule mockSchedule = mock(Schedule.class);
+            when(mockSchedule.type()).thenReturn(scheduleType);
+            when(mockTricker.getSchedule()).thenReturn(mockSchedule);
+
+            // either a none input, or null
+            when(watch.input()).thenReturn(randomFrom(new ExecutableNoneInput(logger), null));
+
+            // random conditions
+            when(watch.condition()).thenReturn(randomFrom(new ExecutableAlwaysCondition(logger), null,
+                    new ExecutableNeverCondition(logger)));
+
+            // random actions
+            ActionWrapper actionWrapper = mock(ActionWrapper.class);
+            ExecutableAction action = mock(ExecutableAction.class);
+            when(actionWrapper.action()).thenReturn(action);
+            when(action.type()).thenReturn(randomFrom("a", "b", "c"));
+            when(watch.actions()).thenReturn(new ExecutableActions(Arrays.asList(actionWrapper)));
+
+            // random transform, not always set
+            Transform mockTransform = mock(Transform.class);
+            when(mockTransform.type()).thenReturn("TYPE");
+
+            @SuppressWarnings("unchecked")
+            ExecutableTransform testTransform = new ExecutableTransform(mockTransform, logger) {
+                @Override
+                public Transform.Result execute(WatchExecutionContext ctx, Payload payload) {
+                    return null;
+                }
+            };
+            when(watch.transform()).thenReturn(randomFrom(testTransform, null));
+
+            when(parser.parse("_id" + i, true, source)).thenReturn(watch);
+        }
+
+        SearchResponse searchResponse = mockSearchResponse(1, 1, hitCount, hits.toArray(new InternalSearchHit[] {}));
+        when(clientProxy.search(any(SearchRequest.class), any(TimeValue.class))).thenReturn(searchResponse);
+        SearchResponse noHitsResponse = mockSearchResponse(1, 1, 2);
+        when(clientProxy.searchScroll(anyString(), any(TimeValue.class))).thenReturn(noHitsResponse);
+        when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 0));
+
+        ClusterState cs = csBuilder.build();
+        watchStore.start(cs);
+
+        XContentSource stats = new XContentSource(jsonBuilder().map(watchStore.usageStats()));
+
+        assertThat(stats.getValue("count.total"), is(hitCount));
+        assertThat(stats.getValue("count.active"), is(activeHitCount));
+
+        // schedule count
+        int scheduleCountA = stats.getValue("watch.trigger.schedule.a.active");
+        int scheduleCountB = stats.getValue("watch.trigger.schedule.b.active");
+        int scheduleCountC = stats.getValue("watch.trigger.schedule.c.active");
+        assertThat(scheduleCountA + scheduleCountB + scheduleCountC, is(activeHitCount));
+
+        // input count
+        assertThat(stats.getValue("watch.input.none.active"), is(greaterThan(0)));
+        assertThat(stats.getValue("watch.input.none.total"), is(greaterThan(0)));
+        assertThat(stats.getValue("watch.input.none.total"), is(lessThan(activeHitCount)));
+
+        // condition count
+        assertThat(stats.getValue("watch.condition.never.active"), is(greaterThan(0)));
+        assertThat(stats.getValue("watch.condition.always.active"), is(greaterThan(0)));
+
+        // action count
+        int actionCountA = stats.getValue("watch.action.a.active");
+        int actionCountB = stats.getValue("watch.action.b.active");
+        int actionCountC = stats.getValue("watch.action.c.active");
+        assertThat(actionCountA + actionCountB + actionCountC, is(activeHitCount));
+
+        // transform count
+        assertThat(stats.getValue("watch.transform.TYPE.active"), is(greaterThan(0)));
     }
 
     private RefreshResponse mockRefreshResponse(int total, int successful) {

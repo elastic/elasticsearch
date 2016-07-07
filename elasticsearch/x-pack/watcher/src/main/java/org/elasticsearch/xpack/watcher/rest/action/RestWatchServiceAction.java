@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestChannel;
@@ -15,7 +14,6 @@ import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 import org.elasticsearch.xpack.watcher.transport.actions.service.WatcherServiceRequest;
-import org.elasticsearch.xpack.watcher.transport.actions.service.WatcherServiceResponse;
 
 /**
  */
@@ -31,7 +29,7 @@ public class RestWatchServiceAction extends WatcherRestHandler {
 
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
-        client.watcherService(new WatcherServiceRequest().restart(), new AcknowledgedRestListener<WatcherServiceResponse>(channel));
+        client.watcherService(new WatcherServiceRequest().restart(), new AcknowledgedRestListener<>(channel));
     }
 
     static class StartRestHandler extends WatcherRestHandler {
@@ -42,7 +40,7 @@ public class RestWatchServiceAction extends WatcherRestHandler {
 
         @Override
         public void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
-            client.watcherService(new WatcherServiceRequest().start(), new AcknowledgedRestListener<WatcherServiceResponse>(channel));
+            client.watcherService(new WatcherServiceRequest().start(), new AcknowledgedRestListener<>(channel));
         }
     }
 
@@ -54,7 +52,7 @@ public class RestWatchServiceAction extends WatcherRestHandler {
 
         @Override
         public void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
-            client.watcherService(new WatcherServiceRequest().stop(), new AcknowledgedRestListener<WatcherServiceResponse>(channel));
+            client.watcherService(new WatcherServiceRequest().stop(), new AcknowledgedRestListener<>(channel));
         }
     }
 }

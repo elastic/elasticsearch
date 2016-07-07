@@ -24,15 +24,21 @@ public class WatcherModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        XPackPlugin.bindFeatureSet(binder(), WatcherFeatureSet.class);
-
-        if (enabled == false || transportClientMode) {
+        if (transportClientMode) {
             bind(WatcherLicensee.class).toProvider(Providers.of(null));
             return;
         }
 
-        bind(WatcherLicensee.class).asEagerSingleton();
-        bind(WatcherLifeCycleService.class).asEagerSingleton();
-        bind(WatcherIndexTemplateRegistry.class).asEagerSingleton();
+        if (enabled == false) {
+            bind(WatcherLicensee.class).toProvider(Providers.of(null));
+            // watcher service must be null, so that the watcher feature set can be instantiated even if watcher is not enabled
+            bind(WatcherService.class).toProvider(Providers.of(null));
+        } else {
+            bind(WatcherLicensee.class).asEagerSingleton();
+            bind(WatcherLifeCycleService.class).asEagerSingleton();
+            bind(WatcherIndexTemplateRegistry.class).asEagerSingleton();
+        }
+
+        XPackPlugin.bindFeatureSet(binder(), WatcherFeatureSet.class);
     }
 }

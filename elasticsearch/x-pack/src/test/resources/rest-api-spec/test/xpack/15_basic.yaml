@@ -84,7 +84,7 @@
   - is_true:    tagline
 
   - do:
-    xpack.usage: {}
+      xpack.usage: {}
   - is_true:    watcher.enabled
   - is_true:    watcher.available
   - is_true:    security.enabled
@@ -93,19 +93,21 @@
   - is_true:    graph.available
   - is_true:    monitoring.enabled
   - is_true:    monitoring.available
+  - is_true:    watcher.count.total
+  - is_true:    watcher.count.active
 
   - do:
-    xpack.info:
-      categories: "_none"
+      xpack.info:
+        categories: "_none"
   - is_false:    build
   - is_false:    features
   - is_false:    license
   - match: { tagline: "You know, for X" }
 
   - do:
-    xpack.info:
-      categories: "_none"
-      human: false
+      xpack.info:
+        categories: "_none"
+        human: false
   - is_false:    build
   - is_false:    features
   - is_false:    license

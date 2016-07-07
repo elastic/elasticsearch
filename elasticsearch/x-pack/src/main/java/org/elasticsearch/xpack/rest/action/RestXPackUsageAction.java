@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.rest.action;
 
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,7 +34,9 @@ public class RestXPackUsageAction extends XPackRestHandler {
 
     @Override
     public void handleRequest(RestRequest request, RestChannel restChannel, XPackClient client) throws Exception {
-        new XPackUsageRequestBuilder(client.es()).execute(new RestBuilderListener<XPackUsageResponse>(restChannel) {
+        new XPackUsageRequestBuilder(client.es())
+                .setMasterNodeTimeout(request.paramAsTime("master_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT))
+                .execute(new RestBuilderListener<XPackUsageResponse>(restChannel) {
             @Override
             public RestResponse buildResponse(XPackUsageResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.watcher.execution;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.support.clock.Clock;
+import org.elasticsearch.xpack.support.clock.ClockMock;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
@@ -23,8 +25,7 @@ import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.watcher.input.Input;
-import org.elasticsearch.xpack.support.clock.Clock;
-import org.elasticsearch.xpack.support.clock.ClockMock;
+import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.transform.Transform;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
@@ -43,6 +44,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -136,6 +138,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(actionResult.type()).thenReturn("_action_type");
         when(actionResult.status()).thenReturn(Action.Result.Status.SUCCESS);
         ExecutableAction action = mock(ExecutableAction.class);
+        when(action.type()).thenReturn("MY_AWESOME_TYPE");
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionTransform, action);
@@ -163,6 +166,13 @@ public class ExecutionServiceTests extends ESTestCase {
         verify(condition, times(1)).execute(context);
         verify(watchTransform, times(1)).execute(context, payload);
         verify(action, times(1)).execute("_action", context, payload);
+
+        // test stats
+        XContentSource source = new XContentSource(jsonBuilder().map(executionService.usageStats()));
+        assertThat(source.getValue("execution.actions._all.total_time_in_ms"), is(notNullValue()));
+        assertThat(source.getValue("execution.actions._all.total"), is(1));
+        assertThat(source.getValue("execution.actions.MY_AWESOME_TYPE.total_time_in_ms"), is(notNullValue()));
+        assertThat(source.getValue("execution.actions.MY_AWESOME_TYPE.total"), is(1));
     }
 
     public void testExecuteFailedInput() throws Exception {

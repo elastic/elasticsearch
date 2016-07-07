@@ -21,6 +21,9 @@ import org.elasticsearch.xpack.security.action.role.PutRoleRequestBuilder;
 import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
+
 /**
  * Rest endpoint to add a Role to the security index
  */
@@ -29,8 +32,18 @@ public class RestPutRoleAction extends BaseRestHandler {
     @Inject
     public RestPutRoleAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, "/_xpack/security/role/{name}", this);
-        controller.registerHandler(RestRequest.Method.PUT, "/_xpack/security/role/{name}", this);
+        controller.registerHandler(POST, "/_xpack/security/role/{name}", this);
+        controller.registerHandler(PUT, "/_xpack/security/role/{name}", this);
+
+        // @deprecated: Remove in 6.0
+        controller.registerAsDeprecatedHandler(POST, "/_shield/role/{name}", this,
+                                               "[POST /_shield/role/{name}] is deprecated! Use " +
+                                               "[POST /_xpack/security/role/{name}] instead.",
+                                               deprecationLogger);
+        controller.registerAsDeprecatedHandler(PUT, "/_shield/role/{name}", this,
+                                               "[PUT /_shield/role/{name}] is deprecated! Use " +
+                                               "[PUT /_xpack/security/role/{name}] instead.",
+                                               deprecationLogger);
     }
 
     @Override

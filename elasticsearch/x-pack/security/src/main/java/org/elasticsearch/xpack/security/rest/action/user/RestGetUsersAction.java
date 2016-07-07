@@ -9,7 +9,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -23,6 +22,8 @@ import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+
 /**
  * Rest action to retrieve a user from the security index
  */
@@ -31,8 +32,18 @@ public class RestGetUsersAction extends BaseRestHandler {
     @Inject
     public RestGetUsersAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET, "/_xpack/security/user/", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_xpack/security/user/{username}", this);
+        controller.registerHandler(GET, "/_xpack/security/user/", this);
+        controller.registerHandler(GET, "/_xpack/security/user/{username}", this);
+
+        // @deprecated: Remove in 6.0
+        controller.registerAsDeprecatedHandler(GET, "/_shield/user", this,
+                                               "[GET /_shield/user] is deprecated! Use " +
+                                               "[GET /_xpack/security/user] instead.",
+                                               deprecationLogger);
+        controller.registerAsDeprecatedHandler(GET, "/_shield/user/{username}", this,
+                                               "[GET /_shield/user/{username}] is deprecated! Use " +
+                                               "[GET /_xpack/security/user/{username}] instead.",
+                                               deprecationLogger);
     }
 
     @Override

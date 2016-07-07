@@ -17,10 +17,11 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
-import org.elasticsearch.xpack.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.security.action.user.DeleteUserRequestBuilder;
 import org.elasticsearch.xpack.security.action.user.DeleteUserResponse;
 import org.elasticsearch.xpack.security.client.SecurityClient;
+
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 /**
  * Rest action to delete a user from the security index
@@ -30,7 +31,13 @@ public class RestDeleteUserAction extends BaseRestHandler {
     @Inject
     public RestDeleteUserAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.DELETE, "/_xpack/security/user/{username}", this);
+        controller.registerHandler(DELETE, "/_xpack/security/user/{username}", this);
+
+        // @deprecated: Remove in 6.0
+        controller.registerAsDeprecatedHandler(DELETE, "/_shield/user/{username}", this,
+                                               "[DELETE /_shield/user/{username}] is deprecated! Use " +
+                                               "[DELETE /_xpack/security/user/{username}] instead.",
+                                               deprecationLogger);
     }
 
     @Override

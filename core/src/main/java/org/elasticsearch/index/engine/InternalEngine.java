@@ -65,6 +65,7 @@ import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Checkpoint;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -167,7 +168,7 @@ public class InternalEngine extends Engine {
                         engineConfig.getIndexSettings(),
                         seqNoStats.getMaxSeqNo(), seqNoStats.getLocalCheckpoint(), seqNoStats.getGlobalCheckpoint(),
                         this::onGlobalCheckpointUpdate);
-                deletionPolicy = new SnapshotDeletionPolicy(new SeqNoAwareDeletionPolicy(() -> lastSyncedGlobalCheckpont, logger));
+                deletionPolicy = new SnapshotDeletionPolicy(new SeqNoAwareDeletionPolicy(this::getLastPersistedGlobalCheckpoint, logger));
                 writer = createWriter(commitToOpen);
                 if (logger.isTraceEnabled()) {
                     logger.trace(
@@ -1290,17 +1291,20 @@ public class InternalEngine extends Engine {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             translog.sync();
-            // nocommit: we maintain this lastSyncedGlobalCheckpont to make sure we only trim commits based on *persisted*
-            // global checkpoints. We can replace it by exposing the last translog checkpoint (which ends up being messy due
-            // to initialization order. Another alternative is to have a lock that needs to be acquired to make sure we don't
-            // commit  the index writer while an update is in flight - this has the obvious down side of an extra locking order dependency
-            lastSyncedGlobalCheckpont = seqNoService().getGlobalCheckpoint();
             indexWriter.deleteUnusedFiles();
         } catch (IOException e) {
             maybeFailEngine("global checkpoint update", e);
             throw new EngineException(shardId, "failed during gloabl checkpoint update", e);
         }
+    }
 
+    private long getLastPersistedGlobalCheckpoint() {
+        if (translog == null)  {
+            // nocommit: find another way to deal with commit on initializing
+            return  UNASSIGNED_SEQ_NO; // still initializing
+        }
+        final Checkpoint lastCheckpoint = translog.getLastCheckpoint();
+        return lastCheckpoint == null ? UNASSIGNED_SEQ_NO : lastCheckpoint.getSeqNoGlobalCheckpoint();
     }
 
     public MergeStats getMergeStats() {

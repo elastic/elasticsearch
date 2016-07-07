@@ -154,12 +154,16 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
     }
 
     private void retryRecovery(final RecoveryTarget recoveryTarget, TimeValue retryAfter, final StartRecoveryRequest currentRequest) {
+        resetRecovery(recoveryTarget, currentRequest);
+        rescheduleRecovery(recoveryTarget, retryAfter);
+    }
+
+    protected void resetRecovery(RecoveryTarget recoveryTarget, StartRecoveryRequest currentRequest) {
         try {
             recoveryTarget.resetRecovery();
         } catch (Exception e) {
             failRecovery(recoveryTarget, new RecoveryFailedException(currentRequest, e), true);
         }
-        rescheduleRecovery(recoveryTarget, retryAfter);
     }
 
     // nocommit: separate all this logic into a separated class with abstract methods and leave the networking things here.

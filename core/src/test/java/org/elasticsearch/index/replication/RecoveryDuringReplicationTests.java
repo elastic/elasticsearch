@@ -35,6 +35,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.not;
 
 public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestCase {
 
@@ -59,31 +60,56 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
     }
 
-    public void testSeqNoBasedRecovery() throws Exception {
+    public void testRecoveryOfDisconnectedReplica() throws Exception {
         try (ReplicationGroup shards = createGroup(1)) {
             shards.startAll();
             int docs = shards.indexDocs(randomInt(50));
             shards.flush();
             shards.syncSeqNoGlobalCheckpoint(); // make sure the update to a place that's available in the translog
             IndexShard replica = shards.getReplicas().get(0);
+            boolean replicaHasDocsSinceLastFlushedCheckpoint = false;
             for (int i=randomInt(2);i>0;i--) {
-                docs += shards.indexDocs(randomInt(5));
-                if (randomBoolean()) {
+                final int indexedDocs = shards.indexDocs(randomInt(5));
+                docs += indexedDocs;
+                if (indexedDocs > 0) {
+                    replicaHasDocsSinceLastFlushedCheckpoint = true;
+                }
+                boolean flush = randomBoolean();
+                if (flush) {
                     // flush a couple of times to create commit points
                     replica.flush(new FlushRequest());
                 }
-                if (randomBoolean()) {
+                final boolean sync = randomBoolean();
+                if (sync) {
                     shards.syncSeqNoGlobalCheckpoint();
+                }
+                if (flush && sync) {
+                    replicaHasDocsSinceLastFlushedCheckpoint = false;
                 }
             }
             shards.removeReplica(replica);
-            // nocommit: add global checkpoint syncing with replica out of group
-            docs += shards.indexDocs(randomInt(5));
+
+            final int missingOnReplica = shards.indexDocs(randomInt(5));
+            docs += missingOnReplica;
+            replicaHasDocsSinceLastFlushedCheckpoint |= missingOnReplica > 0;
+
+            if (randomBoolean()) {
+                shards.syncSeqNoGlobalCheckpoint();
+            }
+
+            boolean flushPrimary = randomBoolean();
+            if (flushPrimary) {
+                shards.flush();
+            }
 
             replica = shards.reAddReplica(replica);
             shards.recoverReplica(replica);
-
-            assertThat(replica.recoveryState().getIndex().fileDetails(), empty());
+            if (flushPrimary && replicaHasDocsSinceLastFlushedCheckpoint) {
+                // replica has something to catch up with, but we flushed the primary, we should fall back to full recovery
+                assertThat(replica.recoveryState().getIndex().fileDetails(), not(empty()));
+            } else {
+                assertThat(replica.recoveryState().getIndex().fileDetails(), empty());
+            }
 
             docs += shards.indexDocs(randomInt(5));
 

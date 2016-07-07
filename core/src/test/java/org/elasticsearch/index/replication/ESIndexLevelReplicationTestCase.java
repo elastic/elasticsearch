@@ -23,6 +23,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
@@ -71,6 +72,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.DirectoryService;
+import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryResponse;
@@ -339,7 +341,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
             final DiscoveryNode rNode = getDiscoveryNode(replica.routingEntry().currentNodeId());
             replica.markAsRecovering("remote", new RecoveryState(replica.shardId(), false, RecoveryState.Type.REPLICA, pNode, rNode));
             RecoveryTarget recoveryTarget = targetSupplier.get(replica, pNode, rNode);
-            new MockRecoveryTargetService(primary).starySyncRecovery(recoveryTarget);
+            new MockRecoveryTargetService(primary).startSyncRecovery(recoveryTarget);
             replica.updateRoutingEntry(ShardRoutingHelper.moveToStarted(replica.routingEntry()));
             updateAllocationIdsOnPrimary();
         }
@@ -610,13 +612,23 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
             this.primary = primary;
         }
 
-        public void starySyncRecovery(RecoveryTarget recoveryTarget) {
+        public void startSyncRecovery(RecoveryTarget recoveryTarget) {
             doRecovery(recoveryTarget);
         }
 
         @Override
+        protected void resetRecovery(RecoveryTarget recoveryTarget, StartRecoveryRequest currentRequest) {
+            final MockDirectoryWrapper directory = DirectoryUtils.getLeaf(recoveryTarget.store().directory(), MockDirectoryWrapper.class);
+            if (directory != null) {
+                // resetting the recovery after the engine may result in recreating files
+                directory.setPreventDoubleWrite(false);
+            }
+            super.resetRecovery(recoveryTarget, currentRequest);
+        }
+
+        @Override
         protected void rescheduleRecovery(RecoveryTarget recoveryTarget, TimeValue after) {
-            starySyncRecovery(recoveryTarget);
+            startSyncRecovery(recoveryTarget);
         }
 
         @Override

@@ -60,8 +60,8 @@ public final class TransportClientBenchmark {
         String searchBody = (args.length == 7) ? args[6] : null;
 
         int totalIterationCount = (int) Math.floor(totalDocs / bulkSize);
-        // consider 10% of all iterations as warmup iterations
-        int warmupIterations = (int) (0.1d * totalIterationCount);
+        // consider 40% of all iterations as warmup iterations
+        int warmupIterations = (int) (0.4d * totalIterationCount);
         int iterations = totalIterationCount - warmupIterations;
 
         Settings clientSettings = Settings.builder().put(Node.NODE_MODE_SETTING.getKey(), "network").build();

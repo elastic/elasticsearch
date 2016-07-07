@@ -300,13 +300,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void initializeSnapshot(SnapshotId snapshotId, List<String> indices, MetaData metaData) {
-        if (readOnly()) {
+        if (isReadOnly()) {
             throw new RepositoryException(this.repositoryName, "cannot create snapshot in a readonly repository");
         }
         try {
             final String snapshotName = snapshotId.getName();
             // check if the snapshot name already exists in the repository
-            if (snapshots().stream().anyMatch(s -> s.getName().equals(snapshotName))) {
+            if (getSnapshots().stream().anyMatch(s -> s.getName().equals(snapshotName))) {
                 throw new SnapshotCreationException(repositoryName, snapshotId, "snapshot with the same name already exists");
             }
             if (snapshotFormat.exists(snapshotsBlobContainer, blobId(snapshotId)) ||
@@ -328,13 +328,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void deleteSnapshot(SnapshotId snapshotId) {
-        if (readOnly()) {
+        if (isReadOnly()) {
             throw new RepositoryException(this.repositoryName, "cannot delete snapshot from a readonly repository");
         }
         List<String> indices = Collections.emptyList();
         SnapshotInfo snapshot = null;
         try {
-            snapshot = readSnapshot(snapshotId);
+            snapshot = getSnapshotInfo(snapshotId);
             indices = snapshot.indices();
         } catch (SnapshotMissingException ex) {
             throw ex;
@@ -365,7 +365,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 globalMetaDataFormat.delete(snapshotsBlobContainer, snapshotName);
             }
             // Delete snapshot from the snapshot list
-            List<SnapshotId> snapshotIds = snapshots().stream().filter(id -> snapshotId.equals(id) == false).collect(Collectors.toList());
+            List<SnapshotId> snapshotIds = getSnapshots().stream().filter(id -> snapshotId.equals(id) == false).collect(Collectors.toList());
             writeSnapshotsToIndexGen(snapshotIds);
 
             // Now delete all indices
@@ -411,7 +411,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                                               totalShards,
                                                               shardFailures);
             snapshotFormat.write(blobStoreSnapshot, snapshotsBlobContainer, blobId(snapshotId));
-            List<SnapshotId> snapshotIds = snapshots();
+            List<SnapshotId> snapshotIds = getSnapshots();
             if (!snapshotIds.contains(snapshotId)) {
                 snapshotIds = new ArrayList<>(snapshotIds);
                 snapshotIds.add(snapshotId);
@@ -425,7 +425,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public List<SnapshotId> snapshots() {
+    public List<SnapshotId> getSnapshots() {
         try {
             return Collections.unmodifiableList(readSnapshotsFromIndex());
         } catch (NoSuchFileException | FileNotFoundException e) {
@@ -437,12 +437,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public MetaData readSnapshotMetaData(SnapshotInfo snapshot, List<String> indices) throws IOException {
+    public MetaData getSnapshotMetaData(SnapshotInfo snapshot, List<String> indices) throws IOException {
         return readSnapshotMetaData(snapshot.snapshotId(), snapshot.version(), indices, false);
     }
 
     @Override
-    public SnapshotInfo readSnapshot(final SnapshotId snapshotId) {
+    public SnapshotInfo getSnapshotInfo(final SnapshotId snapshotId) {
         try {
             return snapshotFormat.read(snapshotsBlobContainer, blobId(snapshotId));
         } catch (FileNotFoundException | NoSuchFileException ex) {
@@ -561,19 +561,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private static final String UUID = "uuid";
 
     @Override
-    public long snapshotThrottleTimeInNanos() {
+    public long getSnapshotThrottleTimeInNanos() {
         return snapshotRateLimitingTimeInNanos.count();
     }
 
     @Override
-    public long restoreThrottleTimeInNanos() {
+    public long getRestoreThrottleTimeInNanos() {
         return restoreRateLimitingTimeInNanos.count();
     }
 
     @Override
     public String startVerification() {
         try {
-            if (readOnly()) {
+            if (isReadOnly()) {
                 // It's readonly - so there is not much we can do here to verify it
                 return null;
             } else {
@@ -593,7 +593,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void endVerification(String seed) {
-        if (readOnly()) {
+        if (isReadOnly()) {
             throw new UnsupportedOperationException("shouldn't be called");
         }
         try {
@@ -608,7 +608,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public boolean readOnly() {
+    public boolean isReadOnly() {
         return readOnly;
     }
 
@@ -618,7 +618,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     protected void writeSnapshotsToIndexGen(final List<SnapshotId> snapshots) throws IOException {
-        assert readOnly() == false; // can not write to a read only repository
+        assert isReadOnly() == false; // can not write to a read only repository
         final BytesReference snapshotsBytes;
         try (BytesStreamOutput bStream = new BytesStreamOutput()) {
             try (StreamOutput stream = new OutputStreamStreamOutput(bStream)) {
@@ -641,7 +641,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // write the index file
         writeAtomic(SNAPSHOTS_FILE_PREFIX + Long.toString(gen), snapshotsBytes);
         // delete the N-2 index file if it exists, keep the previous one around as a backup
-        if (readOnly() == false && gen - 2 >= 0) {
+        if (isReadOnly() == false && gen - 2 >= 0) {
             final String oldSnapshotIndexFile = SNAPSHOTS_FILE_PREFIX + Long.toString(gen - 2);
             if (snapshotsBlobContainer.blobExists(oldSnapshotIndexFile)) {
                 snapshotsBlobContainer.deleteBlob(oldSnapshotIndexFile);
@@ -797,7 +797,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void snapshot(IndexShard shard, SnapshotId snapshotId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
+    public void snapshotShard(IndexShard shard, SnapshotId snapshotId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
         SnapshotContext snapshotContext = new SnapshotContext(shard, snapshotId, snapshotStatus);
         snapshotStatus.startTime(System.currentTimeMillis());
 
@@ -818,7 +818,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void restore(IndexShard shard, SnapshotId snapshotId, Version version, ShardId snapshotShardId, RecoveryState recoveryState) {
+    public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, ShardId snapshotShardId, RecoveryState recoveryState) {
         final RestoreContext snapshotContext = new RestoreContext(shard, snapshotId, version, snapshotShardId, recoveryState);
         try {
             snapshotContext.restore();
@@ -828,7 +828,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public IndexShardSnapshotStatus snapshotStatus(SnapshotId snapshotId, Version version, ShardId shardId) {
+    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, ShardId shardId) {
         Context context = new Context(snapshotId, version, shardId);
         BlobStoreIndexShardSnapshot snapshot = context.loadSnapshot();
         IndexShardSnapshotStatus status = new IndexShardSnapshotStatus();

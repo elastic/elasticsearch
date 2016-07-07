@@ -35,15 +35,16 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Snapshot repository interface.
+ * An interface for interacting with a repository in snapshot and restore.
  * <p>
- * Responsible for index and cluster and shard level operations.
+ * Implementations are responsible for reading and writing both metadata and actual shard data to and from
+ * a repository backend.
  * <p>
- * Typical snapshot usage pattern:
+ * To perform a snapshot:
  * <ul>
  * <li>Master calls {@link #initializeSnapshot(SnapshotId, List, org.elasticsearch.cluster.metadata.MetaData)}
  * with list of indices that will be included into the snapshot</li>
- * <li>Data nodes call {@link Repository#snapshot(IndexShard, SnapshotId, IndexCommit, IndexShardSnapshotStatus)}
+ * <li>Data nodes call {@link Repository#snapshotShard(IndexShard, SnapshotId, IndexCommit, IndexShardSnapshotStatus)}
  * for each shard</li>
  * <li>When all shard calls return master calls {@link #finalizeSnapshot} with possible list of failures</li>
  * </ul>
@@ -56,7 +57,7 @@ public interface Repository extends LifecycleComponent {
      * @param snapshotId  snapshot id
      * @return information about snapshot
      */
-    SnapshotInfo readSnapshot(SnapshotId snapshotId);
+    SnapshotInfo getSnapshotInfo(SnapshotId snapshotId);
 
     /**
      * Returns global metadata associate with the snapshot.
@@ -67,7 +68,7 @@ public interface Repository extends LifecycleComponent {
      * @param indices    list of indices
      * @return information about snapshot
      */
-    MetaData readSnapshotMetaData(SnapshotInfo snapshot, List<String> indices) throws IOException;
+    MetaData getSnapshotMetaData(SnapshotInfo snapshot, List<String> indices) throws IOException;
 
     /**
      * Returns the list of snapshots currently stored in the repository that match the given predicate on the snapshot name.
@@ -75,7 +76,7 @@ public interface Repository extends LifecycleComponent {
      *
      * @return snapshot list
      */
-    List<SnapshotId> snapshots();
+    List<SnapshotId> getSnapshots();
 
     /**
      * Starts snapshotting process
@@ -109,12 +110,12 @@ public interface Repository extends LifecycleComponent {
     /**
      * Returns snapshot throttle time in nanoseconds
      */
-    long snapshotThrottleTimeInNanos();
+    long getSnapshotThrottleTimeInNanos();
 
     /**
      * Returns restore throttle time in nanoseconds
      */
-    long restoreThrottleTimeInNanos();
+    long getRestoreThrottleTimeInNanos();
 
 
     /**
@@ -137,10 +138,17 @@ public interface Repository extends LifecycleComponent {
     void endVerification(String verificationToken);
 
     /**
+     * Verifies repository settings on data node.
+     * @param verificationToken value returned by {@link org.elasticsearch.repositories.Repository#startVerification()}
+     * @param localNode         the local node information, for inclusion in verification errors
+     */
+    void verify(String verificationToken, DiscoveryNode localNode);
+
+    /**
      * Returns true if the repository supports only read operations
      * @return true if the repository is read/only
      */
-    boolean readOnly();
+    boolean isReadOnly();
 
     /**
      * Creates a snapshot of the shard based on the index commit point.
@@ -156,7 +164,7 @@ public interface Repository extends LifecycleComponent {
      * @param snapshotIndexCommit commit point
      * @param snapshotStatus      snapshot status
      */
-    void snapshot(IndexShard shard, SnapshotId snapshotId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus);
+    void snapshotShard(IndexShard shard, SnapshotId snapshotId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus);
 
     /**
      * Restores snapshot of the shard.
@@ -169,22 +177,17 @@ public interface Repository extends LifecycleComponent {
      * @param snapshotShardId shard id (in the snapshot)
      * @param recoveryState   recovery state
      */
-    void restore(IndexShard shard, SnapshotId snapshotId, Version version, ShardId snapshotShardId, RecoveryState recoveryState);
+    void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, ShardId snapshotShardId, RecoveryState recoveryState);
 
     /**
      * Retrieve shard snapshot status for the stored snapshot
      *
      * @param snapshotId snapshot id
-     * @param version   version of elasticsearch that created this snapshot
+     * @param version    version of elasticsearch that created this snapshot
      * @param shardId    shard id
      * @return snapshot status
      */
-    IndexShardSnapshotStatus snapshotStatus(SnapshotId snapshotId, Version version, ShardId shardId);
+    IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, ShardId shardId);
 
-    /**
-     * Verifies repository settings on data node.
-     * @param verificationToken value returned by {@link org.elasticsearch.repositories.Repository#startVerification()}
-     * @param localNode         the local node information, for inclusion in verification errors
-     */
-    void verify(String verificationToken, DiscoveryNode localNode);
+
 }

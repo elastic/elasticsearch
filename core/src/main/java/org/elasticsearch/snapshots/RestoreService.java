@@ -185,16 +185,16 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         try {
             // Read snapshot info and metadata from the repository
             Repository repository = repositoriesService.repository(request.repositoryName);
-            final Optional<SnapshotId> matchingSnapshotId = repository.snapshots().stream()
+            final Optional<SnapshotId> matchingSnapshotId = repository.getSnapshots().stream()
                 .filter(s -> request.snapshotName.equals(s.getName())).findFirst();
             if (matchingSnapshotId.isPresent() == false) {
                 throw new SnapshotRestoreException(request.repositoryName, request.snapshotName, "snapshot does not exist");
             }
             final SnapshotId snapshotId = matchingSnapshotId.get();
-            final SnapshotInfo snapshotInfo = repository.readSnapshot(snapshotId);
+            final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
             final Snapshot snapshot = new Snapshot(request.repositoryName, snapshotId);
             List<String> filteredIndices = SnapshotUtils.filterIndices(snapshotInfo.indices(), request.indices(), request.indicesOptions());
-            MetaData metaDataIn = repository.readSnapshotMetaData(snapshotInfo, filteredIndices);
+            MetaData metaDataIn = repository.getSnapshotMetaData(snapshotInfo, filteredIndices);
 
             final MetaData metaData;
             if (snapshotInfo.version().before(Version.V_2_0_0_beta1)) {

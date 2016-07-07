@@ -1397,8 +1397,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         long snapshotPause = 0L;
         long restorePause = 0L;
         for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
-            snapshotPause += repositoriesService.repository("test-repo").snapshotThrottleTimeInNanos();
-            restorePause += repositoriesService.repository("test-repo").restoreThrottleTimeInNanos();
+            snapshotPause += repositoriesService.repository("test-repo").getSnapshotThrottleTimeInNanos();
+            restorePause += repositoriesService.repository("test-repo").getRestoreThrottleTimeInNanos();
         }
 
         if (throttleSnapshot) {

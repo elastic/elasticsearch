@@ -340,7 +340,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             // we flush first to make sure we get the latest writes snapshotted
             IndexCommit snapshotIndexCommit = indexShard.snapshotIndex(true);
             try {
-                repository.snapshot(indexShard, snapshot.getSnapshotId(), snapshotIndexCommit, snapshotStatus);
+                repository.snapshotShard(indexShard, snapshot.getSnapshotId(), snapshotIndexCommit, snapshotStatus);
                 if (logger.isDebugEnabled()) {
                     StringBuilder sb = new StringBuilder();
                     sb.append("    index    : version [").append(snapshotStatus.indexVersion()).append("], number_of_files [").append(snapshotStatus.numberOfFiles()).append("] with total_size [").append(new ByteSizeValue(snapshotStatus.totalSize())).append("]\n");

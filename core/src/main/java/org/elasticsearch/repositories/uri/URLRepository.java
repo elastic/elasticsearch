@@ -141,7 +141,7 @@ public class URLRepository extends BlobStoreRepository {
     }
 
     @Override
-    public boolean readOnly() {
+    public boolean isReadOnly() {
         return true;
     }
 

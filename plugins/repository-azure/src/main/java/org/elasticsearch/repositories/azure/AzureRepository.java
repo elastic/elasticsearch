@@ -185,7 +185,7 @@ public class AzureRepository extends BlobStoreRepository {
     }
 
     @Override
-    public boolean readOnly() {
+    public boolean isReadOnly() {
         return readonly;
     }
 }

@@ -1184,7 +1184,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         test_target_shard.markAsRecovering("store", new RecoveryState(routing.shardId(), routing.primary(), RecoveryState.Type.SNAPSHOT, routing.restoreSource(), localNode));
         assertTrue(test_target_shard.restoreFromRepository(new RestoreOnlyRepository() {
             @Override
-            public void restore(IndexShard shard, SnapshotId snapshotId, Version version, ShardId snapshotShardId, RecoveryState recoveryState) {
+            public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, ShardId snapshotShardId, RecoveryState recoveryState) {
                 try {
                     cleanLuceneIndex(targetStore.directory());
                     for (String file : sourceStore.directory().listAll()) {
@@ -1653,15 +1653,15 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         @Override
         protected void doClose() {}
         @Override
-        public SnapshotInfo readSnapshot(SnapshotId snapshotId) {
+        public SnapshotInfo getSnapshotInfo(SnapshotId snapshotId) {
             return null;
         }
         @Override
-        public MetaData readSnapshotMetaData(SnapshotInfo snapshot, List<String> indices) throws IOException {
+        public MetaData getSnapshotMetaData(SnapshotInfo snapshot, List<String> indices) throws IOException {
             return null;
         }
         @Override
-        public List<SnapshotId> snapshots() {
+        public List<SnapshotId> getSnapshots() {
             return null;
         }
         @Override
@@ -1673,11 +1673,11 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         @Override
         public void deleteSnapshot(SnapshotId snapshotId) {}
         @Override
-        public long snapshotThrottleTimeInNanos() {
+        public long getSnapshotThrottleTimeInNanos() {
             return 0;
         }
         @Override
-        public long restoreThrottleTimeInNanos() {
+        public long getRestoreThrottleTimeInNanos() {
             return 0;
         }
         @Override
@@ -1687,13 +1687,13 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         @Override
         public void endVerification(String verificationToken) {}
         @Override
-        public boolean readOnly() {
+        public boolean isReadOnly() {
             return false;
         }
         @Override
-        public void snapshot(IndexShard shard, SnapshotId snapshotId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {}
+        public void snapshotShard(IndexShard shard, SnapshotId snapshotId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {}
         @Override
-        public IndexShardSnapshotStatus snapshotStatus(SnapshotId snapshotId, Version version, ShardId shardId) {
+        public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, ShardId shardId) {
             return null;
         }
         @Override

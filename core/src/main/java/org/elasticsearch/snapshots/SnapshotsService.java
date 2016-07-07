@@ -132,7 +132,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public List<SnapshotId> snapshotIds(final String repositoryName) {
         Repository repository = repositoriesService.repository(repositoryName);
         assert repository != null; // should only be called once we've validated the repository exists
-        return repository.snapshots();
+        return repository.getSnapshots();
     }
 
     /**
@@ -148,7 +148,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (!entries.isEmpty()) {
             return inProgressSnapshot(entries.iterator().next());
         }
-        return repositoriesService.repository(repositoryName).readSnapshot(snapshotId);
+        return repositoriesService.repository(repositoryName).getSnapshotInfo(snapshotId);
     }
 
     /**
@@ -174,7 +174,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final Repository repository = repositoriesService.repository(repositoryName);
         for (SnapshotId snapshotId : snapshotIdsToIterate) {
             try {
-                snapshotSet.add(repository.readSnapshot(snapshotId));
+                snapshotSet.add(repository.getSnapshotInfo(snapshotId));
             } catch (Exception ex) {
                 if (ignoreUnavailable) {
                     logger.warn("failed to get snapshot [{}]", ex, snapshotId);
@@ -546,7 +546,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                                                  final SnapshotInfo snapshotInfo) throws IOException {
         Map<ShardId, IndexShardSnapshotStatus> shardStatus = new HashMap<>();
         Repository repository = repositoriesService.repository(repositoryName);
-        MetaData metaData = repository.readSnapshotMetaData(snapshotInfo, snapshotInfo.indices());
+        MetaData metaData = repository.getSnapshotMetaData(snapshotInfo, snapshotInfo.indices());
         for (String index : snapshotInfo.indices()) {
             IndexMetaData indexMetaData = metaData.indices().get(index);
             if (indexMetaData != null) {
@@ -561,7 +561,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         shardStatus.put(shardId, shardSnapshotStatus);
                     } else {
                         IndexShardSnapshotStatus shardSnapshotStatus =
-                            repository.snapshotStatus(snapshotInfo.snapshotId(), snapshotInfo.version(), shardId);
+                            repository.getShardSnapshotStatus(snapshotInfo.snapshotId(), snapshotInfo.version(), shardId);
                         shardStatus.put(shardId, shardSnapshotStatus);
                     }
                 }
@@ -953,7 +953,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public void deleteSnapshot(final String repositoryName, final String snapshotName, final DeleteSnapshotListener listener) {
         // First, look for the snapshot in the repository
         final Repository repository = repositoriesService.repository(repositoryName);
-        Optional<SnapshotId> matchedEntry = repository.snapshots().stream().filter(s -> s.getName().equals(snapshotName)).findFirst();
+        Optional<SnapshotId> matchedEntry = repository.getSnapshots().stream().filter(s -> s.getName().equals(snapshotName)).findFirst();
         // if nothing found by the same name, then look in the cluster state for current in progress snapshots
         if (matchedEntry.isPresent() == false) {
             matchedEntry = currentSnapshots(repositoryName, Collections.emptyList()).stream()

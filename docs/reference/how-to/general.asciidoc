@@ -15,7 +15,7 @@ use the <<search-request-scroll,Scroll>> API.
 [[sparsity]]
 === Avoid sparsity
 
-The data-structures behind Lucene, which elasticsearch relies on in order to
+The data-structures behind Lucene, which Elasticsearch relies on in order to
 index and store data, work best with dense data, ie. when all documents have the
 same fields. This is especially true for fields that have norms enabled (which
 is the case for `text` fields by default) or doc values enabled (which is the
@@ -39,7 +39,7 @@ fraction of the documents of the index. Although slightly more complex with doc
 values due to the fact that doc values have multiple ways that they can be
 encoded depending on the type of field and on the actual data that the field
 stores, the problem is very similar. In case you wonder: `fielddata`, which was
-used in elasticsearch pre-2.0 before being replaced with doc values, also
+used in Elasticsearch pre-2.0 before being replaced with doc values, also
 suffered from this issue, except that the impact was only on the memory
 footprint since `fielddata` was not explicitly materialized on disk.
 

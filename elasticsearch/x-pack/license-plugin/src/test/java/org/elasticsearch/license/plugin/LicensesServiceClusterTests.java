@@ -19,19 +19,16 @@ import org.elasticsearch.license.plugin.action.get.GetLicenseResponse;
 import org.elasticsearch.license.plugin.action.put.PutLicenseAction;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
-import org.elasticsearch.license.plugin.consumer.EagerLicenseRegistrationConsumerPlugin;
-import org.elasticsearch.license.plugin.consumer.EagerLicenseRegistrationPluginService;
-import org.elasticsearch.license.plugin.consumer.LazyLicenseRegistrationConsumerPlugin;
-import org.elasticsearch.license.plugin.consumer.LazyLicenseRegistrationPluginService;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.LicensesMetaData;
+import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.XPackPlugin;
 
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 
 import static org.elasticsearch.license.plugin.TestUtils.generateSignedLicense;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
@@ -42,7 +39,6 @@ import static org.hamcrest.CoreMatchers.nullValue;
 
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0, transportClientRatio = 0)
 public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTestCase {
-    private final String[] PLUGINS = {EagerLicenseRegistrationPluginService.ID, LazyLicenseRegistrationPluginService.ID};
 
     @Override
     protected Settings transportClientSettings() {
@@ -58,16 +54,12 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("node.data", true)
-                // this setting is only used in tests
-                .put("_trial_license_duration_in_seconds", 9)
-                // this setting is only used in tests
-                .put("_grace_duration_in_seconds", 9)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(XPackPlugin.class, EagerLicenseRegistrationConsumerPlugin.class, LazyLicenseRegistrationConsumerPlugin.class);
+        return Collections.singletonList(XPackPlugin.class);
     }
 
     @Override
@@ -106,48 +98,57 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
         wipeAllLicenses();
     }
 
+
+    private void assertLicenseState(LicenseState state) throws InterruptedException {
+        boolean success = awaitBusy(() -> {
+            for (LicensesService service : internalCluster().getDataNodeInstances(LicensesService.class)) {
+                if (service.licenseState() == state) {
+                    return true;
+                }
+            }
+            return false;
+        });
+        assertTrue(success);
+    }
+
     public void testClusterRestartWhileEnabled() throws Exception {
         wipeAllLicenses();
         internalCluster().startNode();
         ensureGreen();
-        assertEagerConsumerPluginNotification(LicenseState.ENABLED, 5);
-        assertLazyConsumerPluginNotification(LicenseState.ENABLED, 5);
+        assertLicenseState(LicenseState.ENABLED);
         logger.info("--> restart node");
         internalCluster().fullRestart();
         ensureYellow();
         logger.info("--> await node for enabled");
-        assertEagerConsumerPluginNotification(LicenseState.ENABLED, 5);
-        assertLazyConsumerPluginNotification(LicenseState.ENABLED, 5);
+        assertLicenseState(LicenseState.ENABLED);
     }
 
-    @AwaitsFix(bugUrl = "todo fix test using mock clock")
     public void testClusterRestartWhileGrace() throws Exception {
         wipeAllLicenses();
         internalCluster().startNode();
+        assertLicenseState(LicenseState.ENABLED);
+        putLicense(TestUtils.generateSignedLicense(TimeValue.timeValueMillis(0)));
         ensureGreen();
-        assertEagerConsumerPluginNotification(LicenseState.GRACE_PERIOD, 10);
-        assertLazyConsumerPluginNotification(LicenseState.GRACE_PERIOD, 10);
+        assertLicenseState(LicenseState.GRACE_PERIOD);
         logger.info("--> restart node");
         internalCluster().fullRestart();
         ensureYellow();
         logger.info("--> await node for grace_period");
-        assertEagerConsumerPluginNotification(LicenseState.GRACE_PERIOD, 5);
-        assertLazyConsumerPluginNotification(LicenseState.GRACE_PERIOD, 5);
+        assertLicenseState(LicenseState.GRACE_PERIOD);
     }
 
-    @AwaitsFix(bugUrl = "todo fix test using mock clock")
     public void testClusterRestartWhileExpired() throws Exception {
         wipeAllLicenses();
         internalCluster().startNode();
         ensureGreen();
-        assertEagerConsumerPluginNotification(LicenseState.DISABLED, 20);
-        assertLazyConsumerPluginNotification(LicenseState.DISABLED, 20);
+        assertLicenseState(LicenseState.ENABLED);
+        putLicense(TestUtils.generateExpiredLicense(System.currentTimeMillis() - LicensesService.GRACE_PERIOD_DURATION.getMillis()));
+        assertLicenseState(LicenseState.DISABLED);
         logger.info("--> restart node");
         internalCluster().fullRestart();
         ensureYellow();
         logger.info("--> await node for disabled");
-        assertEagerConsumerPluginNotification(LicenseState.DISABLED, 5);
-        assertLazyConsumerPluginNotification(LicenseState.DISABLED, 5);
+        assertLicenseState(LicenseState.DISABLED);
     }
 
     public void testClusterNotRecovered() throws Exception {
@@ -155,27 +156,7 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
         internalCluster().startNode(nodeSettingsBuilder(0).put("discovery.zen.minimum_master_nodes", 2).put("node.master", true));
         logger.info("--> start second master out of two [recovered state]");
         internalCluster().startNode(nodeSettingsBuilder(1).put("discovery.zen.minimum_master_nodes", 2).put("node.master", true));
-        assertLicenseesStateEnabled();
-        assertConsumerPluginEnabledNotification(1);
-    }
-
-    public void testAtMostOnceTrialLicenseGeneration() throws Exception {
-        wipeAllLicenses();
-        logger.info("--> start one node [trial license should be generated & enabled]");
-        internalCluster().startNode(nodeSettingsBuilder(0));
-        assertLicenseesStateEnabled();
-        assertConsumerPluginEnabledNotification(1);
-
-        logger.info("--> start another node [trial license should be propagated from the old master not generated]");
-        internalCluster().startNode(nodeSettings(1));
-        assertLicenseesStateEnabled();
-        assertConsumerPluginEnabledNotification(1);
-
-        logger.info("--> check if multiple trial licenses are found for a id");
-        LicensesMetaData licensesMetaData = clusterService().state().metaData().custom(LicensesMetaData.TYPE);
-        assertThat(licensesMetaData.getLicense(), not(LicensesMetaData.LICENSE_TOMBSTONE));
-
-        wipeAllLicenses();
+        assertLicenseState(LicenseState.ENABLED);
     }
 
     private void removeLicense() throws Exception {
@@ -216,16 +197,5 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
         LicensesMetaData licensesMetaData = clusterService().state().metaData().custom(LicensesMetaData.TYPE);
         assertThat(licensesMetaData, notNullValue());
         assertThat(licensesMetaData.getLicense(), not(LicensesMetaData.LICENSE_TOMBSTONE));
-    }
-
-    private void assertLicenseesStateEnabled() throws Exception {
-       for (String id : PLUGINS) {
-           assertLicenseeState(LicenseState.ENABLED);
-       }
-    }
-
-    private void assertConsumerPluginEnabledNotification(int timeoutInSec) throws InterruptedException {
-        assertEagerConsumerPluginNotification(LicenseState.ENABLED, timeoutInSec);
-        assertLazyConsumerPluginNotification(LicenseState.ENABLED, timeoutInSec);
     }
 }

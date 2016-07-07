@@ -118,7 +118,10 @@ public class TestUtils {
     }
 
     public static License generateExpiredLicense() throws Exception {
-        long expiryDate = System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(1, 10)).getMillis();
+        return generateExpiredLicense(System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(1, 10)).getMillis());
+    }
+
+    public static License generateExpiredLicense(long expiryDate) throws Exception {
         final License.Builder builder = License.builder()
                 .uid(UUID.randomUUID().toString())
                 .version(License.VERSION_CURRENT)

@@ -252,7 +252,7 @@ public abstract class AbstractCollectorTestCase extends MonitoringIntegTestCase 
         private volatile License license;
 
         @Override
-        public List<String> licenseesWithState(LicenseState state) {
+        public LicenseState licenseState() {
             return null;
         }
 

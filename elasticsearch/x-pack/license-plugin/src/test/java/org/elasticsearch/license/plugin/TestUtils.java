@@ -23,11 +23,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.licensor.LicenseSigner;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
+import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.junit.Assert;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
@@ -90,7 +92,7 @@ public class TestUtils {
     }
 
     public static License generateSignedLicense(String type, long issueDate, TimeValue expiryDuration) throws Exception {
-        long issue = (issueDate != -1L) ? issueDate : System.currentTimeMillis();
+        long issue = (issueDate != -1L) ? issueDate : System.currentTimeMillis() - TimeValue.timeValueHours(2).getMillis();
         int version = randomIntBetween(License.VERSION_START, License.VERSION_CURRENT);
         final String licenseType;
         if (version < License.VERSION_NO_FEATURE_TYPE) {
@@ -101,7 +103,7 @@ public class TestUtils {
         final License.Builder builder = License.builder()
                 .uid(UUID.randomUUID().toString())
                 .version(version)
-                .expiryDate(issue + expiryDuration.getMillis())
+                .expiryDate(System.currentTimeMillis() + expiryDuration.getMillis())
                 .issueDate(issue)
                 .type(licenseType)
                 .issuedTo("customer")
@@ -111,6 +113,24 @@ public class TestUtils {
             builder.subscriptionType((type != null) ? type : randomFrom("dev", "gold", "platinum", "silver"));
             builder.feature(randomAsciiOfLength(10));
         }
+        LicenseSigner signer = new LicenseSigner(getTestPriKeyPath(), getTestPubKeyPath());
+        return signer.sign(builder.build());
+    }
+
+    public static License generateExpiredLicense() throws Exception {
+        return generateExpiredLicense(System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(1, 10)).getMillis());
+    }
+
+    public static License generateExpiredLicense(long expiryDate) throws Exception {
+        final License.Builder builder = License.builder()
+                .uid(UUID.randomUUID().toString())
+                .version(License.VERSION_CURRENT)
+                .expiryDate(expiryDate)
+                .issueDate(expiryDate - TimeValue.timeValueMinutes(10).getMillis())
+                .type(randomFrom("basic", "silver", "dev", "gold", "platinum"))
+                .issuedTo("customer")
+                .issuer("elasticsearch")
+                .maxNodes(5);
         LicenseSigner signer = new LicenseSigner(getTestPriKeyPath(), getTestPubKeyPath());
         return signer.sign(builder.build());
     }
@@ -138,9 +158,9 @@ public class TestUtils {
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(license);
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<LicensesStatus> status = new AtomicReference<>();
-        licensesService.registerLicense(putLicenseRequest, new ActionListener<LicensesService.LicensesUpdateResponse>() {
+        licensesService.registerLicense(putLicenseRequest, new ActionListener<PutLicenseResponse>() {
             @Override
-            public void onResponse(LicensesService.LicensesUpdateResponse licensesUpdateResponse) {
+            public void onResponse(PutLicenseResponse licensesUpdateResponse) {
                 status.set(licensesUpdateResponse.status());
                 latch.countDown();
             }

@@ -12,9 +12,9 @@ import java.util.List;
 public interface LicensesManagerService {
 
     /**
-     * @return the id of registered licensees currently in <code>state</code>
+     * @return current {@link LicenseState}
      */
-    List<String> licenseesWithState(LicenseState state);
+    LicenseState licenseState();
 
     /**
      * @return the currently active license, or {@code null} if no license is currently installed

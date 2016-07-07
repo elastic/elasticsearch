@@ -31,6 +31,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static org.elasticsearch.license.plugin.TestUtils.dateMath;
+import static org.elasticsearch.license.plugin.TestUtils.generateExpiredLicense;
 import static org.elasticsearch.license.plugin.TestUtils.generateSignedLicense;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
@@ -129,7 +130,7 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
     }
 
     public void testPutExpiredLicense() throws Exception {
-        License expiredLicense = generateSignedLicense(dateMath("now-10d/d", System.currentTimeMillis()), TimeValue.timeValueMinutes(2));
+        License expiredLicense = generateExpiredLicense();
         PutLicenseRequestBuilder builder = new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE);
         builder.setLicense(expiredLicense);
         PutLicenseResponse putLicenseResponse = builder.get();
@@ -162,7 +163,7 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
         License goldLicense = generateSignedLicense("gold", TimeValue.timeValueMinutes(5));
         PutLicenseRequestBuilder putLicenseRequestBuilder =
                 new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE).setLicense(goldLicense)
-                .setAcknowledge(true);
+                        .setAcknowledge(true);
         PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));

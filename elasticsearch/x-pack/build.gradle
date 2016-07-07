@@ -133,7 +133,7 @@ integTest {
   // TODO: fix this rest test to not depend on a hardcoded port!
   systemProperty 'tests.rest.blacklist', 'getting_started/10_monitor_cluster_health/*,bulk/10_basic/*'
   cluster {
-    setting 'xpack.monitoring.agent.interval', '3s'
+    setting 'xpack.monitoring.collection.interval', '3s'
     waitCondition = { NodeInfo node, AntBuilder ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
         for (int i = 0; i < 10; i++) {

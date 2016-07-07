@@ -65,8 +65,8 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
 
     public void testSimpleExport() throws Exception {
         internalCluster().startNode(Settings.builder()
-                .put("xpack.monitoring.agent.exporters._local.type", LocalExporter.TYPE)
-                .put("xpack.monitoring.agent.exporters._local.enabled", true)
+                .put("xpack.monitoring.collection.exporters._local.type", LocalExporter.TYPE)
+                .put("xpack.monitoring.collection.exporters._local.enabled", true)
                 .build());
         securedEnsureGreen();
 
@@ -96,7 +96,7 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
 
     public void testTemplateCreation() throws Exception {
         internalCluster().startNode(Settings.builder()
-                .put("xpack.monitoring.agent.exporters._local.type", LocalExporter.TYPE)
+                .put("xpack.monitoring.collection.exporters._local.type", LocalExporter.TYPE)
                 .build());
         securedEnsureGreen();
 
@@ -111,8 +111,8 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
         String timeFormat = randomFrom("YY", "YYYY", "YYYY.MM", "YYYY-MM", "MM.YYYY", "MM");
 
         internalCluster().startNode(Settings.builder()
-                .put("xpack.monitoring.agent.exporters._local.type", LocalExporter.TYPE)
-                .put("xpack.monitoring.agent.exporters._local." + LocalExporter.INDEX_NAME_TIME_FORMAT_SETTING, timeFormat)
+                .put("xpack.monitoring.collection.exporters._local.type", LocalExporter.TYPE)
+                .put("xpack.monitoring.collection.exporters._local." + LocalExporter.INDEX_NAME_TIME_FORMAT_SETTING, timeFormat)
                 .build());
         securedEnsureGreen();
 
@@ -130,7 +130,7 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
 
         logger.debug("--> updates the timestamp");
         timeFormat = randomFrom("dd", "dd.MM.YYYY", "dd.MM");
-        updateClusterSettings(Settings.builder().put("xpack.monitoring.agent.exporters._local.index.name.time_format", timeFormat));
+        updateClusterSettings(Settings.builder().put("xpack.monitoring.collection.exporters._local.index.name.time_format", timeFormat));
         exporter = getLocalExporter("_local"); // we need to get it again.. as it was rebuilt
         indexName = ".monitoring-es-" + MonitoringTemplateUtils.TEMPLATE_VERSION + "-"
                 + DateTimeFormat.forPattern(timeFormat).withZoneUTC().print(doc.getTimestamp());
@@ -144,8 +144,8 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
 
     public void testLocalExporterFlush() throws Exception {
         internalCluster().startNode(Settings.builder()
-                .put("xpack.monitoring.agent.exporters._local.type", LocalExporter.TYPE)
-                .put("xpack.monitoring.agent.exporters._local.enabled", true)
+                .put("xpack.monitoring.collection.exporters._local.type", LocalExporter.TYPE)
+                .put("xpack.monitoring.collection.exporters._local.enabled", true)
                 .build());
         securedEnsureGreen();
 

@@ -658,15 +658,14 @@ public class ClusterServiceTests extends ESTestCase {
 
             clusterService.submitStateUpdateTask("first time", task, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
 
-            final DuplicateClusterStateUpdateTaskException e =
+            final IllegalStateException e =
                     expectThrows(
-                            DuplicateClusterStateUpdateTaskException.class,
+                            IllegalStateException.class,
                             () -> clusterService.submitStateUpdateTask(
                                     "second time",
                                     task,
                                     ClusterStateTaskConfig.build(Priority.NORMAL),
                                     executor, listener));
-            assertThat(e.task(), equalTo(task));
             assertThat(e, hasToString(containsString("task [1] with source [second time] is already queued")));
 
             clusterService.submitStateUpdateTask("third time a charm", new SimpleTask(1),

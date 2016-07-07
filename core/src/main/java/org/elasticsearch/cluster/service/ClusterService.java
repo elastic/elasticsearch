@@ -346,7 +346,6 @@ public class ClusterService extends AbstractLifecycleComponent {
      * @param updateTask the full context for the cluster state update
      *                   task
      *
-     * @throws DuplicateClusterStateUpdateTaskException if the submitted update task is already queued
      */
     public void submitStateUpdateTask(final String source, final ClusterStateUpdateTask updateTask) {
         submitStateUpdateTask(source, updateTask, updateTask, updateTask, updateTask);
@@ -371,7 +370,6 @@ public class ClusterService extends AbstractLifecycleComponent {
      *                 completes
      * @param <T>      the type of the cluster state update task state
      *
-     * @throws DuplicateClusterStateUpdateTaskException if the submitted update task is already queued
      */
     public <T> void submitStateUpdateTask(final String source, final T task,
                                           final ClusterStateTaskConfig config,
@@ -392,7 +390,6 @@ public class ClusterService extends AbstractLifecycleComponent {
      *                 batches on this executor
      * @param <T>      the type of the cluster state update task state
      *
-     * @throws DuplicateClusterStateUpdateTaskException if the submitted update task is already queued
      */
     public <T> void submitStateUpdateTasks(final String source,
                                            final Map<T, ClusterStateTaskListener> tasks, final ClusterStateTaskConfig config,
@@ -414,9 +411,7 @@ public class ClusterService extends AbstractLifecycleComponent {
                 List<UpdateTask> existingTasks = updateTasksPerExecutor.computeIfAbsent(executor, k -> new ArrayList<>());
                 for (@SuppressWarnings("unchecked") UpdateTask<T> existing : existingTasks) {
                     if (tasksIdentity.containsKey(existing.task)) {
-                        throw new DuplicateClusterStateUpdateTaskException(
-                                "task [" + existing.task + "] with source [" + source + "] is already queued",
-                                existing.task);
+                        throw new IllegalStateException("task [" + existing.task + "] with source [" + source + "] is already queued");
                     }
                 }
                 existingTasks.addAll(updateTasks);

@@ -19,6 +19,11 @@
 
 package org.elasticsearch.plugin.repository.gcs;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.Collection;
+import java.util.Collections;
+
 import com.google.api.client.auth.oauth2.TokenRequest;
 import com.google.api.client.auth.oauth2.TokenResponse;
 import com.google.api.client.googleapis.json.GoogleJsonError;
@@ -35,15 +40,9 @@ import com.google.api.services.storage.model.Objects;
 import com.google.api.services.storage.model.StorageObject;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository;
-
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.Collection;
-import java.util.Collections;
 
 public class GoogleCloudStoragePlugin extends Plugin {
 
@@ -115,7 +114,6 @@ public class GoogleCloudStoragePlugin extends Plugin {
     }
 
     public void onModule(RepositoriesModule repositoriesModule) {
-        repositoriesModule.registerRepository(GoogleCloudStorageRepository.TYPE,
-                GoogleCloudStorageRepository.class, BlobStoreIndexShardRepository.class);
+        repositoriesModule.registerRepository(GoogleCloudStorageRepository.TYPE, GoogleCloudStorageRepository.class);
     }
 }

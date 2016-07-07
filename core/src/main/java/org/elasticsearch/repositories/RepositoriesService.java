@@ -37,7 +37,6 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.transport.TransportService;
@@ -337,23 +336,6 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
     }
 
     /**
-     * Returns registered index shard repository
-     * <p>
-     * This method is called only on data nodes
-     *
-     * @param repository repository name
-     * @return registered repository
-     * @throws RepositoryMissingException if repository with such name isn't registered
-     */
-    public IndexShardRepository indexShardRepository(String repository) {
-        RepositoryHolder holder = repositories.get(repository);
-        if (holder != null) {
-            return holder.indexShardRepository;
-        }
-        throw new RepositoryMissingException(repository);
-    }
-
-    /**
      * Creates a new repository and adds it to the list of registered repositories.
      * <p>
      * If a repository with the same name but different types or settings already exists, it will be closed and
@@ -403,14 +385,16 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
         try {
             ModulesBuilder modules = new ModulesBuilder();
             RepositoryName name = new RepositoryName(repositoryMetaData.type(), repositoryMetaData.name());
-            modules.add(new RepositoryNameModule(name));
-            modules.add(new RepositoryModule(name, repositoryMetaData.settings(), this.settings, typesRegistry));
+            modules.add(b -> {
+                b.bind(RepositoryName.class).toInstance(name);
+                typesRegistry.bindType(b, repositoryMetaData.type());
+                b.bind(RepositorySettings.class).toInstance(new RepositorySettings(settings, repositoryMetaData.settings()));
+            });
 
             repositoryInjector = modules.createChildInjector(injector);
             Repository repository = repositoryInjector.getInstance(Repository.class);
-            IndexShardRepository indexShardRepository = repositoryInjector.getInstance(IndexShardRepository.class);
             repository.start();
-            return new RepositoryHolder(repositoryMetaData.type(), repositoryMetaData.settings(), repository, indexShardRepository);
+            return new RepositoryHolder(repositoryMetaData.type(), repositoryMetaData.settings(), repository);
         } catch (Exception e) {
             logger.warn("failed to create repository [{}][{}]", e, repositoryMetaData.type(), repositoryMetaData.name());
             throw new RepositoryException(repositoryMetaData.name(), "failed to create repository", e);
@@ -472,13 +456,11 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
         private final String type;
         private final Settings settings;
         private final Repository repository;
-        private final IndexShardRepository indexShardRepository;
 
-        public RepositoryHolder(String type, Settings settings,Repository repository, IndexShardRepository indexShardRepository) {
+        public RepositoryHolder(String type, Settings settings,Repository repository) {
             this.type = type;
             this.settings = settings;
             this.repository = repository;
-            this.indexShardRepository = indexShardRepository;
         }
     }
 

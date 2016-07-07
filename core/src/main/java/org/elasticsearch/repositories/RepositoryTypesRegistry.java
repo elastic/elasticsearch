@@ -22,22 +22,18 @@ package org.elasticsearch.repositories;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ExtensionPoint;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
 
 /**
- * A mapping from type name to implementations of {@link Repository} and {@link IndexShardRepository}.
+ * A mapping from type name to implementations of {@link Repository}.
  */
 public class RepositoryTypesRegistry {
     // invariant: repositories and shardRepositories have the same keyset
     private final ExtensionPoint.SelectedType<Repository> repositoryTypes =
         new ExtensionPoint.SelectedType<>("repository", Repository.class);
-    private final ExtensionPoint.SelectedType<IndexShardRepository> shardRepositoryTypes =
-        new ExtensionPoint.SelectedType<>("index_repository", IndexShardRepository.class);
 
     /** Adds a new repository type to the registry, bound to the given implementation classes. */
-    public void registerRepository(String name, Class<? extends Repository> repositoryType, Class<? extends IndexShardRepository> shardRepositoryType) {
+    public void registerRepository(String name, Class<? extends Repository> repositoryType) {
         repositoryTypes.registerExtension(name, repositoryType);
-        shardRepositoryTypes.registerExtension(name, shardRepositoryType);
     }
 
     /**
@@ -47,6 +43,5 @@ public class RepositoryTypesRegistry {
     public void bindType(Binder binder, String type) {
         Settings settings = Settings.builder().put("type", type).build();
         repositoryTypes.bindType(binder, settings, "type", null);
-        shardRepositoryTypes.bindType(binder, settings, "type", null);
     }
 }

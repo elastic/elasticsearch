@@ -585,10 +585,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             logger.error("unexpected failure during [{}]", e, source);
         }
 
-        @Override
-        public String describeTasks(List<Task> tasks) {
-            return tasks.stream().map(Task::toString).collect(Collectors.joining(", "));
-        }
     }
 
     private void removeNode(final DiscoveryNode node, final String source, final String reason) {

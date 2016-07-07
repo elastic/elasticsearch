@@ -15,6 +15,9 @@ import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 import org.elasticsearch.xpack.watcher.transport.actions.service.WatcherServiceRequest;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
+
 /**
  */
 public class RestWatchServiceAction extends WatcherRestHandler {
@@ -22,9 +25,15 @@ public class RestWatchServiceAction extends WatcherRestHandler {
     @Inject
     public RestWatchServiceAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/_restart", this);
-        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/_start", new StartRestHandler(settings));
-        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/_stop", new StopRestHandler(settings));
+
+        // @deprecated Remove in 6.0
+        // NOTE: we switched from PUT in 2.x to POST in 5.x
+        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/_restart", this,
+                                                 PUT, "/_watcher/_restart", deprecationLogger);
+        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/_start", new StartRestHandler(settings),
+                                                 PUT, "/_watcher/_start", deprecationLogger);
+        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/_stop", new StopRestHandler(settings),
+                                                 PUT, "/_watcher/_stop", deprecationLogger);
     }
 
     @Override

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.Inject;
@@ -32,6 +31,8 @@ import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 
 import java.io.IOException;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction.Field.IGNORE_CONDITION;
 import static org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction.Field.RECORD_EXECUTION;
 
@@ -44,11 +45,17 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
     @Inject
     public RestExecuteWatchAction(Settings settings, RestController controller, TriggerService triggerService) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/{id}/_execute", this);
-        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/{id}/_execute", this);
-        controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/_execute", this);
-        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/_execute", this);
         this.triggerService = triggerService;
+
+        // @deprecated Remove deprecations in 6.0
+        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/watch/{id}/_execute", this,
+                                                 POST, "/_watcher/watch/{id}/_execute", deprecationLogger);
+        controller.registerWithDeprecatedHandler(PUT, URI_BASE + "/watch/{id}/_execute", this,
+                                                 PUT, "/_watcher/watch/{id}/_execute", deprecationLogger);
+        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/watch/_execute", this,
+                                                 POST, "/_watcher/watch/_execute", deprecationLogger);
+        controller.registerWithDeprecatedHandler(PUT, URI_BASE + "/watch/_execute", this,
+                                                 PUT, "/_watcher/watch/_execute", deprecationLogger);
     }
 
     @Override

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -23,6 +22,9 @@ import org.elasticsearch.xpack.watcher.transport.actions.ack.AckWatchRequest;
 import org.elasticsearch.xpack.watcher.transport.actions.ack.AckWatchResponse;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
+
 /**
  * The rest action to ack a watch
  */
@@ -31,13 +33,26 @@ public class RestAckWatchAction extends WatcherRestHandler {
     @Inject
     public RestAckWatchAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/{id}/_ack", this);
-        controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/{id}/_ack", this);
-        controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/{id}/_ack/{actions}", this);
-        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/{id}/_ack/{actions}", this);
-        // these are going to be removed in 6.0
-        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/{id}/{actions}/_ack", this);
-        controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/{id}/{actions}/_ack", this);
+        // @deprecated Remove deprecations in 6.0
+        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/watch/{id}/_ack", this,
+                                                 POST, "/_watcher/watch/{id}/_ack", deprecationLogger);
+        controller.registerWithDeprecatedHandler(PUT, URI_BASE + "/watch/{id}/_ack", this,
+                                                 PUT, "/_watcher/watch/{id}/_ack", deprecationLogger);
+        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/watch/{id}/_ack/{actions}", this,
+                                                 POST, "/_watcher/watch/{id}/{actions}/_ack", deprecationLogger);
+        controller.registerWithDeprecatedHandler(PUT, URI_BASE + "/watch/{id}/_ack/{actions}", this,
+                                                 PUT, "/_watcher/watch/{id}/{actions}/_ack", deprecationLogger);
+
+        // @deprecated The following can be totally dropped in 6.0
+        // Note: we deprecated "/{actions}/_ack" totally; so we don't replace it with a matching _xpack variant
+        controller.registerAsDeprecatedHandler(POST, "/_watcher/watch/{id}/{actions}/_ack", this,
+                                               "[POST /_watcher/watch/{id}/{actions}/_ack] is deprecated! Use " +
+                                               "[POST /_xpack/watcher/watch/{id}/_ack/{actions}] instead.",
+                                               deprecationLogger);
+        controller.registerAsDeprecatedHandler(PUT, "/_watcher/watch/{id}/{actions}/_ack", this,
+                                               "[PUT /_watcher/watch/{id}/{actions}/_ack] is deprecated! Use " +
+                                               "[PUT /_xpack/watcher/watch/{id}/_ack/{actions}] instead.",
+                                               deprecationLogger);
     }
 
     @Override

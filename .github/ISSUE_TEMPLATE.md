@@ -6,8 +6,8 @@ a feature request, please include one and only one of the below blocks
 in your new issue. Note that whether you're filing a bug report or a
 feature request, ensure that your submission is for an
 [OS that we support](https://www.elastic.co/support/matrix#show_os).
-Bug reports on OS that we do not support or feature requests specific
-to OS that we do not support will be closed.
+Bug reports on an OS that we do not support or feature requests
+specific to an OS that we do not support will be closed.
 -->
 
 <!--

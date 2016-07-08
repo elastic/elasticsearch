@@ -24,10 +24,13 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
@@ -51,6 +54,7 @@ public class RealmsTests extends ESTestCase {
         reservedRealm = mock(ReservedRealm.class);
         when(licenseState.isAuthAllowed()).thenReturn(true);
         when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.ALL);
+        when(reservedRealm.type()).thenReturn(ReservedRealm.TYPE);
     }
 
     public void testWithSettings() throws Exception {
@@ -350,6 +354,74 @@ public class RealmsTests extends ESTestCase {
 
         when(licenseState.isAuthAllowed()).thenReturn(false);
         assertThat(realms.iterator().hasNext(), is(false));
+    }
+
+    public void testUsageStats() {
+        // test realms with duplicate values
+        Settings.Builder builder = Settings.builder()
+                .put("path.home", createTempDir())
+                .put("xpack.security.authc.realms.foo.type", "type_0")
+                .put("xpack.security.authc.realms.foo.order", "0")
+                .put("xpack.security.authc.realms.bar.type", "type_0")
+                .put("xpack.security.authc.realms.bar.order", "1");
+        Settings settings = builder.build();
+        Environment env = new Environment(settings);
+        Realms realms = new Realms(settings, env, factories, licenseState, reservedRealm);
+        realms.start();
+
+        Map<String, Object> usageStats = realms.usageStats();
+        assertThat(usageStats.size(), is(factories.size()));
+
+        // first check type_0
+        assertThat(usageStats.get("type_0"), instanceOf(Map.class));
+        Map<String, Object> type0Map = (Map<String, Object>) usageStats.get("type_0");
+        assertThat(type0Map, hasEntry("enabled", true));
+        assertThat(type0Map, hasEntry("available", true));
+        assertThat((Iterable<? extends String>) type0Map.get("name"), contains("foo", "bar"));
+        assertThat((Iterable<? extends Integer>) type0Map.get("order"), contains(0, 1));
+
+        for (Entry<String, Object> entry : usageStats.entrySet()) {
+            String type = entry.getKey();
+            if ("type_0".equals(type)) {
+                continue;
+            }
+
+            Map<String, Object> typeMap = (Map<String, Object>) entry.getValue();
+            assertThat(typeMap, hasEntry("enabled", false));
+            assertThat(typeMap, hasEntry("available", true));
+            assertThat(typeMap.size(), is(2));
+        }
+
+        // disable ALL using license
+        when(licenseState.isAuthAllowed()).thenReturn(false);
+        when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.NONE);
+        usageStats = realms.usageStats();
+        assertThat(usageStats.size(), is(factories.size()));
+        for (Entry<String, Object> entry : usageStats.entrySet()) {
+            Map<String, Object> typeMap = (Map<String, Object>) entry.getValue();
+            assertThat(typeMap, hasEntry("enabled", false));
+            assertThat(typeMap, hasEntry("available", false));
+            assertThat(typeMap.size(), is(2));
+        }
+
+        // check native or internal realms enabled only
+        when(licenseState.isAuthAllowed()).thenReturn(true);
+        when(licenseState.allowedRealmType()).thenReturn(randomFrom(AllowedRealmType.NATIVE, AllowedRealmType.DEFAULT));
+        usageStats = realms.usageStats();
+        assertThat(usageStats.size(), is(factories.size()));
+        for (Entry<String, Object> entry : usageStats.entrySet()) {
+            final String type = entry.getKey();
+            Map<String, Object> typeMap = (Map<String, Object>) entry.getValue();
+            if (FileRealm.TYPE.equals(type) || NativeRealm.TYPE.equals(type)) {
+                assertThat(typeMap, hasEntry("enabled", true));
+                assertThat(typeMap, hasEntry("available", true));
+                assertThat((Iterable<? extends String>) typeMap.get("name"), contains("default_" + type));
+            } else {
+                assertThat(typeMap, hasEntry("enabled", false));
+                assertThat(typeMap, hasEntry("available", false));
+                assertThat(typeMap.size(), is(2));
+            }
+        }
     }
 
     static class DummyRealm extends Realm {

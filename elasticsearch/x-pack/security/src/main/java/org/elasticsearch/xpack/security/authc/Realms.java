@@ -8,13 +8,16 @@ package org.elasticsearch.xpack.security.authc;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -178,6 +181,48 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
         return realms;
     }
 
+    public Map<String, Object> usageStats() {
+        Map<String, Object> realmMap = new HashMap<>();
+        for (Realm realm : this) {
+            if (ReservedRealm.TYPE.equals(realm.type())) {
+                continue;
+            }
+            realmMap.compute(realm.type(), (key, value) -> {
+                if (value == null) {
+                    Object realmTypeUsage = convertToMapOfLists(realm.usageStats());
+                    return realmTypeUsage;
+                }
+                assert value instanceof Map;
+                combineMaps((Map<String, Object>) value, realm.usageStats());
+                return value;
+            });
+        }
+
+        final AllowedRealmType allowedRealmType = licenseState.allowedRealmType();
+        // iterate over the factories so we can add enabled & available info
+        for (String type : factories.keySet()) {
+            assert ReservedRealm.TYPE.equals(type) == false;
+            realmMap.compute(type, (key, value) -> {
+                if (value == null) {
+                    return MapBuilder.<String, Object>newMapBuilder()
+                            .put("enabled", false)
+                            .put("available", isRealmTypeAvailable(allowedRealmType, type))
+                            .map();
+                }
+
+                assert value instanceof Map;
+                Map<String, Object> realmTypeUsage = (Map<String, Object>) value;
+                realmTypeUsage.put("enabled", true);
+                // the realms iterator returned this type so it must be enabled
+                assert isRealmTypeAvailable(allowedRealmType, type);
+                realmTypeUsage.put("available", true);
+                return value;
+            });
+        }
+
+        return realmMap;
+    }
+
     /**
      * returns the settings for the {@link FileRealm}. Typically, this realms may or may
      * not be configured. If it is not configured, it will work OOTB using default settings. If it is
@@ -217,5 +262,42 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
 
     public static void addSettings(List<Setting<?>> settingsModule) {
         settingsModule.add(REALMS_GROUPS_SETTINGS);
+    }
+
+    private static void combineMaps(Map<String, Object> mapA, Map<String, Object> mapB) {
+        for (Entry<String, Object> entry : mapB.entrySet()) {
+            mapA.compute(entry.getKey(), (key, value) -> {
+                if (value == null) {
+                    return new ArrayList<>(Collections.singletonList(entry.getValue()));
+                }
+
+                assert value instanceof List;
+                ((List) value).add(entry.getValue());
+                return value;
+            });
+        }
+    }
+
+    private static Map<String, Object> convertToMapOfLists(Map<String, Object> map) {
+        Map<String, Object> converted = new HashMap<>(map.size());
+        for (Entry<String, Object> entry : map.entrySet()) {
+            converted.put(entry.getKey(), new ArrayList<>(Collections.singletonList(entry.getValue())));
+        }
+        return converted;
+    }
+
+    private static boolean isRealmTypeAvailable(AllowedRealmType enabledRealmType, String type) {
+        switch (enabledRealmType) {
+            case ALL:
+                return true;
+            case NONE:
+                return false;
+            case NATIVE:
+                return FileRealm.TYPE.equals(type) || NativeRealm.TYPE.equals(type);
+            case DEFAULT:
+                return INTERNAL_REALM_TYPES.contains(type);
+            default:
+                throw new IllegalStateException("unknown enabled realm type [" + enabledRealmType + "]");
+        }
     }
 }

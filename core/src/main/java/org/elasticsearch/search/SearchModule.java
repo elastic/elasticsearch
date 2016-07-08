@@ -572,14 +572,17 @@ public class SearchModule extends AbstractModule {
         registerAggregation(SignificantTermsAggregationBuilder::new,
                 new SignificantTermsParser(significanceHeuristicParserRegistry, queryParserRegistry),
                 SignificantTermsAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(RangeAggregationBuilder::new, new RangeParser(), RangeAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(DateRangeAggregationBuilder::new, new DateRangeParser(), DateRangeAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(
+                new AggregationSpec(RangeAggregationBuilder::new, new RangeParser(), RangeAggregationBuilder.AGGREGATION_NAME_FIELD)
+                        .addResultReader(InternalRange::new));
+        registerAggregation(new AggregationSpec(DateRangeAggregationBuilder::new, new DateRangeParser(),
+                DateRangeAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalDateRange::new));
         registerAggregation(IpRangeAggregationBuilder::new, new IpRangeParser(), IpRangeAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(HistogramAggregationBuilder::new, new HistogramParser(), HistogramAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(DateHistogramAggregationBuilder::new, new DateHistogramParser(),
                 DateHistogramAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(GeoDistanceAggregationBuilder::new, new GeoDistanceParser(),
-                GeoDistanceAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(new AggregationSpec(GeoDistanceAggregationBuilder::new, new GeoDistanceParser(),
+                GeoDistanceAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalGeoDistance::new));
         registerAggregation(GeoGridAggregationBuilder::new, new GeoHashGridParser(), GeoGridAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(NestedAggregationBuilder::new, NestedAggregationBuilder::parse,
                 NestedAggregationBuilder.AGGREGATION_FIELD_NAME);
@@ -779,11 +782,8 @@ public class SearchModule extends AbstractModule {
         SignificantLongTerms.registerStreams();
         UnmappedSignificantTerms.registerStreams();
         InternalGeoHashGrid.registerStreams();
-        InternalRange.registerStream();
-        InternalDateRange.registerStream();
         InternalBinaryRange.registerStream();
         InternalHistogram.registerStream();
-        InternalGeoDistance.registerStream();
         InternalNested.registerStream();
         InternalReverseNested.registerStream();
         InternalTopHits.registerStreams();

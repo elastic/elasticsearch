@@ -25,6 +25,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -59,6 +60,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -133,6 +135,35 @@ public class MetaDataStateFormatTests extends ESTestCase {
             DummyState read = format.read(list[0]);
             assertThat(read, equalTo(state2));
 
+        }
+    }
+
+    public void testLoadLatestStateDoesNotResurrectsDeletedFolder() throws URISyntaxException, IOException, InterruptedException {
+        MetaDataStateFormat<MetaData> format = metaDataFormat(randomFrom(XContentType.values()));
+        Path path = createTempDir();
+        Files.createDirectories(path.resolve(MetaDataStateFormat.STATE_DIR_NAME));
+        MetaData meta = randomMeta();
+        format.write(meta, path);
+        assertEquals(meta.clusterUUID(), format.loadLatestState(logger, path).clusterUUID());
+        AtomicBoolean successfulDeletion = new AtomicBoolean();
+        Thread thread = new Thread() {
+            public void run() {
+                try {
+                    IOUtils.rm(path);
+                    successfulDeletion.set(true);
+                } catch (IOException e) {
+                    logger.debug("could not delete {}", e, path);
+                }
+            }
+        };
+        thread.start();
+        MetaData loadedMeta = format.loadLatestState(logger, path);
+        if (loadedMeta != null) {
+            assertEquals(loadedMeta.clusterUUID(), meta.clusterUUID());
+        }
+        thread.join();
+        if (successfulDeletion.get()) {
+            assertFalse(Files.isDirectory(path));
         }
     }
 
@@ -360,8 +391,9 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
 
         @Override
-        protected Directory newDirectory(Path dir) throws IOException {
-            MockDirectoryWrapper  mock = new MockDirectoryWrapper(random(), super.newDirectory(dir));
+        protected Directory newReadOnlyDirectory(Path dir) throws IOException {
+            MockDirectoryWrapper mock = new MockDirectoryWrapper(random(), super.newReadOnlyDirectory(dir));
+            mock.setCheckIndexOnClose(false);
             closeAfterSuite(mock);
             return mock;
         }

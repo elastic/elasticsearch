@@ -26,7 +26,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
-import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.store.SimpleReadOnlyFSDirectory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -180,7 +180,7 @@ public abstract class MetaDataStateFormat<T> {
      * the state.
      */
     public final T read(Path file) throws IOException {
-        try (Directory dir = newDirectory(file.getParent())) {
+        try (Directory dir = newReadOnlyDirectory(file.getParent())) {
             try (final IndexInput indexInput = dir.openInput(file.getFileName().toString(), IOContext.DEFAULT)) {
                  // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
@@ -206,8 +206,8 @@ public abstract class MetaDataStateFormat<T> {
         }
     }
 
-    protected Directory newDirectory(Path dir) throws IOException {
-        return new SimpleFSDirectory(dir);
+    protected Directory newReadOnlyDirectory(Path dir) throws IOException {
+        return new SimpleReadOnlyFSDirectory(dir);
     }
 
     private void cleanupOldFiles(final String prefix, final String currentStateFile, Path[] locations) throws IOException {
@@ -287,8 +287,9 @@ public abstract class MetaDataStateFormat<T> {
                 }
             }
         }
-        final List<Throwable> exceptions = new ArrayList<>();
-        T state = null;
+        if (files.isEmpty()) {
+            return null;
+        }
         // NOTE: we might have multiple version of the latest state if there are multiple data dirs.. for this case
         //       we iterate only over the ones with the max version. If we have at least one state file that uses the
         //       new format (ie. legacy == false) then we know that the latest version state ought to use this new format.
@@ -299,10 +300,13 @@ public abstract class MetaDataStateFormat<T> {
                 .filter(new StateIdAndLegacyPredicate(maxStateId, maxStateIdIsLegacy))
                 .collect(Collectors.toCollection(ArrayList::new));
 
+        final List<Throwable> exceptions = new ArrayList<>();
+        int numFilesDeleted = 0; // number of files that were deleted after being selected above but before reading file content below
         for (PathAndStateId pathAndStateId : pathAndStateIds) {
             try {
                 final Path stateFile = pathAndStateId.file;
                 final long id = pathAndStateId.id;
+                final T state;
                 if (pathAndStateId.legacy) { // read the legacy format -- plain XContent
                     final byte[] data = Files.readAllBytes(stateFile);
                     if (data.length == 0) {
@@ -320,6 +324,10 @@ public abstract class MetaDataStateFormat<T> {
                     logger.trace("state id [{}] read from [{}]", id, stateFile.getFileName());
                 }
                 return state;
+            } catch (NoSuchFileException | FileNotFoundException ex) {
+                // was just deleted on us as we were reading this, ignore
+                numFilesDeleted++;
+                logger.debug("{}: failed to read [{}], ignoring...", ex, pathAndStateId.file.toAbsolutePath(), prefix);
             } catch (Exception e) {
                 exceptions.add(new IOException("failed to read " + pathAndStateId.toString(), e));
                 logger.debug("{}: failed to read [{}], ignoring...", e, pathAndStateId.file.toAbsolutePath(), prefix);
@@ -327,11 +335,11 @@ public abstract class MetaDataStateFormat<T> {
         }
         // if we reach this something went wrong
         ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
-        if (files.size() > 0) {
+        if (files.size() > numFilesDeleted) {
             // We have some state files but none of them gave us a usable state
             throw new IllegalStateException("Could not find a state file to recover from among " + files);
         }
-        return state;
+        return null;
     }
 
     /**

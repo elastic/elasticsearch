@@ -483,7 +483,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyIntegT
      */
     public void testRemoveAndCreateContainer() throws Exception {
         final String container = getContainerName().concat("-testremove");
-        final AzureStorageService storageService = internalCluster().getInstance(AzureStorageService.class);
+        final AzureStorageService storageService = new AzureStorageServiceImpl(internalCluster().getDefaultSettings());
 
         // It could happen that we run this test really close to a previous one
         // so we might need some time to be able to create the container

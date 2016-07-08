@@ -21,18 +21,16 @@ package org.elasticsearch.repositories.gcs;
 
 import com.google.api.services.storage.Storage;
 import org.elasticsearch.common.blobstore.gcs.MockHttpTransport;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.plugin.repository.gcs.GoogleCloudStorageModule;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugin.repository.gcs.GoogleCloudStoragePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.ESBlobStoreRepositoryIntegTestCase;
 import org.junit.BeforeClass;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -68,25 +66,13 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
     }
 
     public static class MockGoogleCloudStoragePlugin extends GoogleCloudStoragePlugin {
-
-        public MockGoogleCloudStoragePlugin() {
-        }
-
         @Override
-        public Collection<Module> nodeModules() {
-            return Collections.singletonList(new MockGoogleCloudStorageModule());
-        }
-    }
-
-    public static class MockGoogleCloudStorageModule extends GoogleCloudStorageModule {
-        @Override
-        protected void configure() {
-            bind(GoogleCloudStorageService.class).to(MockGoogleCloudStorageService.class).asEagerSingleton();
+        protected GoogleCloudStorageService createStorageService(Environment environment) {
+            return new MockGoogleCloudStorageService();
         }
     }
 
     public static class MockGoogleCloudStorageService implements GoogleCloudStorageService {
-
         @Override
         public Storage createClient(String serviceAccount, String application, TimeValue connectTimeout, TimeValue readTimeout) throws
                 Exception {

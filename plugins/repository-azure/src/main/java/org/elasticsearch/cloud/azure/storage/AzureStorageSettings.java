@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.repositories.RepositorySettings;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -172,20 +171,21 @@ public final class AzureStorageSettings {
         return Collections.unmodifiableMap(secondaries);
     }
 
-    public static <T> T getValue(RepositorySettings repositorySettings,
+    public static <T> T getValue(Settings repositorySettings,
+                                 Settings globalSettings,
                                  Setting<T> repositorySetting,
                                  Setting<T> repositoriesSetting) {
-        if (repositorySetting.exists(repositorySettings.settings())) {
-            return repositorySetting.get(repositorySettings.settings());
+        if (repositorySetting.exists(repositorySettings)) {
+            return repositorySetting.get(repositorySettings);
         } else {
-            return repositoriesSetting.get(repositorySettings.globalSettings());
+            return repositoriesSetting.get(globalSettings);
         }
     }
 
-    public static <T> Setting<T> getEffectiveSetting(RepositorySettings repositorySettings,
+    public static <T> Setting<T> getEffectiveSetting(Settings repositorySettings,
                                               Setting<T> repositorySetting,
                                               Setting<T> repositoriesSetting) {
-        if (repositorySetting.exists(repositorySettings.settings())) {
+        if (repositorySetting.exists(repositorySettings)) {
             return repositorySetting;
         } else {
             return repositoriesSetting;

@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -34,34 +35,34 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.repositories.RepositoriesModule;
-import org.elasticsearch.repositories.RepositoryName;
-import org.elasticsearch.repositories.RepositorySettings;
+import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 
 public class MockRepository extends FsRepository {
 
-    public static class Plugin extends org.elasticsearch.plugins.Plugin {
+    public static class Plugin extends org.elasticsearch.plugins.Plugin implements RepositoryPlugin {
 
         public static final Setting<String> USERNAME_SETTING = Setting.simpleString("secret.mock.username", Property.NodeScope);
         public static final Setting<String> PASSWORD_SETTING =
             Setting.simpleString("secret.mock.password", Property.NodeScope, Property.Filtered);
 
-        public void onModule(RepositoriesModule repositoriesModule) {
-            repositoriesModule.registerRepository("mock", MockRepository.class);
+
+        @Override
+        public Map<String, Repository.Factory> getRepositories(Environment env) {
+            return Collections.singletonMap("mock", (metadata) -> new MockRepository(metadata, env));
         }
 
         @Override
@@ -96,43 +97,39 @@ public class MockRepository extends FsRepository {
 
     private volatile boolean blocked = false;
 
-    @Inject
-    public MockRepository(RepositoryName name, RepositorySettings repositorySettings, ClusterService clusterService, Environment environment) throws IOException {
-        super(name, overrideSettings(repositorySettings, clusterService), environment);
-        randomControlIOExceptionRate = repositorySettings.settings().getAsDouble("random_control_io_exception_rate", 0.0);
-        randomDataFileIOExceptionRate = repositorySettings.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
-        maximumNumberOfFailures = repositorySettings.settings().getAsLong("max_failure_number", 100L);
-        blockOnControlFiles = repositorySettings.settings().getAsBoolean("block_on_control", false);
-        blockOnDataFiles = repositorySettings.settings().getAsBoolean("block_on_data", false);
-        blockOnInitialization = repositorySettings.settings().getAsBoolean("block_on_init", false);
-        randomPrefix = repositorySettings.settings().get("random", "default");
-        waitAfterUnblock = repositorySettings.settings().getAsLong("wait_after_unblock", 0L);
+    public MockRepository(RepositoryMetaData metadata, Environment environment) throws IOException {
+        super(overrideSettings(metadata, environment), environment);
+        randomControlIOExceptionRate = metadata.settings().getAsDouble("random_control_io_exception_rate", 0.0);
+        randomDataFileIOExceptionRate = metadata.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
+        maximumNumberOfFailures = metadata.settings().getAsLong("max_failure_number", 100L);
+        blockOnControlFiles = metadata.settings().getAsBoolean("block_on_control", false);
+        blockOnDataFiles = metadata.settings().getAsBoolean("block_on_data", false);
+        blockOnInitialization = metadata.settings().getAsBoolean("block_on_init", false);
+        randomPrefix = metadata.settings().get("random", "default");
+        waitAfterUnblock = metadata.settings().getAsLong("wait_after_unblock", 0L);
         logger.info("starting mock repository with random prefix {}", randomPrefix);
         mockBlobStore = new MockBlobStore(super.blobStore());
     }
 
     @Override
-    public void initializeSnapshot(SnapshotId snapshotId, List<String> indices, MetaData metaData) {
+    public void initializeSnapshot(SnapshotId snapshotId, List<String> indices, MetaData clusterMetadata) {
         if (blockOnInitialization ) {
             blockExecution();
         }
-        super.initializeSnapshot(snapshotId, indices, metaData);
+        super.initializeSnapshot(snapshotId, indices, clusterMetadata);
     }
 
-    private static RepositorySettings overrideSettings(RepositorySettings repositorySettings, ClusterService clusterService) {
-        if (repositorySettings.settings().getAsBoolean("localize_location", false)) {
-            return new RepositorySettings(
-                    repositorySettings.globalSettings(),
-                    localizeLocation(repositorySettings.settings(), clusterService));
+    private static RepositoryMetaData overrideSettings(RepositoryMetaData metadata, Environment environment) {
+        // TODO: use another method of testing not being able to read the test file written by the master...
+        // this is super duper hacky
+        if (metadata.settings().getAsBoolean("localize_location", false)) {
+            Path location = PathUtils.get(metadata.settings().get("location"));
+            location = location.resolve(Integer.toString(environment.hashCode()));
+            return new RepositoryMetaData(metadata.name(), metadata.type(),
+                Settings.builder().put(metadata.settings()).put("location", location.toAbsolutePath()).build());
         } else {
-            return repositorySettings;
+            return metadata;
         }
-    }
-
-    private static Settings localizeLocation(Settings settings, ClusterService clusterService) {
-        Path location = PathUtils.get(settings.get("location"));
-        location = location.resolve(clusterService.localNode().getId());
-        return Settings.builder().put(settings).put("location", location.toAbsolutePath()).build();
     }
 
     private long incrementAndGetFailureCount() {

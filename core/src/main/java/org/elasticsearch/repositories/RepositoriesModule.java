@@ -19,8 +19,17 @@
 
 package org.elasticsearch.repositories;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.elasticsearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.binder.LinkedBindingBuilder;
+import org.elasticsearch.common.inject.multibindings.MapBinder;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.repositories.uri.URLRepository;
 import org.elasticsearch.snapshots.RestoreService;
@@ -29,21 +38,25 @@ import org.elasticsearch.snapshots.SnapshotsService;
 
 /**
  * Sets up classes for Snapshot/Restore.
- *
- * Plugins can add custom repository types by calling {@link #registerRepository(String, Class)}.
  */
 public class RepositoriesModule extends AbstractModule {
 
-    private final RepositoryTypesRegistry repositoryTypes = new RepositoryTypesRegistry();
+    private final Map<String, Repository.Factory> repositoryTypes;
 
-    public RepositoriesModule() {
-        registerRepository(FsRepository.TYPE, FsRepository.class);
-        registerRepository(URLRepository.TYPE, URLRepository.class);
-    }
+    public RepositoriesModule(Environment env, List<RepositoryPlugin> repoPlugins) {
+        Map<String, Repository.Factory> factories = new HashMap<>();
+        factories.put(FsRepository.TYPE, (metadata) -> new FsRepository(metadata, env));
+        factories.put(URLRepository.TYPE, (metadata) -> new URLRepository(metadata, env));
 
-    /** Registers a custom repository type to the given {@link Repository}. */
-    public void registerRepository(String type, Class<? extends Repository> repositoryType) {
-        repositoryTypes.registerRepository(type, repositoryType);
+        for (RepositoryPlugin repoPlugin : repoPlugins) {
+            Map<String, Repository.Factory> newRepoTypes = repoPlugin.getRepositories(env);
+            for (Map.Entry<String, Repository.Factory> entry : newRepoTypes.entrySet()) {
+                if (factories.put(entry.getKey(), entry.getValue()) != null) {
+                    throw new IllegalArgumentException("Repository type [" + entry.getKey() + "] is already registered");
+                }
+            }
+        }
+        repositoryTypes = Collections.unmodifiableMap(factories);
     }
 
     @Override
@@ -53,6 +66,7 @@ public class RepositoriesModule extends AbstractModule {
         bind(SnapshotShardsService.class).asEagerSingleton();
         bind(TransportNodesSnapshotsStatus.class).asEagerSingleton();
         bind(RestoreService.class).asEagerSingleton();
-        bind(RepositoryTypesRegistry.class).toInstance(repositoryTypes);
+        MapBinder<String, Repository.Factory> typesBinder = MapBinder.newMapBinder(binder(), String.class, Repository.Factory.class);
+        repositoryTypes.forEach((k, v) -> typesBinder.addBinding(k).toInstance(v));
     }
 }

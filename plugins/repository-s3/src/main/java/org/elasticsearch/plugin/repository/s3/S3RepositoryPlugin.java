@@ -21,26 +21,26 @@ package org.elasticsearch.plugin.repository.s3;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.aws.AwsS3Service;
-import org.elasticsearch.cloud.aws.S3Module;
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.cloud.aws.InternalAwsS3Service;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesModule;
+import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.s3.S3Repository;
 
 /**
- *
+ * A plugin to add a repository type that writes to and from the AWS S3.
  */
-public class S3RepositoryPlugin extends Plugin {
+public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
 
     // ClientConfiguration clinit has some classloader problems
     // TODO: fix that
@@ -62,21 +62,15 @@ public class S3RepositoryPlugin extends Plugin {
         });
     }
 
-    @Override
-    public Collection<Module> nodeModules() {
-        Collection<Module> modules = new ArrayList<>();
-        modules.add(new S3Module());
-        return modules;
+    // overridable for tests
+    protected AwsS3Service createStorageService(Settings settings) {
+        return new InternalAwsS3Service(settings);
     }
 
     @Override
-    @SuppressWarnings("rawtypes") // Supertype declaration has raw types
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-        return Collections.<Class<? extends LifecycleComponent>>singleton(S3Module.getS3ServiceImpl());
-    }
-
-    public void onModule(RepositoriesModule repositoriesModule) {
-        repositoriesModule.registerRepository(S3Repository.TYPE, S3Repository.class);
+    public Map<String, Repository.Factory> getRepositories(Environment env) {
+        return Collections.singletonMap(S3Repository.TYPE,
+            (metadata) -> new S3Repository(metadata, env.settings(), createStorageService(env.settings())));
     }
 
     @Override

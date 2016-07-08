@@ -40,9 +40,6 @@ public class NetworkExceptionHelper {
         }
         if (e.getMessage() != null) {
             // UGLY!, this exception messages seems to represent closed connection
-            if (e.getMessage().contains("Connection reset by peer")) {
-                return true;
-            }
             if (e.getMessage().contains("Connection reset")) {
                 return true;
             }

@@ -463,7 +463,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     }
                 }
             } catch (IOException e) {
-                logger.debug("failed to close channel", e);
+                logger.warn("failed to close channel", e);
             }
         });
     }
@@ -804,7 +804,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
     }
 
-    protected void onException(Channel channel, Exception e) {
+    protected void onException(Channel channel, Exception e) throws IOException {
         if (!lifecycle.started()) {
             // ignore
             return;
@@ -830,12 +830,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         } else if (e instanceof TcpTransport.HttpOnTransportException) {
             // in case we are able to return data, serialize the exception content and sent it back to the client
             if (isOpen(channel)) {
-                try {
-                    sendMessage(channel, new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8)), () -> {
-                    }, true);
-                } catch (IOException ex) {
-                    logger.trace("failed to send error message back to client", ex);
-                }
+                sendMessage(channel, new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8)), () -> {}, true);
             }
         } else {
             logger.warn("exception caught on transport layer [{}], closing connection", e, channel);

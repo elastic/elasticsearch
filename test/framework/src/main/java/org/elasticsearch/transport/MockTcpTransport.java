@@ -106,7 +106,11 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
                 started.countDown();
                 serverMockChannel.accept(executor);
             } catch (IOException e) {
-                onException(serverMockChannel, e);
+                try {
+                    onException(serverMockChannel, e);
+                } catch (IOException ex) {
+                    logger.warn("failed on handling exception", ex);
+                }
             }
         });
         try {
@@ -154,11 +158,6 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
 
     @Override
     protected NodeChannels connectToChannels(DiscoveryNode node) throws IOException {
-//        final NodeChannels nodeChannels = new NodeChannels(new MockChannel[connectionsPerNodeRecovery],
-//            new MockChannel[connectionsPerNodeBulk],
-//            new MockChannel[connectionsPerNodeReg],
-//            new MockChannel[connectionsPerNodeState],
-//            new MockChannel[connectionsPerNodePing]);
         final NodeChannels nodeChannels = new NodeChannels(new MockChannel[1],
             new MockChannel[1],
             new MockChannel[1],
@@ -213,7 +212,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
 
     @Override
     protected boolean isOpen(MockChannel mockChannel) {
-        return mockChannel.open.get();
+        return mockChannel.isOpen.get();
     }
 
     @Override
@@ -243,7 +242,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     public final class MockChannel implements Closeable {
-        private final AtomicBoolean open = new AtomicBoolean(true);
+        private final AtomicBoolean isOpen = new AtomicBoolean(true);
         private final InetSocketAddress localAddress;
         private final ServerSocket serverSocket;
         private final ConcurrentHashMap<MockChannel, Boolean> workerChannels = new ConcurrentHashMap<>();
@@ -260,7 +259,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
             this.onClose = () -> onClose.accept(this);
         }
         public void accept(Executor executor) throws IOException {
-            while (open.get()) {
+            while (isOpen.get()) {
                 Socket accept = serverSocket.accept();
                 configureSocket(accept);
                 MockChannel mockChannel = new MockChannel(accept, localAddress, profile, workerChannels::remove);
@@ -273,12 +272,16 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
             executor.execute(() -> {
                 try {
                     StreamInput input = new InputStreamStreamInput(new BufferedInputStream(activeChannel.getInputStream()));
-                    while(open.get()) {
+                    while(isOpen.get()) {
                             cancellableThreads.executeIO(() -> readMessage(this, input));
                     }
                 } catch (Exception e) {
-                    if (open.get()) {
-                        onException(this, e);
+                    if (isOpen.get()) {
+                        try {
+                            onException(this, e);
+                        } catch (IOException ex) {
+                            logger.warn("failed on handling exception", ex);
+                        }
                     }
                 }
             });
@@ -294,7 +297,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
 
         @Override
         public void close() throws IOException {
-            if (open.compareAndSet(true, false)) {
+            if (isOpen.compareAndSet(true, false)) {
                 IOUtils.close( () -> cancellableThreads.cancel("channel closed"), serverSocket, activeChannel,
                     () -> IOUtils.close(workerChannels.keySet()), onClose);
             }

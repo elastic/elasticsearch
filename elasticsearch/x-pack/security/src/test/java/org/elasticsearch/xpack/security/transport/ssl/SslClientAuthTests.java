@@ -31,7 +31,6 @@ import javax.net.ssl.SSLHandshakeException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
 
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.SecuritySettingsSource.getSSLSettingsForStore;
@@ -63,7 +62,7 @@ public class SslClientAuthTests extends SecurityIntegTestCase {
                 SSLConnectionSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
 
         try (RestClient restClient = createRestClient(HttpClients.custom().setSSLSocketFactory(socketFactory).build(), "https")) {
-            restClient.performRequest("GET", "/", Collections.emptyMap(), null);
+            restClient.performRequest("GET", "/");
             fail("Expected SSLHandshakeException");
         } catch (SSLHandshakeException e) {
             assertThat(e.getMessage(), containsString("unable to find valid certification path to requested target"));
@@ -83,7 +82,7 @@ public class SslClientAuthTests extends SecurityIntegTestCase {
         CloseableHttpClient client = HttpClients.custom().setSSLSocketFactory(socketFactory).build();
 
         try (RestClient restClient = createRestClient(client, "https")) {
-            try (Response response = restClient.performRequest("GET", "/", Collections.emptyMap(), null,
+            try (Response response = restClient.performRequest("GET", "/",
                     new BasicHeader("Authorization", basicAuthHeaderValue(transportClientUsername(), transportClientPassword())))) {
                 assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
                 assertThat(EntityUtils.toString(response.getEntity()), containsString("You Know, for Search"));

@@ -28,7 +28,6 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
-import java.util.Collections;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.is;
@@ -81,7 +80,7 @@ public class PkiWithoutClientAuthenticationTests extends SecurityIntegTestCase {
         sc.init(null, trustAllCerts, new SecureRandom());
         CloseableHttpClient httpClient = HttpClients.custom().setSSLContext(sc).build();
         try (RestClient restClient =  createRestClient(httpClient, "https")) {
-            try (Response response = restClient.performRequest("GET", "/_nodes", Collections.emptyMap(), null,
+            try (Response response = restClient.performRequest("GET", "/_nodes",
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
                                     new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {

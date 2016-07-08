@@ -9,10 +9,8 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.security.authz.InternalAuthorizationService;
 import org.elasticsearch.test.SecurityIntegTestCase;
-
-import java.util.Collections;
+import org.elasticsearch.xpack.security.authz.InternalAuthorizationService;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -43,7 +41,7 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
 
     public void testAnonymousViaHttp() throws Exception {
         try {
-            getRestClient().performRequest("GET", "/_nodes", Collections.emptyMap(), null);
+            getRestClient().performRequest("GET", "/_nodes");
             fail("request should have failed");
         } catch(ResponseException e) {
             int statusCode = e.getResponse().getStatusLine().getStatusCode();

@@ -84,7 +84,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
             assertThat(response.getStatusLine().getStatusCode(), equalTo(201));
         }
 
-        try (Response response = getRestClient().performRequest("GET", path, Collections.emptyMap(), null, basicAuthHeader)) {
+        try (Response response = getRestClient().performRequest("GET", path, basicAuthHeader)) {
             assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
             assertThat(EntityUtils.toString(response.getEntity()), containsString("\"test\":\"test\""));
         }
@@ -100,7 +100,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
             assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         }
 
-        try (Response response = getRestClient().performRequest("GET", path, Collections.emptyMap(), null, basicAuthHeader)) {
+        try (Response response = getRestClient().performRequest("GET", path, basicAuthHeader)) {
             assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
             String responseBody = EntityUtils.toString(response.getEntity());
             assertThat(responseBody, containsString("\"test\":\"test\""));
@@ -118,7 +118,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
             assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         }
 
-        try (Response response = getRestClient().performRequest("GET", path, Collections.emptyMap(), null, basicAuthHeader)) {
+        try (Response response = getRestClient().performRequest("GET", path, basicAuthHeader)) {
             String responseBody = EntityUtils.toString(response.getEntity());
             assertThat(responseBody, containsString("\"test\":\"test\""));
             assertThat(responseBody, containsString("\"not test\":\"not test\""));

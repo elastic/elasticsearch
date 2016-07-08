@@ -37,7 +37,7 @@ public class IndexAuditIT extends ESIntegTestCase {
     private static final String PASS = "changeme";
 
     public void testShieldIndexAuditTrailWorking() throws Exception {
-        try (Response response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null,
+        try (Response response = getRestClient().performRequest("GET", "/",
                 new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                         UsernamePasswordToken.basicAuthHeaderValue(USER, new SecuredString(PASS.toCharArray()))))) {
             assertThat(response.getStatusLine().getStatusCode(), is(200));

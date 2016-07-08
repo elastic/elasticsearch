@@ -47,7 +47,7 @@ public class CustomRealmIT extends ESIntegTestCase {
 
     public void testHttpConnectionWithNoAuthentication() throws Exception {
         try {
-            getRestClient().performRequest("GET", "/", Collections.emptyMap(), null);
+            getRestClient().performRequest("GET", "/");
             fail("request should have failed");
         } catch(ResponseException e) {
             Response response = e.getResponse();
@@ -58,7 +58,7 @@ public class CustomRealmIT extends ESIntegTestCase {
     }
 
     public void testHttpAuthentication() throws Exception {
-        try (Response response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null,
+        try (Response response = getRestClient().performRequest("GET", "/",
                 new BasicHeader(CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER),
                 new BasicHeader(CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW))) {
             assertThat(response.getStatusLine().getStatusCode(), is(200));

@@ -168,7 +168,7 @@ public class LicensingTests extends SecurityIntegTestCase {
     }
 
     public void testRestAuthenticationByLicenseType() throws Exception {
-        try (Response response = getRestClient().performRequest("GET", "/", Collections.emptyMap(), null)) {
+        try (Response response = getRestClient().performRequest("GET", "/")) {
             // the default of the licensing tests is basic
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
@@ -177,7 +177,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         OperationMode mode = randomFrom(OperationMode.GOLD, OperationMode.TRIAL, OperationMode.PLATINUM, OperationMode.STANDARD);
         enableLicensing(mode);
         try {
-            getRestClient().performRequest("GET", "/", Collections.emptyMap(), null);
+            getRestClient().performRequest("GET", "/");
             fail("request should have failed");
         } catch(ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));

@@ -305,7 +305,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
     public void testThatUnknownUserIsRejectedProperly() throws Exception {
         try {
-            getRestClient().performRequest("GET", "/", Collections.emptyMap(), null,
+            getRestClient().performRequest("GET", "/",
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue("idonotexist", new SecuredString("passwd".toCharArray()))));
             fail("request should have failed");

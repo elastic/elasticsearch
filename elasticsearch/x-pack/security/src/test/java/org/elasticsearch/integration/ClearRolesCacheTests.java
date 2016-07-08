@@ -15,6 +15,8 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.NativeRealmIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
 import org.elasticsearch.xpack.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
@@ -23,13 +25,10 @@ import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.client.SecurityClient;
-import org.elasticsearch.test.NativeRealmIntegTestCase;
-import org.elasticsearch.test.SecuritySettingsSource;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -138,7 +137,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
             } else {
                 path = "/_xpack/security/role/" + Strings.arrayToCommaDelimitedString(rolesToClear) + "/_clear_cache";
             }
-            try (Response response = getRestClient().performRequest("POST", path, Collections.emptyMap(), null,
+            try (Response response = getRestClient().performRequest("POST", path,
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
                                     new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {

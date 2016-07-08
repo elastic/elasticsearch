@@ -174,7 +174,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
                 IndexCommit commit = recoveryTarget.store().findLastCommitBellowSeqNo(globalCheckpoint);
                 if (commit != null) {
                     seqNoRecoveryCommitId = new Store.CommitId(commit);
-                    seqNoRecoveryStart = Store.loadSeqNoStatsFromCommit(commit).getLocalCheckpoint();
+                    seqNoRecoveryStart = Store.loadSeqNoStatsFromCommit(commit).getLocalCheckpoint() + 1;
                 }
             }
         } catch (IOException e) {

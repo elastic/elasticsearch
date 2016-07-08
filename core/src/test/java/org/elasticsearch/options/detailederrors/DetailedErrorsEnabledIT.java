@@ -47,7 +47,7 @@ public class DetailedErrorsEnabledIT extends ESIntegTestCase {
 
     public void testThatErrorTraceWorksByDefault() throws Exception {
         try {
-            getRestClient().performRequest("DELETE", "/", Collections.singletonMap("error_trace", "true"), null);
+            getRestClient().performRequest("DELETE", "/", Collections.singletonMap("error_trace", "true"));
             fail("request should have failed");
         } catch(ResponseException e) {
             Response response = e.getResponse();
@@ -57,7 +57,7 @@ public class DetailedErrorsEnabledIT extends ESIntegTestCase {
         }
 
         try {
-            getRestClient().performRequest("DELETE", "/", Collections.emptyMap(), null);
+            getRestClient().performRequest("DELETE", "/");
             fail("request should have failed");
         } catch(ResponseException e) {
             Response response = e.getResponse();

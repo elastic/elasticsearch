@@ -101,8 +101,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
             Collections.addAll(hostsSet, httpHosts);
             for (int j = 0; j < httpHosts.length; j++) {
                 int statusCode = randomOkStatusCode(getRandom());
-                try (Response response = restClient.performRequest(randomHttpMethod(getRandom()), "/" + statusCode,
-                        Collections.<String, String>emptyMap())) {
+                try (Response response = restClient.performRequest(randomHttpMethod(getRandom()), "/" + statusCode)) {
                     assertThat(response.getStatusLine().getStatusCode(), equalTo(statusCode));
                     assertTrue("host not found: " + response.getHost(), hostsSet.remove(response.getHost()));
                 }
@@ -120,7 +119,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
             for (int j = 0; j < httpHosts.length; j++) {
                 String method = randomHttpMethod(getRandom());
                 int statusCode = randomErrorNoRetryStatusCode(getRandom());
-                try (Response response = restClient.performRequest(method, "/" + statusCode, Collections.<String, String>emptyMap())) {
+                try (Response response = restClient.performRequest(method, "/" + statusCode)) {
                     if (method.equals("HEAD") && statusCode == 404) {
                         //no exception gets thrown although we got a 404
                         assertThat(response.getStatusLine().getStatusCode(), equalTo(404));
@@ -147,7 +146,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
     public void testRoundRobinRetryErrors() throws Exception {
         String retryEndpoint = randomErrorRetryEndpoint();
         try  {
-            restClient.performRequest(randomHttpMethod(getRandom()), retryEndpoint, Collections.<String, String>emptyMap());
+            restClient.performRequest(randomHttpMethod(getRandom()), retryEndpoint);
             fail("request should have failed");
         } catch(ResponseException e) {
             Set<HttpHost> hostsSet = new HashSet<>();
@@ -197,7 +196,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
             for (int j = 0; j < httpHosts.length; j++) {
                 retryEndpoint = randomErrorRetryEndpoint();
                 try  {
-                    restClient.performRequest(randomHttpMethod(getRandom()), retryEndpoint, Collections.<String, String>emptyMap());
+                    restClient.performRequest(randomHttpMethod(getRandom()), retryEndpoint);
                     fail("request should have failed");
                 } catch(ResponseException e) {
                     Response response = e.getResponse();
@@ -223,8 +222,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
                 for (int y = 0; y < iters; y++) {
                     int statusCode = randomErrorNoRetryStatusCode(getRandom());
                     Response response;
-                    try (Response esResponse = restClient.performRequest(randomHttpMethod(getRandom()), "/" + statusCode,
-                            Collections.<String, String>emptyMap())) {
+                    try (Response esResponse = restClient.performRequest(randomHttpMethod(getRandom()), "/" + statusCode)) {
                         response = esResponse;
                     }
                     catch(ResponseException e) {
@@ -243,7 +241,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
                 for (int y = 0; y < i + 1; y++) {
                     retryEndpoint = randomErrorRetryEndpoint();
                     try {
-                        restClient.performRequest(randomHttpMethod(getRandom()), retryEndpoint, Collections.<String, String>emptyMap());
+                        restClient.performRequest(randomHttpMethod(getRandom()), retryEndpoint);
                         fail("request should have failed");
                     } catch(ResponseException e) {
                         Response response = e.getResponse();

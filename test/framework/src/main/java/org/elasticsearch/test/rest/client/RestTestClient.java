@@ -113,7 +113,7 @@ public class RestTestClient implements Closeable {
             //we don't really use the urls here, we rely on the client doing round-robin to touch all the nodes in the cluster
             String method = restApi.getMethods().get(0);
             String endpoint = restApi.getPaths().get(0);
-            Response response = restClient.performRequest(method, endpoint, Collections.emptyMap(), null);
+            Response response = restClient.performRequest(method, endpoint);
             RestTestResponse restTestResponse = new RestTestResponse(response);
             Object latestVersion = restTestResponse.evaluate("version.number");
             if (latestVersion == null) {

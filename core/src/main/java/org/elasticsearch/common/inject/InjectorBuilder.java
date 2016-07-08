@@ -74,15 +74,6 @@ class InjectorBuilder {
         return this;
     }
 
-    /**
-     * Sets the parent of the injector to-be-constructed. As a side effect, this sets this injector's
-     * stage to the stage of {@code parent}.
-     */
-    InjectorBuilder parentInjector(InjectorImpl parent) {
-        shellBuilder.parent(parent);
-        return stage(parent.getInstance(Stage.class));
-    }
-
     InjectorBuilder addModules(Iterable<? extends Module> modules) {
         shellBuilder.addModules(modules);
         return this;
@@ -100,11 +91,6 @@ class InjectorBuilder {
             stopwatch.resetAndLog("Injector construction");
 
             initializeStatically();
-        }
-
-        // If we're in the tool stage, stop here. Don't eagerly inject or load anything.
-        if (stage == Stage.TOOL) {
-            return new ToolStageInjector(primaryInjector());
         }
 
         injectDynamically();
@@ -215,94 +201,6 @@ class InjectorBuilder {
             } catch (ErrorsException e) {
                 throw new AssertionError();
             }
-        }
-    }
-
-    /**
-     * {@link Injector} exposed to users in {@link Stage#TOOL}.
-     */
-    static class ToolStageInjector implements Injector {
-        private final Injector delegateInjector;
-
-        ToolStageInjector(Injector delegateInjector) {
-            this.delegateInjector = delegateInjector;
-        }
-
-        @Override
-        public void injectMembers(Object o) {
-            throw new UnsupportedOperationException(
-                    "Injector.injectMembers(Object) is not supported in Stage.TOOL");
-        }
-
-        @Override
-        public Map<Key<?>, Binding<?>> getBindings() {
-            return this.delegateInjector.getBindings();
-        }
-
-        @Override
-        public <T> Binding<T> getBinding(Key<T> key) {
-            return this.delegateInjector.getBinding(key);
-        }
-
-        @Override
-        public <T> Binding<T> getBinding(Class<T> type) {
-            return this.delegateInjector.getBinding(type);
-        }
-
-        @Override
-        public <T> List<Binding<T>> findBindingsByType(TypeLiteral<T> type) {
-            return this.delegateInjector.findBindingsByType(type);
-        }
-
-        @Override
-        public Injector getParent() {
-            return delegateInjector.getParent();
-        }
-
-        @Override
-        public Injector createChildInjector(Iterable<? extends Module> modules) {
-            return delegateInjector.createChildInjector(modules);
-        }
-
-        @Override
-        public Injector createChildInjector(Module... modules) {
-            return delegateInjector.createChildInjector(modules);
-        }
-
-        @Override
-        public <T> Provider<T> getProvider(Key<T> key) {
-            throw new UnsupportedOperationException(
-                    "Injector.getProvider(Key<T>) is not supported in Stage.TOOL");
-        }
-
-        @Override
-        public <T> Provider<T> getProvider(Class<T> type) {
-            throw new UnsupportedOperationException(
-                    "Injector.getProvider(Class<T>) is not supported in Stage.TOOL");
-        }
-
-        @Override
-        public <T> MembersInjector<T> getMembersInjector(TypeLiteral<T> typeLiteral) {
-            throw new UnsupportedOperationException(
-                    "Injector.getMembersInjector(TypeLiteral<T>) is not supported in Stage.TOOL");
-        }
-
-        @Override
-        public <T> MembersInjector<T> getMembersInjector(Class<T> type) {
-            throw new UnsupportedOperationException(
-                    "Injector.getMembersInjector(Class<T>) is not supported in Stage.TOOL");
-        }
-
-        @Override
-        public <T> T getInstance(Key<T> key) {
-            throw new UnsupportedOperationException(
-                    "Injector.getInstance(Key<T>) is not supported in Stage.TOOL");
-        }
-
-        @Override
-        public <T> T getInstance(Class<T> type) {
-            throw new UnsupportedOperationException(
-                    "Injector.getInstance(Class<T>) is not supported in Stage.TOOL");
         }
     }
 }

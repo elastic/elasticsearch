@@ -28,8 +28,7 @@ import org.elasticsearch.common.inject.Key;
 public interface LinkedKeyBinding<T> extends Binding<T> {
 
     /**
-     * Returns the linked key used to resolve injections. That binding can be retrieved from an
-     * injector using {@link org.elasticsearch.common.inject.Injector#getBinding(Key) Injector.getBinding(key)}.
+     * Returns the linked key used to resolve injections.
      */
     Key<? extends T> getLinkedKey();
 

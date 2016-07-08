@@ -20,6 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -516,6 +517,22 @@ public class BootstrapCheckTests extends ESTestCase {
             RuntimeException.class,
             () -> BootstrapCheck.check(randomBoolean(), randomBoolean(), Collections.singletonList(check), methodName));
         consumer.accept(e);
+    }
+
+    public void testDefaultClusterNameCheck() {
+        final ClusterName clusterName = randomBoolean() ? ClusterName.DEFAULT : new ClusterName(randomAsciiOfLength(16));
+        final BootstrapCheck.DefaultClusterNameCheck check = new BootstrapCheck.DefaultClusterNameCheck(clusterName);
+        if (ClusterName.DEFAULT.equals(clusterName)) {
+            final RuntimeException e =
+                expectThrows(
+                    RuntimeException.class,
+                    () -> BootstrapCheck.check(true, randomBoolean(), Collections.singletonList(check), "testDefaultClusterNameCheck"));
+            assertThat(
+                e.getMessage(),
+                containsString("cluster name [" + ClusterName.DEFAULT.value() + "] not changed from the default cluster name"));
+        } else {
+            BootstrapCheck.check(true, randomBoolean(), Collections.singletonList(check), "testDefaultClusterNameCheck");
+        }
     }
 
     public void testIgnoringSystemChecks() {

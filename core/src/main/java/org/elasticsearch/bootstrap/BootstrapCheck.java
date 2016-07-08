@@ -20,6 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
@@ -47,7 +48,6 @@ import java.util.Locale;
  * and all production limit checks must pass. This should be extended as we go to settings like:
  * - discovery.zen.ping.unicast.hosts is set if we use zen disco
  * - ensure we can write in all data directories
- * - fail if the default cluster.name is used, if this is setup on network a real clustername should be used?
  */
 final class BootstrapCheck {
 
@@ -166,6 +166,7 @@ final class BootstrapCheck {
         checks.add(new ClientJvmCheck());
         checks.add(new OnErrorCheck());
         checks.add(new OnOutOfMemoryErrorCheck());
+        checks.add(new DefaultClusterNameCheck(ClusterName.CLUSTER_NAME_SETTING.get(settings)));
         return Collections.unmodifiableList(checks);
     }
 
@@ -581,6 +582,34 @@ final class BootstrapCheck {
                     " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError",
                 onOutOfMemoryError(),
                 BootstrapSettings.SECCOMP_SETTING.getKey());
+        }
+
+    }
+
+    static class DefaultClusterNameCheck implements Check {
+
+        private final ClusterName clusterName;
+
+        DefaultClusterNameCheck(final ClusterName clusterName) {
+            this.clusterName = clusterName;
+        }
+
+        @Override
+        public boolean check() {
+            return clusterName.equals(ClusterName.DEFAULT);
+        }
+
+        @Override
+        public String errorMessage() {
+            return String.format(
+                Locale.ROOT,
+                "cluster name [%s] not changed from the default cluster name",
+                clusterName.value());
+        }
+
+        @Override
+        public boolean isSystemCheck() {
+            return false;
         }
 
     }

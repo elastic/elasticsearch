@@ -40,9 +40,12 @@ import java.util.Collection;
 
 public abstract class AbstractAzureRepositoryServiceIntegTestCase extends AbstractAzureIntegTestCase {
 
-    public static class TestPlugin extends Plugin {
-        public void onModule(AzureRepositoryModule azureRepositoryModule) {
-            AzureRepositoryModule.storageServiceImpl = AzureStorageServiceMock.class;
+    private static final AzureStorageService storageService = new AzureStorageServiceMock();
+
+    public static class TestPlugin extends AzureRepositoryPlugin {
+        @Override
+        protected AzureStorageService createStorageService(Settings settings) {
+            return storageService;
         }
     }
 
@@ -78,7 +81,7 @@ public abstract class AbstractAzureRepositoryServiceIntegTestCase extends Abstra
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(AzureRepositoryPlugin.class, TestPlugin.class, MockFSIndexStore.TestPlugin.class);
+        return pluginList(TestPlugin.class, MockFSIndexStore.TestPlugin.class);
     }
 
     @Override
@@ -104,7 +107,6 @@ public abstract class AbstractAzureRepositoryServiceIntegTestCase extends Abstra
     public void cleanRepositoryFiles(String path) throws StorageException, URISyntaxException {
         String container = internalCluster().getInstance(Settings.class).get("repositories.azure.container");
         logger.info("--> remove blobs in container [{}]", container);
-        AzureStorageService client = internalCluster().getInstance(AzureStorageService.class);
-        client.deleteFiles(null, LocationMode.PRIMARY_ONLY, container, path);
+        storageService.deleteFiles(null, LocationMode.PRIMARY_ONLY, container, path);
     }
 }

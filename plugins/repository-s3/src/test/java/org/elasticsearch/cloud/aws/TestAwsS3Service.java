@@ -23,20 +23,21 @@ import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugin.repository.s3.S3RepositoryPlugin;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.IdentityHashMap;
 
 public class TestAwsS3Service extends InternalAwsS3Service {
-    public static class TestPlugin extends Plugin {
-        public void onModule(S3Module s3Module) {
-            S3Module.s3ServiceImpl = TestAwsS3Service.class;
+    public static class TestPlugin extends S3RepositoryPlugin {
+        @Override
+        protected AwsS3Service createStorageService(Settings settings) {
+            return new TestAwsS3Service(settings);
         }
     }
 
     IdentityHashMap<AmazonS3, TestAmazonS3> clients = new IdentityHashMap<AmazonS3, TestAmazonS3>();
 
-    @Inject
     public TestAwsS3Service(Settings settings) {
         super(settings);
     }

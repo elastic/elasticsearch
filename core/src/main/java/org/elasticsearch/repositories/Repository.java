@@ -21,7 +21,10 @@ package org.elasticsearch.repositories;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -37,7 +40,7 @@ import java.util.List;
 /**
  * An interface for interacting with a repository in snapshot and restore.
  * <p>
- * Implementations are responsible for reading and writing both metadata and actual shard data to and from
+ * Implementations are responsible for reading and writing both metadata and shard data to and from
  * a repository backend.
  * <p>
  * To perform a snapshot:
@@ -50,6 +53,23 @@ import java.util.List;
  * </ul>
  */
 public interface Repository extends LifecycleComponent {
+
+    /**
+     * An factory interface for constructing repositories.
+     * See {@link org.elasticsearch.plugins.RepositoryPlugin}.
+     */
+    interface Factory {
+        /**
+         * Constructs a repository.
+         * @param metadata    metadata for the repository including name and settings
+         */
+        Repository create(RepositoryMetaData metadata) throws Exception;
+    }
+
+    /**
+     * Returns metadata about this repository.
+     */
+    RepositoryMetaData getMetadata();
 
     /**
      * Reads snapshot description from repository.

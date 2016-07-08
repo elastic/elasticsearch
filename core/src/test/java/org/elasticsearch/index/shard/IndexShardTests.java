@@ -72,6 +72,7 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.RestoreSource;
@@ -1652,6 +1653,10 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         protected void doStop() {}
         @Override
         protected void doClose() {}
+        @Override
+        public RepositoryMetaData getMetadata() {
+            return null;
+        }
         @Override
         public SnapshotInfo getSnapshotInfo(SnapshotId snapshotId) {
             return null;

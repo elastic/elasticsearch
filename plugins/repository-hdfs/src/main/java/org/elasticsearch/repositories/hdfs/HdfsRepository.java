@@ -37,21 +37,20 @@ import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.repositories.RepositoryName;
-import org.elasticsearch.repositories.RepositorySettings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 public final class HdfsRepository extends BlobStoreRepository {
 
     private final BlobPath basePath = BlobPath.cleanPath();
-    private final RepositorySettings repositorySettings;
     private final ByteSizeValue chunkSize;
     private final boolean compress;
 
@@ -61,18 +60,16 @@ public final class HdfsRepository extends BlobStoreRepository {
     // TODO: why 100KB?
     private static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(100, ByteSizeUnit.KB);
 
-    @Inject
-    public HdfsRepository(RepositoryName name, RepositorySettings repositorySettings) throws IOException {
-        super(name.getName(), repositorySettings);
-        this.repositorySettings = repositorySettings;
+    public HdfsRepository(RepositoryMetaData metadata, Environment environment) throws IOException {
+        super(metadata, environment.settings());
 
-        this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", null);
-        this.compress = repositorySettings.settings().getAsBoolean("compress", false);
+        this.chunkSize = metadata.settings().getAsBytesSize("chunk_size", null);
+        this.compress = metadata.settings().getAsBoolean("compress", false);
     }
 
     @Override
     protected void doStart() {
-        String uriSetting = repositorySettings.settings().get("uri");
+        String uriSetting = getMetadata().settings().get("uri");
         if (Strings.hasText(uriSetting) == false) {
             throw new IllegalArgumentException("No 'uri' defined for hdfs snapshot/restore");
         }
@@ -86,13 +83,13 @@ public final class HdfsRepository extends BlobStoreRepository {
                     "Use 'path' option to specify a path [%s], not the uri [%s] for hdfs snapshot/restore", uri.getPath(), uriSetting));
         }
 
-        String pathSetting = repositorySettings.settings().get("path");
+        String pathSetting = getMetadata().settings().get("path");
         // get configuration
         if (pathSetting == null) {
             throw new IllegalArgumentException("No 'path' defined for hdfs snapshot/restore");
         }
         
-        int bufferSize = repositorySettings.settings().getAsBytesSize("buffer_size", DEFAULT_BUFFER_SIZE).bytesAsInt();
+        int bufferSize = getMetadata().settings().getAsBytesSize("buffer_size", DEFAULT_BUFFER_SIZE).bytesAsInt();
 
         try {
             // initialize our filecontext
@@ -103,7 +100,7 @@ public final class HdfsRepository extends BlobStoreRepository {
             FileContext fileContext = AccessController.doPrivileged(new PrivilegedAction<FileContext>() {
                 @Override
                 public FileContext run() {
-                    return createContext(uri, repositorySettings);
+                    return createContext(uri, getMetadata().settings());
                 }
             });
             blobStore = new HdfsBlobStore(fileContext, pathSetting, bufferSize);
@@ -116,12 +113,12 @@ public final class HdfsRepository extends BlobStoreRepository {
     
     // create hadoop filecontext
     @SuppressForbidden(reason = "lesser of two evils (the other being a bunch of JNI/classloader nightmares)")
-    private static FileContext createContext(URI uri, RepositorySettings repositorySettings)  {
-        Configuration cfg = new Configuration(repositorySettings.settings().getAsBoolean("load_defaults", true));
+    private static FileContext createContext(URI uri, Settings repositorySettings)  {
+        Configuration cfg = new Configuration(repositorySettings.getAsBoolean("load_defaults", true));
         cfg.setClassLoader(HdfsRepository.class.getClassLoader());
         cfg.reloadConfiguration();
 
-        Map<String, String> map = repositorySettings.settings().getByPrefix("conf.").getAsMap();
+        Map<String, String> map = repositorySettings.getByPrefix("conf.").getAsMap();
         for (Entry<String, String> entry : map.entrySet()) {
             cfg.set(entry.getKey(), entry.getValue());
         }

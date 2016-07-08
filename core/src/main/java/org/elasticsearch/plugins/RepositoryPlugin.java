@@ -17,22 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws;
+package org.elasticsearch.plugins;
 
-import org.elasticsearch.common.inject.AbstractModule;
+import java.util.Collections;
+import java.util.Map;
 
-public class S3Module extends AbstractModule {
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.repositories.Repository;
 
+/**
+ * An extension point for {@link Plugin} implementations to add custom snapshot repositories.
+ */
+public interface RepositoryPlugin {
 
-    // pkg private so it is settable by tests
-    static Class<? extends AwsS3Service> s3ServiceImpl = InternalAwsS3Service.class;
-
-    public static Class<? extends AwsS3Service> getS3ServiceImpl() {
-        return s3ServiceImpl;
-    }
-
-    @Override
-    protected void configure() {
-        bind(AwsS3Service.class).to(s3ServiceImpl).asEagerSingleton();
+    /**
+     * Returns repository types added by this plugin.
+     *
+     * @param env The environment for the local node, which may be used for the local settings and path.repo
+     *
+     * The key of the returned {@link Map} is the type name of the repository and
+     * the value is a factory to construct the {@link Repository} interface.
+     */
+    default Map<String, Repository.Factory> getRepositories(Environment env) {
+        return Collections.emptyMap();
     }
 }

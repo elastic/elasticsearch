@@ -270,7 +270,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final TransportService transportService = new TransportService(Settings.EMPTY, null, threadPool);
         final ClusterService clusterService = mock(ClusterService.class);
         final RepositoriesService repositoriesService = new RepositoriesService(Settings.EMPTY, clusterService,
-            transportService, null, null);
+            transportService, null);
         final RecoveryTargetService recoveryTargetService = new RecoveryTargetService(Settings.EMPTY, threadPool,
             transportService, null, clusterService);
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);

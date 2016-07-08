@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -43,14 +44,12 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * In memory storage for unit tests
  */
-public class AzureStorageServiceMock extends AbstractLifecycleComponent
-        implements AzureStorageService {
+public class AzureStorageServiceMock extends AbstractComponent implements AzureStorageService {
 
     protected Map<String, ByteArrayOutputStream> blobs = new ConcurrentHashMap<>();
 
-    @Inject
-    public AzureStorageServiceMock(Settings settings) {
-        super(settings);
+    public AzureStorageServiceMock() {
+        super(Settings.EMPTY);
     }
 
     @Override
@@ -122,18 +121,6 @@ public class AzureStorageServiceMock extends AbstractLifecycleComponent
                 blobs.remove(blobName);
             }
         }
-    }
-
-    @Override
-    protected void doStart() throws ElasticsearchException {
-    }
-
-    @Override
-    protected void doStop() throws ElasticsearchException {
-    }
-
-    @Override
-    protected void doClose() throws ElasticsearchException {
     }
 
     /**

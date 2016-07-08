@@ -24,17 +24,16 @@ import com.amazonaws.Protocol;
 import org.elasticsearch.cloud.aws.AwsS3Service;
 import org.elasticsearch.cloud.aws.AwsS3Service.CLOUD_S3;
 import org.elasticsearch.cloud.aws.blobstore.S3BlobStore;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.RepositoryException;
-import org.elasticsearch.repositories.RepositoryName;
-import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
@@ -245,59 +244,54 @@ public class S3Repository extends BlobStoreRepository {
     private boolean compress;
 
     /**
-     * Constructs new shared file system repository
-     *
-     * @param name                 repository name
-     * @param repositorySettings   repository settings
-     * @param s3Service            S3 service
+     * Constructs an s3 backed repository
      */
-    @Inject
-    public S3Repository(RepositoryName name, RepositorySettings repositorySettings, AwsS3Service s3Service) throws IOException {
-        super(name.getName(), repositorySettings);
+    public S3Repository(RepositoryMetaData metadata, Settings settings, AwsS3Service s3Service) throws IOException {
+        super(metadata, settings);
 
-        String bucket = getValue(repositorySettings, Repository.BUCKET_SETTING, Repositories.BUCKET_SETTING);
+        String bucket = getValue(metadata.settings(), settings, Repository.BUCKET_SETTING, Repositories.BUCKET_SETTING);
         if (bucket == null) {
-            throw new RepositoryException(name.name(), "No bucket defined for s3 gateway");
+            throw new RepositoryException(metadata.name(), "No bucket defined for s3 gateway");
         }
 
-        String endpoint = getValue(repositorySettings, Repository.ENDPOINT_SETTING, Repositories.ENDPOINT_SETTING);
-        Protocol protocol = getValue(repositorySettings, Repository.PROTOCOL_SETTING, Repositories.PROTOCOL_SETTING);
-        String region = getValue(repositorySettings, Repository.REGION_SETTING, Repositories.REGION_SETTING);
+        String endpoint = getValue(metadata.settings(), settings, Repository.ENDPOINT_SETTING, Repositories.ENDPOINT_SETTING);
+        Protocol protocol = getValue(metadata.settings(), settings, Repository.PROTOCOL_SETTING, Repositories.PROTOCOL_SETTING);
+        String region = getValue(metadata.settings(), settings, Repository.REGION_SETTING, Repositories.REGION_SETTING);
         // If no region is defined either in region, repositories.s3.region, cloud.aws.s3.region or cloud.aws.region
         // we fallback to Default bucket - null
         if (Strings.isEmpty(region)) {
             region = null;
         }
 
-        boolean serverSideEncryption = getValue(repositorySettings, Repository.SERVER_SIDE_ENCRYPTION_SETTING, Repositories.SERVER_SIDE_ENCRYPTION_SETTING);
-        ByteSizeValue bufferSize = getValue(repositorySettings, Repository.BUFFER_SIZE_SETTING, Repositories.BUFFER_SIZE_SETTING);
-        Integer maxRetries = getValue(repositorySettings, Repository.MAX_RETRIES_SETTING, Repositories.MAX_RETRIES_SETTING);
-        boolean useThrottleRetries = getValue(repositorySettings, Repository.USE_THROTTLE_RETRIES_SETTING, Repositories.USE_THROTTLE_RETRIES_SETTING);
-        this.chunkSize = getValue(repositorySettings, Repository.CHUNK_SIZE_SETTING, Repositories.CHUNK_SIZE_SETTING);
-        this.compress = getValue(repositorySettings, Repository.COMPRESS_SETTING, Repositories.COMPRESS_SETTING);
+        boolean serverSideEncryption = getValue(metadata.settings(), settings, Repository.SERVER_SIDE_ENCRYPTION_SETTING, Repositories.SERVER_SIDE_ENCRYPTION_SETTING);
+        ByteSizeValue bufferSize = getValue(metadata.settings(), settings, Repository.BUFFER_SIZE_SETTING, Repositories.BUFFER_SIZE_SETTING);
+        Integer maxRetries = getValue(metadata.settings(), settings, Repository.MAX_RETRIES_SETTING, Repositories.MAX_RETRIES_SETTING);
+        boolean useThrottleRetries = getValue(metadata.settings(), settings, Repository.USE_THROTTLE_RETRIES_SETTING, Repositories.USE_THROTTLE_RETRIES_SETTING);
+        this.chunkSize = getValue(metadata.settings(), settings, Repository.CHUNK_SIZE_SETTING, Repositories.CHUNK_SIZE_SETTING);
+        this.compress = getValue(metadata.settings(), settings, Repository.COMPRESS_SETTING, Repositories.COMPRESS_SETTING);
 
         // We make sure that chunkSize is bigger or equal than/to bufferSize
         if (this.chunkSize.getBytes() < bufferSize.getBytes()) {
-            throw new RepositoryException(name.name(), Repository.CHUNK_SIZE_SETTING.getKey() + " (" + this.chunkSize +
+            throw new RepositoryException(metadata.name(), Repository.CHUNK_SIZE_SETTING.getKey() + " (" + this.chunkSize +
                 ") can't be lower than " + Repository.BUFFER_SIZE_SETTING.getKey() + " (" + bufferSize + ").");
         }
 
         // Parse and validate the user's S3 Storage Class setting
-        String storageClass = getValue(repositorySettings, Repository.STORAGE_CLASS_SETTING, Repositories.STORAGE_CLASS_SETTING);
-        String cannedACL = getValue(repositorySettings, Repository.CANNED_ACL_SETTING, Repositories.CANNED_ACL_SETTING);
+        String storageClass = getValue(metadata.settings(), settings, Repository.STORAGE_CLASS_SETTING, Repositories.STORAGE_CLASS_SETTING);
+        String cannedACL = getValue(metadata.settings(), settings, Repository.CANNED_ACL_SETTING, Repositories.CANNED_ACL_SETTING);
 
         logger.debug("using bucket [{}], region [{}], endpoint [{}], protocol [{}], chunk_size [{}], server_side_encryption [{}], " +
             "buffer_size [{}], max_retries [{}], use_throttle_retries [{}], cannedACL [{}], storageClass [{}]",
             bucket, region, endpoint, protocol, chunkSize, serverSideEncryption, bufferSize, maxRetries, useThrottleRetries, cannedACL,
             storageClass);
 
-        String key = getValue(repositorySettings, Repository.KEY_SETTING, Repositories.KEY_SETTING);
-        String secret = getValue(repositorySettings, Repository.SECRET_SETTING, Repositories.SECRET_SETTING);
+        String key = getValue(metadata.settings(), settings, Repository.KEY_SETTING, Repositories.KEY_SETTING);
+        String secret = getValue(metadata.settings(), settings, Repository.SECRET_SETTING, Repositories.SECRET_SETTING);
 
         blobStore = new S3BlobStore(settings, s3Service.client(endpoint, protocol, region, key, secret, maxRetries, useThrottleRetries),
                 bucket, region, serverSideEncryption, bufferSize, maxRetries, cannedACL, storageClass);
 
-        String basePath = getValue(repositorySettings, Repository.BASE_PATH_SETTING, Repositories.BASE_PATH_SETTING);
+        String basePath = getValue(metadata.settings(), settings, Repository.BASE_PATH_SETTING, Repositories.BASE_PATH_SETTING);
         if (Strings.hasLength(basePath)) {
             BlobPath path = new BlobPath();
             for(String elem : basePath.split("/")) {
@@ -309,9 +303,6 @@ public class S3Repository extends BlobStoreRepository {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     protected BlobStore blobStore() {
         return blobStore;
@@ -322,29 +313,24 @@ public class S3Repository extends BlobStoreRepository {
         return basePath;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     protected boolean isCompress() {
         return compress;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     protected ByteSizeValue chunkSize() {
         return chunkSize;
     }
 
-    public static <T> T getValue(RepositorySettings repositorySettings,
+    public static <T> T getValue(Settings repositorySettings,
+                                 Settings globalSettings,
                                  Setting<T> repositorySetting,
                                  Setting<T> repositoriesSetting) {
-        if (repositorySetting.exists(repositorySettings.settings())) {
-            return repositorySetting.get(repositorySettings.settings());
+        if (repositorySetting.exists(repositorySettings)) {
+            return repositorySetting.get(repositorySettings);
         } else {
-            return repositoriesSetting.get(repositorySettings.globalSettings());
+            return repositoriesSetting.get(globalSettings);
         }
     }
 }

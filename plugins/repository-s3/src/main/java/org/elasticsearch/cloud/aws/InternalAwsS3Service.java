@@ -51,7 +51,6 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
      */
     private Map<Tuple<String, String>, AmazonS3Client> clients = new HashMap<>();
 
-    @Inject
     public InternalAwsS3Service(Settings settings) {
         super(settings);
     }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.http.Header;
@@ -156,7 +155,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         }
     }
 
-    public void testSetNodes() throws IOException {
+    public void testSetHosts() throws IOException {
         try {
             restClient.setHosts((HttpHost[]) null);
             fail("setHosts should have failed");
@@ -189,8 +188,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     public void testOkStatusCodes() throws Exception {
         for (String method : getHttpMethods()) {
             for (int okStatusCode : getOkStatusCodes()) {
-                Response response = restClient.performRequest(method, "/" + okStatusCode,
-                        Collections.<String, String>emptyMap(), null);
+                Response response = performRequest(method, "/" + okStatusCode);
                 assertThat(response.getStatusLine().getStatusCode(), equalTo(okStatusCode));
             }
         }
@@ -204,8 +202,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         for (String method : getHttpMethods()) {
             //error status codes should cause an exception to be thrown
             for (int errorStatusCode : getAllErrorStatusCodes()) {
-                try (Response response = restClient.performRequest(method, "/" + errorStatusCode,
-                        Collections.<String, String>emptyMap(), null)) {
+                try (Response response = performRequest(method, "/" + errorStatusCode)) {
                     if (method.equals("HEAD") && errorStatusCode == 404) {
                         //no exception gets thrown although we got a 404
                         assertThat(response.getStatusLine().getStatusCode(), equalTo(errorStatusCode));
@@ -231,14 +228,14 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         for (String method : getHttpMethods()) {
             //IOExceptions should be let bubble up
             try {
-                restClient.performRequest(method, "/coe", Collections.<String, String>emptyMap(), null);
+                performRequest(method, "/coe");
                 fail("request should have failed");
             } catch(IOException e) {
                 assertThat(e, instanceOf(ConnectTimeoutException.class));
             }
             failureListener.assertCalled(httpHost);
             try {
-                restClient.performRequest(method, "/soe", Collections.<String, String>emptyMap(), null);
+                performRequest(method, "/soe");
                 fail("request should have failed");
             } catch(IOException e) {
                 assertThat(e, instanceOf(SocketTimeoutException.class));
@@ -275,8 +272,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         }
         for (String method : Arrays.asList("HEAD", "OPTIONS", "TRACE")) {
             try {
-                restClient.performRequest(method, "/" + randomStatusCode(getRandom()),
-                        Collections.<String, String>emptyMap(), entity);
+                restClient.performRequest(method, "/" + randomStatusCode(getRandom()), Collections.<String, String>emptyMap(), entity);
                 fail("request should have failed");
             } catch(UnsupportedOperationException e) {
                 assertThat(e.getMessage(), equalTo(method + " with body is not supported"));
@@ -288,13 +284,13 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         String method = randomHttpMethod(getRandom());
         int statusCode = randomStatusCode(getRandom());
         try {
-            restClient.performRequest(method, "/" + statusCode, Collections.<String, String>emptyMap(), null, (Header[])null);
+            performRequest(method, "/" + statusCode, (Header[])null);
             fail("request should have failed");
         } catch(NullPointerException e) {
             assertEquals("request headers must not be null", e.getMessage());
         }
         try {
-            restClient.performRequest(method, "/" + statusCode, Collections.<String, String>emptyMap(), null, (Header)null);
+            performRequest(method, "/" + statusCode, (Header)null);
             fail("request should have failed");
         } catch(NullPointerException e) {
             assertEquals("request header must not be null", e.getMessage());
@@ -305,7 +301,13 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         String method = randomHttpMethod(getRandom());
         int statusCode = randomStatusCode(getRandom());
         try {
-            restClient.performRequest(method, "/" + statusCode, null, null);
+            restClient.performRequest(method, "/" + statusCode, (Map<String, String>)null);
+            fail("request should have failed");
+        } catch(NullPointerException e) {
+            assertEquals("params must not be null", e.getMessage());
+        }
+        try {
+            restClient.performRequest(method, "/" + statusCode, null, (HttpEntity)null);
             fail("request should have failed");
         } catch(NullPointerException e) {
             assertEquals("params must not be null", e.getMessage());
@@ -352,7 +354,8 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         String uriAsString = "/" + randomStatusCode(getRandom());
         URIBuilder uriBuilder = new URIBuilder(uriAsString);
         Map<String, String> params = Collections.emptyMap();
-        if (getRandom().nextBoolean()) {
+        boolean hasParams = randomBoolean();
+        if (hasParams) {
             int numParams = RandomInts.randomIntBetween(getRandom(), 1, 3);
             params = new HashMap<>(numParams);
             for (int i = 0; i < numParams; i++) {
@@ -395,7 +398,8 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         }
 
         HttpEntity entity = null;
-        if (request instanceof HttpEntityEnclosingRequest && getRandom().nextBoolean()) {
+        boolean hasBody = request instanceof HttpEntityEnclosingRequest && getRandom().nextBoolean();
+        if (hasBody) {
             entity = new StringEntity(RandomStrings.randomAsciiOfLengthBetween(getRandom(), 10, 100));
             ((HttpEntityEnclosingRequest) request).setEntity(entity);
         }
@@ -418,10 +422,29 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         }
 
         try {
-            restClient.performRequest(method, uriAsString, params, entity, headers);
+            if (hasParams == false && hasBody == false && randomBoolean()) {
+                restClient.performRequest(method, uriAsString, headers);
+            } else if (hasBody == false && randomBoolean()) {
+                restClient.performRequest(method, uriAsString, params, headers);
+            } else {
+                restClient.performRequest(method, uriAsString, params, entity, headers);
+            }
         } catch(ResponseException e) {
             //all good
         }
         return request;
+    }
+
+    private Response performRequest(String method, String endpoint, Header... headers) throws IOException {
+        switch(randomIntBetween(0, 2)) {
+            case 0:
+                return restClient.performRequest(method, endpoint, headers);
+            case 1:
+                return restClient.performRequest(method, endpoint, Collections.<String, String>emptyMap(), headers);
+            case 2:
+                return restClient.performRequest(method, endpoint, Collections.<String, String>emptyMap(), null, headers);
+            default:
+                throw new UnsupportedOperationException();
+        }
     }
 }

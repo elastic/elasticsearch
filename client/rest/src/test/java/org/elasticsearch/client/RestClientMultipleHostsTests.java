@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpRequest;
@@ -103,7 +102,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
             for (int j = 0; j < httpHosts.length; j++) {
                 int statusCode = randomOkStatusCode(getRandom());
                 try (Response response = restClient.performRequest(randomHttpMethod(getRandom()), "/" + statusCode,
-                        Collections.<String, String>emptyMap(), null)) {
+                        Collections.<String, String>emptyMap())) {
                     assertThat(response.getStatusLine().getStatusCode(), equalTo(statusCode));
                     assertTrue("host not found: " + response.getHost(), hostsSet.remove(response.getHost()));
                 }
@@ -121,8 +120,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
             for (int j = 0; j < httpHosts.length; j++) {
                 String method = randomHttpMethod(getRandom());
                 int statusCode = randomErrorNoRetryStatusCode(getRandom());
-                try (Response response = restClient.performRequest(method, "/" + statusCode,
-                        Collections.<String, String>emptyMap(), null)) {
+                try (Response response = restClient.performRequest(method, "/" + statusCode, Collections.<String, String>emptyMap())) {
                     if (method.equals("HEAD") && statusCode == 404) {
                         //no exception gets thrown although we got a 404
                         assertThat(response.getStatusLine().getStatusCode(), equalTo(404));
@@ -149,7 +147,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
     public void testRoundRobinRetryErrors() throws Exception {
         String retryEndpoint = randomErrorRetryEndpoint();
         try  {
-            restClient.performRequest(randomHttpMethod(getRandom()), retryEndpoint, Collections.<String, String>emptyMap(), null);
+            restClient.performRequest(randomHttpMethod(getRandom()), retryEndpoint, Collections.<String, String>emptyMap());
             fail("request should have failed");
         } catch(ResponseException e) {
             Set<HttpHost> hostsSet = new HashSet<>();
@@ -199,7 +197,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
             for (int j = 0; j < httpHosts.length; j++) {
                 retryEndpoint = randomErrorRetryEndpoint();
                 try  {
-                    restClient.performRequest(randomHttpMethod(getRandom()), retryEndpoint, Collections.<String, String>emptyMap(), null);
+                    restClient.performRequest(randomHttpMethod(getRandom()), retryEndpoint, Collections.<String, String>emptyMap());
                     fail("request should have failed");
                 } catch(ResponseException e) {
                     Response response = e.getResponse();
@@ -226,7 +224,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
                     int statusCode = randomErrorNoRetryStatusCode(getRandom());
                     Response response;
                     try (Response esResponse = restClient.performRequest(randomHttpMethod(getRandom()), "/" + statusCode,
-                            Collections.<String, String>emptyMap(), null)) {
+                            Collections.<String, String>emptyMap())) {
                         response = esResponse;
                     }
                     catch(ResponseException e) {
@@ -245,8 +243,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
                 for (int y = 0; y < i + 1; y++) {
                     retryEndpoint = randomErrorRetryEndpoint();
                     try {
-                        restClient.performRequest(randomHttpMethod(getRandom()), retryEndpoint,
-                                Collections.<String, String>emptyMap(), null);
+                        restClient.performRequest(randomHttpMethod(getRandom()), retryEndpoint, Collections.<String, String>emptyMap());
                         fail("request should have failed");
                     } catch(ResponseException e) {
                         Response response = e.getResponse();

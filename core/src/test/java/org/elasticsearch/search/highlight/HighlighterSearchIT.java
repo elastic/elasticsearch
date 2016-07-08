@@ -19,10 +19,12 @@
 package org.elasticsearch.search.highlight;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
@@ -64,6 +66,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchPhrasePrefixQuery
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
 import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
@@ -2648,5 +2651,44 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertNoFailures(search);
         assertThat(search.getHits().totalHits(), equalTo(1L));
         assertThat(search.getHits().getAt(0).getHighlightFields().get("string_field").getFragments()[0].string(), equalTo("<em>some</em> <em>text</em>"));
+    }
+
+    public void testACopyFieldWithNestedQuery() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("type").startObject("properties")
+                    .startObject("foo")
+                        .field("type", "nested")
+                        .startObject("properties")
+                            .startObject("text")
+                                .field("type", "text")
+                                .field("copy_to", "foo_text")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                    .startObject("foo_text")
+                        .field("type", "text")
+                        .field("term_vector", "with_positions_offsets")
+                        .field("store", true)
+                    .endObject()
+                .endObject().endObject().endObject().string();
+        prepareCreate("test").addMapping("type", mapping).get();
+
+        client().prepareIndex("test", "type", "1").setSource(jsonBuilder().startObject().startArray("foo")
+                    .startObject().field("text", "brown").endObject()
+                    .startObject().field("text", "cow").endObject()
+            .endArray().endObject())
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(nestedQuery("foo", matchQuery("foo.text", "brown cow"), ScoreMode.None))
+                .highlighter(new HighlightBuilder()
+                        .field(new Field("foo_text").highlighterType("fvh"))
+                        .requireFieldMatch(false))
+                .get();
+        assertHitCount(searchResponse, 1);
+        HighlightField field = searchResponse.getHits().getAt(0).highlightFields().get("foo_text");
+        assertThat(field.getFragments().length, equalTo(2));
+        assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
+        assertThat(field.getFragments()[1].string(), equalTo("<em>cow</em>"));
     }
 }

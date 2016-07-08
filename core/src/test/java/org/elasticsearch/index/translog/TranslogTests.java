@@ -82,6 +82,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.index.translog.Translog.readCheckpoint;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -1840,7 +1841,7 @@ public class TranslogTests extends ESTestCase {
                 } catch (IOException ex) {
                     assertEquals(ex.getMessage(), "__FAKE__ no space left on device");
                 } finally {
-                    Checkpoint checkpoint = failableTLog.readCheckpoint(config.getTranslogPath());
+                    Checkpoint checkpoint = readCheckpoint(failableTLog.getConfig().getTranslogPath());
                     if (checkpoint.numOps == unsynced.size() + syncedDocs.size()) {
                         syncedDocs.addAll(unsynced); // failed in fsync but got fully written
                         unsynced.clear();

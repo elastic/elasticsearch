@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchException;
@@ -24,14 +24,14 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.bucket.AbstractTermsTestCase;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -56,10 +56,12 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.script.ScriptService.ScriptType;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.count;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.extendedStats;
@@ -76,18 +78,41 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
-/**
- *
- */
 @ESIntegTestCase.SuiteScopeTestCase
-public class StringTermsTests extends AbstractTermsTestCase {
+public class StringTermsIT extends AbstractTermsTestCase {
+
     private static final String SINGLE_VALUED_FIELD_NAME = "s_value";
     private static final String MULTI_VALUED_FIELD_NAME = "s_values";
     private static Map<String, Map<String, Object>> expectedMultiSortBuckets;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GroovyPlugin.class);
+        return Collections.singleton(CustomScriptPlugin.class);
+    }
+
+    public static class CustomScriptPlugin extends AggregationTestScriptsPlugin {
+
+        @Override
+        @SuppressWarnings("unchecked")
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = super.pluginScripts();
+
+            scripts.put("'foo_' + _value", vars -> "foo_" + (String) vars.get("_value"));
+            scripts.put("_value.substring(0,3)", vars -> ((String) vars.get("_value")).substring(0, 3));
+
+            scripts.put("doc['" + MULTI_VALUED_FIELD_NAME + "']", vars -> {
+                Map<?, ?> doc = (Map) vars.get("doc");
+                return doc.get(MULTI_VALUED_FIELD_NAME);
+            });
+
+            scripts.put("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", vars -> {
+                Map<?, ?> doc = (Map) vars.get("doc");
+                ScriptDocValues.Strings value = (ScriptDocValues.Strings) doc.get(SINGLE_VALUED_FIELD_NAME);
+                return value.getValue();
+            });
+
+            return scripts;
+        }
     }
 
     @Override
@@ -435,8 +460,11 @@ public class StringTermsTests extends AbstractTermsTestCase {
                 .prepareSearch("idx")
                 .setTypes("high_card_type")
                 .addAggregation(
-                        terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME).size(20)
-                                .collectMode(randomFrom(SubAggCollectionMode.values())).order(Terms.Order.term(true))) // we need to sort by terms cause we're checking the first 20 values
+                        terms("terms")
+                                .executionHint(randomExecutionHint())
+                                .field(SINGLE_VALUED_FIELD_NAME).size(20)
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .order(Terms.Order.term(true))) // we need to sort by terms cause we're checking the first 20 values
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -542,9 +570,12 @@ public class StringTermsTests extends AbstractTermsTestCase {
                 .prepareSearch("idx")
                 .setTypes("type")
                 .addAggregation(
-                        terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME)
-                                .collectMode(randomFrom(SubAggCollectionMode.values())).script(new Script("'foo_' + _value"))).execute()
-                .actionGet();
+                        terms("terms")
+                                .executionHint(randomExecutionHint())
+                                .field(SINGLE_VALUED_FIELD_NAME)
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .script(new Script("'foo_' + _value", ScriptType.INLINE, CustomScriptPlugin.NAME, null)))
+                .get();
 
         assertSearchResponse(response);
 
@@ -566,9 +597,12 @@ public class StringTermsTests extends AbstractTermsTestCase {
                 .prepareSearch("idx")
                 .setTypes("type")
                 .addAggregation(
-                        terms("terms").executionHint(randomExecutionHint()).field(MULTI_VALUED_FIELD_NAME)
-                                .collectMode(randomFrom(SubAggCollectionMode.values())).script(new Script("_value.substring(0,3)")))
-                .execute().actionGet();
+                        terms("terms")
+                                .executionHint(randomExecutionHint())
+                                .field(MULTI_VALUED_FIELD_NAME)
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .script(new Script("_value.substring(0,3)", ScriptType.INLINE, CustomScriptPlugin.NAME, null)))
+                .get();
 
         assertSearchResponse(response);
 
@@ -615,8 +649,11 @@ public class StringTermsTests extends AbstractTermsTestCase {
                 .prepareSearch("idx")
                 .setTypes("type")
                 .addAggregation(
-                        terms("terms").executionHint(randomExecutionHint()).script(new Script("doc['" + MULTI_VALUED_FIELD_NAME + "']"))
-                                .collectMode(randomFrom(SubAggCollectionMode.values()))).execute().actionGet();
+                        terms("terms")
+                            .executionHint(randomExecutionHint())
+                            .script(new Script("doc['" + MULTI_VALUED_FIELD_NAME + "']", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                            .collectMode(randomFrom(SubAggCollectionMode.values())))
+                .get();
 
         assertSearchResponse(response);
 
@@ -642,9 +679,12 @@ public class StringTermsTests extends AbstractTermsTestCase {
                 .prepareSearch("idx")
                 .setTypes("type")
                 .addAggregation(
-                        terms("terms").executionHint(randomExecutionHint()).field(MULTI_VALUED_FIELD_NAME)
-                                .collectMode(randomFrom(SubAggCollectionMode.values())).script(new Script("'foo_' + _value"))).execute()
-                .actionGet();
+                        terms("terms")
+                                .executionHint(randomExecutionHint())
+                                .field(MULTI_VALUED_FIELD_NAME)
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .script(new Script("'foo_' + _value", ScriptType.INLINE, CustomScriptPlugin.NAME, null)))
+                .get();
 
         assertSearchResponse(response);
 
@@ -678,12 +718,17 @@ public class StringTermsTests extends AbstractTermsTestCase {
      */
 
     public void testScriptSingleValue() throws Exception {
+        Script script = new Script("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .setTypes("type")
                 .addAggregation(
-                        terms("terms").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(randomExecutionHint())
-                                .script(new Script("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value"))).execute().actionGet();
+                        terms("terms")
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .executionHint(randomExecutionHint())
+                                .script(script))
+                .get();
 
         assertSearchResponse(response);
 
@@ -701,12 +746,17 @@ public class StringTermsTests extends AbstractTermsTestCase {
     }
 
     public void testScriptSingleValueExplicitSingleValue() throws Exception {
+        Script script = new Script("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .setTypes("type")
                 .addAggregation(
-                        terms("terms").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(randomExecutionHint())
-                                .script(new Script("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value"))).execute().actionGet();
+                        terms("terms")
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .executionHint(randomExecutionHint())
+                                .script(script))
+                .get();
 
         assertSearchResponse(response);
 
@@ -728,8 +778,11 @@ public class StringTermsTests extends AbstractTermsTestCase {
                 .prepareSearch("idx")
                 .setTypes("type")
                 .addAggregation(
-                        terms("terms").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(randomExecutionHint())
-                                .script(new Script("doc['" + MULTI_VALUED_FIELD_NAME + "']"))).execute().actionGet();
+                        terms("terms")
+                            .collectMode(randomFrom(SubAggCollectionMode.values()))
+                            .executionHint(randomExecutionHint())
+                            .script(new Script("doc['" + MULTI_VALUED_FIELD_NAME + "']", ScriptType.INLINE, CustomScriptPlugin.NAME, null)))
+                .get();
 
         assertSearchResponse(response);
 
@@ -821,7 +874,11 @@ public class StringTermsTests extends AbstractTermsTestCase {
                 .prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1L).minDocCount(0).subAggregation(terms("terms").field("value")))
+                        histogram("histo")
+                                .field(SINGLE_VALUED_FIELD_NAME)
+                                .interval(1L)
+                                .minDocCount(0)
+                                .subAggregation(terms("terms").field("value")))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
@@ -1143,7 +1200,8 @@ public class StringTermsTests extends AbstractTermsTestCase {
                                         .subAggregation(terms("values").field("i").collectMode(randomFrom(SubAggCollectionMode.values()))))
                         .execute().actionGet();
 
-                fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation which is not of a metrics or single-bucket type");
+                fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation " +
+                        "which is not of a metrics or single-bucket type");
 
             } catch (ElasticsearchException e) {
                 // expected

@@ -20,6 +20,7 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
@@ -183,6 +184,12 @@ public class MockScriptEngine implements ScriptEngineService {
                 public void setNextVar(String name, Object value) {
                     ctx.put(name, value);
                 }
+
+                @Override
+                public void setScorer(Scorer scorer) {
+                    super.setScorer(scorer);
+                    ctx.put("_score", new ScoreAccessor(scorer));
+                }
             };
             leafSearchScript.setLookup(leafLookup);
             return leafSearchScript;
@@ -190,7 +197,7 @@ public class MockScriptEngine implements ScriptEngineService {
 
         @Override
         public boolean needsScores() {
-            return false;
+            return true;
         }
     }
 }

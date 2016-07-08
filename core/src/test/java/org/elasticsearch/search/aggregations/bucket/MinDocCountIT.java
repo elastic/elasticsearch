@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.search.aggregations.bucket;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
@@ -25,12 +25,13 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.groovy.GroovyPlugin;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.bucket.AbstractTermsTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -44,10 +45,13 @@ import org.joda.time.format.DateTimeFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -58,18 +62,45 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 
-
 @ESIntegTestCase.SuiteScopeTestCase
-public class MinDocCountTests extends AbstractTermsTestCase {
+public class MinDocCountIT extends AbstractTermsTestCase {
+
+    private static final QueryBuilder QUERY = QueryBuilders.termQuery("match", true);
+    private static int cardinality;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GroovyPlugin.class);
+        return Collections.singleton(CustomScriptPlugin.class);
     }
 
-    private static final QueryBuilder QUERY = QueryBuilders.termQuery("match", true);
+    public static class CustomScriptPlugin extends AggregationTestScriptsPlugin {
 
-    private static int cardinality;
+        @Override
+        @SuppressWarnings("unchecked")
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+
+            scripts.put("doc['d'].values", vars -> {
+                Map<?, ?> doc = (Map) vars.get("doc");
+                ScriptDocValues.Doubles value = (ScriptDocValues.Doubles) doc.get("d");
+                return value.getValues();
+            });
+
+            scripts.put("doc['l'].values", vars -> {
+                Map<?, ?> doc = (Map) vars.get("doc");
+                ScriptDocValues.Longs value = (ScriptDocValues.Longs) doc.get("l");
+                return value.getValues();
+            });
+
+            scripts.put("doc['s'].values", vars -> {
+                Map<?, ?> doc = (Map) vars.get("doc");
+                ScriptDocValues.Strings value = (ScriptDocValues.Strings) doc.get("s");
+                return value.getValues();
+            });
+
+            return scripts;
+        }
+    }
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
@@ -90,7 +121,8 @@ public class MinDocCountTests extends AbstractTermsTestCase {
                 longTerm = randomInt(cardinality * 2);
             } while (!longTerms.add(longTerm));
             double doubleTerm = longTerm * Math.PI;
-            String dateTerm = DateTimeFormat.forPattern("yyyy-MM-dd").print(new DateTime(2014, 1, ((int) longTerm % 20) + 1, 0, 0, DateTimeZone.UTC));
+            String dateTerm = DateTimeFormat.forPattern("yyyy-MM-dd")
+                    .print(new DateTime(2014, 1, ((int) longTerm % 20) + 1, 0, 0, DateTimeZone.UTC));
             final int frequency = randomBoolean() ? 1 : randomIntBetween(2, 20);
             for (int j = 0; j < frequency; ++j) {
                 indexRequests.add(client().prepareIndex("idx", "type").setSource(jsonBuilder()
@@ -119,7 +151,8 @@ public class MinDocCountTests extends AbstractTermsTestCase {
         YES {
             @Override
             TermsAggregationBuilder apply(TermsAggregationBuilder builder, String field) {
-                return builder.script(new org.elasticsearch.script.Script("doc['" + field + "'].values"));
+                return builder.script(new org.elasticsearch.script.Script("doc['" + field + "'].values", ScriptService.ScriptType.INLINE,
+                 CustomScriptPlugin.NAME, null));
             }
         };
         abstract TermsAggregationBuilder apply(TermsAggregationBuilder builder, String field);
@@ -272,7 +305,7 @@ public class MinDocCountTests extends AbstractTermsTestCase {
         testMinDocCountOnTerms(field, script, order, null, true);
     }
 
-    private void testMinDocCountOnTerms(String field, Script script, Terms.Order order, String include, boolean retryOnFailure) throws Exception {
+    private void testMinDocCountOnTerms(String field, Script script, Terms.Order order, String include, boolean retry) throws Exception {
         // all terms
         final SearchResponse allTermsResponse = client().prepareSearch("idx").setTypes("type")
                 .setSize(0)
@@ -307,7 +340,7 @@ public class MinDocCountTests extends AbstractTermsTestCase {
                 assertAllSuccessful(response);
                 assertSubset(allTerms, (Terms) response.getAggregations().get("terms"), minDocCount, size, include);
             } catch (AssertionError ae) {
-                if (!retryOnFailure) {
+                if (!retry) {
                     throw ae;
                 }
                 logger.info("test failed. trying to see if it recovers after 1m.", ae);
@@ -380,8 +413,13 @@ public class MinDocCountTests extends AbstractTermsTestCase {
         final SearchResponse allResponse = client().prepareSearch("idx").setTypes("type")
                 .setSize(0)
                 .setQuery(QUERY)
-                .addAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY).order(order).minDocCount(0))
-                .execute().actionGet();
+                .addAggregation(
+                        dateHistogram("histo")
+                                .field("date")
+                                .dateHistogramInterval(DateHistogramInterval.DAY)
+                                .order(order)
+                                .minDocCount(0))
+                .get();
 
         final Histogram allHisto = allResponse.getAggregations().get("histo");
 
@@ -389,9 +427,14 @@ public class MinDocCountTests extends AbstractTermsTestCase {
             final SearchResponse response = client().prepareSearch("idx").setTypes("type")
                     .setSize(0)
                     .setQuery(QUERY)
-                    .addAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY).order(order).minDocCount(minDocCount))
-                    .execute().actionGet();
-            assertSubset(allHisto, (Histogram) response.getAggregations().get("histo"), minDocCount);
+                    .addAggregation(
+                            dateHistogram("histo")
+                                    .field("date")
+                                    .dateHistogramInterval(DateHistogramInterval.DAY)
+                                    .order(order)
+                                    .minDocCount(minDocCount))
+                    .get();
+            assertSubset(allHisto, response.getAggregations().get("histo"), minDocCount);
         }
     }
 }

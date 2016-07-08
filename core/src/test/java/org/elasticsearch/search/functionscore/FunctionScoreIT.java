@@ -17,32 +17,38 @@
  * under the License.
  */
 
-package org.elasticsearch.messy.tests;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.ExecutionException;
+package org.elasticsearch.search.functionscore;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.script.ScoreAccessor;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
 
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
+import static org.elasticsearch.script.ScriptService.ScriptType;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -50,27 +56,54 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class FunctionScoreTests extends ESIntegTestCase {
+public class FunctionScoreIT extends ESIntegTestCase {
+
     static final String TYPE = "type";
     static final String INDEX = "index";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GroovyPlugin.class);
+        return Collections.singleton(CustomScriptPlugin.class);
+    }
+
+    public static class CustomScriptPlugin extends MockScriptPlugin {
+
+        @Override
+        @SuppressWarnings("unchecked")
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+            scripts.put("1", vars -> 1.0d);
+            scripts.put("get score value", vars -> ((ScoreAccessor) vars.get("_score")).doubleValue());
+            scripts.put("return (doc['num'].value)", vars -> {
+                Map<?, ?> doc = (Map) vars.get("doc");
+                ScriptDocValues.Longs num = (ScriptDocValues.Longs) doc.get("num");
+                return num.getValue();
+            });
+            scripts.put("doc['random_score']", vars -> {
+                Map<?, ?> doc = (Map) vars.get("doc");
+                ScriptDocValues.Doubles randomScore = (ScriptDocValues.Doubles) doc.get("random_score");
+                return randomScore.getValue();
+            });
+            return scripts;
+        }
     }
 
     public void testScriptScoresNested() throws IOException {
         createIndex(INDEX);
         index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
+
+        Script scriptOne = new Script("1", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        Script scriptTwo = new Script("get score value", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+
         SearchResponse response = client().search(
                 searchRequest().source(
                         searchSource().query(
                                 functionScoreQuery(
                                         functionScoreQuery(
-                                                functionScoreQuery(scriptFunction(new Script("1"))),
-                                                scriptFunction(new Script("_score.doubleValue()"))),
-                                        scriptFunction(new Script("_score.doubleValue()"))
+                                                functionScoreQuery(scriptFunction(scriptOne)),
+                                                scriptFunction(scriptTwo)),
+                                                scriptFunction(scriptTwo)
                                 )
                         )
                 )
@@ -83,10 +116,14 @@ public class FunctionScoreTests extends ESIntegTestCase {
         createIndex(INDEX);
         index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
+
+        Script script = new Script("get score value", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+
         SearchResponse response = client().search(
                 searchRequest().source(
-                        searchSource().query(functionScoreQuery(scriptFunction(new Script("_score.doubleValue()")))).aggregation(
-                                terms("score_agg").script(new Script("_score.doubleValue()")))
+                        searchSource()
+                                .query(functionScoreQuery(scriptFunction(script)))
+                                .aggregation(terms("score_agg").script(script))
                 )
         ).actionGet();
         assertSearchResponse(response);
@@ -100,10 +137,17 @@ public class FunctionScoreTests extends ESIntegTestCase {
         refresh();
         float score = randomFloat();
         float minScore = randomFloat();
+
+        index(INDEX, TYPE, jsonBuilder().startObject()
+                .field("num", 2)
+                .field("random_score", score) // Pass the random score as a document field so that it can be extracted in the script
+                .endObject());
+        refresh();
+        ensureYellow();
+
+        Script script = new Script("doc['random_score']", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
         SearchResponse searchResponse = client().search(
-                searchRequest().source(
-                        searchSource().query(
-                                functionScoreQuery(scriptFunction(new Script(Float.toString(score)))).setMinScore(minScore)))
+                searchRequest().source(searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore)))
         ).actionGet();
         if (score < minScore) {
             assertThat(searchResponse.getHits().getTotalHits(), is(0L));
@@ -113,8 +157,8 @@ public class FunctionScoreTests extends ESIntegTestCase {
 
         searchResponse = client().search(
                 searchRequest().source(searchSource().query(functionScoreQuery(new MatchAllQueryBuilder(), new FilterFunctionBuilder[] {
-                                new FilterFunctionBuilder(scriptFunction(new Script(Float.toString(score)))),
-                                new FilterFunctionBuilder(scriptFunction(new Script(Float.toString(score))))
+                                new FilterFunctionBuilder(scriptFunction(script)),
+                                new FilterFunctionBuilder(scriptFunction(script))
                         }).scoreMode(FiltersFunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)))
                 ).actionGet();
         if (score < minScore) {
@@ -133,7 +177,7 @@ public class FunctionScoreTests extends ESIntegTestCase {
             docs.add(client().prepareIndex(INDEX, TYPE, Integer.toString(i)).setSource("num", i + scoreOffset));
         }
         indexRandom(true, docs);
-        Script script = new Script("return (doc['num'].value)");
+        Script script = new Script("return (doc['num'].value)", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
         int numMatchingDocs = numDocs + scoreOffset - minScore;
         if (numMatchingDocs < 0) {
             numMatchingDocs = 0;

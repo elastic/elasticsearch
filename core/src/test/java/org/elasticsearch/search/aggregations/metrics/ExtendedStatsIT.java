@@ -16,20 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.groovy.GroovyPlugin;
+import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.missing.Missing;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
-import org.elasticsearch.search.aggregations.metrics.AbstractNumericTestCase;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats.Bounds;
 
@@ -53,13 +52,11 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-/**
- *
- */
-public class ExtendedStatsTests extends AbstractNumericTestCase {
+public class ExtendedStatsIT extends AbstractNumericTestCase {
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GroovyPlugin.class);
+        return Collections.singleton(AggregationTestScriptsPlugin.class);
     }
 
     private static double stdDev(int... vals) {
@@ -298,7 +295,11 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         double sigma = randomDouble() * randomIntBetween(1, 10);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(extendedStats("stats").field("value").script(new Script("_value + 1")).sigma(sigma))
+                .addAggregation(
+                        extendedStats("stats")
+                                .field("value")
+                                .script(new Script("_value + 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, null))
+                                .sigma(sigma))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -325,7 +326,9 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        extendedStats("stats").field("value").script(new Script("_value + inc", ScriptType.INLINE, null, params))
+                        extendedStats("stats")
+                                .field("value")
+                                .script(new Script("_value + inc", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params))
                                 .sigma(sigma))
                 .execute().actionGet();
 
@@ -374,7 +377,11 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         double sigma = randomDouble() * randomIntBetween(1, 10);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(extendedStats("stats").field("values").script(new Script("_value - 1")).sigma(sigma))
+                .addAggregation(
+                        extendedStats("stats")
+                                .field("values")
+                                .script(new Script("_value - 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, null))
+                                .sigma(sigma))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -401,9 +408,11 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        extendedStats("stats").field("values").script(new Script("_value - dec", ScriptType.INLINE, null, params))
+                        extendedStats("stats")
+                                .field("values")
+                                .script(new Script("_value - dec", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params))
                                 .sigma(sigma))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -426,7 +435,10 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         double sigma = randomDouble() * randomIntBetween(1, 10);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(extendedStats("stats").script(new Script("doc['value'].value")).sigma(sigma))
+                .addAggregation(
+                        extendedStats("stats")
+                                .script(new Script("doc['value'].value", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, null))
+                                .sigma(sigma))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -449,11 +461,16 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
     public void testScriptSingleValuedWithParams() throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
+
+        Script script = new Script("doc['value'].value + inc", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params);
+
         double sigma = randomDouble() * randomIntBetween(1, 10);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        extendedStats("stats").script(new Script("doc['value'].value + inc", ScriptType.INLINE, null, params)).sigma(sigma))
+                        extendedStats("stats")
+                                .script(script)
+                                .sigma(sigma))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -477,7 +494,10 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         double sigma = randomDouble() * randomIntBetween(1, 10);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(extendedStats("stats").script(new Script("doc['values'].values")).sigma(sigma))
+                .addAggregation(
+                        extendedStats("stats")
+                                .script(new Script("doc['values'].values", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, null))
+                                .sigma(sigma))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -500,12 +520,16 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
     public void testScriptMultiValuedWithParams() throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
+
+        Script script = new Script("[ doc['value'].value, doc['value'].value - dec ]", ScriptType.INLINE,
+                AggregationTestScriptsPlugin.NAME, params);
+
         double sigma = randomDouble() * randomIntBetween(1, 10);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        extendedStats("stats").script(
-                                new Script("[ doc['value'].value, doc['value'].value - dec ]", ScriptType.INLINE, null, params))
+                        extendedStats("stats")
+                                .script(script)
                                 .sigma(sigma))
                 .execute().actionGet();
 

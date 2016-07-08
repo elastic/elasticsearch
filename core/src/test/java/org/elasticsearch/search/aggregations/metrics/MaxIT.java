@@ -16,26 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.groovy.GroovyPlugin;
+import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
-import org.elasticsearch.search.aggregations.metrics.AbstractNumericTestCase;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
@@ -50,10 +51,10 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class MaxTests extends AbstractNumericTestCase {
+public class MaxIT extends AbstractNumericTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GroovyPlugin.class);
+        return Collections.singleton(AggregationTestScriptsPlugin.class);
     }
 
     @Override
@@ -161,7 +162,10 @@ public class MaxTests extends AbstractNumericTestCase {
     public void testSingleValuedFieldWithValueScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(max("max").field("value").script(new Script("_value + 1")))
+                .addAggregation(
+                        max("max")
+                                .field("value")
+                                .script(new Script("_value + 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap())))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -178,8 +182,11 @@ public class MaxTests extends AbstractNumericTestCase {
         params.put("inc", 1);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(max("max").field("value").script(new Script("_value + inc", ScriptType.INLINE, null, params)))
-                .execute().actionGet();
+                .addAggregation(
+                        max("max")
+                                .field("value")
+                                .script(new Script("_value + inc", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params)))
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -208,8 +215,11 @@ public class MaxTests extends AbstractNumericTestCase {
     public void testMultiValuedFieldWithValueScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(max("max").field("values").script(new Script("_value + 1")))
-                .execute().actionGet();
+                .addAggregation(
+                        max("max")
+                                .field("values")
+                                .script(new Script("_value + 1", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap())))
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -225,8 +235,11 @@ public class MaxTests extends AbstractNumericTestCase {
         params.put("inc", 1);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(max("max").field("values").script(new Script("_value + inc", ScriptType.INLINE, null, params)))
-                .execute().actionGet();
+                .addAggregation(
+                        max("max")
+                                .field("values")
+                                .script(new Script("_value + inc", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params)))
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -240,7 +253,9 @@ public class MaxTests extends AbstractNumericTestCase {
     public void testScriptSingleValued() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(max("max").script(new Script("doc['value'].value")))
+                .addAggregation(
+                        max("max")
+                                .script(new Script("doc['value'].value", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap())))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 10);
@@ -255,10 +270,13 @@ public class MaxTests extends AbstractNumericTestCase {
     public void testScriptSingleValuedWithParams() throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
+
+        Script script = new Script("doc['value'].value + inc", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params);
+
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(max("max").script(new Script("doc['value'].value + inc", ScriptType.INLINE, null, params)))
-                .execute().actionGet();
+                .addAggregation(max("max").script(script))
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -272,8 +290,10 @@ public class MaxTests extends AbstractNumericTestCase {
     public void testScriptMultiValued() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(max("max").script(new Script("doc['values'].values")))
-                .execute().actionGet();
+                .addAggregation(
+                        max("max")
+                                .script(new Script("doc['values'].values", ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, null)))
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -287,10 +307,13 @@ public class MaxTests extends AbstractNumericTestCase {
     public void testScriptMultiValuedWithParams() throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
+
+        Script script = new Script("[ doc['value'].value, doc['value'].value + inc ]", ScriptType.INLINE,
+                AggregationTestScriptsPlugin.NAME, params);
+
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(
-                        max("max").script(new Script("[ doc['value'].value, doc['value'].value + inc ]", ScriptType.INLINE, null, params)))
-                .execute().actionGet();
+                .addAggregation(max("max").script(script))
+                .get();
 
         assertHitCount(searchResponse, 10);
 

@@ -1106,18 +1106,12 @@
   <suppress files="modules[/\\]lang-expression[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]expression[/\\]MoreExpressionTests.java" checks="LineLength" />
   <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]groovy[/\\]GroovyPlugin.java" checks="LineLength" />
   <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]groovy[/\\]GroovyScriptEngineService.java" checks="LineLength" />
-  <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]BulkTests.java" checks="LineLength" />
-  <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]DoubleTermsTests.java" checks="LineLength" />
   <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]IPv4RangeTests.java" checks="LineLength" />
   <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]IndexLookupTests.java" checks="LineLength" />
-  <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]LongTermsTests.java" checks="LineLength" />
-  <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]MinDocCountTests.java" checks="LineLength" />
-  <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]MinTests.java" checks="LineLength" />
   <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]RandomScoreFunctionTests.java" checks="LineLength" />
   <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]ScriptedMetricTests.java" checks="LineLength" />
   <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]SearchFieldsTests.java" checks="LineLength" />
   <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]SimpleSortTests.java" checks="LineLength" />
-  <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]StringTermsTests.java" checks="LineLength" />
   <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]package-info.java" checks="LineLength" />
   <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]groovy[/\\]GroovyScriptTests.java" checks="LineLength" />
   <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]groovy[/\\]GroovySecurityTests.java" checks="LineLength" />

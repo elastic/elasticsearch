@@ -37,9 +37,10 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.emptyList;
 
 /**
  * An aggregator of significant string values.
@@ -81,7 +82,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         long supersetSize = termsAggFactory.getSupersetNumDocs();
         long subsetSize = numCollectedDocs;
 
-        BucketSignificancePriorityQueue ordered = new BucketSignificancePriorityQueue(size);
+        BucketSignificancePriorityQueue<SignificantStringTerms.Bucket> ordered = new BucketSignificancePriorityQueue<>(size);
         SignificantStringTerms.Bucket spare = null;
         for (int i = 0; i < bucketOrds.size(); i++) {
             final int docCount = bucketDocCount(i);
@@ -105,21 +106,21 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
             spare.updateScore(significanceHeuristic);
 
             spare.bucketOrd = i;
-            spare = (SignificantStringTerms.Bucket) ordered.insertWithOverflow(spare);
+            spare = ordered.insertWithOverflow(spare);
         }
 
-        final InternalSignificantTerms.Bucket[] list = new InternalSignificantTerms.Bucket[ordered.size()];
+        final SignificantStringTerms.Bucket[] list = new SignificantStringTerms.Bucket[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; i--) {
-            final SignificantStringTerms.Bucket bucket = (SignificantStringTerms.Bucket) ordered.pop();
+            final SignificantStringTerms.Bucket bucket = ordered.pop();
             // the terms are owned by the BytesRefHash, we need to pull a copy since the BytesRef hash data may be recycled at some point
             bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
 
-        return new SignificantStringTerms(subsetSize, supersetSize, name, format, bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(), significanceHeuristic, Arrays.asList(list), pipelineAggregators(),
-                metaData());
+        return new SignificantStringTerms( name, bucketCountThresholds.getRequiredSize(),
+                bucketCountThresholds.getMinDocCount(), pipelineAggregators(),
+                metaData(), format, subsetSize, supersetSize, significanceHeuristic, Arrays.asList(list));
     }
 
     @Override
@@ -128,9 +129,8 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         ContextIndexSearcher searcher = context.searchContext().searcher();
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
-        return new SignificantStringTerms(0, supersetSize, name, format, bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(), significanceHeuristic,
-                Collections.<InternalSignificantTerms.Bucket> emptyList(), pipelineAggregators(), metaData());
+        return new SignificantStringTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
+                pipelineAggregators(), metaData(), format, 0, supersetSize, significanceHeuristic, emptyList());
     }
 
     @Override

@@ -526,12 +526,14 @@ public class SearchModule extends AbstractModule {
                     .addResultReader(UnmappedTerms.NAME, UnmappedTerms::new)
                     .addResultReader(LongTerms.NAME, LongTerms::new)
                     .addResultReader(DoubleTerms.NAME, DoubleTerms::new));
-        registerAggregation(SignificantTermsAggregationBuilder::new,
+        registerAggregation(new AggregationSpec(SignificantTermsAggregationBuilder::new,
                 new SignificantTermsParser(significanceHeuristicParserRegistry, queryParserRegistry),
-                SignificantTermsAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(
-                new AggregationSpec(RangeAggregationBuilder::new, new RangeParser(), RangeAggregationBuilder.AGGREGATION_NAME_FIELD)
-                        .addResultReader(InternalRange::new));
+                SignificantTermsAggregationBuilder.AGGREGATION_NAME_FIELD)
+                    .addResultReader(SignificantStringTerms.NAME, SignificantStringTerms::new)
+                    .addResultReader(SignificantLongTerms.NAME, SignificantLongTerms::new)
+                    .addResultReader(UnmappedSignificantTerms.NAME, UnmappedSignificantTerms::new));
+        registerAggregation(new AggregationSpec(RangeAggregationBuilder::new, new RangeParser(),
+                RangeAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalRange::new));
         registerAggregation(new AggregationSpec(DateRangeAggregationBuilder::new, new DateRangeParser(),
                 DateRangeAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalDateRange::new));
         registerAggregation(IpRangeAggregationBuilder::new, new IpRangeParser(), IpRangeAggregationBuilder.AGGREGATION_NAME_FIELD);
@@ -818,9 +820,6 @@ public class SearchModule extends AbstractModule {
 
     static {
         // buckets
-        SignificantStringTerms.registerStreams();
-        SignificantLongTerms.registerStreams();
-        UnmappedSignificantTerms.registerStreams();
         InternalGeoHashGrid.registerStreams();
         InternalBinaryRange.registerStream();
         InternalHistogram.registerStream();

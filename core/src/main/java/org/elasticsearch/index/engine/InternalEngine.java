@@ -43,7 +43,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.ESLogger;
@@ -57,7 +56,6 @@ import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.internal.SeqNoFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -66,6 +64,7 @@ import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -122,8 +121,6 @@ public class InternalEngine extends Engine {
     private final IndexThrottle throttle;
 
     private final SequenceNumbersService seqNoService;
-    static final String LOCAL_CHECKPOINT_KEY = "local_checkpoint";
-    static final String GLOBAL_CHECKPOINT_KEY = "global_checkpoint";
 
     // How many callers are currently requesting index throttling.  Currently there are only two situations where we do this: when merges
     // are falling behind and when writing indexing buffer to disk is too slow.  When this is 0, there is no throttling, else we throttling
@@ -157,11 +154,11 @@ public class InternalEngine extends Engine {
                     seqNoStats = new SeqNoStats(NO_OPS_PERFORMED, NO_OPS_PERFORMED, NO_OPS_PERFORMED);
                 } else if (engineConfig.getCommitIdToOpen() != null) {
                     commitToOpen = findCommitById(store.directory(), engineConfig.getCommitIdToOpen());
-                    seqNoStats = loadSeqNoStatsFromCommit(commitToOpen);
+                    seqNoStats = Store.loadSeqNoStatsFromCommit(commitToOpen);
                 } else {
                     // nocommit: there should be a better way
-                    commitToOpen = findCommitById(store.directory(), new CommitId(store.readLastCommittedSegmentsInfo().getId()));
-                    seqNoStats = loadSeqNoStatsFromCommit(commitToOpen);
+                    commitToOpen = findCommitById(store.directory(), new Store.CommitId(store.readLastCommittedSegmentsInfo().getId()));
+                    seqNoStats = Store.loadSeqNoStatsFromCommit(commitToOpen);
                 }
                 seqNoService =
                     new SequenceNumbersService(
@@ -217,10 +214,10 @@ public class InternalEngine extends Engine {
         logger.trace("created new InternalEngine");
     }
 
-    private static IndexCommit findCommitById(Directory directory, CommitId commitIdToOpen) throws IOException {
+    private static IndexCommit findCommitById(Directory directory, Store.CommitId commitIdToOpen) throws IOException {
         for (IndexCommit commit: DirectoryReader.listCommits(directory)) {
             SegmentInfos commitInfos = SegmentInfos.readCommit(directory, commit.getSegmentsFileName());
-            if (commitIdToOpen.equals(new CommitId(commitInfos.getId()))) {
+            if (commitIdToOpen.equals(new Store.CommitId(commitInfos.getId()))) {
                 return commit;
             }
         }
@@ -340,67 +337,6 @@ public class InternalEngine extends Engine {
             return new Translog.TranslogGeneration(translogUUID, translogGen);
         }
         return null;
-    }
-
-    private SeqNoStats loadSeqNoStatsFromCommit(IndexWriter writer) throws IOException {
-        final long maxSeqNo;
-        try (IndexReader reader = DirectoryReader.open(writer)) {
-            final FieldStats stats = SeqNoFieldMapper.Defaults.FIELD_TYPE.stats(reader);
-            if (stats != null) {
-                maxSeqNo = (long) stats.getMaxValue();
-            } else {
-                maxSeqNo = NO_OPS_PERFORMED;
-            }
-        }
-
-        final Map<String, String> commitUserData = writer.getCommitData();
-
-        final long localCheckpoint;
-        if (commitUserData.containsKey(LOCAL_CHECKPOINT_KEY)) {
-            localCheckpoint = Long.parseLong(commitUserData.get(LOCAL_CHECKPOINT_KEY));
-        } else {
-            localCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
-        }
-
-        final long globalCheckpoint;
-        if (commitUserData.containsKey(GLOBAL_CHECKPOINT_KEY)) {
-            globalCheckpoint = Long.parseLong(commitUserData.get(GLOBAL_CHECKPOINT_KEY));
-        } else {
-            globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
-        }
-
-        return new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
-    }
-
-
-    public static SeqNoStats loadSeqNoStatsFromCommit(IndexCommit commit) throws IOException {
-        final long maxSeqNo;
-        try (IndexReader reader = DirectoryReader.open(commit)) {
-            final FieldStats stats = SeqNoFieldMapper.Defaults.FIELD_TYPE.stats(reader);
-            if (stats != null) {
-                maxSeqNo = (long) stats.getMaxValue();
-            } else {
-                maxSeqNo = NO_OPS_PERFORMED;
-            }
-        }
-
-        final Map<String, String> commitUserData = commit.getUserData();
-
-        final long localCheckpoint;
-        if (commitUserData.containsKey(LOCAL_CHECKPOINT_KEY)) {
-            localCheckpoint = Long.parseLong(commitUserData.get(LOCAL_CHECKPOINT_KEY));
-        } else {
-            localCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
-        }
-
-        final long globalCheckpoint;
-        if (commitUserData.containsKey(GLOBAL_CHECKPOINT_KEY)) {
-            globalCheckpoint = Long.parseLong(commitUserData.get(GLOBAL_CHECKPOINT_KEY));
-        } else {
-            globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
-        }
-
-        return new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
     }
 
 
@@ -755,7 +691,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) throws EngineException {
+    public SyncedFlushResult syncFlush(String syncId, Store.CommitId expectedCommitId) throws EngineException {
         // best effort attempt before we acquire locks
         ensureOpen();
         if (indexWriter.hasUncommittedChanges()) {
@@ -813,12 +749,12 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public CommitId flush() throws EngineException {
+    public Store.CommitId flush() throws EngineException {
         return flush(false, false);
     }
 
     @Override
-    public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
+    public Store.CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
         ensureOpen();
         final byte[] newCommitId;
         /*
@@ -894,7 +830,7 @@ public class InternalEngine extends Engine {
         if (engineConfig.isEnableGcDeletes()) {
             pruneDeletedTombstones();
         }
-        return new CommitId(newCommitId);
+        return new Store.CommitId(newCommitId);
     }
 
     private void pruneDeletedTombstones() {
@@ -1309,8 +1245,8 @@ public class InternalEngine extends Engine {
             commitData.put(Translog.TRANSLOG_GENERATION_KEY, Long.toString(translogGeneration.translogFileGeneration));
             commitData.put(Translog.TRANSLOG_UUID_KEY, translogGeneration.translogUUID);
 
-            commitData.put(LOCAL_CHECKPOINT_KEY, Long.toString(seqNoService().getLocalCheckpoint()));
-            commitData.put(GLOBAL_CHECKPOINT_KEY, Long.toString(seqNoService().getGlobalCheckpoint()));
+            commitData.put(Store.LOCAL_CHECKPOINT_KEY, Long.toString(seqNoService().getLocalCheckpoint()));
+            commitData.put(Store.GLOBAL_CHECKPOINT_KEY, Long.toString(seqNoService().getGlobalCheckpoint()));
 
             if (syncId != null) {
                 commitData.put(Engine.SYNC_COMMIT_ID, syncId);

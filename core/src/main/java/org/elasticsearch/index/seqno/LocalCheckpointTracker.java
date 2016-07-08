@@ -21,9 +21,6 @@ package org.elasticsearch.index.seqno;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.SnapshotStatus;
 
 import java.util.LinkedList;
 
@@ -31,7 +28,7 @@ import java.util.LinkedList;
  * This class generates sequences numbers and keeps track of the so called local checkpoint - the highest number for which
  * all previous seqNo have been processed (including)
  */
-public class LocalCheckpointService extends AbstractIndexShardComponent {
+public class LocalCheckpointTracker {
 
     /**
      * we keep a bit for each seq No that is still pending. to optimize allocation, we do so in multiple arrays
@@ -61,16 +58,13 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
      * {@code localCheckpoint} should be set to the last known local checkpoint
      * for this shard, or {@link SequenceNumbersService#NO_OPS_PERFORMED}.
      *
-     * @param shardId         the shard this service is providing tracking
-     *                        local checkpoints for
      * @param indexSettings   the index settings
      * @param maxSeqNo        the last sequence number assigned by this shard, or
      *                        {@link SequenceNumbersService#NO_OPS_PERFORMED}
      * @param localCheckpoint the last known local checkpoint for this shard, or
      *                        {@link SequenceNumbersService#NO_OPS_PERFORMED}
      */
-    LocalCheckpointService(final ShardId shardId, final IndexSettings indexSettings, final long maxSeqNo, final long localCheckpoint) {
-        super(shardId, indexSettings);
+    public LocalCheckpointTracker(final IndexSettings indexSettings, final long maxSeqNo, final long localCheckpoint) {
         if (localCheckpoint < 0 && localCheckpoint != SequenceNumbersService.NO_OPS_PERFORMED) {
             throw new IllegalArgumentException(
                 "local checkpoint must be non-negative or [" + SequenceNumbersService.NO_OPS_PERFORMED + "] "
@@ -97,7 +91,7 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
     /**
      * marks the processing of the given seqNo have been completed
      **/
-    synchronized void markSeqNoAsCompleted(long seqNo) {
+    synchronized public void markSeqNoAsCompleted(long seqNo) {
         // make sure we track highest seen seqNo
         if (seqNo >= nextSeqNo) {
             nextSeqNo = seqNo + 1;
@@ -136,19 +130,23 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
             "checkpoint + 1 doesn't point to the first bit set (o.w. current bit set is completed and shouldn't be there)";
         assert getBitSetForSeqNo(checkpoint + 1).get(seqNoToBitSetOffset(checkpoint + 1)) :
             "updateCheckpoint is called but the bit following the checkpoint is not set";
-        // keep it simple for now, get the checkpoint one by one. in the future we can optimize and read words
-        FixedBitSet current = processedSeqNo.getFirst();
-        do {
-            checkpoint++;
-            // the checkpoint always falls in the first bit set or just before. If it falls
-            // on the last bit of the current bit set, we can clean it.
-            if (checkpoint == firstProcessedSeqNo + bitArraysSize - 1) {
-                processedSeqNo.removeFirst();
-                firstProcessedSeqNo += bitArraysSize;
-                assert checkpoint - firstProcessedSeqNo < bitArraysSize;
-                current = processedSeqNo.peekFirst();
-            }
-        } while (current != null && current.get(seqNoToBitSetOffset(checkpoint + 1)));
+        try {
+            // keep it simple for now, get the checkpoint one by one. in the future we can optimize and read words
+            FixedBitSet current = processedSeqNo.getFirst();
+            do {
+                checkpoint++;
+                // the checkpoint always falls in the first bit set or just before. If it falls
+                // on the last bit of the current bit set, we can clean it.
+                if (checkpoint == firstProcessedSeqNo + bitArraysSize - 1) {
+                    processedSeqNo.removeFirst();
+                    firstProcessedSeqNo += bitArraysSize;
+                    assert checkpoint - firstProcessedSeqNo < bitArraysSize;
+                    current = processedSeqNo.peekFirst();
+                }
+            } while (current != null && current.get(seqNoToBitSetOffset(checkpoint + 1)));
+        } finally {
+            this.notifyAll();
+        }
     }
 
     /**
@@ -171,4 +169,10 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
         return ((int) (seqNo - firstProcessedSeqNo)) % bitArraysSize;
     }
 
+    /** waits for all operations up to and including the given seq# to complete **/
+    public synchronized void waitForOpsToComplete(long upToSeqNo) throws InterruptedException {
+        while (checkpoint < upToSeqNo) {
+            this.wait();
+        }
+    }
 }

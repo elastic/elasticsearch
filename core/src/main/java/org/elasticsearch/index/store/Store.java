@@ -21,11 +21,13 @@ package org.elasticsearch.index.store;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexNotFoundException;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
@@ -47,6 +49,7 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -71,6 +74,9 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.internal.SeqNoFieldMapper;
+import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -82,6 +88,8 @@ import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -95,6 +103,8 @@ import java.util.zip.Checksum;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.index.seqno.SequenceNumbersService.NO_OPS_PERFORMED;
+import static org.elasticsearch.index.seqno.SequenceNumbersService.UNASSIGNED_SEQ_NO;
 
 /**
  * A Store provides plain access to files written by an elasticsearch index shard. Each shard
@@ -125,6 +135,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     static final String CORRUPTED = "corrupted_";
     public static final Setting<TimeValue> INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING =
         Setting.timeSetting("index.store.stats_refresh_interval", TimeValue.timeValueSeconds(10), Property.IndexScope);
+    public static final String LOCAL_CHECKPOINT_KEY = "local_checkpoint";
+    public static final String GLOBAL_CHECKPOINT_KEY = "global_checkpoint";
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final StoreDirectory directory;
@@ -266,6 +278,62 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             metadataLock.readLock().unlock();
         }
     }
+
+    public IndexCommit findLastCommitBellowSeqNo(final long seqNo) throws IOException {
+        ensureOpen();
+        failIfCorrupted();
+        metadataLock.readLock().lock();
+        IndexCommit lastCommit = null;
+        long commitMaxSeqNo = UNASSIGNED_SEQ_NO;
+        try {
+            for (IndexCommit commit : DirectoryReader.listCommits(directory)) {
+                final SeqNoStats commitStats = Store.loadSeqNoStatsFromCommit(commit);
+                if (commitStats.getMaxSeqNo() > seqNo) {
+                    continue;
+                } else if (lastCommit == null || commitStats.getMaxSeqNo() > commitMaxSeqNo) {
+                    lastCommit = commit;
+                    commitMaxSeqNo = commitStats.getMaxSeqNo();
+                }
+            }
+        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+            markStoreCorrupted(ex);
+            throw ex;
+        } finally {
+            metadataLock.readLock().unlock();
+        }
+        return lastCommit;
+    }
+
+    public static SeqNoStats loadSeqNoStatsFromCommit(IndexCommit commit) throws IOException {
+        final long maxSeqNo;
+        try (IndexReader reader = DirectoryReader.open(commit)) {
+            final FieldStats stats = SeqNoFieldMapper.Defaults.FIELD_TYPE.stats(reader);
+            if (stats != null) {
+                maxSeqNo = (long) stats.getMaxValue();
+            } else {
+                maxSeqNo = NO_OPS_PERFORMED;
+            }
+        }
+
+        final Map<String, String> commitUserData = commit.getUserData();
+
+        final long localCheckpoint;
+        if (commitUserData.containsKey(LOCAL_CHECKPOINT_KEY)) {
+            localCheckpoint = Long.parseLong(commitUserData.get(LOCAL_CHECKPOINT_KEY));
+        } else {
+            localCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
+        }
+
+        final long globalCheckpoint;
+        if (commitUserData.containsKey(GLOBAL_CHECKPOINT_KEY)) {
+            globalCheckpoint = Long.parseLong(commitUserData.get(GLOBAL_CHECKPOINT_KEY));
+        } else {
+            globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        }
+
+        return new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
+    }
+
 
 
     /**
@@ -1398,4 +1466,62 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
+    public static class CommitId implements Writeable {
+
+        private final byte[] id;
+
+        public CommitId(byte[] id) {
+            assert id != null;
+            this.id = Arrays.copyOf(id, id.length);
+        }
+
+        /**
+         * Read from a stream.
+         */
+        public CommitId(StreamInput in) throws IOException {
+            assert in != null;
+            this.id = in.readByteArray();
+        }
+
+        public CommitId(IndexCommit commit) throws IOException {
+            this.id = Lucene.readSegmentInfos(commit).getId();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByteArray(id);
+        }
+
+        @Override
+        public String toString() {
+            return Base64.getEncoder().encodeToString(id);
+        }
+
+        public boolean idsEqual(byte[] id) {
+            return Arrays.equals(id, this.id);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            CommitId commitId = (CommitId) o;
+
+            if (!Arrays.equals(id, commitId.id)) {
+                return false;
+            }
+
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(id);
+        }
+    }
 }

@@ -356,9 +356,9 @@ final class StoreRecovery {
             }
             if (recoveryState.getType() == RecoveryState.Type.LOCAL_SHARDS) {
                 assert indexShouldExists;
-                indexShard.skipTranslogRecovery();
+                indexShard.openEngineAndSkipTranslogRecovery(null);
             } else {
-                indexShard.performTranslogRecovery(indexShouldExists);
+                indexShard.openEngineAndRecoveryFromTranslog(indexShouldExists);
             }
             indexShard.finalizeRecovery();
             indexShard.postRecovery("post recovery from shard_store");
@@ -398,7 +398,7 @@ final class StoreRecovery {
                 snapshotShardId = new ShardId(restoreSource.index(), IndexMetaData.INDEX_UUID_NA_VALUE, shardId.id());
             }
             indexShardRepository.restore(restoreSource.snapshot().getSnapshotId(), restoreSource.version(), shardId, snapshotShardId, indexShard.recoveryState());
-            indexShard.skipTranslogRecovery();
+            indexShard.openEngineAndSkipTranslogRecovery(null);
             indexShard.finalizeRecovery();
             indexShard.postRecovery("restore done");
         } catch (Exception e) {

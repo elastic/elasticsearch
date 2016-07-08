@@ -22,6 +22,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,7 +54,7 @@ public class SeqNoAwareDeletionPolicy extends IndexDeletionPolicy {
         int size = commits.size();
         for (int i = 0; i < size - 1; i++) {
             final IndexCommit commit = commits.get(i);
-            final SeqNoStats commitStats = InternalEngine.loadSeqNoStatsFromCommit(commit);
+            final SeqNoStats commitStats = Store.loadSeqNoStatsFromCommit(commit);
             if (commitStats.getMaxSeqNo() > globalCheckpoint) {
                 // have to stay
             } else if (highestBellowCheckpointStats == null || highestBellowCheckpointStats.getMaxSeqNo() < commitStats.getMaxSeqNo()) {

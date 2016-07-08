@@ -19,9 +19,11 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -35,13 +37,17 @@ public class RecoveryPrepareForTranslogOperationsRequest extends TransportReques
     private ShardId shardId;
     private int totalTranslogOps = RecoveryState.Translog.UNKNOWN;
 
+    private Store.CommitId baseCommit;
+
     public RecoveryPrepareForTranslogOperationsRequest() {
     }
 
-    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps) {
+    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps,
+                                                @Nullable Store.CommitId baseCommit) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.totalTranslogOps = totalTranslogOps;
+        this.baseCommit = baseCommit;
     }
 
     public long recoveryId() {
@@ -56,12 +62,17 @@ public class RecoveryPrepareForTranslogOperationsRequest extends TransportReques
         return totalTranslogOps;
     }
 
+    public Store.CommitId getBaseCommit() {
+        return baseCommit;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
         totalTranslogOps = in.readVInt();
+        baseCommit = in.readOptionalWriteable(Store.CommitId::new);
     }
 
     @Override
@@ -70,5 +81,6 @@ public class RecoveryPrepareForTranslogOperationsRequest extends TransportReques
         out.writeLong(recoveryId);
         shardId.writeTo(out);
         out.writeVInt(totalTranslogOps);
+        out.writeOptionalWriteable(baseCommit);
     }
 }

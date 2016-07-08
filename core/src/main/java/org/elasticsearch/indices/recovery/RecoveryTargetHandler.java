@@ -36,8 +36,9 @@ public interface RecoveryTargetHandler {
      * Prepares the tranget to receive translog operations, after all file have been copied
      *
      * @param totalTranslogOps total translog operations expected to be sent
+     * @param baseCommit commit to base this recovery on.
      */
-    void prepareForTranslogOperations(int totalTranslogOps) throws IOException;
+    void prepareForTranslogOperations(int totalTranslogOps, Store.CommitId baseCommit) throws IOException;
 
     /**
      * The finalize request clears unreferenced translog files, refreshes the engine now that

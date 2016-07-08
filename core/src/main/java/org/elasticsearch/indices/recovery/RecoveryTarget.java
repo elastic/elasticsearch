@@ -29,6 +29,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -82,6 +83,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     // last time this status was accessed
     private volatile long lastAccessTime = System.nanoTime();
+
+    private volatile boolean allowSeqNoBasedRecovery = true;
 
     private final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
 
@@ -294,9 +297,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /*** Implementation of {@link RecoveryTargetHandler } */
 
     @Override
-    public void prepareForTranslogOperations(int totalTranslogOps) throws IOException {
+    public void prepareForTranslogOperations(int totalTranslogOps,@Nullable Store.CommitId baseCommit) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
-        indexShard().skipTranslogRecovery();
+        indexShard().openEngineAndSkipTranslogRecovery(baseCommit);
     }
 
     @Override
@@ -401,5 +404,13 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             IndexOutput remove = removeOpenIndexOutputs(name);
             assert remove == null || remove == indexOutput; // remove maybe null if we got finished
         }
+    }
+
+    public boolean isSeqNoBasedRecoveryAllowed() {
+        return allowSeqNoBasedRecovery;
+    }
+
+    public void setAllowSeqNoBasedRecovery(boolean allowSeqNoBasedRecovery) {
+        this.allowSeqNoBasedRecovery = allowSeqNoBasedRecovery;
     }
 }

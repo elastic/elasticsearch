@@ -60,6 +60,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -78,7 +79,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponse;
 import org.junit.After;
 import org.junit.Before;
 
@@ -292,7 +292,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
             replica.prepareForIndexRecovery();
             RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
             StartRecoveryRequest request = new StartRecoveryRequest(replica.shardId(), pNode, rNode,
-                replica.store().getMetadataOrEmpty(), RecoveryState.Type.REPLICA, 0);
+                replica.store().getMetadataOrEmpty(), null, SequenceNumbersService.UNASSIGNED_SEQ_NO, RecoveryState.Type.REPLICA, 0);
             RecoverySourceHandler recovery = new RecoverySourceHandler(primary, recoveryTarget, request, (int) ByteSizeUnit.MB.toKB(1),
                 logger);
             recovery.recoverToTarget();

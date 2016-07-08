@@ -91,7 +91,7 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
-import org.elasticsearch.index.seqno.GlobalCheckpointService;
+import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -742,13 +742,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return completionStats;
     }
 
-    public Engine.SyncedFlushResult syncFlush(String syncId, Engine.CommitId expectedCommitId) {
+    public Engine.SyncedFlushResult syncFlush(String syncId, Store.CommitId expectedCommitId) {
         verifyStartedOrRecovering();
         logger.trace("trying to sync flush. sync id [{}]. expected commit id [{}]]", syncId, expectedCommitId);
         return getEngine().syncFlush(syncId, expectedCommitId);
     }
 
-    public Engine.CommitId flush(FlushRequest request) throws ElasticsearchException {
+    public Store.CommitId flush(FlushRequest request) throws ElasticsearchException {
         boolean waitIfOngoing = request.waitIfOngoing();
         boolean force = request.force();
         if (logger.isTraceEnabled()) {
@@ -760,7 +760,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         verifyStartedOrRecovering();
 
         long time = System.nanoTime();
-        Engine.CommitId commitId = getEngine().flush(force, waitIfOngoing);
+        Store.CommitId commitId = getEngine().flush(force, waitIfOngoing);
         flushMetric.inc(System.nanoTime() - time);
         return commitId;
 
@@ -925,18 +925,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * After the store has been recovered, we need to start the engine in order to apply operations
      */
-    public void performTranslogRecovery(boolean indexExists) throws IOException {
+    public void openEngineAndRecoveryFromTranslog(boolean indexExists) throws IOException {
         if (indexExists == false) {
             // note: these are set when recovering from the translog
             final RecoveryState.Translog translogStats = recoveryState().getTranslog();
             translogStats.totalOperations(0);
             translogStats.totalOperationsOnStart(0);
         }
-        internalPerformTranslogRecovery(false, indexExists);
+        internalPerformTranslogRecovery(false, indexExists, null);
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
     }
 
-    private void internalPerformTranslogRecovery(boolean skipTranslogRecovery, boolean indexExists) throws IOException {
+    private void internalPerformTranslogRecovery(boolean skipTranslogRecovery, boolean indexExists, Store.CommitId commitId) throws IOException {
+        assert indexExists || commitId == null : "if index doesn't exist, we can't open a commit";
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
@@ -953,9 +954,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final EngineConfig.OpenMode openMode;
         /* by default we recover and index and replay the translog but if the index
          * doesn't exist we create everything from the scratch. Yet, if the index
-         * doesn't exist we don't need to worry about the skipTranslogRecovery since
+         * doesn't exist we don't need to worry about the openEngineAndSkipTranslogRecovery since
          * there is no translog on a non-existing index.
-         * The skipTranslogRecovery invariant is used if we do remote recovery since
+         * The openEngineAndSkipTranslogRecovery invariant is used if we do remote recovery since
          * there the translog isn't local but on the remote host, hence we can skip it.
          */
         if (indexExists == false) {
@@ -965,7 +966,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             openMode = EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;
         }
-        final EngineConfig config = newEngineConfig(openMode);
+        final EngineConfig config = newEngineConfig(openMode, commitId);
         // we disable deletes since we allow for operations to be executed against the shard while recovering
         // but we need to make sure we don't loose deletes until we are done recovering
         config.setEnableGcDeletes(false);
@@ -984,10 +985,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * After the store has been recovered, we need to start the engine. This method starts a new engine but skips
      * the replay of the transaction log which is required in cases where we restore a previous index or recover from
      * a remote peer.
+     * @param commitId commitID of the commit to open the engine on. Null for last
      */
-    public void skipTranslogRecovery() throws IOException {
+    public void openEngineAndSkipTranslogRecovery(@Nullable Store.CommitId commitId) throws IOException {
         assert getEngineOrNull() == null : "engine was already created";
-        internalPerformTranslogRecovery(true, true);
+        internalPerformTranslogRecovery(true, true, commitId);
         assert recoveryState.getTranslog().recoveredOperations() == 0;
     }
 
@@ -1299,7 +1301,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * notifies the service of a local checkpoint. see {@link GlobalCheckpointService#updateLocalCheckpoint(String, long)} for details.
+     * notifies the service of a local checkpoint. see {@link GlobalCheckpointTracker#updateLocalCheckpoint(String, long)} for details.
      */
     public void updateLocalCheckpointForShard(String allocationId, long checkpoint) {
         verifyPrimary();
@@ -1307,7 +1309,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * marks the allocationId as "in sync" with the primary shard. see {@link GlobalCheckpointService#markAllocationIdAsInSync(String, long)} for details.
+     * marks the allocationId as "in sync" with the primary shard. see {@link GlobalCheckpointTracker#markAllocationIdAsInSync(String, long)} for details.
      *
      * @param allocationId    allocationId of the recovering shard
      * @param localCheckpoint the local checkpoint of the shard in question
@@ -1323,6 +1325,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public long getGlobalCheckpoint() {
         return getEngine().seqNoService().getGlobalCheckpoint();
+    }
+
+    /** waits for all operations up to and including the given seq# to complete **/
+    public void waitForOpsToComplete(long upToSeqNo) throws InterruptedException {
+        getEngine().seqNoService().waitForOpsToComplete(upToSeqNo);
     }
 
     /**
@@ -1347,7 +1354,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Notifies the service of the current allocation ids in the cluster state.
-     * see {@link GlobalCheckpointService#updateAllocationIdsFromMaster(Set, Set)} for details.
+     * see {@link GlobalCheckpointTracker#updateAllocationIdsFromMaster(Set, Set)} for details.
      *
      * @param activeAllocationIds       the allocation ids of the currently active shard copies
      * @param initializingAllocationIds the allocation ids of the currently initializing shard copies
@@ -1620,10 +1627,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return mapperService.documentMapperWithAutoCreate(type);
     }
 
-    private EngineConfig newEngineConfig(EngineConfig.OpenMode openMode) {
+    private EngineConfig newEngineConfig(EngineConfig.OpenMode openMode, Store.CommitId commitId) {
         final IndexShardRecoveryPerformer translogRecoveryPerformer = new IndexShardRecoveryPerformer(shardId, mapperService, logger);
         return new EngineConfig(openMode, shardId,
-            null, threadPool, indexSettings, warmer, store, indexSettings.getMergePolicy(),
+            commitId, threadPool, indexSettings, warmer, store, indexSettings.getMergePolicy(),
             mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()), refreshListeners);
     }

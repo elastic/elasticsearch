@@ -568,13 +568,13 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(stats1.getGeneration(), greaterThan(0L));
             assertThat(stats1.getId(), notNullValue());
             assertThat(stats1.getUserData(), hasKey(Translog.TRANSLOG_GENERATION_KEY));
-            assertThat(stats1.getUserData(), hasKey(InternalEngine.LOCAL_CHECKPOINT_KEY));
+            assertThat(stats1.getUserData(), hasKey(Store.LOCAL_CHECKPOINT_KEY));
             assertThat(
-                Long.parseLong(stats1.getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)),
+                Long.parseLong(stats1.getUserData().get(Store.LOCAL_CHECKPOINT_KEY)),
                 equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
-            assertThat(stats1.getUserData(), hasKey(InternalEngine.GLOBAL_CHECKPOINT_KEY));
+            assertThat(stats1.getUserData(), hasKey(Store.GLOBAL_CHECKPOINT_KEY));
             assertThat(
-                Long.parseLong(stats1.getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
+                Long.parseLong(stats1.getUserData().get(Store.GLOBAL_CHECKPOINT_KEY)),
                 equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
 
             maxSeqNo.set(rarely() ? SequenceNumbersService.NO_OPS_PERFORMED : randomIntBetween(0, 1024));
@@ -596,10 +596,10 @@ public class InternalEngineTests extends ESTestCase {
                 stats2.getUserData().get(Translog.TRANSLOG_GENERATION_KEY),
                 not(equalTo(stats1.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))));
             assertThat(stats2.getUserData().get(Translog.TRANSLOG_UUID_KEY), equalTo(stats1.getUserData().get(Translog.TRANSLOG_UUID_KEY)));
-            assertThat(Long.parseLong(stats2.getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)), equalTo(localCheckpoint.get()));
-            assertThat(stats2.getUserData(), hasKey(InternalEngine.GLOBAL_CHECKPOINT_KEY));
+            assertThat(Long.parseLong(stats2.getUserData().get(Store.LOCAL_CHECKPOINT_KEY)), equalTo(localCheckpoint.get()));
+            assertThat(stats2.getUserData(), hasKey(Store.GLOBAL_CHECKPOINT_KEY));
             assertThat(
-                Long.parseLong(stats2.getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
+                Long.parseLong(stats2.getUserData().get(Store.GLOBAL_CHECKPOINT_KEY)),
                 equalTo(globalCheckpoint.get()));
         } finally {
             IOUtils.close(engine);
@@ -703,9 +703,9 @@ public class InternalEngineTests extends ESTestCase {
             final AtomicBoolean flushed = new AtomicBoolean();
             recoveringEngine = new InternalEngine(copy(initialEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG)) {
                 @Override
-                public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
+                public Store.CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
                     assertThat(getTranslog().totalOperations(), equalTo(docs));
-                    final CommitId commitId = super.flush(force, waitIfOngoing);
+                    final Store.CommitId commitId = super.flush(force, waitIfOngoing);
                     flushed.set(true);
                     return commitId;
                 }
@@ -954,11 +954,11 @@ public class InternalEngineTests extends ESTestCase {
             final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
             engine.index(new Engine.Index(newUid("1"), doc));
-            Engine.CommitId commitID = engine.flush();
-            assertThat(commitID, equalTo(new Engine.CommitId(store.readLastCommittedSegmentsInfo().getId())));
+            Store.CommitId commitID = engine.flush();
+            assertThat(commitID, equalTo(new Store.CommitId(store.readLastCommittedSegmentsInfo().getId())));
             byte[] wrongBytes = Base64.getDecoder().decode(commitID.toString());
             wrongBytes[0] = (byte) ~wrongBytes[0];
-            Engine.CommitId wrongId = new Engine.CommitId(wrongBytes);
+            Store.CommitId wrongId = new Store.CommitId(wrongBytes);
             assertEquals("should fail to sync flush with wrong id (but no docs)", engine.syncFlush(syncId + "1", wrongId),
                     Engine.SyncedFlushResult.COMMIT_MISMATCH);
             engine.index(new Engine.Index(newUid("2"), doc));
@@ -996,7 +996,7 @@ public class InternalEngineTests extends ESTestCase {
                 } else {
                     engine.index(new Engine.Index(newUid("3"), doc));
                 }
-                Engine.CommitId commitID = engine.flush();
+                Store.CommitId commitID = engine.flush();
                 assertEquals("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
                         Engine.SyncedFlushResult.SUCCESS);
                 assertEquals(3, engine.segments(false).size());
@@ -1036,7 +1036,7 @@ public class InternalEngineTests extends ESTestCase {
         final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
         engine.index(new Engine.Index(newUid("1"), doc));
-        final Engine.CommitId commitID = engine.flush();
+        final Store.CommitId commitID = engine.flush();
         assertEquals("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
                 Engine.SyncedFlushResult.SUCCESS);
         assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
@@ -1059,7 +1059,7 @@ public class InternalEngineTests extends ESTestCase {
         final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
         engine.index(new Engine.Index(newUid("1"), doc));
-        final Engine.CommitId commitID = engine.flush();
+        final Store.CommitId commitID = engine.flush();
         assertEquals("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
                 Engine.SyncedFlushResult.SUCCESS);
         assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
@@ -1653,7 +1653,7 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(initialEngine.seqNoService().stats().getGlobalCheckpoint(), equalTo(replicaLocalCheckpoint));
 
             assertThat(
-                Long.parseLong(initialEngine.commitStats().getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)),
+                Long.parseLong(initialEngine.commitStats().getUserData().get(Store.LOCAL_CHECKPOINT_KEY)),
                 equalTo(localCheckpoint));
 //            nocommit: replace with translog checkpoint test
 //            assertThat(
@@ -1671,7 +1671,7 @@ public class InternalEngineTests extends ESTestCase {
             recoveringEngine.recoverFromTranslog();
 
             assertThat(
-                Long.parseLong(recoveringEngine.commitStats().getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)),
+                Long.parseLong(recoveringEngine.commitStats().getUserData().get(Store.LOCAL_CHECKPOINT_KEY)),
                 equalTo(primarySeqNo));
 //            nocommit: replace with translog checkpoint test
 //            assertThat(

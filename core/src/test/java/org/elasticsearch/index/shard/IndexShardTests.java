@@ -1513,7 +1513,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         operations.add(new Translog.Index("testtype", "1", BytesReference.toBytes(jsonBuilder().startObject().field("foo", "bar").endObject().bytes())));
         newShard.prepareForIndexRecovery();
         newShard.recoveryState().getTranslog().totalOperations(operations.size());
-        newShard.skipTranslogRecovery();
+        newShard.openEngineAndSkipTranslogRecovery(null);
         newShard.performBatchRecovery(operations);
         assertFalse(newShard.getTranslog().syncNeeded());
     }
@@ -1542,7 +1542,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         newShard.prepareForIndexRecovery();
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(newShard.isActive());
-        newShard.performTranslogRecovery(true);
+        newShard.openEngineAndRecoveryFromTranslog(true);
         // Shard should now be active since we did recover:
         assertTrue(newShard.isActive());
     }
@@ -1570,7 +1570,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         List<Translog.Operation> operations = new ArrayList<>();
         operations.add(new Translog.Index("testtype", "1", BytesReference.toBytes(jsonBuilder().startObject().field("foo", "bar").endObject().bytes())));
         newShard.prepareForIndexRecovery();
-        newShard.skipTranslogRecovery();
+        newShard.openEngineAndSkipTranslogRecovery(null);
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(newShard.isActive());
         newShard.performBatchRecovery(operations);

@@ -167,7 +167,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         try {
             if (translogGeneration != null) {
-                final Checkpoint checkpoint = readCheckpoint();
+                final Checkpoint checkpoint = readCheckpoint(location);
                 final Path nextTranslogFile = location.resolve(getFilename(checkpoint.generation + 1));
                 final Path currentCheckpointFile = location.resolve(getCommitCheckpointFileName(checkpoint.generation));
                 // this is special handling for error condition when we create a new writer but we fail to bake
@@ -781,6 +781,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         long estimateSize();
 
+        long seqNo();
+
         Source getSource();
 
         /**
@@ -1371,9 +1373,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /** Reads and returns the current checkpoint */
-    final Checkpoint readCheckpoint() throws IOException {
+    static Checkpoint readCheckpoint(final Path location) throws IOException {
         return Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME));
     }
+
+    /** Reads and returns the current checkpoint */
+    public static long readLastSeqNoGlobalCheckpoint(final Path location) throws IOException {
+        return readCheckpoint(location).seqNoGlobalCheckpoint;
+    }
+
 
     /**
      * Returns the translog uuid used to associate a lucene index with a translog.

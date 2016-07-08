@@ -31,6 +31,7 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
@@ -117,17 +118,17 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) {
+    public SyncedFlushResult syncFlush(String syncId, Store.CommitId expectedCommitId) {
         throw new UnsupportedOperationException(shardId + " sync commit operation not allowed on shadow engine");
     }
 
     @Override
-    public CommitId flush() throws EngineException {
+    public Store.CommitId flush() throws EngineException {
         return flush(false, false);
     }
 
     @Override
-    public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
+    public Store.CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
         logger.trace("skipping FLUSH on shadow engine");
         // reread the last committed segment infos
         refresh("flush");
@@ -151,7 +152,7 @@ public class ShadowEngine extends Engine {
         } finally {
             store.decRef();
         }
-        return new CommitId(lastCommittedSegmentInfos.getId());
+        return new Store.CommitId(lastCommittedSegmentInfos.getId());
     }
 
     @Override

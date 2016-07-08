@@ -47,7 +47,7 @@ import org.elasticsearch.threadpool.ThreadPool;
  */
 public final class EngineConfig {
     private final ShardId shardId;
-    private final Engine.CommitId commitIdToOpen;
+    private final Store.CommitId commitIdToOpen;
     private final TranslogRecoveryPerformer translogRecoveryPerformer;
     private final IndexSettings indexSettings;
     private final ByteSizeValue indexingBufferSize;
@@ -94,7 +94,7 @@ public final class EngineConfig {
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
-    public EngineConfig(OpenMode openMode, ShardId shardId, Engine.CommitId commitIdToOpen, ThreadPool threadPool,
+    public EngineConfig(OpenMode openMode, ShardId shardId, Store.CommitId commitIdToOpen, ThreadPool threadPool,
                         IndexSettings indexSettings, Engine.Warmer warmer, Store store,
                         MergePolicy mergePolicy, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
@@ -286,11 +286,11 @@ public final class EngineConfig {
     }
 
     /**
-     * returns the {@link org.elasticsearch.index.engine.Engine.CommitId} the engine should open. Use null to
+     * returns the {@link Store.CommitId} the engine should open. Use null to
      * indicate the engine should the latest commit available (or create a new one if needed).
      */
     @Nullable
-    public Engine.CommitId getCommitIdToOpen() {
+    public Store.CommitId getCommitIdToOpen() {
         return commitIdToOpen;
     }
 

@@ -47,6 +47,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -197,9 +198,9 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                 return;
             }
 
-            final ActionListener<Map<String, Engine.CommitId>> commitIdsListener = new ActionListener<Map<String, Engine.CommitId>>() {
+            final ActionListener<Map<String, Store.CommitId>> commitIdsListener = new ActionListener<Map<String, Store.CommitId>>() {
                 @Override
-                public void onResponse(final Map<String, Engine.CommitId> commitIds) {
+                public void onResponse(final Map<String, Store.CommitId> commitIds) {
                     if (commitIds.isEmpty()) {
                         actionListener.onResponse(new ShardsSyncedFlushResult(shardId, totalShards, "all shards failed to commit on pre-sync"));
                         return;
@@ -298,7 +299,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
     }
 
 
-    void sendSyncRequests(final String syncId, final List<ShardRouting> shards, ClusterState state, Map<String, Engine.CommitId> expectedCommitIds,
+    void sendSyncRequests(final String syncId, final List<ShardRouting> shards, ClusterState state, Map<String, Store.CommitId> expectedCommitIds,
                           final ShardId shardId, final int totalShards, final ActionListener<ShardsSyncedFlushResult> listener) {
         final CountDown countDown = new CountDown(shards.size());
         final Map<ShardRouting, ShardSyncedFlushResponse> results = ConcurrentCollections.newConcurrentMap();
@@ -310,7 +311,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                 contDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
                 continue;
             }
-            final Engine.CommitId expectedCommitId = expectedCommitIds.get(shard.currentNodeId());
+            final Store.CommitId expectedCommitId = expectedCommitIds.get(shard.currentNodeId());
             if (expectedCommitId == null) {
                 logger.trace("{} can't resolve expected commit id for current node, skipping for sync id [{}]. shard routing {}", shardId, syncId, shard);
                 results.put(shard, new ShardSyncedFlushResponse("no commit id from pre-sync flush"));
@@ -360,9 +361,9 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
     /**
      * send presync requests to all started copies of the given shard
      */
-    void sendPreSyncRequests(final List<ShardRouting> shards, final ClusterState state, final ShardId shardId, final ActionListener<Map<String, Engine.CommitId>> listener) {
+    void sendPreSyncRequests(final List<ShardRouting> shards, final ClusterState state, final ShardId shardId, final ActionListener<Map<String, Store.CommitId>> listener) {
         final CountDown countDown = new CountDown(shards.size());
-        final ConcurrentMap<String, Engine.CommitId> commitIds = ConcurrentCollections.newConcurrentMap();
+        final ConcurrentMap<String, Store.CommitId> commitIds = ConcurrentCollections.newConcurrentMap();
         for (final ShardRouting shard : shards) {
             logger.trace("{} sending pre-synced flush request to {}", shardId, shard);
             final DiscoveryNode node = state.nodes().get(shard.currentNodeId());
@@ -381,7 +382,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
 
                 @Override
                 public void handleResponse(PreSyncedFlushResponse response) {
-                    Engine.CommitId existing = commitIds.putIfAbsent(node.getId(), response.commitId());
+                    Store.CommitId existing = commitIds.putIfAbsent(node.getId(), response.commitId());
                     assert existing == null : "got two answers for node [" + node + "]";
                     // count after the assert so we won't decrement twice in handleException
                     if (countDown.countDown()) {
@@ -409,7 +410,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
         FlushRequest flushRequest = new FlushRequest().force(false).waitIfOngoing(true);
         logger.trace("{} performing pre sync flush", request.shardId());
-        Engine.CommitId commitId = indexShard.flush(flushRequest);
+        Store.CommitId commitId = indexShard.flush(flushRequest);
         logger.trace("{} pre sync flush done. commit id {}", request.shardId(), commitId);
         return new PreSyncedFlushResponse(commitId);
     }
@@ -482,23 +483,23 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
      */
     static final class PreSyncedFlushResponse extends TransportResponse {
 
-        Engine.CommitId commitId;
+        Store.CommitId commitId;
 
         PreSyncedFlushResponse() {
         }
 
-        PreSyncedFlushResponse(Engine.CommitId commitId) {
+        PreSyncedFlushResponse(Store.CommitId commitId) {
             this.commitId = commitId;
         }
 
-        public Engine.CommitId commitId() {
+        public Store.CommitId commitId() {
             return commitId;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            commitId = new Engine.CommitId(in);
+            commitId = new Store.CommitId(in);
         }
 
         @Override
@@ -511,13 +512,13 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
     public static final class ShardSyncedFlushRequest extends TransportRequest {
 
         private String syncId;
-        private Engine.CommitId expectedCommitId;
+        private Store.CommitId expectedCommitId;
         private ShardId shardId;
 
         public ShardSyncedFlushRequest() {
         }
 
-        public ShardSyncedFlushRequest(ShardId shardId, String syncId, Engine.CommitId expectedCommitId) {
+        public ShardSyncedFlushRequest(ShardId shardId, String syncId, Store.CommitId expectedCommitId) {
             this.expectedCommitId = expectedCommitId;
             this.shardId = shardId;
             this.syncId = syncId;
@@ -527,7 +528,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             shardId = ShardId.readShardId(in);
-            expectedCommitId = new Engine.CommitId(in);
+            expectedCommitId = new Store.CommitId(in);
             syncId = in.readString();
         }
 
@@ -547,7 +548,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
             return syncId;
         }
 
-        public Engine.CommitId expectedCommitId() {
+        public Store.CommitId expectedCommitId() {
             return expectedCommitId;
         }
 

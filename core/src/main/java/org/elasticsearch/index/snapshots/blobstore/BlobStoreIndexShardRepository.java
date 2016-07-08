@@ -34,7 +34,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -68,6 +67,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreFormat;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
 import org.elasticsearch.repositories.blobstore.LegacyBlobStoreFormat;
+import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -822,6 +822,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 final Store.MetadataSnapshot recoveryTargetMetadata;
                 try {
                     recoveryTargetMetadata = store.getMetadataOrEmpty();
+
                 } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException e) {
                     logger.warn("{} Can't read metadata from store", e, shardId);
                     throw new IndexShardRestoreFailedException(shardId, "Can't restore corrupted shard", e);

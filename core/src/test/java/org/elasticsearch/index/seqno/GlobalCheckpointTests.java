@@ -19,7 +19,6 @@
 package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.Before;
@@ -34,14 +33,14 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class GlobalCheckpointTests extends ESTestCase {
 
-    GlobalCheckpointService checkpointService;
+    GlobalCheckpointTracker checkpointService;
 
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        checkpointService = new GlobalCheckpointService(new ShardId("test", "_na_", 0),
-            IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), SequenceNumbersService.UNASSIGNED_SEQ_NO);
+        checkpointService = new GlobalCheckpointTracker(
+            IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), SequenceNumbersService.UNASSIGNED_SEQ_NO, logger);
     }
 
     public void testEmptyShards() {

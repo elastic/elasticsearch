@@ -22,8 +22,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.List;
@@ -76,8 +76,8 @@ public class SyncedFlushUtil {
     /**
      * Blocking version of {@link SyncedFlushService#sendPreSyncRequests(List, ClusterState, ShardId, ActionListener)}
      */
-    public static Map<String, Engine.CommitId> sendPreSyncRequests(SyncedFlushService service, List<ShardRouting> activeShards, ClusterState state, ShardId shardId) {
-        LatchedListener<Map<String, Engine.CommitId>> listener = new LatchedListener<>();
+    public static Map<String, Store.CommitId> sendPreSyncRequests(SyncedFlushService service, List<ShardRouting> activeShards, ClusterState state, ShardId shardId) {
+        LatchedListener<Map<String, Store.CommitId>> listener = new LatchedListener<>();
         service.sendPreSyncRequests(activeShards, state, shardId, listener);
         try {
             listener.latch.await();

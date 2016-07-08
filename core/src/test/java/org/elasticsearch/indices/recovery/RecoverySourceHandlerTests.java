@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
@@ -71,7 +72,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
                 new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
-            null, RecoveryState.Type.STORE, randomLong());
+            null, null, SequenceNumbersService.UNASSIGNED_SEQ_NO, RecoveryState.Type.STORE, randomLong());
         Store store = newStore(createTempDir());
         RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, recoverySettings.getChunkSize().bytesAsInt(),
                 logger);
@@ -121,7 +122,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
                 new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
-            null, RecoveryState.Type.STORE, randomLong());
+            null, null, SequenceNumbersService.UNASSIGNED_SEQ_NO, RecoveryState.Type.STORE, randomLong());
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
@@ -184,7 +185,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
                 new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
-            null, RecoveryState.Type.STORE, randomLong());
+            null, null, SequenceNumbersService.UNASSIGNED_SEQ_NO, RecoveryState.Type.STORE, randomLong());
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);

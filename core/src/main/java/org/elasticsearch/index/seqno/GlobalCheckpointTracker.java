@@ -21,9 +21,8 @@ package org.elasticsearch.index.seqno;
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Set;
 
@@ -39,7 +38,9 @@ import java.util.Set;
  * The global checkpoint is maintained by the primary shard and is replicated to all the replicas
  * (via {@link GlobalCheckpointSyncAction}).
  */
-public class GlobalCheckpointService extends AbstractIndexShardComponent {
+public class GlobalCheckpointTracker {
+
+    private final ESLogger logger;
 
     /**
      * This map holds the last known local checkpoint for every shard copy that's active.
@@ -74,15 +75,14 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
      * should be set to the last known global checkpoint for this shard, or
      * {@link SequenceNumbersService#NO_OPS_PERFORMED}.
      *
-     * @param shardId          the shard this service is providing tracking
-     *                         local checkpoints for
      * @param indexSettings    the index settings
      * @param globalCheckpoint the last known global checkpoint for this shard,
      *                         or
      *                         {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}
+     * @param logger           logger to use
      */
-    GlobalCheckpointService(final ShardId shardId, final IndexSettings indexSettings, final long globalCheckpoint) {
-        super(shardId, indexSettings);
+    GlobalCheckpointTracker(final IndexSettings indexSettings, final long globalCheckpoint, final ESLogger logger) {
+        this.logger = logger;
         activeLocalCheckpoints = new ObjectLongHashMap<>(1 + indexSettings.getNumberOfReplicas());
         inSyncLocalCheckpoints = new ObjectLongHashMap<>(indexSettings.getNumberOfReplicas());
         trackingLocalCheckpoint = new ObjectLongHashMap<>(indexSettings.getNumberOfReplicas());
@@ -155,7 +155,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
         }
         if (minCheckpoint < globalCheckpoint) {
             // nocommit: if this happens - do you we fail the shard?
-            throw new IllegalStateException(shardId + " new global checkpoint [" + minCheckpoint
+            throw new IllegalStateException("new global checkpoint [" + minCheckpoint
                 + "] is lower than previous one [" + globalCheckpoint + "]");
         }
         if (globalCheckpoint != minCheckpoint) {
@@ -167,7 +167,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
     }
 
     /**
-     * gets the current global checkpoint. See java docs for {@link GlobalCheckpointService} for more details
+     * gets the current global checkpoint. See java docs for {@link GlobalCheckpointTracker} for more details
      */
     public synchronized long getCheckpoint() {
         return globalCheckpoint;

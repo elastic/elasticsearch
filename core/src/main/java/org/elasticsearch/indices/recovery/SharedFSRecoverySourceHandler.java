@@ -20,6 +20,8 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.index.seqno.LocalCheckpointTracker;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 
@@ -39,6 +41,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
         super(shard, recoveryTarget, request, -1, logger);
         this.shard = shard;
         this.request = request;
+        assert request.getSeqNoRecoveryStart() == SequenceNumbersService.UNASSIGNED_SEQ_NO;
     }
 
     @Override
@@ -58,7 +61,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
                     shard.failShard("failed to close engine (phase1)", e);
                 }
             }
-            prepareTargetForTranslog(0);
+            prepareTargetForTranslog(0, null);
             finalizeRecovery();
             return response;
         } catch (Exception e) {
@@ -78,7 +81,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
     }
 
     @Override
-    protected int sendSnapshot(Translog.Snapshot snapshot) {
+    protected int sendSnapshot(Translog.Snapshot snapshot, LocalCheckpointTracker seenSeqNo) {
         logger.trace("{} skipping recovery of translog snapshot on shared filesystem to: {}",
                 shard.shardId(), request.targetNode());
         return 0;

@@ -21,7 +21,6 @@ package org.elasticsearch.index.seqno;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.Before;
@@ -40,7 +39,7 @@ import static org.hamcrest.Matchers.isOneOf;
 
 public class LocalCheckpointServiceTests extends ESTestCase {
 
-    private LocalCheckpointService checkpointService;
+    private LocalCheckpointTracker checkpointTracker;
 
     private final int SMALL_CHUNK_SIZE = 4;
 
@@ -48,15 +47,14 @@ public class LocalCheckpointServiceTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        checkpointService = getCheckpointService();
+        checkpointTracker = getCheckpointTracker();
     }
 
-    private LocalCheckpointService getCheckpointService() {
-        return new LocalCheckpointService(
-                new ShardId("test", "_na_", 0),
+    private LocalCheckpointTracker getCheckpointTracker() {
+        return new LocalCheckpointTracker(
                 IndexSettingsModule.newIndexSettings("test",
                         Settings.builder()
-                                .put(LocalCheckpointService.SETTINGS_BIT_ARRAYS_SIZE.getKey(), SMALL_CHUNK_SIZE)
+                                .put(LocalCheckpointTracker.SETTINGS_BIT_ARRAYS_SIZE.getKey(), SMALL_CHUNK_SIZE)
                                 .build()),
                 SequenceNumbersService.NO_OPS_PERFORMED,
                 SequenceNumbersService.NO_OPS_PERFORMED);
@@ -64,29 +62,29 @@ public class LocalCheckpointServiceTests extends ESTestCase {
 
     public void testSimplePrimary() {
         long seqNo1, seqNo2;
-        assertThat(checkpointService.getCheckpoint(), equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
-        seqNo1 = checkpointService.generateSeqNo();
+        assertThat(checkpointTracker.getCheckpoint(), equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
+        seqNo1 = checkpointTracker.generateSeqNo();
         assertThat(seqNo1, equalTo(0L));
-        checkpointService.markSeqNoAsCompleted(seqNo1);
-        assertThat(checkpointService.getCheckpoint(), equalTo(0L));
-        seqNo1 = checkpointService.generateSeqNo();
-        seqNo2 = checkpointService.generateSeqNo();
+        checkpointTracker.markSeqNoAsCompleted(seqNo1);
+        assertThat(checkpointTracker.getCheckpoint(), equalTo(0L));
+        seqNo1 = checkpointTracker.generateSeqNo();
+        seqNo2 = checkpointTracker.generateSeqNo();
         assertThat(seqNo1, equalTo(1L));
         assertThat(seqNo2, equalTo(2L));
-        checkpointService.markSeqNoAsCompleted(seqNo2);
-        assertThat(checkpointService.getCheckpoint(), equalTo(0L));
-        checkpointService.markSeqNoAsCompleted(seqNo1);
-        assertThat(checkpointService.getCheckpoint(), equalTo(2L));
+        checkpointTracker.markSeqNoAsCompleted(seqNo2);
+        assertThat(checkpointTracker.getCheckpoint(), equalTo(0L));
+        checkpointTracker.markSeqNoAsCompleted(seqNo1);
+        assertThat(checkpointTracker.getCheckpoint(), equalTo(2L));
     }
 
     public void testSimpleReplica() {
-        assertThat(checkpointService.getCheckpoint(), equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
-        checkpointService.markSeqNoAsCompleted(0L);
-        assertThat(checkpointService.getCheckpoint(), equalTo(0L));
-        checkpointService.markSeqNoAsCompleted(2L);
-        assertThat(checkpointService.getCheckpoint(), equalTo(0L));
-        checkpointService.markSeqNoAsCompleted(1L);
-        assertThat(checkpointService.getCheckpoint(), equalTo(2L));
+        assertThat(checkpointTracker.getCheckpoint(), equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
+        checkpointTracker.markSeqNoAsCompleted(0L);
+        assertThat(checkpointTracker.getCheckpoint(), equalTo(0L));
+        checkpointTracker.markSeqNoAsCompleted(2L);
+        assertThat(checkpointTracker.getCheckpoint(), equalTo(0L));
+        checkpointTracker.markSeqNoAsCompleted(1L);
+        assertThat(checkpointTracker.getCheckpoint(), equalTo(2L));
     }
 
     public void testSimpleOverFlow() {
@@ -99,11 +97,11 @@ public class LocalCheckpointServiceTests extends ESTestCase {
         }
         Collections.shuffle(seqNoList, random());
         for (Integer seqNo : seqNoList) {
-            checkpointService.markSeqNoAsCompleted(seqNo);
+            checkpointTracker.markSeqNoAsCompleted(seqNo);
         }
-        assertThat(checkpointService.checkpoint, equalTo(maxOps - 1L));
-        assertThat(checkpointService.processedSeqNo.size(), equalTo(aligned ? 0 : 1));
-        assertThat(checkpointService.firstProcessedSeqNo, equalTo(((long) maxOps / SMALL_CHUNK_SIZE) * SMALL_CHUNK_SIZE));
+        assertThat(checkpointTracker.checkpoint, equalTo(maxOps - 1L));
+        assertThat(checkpointTracker.processedSeqNo.size(), equalTo(aligned ? 0 : 1));
+        assertThat(checkpointTracker.firstProcessedSeqNo, equalTo(((long) maxOps / SMALL_CHUNK_SIZE) * SMALL_CHUNK_SIZE));
     }
 
     public void testConcurrentPrimary() throws InterruptedException {
@@ -125,10 +123,10 @@ public class LocalCheckpointServiceTests extends ESTestCase {
                 protected void doRun() throws Exception {
                     barrier.await();
                     for (int i = 0; i < opsPerThread; i++) {
-                        long seqNo = checkpointService.generateSeqNo();
+                        long seqNo = checkpointTracker.generateSeqNo();
                         logger.info("[t{}] started   [{}]", threadId, seqNo);
                         if (seqNo != unFinishedSeq) {
-                            checkpointService.markSeqNoAsCompleted(seqNo);
+                            checkpointTracker.markSeqNoAsCompleted(seqNo);
                             logger.info("[t{}] completed [{}]", threadId, seqNo);
                         }
                     }
@@ -139,12 +137,12 @@ public class LocalCheckpointServiceTests extends ESTestCase {
         for (Thread thread : threads) {
             thread.join();
         }
-        assertThat(checkpointService.getMaxSeqNo(), equalTo(maxOps - 1L));
-        assertThat(checkpointService.getCheckpoint(), equalTo(unFinishedSeq - 1L));
-        checkpointService.markSeqNoAsCompleted(unFinishedSeq);
-        assertThat(checkpointService.getCheckpoint(), equalTo(maxOps - 1L));
-        assertThat(checkpointService.processedSeqNo.size(), isOneOf(0, 1));
-        assertThat(checkpointService.firstProcessedSeqNo, equalTo(((long) maxOps / SMALL_CHUNK_SIZE) * SMALL_CHUNK_SIZE));
+        assertThat(checkpointTracker.getMaxSeqNo(), equalTo(maxOps - 1L));
+        assertThat(checkpointTracker.getCheckpoint(), equalTo(unFinishedSeq - 1L));
+        checkpointTracker.markSeqNoAsCompleted(unFinishedSeq);
+        assertThat(checkpointTracker.getCheckpoint(), equalTo(maxOps - 1L));
+        assertThat(checkpointTracker.processedSeqNo.size(), isOneOf(0, 1));
+        assertThat(checkpointTracker.firstProcessedSeqNo, equalTo(((long) maxOps / SMALL_CHUNK_SIZE) * SMALL_CHUNK_SIZE));
     }
 
     public void testConcurrentReplica() throws InterruptedException {
@@ -177,7 +175,7 @@ public class LocalCheckpointServiceTests extends ESTestCase {
                     Integer[] ops = seqNoPerThread[threadId];
                     for (int seqNo : ops) {
                         if (seqNo != unFinishedSeq) {
-                            checkpointService.markSeqNoAsCompleted(seqNo);
+                            checkpointTracker.markSeqNoAsCompleted(seqNo);
                             logger.info("[t{}] completed [{}]", threadId, seqNo);
                         }
                     }
@@ -188,11 +186,11 @@ public class LocalCheckpointServiceTests extends ESTestCase {
         for (Thread thread : threads) {
             thread.join();
         }
-        assertThat(checkpointService.getMaxSeqNo(), equalTo(maxOps - 1L));
-        assertThat(checkpointService.getCheckpoint(), equalTo(unFinishedSeq - 1L));
-        checkpointService.markSeqNoAsCompleted(unFinishedSeq);
-        assertThat(checkpointService.getCheckpoint(), equalTo(maxOps - 1L));
-        assertThat(checkpointService.firstProcessedSeqNo, equalTo(((long) maxOps / SMALL_CHUNK_SIZE) * SMALL_CHUNK_SIZE));
+        assertThat(checkpointTracker.getMaxSeqNo(), equalTo(maxOps - 1L));
+        assertThat(checkpointTracker.getCheckpoint(), equalTo(unFinishedSeq - 1L));
+        checkpointTracker.markSeqNoAsCompleted(unFinishedSeq);
+        assertThat(checkpointTracker.getCheckpoint(), equalTo(maxOps - 1L));
+        assertThat(checkpointTracker.firstProcessedSeqNo, equalTo(((long) maxOps / SMALL_CHUNK_SIZE) * SMALL_CHUNK_SIZE));
     }
 
 }

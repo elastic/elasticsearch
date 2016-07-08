@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
@@ -39,14 +40,15 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MapperException;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.FutureTransportResponseHandler;
@@ -56,6 +58,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -162,8 +165,18 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
 
         logger.trace("collecting local files for {}", recoveryTarget);
         Store.MetadataSnapshot metadataSnapshot = null;
+        long seqNoRecoveryStart = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        Store.CommitId seqNoRecoveryCommitId = null;
         try {
             metadataSnapshot = recoveryTarget.store().getMetadataOrEmpty();
+            if (recoveryTarget.isSeqNoBasedRecoveryAllowed()) {
+                long globalCheckpoint = Translog.readLastSeqNoGlobalCheckpoint(recoveryTarget.indexShard().shardPath().resolveTranslog());
+                IndexCommit commit = recoveryTarget.store().findLastCommitBellowSeqNo(globalCheckpoint);
+                if (commit != null) {
+                    seqNoRecoveryCommitId = new Store.CommitId(commit);
+                    seqNoRecoveryStart = Store.loadSeqNoStatsFromCommit(commit).getLocalCheckpoint();
+                }
+            }
         } catch (IOException e) {
             logger.warn("error while listing local files, recover as if there are none", e);
             metadataSnapshot = Store.MetadataSnapshot.EMPTY;
@@ -176,7 +189,10 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
         }
         final StartRecoveryRequest request = new StartRecoveryRequest(recoveryTarget.shardId(), recoveryTarget.sourceNode(),
                 clusterService.localNode(),
-                metadataSnapshot, recoveryTarget.state().getType(), recoveryTarget.recoveryId());
+                metadataSnapshot,
+                seqNoRecoveryCommitId,
+                seqNoRecoveryStart,
+                recoveryTarget.state().getType(), recoveryTarget.recoveryId());
 
         final AtomicReference<RecoveryResponse> responseHolder = new AtomicReference<>();
         try {
@@ -262,6 +278,19 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
                 return;
             }
 
+            if (cause instanceof ElasticsearchException) {
+                ElasticsearchException es = (ElasticsearchException) cause;
+                final List<String> header = es.getHeader(RecoverySourceHandler.SEQ_NO_BASED_RECOVERY_FAILED);
+                if (header != null && header.isEmpty() == false) {
+                    // disable seqNo based recovery
+                    // nocommit: if we get smarter about knowing if source shard has the requested seq_no range
+                    // before starting the target engine, we don't need this retry mechanism
+                    recoveryTarget.setAllowSeqNoBasedRecovery(false);
+                    retryRecovery(recoveryTarget, header.get(0), timeValueMillis(0), request);
+                    return;
+                }
+            }
+
             if (cause instanceof AlreadyClosedException) {
                 onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(), new RecoveryFailedException(request, "source shard is " +
                         "closed", cause), false);
@@ -283,7 +312,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
         public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel) throws Exception {
             try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
-                recoveryRef.status().prepareForTranslogOperations(request.totalTranslogOps());
+                recoveryRef.status().prepareForTranslogOperations(request.totalTranslogOps(), request.getBaseCommit());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }

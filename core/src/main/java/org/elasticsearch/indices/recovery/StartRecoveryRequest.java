@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -45,6 +46,10 @@ public class StartRecoveryRequest extends TransportRequest {
 
     private RecoveryState.Type recoveryType;
 
+    private Store.CommitId seqNoRecoveryCommitId;
+
+    private long seqNoRecoveryStart;
+
     public StartRecoveryRequest() {
     }
 
@@ -54,7 +59,11 @@ public class StartRecoveryRequest extends TransportRequest {
      * @param sourceNode       The node to recover from
      * @param targetNode       The node to recover to
      */
-    public StartRecoveryRequest(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, Store.MetadataSnapshot metadataSnapshot, RecoveryState.Type recoveryType, long recoveryId) {
+    public StartRecoveryRequest(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode,
+                                Store.MetadataSnapshot metadataSnapshot, @Nullable Store.CommitId seqNoRecoveryCommitId,
+                                long seqNoRecoveryStart, RecoveryState.Type recoveryType, long recoveryId) {
+        this.seqNoRecoveryCommitId = seqNoRecoveryCommitId;
+        this.seqNoRecoveryStart = seqNoRecoveryStart;
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.sourceNode = sourceNode;
@@ -87,6 +96,14 @@ public class StartRecoveryRequest extends TransportRequest {
         return metadataSnapshot;
     }
 
+    public long getSeqNoRecoveryStart() {
+        return seqNoRecoveryStart;
+    }
+
+    public Store.CommitId getSeqNoRecoveryCommitId() {
+        return seqNoRecoveryCommitId;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -96,7 +113,8 @@ public class StartRecoveryRequest extends TransportRequest {
         targetNode = new DiscoveryNode(in);
         metadataSnapshot = new Store.MetadataSnapshot(in);
         recoveryType = RecoveryState.Type.fromId(in.readByte());
-
+        seqNoRecoveryCommitId = in.readOptionalWriteable(Store.CommitId::new);
+        seqNoRecoveryStart = in.readZLong();
     }
 
     @Override
@@ -108,6 +126,8 @@ public class StartRecoveryRequest extends TransportRequest {
         targetNode.writeTo(out);
         metadataSnapshot.writeTo(out);
         out.writeByte(recoveryType.id());
+        out.writeOptionalWriteable(seqNoRecoveryCommitId);
+        out.writeZLong(seqNoRecoveryStart);
     }
 
 }

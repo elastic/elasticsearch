@@ -698,7 +698,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         tracer.reset(4);
         boolean timeout = randomBoolean();
-        TransportRequestOptions options = timeout ? TransportRequestOptions.builder().withTimeout(1).build() : TransportRequestOptions.EMPTY;
+        TransportRequestOptions options = timeout ? TransportRequestOptions.builder().withTimeout(1).build() :
+            TransportRequestOptions.EMPTY;
         serviceA.sendRequest(nodeB, "test", new StringMessageRequest("", 10), options, noopResponseHandler);
         requestCompleted.acquire();
         tracer.expectedEvents.get().await();

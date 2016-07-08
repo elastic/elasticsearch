@@ -314,7 +314,10 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         // if index created V_2_3 > use prefix encoded postings format
         final GeoPointField.TermEncoding encoding = (indexVersionCreated.before(Version.V_2_3_0)) ?
             GeoPointField.TermEncoding.NUMERIC : GeoPointField.TermEncoding.PREFIX;
-        normDistance = GeoUtils.maxRadialDistance(center, normDistance);
+        // Lucene 6.0 and earlier requires a radial restriction
+        if (indexVersionCreated.before(Version.V_5_0_0_alpha4)) {
+            normDistance = GeoUtils.maxRadialDistance(center, normDistance);
+        }
         return new GeoPointDistanceQuery(fieldType.name(), encoding, center.lat(), center.lon(), normDistance);
     }
 

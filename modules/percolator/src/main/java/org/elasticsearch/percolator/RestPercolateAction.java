@@ -35,6 +35,7 @@ import org.elasticsearch.rest.action.support.RestToXContentListener;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@Deprecated
 public class RestPercolateAction extends BaseRestHandler {
     @Inject
     public RestPercolateAction(Settings settings, RestController controller) {

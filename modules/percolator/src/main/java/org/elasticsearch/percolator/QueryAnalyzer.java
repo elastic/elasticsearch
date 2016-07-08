@@ -18,15 +18,8 @@
  */
 package org.elasticsearch.percolator;
 
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.queries.TermsQuery;
@@ -46,37 +39,25 @@ import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.index.mapper.ParseContext;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
-/**
- * Utility to extract query terms from queries and create queries from documents.
- */
-public final class ExtractQueryTermsService {
+public final class QueryAnalyzer {
 
-    private static final byte FIELD_VALUE_SEPARATOR = 0;  // nul code point
-    public static final String EXTRACTION_COMPLETE = "complete";
-    public static final String EXTRACTION_PARTIAL = "partial";
-    public static final String EXTRACTION_FAILED = "failed";
-
-    static final Map<Class<? extends Query>, Function<Query, Result>> queryProcessors;
+    private static final Map<Class<? extends Query>, Function<Query, Result>> queryProcessors;
 
     static {
-        Map<Class<? extends Query>, Function<Query, Result>> map = new HashMap<>(17);
+        Map<Class<? extends Query>, Function<Query, Result>> map = new HashMap<>();
         map.put(MatchNoDocsQuery.class, matchNoDocsQuery());
         map.put(ConstantScoreQuery.class, constantScoreQuery());
         map.put(BoostQuery.class, boostQuery());
@@ -97,83 +78,34 @@ public final class ExtractQueryTermsService {
         queryProcessors = Collections.unmodifiableMap(map);
     }
 
-    private ExtractQueryTermsService() {
+    private QueryAnalyzer() {
     }
 
     /**
-     * Extracts all terms from the specified query and adds it to the specified document.
+     * Extracts terms from the provided query. These terms are stored with the percolator query and
+     * used by the percolate query's candidate query as fields to be query by. The candidate query
+     * holds the terms from the document to be percolated and allows to the percolate query to ignore
+     * percolator queries that we know would otherwise never match.
      *
-     * @param query                 The query to extract terms from
-     * @param document              The document to add the extracted terms to
-     * @param queryTermsFieldField  The field in the document holding the extracted terms
-     * @param extractionResultField The field contains whether query term extraction was successful, partial or
-     *                              failed. (For example the query contained an unsupported query (e.g. WildcardQuery)
-     *                              then query extraction would fail)
-     * @param fieldType             The field type for the query metadata field
-     */
-    public static void extractQueryTerms(Query query, ParseContext.Document document, String queryTermsFieldField,
-                                         String extractionResultField, FieldType fieldType) {
-        Result result;
-        try {
-            result = extractQueryTerms(query);
-        } catch (UnsupportedQueryException e) {
-            document.add(new Field(extractionResultField, EXTRACTION_FAILED, fieldType));
-            return;
-        }
-        for (Term term : result.terms) {
-            BytesRefBuilder builder = new BytesRefBuilder();
-            builder.append(new BytesRef(term.field()));
-            builder.append(FIELD_VALUE_SEPARATOR);
-            builder.append(term.bytes());
-            document.add(new Field(queryTermsFieldField, builder.toBytesRef(), fieldType));
-        }
-        if (result.verified) {
-            document.add(new Field(extractionResultField, EXTRACTION_COMPLETE, fieldType));
-        } else {
-            document.add(new Field(extractionResultField, EXTRACTION_PARTIAL, fieldType));
-        }
-    }
-
-    /**
-     * Creates a terms query containing all terms from all fields of the specified index reader.
-     */
-    public static Query createQueryTermsQuery(IndexReader indexReader, String queryMetadataField,
-                                              Term... optionalTerms) throws IOException {
-        Objects.requireNonNull(queryMetadataField);
-
-        List<Term> extractedTerms = new ArrayList<>();
-        Collections.addAll(extractedTerms, optionalTerms);
-
-        Fields fields = MultiFields.getFields(indexReader);
-        for (String field : fields) {
-            Terms terms = fields.terms(field);
-            if (terms == null) {
-                continue;
-            }
-
-            BytesRef fieldBr = new BytesRef(field);
-            TermsEnum tenum = terms.iterator();
-            for (BytesRef term = tenum.next(); term != null; term = tenum.next()) {
-                BytesRefBuilder builder = new BytesRefBuilder();
-                builder.append(fieldBr);
-                builder.append(FIELD_VALUE_SEPARATOR);
-                builder.append(term);
-                extractedTerms.add(new Term(queryMetadataField, builder.toBytesRef()));
-            }
-        }
-        return new TermsQuery(extractedTerms);
-    }
-
-    /**
-     * Extracts all query terms from the provided query and adds it to specified list.
      * <p>
-     * From boolean query with no should clauses or phrase queries only the longest term are selected,
+     * When extracting the terms for the specified query, we can also determine if the percolator query is
+     * always going to match. For example if a percolator query just contains a term query or a disjunction
+     * query then when the candidate query matches with that, we know the entire percolator query always
+     * matches. This allows the percolate query to skip the expensive memory index verification step that
+     * it would otherwise have to execute (for example when a percolator query contains a phrase query or a
+     * conjunction query).
+     *
+     * <p>
+     * The query analyzer doesn't always extract all terms from the specified query. For example from a
+     * boolean query with no should clauses or phrase queries only the longest term are selected,
      * since that those terms are likely to be the rarest. Boolean query's must_not clauses are always ignored.
+     *
      * <p>
-     * If from part of the query, no query terms can be extracted then term extraction is stopped and
-     * an UnsupportedQueryException is thrown.
+     * Sometimes the query analyzer can't always extract terms from a sub query, if that happens then
+     * query analysis is stopped and an UnsupportedQueryException is thrown. So that the caller can mark
+     * this query in such a way that the PercolatorQuery always verifies if this query with the MemoryIndex.
      */
-    static Result extractQueryTerms(Query query) {
+    public static Result analyze(Query query) {
         Class queryClass = query.getClass();
         if (queryClass.isAnonymousClass()) {
             // Sometimes queries have anonymous classes in that case we need the direct super class.
@@ -195,14 +127,14 @@ public final class ExtractQueryTermsService {
     static Function<Query, Result> constantScoreQuery() {
         return query -> {
             Query wrappedQuery = ((ConstantScoreQuery) query).getQuery();
-            return extractQueryTerms(wrappedQuery);
+            return analyze(wrappedQuery);
         };
     }
 
     static Function<Query, Result> boostQuery() {
         return query -> {
             Query wrappedQuery = ((BoostQuery) query).getQuery();
-            return extractQueryTerms(wrappedQuery);
+            return analyze(wrappedQuery);
         };
     }
 
@@ -277,7 +209,7 @@ public final class ExtractQueryTermsService {
             Set<Term> bestClauses = null;
             SpanNearQuery spanNearQuery = (SpanNearQuery) query;
             for (SpanQuery clause : spanNearQuery.getClauses()) {
-                Result temp = extractQueryTerms(clause);
+                Result temp = analyze(clause);
                 bestClauses = selectTermListWithTheLongestShortestTerm(temp.terms, bestClauses);
             }
             return new Result(false, bestClauses);
@@ -289,7 +221,7 @@ public final class ExtractQueryTermsService {
             Set<Term> terms = new HashSet<>();
             SpanOrQuery spanOrQuery = (SpanOrQuery) query;
             for (SpanQuery clause : spanOrQuery.getClauses()) {
-                terms.addAll(extractQueryTerms(clause).terms);
+                terms.addAll(analyze(clause).terms);
             }
             return new Result(false, terms);
         };
@@ -297,14 +229,14 @@ public final class ExtractQueryTermsService {
 
     static Function<Query, Result> spanNotQuery() {
         return query -> {
-            Result result = extractQueryTerms(((SpanNotQuery) query).getInclude());
+            Result result = analyze(((SpanNotQuery) query).getInclude());
             return new Result(false, result.terms);
         };
     }
 
     static Function<Query, Result> spanFirstQuery() {
         return query -> {
-            Result result = extractQueryTerms(((SpanFirstQuery) query).getMatch());
+            Result result = analyze(((SpanFirstQuery) query).getMatch());
             return new Result(false, result.terms);
         };
     }
@@ -341,7 +273,7 @@ public final class ExtractQueryTermsService {
 
                     Result temp;
                     try {
-                        temp = extractQueryTerms(clause.getQuery());
+                        temp = analyze(clause.getQuery());
                     } catch (UnsupportedQueryException e) {
                         uqe = e;
                         continue;
@@ -381,7 +313,7 @@ public final class ExtractQueryTermsService {
     static Function<Query, Result> functionScoreQuery() {
         return query -> {
             FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) query;
-            Result result = extractQueryTerms(functionScoreQuery.getSubQuery());
+            Result result = analyze(functionScoreQuery.getSubQuery());
             // If min_score is specified we can't guarantee upfront that this percolator query matches,
             // so in that case we set verified to false.
             // (if it matches with the percolator document matches with the extracted terms.
@@ -395,7 +327,7 @@ public final class ExtractQueryTermsService {
         boolean verified = minimumShouldMatch <= 1 && otherClauses == false;
         Set<Term> terms = new HashSet<>();
         for (Query disjunct : disjunctions) {
-            Result subResult = extractQueryTerms(disjunct);
+            Result subResult = analyze(disjunct);
             if (subResult.verified == false) {
                 verified = false;
             }

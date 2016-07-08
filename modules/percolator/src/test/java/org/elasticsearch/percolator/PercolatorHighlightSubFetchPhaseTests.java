@@ -45,10 +45,9 @@ import static org.hamcrest.Matchers.sameInstance;
 public class PercolatorHighlightSubFetchPhaseTests extends ESTestCase {
 
     public void testHitsExecutionNeeded() {
-        PercolateQuery percolateQuery = new PercolateQuery.Builder("", ctx -> null, new BytesArray("{}"),
-                Mockito.mock(IndexSearcher.class))
-                .build();
-
+        PercolateQuery percolateQuery = new PercolateQuery(
+                "", ctx -> null, new BytesArray("{}"), new MatchAllDocsQuery(), Mockito.mock(IndexSearcher.class), new MatchAllDocsQuery()
+        );
         PercolatorHighlightSubFetchPhase subFetchPhase = new PercolatorHighlightSubFetchPhase(Settings.EMPTY,
             new Highlighters(Settings.EMPTY));
         SearchContext searchContext = Mockito.mock(SearchContext.class);
@@ -61,10 +60,9 @@ public class PercolatorHighlightSubFetchPhaseTests extends ESTestCase {
     }
 
     public void testLocatePercolatorQuery() {
-        PercolateQuery percolateQuery = new PercolateQuery.Builder("", ctx -> null, new BytesArray("{}"),
-                Mockito.mock(IndexSearcher.class))
-                .build();
-
+        PercolateQuery percolateQuery = new PercolateQuery(
+                "", ctx -> null, new BytesArray("{}"), new MatchAllDocsQuery(), Mockito.mock(IndexSearcher.class), new MatchAllDocsQuery()
+        );
         assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(new MatchAllDocsQuery()), nullValue());
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
         bq.add(new MatchAllDocsQuery(), BooleanClause.Occur.FILTER);

@@ -57,6 +57,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+@Deprecated
 public class TransportPercolateAction extends HandledTransportAction<PercolateRequest, PercolateResponse> {
 
     private final Client client;

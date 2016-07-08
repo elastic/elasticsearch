@@ -18,14 +18,7 @@
  */
 package org.elasticsearch.percolator;
 
-import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.queries.TermsQuery;
@@ -48,10 +41,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.percolator.ExtractQueryTermsService.Result;
+import org.elasticsearch.percolator.QueryAnalyzer.Result;
 import org.elasticsearch.test.ESTestCase;
-
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -60,70 +51,18 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.percolator.ExtractQueryTermsService.EXTRACTION_COMPLETE;
-import static org.elasticsearch.percolator.ExtractQueryTermsService.EXTRACTION_FAILED;
-import static org.elasticsearch.percolator.ExtractQueryTermsService.EXTRACTION_PARTIAL;
-import static org.elasticsearch.percolator.ExtractQueryTermsService.UnsupportedQueryException;
-import static org.elasticsearch.percolator.ExtractQueryTermsService.extractQueryTerms;
-import static org.elasticsearch.percolator.ExtractQueryTermsService.createQueryTermsQuery;
-import static org.elasticsearch.percolator.ExtractQueryTermsService.selectTermListWithTheLongestShortestTerm;
+import static org.elasticsearch.percolator.QueryAnalyzer.UnsupportedQueryException;
+import static org.elasticsearch.percolator.QueryAnalyzer.analyze;
+import static org.elasticsearch.percolator.QueryAnalyzer.selectTermListWithTheLongestShortestTerm;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class ExtractQueryTermsServiceTests extends ESTestCase {
-
-    public static final String QUERY_TERMS_FIELD = "extracted_terms";
-    public static final String EXTRACTION_RESULT_FIELD = "extraction_result";
-    public static final FieldType QUERY_TERMS_FIELD_TYPE = new FieldType();
-
-    static {
-        QUERY_TERMS_FIELD_TYPE.setTokenized(false);
-        QUERY_TERMS_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-        QUERY_TERMS_FIELD_TYPE.freeze();
-    }
-
-    public void testExtractQueryMetadata() {
-        BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        TermQuery termQuery1 = new TermQuery(new Term("field1", "term1"));
-        bq.add(termQuery1, BooleanClause.Occur.SHOULD);
-        TermQuery termQuery2 = new TermQuery(new Term("field2", "term2"));
-        bq.add(termQuery2, BooleanClause.Occur.SHOULD);
-
-        ParseContext.Document document = new ParseContext.Document();
-        extractQueryTerms(bq.build(), document, QUERY_TERMS_FIELD, EXTRACTION_RESULT_FIELD, QUERY_TERMS_FIELD_TYPE);
-        assertThat(document.getField(EXTRACTION_RESULT_FIELD).stringValue(), equalTo(EXTRACTION_COMPLETE));
-        List<IndexableField> fields = new ArrayList<>(Arrays.asList(document.getFields(QUERY_TERMS_FIELD)));
-        Collections.sort(fields, (field1, field2) -> field1.binaryValue().compareTo(field2.binaryValue()));
-        assertThat(fields.size(), equalTo(2));
-        assertThat(fields.get(0).name(), equalTo(QUERY_TERMS_FIELD));
-        assertThat(fields.get(0).binaryValue().utf8ToString(), equalTo("field1\u0000term1"));
-        assertThat(fields.get(1).name(), equalTo(QUERY_TERMS_FIELD));
-        assertThat(fields.get(1).binaryValue().utf8ToString(), equalTo("field2\u0000term2"));
-    }
-
-    public void testExtractQueryMetadata_unsupported() {
-        TermRangeQuery query = new TermRangeQuery("field1", new BytesRef("a"), new BytesRef("z"), true, true);
-        ParseContext.Document document = new ParseContext.Document();
-        extractQueryTerms(query, document, QUERY_TERMS_FIELD, EXTRACTION_RESULT_FIELD, QUERY_TERMS_FIELD_TYPE);
-        assertThat(document.getFields().size(), equalTo(1));
-        assertThat(document.getField(EXTRACTION_RESULT_FIELD).stringValue(), equalTo(EXTRACTION_FAILED));
-    }
-
-    public void testExtractQueryMetadata_notVerified() {
-        PhraseQuery phraseQuery = new PhraseQuery("field", "term");
-
-        ParseContext.Document document = new ParseContext.Document();
-        extractQueryTerms(phraseQuery, document, QUERY_TERMS_FIELD, EXTRACTION_RESULT_FIELD, QUERY_TERMS_FIELD_TYPE);
-        assertThat(document.getFields().size(), equalTo(2));
-        assertThat(document.getFields().get(0).name(), equalTo(QUERY_TERMS_FIELD));
-        assertThat(document.getFields().get(0).binaryValue().utf8ToString(), equalTo("field\u0000term"));
-        assertThat(document.getField(EXTRACTION_RESULT_FIELD).stringValue(), equalTo(EXTRACTION_PARTIAL));
-    }
+public class QueryAnalyzerTests extends ESTestCase {
 
     public void testExtractQueryMetadata_termQuery() {
         TermQuery termQuery = new TermQuery(new Term("_field", "_term"));
-        Result result = extractQueryTerms(termQuery);
+        Result result = analyze(termQuery);
         assertThat(result.verified, is(true));
         List<Term> terms = new ArrayList<>(result.terms);
         assertThat(terms.size(), equalTo(1));
@@ -133,7 +72,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
 
     public void testExtractQueryMetadata_termsQuery() {
         TermsQuery termsQuery = new TermsQuery("_field", new BytesRef("_term1"), new BytesRef("_term2"));
-        Result result = extractQueryTerms(termsQuery);
+        Result result = analyze(termsQuery);
         assertThat(result.verified, is(true));
         List<Term> terms = new ArrayList<>(result.terms);
         Collections.sort(terms);
@@ -145,7 +84,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
 
         // test with different fields
         termsQuery = new TermsQuery(new Term("_field1", "_term1"), new Term("_field2", "_term2"));
-        result = extractQueryTerms(termsQuery);
+        result = analyze(termsQuery);
         assertThat(result.verified, is(true));
         terms = new ArrayList<>(result.terms);
         Collections.sort(terms);
@@ -158,7 +97,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
 
     public void testExtractQueryMetadata_phraseQuery() {
         PhraseQuery phraseQuery = new PhraseQuery("_field", "_term1", "term2");
-        Result result = extractQueryTerms(phraseQuery);
+        Result result = analyze(phraseQuery);
         assertThat(result.verified, is(false));
         List<Term> terms = new ArrayList<>(result.terms);
         assertThat(terms.size(), equalTo(1));
@@ -181,7 +120,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         builder.add(subBuilder.build(), BooleanClause.Occur.SHOULD);
 
         BooleanQuery booleanQuery = builder.build();
-        Result result = extractQueryTerms(booleanQuery);
+        Result result = analyze(booleanQuery);
         assertThat("Should clause with phrase query isn't verified, so entire query can't be verified", result.verified, is(false));
         List<Term> terms = new ArrayList<>(result.terms);
         Collections.sort(terms);
@@ -209,7 +148,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         builder.add(subBuilder.build(), BooleanClause.Occur.SHOULD);
 
         BooleanQuery booleanQuery = builder.build();
-        Result result = extractQueryTerms(booleanQuery);
+        Result result = analyze(booleanQuery);
         assertThat(result.verified, is(true));
         List<Term> terms = new ArrayList<>(result.terms);
         Collections.sort(terms);
@@ -232,7 +171,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         builder.add(phraseQuery, BooleanClause.Occur.SHOULD);
 
         BooleanQuery booleanQuery = builder.build();
-        Result result = extractQueryTerms(booleanQuery);
+        Result result = analyze(booleanQuery);
         assertThat(result.verified, is(false));
         List<Term> terms = new ArrayList<>(result.terms);
         assertThat(terms.size(), equalTo(1));
@@ -246,58 +185,58 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         builder.add(termQuery1, BooleanClause.Occur.SHOULD);
         TermQuery termQuery2 = new TermQuery(new Term("_field", "_term2"));
         builder.add(termQuery2, BooleanClause.Occur.SHOULD);
-        Result result = extractQueryTerms(builder.build());
+        Result result = analyze(builder.build());
         assertThat("All clauses are exact, so candidate matches are verified", result.verified, is(true));
 
         builder = new BooleanQuery.Builder();
         builder.add(termQuery1, BooleanClause.Occur.SHOULD);
         PhraseQuery phraseQuery1 = new PhraseQuery("_field", "_term1", "_term2");
         builder.add(phraseQuery1, BooleanClause.Occur.SHOULD);
-        result = extractQueryTerms(builder.build());
+        result = analyze(builder.build());
         assertThat("Clause isn't exact, so candidate matches are not verified", result.verified, is(false));
 
         builder = new BooleanQuery.Builder();
         builder.add(phraseQuery1, BooleanClause.Occur.SHOULD);
         PhraseQuery phraseQuery2 = new PhraseQuery("_field", "_term3", "_term4");
         builder.add(phraseQuery2, BooleanClause.Occur.SHOULD);
-        result = extractQueryTerms(builder.build());
+        result = analyze(builder.build());
         assertThat("No clause is exact, so candidate matches are not verified", result.verified, is(false));
 
         builder = new BooleanQuery.Builder();
         builder.add(termQuery1, BooleanClause.Occur.MUST_NOT);
         builder.add(termQuery2, BooleanClause.Occur.SHOULD);
-        result = extractQueryTerms(builder.build());
+        result = analyze(builder.build());
         assertThat("There is a must_not clause, so candidate matches are not verified", result.verified, is(false));
 
         builder = new BooleanQuery.Builder();
         builder.setMinimumNumberShouldMatch(randomIntBetween(2, 32));
         builder.add(termQuery1, BooleanClause.Occur.SHOULD);
         builder.add(termQuery2, BooleanClause.Occur.SHOULD);
-        result = extractQueryTerms(builder.build());
+        result = analyze(builder.build());
         assertThat("Minimum match is >= 1, so candidate matches are not verified", result.verified, is(false));
 
         builder = new BooleanQuery.Builder();
         builder.add(termQuery1, randomBoolean() ? BooleanClause.Occur.MUST : BooleanClause.Occur.FILTER);
-        result = extractQueryTerms(builder.build());
+        result = analyze(builder.build());
         assertThat("Single required clause, so candidate matches are verified", result.verified, is(false));
 
         builder = new BooleanQuery.Builder();
         builder.add(termQuery1, randomBoolean() ? BooleanClause.Occur.MUST : BooleanClause.Occur.FILTER);
         builder.add(termQuery2, randomBoolean() ? BooleanClause.Occur.MUST : BooleanClause.Occur.FILTER);
-        result = extractQueryTerms(builder.build());
+        result = analyze(builder.build());
         assertThat("Two or more required clauses, so candidate matches are not verified", result.verified, is(false));
 
         builder = new BooleanQuery.Builder();
         builder.add(termQuery1, randomBoolean() ? BooleanClause.Occur.MUST : BooleanClause.Occur.FILTER);
         builder.add(termQuery2, BooleanClause.Occur.MUST_NOT);
-        result = extractQueryTerms(builder.build());
+        result = analyze(builder.build());
         assertThat("Required and prohibited clauses, so candidate matches are not verified", result.verified, is(false));
     }
 
     public void testExtractQueryMetadata_constantScoreQuery() {
         TermQuery termQuery1 = new TermQuery(new Term("_field", "_term"));
         ConstantScoreQuery constantScoreQuery = new ConstantScoreQuery(termQuery1);
-        Result result = extractQueryTerms(constantScoreQuery);
+        Result result = analyze(constantScoreQuery);
         assertThat(result.verified, is(true));
         List<Term> terms = new ArrayList<>(result.terms);
         assertThat(terms.size(), equalTo(1));
@@ -308,7 +247,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
     public void testExtractQueryMetadata_boostQuery() {
         TermQuery termQuery1 = new TermQuery(new Term("_field", "_term"));
         BoostQuery constantScoreQuery = new BoostQuery(termQuery1, 1f);
-        Result result = extractQueryTerms(constantScoreQuery);
+        Result result = analyze(constantScoreQuery);
         assertThat(result.verified, is(true));
         List<Term> terms = new ArrayList<>(result.terms);
         assertThat(terms.size(), equalTo(1));
@@ -320,7 +259,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         CommonTermsQuery commonTermsQuery = new CommonTermsQuery(BooleanClause.Occur.SHOULD, BooleanClause.Occur.SHOULD, 100);
         commonTermsQuery.add(new Term("_field", "_term1"));
         commonTermsQuery.add(new Term("_field", "_term2"));
-        Result result = extractQueryTerms(commonTermsQuery);
+        Result result = analyze(commonTermsQuery);
         assertThat(result.verified, is(false));
         List<Term> terms = new ArrayList<>(result.terms);
         Collections.sort(terms);
@@ -334,7 +273,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
     public void testExtractQueryMetadata_blendedTermQuery() {
         Term[] termsArr = new Term[]{new Term("_field", "_term1"), new Term("_field", "_term2")};
         BlendedTermQuery commonTermsQuery = BlendedTermQuery.booleanBlendedQuery(termsArr, false);
-        Result result = extractQueryTerms(commonTermsQuery);
+        Result result = analyze(commonTermsQuery);
         assertThat(result.verified, is(true));
         List<Term> terms = new ArrayList<>(result.terms);
         Collections.sort(terms);
@@ -358,7 +297,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         // 4) FieldMaskingSpanQuery is a tricky query so we shouldn't optimize this
 
         SpanTermQuery spanTermQuery1 = new SpanTermQuery(new Term("_field", "_short_term"));
-        Result result = extractQueryTerms(spanTermQuery1);
+        Result result = analyze(spanTermQuery1);
         assertThat(result.verified, is(true));
         assertTermsEqual(result.terms, spanTermQuery1.getTerm());
     }
@@ -369,7 +308,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         SpanNearQuery spanNearQuery = new SpanNearQuery.Builder("_field", true)
                 .addClause(spanTermQuery1).addClause(spanTermQuery2).build();
 
-        Result result = extractQueryTerms(spanNearQuery);
+        Result result = analyze(spanNearQuery);
         assertThat(result.verified, is(false));
         assertTermsEqual(result.terms, spanTermQuery2.getTerm());
     }
@@ -378,7 +317,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         SpanTermQuery spanTermQuery1 = new SpanTermQuery(new Term("_field", "_short_term"));
         SpanTermQuery spanTermQuery2 = new SpanTermQuery(new Term("_field", "_very_long_term"));
         SpanOrQuery spanOrQuery = new SpanOrQuery(spanTermQuery1, spanTermQuery2);
-        Result result = extractQueryTerms(spanOrQuery);
+        Result result = analyze(spanOrQuery);
         assertThat(result.verified, is(false));
         assertTermsEqual(result.terms, spanTermQuery1.getTerm(), spanTermQuery2.getTerm());
     }
@@ -386,7 +325,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
     public void testExtractQueryMetadata_spanFirstQuery() {
         SpanTermQuery spanTermQuery1 = new SpanTermQuery(new Term("_field", "_short_term"));
         SpanFirstQuery spanFirstQuery = new SpanFirstQuery(spanTermQuery1, 20);
-        Result result = extractQueryTerms(spanFirstQuery);
+        Result result = analyze(spanFirstQuery);
         assertThat(result.verified, is(false));
         assertTermsEqual(result.terms, spanTermQuery1.getTerm());
     }
@@ -395,27 +334,27 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         SpanTermQuery spanTermQuery1 = new SpanTermQuery(new Term("_field", "_short_term"));
         SpanTermQuery spanTermQuery2 = new SpanTermQuery(new Term("_field", "_very_long_term"));
         SpanNotQuery spanNotQuery = new SpanNotQuery(spanTermQuery1, spanTermQuery2);
-        Result result = extractQueryTerms(spanNotQuery);
+        Result result = analyze(spanNotQuery);
         assertThat(result.verified, is(false));
         assertTermsEqual(result.terms, spanTermQuery1.getTerm());
     }
 
     public void testExtractQueryMetadata_matchNoDocsQuery() {
-        Result result = extractQueryTerms(new MatchNoDocsQuery("sometimes there is no reason at all"));
+        Result result = analyze(new MatchNoDocsQuery("sometimes there is no reason at all"));
         assertThat(result.verified, is(true));
         assertEquals(0, result.terms.size());
 
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
         bq.add(new TermQuery(new Term("field", "value")), BooleanClause.Occur.MUST);
         bq.add(new MatchNoDocsQuery("sometimes there is no reason at all"), BooleanClause.Occur.MUST);
-        result = extractQueryTerms(bq.build());
+        result = analyze(bq.build());
         assertThat(result.verified, is(false));
         assertEquals(0, result.terms.size());
 
         bq = new BooleanQuery.Builder();
         bq.add(new TermQuery(new Term("field", "value")), BooleanClause.Occur.SHOULD);
         bq.add(new MatchNoDocsQuery("sometimes there is no reason at all"), BooleanClause.Occur.SHOULD);
-        result = extractQueryTerms(bq.build());
+        result = analyze(bq.build());
         assertThat(result.verified, is(true));
         assertTermsEqual(result.terms, new Term("field", "value"));
 
@@ -423,18 +362,18 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
                 Arrays.asList(new TermQuery(new Term("field", "value")), new MatchNoDocsQuery("sometimes there is no reason at all")),
                 1f
         );
-        result = extractQueryTerms(disjunctionMaxQuery);
+        result = analyze(disjunctionMaxQuery);
         assertThat(result.verified, is(true));
         assertTermsEqual(result.terms, new Term("field", "value"));
     }
 
     public void testExtractQueryMetadata_matchAllDocsQuery() {
-        expectThrows(UnsupportedQueryException.class, () -> extractQueryTerms(new MatchAllDocsQuery()));
+        expectThrows(UnsupportedQueryException.class, () -> analyze(new MatchAllDocsQuery()));
 
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.add(new TermQuery(new Term("field", "value")), BooleanClause.Occur.MUST);
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
-        Result result = extractQueryTerms(builder.build());
+        Result result = analyze(builder.build());
         assertThat(result.verified, is(false));
         assertTermsEqual(result.terms, new Term("field", "value"));
 
@@ -443,39 +382,39 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
         BooleanQuery bq1 = builder.build();
-        expectThrows(UnsupportedQueryException.class, () -> extractQueryTerms(bq1));
+        expectThrows(UnsupportedQueryException.class, () -> analyze(bq1));
 
         builder = new BooleanQuery.Builder();
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST_NOT);
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
         BooleanQuery bq2 = builder.build();
-        expectThrows(UnsupportedQueryException.class, () -> extractQueryTerms(bq2));
+        expectThrows(UnsupportedQueryException.class, () -> analyze(bq2));
 
         builder = new BooleanQuery.Builder();
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
         BooleanQuery bq3 = builder.build();
-        expectThrows(UnsupportedQueryException.class, () -> extractQueryTerms(bq3));
+        expectThrows(UnsupportedQueryException.class, () -> analyze(bq3));
 
         builder = new BooleanQuery.Builder();
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST_NOT);
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
         BooleanQuery bq4 = builder.build();
-        expectThrows(UnsupportedQueryException.class, () -> extractQueryTerms(bq4));
+        expectThrows(UnsupportedQueryException.class, () -> analyze(bq4));
 
         builder = new BooleanQuery.Builder();
         builder.add(new TermQuery(new Term("field", "value")), BooleanClause.Occur.SHOULD);
         builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
         BooleanQuery bq5 = builder.build();
-        expectThrows(UnsupportedQueryException.class, () -> extractQueryTerms(bq5));
+        expectThrows(UnsupportedQueryException.class, () -> analyze(bq5));
     }
 
     public void testExtractQueryMetadata_unsupportedQuery() {
         TermRangeQuery termRangeQuery = new TermRangeQuery("_field", null, null, true, false);
-        UnsupportedQueryException e = expectThrows(UnsupportedQueryException.class, () -> extractQueryTerms(termRangeQuery));
+        UnsupportedQueryException e = expectThrows(UnsupportedQueryException.class, () -> analyze(termRangeQuery));
         assertThat(e.getUnsupportedQuery(), sameInstance(termRangeQuery));
 
         TermQuery termQuery1 = new TermQuery(new Term("_field", "_term"));
@@ -484,7 +423,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         builder.add(termRangeQuery, BooleanClause.Occur.SHOULD);
         BooleanQuery bq = builder.build();
 
-        e = expectThrows(UnsupportedQueryException.class, () -> extractQueryTerms(bq));
+        e = expectThrows(UnsupportedQueryException.class, () -> analyze(bq));
         assertThat(e.getUnsupportedQuery(), sameInstance(termRangeQuery));
     }
 
@@ -497,7 +436,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         builder.add(unsupportedQuery, BooleanClause.Occur.MUST);
         BooleanQuery bq1 = builder.build();
 
-        Result result = extractQueryTerms(bq1);
+        Result result = analyze(bq1);
         assertThat(result.verified, is(false));
         assertTermsEqual(result.terms, termQuery1.getTerm());
 
@@ -507,7 +446,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         builder.add(termQuery2, BooleanClause.Occur.MUST);
         builder.add(unsupportedQuery, BooleanClause.Occur.MUST);
         bq1 = builder.build();
-        result = extractQueryTerms(bq1);
+        result = analyze(bq1);
         assertThat(result.verified, is(false));
         assertTermsEqual(result.terms, termQuery2.getTerm());
 
@@ -515,7 +454,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         builder.add(unsupportedQuery, BooleanClause.Occur.MUST);
         builder.add(unsupportedQuery, BooleanClause.Occur.MUST);
         BooleanQuery bq2 = builder.build();
-        UnsupportedQueryException e = expectThrows(UnsupportedQueryException.class, () -> extractQueryTerms(bq2));
+        UnsupportedQueryException e = expectThrows(UnsupportedQueryException.class, () -> analyze(bq2));
         assertThat(e.getUnsupportedQuery(), sameInstance(unsupportedQuery));
     }
 
@@ -528,7 +467,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
                 Arrays.asList(termQuery1, termQuery2, termQuery3, termQuery4), 0.1f
         );
 
-        Result result = extractQueryTerms(disjunctionMaxQuery);
+        Result result = analyze(disjunctionMaxQuery);
         assertThat(result.verified, is(true));
         List<Term> terms = new ArrayList<>(result.terms);
         Collections.sort(terms);
@@ -546,7 +485,7 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
                 Arrays.asList(termQuery1, termQuery2, termQuery3, new PhraseQuery("_field", "_term4")), 0.1f
         );
 
-        result = extractQueryTerms(disjunctionMaxQuery);
+        result = analyze(disjunctionMaxQuery);
         assertThat(result.verified, is(false));
         terms = new ArrayList<>(result.terms);
         Collections.sort(terms);
@@ -563,12 +502,12 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
 
     public void testSynonymQuery() {
         SynonymQuery query = new SynonymQuery();
-        Result result = extractQueryTerms(query);
+        Result result = analyze(query);
         assertThat(result.verified, is(true));
         assertThat(result.terms.isEmpty(), is(true));
 
         query = new SynonymQuery(new Term("_field", "_value1"), new Term("_field", "_value2"));
-        result = extractQueryTerms(query);
+        result = analyze(query);
         assertThat(result.verified, is(true));
         assertTermsEqual(result.terms, new Term("_field", "_value1"), new Term("_field", "_value2"));
     }
@@ -576,45 +515,14 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
     public void testFunctionScoreQuery() {
         TermQuery termQuery = new TermQuery(new Term("_field", "_value"));
         FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(termQuery, new RandomScoreFunction());
-        Result result = extractQueryTerms(functionScoreQuery);
+        Result result = analyze(functionScoreQuery);
         assertThat(result.verified, is(true));
         assertTermsEqual(result.terms, new Term("_field", "_value"));
 
         functionScoreQuery = new FunctionScoreQuery(termQuery, new RandomScoreFunction(), 1f, null, 10f);
-        result = extractQueryTerms(functionScoreQuery);
+        result = analyze(functionScoreQuery);
         assertThat(result.verified, is(false));
         assertTermsEqual(result.terms, new Term("_field", "_value"));
-    }
-
-    public void testCreateQueryMetadataQuery() throws Exception {
-        MemoryIndex memoryIndex = new MemoryIndex(false);
-        memoryIndex.addField("field1", "the quick brown fox jumps over the lazy dog", new WhitespaceAnalyzer());
-        memoryIndex.addField("field2", "some more text", new WhitespaceAnalyzer());
-        memoryIndex.addField("_field3", "unhide me", new WhitespaceAnalyzer());
-        memoryIndex.addField("field4", "123", new WhitespaceAnalyzer());
-
-        IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
-        TermsQuery query = (TermsQuery)
-                createQueryTermsQuery(indexReader, QUERY_TERMS_FIELD, new Term(EXTRACTION_RESULT_FIELD, EXTRACTION_FAILED));
-
-        PrefixCodedTerms terms = query.getTermData();
-        assertThat(terms.size(), equalTo(15L));
-        PrefixCodedTerms.TermIterator termIterator = terms.iterator();
-        assertTermIterator(termIterator, "_field3\u0000me", QUERY_TERMS_FIELD);
-        assertTermIterator(termIterator, "_field3\u0000unhide", QUERY_TERMS_FIELD);
-        assertTermIterator(termIterator, "field1\u0000brown", QUERY_TERMS_FIELD);
-        assertTermIterator(termIterator, "field1\u0000dog", QUERY_TERMS_FIELD);
-        assertTermIterator(termIterator, "field1\u0000fox", QUERY_TERMS_FIELD);
-        assertTermIterator(termIterator, "field1\u0000jumps", QUERY_TERMS_FIELD);
-        assertTermIterator(termIterator, "field1\u0000lazy", QUERY_TERMS_FIELD);
-        assertTermIterator(termIterator, "field1\u0000over", QUERY_TERMS_FIELD);
-        assertTermIterator(termIterator, "field1\u0000quick", QUERY_TERMS_FIELD);
-        assertTermIterator(termIterator, "field1\u0000the", QUERY_TERMS_FIELD);
-        assertTermIterator(termIterator, "field2\u0000more", QUERY_TERMS_FIELD);
-        assertTermIterator(termIterator, "field2\u0000some", QUERY_TERMS_FIELD);
-        assertTermIterator(termIterator, "field2\u0000text", QUERY_TERMS_FIELD);
-        assertTermIterator(termIterator, "field4\u0000123", QUERY_TERMS_FIELD);
-        assertTermIterator(termIterator, EXTRACTION_FAILED, EXTRACTION_RESULT_FIELD);
     }
 
     public void testSelectTermsListWithHighestSumOfTermLength() {
@@ -641,11 +549,6 @@ public class ExtractQueryTermsServiceTests extends ESTestCase {
         Set<Term> result = selectTermListWithTheLongestShortestTerm(terms1, terms2);
         Set<Term> expected = shortestTerms1Length >= shortestTerms2Length ? terms1 : terms2;
         assertThat(result, sameInstance(expected));
-    }
-
-    private void assertTermIterator(PrefixCodedTerms.TermIterator termIterator, String expectedValue, String expectedField) {
-        assertThat(termIterator.next().utf8ToString(), equalTo(expectedValue));
-        assertThat(termIterator.field(), equalTo(expectedField));
     }
 
     private static void assertTermsEqual(Set<Term> actual, Term... expected) {

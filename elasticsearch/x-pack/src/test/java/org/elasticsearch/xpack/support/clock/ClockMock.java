@@ -12,7 +12,7 @@ import org.joda.time.DateTimeZone;
 import java.util.concurrent.TimeUnit;
 
 /**
- *
+ * A clock that can be modified for testing.
  */
 public class ClockMock implements Clock {
 

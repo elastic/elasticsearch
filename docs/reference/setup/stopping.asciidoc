@@ -1,5 +1,5 @@
 [[stopping-elasticsearch]]
-=== Stopping Elasticsearch
+== Stopping Elasticsearch
 
 An orderly shutdown of Elasticsearch ensures that Elasticsearch has a chance to cleanup and close
 outstanding resources. For example, a node that is shutdown in an orderly fashion will remove itself

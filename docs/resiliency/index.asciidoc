@@ -59,9 +59,9 @@ We are committed to tracking down and fixing all the issues that are posted.
 ==== Jepsen Tests
 
 The Jepsen platform is specifically designed to test distributed systems. It is not a single test and is regularly adapted
-to create new scenarios. We have ported all published scenarios to our testing infrastructure. Of course
-as the system evolves, new scenarios can come up that are not yet covered. We are committed to investigating all new scenarios and will
-report issues that we find on this page and in our GitHub repository.
+to create new scenarios. We have currently ported all published Jepsen scenarios that deal with loss of acknowledged writes to our testing
+framework. As the Jepsen tests evolve, we will continue porting new scenarios that are not covered yet. We are committed to investigating
+all new scenarios and will report issues that we find on this page and in our GitHub repository.
 
 [float]
 === Better request retry mechanism when nodes are disconnected (STATUS: ONGOING)
@@ -102,6 +102,19 @@ space.  The following issues have been identified:
 
 Other safeguards are tracked in the meta-issue {GIT}11511[#11511].
 
+[float]
+=== The _version field may not uniquely identify document content during a network partition (STATUS: ONGOING)
+
+When a primary has been partitioned away from the cluster there is a short period of time until it detects this. During that time it will continue
+indexing writes locally, thereby updating document versions. When it tries to replicate the operation, however, it will discover that it is
+partitioned away. It won't acknowledge the write and will wait until the partition is resolved to negotiate with the master on how to proceed.
+The master will decide to either fail any replicas which failed to index the operations on the primary or tell the primary that it has to
+step down because a new primary has been chosen in the meantime. Since the old primary has already written documents, clients may already have read from
+the old primary before it shuts itself down. The version numbers of these reads may not be unique if the new primary has already accepted
+writes for the same document (see {GIT}19269[#19269]).
+
+We are currently implementing Sequence numbers {GIT}10708[#10708] which better track primary changes. Sequence numbers thus provide a basis
+for uniquely identifying writes even in the presence of network partitions and will replace `_version` in operations that require this.
 
 [float]
 === Relocating shards omitted by reporting infrastructure (STATUS: ONGOING)
@@ -119,20 +132,22 @@ in the case of each type of failure. The plan is to have a test case that valida
 [float]
 === Run Jepsen (STATUS: ONGOING)
 
-We have ported all of the known scenarios in the Jepsen blogs to our testing infrastructure. The new tests are run continuously in our
-testing farm and are passing. We are also working on running Jepsen independently to verify that no failures are found.
+We have ported the known scenarios in the Jepsen blogs that check loss of acknowledged writes to our testing infrastructure.
+The new tests are run continuously in our testing farm and are passing. We are also working on running Jepsen independently to verify
+that no failures are found.
 
 
 == Unreleased
 
 [float]
-=== Port Jepsen tests to our testing framework (STATUS: UNRELEASED, V5.0.0)
+=== Port Jepsen tests dealing with loss of acknowledged writes to our testing framework (STATUS: UNRELEASED, V5.0.0)
 
-We have increased our test coverage to include scenarios tested by Jepsen, as described in the Elasticsearch related blogs. We make heavy
-use of randomization to expand on the scenarios that can be tested and to introduce new error conditions.
+We have increased our test coverage to include scenarios tested by Jepsen that demonstrate loss of acknowledged writes, as described in
+the Elasticsearch related blogs. We make heavy use of randomization to expand on the scenarios that can be tested and to introduce
+new error conditions.
 You can follow the work on the master branch of the
 https://github.com/elastic/elasticsearch/blob/master/core/src/test/java/org/elasticsearch/discovery/DiscoveryWithServiceDisruptionsIT.java[`DiscoveryWithServiceDisruptionsIT` class],
-where the `testAckedIndexing` test was specifically added to cover known Jepsen related scenarios.
+where the `testAckedIndexing` test was specifically added to check that we don't lose acknowledged writes in various failure scenarios.
 
 
 [float]

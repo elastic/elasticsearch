@@ -1450,11 +1450,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         toNodeMap.put(serviceB, nodeB);
         toNodeMap.put(serviceC, nodeC);
         AtomicBoolean fail = new AtomicBoolean(false);
-        class TRH implements TransportRequestHandler<TestRequest> {
+        class TestRequestHandler implements TransportRequestHandler<TestRequest> {
 
             private final TransportService service;
 
-            TRH(TransportService service) {
+            TestRequestHandler(TransportService service) {
                 this.service = service;
             }
 
@@ -1515,18 +1515,18 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
         }
         serviceB.registerRequestHandler("action1", TestRequest::new, randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
-            new TRH(serviceB));
+            new TestRequestHandler(serviceB));
         serviceC.registerRequestHandler("action1", TestRequest::new, randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
-            new TRH(serviceC));
+            new TestRequestHandler(serviceC));
         serviceA.registerRequestHandler("action1", TestRequest::new, randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
-            new TRH(serviceA));
+            new TestRequestHandler(serviceA));
         int iters = randomIntBetween(30, 60);
         CountDownLatch allRequestsDone = new CountDownLatch(iters);
-        class TRH2 implements TransportResponseHandler<TestResponse> {
+        class TestResponseHandler implements TransportResponseHandler<TestResponse> {
 
             private final int id;
 
-            public TRH2(int id) {
+            public TestResponseHandler(int id) {
                 this.id = id;
             }
 
@@ -1556,14 +1556,13 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 return randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
             }
         }
-        ;
 
         for (int i = 0; i < iters; i++) {
             TransportService service = randomFrom(serviceC, serviceB, serviceA);
             DiscoveryNode node = randomFrom(nodeC, nodeB, nodeA);
             logger.debug("send from {} to {}", toNodeMap.get(service), node);
             service.sendRequest(node, "action1", new TestRequest("REQ[" + i + "]"),
-                TransportRequestOptions.builder().withCompress(randomBoolean()).build(), new TRH2(i));
+                TransportRequestOptions.builder().withCompress(randomBoolean()).build(), new TestResponseHandler(i));
         }
         logger.debug("waiting for response");
         fail.set(randomBoolean());

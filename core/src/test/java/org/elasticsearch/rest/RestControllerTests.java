@@ -116,7 +116,7 @@ public class RestControllerTests extends ESTestCase {
         assertFalse(controller.canTripCircuitBreaker(new FakeRestRequest.Builder().withPath("/do-not-trip").build()));
     }
 
-    public void testRegisterHandlerAsDeprecationHandler() {
+    public void testRegisterAsDeprecatedHandler() {
         RestController controller = mock(RestController.class);
 
         RestRequest.Method method = randomFrom(RestRequest.Method.values());
@@ -131,6 +131,28 @@ public class RestControllerTests extends ESTestCase {
         controller.registerAsDeprecatedHandler(method, path, handler, deprecationMessage, logger);
 
         verify(controller).registerHandler(eq(method), eq(path), any(DeprecationRestHandler.class));
+    }
+
+    public void testRegisterWithDeprecatedHandler() {
+        final RestController controller = mock(RestController.class);
+
+        final RestRequest.Method method = randomFrom(RestRequest.Method.values());
+        final String path = "/_" + randomAsciiOfLengthBetween(1, 6);
+        final RestHandler handler = mock(RestHandler.class);
+        final RestRequest.Method deprecatedMethod = randomFrom(RestRequest.Method.values());
+        final String deprecatedPath = "/_" + randomAsciiOfLengthBetween(1, 6);
+        final DeprecationLogger logger = mock(DeprecationLogger.class);
+
+        final String deprecationMessage = "[" + deprecatedMethod.name() + " " + deprecatedPath + "] is deprecated! Use [" +
+            method.name() + " " + path + "] instead.";
+
+        // don't want to test everything -- just that it actually wraps the handlers
+        doCallRealMethod().when(controller).registerWithDeprecatedHandler(method, path, handler, deprecatedMethod, deprecatedPath, logger);
+
+        controller.registerWithDeprecatedHandler(method, path, handler, deprecatedMethod, deprecatedPath, logger);
+
+        verify(controller).registerHandler(method, path, handler);
+        verify(controller).registerAsDeprecatedHandler(deprecatedMethod, deprecatedPath, handler, deprecationMessage, logger);
     }
 
     /**

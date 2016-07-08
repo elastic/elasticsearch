@@ -129,6 +129,42 @@ public class RestController extends AbstractLifecycleComponent {
     }
 
     /**
+     * Registers a REST handler to be executed when the provided {@code method} and {@code path} match the request, or when provided
+     * with {@code deprecatedMethod} and {@code deprecatedPath}. Expected usage:
+     * <pre><code>
+     * // remove deprecation in next major release
+     * controller.registerWithDeprecatedHandler(POST, "/_forcemerge", this,
+     *                                          POST, "/_optimize", deprecationLogger);
+     * controller.registerWithDeprecatedHandler(POST, "/{index}/_forcemerge", this,
+     *                                          POST, "/{index}/_optimize", deprecationLogger);
+     * </code></pre>
+     * <p>
+     * The registered REST handler ({@code method} with {@code path}) is a normal REST handler that is not deprecated and it is
+     * replacing the deprecated REST handler ({@code deprecatedMethod} with {@code deprecatedPath}) that is using the <em>same</em>
+     * {@code handler}.
+     * <p>
+     * Deprecated REST handlers without a direct replacement should be deprecated directly using {@link #registerAsDeprecatedHandler}
+     * and a specific message.
+     *
+     * @param method GET, POST, etc.
+     * @param path Path to handle (e.g., "/_forcemerge")
+     * @param handler The handler to actually execute
+     * @param deprecatedMethod GET, POST, etc.
+     * @param deprecatedPath <em>Deprecated</em> path to handle (e.g., "/_optimize")
+     * @param logger The existing deprecation logger to use
+     */
+    public void registerWithDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler,
+                                              RestRequest.Method deprecatedMethod, String deprecatedPath,
+                                              DeprecationLogger logger) {
+        // e.g., [POST /_optimize] is deprecated! Use [POST /_forcemerge] instead.
+        final String deprecationMessage =
+            "[" + deprecatedMethod.name() + " " + deprecatedPath + "] is deprecated! Use [" + method.name() + " " + path + "] instead.";
+
+        registerHandler(method, path, handler);
+        registerAsDeprecatedHandler(deprecatedMethod, deprecatedPath, handler, deprecationMessage, logger);
+    }
+
+    /**
      * Registers a REST handler to be executed when the provided method and path match the request.
      *
      * @param method GET, POST, etc.

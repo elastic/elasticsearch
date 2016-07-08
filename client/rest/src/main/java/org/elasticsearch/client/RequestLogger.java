@@ -85,7 +85,7 @@ final class RequestLogger {
         if (logger.isDebugEnabled()) {
             logger.debug("request [" + request.getMethod() + " " + host + getUri(request.getRequestLine()) + "] failed", e);
         }
-        if (logger.isTraceEnabled()) {
+        if (tracer.isTraceEnabled()) {
             String traceRequest;
             try {
                 traceRequest = buildTraceRequest(request, host);

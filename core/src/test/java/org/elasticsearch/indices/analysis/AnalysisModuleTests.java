@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ar.ArabicNormalizationFilter;
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.fa.PersianNormalizationFilter;
 import org.apache.lucene.analysis.hunspell.Dictionary;
@@ -96,7 +97,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
             throw new RuntimeException(e);
         }
     }
-    
+
     private Settings loadFromClasspath(String path) throws IOException {
         return Settings.builder().loadFromStream(path, getClass().getResourceAsStream(path))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -119,6 +120,33 @@ public class AnalysisModuleTests extends ModuleTestCase {
         assertTokenFilter("keyword_repeat", KeywordRepeatFilter.class);
         assertTokenFilter("persian_normalization", PersianNormalizationFilter.class);
         assertTokenFilter("arabic_normalization", ArabicNormalizationFilter.class);
+    }
+
+    public void testAnalyzerAlias() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.foobar.alias","default")
+            .put("index.analysis.analyzer.foobar.type", "keyword")
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_0_0)
+            .build();
+        AnalysisRegistry newRegistry = getNewRegistry(settings);
+        AnalysisService as = getAnalysisService(newRegistry, settings);
+        assertThat(as.analyzer("default").analyzer(), is(instanceOf(KeywordAnalyzer.class)));
+
+    }
+
+    public void testDoubleAlias() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.foobar.alias","default")
+            .put("index.analysis.analyzer.foobar.type", "keyword")
+            .put("index.analysis.analyzer.barfoo.alias","default")
+            .put("index.analysis.analyzer.barfoo.type","english")
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_0_0)
+            .build();
+        AnalysisRegistry newRegistry = getNewRegistry(settings);
+        String message = expectThrows(IllegalStateException.class, () -> getAnalysisService(newRegistry, settings)).getMessage();
+        assertEquals("already registered analyzer with name: default", message);
     }
 
     public void testVersionedAnalyzers() throws Exception {

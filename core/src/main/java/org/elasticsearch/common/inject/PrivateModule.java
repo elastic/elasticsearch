@@ -61,10 +61,6 @@ import java.lang.annotation.Annotation;
  * }
  * </pre>
  * <p>
- * Private modules are implemented using {@link Injector#createChildInjector(Module[]) parent
- * injectors}. When it can satisfy their dependencies, just-in-time bindings will be created in the
- * root environment. Such bindings are shared among all environments in the tree.
- * <p>
  * The scope of a binding is constrained to its environment. A singleton bound in a private
  * module will be unique to its environment. But a binding for the same type in a different private
  * module will yield a different instance.
@@ -144,13 +140,6 @@ public abstract class PrivateModule implements Module {
     }
 
     /**
-     * @see Binder#bindScope(Class, Scope)
-     */
-    protected final void bindScope(Class<? extends Annotation> scopeAnnotation, Scope scope) {
-        binder.bindScope(scopeAnnotation, scope);
-    }
-
-    /**
      * @see Binder#bind(Key)
      */
     protected final <T> LinkedBindingBuilder<T> bind(Key<T> key) {
@@ -169,13 +158,6 @@ public abstract class PrivateModule implements Module {
      */
     protected final <T> AnnotatedBindingBuilder<T> bind(Class<T> clazz) {
         return binder.bind(clazz);
-    }
-
-    /**
-     * @see Binder#bindConstant()
-     */
-    protected final AnnotatedConstantBindingBuilder bindConstant() {
-        return binder.bindConstant();
     }
 
     /**
@@ -207,34 +189,6 @@ public abstract class PrivateModule implements Module {
     }
 
     /**
-     * @see Binder#requestInjection(Object)
-     */
-    protected final void requestInjection(Object instance) {
-        binder.requestInjection(instance);
-    }
-
-    /**
-     * @see Binder#requestStaticInjection(Class[])
-     */
-    protected final void requestStaticInjection(Class<?>... types) {
-        binder.requestStaticInjection(types);
-    }
-
-    /**
-     * Instructs Guice to require a binding to the given key.
-     */
-    protected final void requireBinding(Key<?> key) {
-        binder.getProvider(key);
-    }
-
-    /**
-     * Instructs Guice to require a binding to the given type.
-     */
-    protected final void requireBinding(Class<?> type) {
-        binder.getProvider(type);
-    }
-
-    /**
      * @see Binder#getProvider(Key)
      */
     protected final <T> Provider<T> getProvider(Key<T> key) {
@@ -249,21 +203,6 @@ public abstract class PrivateModule implements Module {
     }
 
     /**
-     * @see Binder#convertToTypes(org.elasticsearch.common.inject.matcher.Matcher, org.elasticsearch.common.inject.spi.TypeConverter)
-     */
-    protected final void convertToTypes(Matcher<? super TypeLiteral<?>> typeMatcher,
-                                        TypeConverter converter) {
-        binder.convertToTypes(typeMatcher, converter);
-    }
-
-    /**
-     * @see Binder#currentStage()
-     */
-    protected final Stage currentStage() {
-        return binder.currentStage();
-    }
-
-    /**
      * @see Binder#getMembersInjector(Class)
      */
     protected <T> MembersInjector<T> getMembersInjector(Class<T> type) {
@@ -275,13 +214,5 @@ public abstract class PrivateModule implements Module {
      */
     protected <T> MembersInjector<T> getMembersInjector(TypeLiteral<T> type) {
         return binder.getMembersInjector(type);
-    }
-
-    /**
-     * @see Binder#bindListener(org.elasticsearch.common.inject.matcher.Matcher, org.elasticsearch.common.inject.spi.TypeListener)
-     */
-    protected void bindListener(Matcher<? super TypeLiteral<?>> typeMatcher,
-                                TypeListener listener) {
-        binder.bindListener(typeMatcher, listener);
     }
 }

@@ -50,16 +50,10 @@ class InjectorShell {
 
     private final List<Element> elements;
     private final InjectorImpl injector;
-    private final PrivateElements privateElements;
 
-    private InjectorShell(Builder builder, List<Element> elements, InjectorImpl injector) {
-        this.privateElements = builder.privateElements;
+    private InjectorShell(List<Element> elements, InjectorImpl injector) {
         this.elements = elements;
         this.injector = injector;
-    }
-
-    PrivateElements getPrivateElements() {
-        return privateElements;
     }
 
     InjectorImpl getInjector() {
@@ -134,7 +128,7 @@ class InjectorShell {
                 throw new IllegalStateException("no state. Did you remember to lock() ?");
             }
 
-            InjectorImpl injector = new InjectorImpl(parent, state, initializer);
+            InjectorImpl injector = new InjectorImpl(state, initializer);
             if (privateElements != null) {
                 privateElements.initInjector(injector);
             }
@@ -167,7 +161,7 @@ class InjectorShell {
             stopwatch.resetAndLog("Binding creation");
 
             List<InjectorShell> injectorShells = new ArrayList<>();
-            injectorShells.add(new InjectorShell(this, elements, injector));
+            injectorShells.add(new InjectorShell(elements, injector));
 
             // recursively build child shells
             PrivateElementProcessor processor = new PrivateElementProcessor(errors, stage);

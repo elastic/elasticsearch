@@ -87,34 +87,6 @@ class Parameter {
                 : injector.getInstance(getPrimaryBindingKey());
     }
 
-    public boolean isBound(Injector injector) {
-        return isBound(injector, getPrimaryBindingKey())
-                || isBound(injector, fixAnnotations(getPrimaryBindingKey()));
-    }
-
-    private boolean isBound(Injector injector, Key<?> key) {
-        // This method is particularly lame - we really need an API that can test
-        // for any binding, implicit or explicit
-        try {
-            return injector.getBinding(key) != null;
-        } catch (ConfigurationException e) {
-            return false;
-        }
-    }
-
-    /**
-     * Replace annotation instances with annotation types, this is only
-     * appropriate for testing if a key is bound and not for injecting.
-     * <p>
-     * See Guice bug 125,
-     * http://code.google.com/p/google-guice/issues/detail?id=125
-     */
-    public Key<?> fixAnnotations(Key<?> key) {
-        return key.getAnnotation() == null
-                ? key
-                : Key.get(key.getTypeLiteral(), key.getAnnotation().annotationType());
-    }
-
     Key<?> getPrimaryBindingKey() {
         return isProvider
                 ? getBindingForType(getProvidedType(type))

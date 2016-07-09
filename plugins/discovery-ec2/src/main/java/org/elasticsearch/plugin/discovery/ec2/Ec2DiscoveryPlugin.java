@@ -143,6 +143,11 @@ public class Ec2DiscoveryPlugin extends Plugin {
     /** Adds a node attribute for the ec2 availability zone. */
     @Override
     public Settings additionalSettings() {
+        return getAvailabilityZoneNodeAttributes(settings, AwsEc2ServiceImpl.EC2_METADATA_URL + "placement/availability-zone");
+    }
+
+    // pkg private for testing
+    static Settings getAvailabilityZoneNodeAttributes(Settings settings, String azMetadataUrl) {
         if (AwsEc2Service.AUTO_ATTRIBUTE_SETTING.get(settings) == false) {
             return Settings.EMPTY;
         }
@@ -151,7 +156,7 @@ public class Ec2DiscoveryPlugin extends Plugin {
         final URL url;
         final URLConnection urlConnection;
         try {
-            url = new URL(AwsEc2ServiceImpl.EC2_METADATA_URL + "placement/availability-zone");
+            url = new URL(azMetadataUrl);
             logger.debug("obtaining ec2 [placement/availability-zone] from ec2 meta-data url {}", url);
             urlConnection = url.openConnection();
             urlConnection.setConnectTimeout(2000);
@@ -165,7 +170,7 @@ public class Ec2DiscoveryPlugin extends Plugin {
 
             String metadataResult = urlReader.readLine();
             if (metadataResult == null || metadataResult.length() == 0) {
-                throw new IOException("no ec2 metadata returned from " + url);
+                throw new IllegalStateException("no ec2 metadata returned from " + url);
             } else {
                 attrs.put(Node.NODE_ATTRIBUTES.getKey() + "aws_availability_zone", metadataResult);
             }

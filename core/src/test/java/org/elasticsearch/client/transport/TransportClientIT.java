@@ -51,16 +51,14 @@ public class TransportClientIT extends ESIntegTestCase {
 
     public void testNodeVersionIsUpdated() throws IOException {
         TransportClient client = (TransportClient)  internalCluster().client();
-        Node node = new Node(Settings.builder()
+        try (Node node = new Node(Settings.builder()
                 .put(internalCluster().getDefaultSettings())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("node.name", "testNodeVersionIsUpdated")
                 .put("http.enabled", false)
                 .put(Node.NODE_DATA_SETTING.getKey(), false)
                 .put("cluster.name", "foobar")
-                .build());
-        node.start();
-        try {
+                .build()).start()) {
             TransportAddress transportAddress = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();
             client.addTransportAddress(transportAddress);
             // since we force transport clients there has to be one node started that we connect to.
@@ -79,8 +77,6 @@ public class TransportClientIT extends ESIntegTestCase {
             for (DiscoveryNode discoveryNode : client.filteredNodes()) {
                 assertThat(discoveryNode.getVersion(), equalTo(Version.CURRENT.minimumCompatibilityVersion()));
             }
-        } finally {
-            node.close();
         }
     }
 

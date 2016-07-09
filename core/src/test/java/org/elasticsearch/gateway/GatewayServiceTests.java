@@ -35,10 +35,7 @@ public class GatewayServiceTests extends ESTestCase {
         ClusterService clusterService = new ClusterService(Settings.builder().put("cluster.name", "GatewayServiceTests").build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 null);
-        return new GatewayService(Settings.builder()
-                .put("http.enabled", "false")
-                .put("discovery.type", "local")
-                .put(settings.build()).build(),
+        return new GatewayService(settings.build(),
                 null, clusterService, null, null, null, new NoopDiscovery(), null, null);
     }
 

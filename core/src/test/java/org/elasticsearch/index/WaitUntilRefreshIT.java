@@ -58,10 +58,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
  * Tests that requests with RefreshPolicy.WAIT_UNTIL will be visible when they return.
  */
 public class WaitUntilRefreshIT extends ESIntegTestCase {
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(NetworkModule.HTTP_ENABLED.getKey(), true).build();
-    }
 
     @Override
     public Settings indexSettings() {

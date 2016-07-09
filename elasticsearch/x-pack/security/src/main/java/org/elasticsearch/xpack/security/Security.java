@@ -175,7 +175,6 @@ public class Security implements ActionPlugin {
             list.add(LoggingAuditTrail.class);
         }
         list.add(SecurityLicensee.class);
-        list.add(InternalCryptoService.class);
         list.add(FileRolesStore.class);
         list.add(Realms.class);
         return list;

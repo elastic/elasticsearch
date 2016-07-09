@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
@@ -161,9 +160,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
                 .build();
 
         MockTransportService service = buildTransportService(settings);
-        DiscoveryNodeService discoveryNodeService = new DiscoveryNodeService(settings);
-        DiscoveryNode discoveryNode = discoveryNodeService.buildLocalNode(service.boundAddress().publishAddress(),
-            () -> NodeEnvironment.generateNodeId(settings));
+        DiscoveryNode discoveryNode = DiscoveryNode.createLocal(settings, service.boundAddress().publishAddress(),
+            NodeEnvironment.generateNodeId(settings));
         MockNode node = new MockNode(discoveryNode, service, listener, logger);
         node.action = buildPublishClusterStateAction(settings, service, () -> node.clusterState, node);
         final CountDownLatch latch = new CountDownLatch(nodes.size() * 2 + 1);

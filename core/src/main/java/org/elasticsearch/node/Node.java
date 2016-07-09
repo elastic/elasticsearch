@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -415,8 +414,8 @@ public class Node implements Closeable {
 
         validateNodeBeforeAcceptingRequests(settings, transportService.boundAddress());
 
-        DiscoveryNode localNode = injector.getInstance(DiscoveryNodeService.class)
-                .buildLocalNode(transportService.boundAddress().publishAddress(), injector.getInstance(NodeEnvironment.class)::nodeId);
+        DiscoveryNode localNode = DiscoveryNode.createLocal(settings,
+            transportService.boundAddress().publishAddress(), injector.getInstance(NodeEnvironment.class).nodeId());
 
         // TODO: need to find a cleaner way to start/construct a service with some initial parameters,
         // playing nice with the life cycle interfaces

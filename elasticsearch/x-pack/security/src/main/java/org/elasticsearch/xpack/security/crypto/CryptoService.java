@@ -107,26 +107,8 @@ public interface CryptoService {
     boolean encrypted(byte[] bytes);
 
     /**
-     * Registers a listener to be notified of key changes
-     * @param listener the listener to be notified
-     */
-    void register(Listener listener);
-
-    /**
      * Flag for callers to determine if values will actually be encrypted or returned plaintext
      * @return true if values will be encrypted
      */
     boolean encryptionEnabled();
-
-    interface Listener {
-        /**
-         * This method will be called immediately after a new system key and encryption key are loaded by the
-         * service. This provides the old keys back to the clients so that they may perform decryption and re-encryption
-         * of data after a key has been changed
-         *
-         * @param oldSystemKey the pre-existing system key
-         * @param oldEncryptionKey the pre-existing encryption key
-         */
-        void onKeyChange(SecretKey oldSystemKey, SecretKey oldEncryptionKey);
-    }
 }

@@ -575,15 +575,10 @@ public class GeoDistanceIT extends ESIntegTestCase {
         return randomDouble() * 180 - 90;
     }
 
-    @AwaitsFix(bugUrl = "http://github.com/elastic/elasticsearch/issues/19263")
     public void testDuelOptimizations() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_1_2);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        if (version.before(Version.V_2_2_0)) {
-            assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", "location", "type=geo_point,lat_lon=true"));
-        } else {
-            assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", "location", "type=geo_point"));
-        }
+        assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", "location", "type=geo_point,lat_lon=true"));
         final int numDocs = scaledRandomIntBetween(3000, 10000);
         List<IndexRequestBuilder> docs = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
@@ -602,19 +597,12 @@ public class GeoDistanceIT extends ESIntegTestCase {
                 GeoDistanceQueryBuilder qb = QueryBuilders.geoDistanceQuery("location").point(originLat, originLon).distance(distance)
                         .geoDistance(geoDistance);
                 long matches;
-                if (version.before(Version.V_2_2_0)) {
-                    for (String optimizeBbox : Arrays.asList("none", "memory", "indexed")) {
-                        qb.optimizeBbox(optimizeBbox);
-                        SearchResponse resp = client().prepareSearch("index").setSize(0).setQuery(QueryBuilders.constantScoreQuery(qb))
-                                .execute().actionGet();
-                        matches = assertDuelOptimization(resp);
-                        logger.info("{} -> {} hits", optimizeBbox, matches);
-                    }
-                } else {
+                for (String optimizeBbox : Arrays.asList("none", "memory", "indexed")) {
+                    qb.optimizeBbox(optimizeBbox);
                     SearchResponse resp = client().prepareSearch("index").setSize(0).setQuery(QueryBuilders.constantScoreQuery(qb))
-                            .execute().actionGet();
+                        .execute().actionGet();
                     matches = assertDuelOptimization(resp);
-                    logger.info("{} hits", matches);
+                    logger.info("{} -> {} hits", optimizeBbox, matches);
                 }
             }
         }

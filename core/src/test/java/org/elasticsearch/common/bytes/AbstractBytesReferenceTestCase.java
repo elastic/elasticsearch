@@ -271,6 +271,9 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
                 final int offset = randomIntBetween(0, length-1);
                 assertEquals(offset, input.skip(offset));
                 assertEquals(pbr.get(offset), input.readByte());
+                if (offset == length - 1) {
+                    continue; // no more bytes to retrieve!
+                }
                 final int nextOffset = randomIntBetween(offset, length-2);
                 assertEquals(nextOffset - offset, input.skip(nextOffset - offset));
                 assertEquals(pbr.get(nextOffset+1), input.readByte()); // +1 for the one byte we read above

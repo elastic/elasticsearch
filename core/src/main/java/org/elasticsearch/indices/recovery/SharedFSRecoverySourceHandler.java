@@ -21,7 +21,6 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 
@@ -41,7 +40,6 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
         super(shard, recoveryTarget, request, -1, logger);
         this.shard = shard;
         this.request = request;
-        assert request.getSeqNoRecoveryStart() == SequenceNumbersService.UNASSIGNED_SEQ_NO;
     }
 
     @Override

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.replication;
 
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.shard.IndexShard;
@@ -25,7 +26,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
-import org.elasticsearch.indices.recovery.RecoveryTargetHandler;
 import org.elasticsearch.indices.recovery.RecoveryTargetService;
 
 import java.io.IOException;
@@ -33,6 +33,8 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
+
+import static org.hamcrest.Matchers.empty;
 
 public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestCase {
 
@@ -45,13 +47,45 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             final CountDownLatch recoveryBlocked = new CountDownLatch(1);
             final CountDownLatch releaseRecovery = new CountDownLatch(1);
             final RecoveryState.Stage blockOnStage = randomFrom(BlockingTarget.SUPPORTED_STAGES);
-            final Future<Void> recoveryFuture = shards.asyncRecoverReplica(replica, (indexShard, node) ->
-                new BlockingTarget(blockOnStage, recoveryBlocked, releaseRecovery, indexShard, node, recoveryListener, logger));
+            final Future<Void> recoveryFuture = shards.asyncRecoverReplica(replica, (indexShard, source, target) ->
+                new BlockingTarget(blockOnStage, recoveryBlocked, releaseRecovery, indexShard, source, target, recoveryListener, logger));
 
             recoveryBlocked.await();
             docs += shards.indexDocs(randomInt(20));
             releaseRecovery.countDown();
             recoveryFuture.get();
+
+            shards.assertAllEqual(docs);
+        }
+    }
+
+    public void testSeqNoBasedRecovery() throws Exception {
+        try (ReplicationGroup shards = createGroup(1)) {
+            shards.startAll();
+            int docs = shards.indexDocs(randomInt(50));
+            shards.flush();
+            shards.syncSeqNoGlobalCheckpoint(); // make sure the update to a place that's available in the translog
+            IndexShard replica = shards.getReplicas().get(0);
+            for (int i=randomInt(2);i>0;i--) {
+                docs += shards.indexDocs(randomInt(5));
+                if (randomBoolean()) {
+                    // flush a couple of times to create commit points
+                    replica.flush(new FlushRequest());
+                }
+                if (randomBoolean()) {
+                    shards.syncSeqNoGlobalCheckpoint();
+                }
+            }
+            shards.removeReplica(replica);
+            // nocommit: add global checkpoint syncing with replica out of group
+            docs += shards.indexDocs(randomInt(5));
+
+            replica = shards.reAddReplica(replica);
+            shards.recoverReplica(replica);
+
+            assertThat(replica.recoveryState().getIndex().fileDetails(), empty());
+
+            docs += shards.indexDocs(randomInt(5));
 
             shards.assertAllEqual(docs);
         }
@@ -66,8 +100,9 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         private final ESLogger logger;
 
         BlockingTarget(RecoveryState.Stage stageToBlock, CountDownLatch recoveryBlocked, CountDownLatch releaseRecovery, IndexShard shard,
-                       DiscoveryNode sourceNode, RecoveryTargetService.RecoveryListener listener, ESLogger logger) {
-            super(shard, sourceNode, listener);
+                       DiscoveryNode sourceNode, DiscoveryNode targetNode, RecoveryTargetService.RecoveryListener listener,
+                       ESLogger logger) {
+            super(shard, sourceNode, targetNode, listener);
             this.recoveryBlocked = recoveryBlocked;
             this.releaseRecovery = releaseRecovery;
             this.stageToBlock = stageToBlock;

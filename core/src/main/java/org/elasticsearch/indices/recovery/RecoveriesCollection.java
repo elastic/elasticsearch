@@ -58,8 +58,8 @@ public class RecoveriesCollection {
      * @return the id of the new recovery.
      */
     public long startRecovery(IndexShard indexShard, DiscoveryNode sourceNode,
-                              RecoveryTargetService.RecoveryListener listener, TimeValue activityTimeout) {
-        RecoveryTarget status = new RecoveryTarget(indexShard, sourceNode, listener);
+                              DiscoveryNode targetNode, RecoveryTargetService.RecoveryListener listener, TimeValue activityTimeout) {
+        RecoveryTarget status = new RecoveryTarget(indexShard, sourceNode, targetNode, listener);
         RecoveryTarget existingStatus = onGoingRecoveries.putIfAbsent(status.recoveryId(), status);
         assert existingStatus == null : "found two RecoveryStatus instances with the same id";
         logger.trace("{} started recovery from {}, id [{}]", indexShard.shardId(), sourceNode, status.recoveryId());

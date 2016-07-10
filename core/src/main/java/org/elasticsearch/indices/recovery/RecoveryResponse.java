@@ -30,7 +30,7 @@ import java.util.List;
 /**
  *
  */
-class RecoveryResponse extends TransportResponse {
+public class RecoveryResponse extends TransportResponse {
 
     List<String> phase1FileNames = new ArrayList<>();
     List<Long> phase1FileSizes = new ArrayList<>();

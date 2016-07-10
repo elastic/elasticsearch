@@ -44,8 +44,10 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
         IndexService service = createIndex("foo");
 
         IndexShard indexShard = service.getShardOrNull(0);
-        DiscoveryNode node = new DiscoveryNode("foo", new LocalTransportAddress("bar"), emptyMap(), emptySet(), Version.CURRENT);
-        RecoveryTarget status = new RecoveryTarget(indexShard, node, new RecoveryTargetService.RecoveryListener() {
+        DiscoveryNode targetNode = new DiscoveryNode(indexShard.routingEntry().currentNodeId(), new LocalTransportAddress("bar1"),
+            emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode sourceNode = new DiscoveryNode("foo", new LocalTransportAddress("bar2"), emptyMap(), emptySet(), Version.CURRENT);
+        RecoveryTarget status = new RecoveryTarget(indexShard, sourceNode, targetNode, new RecoveryTargetService.RecoveryListener() {
             @Override
             public void onRecoveryDone(RecoveryState state) {
             }

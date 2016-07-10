@@ -72,6 +72,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final long recoveryId;
     private final IndexShard indexShard;
     private final DiscoveryNode sourceNode;
+    private final DiscoveryNode targetNode;
     private final String tempFilePrefix;
     private final Store store;
     private final RecoveryTargetService.RecoveryListener listener;
@@ -88,9 +89,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     private final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
 
-    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryTargetService.RecoveryListener listener) {
+    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, DiscoveryNode targetNode, RecoveryTargetService.RecoveryListener listener) {
 
         super("recovery_status");
+        this.targetNode = targetNode;
+        assert indexShard.routingEntry().currentNodeId().equals(targetNode.getId());
         this.recoveryId = idGenerator.incrementAndGet();
         this.listener = listener;
         this.logger = Loggers.getLogger(getClass(), indexShard.indexSettings().getSettings(), indexShard.shardId());
@@ -119,6 +122,10 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     public DiscoveryNode sourceNode() {
         return this.sourceNode;
+    }
+
+    public DiscoveryNode targetNode() {
+        return targetNode;
     }
 
     public RecoveryState state() {

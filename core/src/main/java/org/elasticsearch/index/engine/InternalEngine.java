@@ -153,6 +153,7 @@ public class InternalEngine extends Engine {
                     commitToOpen = null;
                     seqNoStats = new SeqNoStats(NO_OPS_PERFORMED, NO_OPS_PERFORMED, NO_OPS_PERFORMED);
                 } else if (engineConfig.getCommitIdToOpen() != null) {
+                    assert openMode == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG;
                     commitToOpen = findCommitById(store.directory(), engineConfig.getCommitIdToOpen());
                     seqNoStats = Store.loadSeqNoStatsFromCommit(commitToOpen);
                 } else {
@@ -1290,7 +1291,7 @@ public class InternalEngine extends Engine {
             ensureOpen();
             translog.sync();
             // nocommit: we maintain this lastSyncedGlobalCheckpont to make sure we only trim commits based on *persisted*
-            // global checkpoints. We can replace it by exposing the list translog checkpoint (which ends up being messy due
+            // global checkpoints. We can replace it by exposing the last translog checkpoint (which ends up being messy due
             // to initialization order. Another alternative is to have a lock that needs to be acquired to make sure we don't
             // commit  the index writer while an update is in flight - this has the obvious down side of an extra locking order dependency
             lastSyncedGlobalCheckpont = seqNoService().getGlobalCheckpoint();

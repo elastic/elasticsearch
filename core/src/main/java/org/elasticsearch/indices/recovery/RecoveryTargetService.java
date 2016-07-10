@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -132,20 +133,21 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
         return onGoingRecoveries.cancelRecoveriesForShard(shardId, reason);
     }
 
-    public void startRecovery(final IndexShard indexShard, final RecoveryState.Type recoveryType, final DiscoveryNode sourceNode, final
+    public void startRecovery(final IndexShard indexShard, final DiscoveryNode sourceNode, final
     RecoveryListener listener) {
         // create a new recovery status, and process...
-        final long recoveryId = onGoingRecoveries.startRecovery(indexShard, sourceNode, listener, recoverySettings.activityTimeout());
+        final long recoveryId = onGoingRecoveries.startRecovery(indexShard, sourceNode, clusterService.localNode(), listener,
+            recoverySettings.activityTimeout());
         threadPool.generic().execute(new RecoveryRunner(recoveryId));
     }
 
-    protected void retryRecovery(final RecoveryTarget recoveryTarget, final Throwable reason, TimeValue retryAfter, final
+    private void retryRecovery(final RecoveryTarget recoveryTarget, final Throwable reason, TimeValue retryAfter, final
     StartRecoveryRequest currentRequest) {
         logger.trace("will retry recovery with id [{}] in [{}]", reason, recoveryTarget.recoveryId(), retryAfter);
         retryRecovery(recoveryTarget, retryAfter, currentRequest);
     }
 
-    protected void retryRecovery(final RecoveryTarget recoveryTarget, final String reason, TimeValue retryAfter, final
+    private void retryRecovery(final RecoveryTarget recoveryTarget, final String reason, TimeValue retryAfter, final
     StartRecoveryRequest currentRequest) {
         logger.trace("will retry recovery with id [{}] in [{}] (reason [{}])", recoveryTarget.recoveryId(), retryAfter, reason);
         retryRecovery(recoveryTarget, retryAfter, currentRequest);
@@ -155,63 +157,45 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
         try {
             recoveryTarget.resetRecovery();
         } catch (Exception e) {
-            onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(), new RecoveryFailedException(currentRequest, e), true);
+            failRecovery(recoveryTarget, new RecoveryFailedException(currentRequest, e), true);
         }
-        threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(recoveryTarget.recoveryId()));
+        rescheduleRecovery(recoveryTarget, retryAfter);
     }
 
-    private void doRecovery(final RecoveryTarget recoveryTarget) {
-        assert recoveryTarget.sourceNode() != null : "can't do a recovery without a source node";
+    // nocommit: separate all this logic into a separated class with abstract methods and leave the networking things here.
+    // leaving as is to make reviews easier
+    protected void rescheduleRecovery(RecoveryTarget recoveryTarget, TimeValue after) {
+        threadPool.schedule(after, ThreadPool.Names.GENERIC, new RecoveryRunner(recoveryTarget.recoveryId()));
+    }
 
-        logger.trace("collecting local files for {}", recoveryTarget);
-        Store.MetadataSnapshot metadataSnapshot = null;
-        long seqNoRecoveryStart = SequenceNumbersService.UNASSIGNED_SEQ_NO;
-        Store.CommitId seqNoRecoveryCommitId = null;
+    protected void failRecovery(RecoveryTarget recoveryTarget, RecoveryFailedException recoveryFailedException, boolean sendShardFailure) {
+        onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(), recoveryFailedException, sendShardFailure);
+    }
+
+    protected void markRecoveryAsDone(RecoveryTarget recoveryTarget) {
+        // do this through ongoing recoveries to remove it from the collection
+        onGoingRecoveries.markRecoveryAsDone(recoveryTarget.recoveryId());
+    }
+
+    protected void doRecovery(final RecoveryTarget recoveryTarget) {
+        assert recoveryTarget.sourceNode() != null : "can't do a recovery without a source node";
+        final StartRecoveryRequest request;
         try {
-            metadataSnapshot = recoveryTarget.store().getMetadataOrEmpty();
-            if (recoveryTarget.isSeqNoBasedRecoveryAllowed()) {
-                long globalCheckpoint = Translog.readLastSeqNoGlobalCheckpoint(recoveryTarget.indexShard().shardPath().resolveTranslog());
-                IndexCommit commit = recoveryTarget.store().findLastCommitBellowSeqNo(globalCheckpoint);
-                if (commit != null) {
-                    seqNoRecoveryCommitId = new Store.CommitId(commit);
-                    seqNoRecoveryStart = Store.loadSeqNoStatsFromCommit(commit).getLocalCheckpoint() + 1;
-                }
-            }
-        } catch (IOException e) {
-            logger.warn("error while listing local files, recover as if there are none", e);
-            metadataSnapshot = Store.MetadataSnapshot.EMPTY;
+            request = buildStartRecoveryRequest(recoveryTarget, logger);
         } catch (Exception e) {
             // this will be logged as warning later on...
             logger.trace("unexpected error while listing local files, failing recovery", e);
-            onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(),
-                    new RecoveryFailedException(recoveryTarget.state(), "failed to list local files", e), true);
+            failRecovery(recoveryTarget, new RecoveryFailedException(recoveryTarget.state(), "failed to list local files", e), true);
             return;
         }
-        final StartRecoveryRequest request = new StartRecoveryRequest(recoveryTarget.shardId(), recoveryTarget.sourceNode(),
-                clusterService.localNode(),
-                metadataSnapshot,
-                seqNoRecoveryCommitId,
-                seqNoRecoveryStart,
-                recoveryTarget.state().getType(), recoveryTarget.recoveryId());
 
-        final AtomicReference<RecoveryResponse> responseHolder = new AtomicReference<>();
         try {
             logger.trace("[{}][{}] starting recovery from {}", request.shardId().getIndex().getName(), request.shardId().id(), request
                     .sourceNode());
             recoveryTarget.indexShard().prepareForIndexRecovery();
-            recoveryTarget.CancellableThreads().execute(() -> responseHolder.set(
-                    transportService.submitRequest(request.sourceNode(), RecoverySource.Actions.START_RECOVERY, request,
-                            new FutureTransportResponseHandler<RecoveryResponse>() {
-                                @Override
-                                public RecoveryResponse newInstance() {
-                                    return new RecoveryResponse();
-                                }
-                            }).txGet()));
-            final RecoveryResponse recoveryResponse = responseHolder.get();
-            assert responseHolder != null;
+            final RecoveryResponse recoveryResponse = requestStartRecovery(request, recoveryTarget);
+            assert recoveryResponse != null;
             final TimeValue recoveryTime = new TimeValue(recoveryTarget.state().getTimer().time());
-            // do this through ongoing recoveries to remove it from the collection
-            onGoingRecoveries.markRecoveryAsDone(recoveryTarget.recoveryId());
             if (logger.isTraceEnabled()) {
                 StringBuilder sb = new StringBuilder();
                 sb.append('[').append(request.shardId().getIndex().getName()).append(']').append('[').append(request.shardId().id())
@@ -233,6 +217,8 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
             } else {
                 logger.debug("{} recovery done from [{}], took [{}]", request.shardId(), recoveryTarget.sourceNode(), recoveryTime);
             }
+            markRecoveryAsDone(recoveryTarget);
+
         } catch (CancellableThreads.ExecutionCancelledException e) {
             logger.trace("recovery cancelled", e);
         } catch (Exception e) {
@@ -242,7 +228,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof CancellableThreads.ExecutionCancelledException) {
                 // this can also come from the source wrapped in a RemoteTransportException
-                onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(), new RecoveryFailedException(request, "source has canceled the" +
+                failRecovery(recoveryTarget, new RecoveryFailedException(request, "source has canceled the" +
                         " recovery", cause), false);
                 return;
             }
@@ -292,12 +278,59 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
             }
 
             if (cause instanceof AlreadyClosedException) {
-                onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(), new RecoveryFailedException(request, "source shard is " +
-                        "closed", cause), false);
+                failRecovery(recoveryTarget, new RecoveryFailedException(request, "source shard is " + "closed", cause), false);
                 return;
             }
-            onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(), new RecoveryFailedException(request, e), true);
+            failRecovery(recoveryTarget, new RecoveryFailedException(request, e), true);
         }
+    }
+
+    protected RecoveryResponse requestStartRecovery(StartRecoveryRequest request, RecoveryTarget recoveryTarget) throws IOException {
+        final AtomicReference<RecoveryResponse> responseHolder = new AtomicReference<>();
+        recoveryTarget.CancellableThreads().execute(() -> responseHolder.set(
+                transportService.submitRequest(request.sourceNode(), RecoverySource.Actions.START_RECOVERY, request,
+                        new FutureTransportResponseHandler<RecoveryResponse>() {
+                            @Override
+                            public RecoveryResponse newInstance() {
+                                return new RecoveryResponse();
+                            }
+                        }).txGet()));
+        return responseHolder.get();
+    }
+
+    private StartRecoveryRequest buildStartRecoveryRequest(RecoveryTarget recoveryTarget, ESLogger logger) {
+        StartRecoveryRequest request;
+        logger.trace("collecting local files for {}", recoveryTarget);
+        Store.MetadataSnapshot metadataSnapshot = null;
+        long seqNoRecoveryStart = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        Store.CommitId seqNoRecoveryCommitId = null;
+        try {
+            metadataSnapshot = recoveryTarget.store().getMetadataOrEmpty();
+        } catch (IOException e) {
+            logger.warn("error while listing local files, recover as if there are none", e);
+            metadataSnapshot = Store.MetadataSnapshot.EMPTY;
+        }
+        if (metadataSnapshot.size() > 0 && recoveryTarget.isSeqNoBasedRecoveryAllowed()) {
+            try {
+                long globalCheckpoint = Translog.readLastSeqNoGlobalCheckpoint(recoveryTarget.indexShard().shardPath().resolveTranslog());
+                IndexCommit commit = recoveryTarget.store().findLastCommitBellowSeqNo(globalCheckpoint);
+                if (commit != null) {
+                    seqNoRecoveryCommitId = new Store.CommitId(commit);
+                    seqNoRecoveryStart = Store.loadSeqNoStatsFromCommit(commit).getLocalCheckpoint() + 1;
+                }
+            } catch (IOException e) {
+                logger.warn("error while read local translog checkpoint, fall back to file based recovery", e);
+                seqNoRecoveryStart = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+                seqNoRecoveryCommitId = null;
+            }
+        }
+        request = new StartRecoveryRequest(recoveryTarget.shardId(), recoveryTarget.sourceNode(),
+                recoveryTarget.targetNode(),
+                metadataSnapshot,
+                seqNoRecoveryCommitId,
+                seqNoRecoveryStart,
+                recoveryTarget.state().getType(), recoveryTarget.recoveryId());
+        return request;
     }
 
     public interface RecoveryListener {

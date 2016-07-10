@@ -49,22 +49,22 @@ public class SeqNoAwareDeletionPolicy extends IndexDeletionPolicy {
     public void onCommit(List<? extends IndexCommit> commits) throws IOException {
         final long globalCheckpoint = globalCheckpointSupplier.getAsLong();
         List<IndexCommit> toDelete = new ArrayList<>();
-        IndexCommit highestBellowCheckpoint;
+        IndexCommit highestBellowCheckpoint = null;
         SeqNoStats highestBellowCheckpointStats = null;
         int size = commits.size();
-        for (int i = 0; i < size - 1; i++) {
+        for (int i = 0; i < size; i++) {
             final IndexCommit commit = commits.get(i);
             final SeqNoStats commitStats = Store.loadSeqNoStatsFromCommit(commit);
             if (commitStats.getMaxSeqNo() > globalCheckpoint) {
                 // have to stay
-            } else if (highestBellowCheckpointStats == null || highestBellowCheckpointStats.getMaxSeqNo() < commitStats.getMaxSeqNo()) {
-                highestBellowCheckpoint = commit;
-                highestBellowCheckpointStats = commitStats;
+            } else if (highestBellowCheckpointStats == null || highestBellowCheckpointStats.getMaxSeqNo() <= commitStats.getMaxSeqNo()) {
                 if (highestBellowCheckpoint != null) {
                     logger.trace("will deleted commit [{}] with seqNoStats [{}], global checkpoint [{}]",
                         highestBellowCheckpoint.getSegmentsFileName(), highestBellowCheckpointStats, globalCheckpoint);
                     toDelete.add(highestBellowCheckpoint);
                 }
+                highestBellowCheckpoint = commit;
+                highestBellowCheckpointStats = commitStats;
             } else {
                 logger.trace("will deleted commit [{}] with seqNoStats [{}], global checkpoint [{}]", commit.getSegmentsFileName(),
                     commitStats, globalCheckpoint);
@@ -72,7 +72,23 @@ public class SeqNoAwareDeletionPolicy extends IndexDeletionPolicy {
             }
         }
 
+        final IndexCommit lastCommit = commits.get(commits.size() - 1);
+        if (toDelete.contains(lastCommit)) {
+            final SeqNoStats commitStats = Store.loadSeqNoStatsFromCommit(lastCommit);
+            throw new IllegalStateException("can't delete the last commit point (stats [" + commitStats + "], global checkpoint ["
+                + globalCheckpoint +"]");
+        }
+
         toDelete.stream().forEach(IndexCommit::delete);
+        if (logger.isTraceEnabled()) {
+            for (IndexCommit commit: commits) {
+                final SeqNoStats commitStats = Store.loadSeqNoStatsFromCommit(commit);
+                if (commit.isDeleted() == false) {
+                    logger.trace("keeping [{}], starts [{}], globalCheckpoint [{}]", commit.getSegmentsFileName(),
+                        commitStats, globalCheckpoint );
+                }
+            }
+        }
     }
 
 }

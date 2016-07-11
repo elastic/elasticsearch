@@ -1738,10 +1738,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
             throw new IllegalStateException("Can't suppress both network and local mode");
         } else if (noLocal != null) {
             nodeMode = "network";
-            networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
+            if (addMockTransportService()) {
+                networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
+            }
         } else if (noNetwork != null) {
             nodeMode = "local";
-            networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, AssertingLocalTransport.ASSERTING_TRANSPORT_NAME);
+            if (addMockTransportService()) {
+                networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, AssertingLocalTransport.ASSERTING_TRANSPORT_NAME);
+            }
         }
         final boolean isNetwork = "network".equals(nodeMode);
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
@@ -1776,6 +1780,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * Iff this returns true mock transport implementations are used for the test runs. Otherwise not mock transport impls are used.
+     * The defautl is <tt>true</tt>
+     */
+    protected boolean addMockTransportService() {
+        return true;
+    }
+
+    /**
      * Returns a function that allows to wrap / filter all clients that are exposed by the test cluster. This is useful
      * for debugging or request / response pre and post processing. It also allows to intercept all calls done by the test
      * framework. By default this method returns an identity function {@link Function#identity()}.
@@ -1788,7 +1800,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
         final ArrayList<Class<? extends Plugin>> mocks = new ArrayList<>();
         if (randomBoolean()) { // sometimes run without those completely
-            if (randomBoolean()) {
+            if (randomBoolean() && addMockTransportService()) {
                 mocks.add(MockTransportService.TestPlugin.class);
             }
             if (randomBoolean()) {
@@ -1805,9 +1817,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         }
         mocks.add(TestSeedPlugin.class);
-        // add both mock plugins - local and tcp
-        mocks.add(AssertingLocalTransport.TestPlugin.class);
-        mocks.add(MockTcpTransportPlugin.class);
+        if (addMockTransportService()) {
+            // add both mock plugins - local and tcp
+            mocks.add(AssertingLocalTransport.TestPlugin.class);
+            mocks.add(MockTcpTransportPlugin.class);
+        }
         return Collections.unmodifiableList(mocks);
     }
 
@@ -1816,7 +1830,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         public List<Setting<?>> getSettings() {
             return Arrays.asList(INDEX_TEST_SEED_SETTING);
         }
-
     }
 
     /**

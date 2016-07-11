@@ -119,6 +119,39 @@ public final class RestClient implements Closeable {
 
     /**
      * Sends a request to the elasticsearch cluster that the current client points to.
+     * Shortcut to {@link #performRequest(String, String, Map, HttpEntity, Header...)} but without parameters and request body.
+     *
+     * @param method the http method
+     * @param endpoint the path of the request (without host and port)
+     * @param headers the optional request headers
+     * @return the response returned by elasticsearch
+     * @throws IOException in case of a problem or the connection was aborted
+     * @throws ClientProtocolException in case of an http protocol error
+     * @throws ResponseException in case elasticsearch responded with a status code that indicated an error
+     */
+    public Response performRequest(String method, String endpoint, Header... headers) throws IOException {
+        return performRequest(method, endpoint, Collections.<String, String>emptyMap(), null, headers);
+    }
+
+    /**
+     * Sends a request to the elasticsearch cluster that the current client points to.
+     * Shortcut to {@link #performRequest(String, String, Map, HttpEntity, Header...)} but without request body.
+     *
+     * @param method the http method
+     * @param endpoint the path of the request (without host and port)
+     * @param params the query_string parameters
+     * @param headers the optional request headers
+     * @return the response returned by elasticsearch
+     * @throws IOException in case of a problem or the connection was aborted
+     * @throws ClientProtocolException in case of an http protocol error
+     * @throws ResponseException in case elasticsearch responded with a status code that indicated an error
+     */
+    public Response performRequest(String method, String endpoint, Map<String, String> params, Header... headers) throws IOException {
+        return performRequest(method, endpoint, params, null, headers);
+    }
+
+    /**
+     * Sends a request to the elasticsearch cluster that the current client points to.
      * Selects a host out of the provided ones in a round-robin fashion. Failing hosts are marked dead and retried after a certain
      * amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times they previously failed (the more failures,
      * the later they will be retried). In case of failures all of the alive nodes (or dead nodes that deserve a retry) are retried

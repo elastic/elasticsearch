@@ -49,7 +49,7 @@ public class DetailedErrorsDisabledIT extends ESIntegTestCase {
 
     public void testThatErrorTraceParamReturns400() throws Exception {
         try {
-            getRestClient().performRequest("DELETE", "/", Collections.singletonMap("error_trace", "true"), null);
+            getRestClient().performRequest("DELETE", "/", Collections.singletonMap("error_trace", "true"));
             fail("request should have failed");
         } catch(ResponseException e) {
             Response response = e.getResponse();

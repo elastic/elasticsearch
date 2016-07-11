@@ -220,7 +220,7 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
         }
 
         try (Response response = getRestClient().performRequest(
-                "GET", "/" + queryIndex + "/_search", Collections.emptyMap(), null,
+                "GET", "/" + queryIndex + "/_search",
                 new BasicHeader(randomHeaderKey, randomHeaderValue), new BasicHeader(relevantHeaderName, randomHeaderValue))) {
             assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
             List<RequestAndHeaders> searchRequests = getRequests(SearchRequest.class);

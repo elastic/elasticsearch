@@ -62,8 +62,7 @@ public class NettyHttpCompressionIT extends ESIntegTestCase {
         // we need to intercept early, otherwise internal logic in HttpClient will just remove the header and we cannot verify it
         ContentEncodingHeaderExtractor headerExtractor = new ContentEncodingHeaderExtractor();
         try (RestClient client = createRestClient(HttpClients.custom().addInterceptorFirst(headerExtractor).build())) {
-            try (Response response = client.performRequest("GET", "/", Collections.emptyMap(), null,
-                    new BasicHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING))) {
+            try (Response response = client.performRequest("GET", "/", new BasicHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING))) {
                 assertEquals(200, response.getStatusLine().getStatusCode());
                 assertTrue(headerExtractor.hasContentEncodingHeader());
                 assertEquals(GZIP_ENCODING, headerExtractor.getContentEncodingHeader().getValue());
@@ -76,7 +75,7 @@ public class NettyHttpCompressionIT extends ESIntegTestCase {
         ContentEncodingHeaderExtractor headerExtractor = new ContentEncodingHeaderExtractor();
         CloseableHttpClient httpClient = HttpClients.custom().disableContentCompression().addInterceptorFirst(headerExtractor).build();
         try (RestClient client = createRestClient(httpClient)) {
-            try (Response response = client.performRequest("GET", "/", Collections.emptyMap(), null)) {
+            try (Response response = client.performRequest("GET", "/")) {
                 assertEquals(200, response.getStatusLine().getStatusCode());
                 assertFalse(headerExtractor.hasContentEncodingHeader());
             }

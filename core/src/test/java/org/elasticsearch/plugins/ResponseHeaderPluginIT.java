@@ -28,7 +28,6 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.Collection;
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -53,7 +52,7 @@ public class ResponseHeaderPluginIT extends ESIntegTestCase {
     public void testThatSettingHeadersWorks() throws Exception {
         ensureGreen();
         try {
-            getRestClient().performRequest("GET", "/_protected", Collections.emptyMap(), null);
+            getRestClient().performRequest("GET", "/_protected");
             fail("request should have failed");
         } catch(ResponseException e) {
             Response response = e.getResponse();
@@ -61,8 +60,7 @@ public class ResponseHeaderPluginIT extends ESIntegTestCase {
             assertThat(response.getHeader("Secret"), equalTo("required"));
         }
 
-        try (Response authResponse = getRestClient().performRequest("GET", "/_protected", Collections.emptyMap(), null,
-                new BasicHeader("Secret", "password"))) {
+        try (Response authResponse = getRestClient().performRequest("GET", "/_protected", new BasicHeader("Secret", "password"))) {
             assertThat(authResponse.getStatusLine().getStatusCode(), equalTo(200));
             assertThat(authResponse.getHeader("Secret"), equalTo("granted"));
         }

@@ -1,72 +1,78 @@
 ---
-"installing and getting license works":
+teardown:
+  - do:
+      xpack.license.post:
+        acknowledge: true
+        body: |
+          {"licenses":[{"uid":"894371dc-9t49-4997-93cb-8o2e3r7fa6a8","type":"trial","issue_date_in_millis":1411948800000,"expiry_date_in_millis":1916956799999,"max_nodes":1,"issued_to":"issuedTo","issuer":"issuer","signature":"AAAAAgAAAA0FWh0T9njItjQ2qammAAABmC9ZN0hjZDBGYnVyRXpCOW5Bb3FjZDAxOWpSbTVoMVZwUzRxVk1PSmkxakxZdW5IMlhlTHNoN1N2MXMvRFk4d3JTZEx3R3RRZ0pzU3lobWJKZnQvSEFva0ppTHBkWkprZWZSQi9iNmRQNkw1SlpLN0lDalZCS095MXRGN1lIZlpYcVVTTnFrcTE2dzhJZmZrdFQrN3JQeGwxb0U0MXZ0dDJHSERiZTVLOHNzSDByWnpoZEphZHBEZjUrTVBxRENNSXNsWWJjZllaODdzVmEzUjNiWktNWGM5TUhQV2plaUo4Q1JOUml4MXNuL0pSOEhQaVB2azhmUk9QVzhFeTFoM1Q0RnJXSG53MWk2K055c28zSmRnVkF1b2JSQkFLV2VXUmVHNDZ2R3o2VE1qbVNQS2lxOHN5bUErZlNIWkZSVmZIWEtaSU9wTTJENDVvT1NCYklacUYyK2FwRW9xa0t6dldMbmMzSGtQc3FWOTgzZ3ZUcXMvQkt2RUZwMFJnZzlvL2d2bDRWUzh6UG5pdENGWFRreXNKNkE9PQAAAQBZhvozA0trrxhUZ1QbaTsKTna9C5KVQ6pv8yg1pnsBpZXCl8kX1SrgoFn1bXq61IvJwfw5qnmYNiH3hRhTO9EyaCBqaLk8NXZQ6TrRkQSpEnnBwAYUkZeKXsIuBoOk4B4mzwC/r8aMAkzrTiEBtBbog+57cSaU9y37Gkdd+1jXCQrxP+jOEUf7gnXWZvE6oeRroLvCt1fYn09k0CF8kKTbrPTSjC6igZR3uvTHyee74XQ9PRavvHax73T4UOEdQZX/P1ibSQIWKbBRD5YQ1POYVjTayoltTnWLMxfEcAkkATJZLhpBEHST7kZWjrTS6J1dCReJc7a8Vsj/78HXvOIy"}]}
+---
+"Installing and getting license works":
 
     ## current license version
     - do:
-      license.post:
-        acknowledge: true
-        body: |
-          {"license":{"uid":"893361dc-9749-4997-93cb-802e3d7fa4a8","type":"basic","issue_date_in_millis":1411948800000,"expiry_date_in_millis":1914278399999,"max_nodes":1,"issued_to":"issuedTo","issuer":"issuer","signature":"AAAAAgAAAA0lKPZ0a7aZquUltho/AAABmC9ZN0hjZDBGYnVyRXpCOW5Bb3FjZDAxOWpSbTVoMVZwUzRxVk1PSmkxakxZdW5IMlhlTHNoN1N2MXMvRFk4d3JTZEx3R3RRZ0pzU3lobWJKZnQvSEFva0ppTHBkWkprZWZSQi9iNmRQNkw1SlpLN0lDalZCS095MXRGN1lIZlpYcVVTTnFrcTE2dzhJZmZrdFQrN3JQeGwxb0U0MXZ0dDJHSERiZTVLOHNzSDByWnpoZEphZHBEZjUrTVBxRENNSXNsWWJjZllaODdzVmEzUjNiWktNWGM5TUhQV2plaUo4Q1JOUml4MXNuL0pSOEhQaVB2azhmUk9QVzhFeTFoM1Q0RnJXSG53MWk2K055c28zSmRnVkF1b2JSQkFLV2VXUmVHNDZ2R3o2VE1qbVNQS2lxOHN5bUErZlNIWkZSVmZIWEtaSU9wTTJENDVvT1NCYklacUYyK2FwRW9xa0t6dldMbmMzSGtQc3FWOTgzZ3ZUcXMvQkt2RUZwMFJnZzlvL2d2bDRWUzh6UG5pdENGWFRreXNKNkE9PQAAAQAALuQ44S3IG6SzolcXVJ6Z4CIXORDrYQ+wdLCeey0XdujTslAOj+k+vNgo6wauc7Uswi01esHu4lb5IgpvKy7RRCbh5bj/z2ubu2qMJqopp9BQyD7VQjVfqmG6seUMJwJ1a5Avvm9r41YPSPcrii3bKK2e1l6jK6N8ibCvnTyY/XkYGCJrBWTSJePDbg6ErbyodrZ37x1StLbPWcNAkmweyHjDJnvYnbeZZO7A3NmubXZjW7Ttf8/YwQyE00PqMcl7fVPY3hkKpAeHf8aaJbqkKYbqZuER3EWJX7ZvLVb1dNdNg8aXRn7YrkQcYwWgptYQpfV+D7yEJ4j5muAEoler"}}
+        xpack.license.post:
+          acknowledge: true
+          body: |
+            {"license":{"uid":"893361dc-9749-4997-93cb-802e3d7fa4a8","type":"basic","issue_date_in_millis":1411948800000,"expiry_date_in_millis":1914278399999,"max_nodes":1,"issued_to":"issuedTo","issuer":"issuer","signature":"AAAAAgAAAA0lKPZ0a7aZquUltho/AAABmC9ZN0hjZDBGYnVyRXpCOW5Bb3FjZDAxOWpSbTVoMVZwUzRxVk1PSmkxakxZdW5IMlhlTHNoN1N2MXMvRFk4d3JTZEx3R3RRZ0pzU3lobWJKZnQvSEFva0ppTHBkWkprZWZSQi9iNmRQNkw1SlpLN0lDalZCS095MXRGN1lIZlpYcVVTTnFrcTE2dzhJZmZrdFQrN3JQeGwxb0U0MXZ0dDJHSERiZTVLOHNzSDByWnpoZEphZHBEZjUrTVBxRENNSXNsWWJjZllaODdzVmEzUjNiWktNWGM5TUhQV2plaUo4Q1JOUml4MXNuL0pSOEhQaVB2azhmUk9QVzhFeTFoM1Q0RnJXSG53MWk2K055c28zSmRnVkF1b2JSQkFLV2VXUmVHNDZ2R3o2VE1qbVNQS2lxOHN5bUErZlNIWkZSVmZIWEtaSU9wTTJENDVvT1NCYklacUYyK2FwRW9xa0t6dldMbmMzSGtQc3FWOTgzZ3ZUcXMvQkt2RUZwMFJnZzlvL2d2bDRWUzh6UG5pdENGWFRreXNKNkE9PQAAAQAALuQ44S3IG6SzolcXVJ6Z4CIXORDrYQ+wdLCeey0XdujTslAOj+k+vNgo6wauc7Uswi01esHu4lb5IgpvKy7RRCbh5bj/z2ubu2qMJqopp9BQyD7VQjVfqmG6seUMJwJ1a5Avvm9r41YPSPcrii3bKK2e1l6jK6N8ibCvnTyY/XkYGCJrBWTSJePDbg6ErbyodrZ37x1StLbPWcNAkmweyHjDJnvYnbeZZO7A3NmubXZjW7Ttf8/YwQyE00PqMcl7fVPY3hkKpAeHf8aaJbqkKYbqZuER3EWJX7ZvLVb1dNdNg8aXRn7YrkQcYwWgptYQpfV+D7yEJ4j5muAEoler"}}
 
     - match: { license_status:  "valid" }
 
     - do:
-      license.get: {}
+        xpack.license.get: {}
 
     ## a license object has 10 attributes
     - length: { license: 10 }
 
     ## bwc for licenses format
     - do:
-      license.post:
-        acknowledge: true
-        body: |
-          {"licenses":[{"uid":"893361dc-9749-4997-93cb-802e3d7fa4a8","type":"basic","issue_date_in_millis":1411948800000,"expiry_date_in_millis":1914278399999,"max_nodes":1,"issued_to":"issuedTo","issuer":"issuer","signature":"AAAAAgAAAA0lKPZ0a7aZquUltho/AAABmC9ZN0hjZDBGYnVyRXpCOW5Bb3FjZDAxOWpSbTVoMVZwUzRxVk1PSmkxakxZdW5IMlhlTHNoN1N2MXMvRFk4d3JTZEx3R3RRZ0pzU3lobWJKZnQvSEFva0ppTHBkWkprZWZSQi9iNmRQNkw1SlpLN0lDalZCS095MXRGN1lIZlpYcVVTTnFrcTE2dzhJZmZrdFQrN3JQeGwxb0U0MXZ0dDJHSERiZTVLOHNzSDByWnpoZEphZHBEZjUrTVBxRENNSXNsWWJjZllaODdzVmEzUjNiWktNWGM5TUhQV2plaUo4Q1JOUml4MXNuL0pSOEhQaVB2azhmUk9QVzhFeTFoM1Q0RnJXSG53MWk2K055c28zSmRnVkF1b2JSQkFLV2VXUmVHNDZ2R3o2VE1qbVNQS2lxOHN5bUErZlNIWkZSVmZIWEtaSU9wTTJENDVvT1NCYklacUYyK2FwRW9xa0t6dldMbmMzSGtQc3FWOTgzZ3ZUcXMvQkt2RUZwMFJnZzlvL2d2bDRWUzh6UG5pdENGWFRreXNKNkE9PQAAAQAALuQ44S3IG6SzolcXVJ6Z4CIXORDrYQ+wdLCeey0XdujTslAOj+k+vNgo6wauc7Uswi01esHu4lb5IgpvKy7RRCbh5bj/z2ubu2qMJqopp9BQyD7VQjVfqmG6seUMJwJ1a5Avvm9r41YPSPcrii3bKK2e1l6jK6N8ibCvnTyY/XkYGCJrBWTSJePDbg6ErbyodrZ37x1StLbPWcNAkmweyHjDJnvYnbeZZO7A3NmubXZjW7Ttf8/YwQyE00PqMcl7fVPY3hkKpAeHf8aaJbqkKYbqZuER3EWJX7ZvLVb1dNdNg8aXRn7YrkQcYwWgptYQpfV+D7yEJ4j5muAEoler"}]}
+        xpack.license.post:
+          acknowledge: true
+          body: |
+            {"licenses":[{"uid":"893361dc-9749-4997-93cb-802e3d7fa4a8","type":"basic","issue_date_in_millis":1411948800000,"expiry_date_in_millis":1914278399999,"max_nodes":1,"issued_to":"issuedTo","issuer":"issuer","signature":"AAAAAgAAAA0lKPZ0a7aZquUltho/AAABmC9ZN0hjZDBGYnVyRXpCOW5Bb3FjZDAxOWpSbTVoMVZwUzRxVk1PSmkxakxZdW5IMlhlTHNoN1N2MXMvRFk4d3JTZEx3R3RRZ0pzU3lobWJKZnQvSEFva0ppTHBkWkprZWZSQi9iNmRQNkw1SlpLN0lDalZCS095MXRGN1lIZlpYcVVTTnFrcTE2dzhJZmZrdFQrN3JQeGwxb0U0MXZ0dDJHSERiZTVLOHNzSDByWnpoZEphZHBEZjUrTVBxRENNSXNsWWJjZllaODdzVmEzUjNiWktNWGM5TUhQV2plaUo4Q1JOUml4MXNuL0pSOEhQaVB2azhmUk9QVzhFeTFoM1Q0RnJXSG53MWk2K055c28zSmRnVkF1b2JSQkFLV2VXUmVHNDZ2R3o2VE1qbVNQS2lxOHN5bUErZlNIWkZSVmZIWEtaSU9wTTJENDVvT1NCYklacUYyK2FwRW9xa0t6dldMbmMzSGtQc3FWOTgzZ3ZUcXMvQkt2RUZwMFJnZzlvL2d2bDRWUzh6UG5pdENGWFRreXNKNkE9PQAAAQAALuQ44S3IG6SzolcXVJ6Z4CIXORDrYQ+wdLCeey0XdujTslAOj+k+vNgo6wauc7Uswi01esHu4lb5IgpvKy7RRCbh5bj/z2ubu2qMJqopp9BQyD7VQjVfqmG6seUMJwJ1a5Avvm9r41YPSPcrii3bKK2e1l6jK6N8ibCvnTyY/XkYGCJrBWTSJePDbg6ErbyodrZ37x1StLbPWcNAkmweyHjDJnvYnbeZZO7A3NmubXZjW7Ttf8/YwQyE00PqMcl7fVPY3hkKpAeHf8aaJbqkKYbqZuER3EWJX7ZvLVb1dNdNg8aXRn7YrkQcYwWgptYQpfV+D7yEJ4j5muAEoler"}]}
 
     - match: { license_status:  "valid" }
 
     - do:
-      license.get: {}
+        xpack.license.get: {}
 
     - length: { license: 10 }
 
     ## license version: 1.x
     - do:
-      license.post:
-        acknowledge: true
-        body: |
-          {"licenses":[{"uid":"893361dc-9749-4997-93cb-802e3d7fa4a8","type":"subscription","subscription_type":"gold","issue_date_in_millis":1411948800000,"feature":"shield","expiry_date_in_millis":1914278399999,"max_nodes":1,"issued_to":"issuedTo","issuer":"issuer","signature":"AAAAAQAAAA0LVAywwpSH94cyXr4zAAABmC9ZN0hjZDBGYnVyRXpCOW5Bb3FjZDAxOWpSbTVoMVZwUzRxVk1PSmkxakxZdW5IMlhlTHNoN1N2MXMvRFk4d3JTZEx3R3RRZ0pzU3lobWJKZnQvSEFva0ppTHBkWkprZWZSQi9iNmRQNkw1SlpLN0lDalZCS095MXRGN1lIZlpYcVVTTnFrcTE2dzhJZmZrdFQrN3JQeGwxb0U0MXZ0dDJHSERiZTVLOHNzSDByWnpoZEphZHBEZjUrTVBxRENNSXNsWWJjZllaODdzVmEzUjNiWktNWGM5TUhQV2plaUo4Q1JOUml4MXNuL0pSOEhQaVB2azhmUk9QVzhFeTFoM1Q0RnJXSG53MWk2K055c28zSmRnVkF1b2JSQkFLV2VXUmVHNDZ2R3o2VE1qbVNQS2lxOHN5bUErZlNIWkZSVmZIWEtaSU9wTTJENDVvT1NCYklacUYyK2FwRW9xa0t6dldMbmMzSGtQc3FWOTgzZ3ZUcXMvQkt2RUZwMFJnZzlvL2d2bDRWUzh6UG5pdENGWFRreXNKNkE9PQAAAQA4qscc/URRZVdFoLwgy9dqybYEQLW8YLkiAyPV5XHHHdtk+dtZIepiNEDkUXhSX2waVJlsNRF8/4kqplDfwNoD2TUM8fTgiIfiSiZYGDTGST+yW/5eAveEU5J5v1liBN27bwkqL+V4YAa0Tcm7NKKwjScWKAHiTU3vF8chPkGfCHE0kQgVwPC9RE82pTw0s6/uR4PfLGNFfqPM0uiE5nucfVrtj89JQiO/KA/7ZyFbo7VTNXxZQt7T7rZWBCP9KIjptXzcWuk08Q5S+rSoJNYbFo3HGKtrCVsRz/55rceNtdwKKXu1IwnSeir4I1/KLduQTtFLy0+1th87VS8T88UT"}]}
+        xpack.license.post:
+          acknowledge: true
+          body: |
+            {"licenses":[{"uid":"893361dc-9749-4997-93cb-802e3d7fa4a8","type":"subscription","subscription_type":"gold","issue_date_in_millis":1411948800000,"feature":"shield","expiry_date_in_millis":1914278399999,"max_nodes":1,"issued_to":"issuedTo","issuer":"issuer","signature":"AAAAAQAAAA0LVAywwpSH94cyXr4zAAABmC9ZN0hjZDBGYnVyRXpCOW5Bb3FjZDAxOWpSbTVoMVZwUzRxVk1PSmkxakxZdW5IMlhlTHNoN1N2MXMvRFk4d3JTZEx3R3RRZ0pzU3lobWJKZnQvSEFva0ppTHBkWkprZWZSQi9iNmRQNkw1SlpLN0lDalZCS095MXRGN1lIZlpYcVVTTnFrcTE2dzhJZmZrdFQrN3JQeGwxb0U0MXZ0dDJHSERiZTVLOHNzSDByWnpoZEphZHBEZjUrTVBxRENNSXNsWWJjZllaODdzVmEzUjNiWktNWGM5TUhQV2plaUo4Q1JOUml4MXNuL0pSOEhQaVB2azhmUk9QVzhFeTFoM1Q0RnJXSG53MWk2K055c28zSmRnVkF1b2JSQkFLV2VXUmVHNDZ2R3o2VE1qbVNQS2lxOHN5bUErZlNIWkZSVmZIWEtaSU9wTTJENDVvT1NCYklacUYyK2FwRW9xa0t6dldMbmMzSGtQc3FWOTgzZ3ZUcXMvQkt2RUZwMFJnZzlvL2d2bDRWUzh6UG5pdENGWFRreXNKNkE9PQAAAQA4qscc/URRZVdFoLwgy9dqybYEQLW8YLkiAyPV5XHHHdtk+dtZIepiNEDkUXhSX2waVJlsNRF8/4kqplDfwNoD2TUM8fTgiIfiSiZYGDTGST+yW/5eAveEU5J5v1liBN27bwkqL+V4YAa0Tcm7NKKwjScWKAHiTU3vF8chPkGfCHE0kQgVwPC9RE82pTw0s6/uR4PfLGNFfqPM0uiE5nucfVrtj89JQiO/KA/7ZyFbo7VTNXxZQt7T7rZWBCP9KIjptXzcWuk08Q5S+rSoJNYbFo3HGKtrCVsRz/55rceNtdwKKXu1IwnSeir4I1/KLduQTtFLy0+1th87VS8T88UT"}]}
 
     - match: { license_status:  "valid" }
 
     - do:
-      license.get: {}
+        xpack.license.get: {}
 
     - length: { license: 10 }
 
     ## multiple licenses version: 1.x
     - do:
-      license.post:
-        acknowledge: true
-        body: |
-          {"licenses":[{"uid":"893361dc-9749-4997-93cb-802e3d7fa4a8","type":"internal","subscription_type":"none","issue_date_in_millis":1411948800000,"feature":"shield","expiry_date_in_millis":1440892799999,"max_nodes":1,"issued_to":"issuedTo","issuer":"issuer","signature":"AAAAAQAAAA04Q4ky3rFyyWLFkytEAAABmC9ZN0hjZDBGYnVyRXpCOW5Bb3FjZDAxOWpSbTVoMVZwUzRxVk1PSmkxakxZdW5IMlhlTHNoN1N2MXMvRFk4d3JTZEx3R3RRZ0pzU3lobWJKZnQvSEFva0ppTHBkWkprZWZSQi9iNmRQNkw1SlpLN0lDalZCS095MXRGN1lIZlpYcVVTTnFrcTE2dzhJZmZrdFQrN3JQeGwxb0U0MXZ0dDJHSERiZTVLOHNzSDByWnpoZEphZHBEZjUrTVBxRENNSXNsWWJjZllaODdzVmEzUjNiWktNWGM5TUhQV2plaUo4Q1JOUml4MXNuL0pSOEhQaVB2azhmUk9QVzhFeTFoM1Q0RnJXSG53MWk2K055c28zSmRnVkF1b2JSQkFLV2VXUmVHNDZ2R3o2VE1qbVNQS2lxOHN5bUErZlNIWkZSVmZIWEtaSU9wTTJENDVvT1NCYklacUYyK2FwRW9xa0t6dldMbmMzSGtQc3FWOTgzZ3ZUcXMvQkt2RUZwMFJnZzlvL2d2bDRWUzh6UG5pdENGWFRreXNKNkE9PQAAAQBxMvUMn4h2E4R4TQMijahTxQj4LPQO4f1M79UxX/XkDlGcH+J5pRHx08OtTRPsFL1lED+h+PIXx307Vo+PNDsOxrWvoYZeYBkOLAO3ny9vhQga+52jYhMxIuFrT9xbcSCSNpMhGojgOIPU2WgiopVdVcimo1+Gk8VtklPB1wPwFzfOjOnPgp/Icx3WYpfkeAUUOyWUYiFIBAe4bnz84iF+xwLKbgYk6aHF25ECBtdb/Uruhcm9+jEFpoIEUtCouvvk9C+NJZ4OickV4xpRgaRG2x9PONH8ZN0QGhGYhJGbisoCxuDmlLsyVxqxfMu3n/r7/jdsEJScjAlSrsLDOu6H"},{"uid":"893361dc-9749-4997-93cb-802e3dofh7aa","type":"internal","subscription_type":"none","issue_date_in_millis":1443484800000,"feature":"watcher","expiry_date_in_millis":1914278399999,"max_nodes":1,"issued_to":"issuedTo","issuer":"issuer","signature":"AAAAAQAAAA0Sc90guRIaQEmgLvMnAAABmC9ZN0hjZDBGYnVyRXpCOW5Bb3FjZDAxOWpSbTVoMVZwUzRxVk1PSmkxakxZdW5IMlhlTHNoN1N2MXMvRFk4d3JTZEx3R3RRZ0pzU3lobWJKZnQvSEFva0ppTHBkWkprZWZSQi9iNmRQNkw1SlpLN0lDalZCS095MXRGN1lIZlpYcVVTTnFrcTE2dzhJZmZrdFQrN3JQeGwxb0U0MXZ0dDJHSERiZTVLOHNzSDByWnpoZEphZHBEZjUrTVBxRENNSXNsWWJjZllaODdzVmEzUjNiWktNWGM5TUhQV2plaUo4Q1JOUml4MXNuL0pSOEhQaVB2azhmUk9QVzhFeTFoM1Q0RnJXSG53MWk2K055c28zSmRnVkF1b2JSQkFLV2VXUmVHNDZ2R3o2VE1qbVNQS2lxOHN5bUErZlNIWkZSVmZIWEtaSU9wTTJENDVvT1NCYklacUYyK2FwRW9xa0t6dldMbmMzSGtQc3FWOTgzZ3ZUcXMvQkt2RUZwMFJnZzlvL2d2bDRWUzh6UG5pdENGWFRreXNKNkE9PQAAAQCQ94dju0pnDZR3Uuypi0ic3aQJ+nvVqe+U8u79Dga5n1qIjcHDh7HvIBJEkF+tnVPlo/PXV/x7BZSwVY1PVErit+6rYix1yuHEgqwxmx/VdRICjCaZM6tk0Ob4dZCPv6Ebn2Mmk89KHC/PwiLPqF6QfwV/Pkpa8k2A3ORJmvYSDvXhe6tCs8dqc4ebrsFxqrZjwWh5CZSpzqqZBFXlngDv2N0hHhpGlueRszD0JJ5dfEL5ZA1DDOrgO9OJVejSHyRqe1L5QRUNdXPVfS+EAG0Dd1cNdJ/sMpYCPnVjbw6iq2/YgM3cuztsXVBY7ij4WnoP3ce7Zjs9TwHn+IqzftC6"}]}
+        xpack.license.post:
+          acknowledge: true
+          body: |
+            {"licenses":[{"uid":"893361dc-9749-4997-93cb-802e3d7fa4a8","type":"internal","subscription_type":"none","issue_date_in_millis":1411948800000,"feature":"shield","expiry_date_in_millis":1440892799999,"max_nodes":1,"issued_to":"issuedTo","issuer":"issuer","signature":"AAAAAQAAAA04Q4ky3rFyyWLFkytEAAABmC9ZN0hjZDBGYnVyRXpCOW5Bb3FjZDAxOWpSbTVoMVZwUzRxVk1PSmkxakxZdW5IMlhlTHNoN1N2MXMvRFk4d3JTZEx3R3RRZ0pzU3lobWJKZnQvSEFva0ppTHBkWkprZWZSQi9iNmRQNkw1SlpLN0lDalZCS095MXRGN1lIZlpYcVVTTnFrcTE2dzhJZmZrdFQrN3JQeGwxb0U0MXZ0dDJHSERiZTVLOHNzSDByWnpoZEphZHBEZjUrTVBxRENNSXNsWWJjZllaODdzVmEzUjNiWktNWGM5TUhQV2plaUo4Q1JOUml4MXNuL0pSOEhQaVB2azhmUk9QVzhFeTFoM1Q0RnJXSG53MWk2K055c28zSmRnVkF1b2JSQkFLV2VXUmVHNDZ2R3o2VE1qbVNQS2lxOHN5bUErZlNIWkZSVmZIWEtaSU9wTTJENDVvT1NCYklacUYyK2FwRW9xa0t6dldMbmMzSGtQc3FWOTgzZ3ZUcXMvQkt2RUZwMFJnZzlvL2d2bDRWUzh6UG5pdENGWFRreXNKNkE9PQAAAQBxMvUMn4h2E4R4TQMijahTxQj4LPQO4f1M79UxX/XkDlGcH+J5pRHx08OtTRPsFL1lED+h+PIXx307Vo+PNDsOxrWvoYZeYBkOLAO3ny9vhQga+52jYhMxIuFrT9xbcSCSNpMhGojgOIPU2WgiopVdVcimo1+Gk8VtklPB1wPwFzfOjOnPgp/Icx3WYpfkeAUUOyWUYiFIBAe4bnz84iF+xwLKbgYk6aHF25ECBtdb/Uruhcm9+jEFpoIEUtCouvvk9C+NJZ4OickV4xpRgaRG2x9PONH8ZN0QGhGYhJGbisoCxuDmlLsyVxqxfMu3n/r7/jdsEJScjAlSrsLDOu6H"},{"uid":"893361dc-9749-4997-93cb-802e3dofh7aa","type":"internal","subscription_type":"none","issue_date_in_millis":1443484800000,"feature":"watcher","expiry_date_in_millis":1914278399999,"max_nodes":1,"issued_to":"issuedTo","issuer":"issuer","signature":"AAAAAQAAAA0Sc90guRIaQEmgLvMnAAABmC9ZN0hjZDBGYnVyRXpCOW5Bb3FjZDAxOWpSbTVoMVZwUzRxVk1PSmkxakxZdW5IMlhlTHNoN1N2MXMvRFk4d3JTZEx3R3RRZ0pzU3lobWJKZnQvSEFva0ppTHBkWkprZWZSQi9iNmRQNkw1SlpLN0lDalZCS095MXRGN1lIZlpYcVVTTnFrcTE2dzhJZmZrdFQrN3JQeGwxb0U0MXZ0dDJHSERiZTVLOHNzSDByWnpoZEphZHBEZjUrTVBxRENNSXNsWWJjZllaODdzVmEzUjNiWktNWGM5TUhQV2plaUo4Q1JOUml4MXNuL0pSOEhQaVB2azhmUk9QVzhFeTFoM1Q0RnJXSG53MWk2K055c28zSmRnVkF1b2JSQkFLV2VXUmVHNDZ2R3o2VE1qbVNQS2lxOHN5bUErZlNIWkZSVmZIWEtaSU9wTTJENDVvT1NCYklacUYyK2FwRW9xa0t6dldMbmMzSGtQc3FWOTgzZ3ZUcXMvQkt2RUZwMFJnZzlvL2d2bDRWUzh6UG5pdENGWFRreXNKNkE9PQAAAQCQ94dju0pnDZR3Uuypi0ic3aQJ+nvVqe+U8u79Dga5n1qIjcHDh7HvIBJEkF+tnVPlo/PXV/x7BZSwVY1PVErit+6rYix1yuHEgqwxmx/VdRICjCaZM6tk0Ob4dZCPv6Ebn2Mmk89KHC/PwiLPqF6QfwV/Pkpa8k2A3ORJmvYSDvXhe6tCs8dqc4ebrsFxqrZjwWh5CZSpzqqZBFXlngDv2N0hHhpGlueRszD0JJ5dfEL5ZA1DDOrgO9OJVejSHyRqe1L5QRUNdXPVfS+EAG0Dd1cNdJ/sMpYCPnVjbw6iq2/YgM3cuztsXVBY7ij4WnoP3ce7Zjs9TwHn+IqzftC6"}]}
 
     - match: { license_status:  "valid" }
 
     - do:
-      license.get: {}
+        xpack.license.get: {}
 
     - length: { license: 10 }
     - match: { license.uid: "893361dc-9749-4997-93cb-802e3dofh7aa" }
 
 ---
 "Should throw 404 after license deletion":
-
   - do:
-    license.delete: {}
+      xpack.license.delete: {}
 
   - match: { acknowledged: true }
 
   - do:
+      xpack.license.get: {}
       catch: missing
-      license.get: {}

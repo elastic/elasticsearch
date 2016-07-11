@@ -16,13 +16,13 @@ public final class MonitoringTemplateUtils {
     private static final String TEMPLATE_VERSION_PROPERTY = Pattern.quote("${monitoring.template.version}");
 
     /** Current version of es and data templates **/
-    public static final Integer TEMPLATE_VERSION = 2;
+    public static final String TEMPLATE_VERSION = "2";
 
     private MonitoringTemplateUtils() {
     }
 
     public static String loadTemplate(String id) {
         String resource = String.format(Locale.ROOT, TEMPLATE_FILE, id);
-        return TemplateUtils.loadTemplate(resource, String.valueOf(TEMPLATE_VERSION), TEMPLATE_VERSION_PROPERTY);
+        return TemplateUtils.loadTemplate(resource, TEMPLATE_VERSION, TEMPLATE_VERSION_PROPERTY);
     }
 }

@@ -11,9 +11,9 @@
         metric: [ settings ]
 
   - is_true:  nodes
-  - is_true:  nodes.$master.settings.xpack.monitoring.agent.exporters._http.type
+  - is_true:  nodes.$master.settings.xpack.monitoring.collection.exporters._http.type
 
-  - is_false: nodes.$master.settings.xpack.monitoring.agent.exporters._http.auth.username
-  - is_false: nodes.$master.settings.xpack.monitoring.agent.exporters._http.auth.password
-  - is_false: nodes.$master.settings.xpack.monitoring.agent.exporters._http.ssl.truststore.path
-  - is_false: nodes.$master.settings.xpack.monitoring.agent.exporters._http.ssl.truststore.password
+  - is_false: nodes.$master.settings.xpack.monitoring.collection.exporters._http.auth.username
+  - is_false: nodes.$master.settings.xpack.monitoring.collection.exporters._http.auth.password
+  - is_false: nodes.$master.settings.xpack.monitoring.collection.exporters._http.ssl.truststore.path
+  - is_false: nodes.$master.settings.xpack.monitoring.collection.exporters._http.ssl.truststore.password

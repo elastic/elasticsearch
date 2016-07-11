@@ -52,55 +52,55 @@ public class MonitoringSettings extends AbstractComponent {
      * Sampling interval between two collections (default to 10s)
      */
     public static final Setting<TimeValue> INTERVAL =
-            timeSetting(key("agent.interval"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
+            timeSetting(collectionKey("interval"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
 
     /**
      * Timeout value when collecting index statistics (default to 10m)
      */
     public static final Setting<TimeValue> INDEX_STATS_TIMEOUT =
-            timeSetting(key("agent.index.stats.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
+            timeSetting(collectionKey("index.stats.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
 
     /**
      * Timeout value when collecting total indices statistics (default to 10m)
      */
     public static final Setting<TimeValue> INDICES_STATS_TIMEOUT =
-            timeSetting(key("agent.indices.stats.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
+            timeSetting(collectionKey("indices.stats.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
 
     /**
      * List of indices names whose stats will be exported (default to all indices)
      */
     public static final Setting<List<String>> INDICES =
-            listSetting(key("agent.indices"), Collections.emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope);
+            listSetting(collectionKey("indices"), Collections.emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope);
 
     /**
      * Timeout value when collecting the cluster state (default to 10m)
      */
     public static final Setting<TimeValue> CLUSTER_STATE_TIMEOUT =
-            timeSetting(key("agent.cluster.state.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
+            timeSetting(collectionKey("cluster.state.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
 
     /**
      * Timeout value when collecting the recovery information (default to 10m)
      */
     public static final Setting<TimeValue> CLUSTER_STATS_TIMEOUT =
-            timeSetting(key("agent.cluster.stats.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
+            timeSetting(collectionKey("cluster.stats.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
 
     /**
      * Timeout value when collecting the recovery information (default to 10m)
      */
     public static final Setting<TimeValue> INDEX_RECOVERY_TIMEOUT =
-            timeSetting(key("agent.index.recovery.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
+            timeSetting(collectionKey("index.recovery.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
 
     /**
      * Flag to indicate if only active recoveries should be collected (default to false: all recoveries are collected)
      */
     public static final Setting<Boolean> INDEX_RECOVERY_ACTIVE_ONLY =
-            boolSetting(key("agent.index.recovery.active_only"), false, Property.Dynamic, Property.NodeScope) ;
+            boolSetting(collectionKey("index.recovery.active_only"), false, Property.Dynamic, Property.NodeScope) ;
 
     /**
      * List of collectors allowed to collect data (default to all)
      */
     public static final Setting<List<String>> COLLECTORS =
-            listSetting(key("agent.collectors"), Collections.emptyList(), Function.identity(), Property.NodeScope);
+            listSetting(collectionKey("collectors"), Collections.emptyList(), Function.identity(), Property.NodeScope);
 
     /**
      * The default retention duration of the monitoring history data.
@@ -123,7 +123,7 @@ public class MonitoringSettings extends AbstractComponent {
      * Settings/Options per configured exporter
      */
     public static final Setting<Settings> EXPORTERS_SETTINGS =
-            groupSetting(key("agent.exporters."), Property.Dynamic, Property.NodeScope);
+            groupSetting(collectionKey("exporters."), Property.Dynamic, Property.NodeScope);
 
     public static List<Setting<?>> getSettings() {
         return Arrays.asList(INDICES,
@@ -141,7 +141,7 @@ public class MonitoringSettings extends AbstractComponent {
     }
 
     public static List<String> getSettingsFilter() {
-        return Arrays.asList("xpack.monitoring.agent.exporters.*.auth.*", "xpack.monitoring.agent.exporters.*.ssl.*");
+        return Arrays.asList("xpack.monitoring.collection.exporters.*.auth.*", "xpack.monitoring.collection.exporters.*.ssl.*");
     }
 
 
@@ -225,6 +225,17 @@ public class MonitoringSettings extends AbstractComponent {
 
     private void setIndices(List<String> indices) {
         this.indices = indices.toArray(new String[0]);
+    }
+
+    /**
+     * Prefix the {@code key} with the Monitoring prefix and "collection." .
+     *
+     * @param key The key to prefix
+     * @return The key prefixed by the product prefixes + "collection." .
+     * @see #key(String)
+     */
+    static String collectionKey(String key) {
+        return key("collection." + key);
     }
 
     /**

@@ -15,6 +15,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.xpack.common.stats.Counters;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.support.clock.Clock;
@@ -28,6 +29,8 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.PeriodType;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
@@ -285,4 +288,9 @@ public class WatcherService extends AbstractComponent {
         }
     }
 
+    public Map<String, Object> usageStats() {
+        Map<String, Object> innerMap = executionService.usageStats();
+        innerMap.putAll(watchStore.usageStats());
+        return innerMap;
+    }
 }

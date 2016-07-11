@@ -536,11 +536,8 @@ public class HttpExporter extends Exporter {
         for (String host : hosts) {
             try {
                 HttpExporterUtils.parseHostWithPath(host, "");
-            } catch (URISyntaxException e) {
-                throw new SettingsException("[xpack.monitoring.agent.exporter] invalid host: [" + host + "]." +
-                        " error: [" + e.getMessage() + "]");
-            } catch (MalformedURLException e) {
-                throw new SettingsException("[xpack.monitoring.agent.exporter] invalid host: [" + host + "]." +
+            } catch (URISyntaxException | MalformedURLException e) {
+                throw new SettingsException("[xpack.monitoring.collection.exporters] invalid host: [" + host + "]." +
                         " error: [" + e.getMessage() + "]");
             }
         }

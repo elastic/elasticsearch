@@ -18,7 +18,7 @@ subprojects {
     cluster {
       systemProperty 'es.logger.level', 'TRACE'
       plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
-      setting 'xpack.monitoring.agent.interval', '3s'
+      setting 'xpack.monitoring.collection.interval', '3s'
       extraConfigFile 'x-pack/roles.yml', '../roles.yml'
       setupCommand 'setupTestAdminUser',
                    'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'superuser'

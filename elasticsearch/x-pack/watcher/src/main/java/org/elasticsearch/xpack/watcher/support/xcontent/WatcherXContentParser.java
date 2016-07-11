@@ -15,17 +15,17 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.common.secret.Secret;
-import org.elasticsearch.xpack.common.secret.SecretService;
 
 /**
  * A xcontent parser that is used by watcher. This is a special parser that is
  * aware of watcher services. In particular, it's aware of the used {@link Clock}
- * and the {@link SecretService}. The former (clock) may be used when the current time
- * is required during the parse phase of construct. The latter (secret service) is used
- * to convert secret values (e.g. passwords, security tokens, etc..) to {@link Secret}s.
+ * and the {@link CryptoService}. The former (clock) may be used when the current time
+ * is required during the parse phase of construct. The latter (crypto service) is used
+ * to encode secret values (e.g. passwords, security tokens, etc..) to {@link Secret}s.
  * {@link Secret}s are encrypted values that are stored in memory and are decrypted
  * on demand when needed.
  */
@@ -35,8 +35,8 @@ public class WatcherXContentParser implements XContentParser {
         char[] chars = parser.text().toCharArray();
         if (parser instanceof WatcherXContentParser) {
             WatcherXContentParser watcherParser = (WatcherXContentParser) parser;
-            if (watcherParser.secretService != null) {
-                chars = watcherParser.secretService.encrypt(chars);
+            if (watcherParser.cryptoService != null) {
+                chars = watcherParser.cryptoService.encrypt(chars);
             }
         }
         return new Secret(chars);
@@ -50,8 +50,8 @@ public class WatcherXContentParser implements XContentParser {
         char[] chars = parser.text().toCharArray();
         if (parser instanceof WatcherXContentParser) {
             WatcherXContentParser watcherParser = (WatcherXContentParser) parser;
-            if (watcherParser.secretService != null) {
-                chars = watcherParser.secretService.encrypt(text.toCharArray());
+            if (watcherParser.cryptoService != null) {
+                chars = watcherParser.cryptoService.encrypt(text.toCharArray());
             }
             return new Secret(chars);
         }
@@ -67,12 +67,12 @@ public class WatcherXContentParser implements XContentParser {
 
     private final Clock clock;
     private final XContentParser parser;
-    @Nullable private final SecretService secretService;
+    @Nullable private final CryptoService cryptoService;
 
-    public WatcherXContentParser(XContentParser parser, Clock clock, @Nullable SecretService secretService) {
+    public WatcherXContentParser(XContentParser parser, Clock clock, @Nullable CryptoService cryptoService) {
         this.clock = clock;
         this.parser = parser;
-        this.secretService = secretService;
+        this.cryptoService = cryptoService;
     }
 
     @Override

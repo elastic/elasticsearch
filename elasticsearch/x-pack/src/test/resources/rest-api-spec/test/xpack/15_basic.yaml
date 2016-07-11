@@ -7,7 +7,7 @@
         wait_for_status: yellow
 
   - do:
-      license.delete: {}
+      xpack.license.delete: {}
   - match: { acknowledged: true }
 
   # we don't have a license now
@@ -30,7 +30,7 @@
 #  - is_false:   features.monitoring.available  TODO fix once licensing is fixed
 
   - do:
-      license.post:
+      xpack.license.post:
         body: >
           {
             "license": {
@@ -49,7 +49,7 @@
   - match: { license_status:  "valid" }
 
   - do:
-      license.get: {}
+      xpack.license.get: {}
   - match: { license.uid: "893361dc-9749-4997-93cb-802e3dofh7aa" }
   - match: { license.type: "internal" }
   - match: { license.status: "active" }
@@ -84,7 +84,7 @@
   - is_true:    tagline
 
   - do:
-    xpack.usage: {}
+      xpack.usage: {}
   - is_true:    watcher.enabled
   - is_true:    watcher.available
   - is_true:    security.enabled
@@ -93,19 +93,21 @@
   - is_true:    graph.available
   - is_true:    monitoring.enabled
   - is_true:    monitoring.available
+  - gte: { watcher.count.total: 0 }
+  - gte: { watcher.count.active: 0 }
 
   - do:
-    xpack.info:
-      categories: "_none"
+      xpack.info:
+        categories: "_none"
   - is_false:    build
   - is_false:    features
   - is_false:    license
   - match: { tagline: "You know, for X" }
 
   - do:
-    xpack.info:
-      categories: "_none"
-      human: false
+      xpack.info:
+        categories: "_none"
+        human: false
   - is_false:    build
   - is_false:    features
   - is_false:    license

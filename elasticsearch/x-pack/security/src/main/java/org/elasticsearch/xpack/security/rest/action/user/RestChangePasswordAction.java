@@ -22,6 +22,9 @@ import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordResponse;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
+
 /**
  */
 public class RestChangePasswordAction extends BaseRestHandler {
@@ -32,10 +35,10 @@ public class RestChangePasswordAction extends BaseRestHandler {
     public RestChangePasswordAction(Settings settings, RestController controller, SecurityContext securityContext) {
         super(settings);
         this.securityContext = securityContext;
-        controller.registerHandler(RestRequest.Method.POST, "/_xpack/security/user/{username}/_password", this);
-        controller.registerHandler(RestRequest.Method.PUT, "/_xpack/security/user/{username}/_password", this);
-        controller.registerHandler(RestRequest.Method.POST, "/_xpack/security/user/_password", this);
-        controller.registerHandler(RestRequest.Method.PUT, "/_xpack/security/user/_password", this);
+        controller.registerHandler(POST, "/_xpack/security/user/{username}/_password", this);
+        controller.registerHandler(PUT, "/_xpack/security/user/{username}/_password", this);
+        controller.registerHandler(POST, "/_xpack/security/user/_password", this);
+        controller.registerHandler(PUT, "/_xpack/security/user/_password", this);
     }
 
     @Override

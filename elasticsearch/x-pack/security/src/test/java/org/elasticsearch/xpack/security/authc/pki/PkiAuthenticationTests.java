@@ -99,7 +99,7 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
 
     public void testRestAuthenticationViaPki() throws Exception {
         SSLContext context = getRestSSLContext("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode");
-        try (CloseableHttpClient client = HttpClients.custom().setSslcontext(context).build()) {
+        try (CloseableHttpClient client = HttpClients.custom().setSSLContext(context).build()) {
             HttpPut put = new HttpPut(getNodeUrl() + "foo");
             try (CloseableHttpResponse response = client.execute(put)) {
                 String body = EntityUtils.toString(response.getEntity());
@@ -110,7 +110,7 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
 
     public void testRestAuthenticationFailure() throws Exception {
         SSLContext context = getRestSSLContext("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient");
-        try (CloseableHttpClient client = HttpClients.custom().setSslcontext(context).build()) {
+        try (CloseableHttpClient client = HttpClients.custom().setSSLContext(context).build()) {
             HttpPut put = new HttpPut(getNodeUrl() + "foo");
             try (CloseableHttpResponse response = client.execute(put)) {
                 assertThat(response.getStatusLine().getStatusCode(), is(401));

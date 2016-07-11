@@ -35,7 +35,7 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(MonitoringSettings.INTERVAL.getKey(), "-1")
-                .put("xpack.monitoring.agent.exporters.default_local.type", "local")
+                .put("xpack.monitoring.collection.exporters.default_local.type", "local")
                 .build();
     }
 
@@ -102,7 +102,7 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
                     assertThat(((StringTerms) aggregation).getBuckets().size(), equalTo(nbNodes));
 
                     for (String nodeName : internalCluster().getNodeNames()) {
-                        StringTerms.Bucket bucket = (StringTerms.Bucket) ((StringTerms) aggregation)
+                        StringTerms.Bucket bucket = ((StringTerms) aggregation)
                                 .getBucketByKey(internalCluster().clusterService(nodeName).localNode().getId());
                         // At least 1 doc must exist per node, but it can be more than 1
                         // because the first node may have already collected many node stats documents

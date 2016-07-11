@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.monitoring.agent.resolver;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkDoc;
@@ -21,6 +20,7 @@ import org.elasticsearch.xpack.monitoring.agent.collector.indices.IndicesStatsMo
 import org.elasticsearch.xpack.monitoring.agent.collector.node.NodeStatsMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.agent.collector.shards.ShardMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
+import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.agent.resolver.bulk.MonitoringBulkDataResolver;
 import org.elasticsearch.xpack.monitoring.agent.resolver.bulk.MonitoringBulkTimestampedResolver;
 import org.elasticsearch.xpack.monitoring.agent.resolver.cluster.ClusterInfoResolver;
@@ -74,8 +74,13 @@ public class ResolversRegistry implements Iterable<MonitoringIndexNameResolver> 
     private void registerMonitoredSystem(MonitoredSystem id, Settings settings) {
         final MonitoringBulkDataResolver dataResolver =  new MonitoringBulkDataResolver();
         final MonitoringBulkTimestampedResolver timestampedResolver =  new MonitoringBulkTimestampedResolver(id, settings);
-        registrations.add(resolveByClassSystemVersion(id, dataResolver, MonitoringIndex.DATA, Version.CURRENT));
-        registrations.add(resolveByClassSystemVersion(id, timestampedResolver, MonitoringIndex.TIMESTAMPED, Version.CURRENT));
+
+        final String currentApiVersion = MonitoringTemplateUtils.TEMPLATE_VERSION;
+
+        // Note: We resolve requests by the API version that is supplied; this allows us to translate and up-convert any older
+        // requests that come through the _xpack/monitoring/_bulk endpoint
+        registrations.add(resolveByClassSystemVersion(id, dataResolver, MonitoringIndex.DATA, currentApiVersion));
+        registrations.add(resolveByClassSystemVersion(id, timestampedResolver, MonitoringIndex.TIMESTAMPED, currentApiVersion));
     }
 
     /**
@@ -100,7 +105,7 @@ public class ResolversRegistry implements Iterable<MonitoringIndexNameResolver> 
     }
 
     static Registration resolveByClassSystemVersion(MonitoredSystem system, MonitoringIndexNameResolver  resolver, MonitoringIndex index,
-                                                    Version version) {
+                                                    String apiVersion) {
         return new Registration(resolver, doc -> {
             try {
                 if (doc instanceof MonitoringBulkDoc == false || index != ((MonitoringBulkDoc)doc).getIndex()) {
@@ -109,7 +114,7 @@ public class ResolversRegistry implements Iterable<MonitoringIndexNameResolver> 
                 if (system != MonitoredSystem.fromSystem(doc.getMonitoringId())) {
                     return false;
                 }
-                return version == Version.fromString(doc.getMonitoringVersion());
+                return apiVersion.equals(doc.getMonitoringVersion());
             } catch (Exception e) {
                 return false;
             }

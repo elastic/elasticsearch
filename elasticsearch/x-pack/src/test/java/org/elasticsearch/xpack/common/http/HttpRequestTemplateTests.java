@@ -16,7 +16,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
-import org.elasticsearch.xpack.common.secret.SecretService;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
@@ -139,7 +138,7 @@ public class HttpRequestTemplateTests extends ESTestCase {
         HttpRequestTemplate template = builder.build();
 
         HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE,
-                new BasicAuthFactory(SecretService.Insecure.INSTANCE)));
+                new BasicAuthFactory(null)));
         HttpRequestTemplate.Parser parser = new HttpRequestTemplate.Parser(registry);
 
         XContentBuilder xContentBuilder = template.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);

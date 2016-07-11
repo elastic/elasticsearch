@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+
 /**
  * Rest endpoint to retrieve a Role from the security index
  */
@@ -30,8 +32,18 @@ public class RestGetRolesAction extends BaseRestHandler {
     @Inject
     public RestGetRolesAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET, "/_xpack/security/role/", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_xpack/security/role/{name}", this);
+        controller.registerHandler(GET, "/_xpack/security/role/", this);
+        controller.registerHandler(GET, "/_xpack/security/role/{name}", this);
+
+        // @deprecated: Remove in 6.0
+        controller.registerAsDeprecatedHandler(GET, "/_shield/role", this,
+                                               "[GET /_shield/role] is deprecated! Use " +
+                                               "[GET /_xpack/security/role] instead.",
+                                               deprecationLogger);
+        controller.registerAsDeprecatedHandler(GET, "/_shield/role/{name}", this,
+                                               "[GET /_shield/role/{name}] is deprecated! Use " +
+                                               "[GET /_xpack/security/role/{name}] instead.",
+                                               deprecationLogger);
     }
 
     @Override

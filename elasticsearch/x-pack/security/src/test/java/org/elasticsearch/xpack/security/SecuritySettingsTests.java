@@ -5,8 +5,11 @@
  */
 package org.elasticsearch.xpack.security;
 
+import java.io.IOException;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.audit.AuditTrailModule;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.test.ESTestCase;
@@ -25,13 +28,11 @@ public class SecuritySettingsTests extends ESTestCase {
     private static final String TRIBE_T1_SECURITY_ENABLED = "tribe.t1." + Security.enabledSetting();
     private static final String TRIBE_T2_SECURITY_ENABLED = "tribe.t2." + Security.enabledSetting();
 
-    public void testSecurityIsMandatoryOnTribes() {
+    public void testSecurityIsMandatoryOnTribes() throws IOException {
         Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
                 .put("tribe.t2.cluster.name", "non_existing").build();
 
-        Security security = new Security(settings);
-
-        Settings additionalSettings = security.additionalSettings();
+        Settings additionalSettings = Security.additionalSettings(settings);
 
 
         assertThat(additionalSettings.getAsArray("tribe.t1.plugin.mandatory", null), arrayContaining(XPackPlugin.NAME));
@@ -42,11 +43,9 @@ public class SecuritySettingsTests extends ESTestCase {
         Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
                 .putArray("tribe.t1.plugin.mandatory", "test_plugin").build();
 
-        Security security = new Security(settings);
-
         //simulate what PluginsService#updatedSettings does to make sure we don't override existing mandatory plugins
         try {
-            Settings.builder().put(settings).put(security.additionalSettings()).build();
+            Settings.builder().put(settings).put(Security.additionalSettings(settings)).build();
             fail("security cannot change the value of a setting that is already defined, so a exception should be thrown");
         } catch (IllegalStateException e) {
             assertThat(e.getMessage(), containsString(XPackPlugin.NAME));
@@ -58,10 +57,8 @@ public class SecuritySettingsTests extends ESTestCase {
         Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
                 .putArray("tribe.t1.plugin.mandatory", "test_plugin", XPackPlugin.NAME).build();
 
-        Security security = new Security(settings);
-
         //simulate what PluginsService#updatedSettings does to make sure we don't override existing mandatory plugins
-        Settings finalSettings = Settings.builder().put(settings).put(security.additionalSettings()).build();
+        Settings finalSettings = Settings.builder().put(settings).put(Security.additionalSettings(settings)).build();
 
         String[] finalMandatoryPlugins = finalSettings.getAsArray("tribe.t1.plugin.mandatory", null);
         assertThat(finalMandatoryPlugins, notNullValue());
@@ -74,9 +71,7 @@ public class SecuritySettingsTests extends ESTestCase {
         Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
                 .put("tribe.t2.cluster.name", "non_existing").build();
 
-        Security security = new Security(settings);
-
-        Settings additionalSettings = security.additionalSettings();
+        Settings additionalSettings = Security.additionalSettings(settings);
 
         assertThat(additionalSettings.getAsBoolean(TRIBE_T1_SECURITY_ENABLED, null), equalTo(true));
         assertThat(additionalSettings.getAsBoolean(TRIBE_T2_SECURITY_ENABLED, null), equalTo(true));
@@ -87,10 +82,8 @@ public class SecuritySettingsTests extends ESTestCase {
                 .put(TRIBE_T1_SECURITY_ENABLED, false)
                 .put("tribe.t2.cluster.name", "non_existing").build();
 
-        Security security = new Security(settings);
-
         try {
-            security.additionalSettings();
+            Security.additionalSettings(settings);
             fail("security cannot change the value of a setting that is already defined, so a exception should be thrown");
         } catch (IllegalStateException e) {
             assertThat(e.getMessage(), containsString(TRIBE_T1_SECURITY_ENABLED));
@@ -103,10 +96,8 @@ public class SecuritySettingsTests extends ESTestCase {
                 .put("tribe.t2.cluster.name", "non_existing")
                 .putArray("tribe.t1.plugin.mandatory", "test_plugin", XPackPlugin.NAME).build();
 
-        Security security = new Security(settings);
-
         try {
-            security.additionalSettings();
+            Security.additionalSettings(settings);
             fail("security cannot change the value of a setting that is already defined, so a exception should be thrown");
         } catch (IllegalStateException e) {
             assertThat(e.getMessage(), containsString(TRIBE_T1_SECURITY_ENABLED));
@@ -122,8 +113,7 @@ public class SecuritySettingsTests extends ESTestCase {
                 .putArray("xpack.security.something.else.here", new String[] { "foo", "bar" })
                 .build();
 
-        Security security = new Security(settings);
-        Settings additionalSettings = security.additionalSettings();
+        Settings additionalSettings = Security.additionalSettings(settings);
 
         assertThat(additionalSettings.get("xpack.security.foo"), nullValue());
         assertThat(additionalSettings.get("xpack.security.bar"), nullValue());

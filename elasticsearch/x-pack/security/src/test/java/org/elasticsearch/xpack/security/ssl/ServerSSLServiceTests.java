@@ -35,8 +35,8 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class ServerSSLServiceTests extends ESTestCase {
 
-    Path testnodeStore;
-    Environment env;
+    private Path testnodeStore;
+    private Environment env;
 
     @Before
     public void setup() throws Exception {

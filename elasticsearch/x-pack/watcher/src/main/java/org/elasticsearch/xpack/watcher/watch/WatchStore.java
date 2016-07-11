@@ -32,11 +32,17 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.watcher.WatcherFeatureSet;
+import org.elasticsearch.xpack.common.stats.Counters;
+import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
+import org.elasticsearch.xpack.watcher.trigger.schedule.Schedule;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -204,8 +210,66 @@ public class WatchStore extends AbstractComponent {
         return watches;
     }
 
-    public int watchCount() {
-        return watches.size();
+    public Map<String, Object> usageStats() {
+        Counters counters = new Counters("count.total", "count.active");
+        for (Watch watch : watches.values()) {
+            boolean isActive = watch.status().state().isActive();
+            addToCounters("count", isActive, counters);
+
+            // schedule
+            if (watch.trigger() != null) {
+                addToCounters("watch.trigger._all", isActive, counters);
+                if ("schedule".equals(watch.trigger().type())) {
+                    Schedule schedule = ((ScheduleTrigger) watch.trigger()).getSchedule();
+                    addToCounters("watch.trigger.schedule._all", isActive, counters);
+                    addToCounters("watch.trigger.schedule." + schedule.type(), isActive, counters);
+                }
+            }
+
+            // input
+            if (watch.input() != null) {
+                String type = watch.input().type();
+                addToCounters("watch.input._all", isActive, counters);
+                addToCounters("watch.input." + type, isActive, counters);
+            }
+
+            // condition
+            if (watch.condition() != null) {
+                String type = watch.condition().type();
+                addToCounters("watch.condition._all", isActive, counters);
+                addToCounters("watch.condition." + type, isActive, counters);
+            }
+
+            // actions
+            for (ActionWrapper actionWrapper : watch.actions()) {
+                String type = actionWrapper.action().type();
+                addToCounters("watch.action." + type, isActive, counters);
+                if (actionWrapper.transform() != null) {
+                    String transformType = actionWrapper.transform().type();
+                    addToCounters("watch.transform." + transformType, isActive, counters);
+                }
+            }
+
+            // transform
+            if (watch.transform() != null) {
+                String type = watch.transform().type();
+                addToCounters("watch.transform." + type, isActive, counters);
+            }
+
+            // metadata
+            if (watch.metadata() != null && watch.metadata().size() > 0) {
+                addToCounters("watch.metadata", isActive, counters);
+            }
+        }
+
+        return counters.toMap();
+    }
+
+    private void addToCounters(String name, boolean isActive, Counters counters) {
+        counters.inc(name + ".total");
+        if (isActive) {
+            counters.inc(name + ".active");
+        }
     }
 
     IndexRequest createIndexRequest(String id, BytesReference source, long version) {

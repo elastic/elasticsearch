@@ -21,6 +21,9 @@ import org.elasticsearch.xpack.security.action.user.PutUserRequestBuilder;
 import org.elasticsearch.xpack.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
+
 /**
  * Rest endpoint to add a User to the security index
  */
@@ -29,8 +32,18 @@ public class RestPutUserAction extends BaseRestHandler {
     @Inject
     public RestPutUserAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, "/_xpack/security/user/{username}", this);
-        controller.registerHandler(RestRequest.Method.PUT, "/_xpack/security/user/{username}", this);
+        controller.registerHandler(POST, "/_xpack/security/user/{username}", this);
+        controller.registerHandler(PUT, "/_xpack/security/user/{username}", this);
+
+        // @deprecated: Remove in 6.0
+        controller.registerAsDeprecatedHandler(POST, "/_shield/user/{username}", this,
+                                               "[POST /_shield/user/{username}] is deprecated! Use " +
+                                               "[POST /_xpack/security/user/{username}] instead.",
+                                               deprecationLogger);
+        controller.registerAsDeprecatedHandler(PUT, "/_shield/user/{username}", this,
+                                               "[PUT /_shield/user/{username}] is deprecated! Use " +
+                                               "[PUT /_xpack/security/user/{username}] instead.",
+                                               deprecationLogger);
     }
 
     @Override

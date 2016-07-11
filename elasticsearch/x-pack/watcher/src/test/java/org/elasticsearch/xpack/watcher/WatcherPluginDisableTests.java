@@ -68,7 +68,7 @@ public class WatcherPluginDisableTests extends ESIntegTestCase {
     public void testRestEndpoints() throws Exception {
         HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
         try {
-            getRestClient().performRequest("GET", "/_xpack/watcher", Collections.emptyMap(), null);
+            getRestClient().performRequest("GET", "/_xpack/watcher");
             fail("request should have failed");
         } catch(ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(HttpStatus.SC_BAD_REQUEST));

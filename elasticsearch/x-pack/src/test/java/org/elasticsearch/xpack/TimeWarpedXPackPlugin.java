@@ -5,43 +5,22 @@
  */
 package org.elasticsearch.xpack;
 
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.support.clock.ClockMock;
-import org.elasticsearch.xpack.support.clock.ClockModule;
 import org.elasticsearch.xpack.watcher.test.TimeWarpedWatcher;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.io.IOException;
 
 public class TimeWarpedXPackPlugin extends XPackPlugin {
 
-    public TimeWarpedXPackPlugin(Settings settings) {
+    public TimeWarpedXPackPlugin(Settings settings) throws IOException {
         super(settings);
         watcher = new TimeWarpedWatcher(settings);
     }
 
     @Override
-    public Collection<Module> nodeModules() {
-        List<Module> modules = new ArrayList<>(super.nodeModules());
-        for (int i = 0; i < modules.size(); ++i) {
-            Module module = modules.get(i);
-            if (module instanceof ClockModule) {
-                // replacing the clock module so we'll be able
-                // to control time in tests
-                modules.set(i, new MockClockModule());
-            }
-        }
-        return modules;
-    }
-
-    public static class MockClockModule extends ClockModule {
-        @Override
-        protected void configure() {
-            bind(ClockMock.class).asEagerSingleton();
-            bind(Clock.class).to(ClockMock.class);
-        }
+    protected Clock getClock() {
+        return new ClockMock();
     }
 }

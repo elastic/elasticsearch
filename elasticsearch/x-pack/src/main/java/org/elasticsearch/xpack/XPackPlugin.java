@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -41,7 +42,6 @@ import org.elasticsearch.xpack.action.XPackInfoAction;
 import org.elasticsearch.xpack.action.XPackUsageAction;
 import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.common.http.HttpClientModule;
-import org.elasticsearch.xpack.common.secret.SecretModule;
 import org.elasticsearch.xpack.common.text.TextTemplateModule;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.extensions.XPackExtensionsService;
@@ -55,7 +55,8 @@ import org.elasticsearch.xpack.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.AuthenticationModule;
-import org.elasticsearch.xpack.support.clock.ClockModule;
+import org.elasticsearch.xpack.support.clock.Clock;
+import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.Watcher;
 
 public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
@@ -109,18 +110,19 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
     protected Graph graph;
     protected Notification notification;
 
-    public XPackPlugin(Settings settings) {
+    public XPackPlugin(Settings settings) throws IOException {
         this.settings = settings;
         this.transportClientMode = transportClientMode(settings);
+        final Environment env = transportClientMode ? null : new Environment(settings);
+
         this.licensing = new Licensing(settings);
-        this.security = new Security(settings);
+        this.security = new Security(settings, env);
         this.monitoring = new Monitoring(settings);
         this.watcher = new Watcher(settings);
         this.graph = new Graph(settings);
         this.notification = new Notification(settings);
         // Check if the node is a transport client.
         if (transportClientMode == false) {
-            Environment env = new Environment(settings);
             this.extensionsService = new XPackExtensionsService(settings, resolveXPackExtensionsFile(env), getExtensions());
         } else {
             this.extensionsService = null;
@@ -132,34 +134,38 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
         return Collections.emptyList();
     }
 
+    // overridable by tests
+    protected Clock getClock() {
+        return SystemClock.INSTANCE;
+    }
+
     @Override
-    public Collection<Module> nodeModules() {
+    public Collection<Module> createGuiceModules() {
         ArrayList<Module> modules = new ArrayList<>();
-        modules.add(new ClockModule());
+        modules.add(b -> b.bind(Clock.class).toInstance(getClock()));
         modules.addAll(notification.nodeModules());
         modules.addAll(licensing.nodeModules());
         modules.addAll(security.nodeModules());
         modules.addAll(watcher.nodeModules());
         modules.addAll(monitoring.nodeModules());
-        modules.addAll(graph.nodeModules());
+        modules.addAll(graph.createGuiceModules());
 
         if (transportClientMode == false) {
             modules.add(new HttpClientModule());
-            modules.add(new SecretModule(settings));
             modules.add(new TextTemplateModule());
         }
         return modules;
     }
 
     @Override
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
+    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
         ArrayList<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         services.addAll(notification.nodeServices());
         services.addAll(licensing.nodeServices());
         services.addAll(security.nodeServices());
         services.addAll(watcher.nodeServices());
         services.addAll(monitoring.nodeServices());
-        services.addAll(graph.nodeServices());
+        services.addAll(graph.getGuiceServiceClasses());
         return services;
     }
 

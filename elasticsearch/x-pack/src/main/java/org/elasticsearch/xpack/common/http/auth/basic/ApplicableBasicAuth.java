@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.common.http.auth.basic;
 
-import org.elasticsearch.xpack.common.http.auth.ApplicableHttpAuth;
-import org.elasticsearch.xpack.common.secret.SecretService;
-
 import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+
+import org.elasticsearch.xpack.common.http.auth.ApplicableHttpAuth;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
 
 /**
  */
@@ -18,7 +18,7 @@ public class ApplicableBasicAuth extends ApplicableHttpAuth<BasicAuth> {
 
     private final String basicAuth;
 
-    public ApplicableBasicAuth(BasicAuth auth, SecretService service) {
+    public ApplicableBasicAuth(BasicAuth auth, CryptoService service) {
         super(auth);
         basicAuth = headerValue(auth.username, auth.password.text(service));
     }

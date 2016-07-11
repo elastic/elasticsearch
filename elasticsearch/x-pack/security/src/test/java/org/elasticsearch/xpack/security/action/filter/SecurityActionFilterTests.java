@@ -105,7 +105,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         Task task = mock(Task.class);
         Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
         when(authcService.authenticate("_action", request, SystemUser.INSTANCE)).thenReturn(authentication);
-        when(cryptoService.signed("signed_scroll_id")).thenReturn(true);
+        when(cryptoService.isSigned("signed_scroll_id")).thenReturn(true);
         when(cryptoService.unsignAndVerify("signed_scroll_id")).thenReturn("scroll_id");
         filter.apply(task, "_action", request, listener, chain);
         assertThat(request.scrollId(), equalTo("scroll_id"));
@@ -122,7 +122,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         Task task = mock(Task.class);
         Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
         when(authcService.authenticate("_action", request, SystemUser.INSTANCE)).thenReturn(authentication);
-        when(cryptoService.signed("scroll_id")).thenReturn(true);
+        when(cryptoService.isSigned("scroll_id")).thenReturn(true);
         doThrow(sigException).when(cryptoService).unsignAndVerify("scroll_id");
         filter.apply(task, "_action", request, listener, chain);
         verify(listener).onFailure(isA(ElasticsearchSecurityException.class));

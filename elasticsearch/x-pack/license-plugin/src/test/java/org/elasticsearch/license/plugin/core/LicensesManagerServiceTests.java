@@ -7,14 +7,22 @@ package org.elasticsearch.license.plugin.core;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.graph.Graph;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.TestUtils;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequest;
+import org.elasticsearch.xpack.monitoring.Monitoring;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.watcher.Watcher;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -26,8 +34,19 @@ import static org.hamcrest.Matchers.not;
 
 public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
 
-    static {
-        MetaData.registerPrototype(LicensesMetaData.TYPE, LicensesMetaData.PROTO);
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singletonList(XPackPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().
+                put(XPackPlugin.featureEnabledSetting(Security.NAME), false)
+                .put(XPackPlugin.featureEnabledSetting(Monitoring.NAME), false)
+                .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false)
+                .put(XPackPlugin.featureEnabledSetting(Graph.NAME), false)
+                .build();
     }
 
     @Override
@@ -90,9 +109,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
 
         // ensure that the invalid license never made it to cluster state
         LicensesMetaData licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-        if (licensesMetaData != null) {
-            assertThat(licensesMetaData.getLicense(), equalTo(LicensesMetaData.LICENSE_TOMBSTONE));
-        }
+        assertThat(licensesMetaData.getLicense(), not(equalTo(tamperedLicense)));
     }
 
     public void testRemoveLicenses() throws Exception {

@@ -29,7 +29,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestMonitoringBulkAction extends MonitoringRestHandler {
 
     public static final String MONITORING_ID = "system_id";
-    public static final String MONITORING_VERSION = "system_version";
+    public static final String MONITORING_VERSION = "system_api_version";
 
     @Inject
     public RestMonitoringBulkAction(Settings settings, RestController controller) {

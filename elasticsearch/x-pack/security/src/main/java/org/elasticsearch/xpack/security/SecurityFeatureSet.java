@@ -143,7 +143,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
 
     static boolean systemKeyUsage(CryptoService cryptoService) {
         // we can piggy back on the encryption enabled method as it is only enabled if there is a system key
-        return cryptoService.encryptionEnabled();
+        return cryptoService != null && cryptoService.isEncryptionEnabled();
     }
 
     static class Usage extends XPackFeatureSet.Usage {

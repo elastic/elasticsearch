@@ -16,8 +16,6 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 
-import java.util.Collections;
-
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(numClientNodes = 0, supportsDedicatedMasters = false, numDataNodes = 1)
@@ -43,7 +41,7 @@ public class PkiWithoutSSLTests extends SecurityIntegTestCase {
     }
 
     public void testThatHttpWorks() throws Exception {
-        try (Response response = getRestClient().performRequest("GET", "/_nodes", Collections.emptyMap(), null,
+        try (Response response = getRestClient().performRequest("GET", "/_nodes",
                 new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                         UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
                                 new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {

@@ -56,30 +56,33 @@ public final class FieldSubsetReader extends FilterLeafReader {
      * and so on.
      * @param in reader to filter
      * @param fieldNames fields to filter.
+     * @param negate {@code true} if this should be a negative set, meaning set of field names that is denied.
      */
-    public static DirectoryReader wrap(DirectoryReader in, Set<String> fieldNames) throws IOException {
-        return new FieldSubsetDirectoryReader(in, fieldNames);
+    public static DirectoryReader wrap(DirectoryReader in, Set<String> fieldNames, boolean negate) throws IOException {
+        return new FieldSubsetDirectoryReader(in, fieldNames, negate);
     }
 
     // wraps subreaders with fieldsubsetreaders.
     static class FieldSubsetDirectoryReader extends FilterDirectoryReader {
 
         private final Set<String> fieldNames;
+        private final boolean negate;
 
-        FieldSubsetDirectoryReader(DirectoryReader in, final Set<String> fieldNames) throws IOException {
+        FieldSubsetDirectoryReader(DirectoryReader in, Set<String> fieldNames, boolean negate) throws IOException {
             super(in, new FilterDirectoryReader.SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
-                    return new FieldSubsetReader(reader, fieldNames);
+                    return new FieldSubsetReader(reader, fieldNames, negate);
                 }
             });
             this.fieldNames = fieldNames;
+            this.negate = negate;
             verifyNoOtherFieldSubsetDirectoryReaderIsWrapped(in);
         }
 
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-            return new FieldSubsetDirectoryReader(in, fieldNames);
+            return new FieldSubsetDirectoryReader(in, fieldNames, negate);
         }
 
         public Set<String> getFieldNames() {
@@ -111,17 +114,23 @@ public final class FieldSubsetReader extends FilterLeafReader {
 
     /**
      * Wrap a single segment, exposing a subset of its fields.
+     * @param fields set of field names that should be allowed
+     * @param negate {@code true} if this should be a negative set, meaning set of field names that is denied.
      */
-    FieldSubsetReader(LeafReader in, Set<String> fieldNames) {
+    FieldSubsetReader(LeafReader in, Set<String> fields, boolean negate) {
         super(in);
+        // look at what fields the reader has, and preprocess a subset of them that are allowed
         ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
         for (FieldInfo fi : in.getFieldInfos()) {
-            if (fieldNames.contains(fi.name)) {
+            if (fields.contains(fi.name) ^ negate) {
                 filteredInfos.add(fi);
             }
         }
         fieldInfos = new FieldInfos(filteredInfos.toArray(new FieldInfo[filteredInfos.size()]));
-        this.fieldNames = fieldNames.toArray(new String[fieldNames.size()]);
+        fieldNames = new String[filteredInfos.size()];
+        for (int i = 0; i < fieldNames.length; i++) {
+            fieldNames[i] = filteredInfos.get(i).name;
+        }
     }
 
     /** returns true if this field is allowed. */

@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -24,6 +25,10 @@ public class PutLicenseResponse extends AcknowledgedResponse implements ToXConte
     private String acknowledgeHeader;
 
     PutLicenseResponse() {
+    }
+
+    public PutLicenseResponse(boolean acknowledged, LicensesStatus status) {
+        this(acknowledged, status, null, Collections.<String, String[]>emptyMap());
     }
 
     public PutLicenseResponse(boolean acknowledged, LicensesStatus status, String acknowledgeHeader,

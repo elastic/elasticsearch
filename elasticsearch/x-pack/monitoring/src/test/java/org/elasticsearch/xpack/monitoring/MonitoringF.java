@@ -32,9 +32,9 @@ public class MonitoringF {
         settings.put("script.inline", "true");
         settings.put("security.manager.enabled", "false");
         settings.put("cluster.name", MonitoringF.class.getSimpleName());
-        settings.put("xpack.monitoring.agent.interval", "5s");
+        settings.put("xpack.monitoring.collection.interval", "1s");
         if (!CollectionUtils.isEmpty(args)) {
-            settings.putArray("xpack.monitoring.agent.collectors", args);
+            settings.putArray("xpack.monitoring.collection.collectors", args);
         }
 
         final CountDownLatch latch = new CountDownLatch(1);

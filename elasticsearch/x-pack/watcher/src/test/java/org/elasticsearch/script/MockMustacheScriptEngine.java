@@ -8,7 +8,9 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.common.text.DefaultTextTemplateEngine;
 
+import java.util.Collections;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * A mock script engine that registers itself under the 'mustache' name so that
@@ -19,10 +21,15 @@ public class MockMustacheScriptEngine extends MockScriptEngine {
 
     public static final String NAME = "mustache";
 
-    public static class TestPlugin extends MockScriptEngine.TestPlugin {
+    public static class TestPlugin extends MockScriptPlugin {
         @Override
         public ScriptEngineService getScriptEngineService(Settings settings) {
             return new MockMustacheScriptEngine();
+        }
+
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            return Collections.emptyMap();
         }
     }
 

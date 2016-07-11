@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 
 /**
  *
  */
-public class XPackUsageRequest extends ActionRequest<XPackUsageRequest> {
+public class XPackUsageRequest extends MasterNodeRequest<XPackUsageRequest> {
 
     @Override
     public ActionRequestValidationException validate() {

@@ -118,7 +118,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
     public void testUserImpersonationUsingHttp() throws Exception {
         // use the transport client user and try to run as
         try {
-            getRestClient().performRequest("GET", "/_nodes", Collections.emptyMap(), null,
+            getRestClient().performRequest("GET", "/_nodes",
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(TRANSPORT_CLIENT_USER,
                                     SecuredStringTests.build(SecuritySettingsSource.DEFAULT_PASSWORD))),
@@ -130,7 +130,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
 
         try {
             //the run as user shouldn't have access to the nodes api
-            getRestClient().performRequest("GET", "/_nodes", Collections.emptyMap(), null,
+            getRestClient().performRequest("GET", "/_nodes",
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
                                     SecuredStringTests.build(SecuritySettingsSource.DEFAULT_PASSWORD))));
@@ -140,7 +140,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         }
 
         // but when running as a different user it should work
-        try (Response response = getRestClient().performRequest("GET", "/_nodes", Collections.emptyMap(), null,
+        try (Response response = getRestClient().performRequest("GET", "/_nodes",
                 new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                         UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
                                 SecuredStringTests.build(SecuritySettingsSource.DEFAULT_PASSWORD))),
@@ -173,7 +173,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
 
     public void testEmptyHeaderUsingHttp() throws Exception {
         try {
-            getRestClient().performRequest("GET", "/_nodes", Collections.emptyMap(), null,
+            getRestClient().performRequest("GET", "/_nodes",
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
                             SecuredStringTests.build(SecuritySettingsSource.DEFAULT_PASSWORD))),
@@ -208,7 +208,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
 
     public void testNonExistentRunAsUserUsingHttp() throws Exception {
         try {
-            getRestClient().performRequest("GET", "/_nodes", Collections.emptyMap(), null,
+            getRestClient().performRequest("GET", "/_nodes",
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
                             SecuredStringTests.build(SecuritySettingsSource.DEFAULT_PASSWORD))),

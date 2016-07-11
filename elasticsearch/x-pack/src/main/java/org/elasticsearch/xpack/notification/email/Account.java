@@ -5,13 +5,6 @@
  */
 package org.elasticsearch.xpack.notification.email;
 
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.common.secret.SecretService;
-
 import javax.activation.CommandMap;
 import javax.activation.MailcapCommandMap;
 import javax.mail.MessagingException;
@@ -23,6 +16,13 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Map;
 import java.util.Properties;
+
+import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
 
 /**
  *
@@ -62,13 +62,13 @@ public class Account {
             .build();
 
     private final Config config;
-    private final SecretService secretService;
+    private final CryptoService cryptoService;
     private final ESLogger logger;
     private final Session session;
 
-    Account(Config config, SecretService secretService, ESLogger logger) {
+    Account(Config config, CryptoService cryptoService, ESLogger logger) {
         this.config = config;
-        this.secretService = secretService;
+        this.cryptoService = cryptoService;
         this.logger = logger;
         session = config.createSession();
     }
@@ -102,7 +102,7 @@ public class Account {
 
         String password = null;
         if (auth != null && auth.password() != null) {
-            password = new String(auth.password().text(secretService));
+            password = new String(auth.password().text(cryptoService));
         } else if (config.smtp.password != null) {
             password = new String(config.smtp.password);
         }

@@ -116,8 +116,8 @@ public class TransportFilterTests extends ESIntegTestCase {
 
     public static class InternalPlugin extends Plugin {
         @Override
-        public Collection<Module> nodeModules() {
-            return Collections.<Module>singletonList(new TestTransportFilterModule());
+        public Collection<Module> createGuiceModules() {
+            return Collections.singletonList(new TestTransportFilterModule());
         }
     }
 
@@ -269,7 +269,7 @@ public class TransportFilterTests extends ESIntegTestCase {
         }
     }
 
-    static void await(CountDownLatch latch) throws Exception {
+    private static void await(CountDownLatch latch) throws Exception {
         if (!latch.await(5, TimeUnit.SECONDS)) {
             fail("waiting too long for request");
         }
@@ -298,7 +298,7 @@ public class TransportFilterTests extends ESIntegTestCase {
 
         @Override
         protected Map<String, ServerTransportFilter> initializeProfileFilters() {
-            return Collections.<String, ServerTransportFilter>singletonMap(TransportSettings.DEFAULT_PROFILE,
+            return Collections.singletonMap(TransportSettings.DEFAULT_PROFILE,
                     mock(ServerTransportFilter.NodeProfile.class));
         }
     }

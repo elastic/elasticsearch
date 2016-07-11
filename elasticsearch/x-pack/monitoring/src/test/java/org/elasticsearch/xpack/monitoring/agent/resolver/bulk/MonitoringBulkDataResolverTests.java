@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkDoc;
 import org.elasticsearch.xpack.monitoring.action.MonitoringIndex;
+import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.agent.resolver.MonitoringIndexNameResolverTestCase;
 
 import static java.util.Collections.emptyMap;
@@ -29,7 +30,7 @@ public class MonitoringBulkDataResolverTests extends MonitoringIndexNameResolver
 
     @Override
     protected MonitoringBulkDoc newMonitoringDoc() {
-        MonitoringBulkDoc doc = new MonitoringBulkDoc(MonitoredSystem.KIBANA.getSystem(), Version.CURRENT.toString(),
+        MonitoringBulkDoc doc = new MonitoringBulkDoc(MonitoredSystem.KIBANA.getSystem(), MonitoringTemplateUtils.TEMPLATE_VERSION,
                                                       MonitoringIndex.DATA, "kibana", id,
                                                       new BytesArray("{\"field1\" : \"value1\"}"));
 

@@ -91,10 +91,11 @@ public class TransportGetUsersActionTests extends ESTestCase {
 
         assertThat(throwableRef.get(), is(nullValue()));
         assertThat(responseRef.get(), is(notNullValue()));
+        final User[] users = responseRef.get().users();
         if (anonymousEnabled) {
-            assertThat(responseRef.get().users(), arrayContaining(AnonymousUser.INSTANCE));
+            assertThat("expected array with anonymous but got: " + Arrays.toString(users), users, arrayContaining(AnonymousUser.INSTANCE));
         } else {
-            assertThat(responseRef.get().users(), emptyArray());
+            assertThat("expected an empty array but got: " + Arrays.toString(users), users, emptyArray());
         }
         verifyZeroInteractions(usersStore);
     }

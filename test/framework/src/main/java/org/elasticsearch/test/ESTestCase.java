@@ -671,7 +671,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static final GeohashGenerator geohashGenerator = new GeohashGenerator();
 
     public static class GeohashGenerator extends CodepointSetGenerator {
-        private final static char[] ASCII_SET = "0123456789bcdefghjkmnpqrstuvwxyz".toCharArray();
+        private static final char[] ASCII_SET = "0123456789bcdefghjkmnpqrstuvwxyz".toCharArray();
 
         public GeohashGenerator() {
             super(ASCII_SET);

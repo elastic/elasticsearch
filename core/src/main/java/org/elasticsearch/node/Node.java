@@ -460,7 +460,7 @@ public class Node implements Closeable {
             }
         }
 
-        if (settings.getAsBoolean("http.enabled", true)) {
+        if (NetworkModule.HTTP_ENABLED.get(settings)) {
             injector.getInstance(HttpServer.class).start();
         }
 
@@ -469,7 +469,7 @@ public class Node implements Closeable {
 
 
         if (WRITE_PORTS_FIELD_SETTING.get(settings)) {
-            if (settings.getAsBoolean("http.enabled", true)) {
+            if (NetworkModule.HTTP_ENABLED.get(settings)) {
                 HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
                 writePortsFile("http", http.boundAddress());
             }
@@ -491,7 +491,7 @@ public class Node implements Closeable {
 
         injector.getInstance(TribeService.class).stop();
         injector.getInstance(ResourceWatcherService.class).stop();
-        if (settings.getAsBoolean("http.enabled", true)) {
+        if (NetworkModule.HTTP_ENABLED.get(settings)) {
             injector.getInstance(HttpServer.class).stop();
         }
 
@@ -543,7 +543,7 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("node_service"));
         toClose.add(injector.getInstance(NodeService.class));
         toClose.add(() -> stopWatch.stop().start("http"));
-        if (settings.getAsBoolean("http.enabled", true)) {
+        if (NetworkModule.HTTP_ENABLED.get(settings)) {
             toClose.add(injector.getInstance(HttpServer.class));
         }
         toClose.add(() -> stopWatch.stop().start("snapshot_service"));

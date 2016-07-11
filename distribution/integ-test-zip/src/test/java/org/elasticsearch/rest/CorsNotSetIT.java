@@ -21,26 +21,13 @@ package org.elasticsearch.rest;
 
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
-@ClusterScope(scope = ESIntegTestCase.Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
 public class CorsNotSetIT extends ESIntegTestCase {
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-            .put(super.nodeSettings(nodeOrdinal)).build();
-    }
 
     public void testCorsSettingDefaultBehaviourDoesNotReturnAnything() throws Exception {
         String corsValue = "http://localhost:9200";

@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
-import org.elasticsearch.xpack.security.crypto.InternalCryptoService;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.TestCluster;
@@ -700,7 +700,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                         .put("xpack.security.authc.realms.esusers.files.users", writeFile(folder, "users", USERS))
                         .put("xpack.security.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))
                         .put(FileRolesStore.ROLES_FILE_SETTING.getKey(), writeFile(folder, "roles.yml", ROLES))
-                        .put(InternalCryptoService.FILE_SETTING.getKey(), writeFile(folder, "system_key.yml", systemKey))
+                        .put(CryptoService.FILE_SETTING.getKey(), writeFile(folder, "system_key.yml", systemKey))
                         .put("xpack.security.authc.sign_user_header", false)
                         .put("xpack.security.audit.enabled", auditLogsEnabled)
                         .build();
@@ -711,7 +711,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
         static byte[] generateKey() {
             try {
-                return InternalCryptoService.generateKey();
+                return CryptoService.generateKey();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

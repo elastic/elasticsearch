@@ -10,8 +10,11 @@ import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.support.clock.ClockMock;
 import org.elasticsearch.xpack.watcher.test.TimeWarpedWatcher;
 
+import java.io.IOException;
+
 public class TimeWarpedXPackPlugin extends XPackPlugin {
-    public TimeWarpedXPackPlugin(Settings settings) {
+
+    public TimeWarpedXPackPlugin(Settings settings) throws IOException {
         super(settings);
         watcher = new TimeWarpedWatcher(settings);
     }

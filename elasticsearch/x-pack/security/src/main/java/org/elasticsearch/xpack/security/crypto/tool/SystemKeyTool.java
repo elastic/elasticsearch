@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.elasticsearch.xpack.security.crypto.InternalCryptoService;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -66,12 +66,12 @@ public class SystemKeyTool extends SettingCommand {
             }
             keyPath = parsePath(args.get(0));
         } else {
-            keyPath = InternalCryptoService.resolveSystemKey(env.settings(), env);
+            keyPath = CryptoService.resolveSystemKey(env.settings(), env);
         }
 
         // write the key
         terminal.println(Terminal.Verbosity.VERBOSE, "generating...");
-        byte[] key = InternalCryptoService.generateKey();
+        byte[] key = CryptoService.generateKey();
         terminal.println(String.format(Locale.ROOT, "Storing generated key in [%s]...", keyPath.toAbsolutePath()));
         Files.write(keyPath, key, StandardOpenOption.CREATE_NEW);
 

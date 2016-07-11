@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
-import org.elasticsearch.xpack.security.crypto.InternalCryptoService;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.elasticsearch.xpack.security.transport.netty.SecurityNettyHttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
@@ -131,7 +131,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
                 .put(LoggingAuditTrail.HOST_ADDRESS_SETTING.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.HOST_NAME_SETTING.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.NODE_NAME_SETTING.getKey(), randomBoolean())
-                .put(InternalCryptoService.FILE_SETTING.getKey(), writeFile(folder, "system_key", systemKey))
+                .put(CryptoService.FILE_SETTING.getKey(), writeFile(folder, "system_key", systemKey))
                 .put("xpack.security.authc.realms.file.type", FileRealm.TYPE)
                 .put("xpack.security.authc.realms.file.order", 0)
                 .put("xpack.security.authc.realms.file.files.users", writeFile(folder, "users", configUsers()))
@@ -206,7 +206,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
 
     private static byte[] generateKey() {
         try {
-            return InternalCryptoService.generateKey();
+            return CryptoService.generateKey();
         } catch (Exception e) {
             throw new ElasticsearchException("exception while generating the system key", e);
         }

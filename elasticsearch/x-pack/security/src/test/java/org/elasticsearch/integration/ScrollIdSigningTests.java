@@ -11,7 +11,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
-import org.elasticsearch.xpack.security.crypto.InternalCryptoService;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.test.SecurityIntegTestCase;
 
 import java.util.Locale;
@@ -106,7 +106,7 @@ public class ScrollIdSigningTests extends SecurityIntegTestCase {
     }
 
     private void assertSigned(String scrollId) {
-        CryptoService cryptoService = internalCluster().getDataNodeInstance(InternalCryptoService.class);
+        CryptoService cryptoService = internalCluster().getDataNodeInstance(CryptoService.class);
         String message = String.format(Locale.ROOT, "Expected scrollId [%s] to be signed, but was not", scrollId);
         assertThat(message, cryptoService.isSigned(scrollId), is(true));
     }

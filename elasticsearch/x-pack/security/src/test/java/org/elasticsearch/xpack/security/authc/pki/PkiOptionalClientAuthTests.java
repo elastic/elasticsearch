@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc.pki;
 
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -15,16 +13,16 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.transport.SSLClientAuth;
 import org.elasticsearch.xpack.security.transport.netty.SecurityNettyHttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
-import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.BeforeClass;
 
 import javax.net.ssl.SSLContext;
@@ -79,8 +77,7 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
     }
 
     public void testRestClientWithoutClientCertificate() throws Exception {
-        CloseableHttpClient httpClient = HttpClients.custom().setSSLContext(getSSLContext()).build();
-        try (RestClient restClient = createRestClient(httpClient, "https")) {
+        try (RestClient restClient = createRestClient(new SSLContextHttpConfigCallback(getSSLContext()), "https")) {
             try {
                 restClient.performRequest("GET", "_nodes");
                 fail("request should have failed");

@@ -191,7 +191,7 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
         if (response instanceof SearchResponse) {
             SearchResponse searchResponse = (SearchResponse) response;
             String scrollId = searchResponse.getScrollId();
-            if (scrollId != null && !cryptoService.signed(scrollId)) {
+            if (scrollId != null && !cryptoService.isSigned(scrollId)) {
                 searchResponse.scrollId(cryptoService.sign(scrollId));
             }
             return response;

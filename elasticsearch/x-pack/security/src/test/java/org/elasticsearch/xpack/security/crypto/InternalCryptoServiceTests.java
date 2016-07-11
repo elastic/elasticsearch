@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.crypto;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -46,7 +45,7 @@ public class InternalCryptoServiceTests extends ESTestCase {
         InternalCryptoService service = new InternalCryptoService(settings, env);
         String text = randomAsciiOfLength(10);
         String signed = service.sign(text);
-        assertThat(service.signed(signed), is(true));
+        assertThat(service.isSigned(signed), is(true));
     }
 
     public void testSignAndUnsign() throws Exception {
@@ -133,7 +132,7 @@ public class InternalCryptoServiceTests extends ESTestCase {
 
     public void testEncryptionAndDecryptionChars() throws Exception {
         InternalCryptoService service = new InternalCryptoService(settings, env);
-                assertThat(service.encryptionEnabled(), is(true));
+                assertThat(service.isEncryptionEnabled(), is(true));
         final char[] chars = randomAsciiOfLengthBetween(0, 1000).toCharArray();
         final char[] encrypted = service.encrypt(chars);
         assertThat(encrypted, notNullValue());
@@ -143,21 +142,9 @@ public class InternalCryptoServiceTests extends ESTestCase {
         assertThat(Arrays.equals(chars, decrypted), is(true));
     }
 
-    public void testEncryptionAndDecryptionBytes() throws Exception {
-        InternalCryptoService service = new InternalCryptoService(settings, env);
-                assertThat(service.encryptionEnabled(), is(true));
-        final byte[] bytes = randomByteArray();
-        final byte[] encrypted = service.encrypt(bytes);
-        assertThat(encrypted, notNullValue());
-        assertThat(Arrays.equals(encrypted, bytes), is(false));
-
-        final byte[] decrypted = service.decrypt(encrypted);
-        assertThat(Arrays.equals(bytes, decrypted), is(true));
-    }
-
     public void testEncryptionAndDecryptionCharsWithoutKey() throws Exception {
         InternalCryptoService service = new InternalCryptoService(Settings.EMPTY, env);
-                assertThat(service.encryptionEnabled(), is(false));
+                assertThat(service.isEncryptionEnabled(), is(false));
         final char[] chars = randomAsciiOfLengthBetween(0, 1000).toCharArray();
         final char[] encryptedChars = service.encrypt(chars);
         final char[] decryptedChars = service.decrypt(encryptedChars);
@@ -165,68 +152,26 @@ public class InternalCryptoServiceTests extends ESTestCase {
         assertThat(chars, equalTo(decryptedChars));
     }
 
-    public void testEncryptionAndDecryptionBytesWithoutKey() throws Exception {
-        InternalCryptoService service = new InternalCryptoService(Settings.EMPTY, env);
-                assertThat(service.encryptionEnabled(), is(false));
-        final byte[] bytes = randomByteArray();
-        final byte[] encryptedBytes = service.encrypt(bytes);
-        final byte[] decryptedBytes = service.decrypt(bytes);
-        assertThat(bytes, equalTo(encryptedBytes));
-        assertThat(decryptedBytes, equalTo(encryptedBytes));
-    }
-
     public void testEncryptionEnabledWithKey() throws Exception {
         InternalCryptoService service = new InternalCryptoService(settings, env);
-                assertThat(service.encryptionEnabled(), is(true));
+                assertThat(service.isEncryptionEnabled(), is(true));
     }
 
     public void testEncryptionEnabledWithoutKey() throws Exception {
         InternalCryptoService service = new InternalCryptoService(Settings.EMPTY, env);
-                assertThat(service.encryptionEnabled(), is(false));
-    }
-
-    public void testChangingAByte() throws Exception {
-        InternalCryptoService service = new InternalCryptoService(settings, env);
-                assertThat(service.encryptionEnabled(), is(true));
-        // We need at least one byte to test changing a byte, otherwise output is always the same
-        final byte[] bytes = randomByteArray(1);
-        final byte[] encrypted = service.encrypt(bytes);
-        assertThat(encrypted, notNullValue());
-        assertThat(Arrays.equals(encrypted, bytes), is(false));
-
-        int tamperedIndex = randomIntBetween(InternalCryptoService.ENCRYPTED_BYTE_PREFIX.length, encrypted.length - 1);
-        final byte untamperedByte = encrypted[tamperedIndex];
-        byte tamperedByte = randomByte();
-        while (tamperedByte == untamperedByte) {
-            tamperedByte = randomByte();
-        }
-        encrypted[tamperedIndex] = tamperedByte;
-        final byte[] decrypted = service.decrypt(encrypted);
-        assertThat(Arrays.equals(bytes, decrypted), is(false));
+                assertThat(service.isEncryptionEnabled(), is(false));
     }
 
     public void testEncryptedChar() throws Exception {
         InternalCryptoService service = new InternalCryptoService(settings, env);
-                assertThat(service.encryptionEnabled(), is(true));
+                assertThat(service.isEncryptionEnabled(), is(true));
 
-        assertThat(service.encrypted((char[]) null), is(false));
-        assertThat(service.encrypted(new char[0]), is(false));
-        assertThat(service.encrypted(new char[InternalCryptoService.ENCRYPTED_TEXT_PREFIX.length()]), is(false));
-        assertThat(service.encrypted(InternalCryptoService.ENCRYPTED_TEXT_PREFIX.toCharArray()), is(true));
-        assertThat(service.encrypted(randomAsciiOfLengthBetween(0, 100).toCharArray()), is(false));
-        assertThat(service.encrypted(service.encrypt(randomAsciiOfLength(10).toCharArray())), is(true));
-    }
-
-    public void testEncryptedByte() throws Exception {
-        InternalCryptoService service = new InternalCryptoService(settings, env);
-                assertThat(service.encryptionEnabled(), is(true));
-
-        assertThat(service.encrypted((byte[]) null), is(false));
-        assertThat(service.encrypted(new byte[0]), is(false));
-        assertThat(service.encrypted(new byte[InternalCryptoService.ENCRYPTED_BYTE_PREFIX.length]), is(false));
-        assertThat(service.encrypted(InternalCryptoService.ENCRYPTED_BYTE_PREFIX), is(true));
-        assertThat(service.encrypted(randomAsciiOfLengthBetween(0, 100).getBytes(StandardCharsets.UTF_8)), is(false));
-        assertThat(service.encrypted(service.encrypt(randomAsciiOfLength(10).getBytes(StandardCharsets.UTF_8))), is(true));
+        assertThat(service.isEncrypted((char[]) null), is(false));
+        assertThat(service.isEncrypted(new char[0]), is(false));
+        assertThat(service.isEncrypted(new char[InternalCryptoService.ENCRYPTED_TEXT_PREFIX.length()]), is(false));
+        assertThat(service.isEncrypted(InternalCryptoService.ENCRYPTED_TEXT_PREFIX.toCharArray()), is(true));
+        assertThat(service.isEncrypted(randomAsciiOfLengthBetween(0, 100).toCharArray()), is(false));
+        assertThat(service.isEncrypted(service.encrypt(randomAsciiOfLength(10).toCharArray())), is(true));
     }
 
     public void testSigningKeyCanBeRecomputedConsistently() {
@@ -238,18 +183,5 @@ public class InternalCryptoServiceTests extends ESTestCase {
             SecretKey regenerated = InternalCryptoService.createSigningKey(systemKey, randomKey);
             assertThat(regenerated, equalTo(signingKey));
         }
-    }
-
-    private static byte[] randomByteArray() {
-        return randomByteArray(0);
-    }
-
-    private static byte[] randomByteArray(int min) {
-        int count = randomIntBetween(min, 1000);
-        byte[] bytes = new byte[count];
-        for (int i = 0; i < count; i++) {
-            bytes[i] = randomByte();
-        }
-        return bytes;
     }
 }

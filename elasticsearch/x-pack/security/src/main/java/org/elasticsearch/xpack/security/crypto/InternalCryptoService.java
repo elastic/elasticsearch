@@ -157,23 +157,12 @@ public class InternalCryptoService extends AbstractComponent implements CryptoSe
 
     @Override
     public String sign(String text) throws IOException {
-        return sign(text, this.signingKey, this.systemKey);
-    }
-
-    @Override
-    public String sign(String text, SecretKey signingKey, @Nullable SecretKey systemKey) throws IOException {
-        assert signingKey != null;
         String sigStr = signInternal(text, signingKey);
         return "$$" + sigStr.length() + "$$" + (systemKey == signingKey ? "" : randomKeyBase64) + "$$" + sigStr + text;
     }
 
     @Override
     public String unsignAndVerify(String signedText) {
-        return unsignAndVerify(signedText, this.systemKey);
-    }
-
-    @Override
-    public String unsignAndVerify(String signedText, SecretKey systemKey) {
         if (!signedText.startsWith("$$") || signedText.length() < 2) {
             throw new IllegalArgumentException("tampered signed text");
         }
@@ -239,7 +228,7 @@ public class InternalCryptoService extends AbstractComponent implements CryptoSe
     }
 
     @Override
-    public boolean signed(String text) {
+    public boolean isSigned(String text) {
         return SIG_PATTERN.matcher(text).matches();
     }
 
@@ -258,32 +247,12 @@ public class InternalCryptoService extends AbstractComponent implements CryptoSe
     }
 
     @Override
-    public byte[] encrypt(byte[] bytes) {
-        SecretKey key = this.encryptionKey;
-        if (key == null) {
-            logger.warn("encrypt called without a key, returning plain text. run syskeygen and copy same key to all nodes to enable " +
-                    "encryption");
-            return bytes;
-        }
-        byte[] encrypted = encryptInternal(bytes, key);
-        byte[] prefixed = new byte[ENCRYPTED_BYTE_PREFIX.length + encrypted.length];
-        System.arraycopy(ENCRYPTED_BYTE_PREFIX, 0, prefixed, 0, ENCRYPTED_BYTE_PREFIX.length);
-        System.arraycopy(encrypted, 0, prefixed, ENCRYPTED_BYTE_PREFIX.length, encrypted.length);
-        return prefixed;
-    }
-
-    @Override
     public char[] decrypt(char[] chars) {
-        return decrypt(chars, this.encryptionKey);
-    }
-
-    @Override
-    public char[] decrypt(char[] chars, SecretKey key) {
-        if (key == null) {
+        if (encryptionKey == null) {
             return chars;
         }
 
-        if (!encrypted(chars)) {
+        if (!isEncrypted(chars)) {
             // Not encrypted
             return chars;
         }
@@ -296,41 +265,17 @@ public class InternalCryptoService extends AbstractComponent implements CryptoSe
             throw new ElasticsearchException("unable to decode encrypted data", e);
         }
 
-        byte[] decrypted = decryptInternal(bytes, key);
+        byte[] decrypted = decryptInternal(bytes, encryptionKey);
         return CharArrays.utf8BytesToChars(decrypted);
     }
 
     @Override
-    public byte[] decrypt(byte[] bytes) {
-        return decrypt(bytes, this.encryptionKey);
-    }
-
-    @Override
-    public byte[] decrypt(byte[] bytes, SecretKey key) {
-        if (key == null) {
-            return bytes;
-        }
-
-        if (!encrypted(bytes)) {
-            return bytes;
-        }
-
-        byte[] encrypted = Arrays.copyOfRange(bytes, ENCRYPTED_BYTE_PREFIX.length, bytes.length);
-        return decryptInternal(encrypted, key);
-    }
-
-    @Override
-    public boolean encrypted(char[] chars) {
+    public boolean isEncrypted(char[] chars) {
         return CharArrays.charsBeginsWith(ENCRYPTED_TEXT_PREFIX, chars);
     }
 
     @Override
-    public boolean encrypted(byte[] bytes) {
-        return bytesBeginsWith(ENCRYPTED_BYTE_PREFIX, bytes);
-    }
-
-    @Override
-    public boolean encryptionEnabled() {
+    public boolean isEncryptionEnabled() {
         return this.encryptionKey != null;
     }
 
@@ -415,24 +360,6 @@ public class InternalCryptoService extends AbstractComponent implements CryptoSe
         byte[] truncatedDigest = Arrays.copyOfRange(digest, 0, (keyLength / 8));
 
         return new SecretKeySpec(truncatedDigest, algorithm);
-    }
-
-    private static boolean bytesBeginsWith(byte[] prefix, byte[] bytes) {
-        if (bytes == null || prefix == null) {
-            return false;
-        }
-
-        if (prefix.length > bytes.length) {
-            return false;
-        }
-
-        for (int i = 0; i < prefix.length; i++) {
-            if (bytes[i] != prefix[i]) {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     /**

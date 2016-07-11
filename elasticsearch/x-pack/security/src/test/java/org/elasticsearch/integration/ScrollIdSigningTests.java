@@ -108,6 +108,6 @@ public class ScrollIdSigningTests extends SecurityIntegTestCase {
     private void assertSigned(String scrollId) {
         CryptoService cryptoService = internalCluster().getDataNodeInstance(InternalCryptoService.class);
         String message = String.format(Locale.ROOT, "Expected scrollId [%s] to be signed, but was not", scrollId);
-        assertThat(message, cryptoService.signed(scrollId), is(true));
+        assertThat(message, cryptoService.isSigned(scrollId), is(true));
     }
 }

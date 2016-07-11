@@ -26,7 +26,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.PidFile;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.ESLogger;
@@ -45,7 +44,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
@@ -87,11 +85,7 @@ final class Bootstrap {
 
         // check if the user is running as root, and bail
         if (Natives.definitelyRunningAsRoot()) {
-            if (Boolean.parseBoolean(System.getProperty("es.insecure.allow.root"))) {
-                logger.warn("running as ROOT user. this is a bad idea!");
-            } else {
-                throw new RuntimeException("don't run elasticsearch as root.");
-            }
+            throw new RuntimeException("can not run elasticsearch as root");
         }
 
         // enable secure computing mode
@@ -130,7 +124,7 @@ final class Bootstrap {
         // force remainder of JNA to be loaded (if available).
         try {
             JNAKernel32Library.getInstance();
-        } catch (Throwable ignored) {
+        } catch (Exception ignored) {
             // we've already logged this.
         }
 
@@ -151,7 +145,7 @@ final class Bootstrap {
     private void setup(boolean addShutdownHook, Settings settings, Environment environment) throws Exception {
         initializeNatives(
                 environment.tmpFile(),
-                BootstrapSettings.MLOCKALL_SETTING.get(settings),
+                BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),
                 BootstrapSettings.SECCOMP_SETTING.get(settings),
                 BootstrapSettings.CTRLHANDLER_SETTING.get(settings));
 
@@ -177,15 +171,7 @@ final class Bootstrap {
         // install SM after natives, shutdown hooks, etc.
         Security.configure(environment, BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(settings));
 
-        // We do not need to reload system properties here as we have already applied them in building the settings and
-        // reloading could cause multiple prompts to the user for values if a system property was specified with a prompt
-        // placeholder
-        Settings nodeSettings = Settings.builder()
-                .put(settings)
-                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
-                .build();
-
-        node = new Node(nodeSettings) {
+        node = new Node(settings) {
             @Override
             protected void validateNodeBeforeAcceptingRequests(Settings settings, BoundTransportAddress boundTransportAddress) {
                 BootstrapCheck.check(settings, boundTransportAddress);
@@ -193,13 +179,13 @@ final class Bootstrap {
         };
     }
 
-    private static Environment initialSettings(boolean foreground, String pidFile) {
+    private static Environment initialSettings(boolean foreground, Path pidFile, Map<String, String> esSettings) {
         Terminal terminal = foreground ? Terminal.DEFAULT : null;
         Settings.Builder builder = Settings.builder();
-        if (Strings.hasLength(pidFile)) {
+        if (pidFile != null) {
             builder.put(Environment.PIDFILE_SETTING.getKey(), pidFile);
         }
-        return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal);
+        return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal, esSettings);
     }
 
     private void start() {
@@ -228,28 +214,24 @@ final class Bootstrap {
      */
     static void init(
             final boolean foreground,
-            final String pidFile,
-            final Map<String, String> esSettings) throws Throwable {
+            final Path pidFile,
+            final Map<String, String> esSettings) throws Exception {
         // Set the system property before anything has a chance to trigger its use
         initLoggerPrefix();
 
-        elasticsearchSettings(esSettings);
+        // force the class initializer for BootstrapInfo to run before
+        // the security manager is installed
+        BootstrapInfo.init();
 
         INSTANCE = new Bootstrap();
 
-        Environment environment = initialSettings(foreground, pidFile);
+        Environment environment = initialSettings(foreground, pidFile, esSettings);
         Settings settings = environment.settings();
         LogConfigurator.configure(settings, true);
         checkForCustomConfFile();
 
         if (environment.pidFile() != null) {
             PidFile.create(environment.pidFile(), true);
-        }
-
-        // warn if running using the client VM
-        if (JvmInfo.jvmInfo().getVmName().toLowerCase(Locale.ROOT).contains("client")) {
-            ESLogger logger = Loggers.getLogger(Bootstrap.class);
-            logger.warn("jvm uses the client vm, make sure to run `java` with the server vm for best performance by adding `-server` to the command line");
         }
 
         try {
@@ -264,6 +246,12 @@ final class Bootstrap {
             // fail if somebody replaced the lucene jars
             checkLucene();
 
+            // install the default uncaught exception handler; must be done before security is
+            // initialized as we do not want to grant the runtime permission
+            // setDefaultUncaughtExceptionHandler
+            Thread.setDefaultUncaughtExceptionHandler(
+                new ElasticsearchUncaughtExceptionHandler(() -> Node.NODE_NAME_SETTING.get(settings)));
+
             INSTANCE.setup(true, settings, environment);
 
             INSTANCE.start();
@@ -271,7 +259,7 @@ final class Bootstrap {
             if (!foreground) {
                 closeSysError();
             }
-        } catch (Throwable e) {
+        } catch (Exception e) {
             // disable console logging, so user does not see the exception twice (jvm will show it already)
             if (foreground) {
                 Loggers.disableConsoleLogging();
@@ -298,13 +286,6 @@ final class Bootstrap {
             }
 
             throw e;
-        }
-    }
-
-    @SuppressForbidden(reason = "Sets system properties passed as CLI parameters")
-    private static void elasticsearchSettings(Map<String, String> esSettings) {
-        for (Map.Entry<String, String> esSetting : esSettings.entrySet()) {
-            System.setProperty(esSetting.getKey(), esSetting.getValue());
         }
     }
 

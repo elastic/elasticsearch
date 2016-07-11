@@ -28,6 +28,7 @@ import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -70,10 +71,6 @@ public class JsonXContentGenerator implements XContentGenerator {
     private static final DefaultPrettyPrinter.Indenter INDENTER = new DefaultIndenter("  ", LF.getValue());
     private boolean prettyPrint = false;
 
-    public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, String... filters) {
-        this(jsonGenerator, os, filters, true);
-    }
-
     public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, String[] filters, boolean inclusive) {
         if (jsonGenerator instanceof GeneratorBase) {
             this.base = (GeneratorBase) jsonGenerator;
@@ -100,8 +97,13 @@ public class JsonXContentGenerator implements XContentGenerator {
 
     @Override
     public final void usePrettyPrint() {
-        generator.setPrettyPrinter(new DefaultPrettyPrinter().withObjectIndenter(INDENTER));
+        generator.setPrettyPrinter(new DefaultPrettyPrinter().withObjectIndenter(INDENTER).withArrayIndenter(INDENTER));
         prettyPrint = true;
+    }
+
+    @Override
+    public boolean isPrettyPrint() {
+        return this.prettyPrint;
     }
 
     @Override
@@ -323,6 +325,10 @@ public class JsonXContentGenerator implements XContentGenerator {
         if (mayWriteRawData(contentType) == false) {
             copyRawValue(content, contentType.xContent());
         } else {
+            if (generator.getOutputContext().getCurrentName() != null) {
+                // If we've just started a field we'll need to add the separator
+                generator.writeRaw(':');
+            }
             flush();
             content.writeTo(os);
             writeEndRaw();
@@ -346,18 +352,9 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     protected void copyRawValue(BytesReference content, XContent xContent) throws IOException {
-        XContentParser parser = null;
-        try {
-            if (content.hasArray()) {
-                parser = xContent.createParser(content.array(), content.arrayOffset(), content.length());
-            } else {
-                parser = xContent.createParser(content.streamInput());
-            }
+        try (StreamInput input = content.streamInput();
+             XContentParser parser = xContent.createParser(input)) {
             copyCurrentStructure(parser);
-        } finally {
-            if (parser != null) {
-                parser.close();
-            }
         }
     }
 
@@ -383,6 +380,10 @@ public class JsonXContentGenerator implements XContentGenerator {
     public void close() throws IOException {
         if (generator.isClosed()) {
             return;
+        }
+        JsonStreamContext context = generator.getOutputContext();
+        if ((context != null) && (context.inRoot() ==  false)) {
+            throw new IOException("unclosed object or array found");
         }
         if (writeLineFeedAtEnd) {
             flush();

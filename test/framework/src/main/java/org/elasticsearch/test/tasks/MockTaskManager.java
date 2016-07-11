@@ -50,8 +50,8 @@ public class MockTaskManager extends TaskManager {
             for (MockTaskManagerListener listener : listeners) {
                 try {
                     listener.onTaskRegistered(task);
-                } catch (Throwable t) {
-                    logger.warn("failed to notify task manager listener about unregistering the task with id {}", t, task.getId());
+                } catch (Exception e) {
+                    logger.warn("failed to notify task manager listener about unregistering the task with id {}", e, task.getId());
                 }
             }
         }
@@ -65,14 +65,26 @@ public class MockTaskManager extends TaskManager {
             for (MockTaskManagerListener listener : listeners) {
                 try {
                     listener.onTaskUnregistered(task);
-                } catch (Throwable t) {
-                    logger.warn("failed to notify task manager listener about unregistering the task with id {}", t, task.getId());
+                } catch (Exception e) {
+                    logger.warn("failed to notify task manager listener about unregistering the task with id {}", e, task.getId());
                 }
             }
         } else {
             logger.warn("trying to remove the same with id {} twice", task.getId());
         }
         return removedTask;
+    }
+
+    @Override
+    public void waitForTaskCompletion(Task task, long untilInNanos) {
+        for (MockTaskManagerListener listener : listeners) {
+            try {
+                listener.waitForTaskCompletion(task);
+            } catch (Exception e) {
+                logger.warn("failed to notify task manager listener about waitForTaskCompletion the task with id {}", e, task.getId());
+            }
+        }
+        super.waitForTaskCompletion(task, untilInNanos);
     }
 
     public void addListener(MockTaskManagerListener listener) {

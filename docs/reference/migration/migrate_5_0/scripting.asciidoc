@@ -3,7 +3,7 @@
 
 ==== Indexed scripts and templates
 
-Indexed scrips and templates have been replaced by <<modules-scripting-stored-scripts,stored scripts>>
+Indexed scripts and templates have been replaced by <<modules-scripting-stored-scripts,stored scripts>>
 which stores the scripts and templates in the cluster state instead of a dedicate `.scripts` index.
 
 For the size of stored scripts there is a soft limit of 65535 bytes. If scripts exceed that size then
@@ -85,3 +85,22 @@ The Java API methods for interacting with stored scripts have been added under `
 The sugar methods that used to exist on the indexed scripts API methods don't exist on the methods for
 stored scripts. The only way to provide scripts is by using `BytesReference` implementation, if a string needs to be
 provided the `BytesArray` class should be used.
+
+==== Scripting engines now register only a single language
+
+Prior to 5.0.0, script engines could register multiple languages. The Javascript
+script engine in particular registered both `"lang": "js"` and `"lang":
+"javascript"`. Script engines can now only register a single language. All
+references to `"lang": "js"` should be changed to `"lang": "javascript"` for
+existing users of the lang-javascript plugin.
+
+==== Scripting engines now register only a single extension
+
+Prior to 5.0.0 scripting engines could register multiple extensions. The only
+engine doing this was the Javascript engine, which registered "js" and
+"javascript". It now only registers the "js" file extension for on-disk scripts.
+
+==== `.javascript` files are no longer supported (use `.js`)
+
+The Javascript engine previously registered "js" and "javascript". It now only
+registers the "js" file extension for on-disk scripts.

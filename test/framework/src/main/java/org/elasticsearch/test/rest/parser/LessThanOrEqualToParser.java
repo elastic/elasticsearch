@@ -33,7 +33,8 @@ public class LessThanOrEqualToParser implements RestTestFragmentParser<LessThanO
     public LessThanOrEqualToAssertion parse(RestTestSuiteParseContext parseContext) throws IOException, RestTestParseException {
         Tuple<String,Object> stringObjectTuple = parseContext.parseTuple();
         if (! (stringObjectTuple.v2() instanceof Comparable) ) {
-            throw new RestTestParseException("lte section can only be used with objects that support natural ordering, found " + stringObjectTuple.v2().getClass().getSimpleName());
+            throw new RestTestParseException("lte section can only be used with objects that support natural ordering, found "
+                    + stringObjectTuple.v2().getClass().getSimpleName());
         }
         return new LessThanOrEqualToAssertion(stringObjectTuple.v1(), stringObjectTuple.v2());
     }

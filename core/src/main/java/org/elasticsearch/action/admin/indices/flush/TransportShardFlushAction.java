@@ -19,14 +19,13 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
-import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
@@ -55,18 +54,19 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
     }
 
     @Override
-    protected Tuple<ReplicationResponse, ShardFlushRequest> shardOperationOnPrimary(ShardFlushRequest shardRequest) {
+    protected PrimaryResult shardOperationOnPrimary(ShardFlushRequest shardRequest) {
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId().getIndex()).getShard(shardRequest.shardId().id());
         indexShard.flush(shardRequest.getRequest());
         logger.trace("{} flush request executed on primary", indexShard.shardId());
-        return new Tuple<>(new ReplicationResponse(), shardRequest);
+        return new PrimaryResult(shardRequest, new ReplicationResponse());
     }
 
     @Override
-    protected void shardOperationOnReplica(ShardFlushRequest request) {
+    protected ReplicaResult shardOperationOnReplica(ShardFlushRequest request) {
         IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
         indexShard.flush(request.getRequest());
         logger.trace("{} flush request executed on replica", indexShard.shardId());
+        return new ReplicaResult();
     }
 
     @Override

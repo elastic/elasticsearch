@@ -42,11 +42,11 @@ public final class ClusterAllocationExplainTests extends ESSingleNodeTestCase {
         assertEquals(0, cae.getShard().getId());
         assertEquals(false, cae.isPrimary());
         assertNull(cae.getAssignedNodeId());
+        assertFalse(cae.isStillFetchingShardData());
         assertNotNull(cae.getUnassignedInfo());
         NodeExplanation explanation = cae.getNodeExplanations().values().iterator().next();
         ClusterAllocationExplanation.FinalDecision fd = explanation.getFinalDecision();
         ClusterAllocationExplanation.StoreCopy storeCopy = explanation.getStoreCopy();
-        String finalExplanation = explanation.getFinalExplanation();
         Decision d = explanation.getDecision();
         assertNotNull("should have a decision", d);
         assertEquals(Decision.Type.NO, d.type());
@@ -68,13 +68,13 @@ public final class ClusterAllocationExplainTests extends ESSingleNodeTestCase {
         assertEquals("test", cae.getShard().getIndexName());
         assertEquals(0, cae.getShard().getId());
         assertEquals(true, cae.isPrimary());
+        assertFalse(cae.isStillFetchingShardData());
         assertNotNull("shard should have assigned node id", cae.getAssignedNodeId());
         assertNull("assigned shard should not have unassigned info", cae.getUnassignedInfo());
         explanation = cae.getNodeExplanations().values().iterator().next();
         d = explanation.getDecision();
         fd = explanation.getFinalDecision();
         storeCopy = explanation.getStoreCopy();
-        finalExplanation = explanation.getFinalExplanation();
         assertNotNull("should have a decision", d);
         assertEquals(Decision.Type.NO, d.type());
         assertEquals(ClusterAllocationExplanation.FinalDecision.ALREADY_ASSIGNED, fd);

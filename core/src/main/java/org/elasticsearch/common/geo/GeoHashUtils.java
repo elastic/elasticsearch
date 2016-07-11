@@ -19,7 +19,7 @@ package org.elasticsearch.common.geo;
 import java.util.ArrayList;
 import java.util.Collection;
 
-import org.apache.lucene.spatial.util.GeoEncodingUtils;
+import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.apache.lucene.util.BitUtil;
 
 /**
@@ -39,7 +39,7 @@ public class GeoHashUtils {
 
     /** maximum precision for geohash strings */
     public static final int PRECISION = 12;
-    private static final short MORTON_OFFSET = (GeoEncodingUtils.BITS<<1) - (PRECISION*5);
+    private static final short MORTON_OFFSET = (GeoPointField.BITS<<1) - (PRECISION*5);
 
     // No instance:
     private GeoHashUtils() {
@@ -51,7 +51,7 @@ public class GeoHashUtils {
     public static final long longEncode(final double lon, final double lat, final int level) {
         // shift to appropriate level
         final short msf = (short)(((12 - level) * 5) + MORTON_OFFSET);
-        return ((BitUtil.flipFlop(GeoEncodingUtils.mortonHash(lat, lon)) >>> msf) << 4) | level;
+        return ((BitUtil.flipFlop(GeoPointField.encodeLatLon(lat, lon)) >>> msf) << 4) | level;
     }
 
     /**
@@ -117,7 +117,7 @@ public class GeoHashUtils {
      */
     public static final String stringEncode(final double lon, final double lat, final int level) {
         // convert to geohashlong
-        final long ghLong = fromMorton(GeoEncodingUtils.mortonHash(lat, lon), level);
+        final long ghLong = fromMorton(GeoPointField.encodeLatLon(lat, lon), level);
         return stringEncode(ghLong);
 
     }
@@ -138,7 +138,7 @@ public class GeoHashUtils {
 
         StringBuilder geoHash = new StringBuilder();
         short precision = 0;
-        final short msf = (GeoEncodingUtils.BITS<<1)-5;
+        final short msf = (GeoPointField.BITS<<1)-5;
         long mask = 31L<<msf;
         do {
             geoHash.append(BASE_32[(int)((mask & hashedVal)>>>(msf-(precision*5)))]);
@@ -172,7 +172,7 @@ public class GeoHashUtils {
         return BitUtil.flipFlop(((geoHashLong >>> 4) << odd) << (((12 - level) * 5) + (MORTON_OFFSET - odd)));
     }
 
-    private static final char encode(int x, int y) {
+    private static char encode(int x, int y) {
         return BASE_32[((x & 1) + ((y & 1) * 2) + ((x & 2) * 2) + ((y & 2) * 4) + ((x & 4) * 4)) % 32];
     }
 
@@ -195,7 +195,7 @@ public class GeoHashUtils {
      * @param dy      delta of the second grid coordinate (must be -1, 0 or +1)
      * @return geohash of the defined cell
      */
-    public final static String neighbor(String geohash, int level, int dx, int dy) {
+    public static final String neighbor(String geohash, int level, int dx, int dy) {
         int cell = BASE_32_STRING.indexOf(geohash.charAt(level -1));
 
         // Decoding the Geohash bit pattern to determine grid coordinates

@@ -84,7 +84,7 @@ public class MainResponse extends ActionResponse implements ToXContent {
         super.readFrom(in);
         nodeName = in.readString();
         version = Version.readVersion(in);
-        clusterName = ClusterName.readClusterName(in);
+        clusterName = new ClusterName(in);
         build = Build.readBuild(in);
         available = in.readBoolean();
     }

@@ -27,7 +27,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
@@ -55,7 +55,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestThreadPoolAction extends AbstractCatAction {
 
-    private final static String[] SUPPORTED_NAMES = new String[]{
+    private static final String[] SUPPORTED_NAMES = new String[]{
             ThreadPool.Names.BULK,
             ThreadPool.Names.FLUSH,
             ThreadPool.Names.GENERIC,
@@ -69,7 +69,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
             ThreadPool.Names.WARMER
     };
 
-    private final static String[] SUPPORTED_ALIASES = new String[]{
+    private static final String[] SUPPORTED_ALIASES = new String[]{
             "b",
             "f",
             "ge",
@@ -87,14 +87,14 @@ public class RestThreadPoolAction extends AbstractCatAction {
         assert SUPPORTED_ALIASES.length == SUPPORTED_NAMES.length: "SUPPORTED_NAMES/ALIASES mismatch";
     }
 
-    private final static String[] DEFAULT_THREAD_POOLS = new String[]{
+    private static final String[] DEFAULT_THREAD_POOLS = new String[]{
             ThreadPool.Names.BULK,
             ThreadPool.Names.INDEX,
             ThreadPool.Names.SEARCH,
     };
 
-    private final static Map<String, String> ALIAS_TO_THREAD_POOL;
-    private final static Map<String, String> THREAD_POOL_TO_ALIAS;
+    private static final Map<String, String> ALIAS_TO_THREAD_POOL;
+    private static final Map<String, String> THREAD_POOL_TO_ALIAS;
 
     static {
         ALIAS_TO_THREAD_POOL = new HashMap<>(SUPPORTED_NAMES.length);
@@ -108,8 +108,8 @@ public class RestThreadPoolAction extends AbstractCatAction {
     }
 
     @Inject
-    public RestThreadPoolAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestThreadPoolAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/_cat/thread_pool", this);
     }
 
@@ -119,7 +119,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));

@@ -19,18 +19,17 @@
 package org.elasticsearch.test.rest;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.rest.client.RestClient;
-import org.elasticsearch.test.rest.client.RestException;
-import org.elasticsearch.test.rest.client.RestResponse;
+import org.elasticsearch.test.rest.client.RestTestClient;
+import org.elasticsearch.test.rest.client.RestTestResponse;
 import org.elasticsearch.test.rest.spec.RestSpec;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.List;
@@ -50,9 +49,9 @@ public class RestTestExecutionContext implements Closeable {
 
     private final RestSpec restSpec;
 
-    private RestClient restClient;
+    private RestTestClient restTestClient;
 
-    private RestResponse response;
+    private RestTestResponse response;
 
     public RestTestExecutionContext(RestSpec restSpec) {
         this.restSpec = restSpec;
@@ -61,15 +60,14 @@ public class RestTestExecutionContext implements Closeable {
     /**
      * Calls an elasticsearch api with the parameters and request body provided as arguments.
      * Saves the obtained response in the execution context.
-     * @throws RestException if the returned status code is non ok
      */
-    public RestResponse callApi(String apiName, Map<String, String> params, List<Map<String, Object>> bodies,
-                                Map<String, String> headers) throws IOException, RestException  {
+    public RestTestResponse callApi(String apiName, Map<String, String> params, List<Map<String, Object>> bodies,
+                                    Map<String, String> headers) throws IOException  {
         //makes a copy of the parameters before modifying them for this specific request
         HashMap<String, String> requestParams = new HashMap<>(params);
         for (Map.Entry<String, String> entry : requestParams.entrySet()) {
-            if (stash.isStashedValue(entry.getValue())) {
-                entry.setValue(stash.unstashValue(entry.getValue()).toString());
+            if (stash.containsStashedValue(entry.getValue())) {
+                entry.setValue(stash.getValue(entry.getValue()).toString());
             }
         }
 
@@ -80,8 +78,8 @@ public class RestTestExecutionContext implements Closeable {
             //we always stash the last response body
             stash.stashValue("body", response.getBody());
             return response;
-        } catch(RestException e) {
-            response = e.restResponse();
+        } catch(ResponseException e) {
+            response = new RestTestResponse(e);
             throw e;
         }
     }
@@ -92,12 +90,12 @@ public class RestTestExecutionContext implements Closeable {
         }
 
         if (bodies.size() == 1) {
-            return bodyAsString(stash.unstashMap(bodies.get(0)));
+            return bodyAsString(stash.replaceStashedValues(bodies.get(0)));
         }
 
         StringBuilder bodyBuilder = new StringBuilder();
         for (Map<String, Object> body : bodies) {
-            bodyBuilder.append(bodyAsString(stash.unstashMap(body))).append("\n");
+            bodyBuilder.append(bodyAsString(stash.replaceStashedValues(body))).append("\n");
         }
         return bodyBuilder.toString();
     }
@@ -106,8 +104,9 @@ public class RestTestExecutionContext implements Closeable {
         return XContentFactory.jsonBuilder().map(body).string();
     }
 
-    private RestResponse callApiInternal(String apiName, Map<String, String> params, String body, Map<String, String> headers) throws IOException, RestException  {
-        return restClient.callApi(apiName, params, body, headers);
+    private RestTestResponse callApiInternal(String apiName, Map<String, String> params, String body, Map<String, String> headers)
+            throws IOException  {
+        return restTestClient.callApi(apiName, params, body, headers);
     }
 
     /**
@@ -120,9 +119,9 @@ public class RestTestExecutionContext implements Closeable {
     /**
      * Creates the embedded REST client when needed. Needs to be called before each test.
      */
-    public void initClient(URL[] urls, Settings settings) throws IOException, RestException {
-        if (restClient == null) {
-            restClient = new RestClient(restSpec, settings, urls);
+    public void initClient(URL[] urls, Settings settings) throws IOException {
+        if (restTestClient == null) {
+            restTestClient = new RestTestClient(restSpec, settings, urls);
         }
     }
 
@@ -143,7 +142,7 @@ public class RestTestExecutionContext implements Closeable {
      * Returns the current es version as a string
      */
     public Version esVersion() {
-        return restClient.getEsVersion();
+        return restTestClient.getEsVersion();
     }
 
     /**
@@ -151,8 +150,8 @@ public class RestTestExecutionContext implements Closeable {
      */
     @Override
     public void close() {
-        if (restClient != null) {
-            restClient.close();
+        if (restTestClient != null) {
+            restTestClient.close();
         }
     }
 }

@@ -42,17 +42,22 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
 
     private final ShardId shard;
     private final boolean primary;
+    private final boolean hasPendingAsyncFetch;
     private final String assignedNodeId;
     private final UnassignedInfo unassignedInfo;
+    private final long allocationDelayMillis;
     private final long remainingDelayMillis;
     private final Map<DiscoveryNode, NodeExplanation> nodeExplanations;
 
-    public ClusterAllocationExplanation(ShardId shard, boolean primary, @Nullable String assignedNodeId, long remainingDelayMillis,
-                                        @Nullable UnassignedInfo unassignedInfo, Map<DiscoveryNode, NodeExplanation> nodeExplanations) {
+    public ClusterAllocationExplanation(ShardId shard, boolean primary, @Nullable String assignedNodeId, long allocationDelayMillis,
+                                        long remainingDelayMillis, @Nullable UnassignedInfo unassignedInfo, boolean hasPendingAsyncFetch,
+                                        Map<DiscoveryNode, NodeExplanation> nodeExplanations) {
         this.shard = shard;
         this.primary = primary;
+        this.hasPendingAsyncFetch = hasPendingAsyncFetch;
         this.assignedNodeId = assignedNodeId;
         this.unassignedInfo = unassignedInfo;
+        this.allocationDelayMillis = allocationDelayMillis;
         this.remainingDelayMillis = remainingDelayMillis;
         this.nodeExplanations = nodeExplanations;
     }
@@ -60,8 +65,10 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
     public ClusterAllocationExplanation(StreamInput in) throws IOException {
         this.shard = ShardId.readShardId(in);
         this.primary = in.readBoolean();
+        this.hasPendingAsyncFetch = in.readBoolean();
         this.assignedNodeId = in.readOptionalString();
         this.unassignedInfo = in.readOptionalWriteable(UnassignedInfo::new);
+        this.allocationDelayMillis = in.readVLong();
         this.remainingDelayMillis = in.readVLong();
 
         int mapSize = in.readVInt();
@@ -77,8 +84,10 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
     public void writeTo(StreamOutput out) throws IOException {
         this.getShard().writeTo(out);
         out.writeBoolean(this.isPrimary());
+        out.writeBoolean(this.isStillFetchingShardData());
         out.writeOptionalString(this.getAssignedNodeId());
         out.writeOptionalWriteable(this.getUnassignedInfo());
+        out.writeVLong(allocationDelayMillis);
         out.writeVLong(remainingDelayMillis);
 
         out.writeVInt(this.nodeExplanations.size());
@@ -95,6 +104,11 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
     /** Return true if the explained shard is primary, false otherwise */
     public boolean isPrimary() {
         return this.primary;
+    }
+
+    /** Return turn if shard data is still being fetched for the allocation */
+    public boolean isStillFetchingShardData() {
+        return this.hasPendingAsyncFetch;
     }
 
     /** Return turn if the shard is assigned to a node */
@@ -114,7 +128,12 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         return this.unassignedInfo;
     }
 
-    /** Return the remaining allocation delay for this shard in millisocends */
+    /** Return the configured delay before the shard can be allocated in milliseconds */
+    public long getAllocationDelayMillis() {
+        return this.allocationDelayMillis;
+    }
+
+    /** Return the remaining allocation delay for this shard in milliseconds */
     public long getRemainingDelayMillis() {
         return this.remainingDelayMillis;
     }
@@ -138,11 +157,11 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
             if (assignedNodeId != null) {
                 builder.field("assigned_node_id", this.assignedNodeId);
             }
+            builder.field("shard_state_fetch_pending", this.hasPendingAsyncFetch);
             // If we have unassigned info, show that
             if (unassignedInfo != null) {
                 unassignedInfo.toXContent(builder, params);
-                long delay = unassignedInfo.getLastComputedLeftDelayNanos();
-                builder.timeValueField("allocation_delay_in_millis", "allocation_delay", TimeValue.timeValueNanos(delay));
+                builder.timeValueField("allocation_delay_in_millis", "allocation_delay", TimeValue.timeValueMillis(allocationDelayMillis));
                 builder.timeValueField("remaining_delay_in_millis", "remaining_delay", TimeValue.timeValueMillis(remainingDelayMillis));
             }
             builder.startObject("nodes");

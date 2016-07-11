@@ -21,18 +21,18 @@ package org.elasticsearch.index.snapshots.blobstore;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.Fields;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -53,7 +53,7 @@ public class FileInfoTests extends ESTestCase {
             BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("_foobar", meta, size);
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
             BlobStoreIndexShardSnapshot.FileInfo.toXContent(info, builder, ToXContent.EMPTY_PARAMS);
-            byte[] xcontent = builder.bytes().toBytes();
+            byte[] xcontent = BytesReference.toBytes(shuffleXContent(builder).bytes());
 
             final BlobStoreIndexShardSnapshot.FileInfo parsedInfo;
             try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(xcontent)) {
@@ -106,13 +106,13 @@ public class FileInfoTests extends ESTestCase {
 
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.startObject();
-            builder.field(Fields.NAME, name);
-            builder.field(Fields.PHYSICAL_NAME, physicalName);
-            builder.field(Fields.LENGTH, length);
-            builder.field(Fields.WRITTEN_BY, Version.LATEST.toString());
-            builder.field(Fields.CHECKSUM, "666");
+            builder.field(FileInfo.NAME, name);
+            builder.field(FileInfo.PHYSICAL_NAME, physicalName);
+            builder.field(FileInfo.LENGTH, length);
+            builder.field(FileInfo.WRITTEN_BY, Version.LATEST.toString());
+            builder.field(FileInfo.CHECKSUM, "666");
             builder.endObject();
-            byte[] xContent = builder.bytes().toBytes();
+            byte[] xContent = BytesReference.toBytes(builder.bytes());
 
             if (failure == null) {
                 // No failures should read as usual

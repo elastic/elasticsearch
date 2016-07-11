@@ -28,27 +28,38 @@ if %bad_env_var% == 1 (
 )
 rem end TODO: remove for Elasticsearch 6.x
 
-if NOT DEFINED JAVA_HOME goto err
+IF DEFINED JAVA_HOME (
+  SET JAVA=%JAVA_HOME%\bin\java.exe
+) ELSE (
+  FOR %%I IN (java.exe) DO set JAVA=%%~$PATH:I
+)
+IF NOT EXIST "%JAVA%" (
+  ECHO Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME 1>&2
+  EXIT /B 1
+)
+IF DEFINED JAVA_HOME GOTO :cont
 
+IF NOT "%JAVA:~-13%" == "\bin\java.exe" (
+  FOR /f "tokens=2 delims=[]" %%I IN ('dir %JAVA%') DO @set JAVA=%%I
+)
+IF "%JAVA:~-13%" == "\bin\java.exe" (
+  SET JAVA_HOME=%JAVA:~0,-13%
+)
+
+:cont
 if not "%CONF_FILE%" == "" goto conffileset
 
 set SCRIPT_DIR=%~dp0
 for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
 
-rem Detect JVM version to figure out appropriate executable to use
-if not exist "%JAVA_HOME%\bin\java.exe" (
-echo JAVA_HOME points to an invalid Java installation (no java.exe found in "%JAVA_HOME%"^). Exiting...
-goto:eof
-)
-
-"%JAVA_HOME%\bin\java" -Xmx50M -version > nul 2>&1
+"%JAVA%" -Xmx50M -version > nul 2>&1
 
 if errorlevel 1 (
 	echo Warning: Could not start JVM to detect version, defaulting to x86:
 	goto x86
 )
 
-"%JAVA_HOME%\bin\java" -Xmx50M -version 2>&1 | "%windir%\System32\find" "64-Bit" >nul:
+"%JAVA%" -Xmx50M -version 2>&1 | "%windir%\System32\find" "64-Bit" >nul:
 
 if errorlevel 1 goto x86
 set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x64.exe
@@ -163,7 +174,7 @@ set ES_JVM_OPTIONS="%ES_HOME%\config\jvm.options"
 if not "%ES_JAVA_OPTS%" == "" set ES_JAVA_OPTS=%ES_JAVA_OPTS: =;%
 
 @setlocal
-for /F "usebackq delims=" %%a in (`findstr /b \- "%ES_JVM_OPTIONS%"`) do set JVM_OPTIONS=!JVM_OPTIONS!%%a;
+for /F "usebackq delims=" %%a in (`findstr /b \- "%ES_JVM_OPTIONS%" ^| findstr /b /v "\-server \-client"`) do set JVM_OPTIONS=!JVM_OPTIONS!%%a;
 @endlocal & set ES_JAVA_OPTS=%JVM_OPTIONS%%ES_JAVA_OPTS%
 
 if "%ES_JAVA_OPTS:~-1%"==";" set ES_JAVA_OPTS=%ES_JAVA_OPTS:~0,-1%

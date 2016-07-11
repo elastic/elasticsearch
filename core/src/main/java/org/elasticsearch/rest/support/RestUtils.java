@@ -41,17 +41,6 @@ public class RestUtils {
         }
     };
 
-    public static boolean isBrowser(@Nullable String userAgent) {
-        if (userAgent == null) {
-            return false;
-        }
-        // chrome, safari, firefox, ie
-        if (userAgent.startsWith("Mozilla")) {
-            return true;
-        }
-        return false;
-    }
-
     public static void decodeQueryString(String s, int fromIndex, Map<String, String> params) {
         if (fromIndex < 0) {
             return;
@@ -73,7 +62,7 @@ public class RestUtils {
                     name = decodeComponent(s.substring(pos, i));
                 }
                 pos = i + 1;
-            } else if (c == '&') {
+            } else if (c == '&' || c == ';') {
                 if (name == null && pos != i) {
                     // We haven't seen an `=' so far but moved forward.
                     // Must be a param of the form '&a&' so add it with

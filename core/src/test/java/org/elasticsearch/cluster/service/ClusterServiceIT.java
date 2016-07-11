@@ -94,7 +94,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
+            public void onAllNodesAcked(@Nullable Exception e) {
                 allNodesAcked.set(true);
                 latch.countDown();
             }
@@ -127,8 +127,8 @@ public class ClusterServiceIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                logger.error("failed to execute callback in test {}", t, source);
+            public void onFailure(String source, Exception e) {
+                logger.error("failed to execute callback in test {}", e, source);
                 onFailure.set(true);
                 latch.countDown();
             }
@@ -165,7 +165,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
+            public void onAllNodesAcked(@Nullable Exception e) {
                 allNodesAcked.set(true);
                 latch.countDown();
             }
@@ -198,8 +198,8 @@ public class ClusterServiceIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                logger.error("failed to execute callback in test {}", t, source);
+            public void onFailure(String source, Exception e) {
+                logger.error("failed to execute callback in test {}", e, source);
                 onFailure.set(true);
                 latch.countDown();
             }
@@ -240,7 +240,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
+            public void onAllNodesAcked(@Nullable Exception e) {
                 allNodesAcked.set(true);
                 latch.countDown();
             }
@@ -272,8 +272,8 @@ public class ClusterServiceIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                logger.error("failed to execute callback in test {}", t, source);
+            public void onFailure(String source, Exception e) {
+                logger.error("failed to execute callback in test {}", e, source);
                 onFailure.set(true);
                 latch.countDown();
             }
@@ -313,7 +313,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
+            public void onAllNodesAcked(@Nullable Exception e) {
                 allNodesAcked.set(true);
                 latch.countDown();
             }
@@ -346,8 +346,8 @@ public class ClusterServiceIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                logger.error("failed to execute callback in test {}", t, source);
+            public void onFailure(String source, Exception e) {
+                logger.error("failed to execute callback in test {}", e, source);
                 onFailure.set(true);
                 latch.countDown();
             }
@@ -388,7 +388,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
+            public void onFailure(String source, Exception e) {
                 invoked1.countDown();
                 fail();
             }
@@ -403,7 +403,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
+                public void onFailure(String source, Exception e) {
                     fail();
                 }
 
@@ -458,7 +458,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
+            public void onFailure(String source, Exception e) {
                 invoked3.countDown();
                 fail();
             }
@@ -473,7 +473,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
+                public void onFailure(String source, Exception e) {
                     fail();
                 }
             });
@@ -583,16 +583,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
     public static class TestPlugin extends Plugin {
 
         @Override
-        public String name() {
-            return "test plugin";
-        }
-
-        @Override
-        public String description() {
-            return "test plugin";
-        }
-
-        @Override
         public Collection<Class<? extends LifecycleComponent>> nodeServices() {
             List<Class<? extends LifecycleComponent>> services = new ArrayList<>(1);
             services.add(MasterAwareService.class);
@@ -601,7 +591,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
     }
 
     @Singleton
-    public static class MasterAwareService extends AbstractLifecycleComponent<MasterAwareService> implements LocalNodeMasterListener {
+    public static class MasterAwareService extends AbstractLifecycleComponent implements LocalNodeMasterListener {
 
         private final ClusterService clusterService;
         private volatile boolean master;

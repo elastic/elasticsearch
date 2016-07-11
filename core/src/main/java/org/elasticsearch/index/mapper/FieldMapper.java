@@ -58,7 +58,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         protected final MappedFieldType defaultFieldType;
         private final IndexOptions defaultOptions;
         protected boolean omitNormsSet = false;
-        protected String indexName;
         protected Boolean includeInAll;
         protected boolean indexOptionsSet = false;
         protected boolean docValuesSet = false;
@@ -166,11 +165,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         public T indexOptions(IndexOptions indexOptions) {
             this.fieldType.setIndexOptions(indexOptions);
             this.indexOptionsSet = true;
-            return builder;
-        }
-
-        public T indexName(String indexName) {
-            this.indexName = indexName;
             return builder;
         }
 

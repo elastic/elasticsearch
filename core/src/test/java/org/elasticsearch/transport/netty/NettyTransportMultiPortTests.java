@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.transport.netty;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -29,7 +27,9 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.junit.Before;
@@ -57,8 +57,8 @@ public class NettyTransportMultiPortTests extends ESTestCase {
                 .put("transport.profiles.client1.port", 0)
                 .build();
 
-        ThreadPool threadPool = new ThreadPool("tst");
-        try (NettyTransport transport = startNettyTransport(settings, threadPool)) {
+        ThreadPool threadPool = new TestThreadPool("tst");
+        try (TcpTransport<?> transport = startTransport(settings, threadPool)) {
             assertEquals(1, transport.profileBoundAddresses().size());
             assertEquals(1, transport.boundAddress().boundAddresses().length);
         } finally {
@@ -73,8 +73,8 @@ public class NettyTransportMultiPortTests extends ESTestCase {
                 .put("transport.profiles.client1.port", 0)
                 .build();
 
-        ThreadPool threadPool = new ThreadPool("tst");
-        try (NettyTransport transport = startNettyTransport(settings, threadPool)) {
+        ThreadPool threadPool = new TestThreadPool("tst");
+        try (TcpTransport<?> transport = startTransport(settings, threadPool)) {
             assertEquals(1, transport.profileBoundAddresses().size());
             assertEquals(1, transport.boundAddress().boundAddresses().length);
         } finally {
@@ -90,8 +90,8 @@ public class NettyTransportMultiPortTests extends ESTestCase {
                 .put("transport.profiles.client1.whatever", "foo")
                 .build();
 
-        ThreadPool threadPool = new ThreadPool("tst");
-        try (NettyTransport transport = startNettyTransport(settings, threadPool)) {
+        ThreadPool threadPool = new TestThreadPool("tst");
+        try (TcpTransport<?> transport = startTransport(settings, threadPool)) {
             assertEquals(0, transport.profileBoundAddresses().size());
             assertEquals(1, transport.boundAddress().boundAddresses().length);
         } finally {
@@ -106,8 +106,8 @@ public class NettyTransportMultiPortTests extends ESTestCase {
                 .put("transport.profiles.default.port", 0)
                 .build();
 
-        ThreadPool threadPool = new ThreadPool("tst");
-        try (NettyTransport transport = startNettyTransport(settings, threadPool)) {
+        ThreadPool threadPool = new TestThreadPool("tst");
+        try (TcpTransport<?> transport = startTransport(settings, threadPool)) {
             assertEquals(0, transport.profileBoundAddresses().size());
             assertEquals(1, transport.boundAddress().boundAddresses().length);
         } finally {
@@ -124,8 +124,8 @@ public class NettyTransportMultiPortTests extends ESTestCase {
                 .put("transport.profiles..port", 23) // will not actually bind to this
                 .build();
 
-        ThreadPool threadPool = new ThreadPool("tst");
-        try (NettyTransport transport = startNettyTransport(settings, threadPool)) {
+        ThreadPool threadPool = new TestThreadPool("tst");
+        try (TcpTransport<?> transport = startTransport(settings, threadPool)) {
             assertEquals(0, transport.profileBoundAddresses().size());
             assertEquals(1, transport.boundAddress().boundAddresses().length);
         } finally {
@@ -133,14 +133,13 @@ public class NettyTransportMultiPortTests extends ESTestCase {
         }
     }
 
-    private NettyTransport startNettyTransport(Settings settings, ThreadPool threadPool) {
-        BigArrays bigArrays = new MockBigArrays(new PageCacheRecycler(settings, threadPool), new NoneCircuitBreakerService());
-
-        NettyTransport nettyTransport = new NettyTransport(settings, threadPool, new NetworkService(settings), bigArrays, Version.CURRENT,
+    private TcpTransport<?> startTransport(Settings settings, ThreadPool threadPool) {
+        BigArrays bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
+        TcpTransport<?> transport = new NettyTransport(settings, threadPool, new NetworkService(settings), bigArrays,
             new NamedWriteableRegistry(), new NoneCircuitBreakerService());
-        nettyTransport.start();
+        transport.start();
 
-        assertThat(nettyTransport.lifecycleState(), is(Lifecycle.State.STARTED));
-        return nettyTransport;
+        assertThat(transport.lifecycleState(), is(Lifecycle.State.STARTED));
+        return transport;
     }
 }

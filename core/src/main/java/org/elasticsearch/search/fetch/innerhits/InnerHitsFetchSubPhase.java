@@ -23,47 +23,30 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsParseElement;
-import org.elasticsearch.search.fetch.script.ScriptFieldsParseElement;
-import org.elasticsearch.search.fetch.source.FetchSourceParseElement;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- */
-public class InnerHitsFetchSubPhase implements FetchSubPhase {
+public final class InnerHitsFetchSubPhase implements FetchSubPhase {
 
-    private FetchPhase fetchPhase;
+    private final FetchPhase fetchPhase;
 
-    @Inject
-    public InnerHitsFetchSubPhase() {
-    }
-
-    @Override
-    public Map<String, ? extends SearchParseElement> parseElements() {
-        // SearchParse elements needed because everything is parsed by InnerHitBuilder and eventually put
-        // into the search context.
-        return Collections.emptyMap();
-    }
-
-    @Override
-    public boolean hitExecutionNeeded(SearchContext context) {
-        return context.innerHits() != null && context.innerHits().getInnerHits().size() > 0;
+    public InnerHitsFetchSubPhase(FetchPhase fetchPhase) {
+        this.fetchPhase = fetchPhase;
     }
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {
+        if ((context.innerHits() != null && context.innerHits().getInnerHits().size() > 0) == false) {
+            return;
+        }
         Map<String, InternalSearchHits> results = new HashMap<>();
         for (Map.Entry<String, InnerHitsContext.BaseInnerHits> entry : context.innerHits().getInnerHits().entrySet()) {
             InnerHitsContext.BaseInnerHits innerHits = entry.getValue();
@@ -73,7 +56,7 @@ public class InnerHitsFetchSubPhase implements FetchSubPhase {
             } catch (IOException e) {
                 throw ExceptionsHelper.convertToElastic(e);
             }
-            innerHits.queryResult().topDocs(topDocs);
+            innerHits.queryResult().topDocs(topDocs, innerHits.sort() == null ? null : innerHits.sort().formats);
             int[] docIdsToLoad = new int[topDocs.scoreDocs.length];
             for (int i = 0; i < topDocs.scoreDocs.length; i++) {
                 docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
@@ -85,29 +68,14 @@ public class InnerHitsFetchSubPhase implements FetchSubPhase {
             for (int i = 0; i < internalHits.length; i++) {
                 ScoreDoc scoreDoc = topDocs.scoreDocs[i];
                 InternalSearchHit searchHitFields = internalHits[i];
-                searchHitFields.shard(innerHits.shardTarget());
                 searchHitFields.score(scoreDoc.score);
                 if (scoreDoc instanceof FieldDoc) {
                     FieldDoc fieldDoc = (FieldDoc) scoreDoc;
-                    searchHitFields.sortValues(fieldDoc.fields);
+                    searchHitFields.sortValues(fieldDoc.fields, innerHits.sort().formats);
                 }
             }
             results.put(entry.getKey(), fetchResult.hits());
         }
         hitContext.hit().setInnerHits(results);
-    }
-
-    @Override
-    public boolean hitsExecutionNeeded(SearchContext context) {
-        return false;
-    }
-
-    @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
-    }
-
-    // To get around cyclic dependency issue
-    public void setFetchPhase(FetchPhase fetchPhase) {
-        this.fetchPhase = fetchPhase;
     }
 }

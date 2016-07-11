@@ -25,21 +25,16 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.joda.DateMathParser;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -144,7 +139,7 @@ public abstract class MappedFieldType extends FieldType {
     public abstract String typeName();
 
     /** Checks this type is the same type as other. Adds a conflict if they are different. */
-    private final void checkTypeName(MappedFieldType other) {
+    private void checkTypeName(MappedFieldType other) {
         if (typeName().equals(other.typeName()) == false) {
             throw new IllegalArgumentException("mapper [" + name + "] cannot be changed from type [" + typeName() + "] to [" + other.typeName() + "]");
         } else if (getClass() != other.getClass()) {
@@ -312,13 +307,6 @@ public abstract class MappedFieldType extends FieldType {
         return value;
     }
 
-    /** Returns the indexed value used to construct search "values".
-     *  This method is used for the default implementations of most
-     *  query factory methods such as {@link #termQuery}. */
-    protected BytesRef indexedValueForSearch(Object value) {
-        return BytesRefs.toBytesRef(value);
-    }
-
     /** Returns true if the field is searchable.
      *
      */
@@ -342,50 +330,33 @@ public abstract class MappedFieldType extends FieldType {
      *  The default implementation returns a {@link TermQuery} over the value bytes,
      *  boosted by {@link #boost()}.
      *  @throws IllegalArgumentException if {@code value} cannot be converted to the expected data type */
-    public Query termQuery(Object value, @Nullable QueryShardContext context) {
-        failIfNotIndexed();
-        TermQuery query = new TermQuery(new Term(name(), indexedValueForSearch(value)));
-        if (boost == 1f ||
-            (context != null && context.indexVersionCreated().before(Version.V_5_0_0_alpha1))) {
-            return query;
-        }
-        return new BoostQuery(query, boost);
-    }
+    public abstract Query termQuery(Object value, @Nullable QueryShardContext context);
 
-    public Query termsQuery(List values, @Nullable QueryShardContext context) {
-        failIfNotIndexed();
-        BytesRef[] bytesRefs = new BytesRef[values.size()];
-        for (int i = 0; i < bytesRefs.length; i++) {
-            bytesRefs[i] = indexedValueForSearch(values.get(i));
+    /** Build a constant-scoring query that matches all values. The default implementation uses a
+     * {@link ConstantScoreQuery} around a {@link BooleanQuery} whose {@link Occur#SHOULD} clauses
+     * are generated with {@link #termQuery}. */
+    public Query termsQuery(List<?> values, @Nullable QueryShardContext context) {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        for (Object value : values) {
+            builder.add(termQuery(value, context), Occur.SHOULD);
         }
-        return new TermsQuery(name(), bytesRefs);
+        return new ConstantScoreQuery(builder.build());
     }
 
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
-        failIfNotIndexed();
-        return new TermRangeQuery(name(),
-            lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-            upperTerm == null ? null : indexedValueForSearch(upperTerm),
-            includeLower, includeUpper);
+        throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support range queries");
     }
 
     public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-        failIfNotIndexed();
-        return new FuzzyQuery(new Term(name(), indexedValueForSearch(value)),
-                fuzziness.asDistance(BytesRefs.toString(value)), prefixLength, maxExpansions, transpositions);
+        throw new IllegalArgumentException("Can only use fuzzy queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
     }
 
-    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
-        failIfNotIndexed();
-        PrefixQuery query = new PrefixQuery(new Term(name(), indexedValueForSearch(value)));
-        if (method != null) {
-            query.setRewriteMethod(method);
-        }
-        return query;
+    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        throw new QueryShardException(context, "Can only use prefix queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
     }
 
-    public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
-        throw new QueryShardException(context, "Can only use regular expression on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+    public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        throw new QueryShardException(context, "Can only use regexp queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
     }
 
     public Query nullValueQuery() {
@@ -404,7 +375,7 @@ public abstract class MappedFieldType extends FieldType {
         int maxDoc = reader.maxDoc();
         Terms terms = MultiFields.getTerms(reader, name());
         if (terms == null) {
-            return new FieldStats.Text(maxDoc, isSearchable(), isAggregatable());
+            return null;
         }
         FieldStats stats = new FieldStats.Text(maxDoc, terms.getDocCount(),
             terms.getSumDocFreq(), terms.getSumTotalTermFreq(),

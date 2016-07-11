@@ -70,8 +70,8 @@ setting the routing parameter.
 
 Note that deleting a parent document does not automatically delete its
 children. One way of deleting all child documents given a parent's id is
-to use the `delete-by-query` plugin to perform a delete on the child
-index with the automatically generated (and indexed)
+to use the <<docs-delete-by-query,Delete By Query API>> to perform a
+ index with the automatically generated (and indexed)
 field _parent, which is in the format parent_type#parent_id.
 
 [float]
@@ -113,11 +113,9 @@ is the same).
 [[delete-refresh]]
 === Refresh
 
-The `refresh` parameter can be set to `true` in order to refresh the relevant
-primary and replica shards after the delete operation has occurred and make it
-searchable. Setting it to `true` should be done after careful thought and
-verification that this does not cause a heavy load on the system (and slows
-down indexing).
+Control when the changes made by this request are visible to search. See
+<<docs-refresh>>.
+
 
 [float]
 [[delete-timeout]]

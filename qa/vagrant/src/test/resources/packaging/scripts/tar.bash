@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # This file contains some utilities to test the elasticsearch scripts,
 # the .deb/.rpm packages and the SysV/Systemd scripts.

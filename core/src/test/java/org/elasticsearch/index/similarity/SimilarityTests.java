@@ -240,6 +240,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .field("type", "text")
             .endObject()
             .endObject()
+            .endObject()
             .endObject().string();
         Settings settings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_2_0))

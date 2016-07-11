@@ -456,9 +456,9 @@ public class AnalyzeActionIT extends ESIntegTestCase {
                 .setAnalyzer("not_exist_analyzer")
                 .get();
             fail("shouldn't get here");
-        } catch (Throwable t) {
-            assertThat(t, instanceOf(IllegalArgumentException.class));
-            assertThat(t.getMessage(), startsWith("failed to find global analyzer"));
+        } catch (Exception e) {
+            assertThat(e, instanceOf(IllegalArgumentException.class));
+            assertThat(e.getMessage(), startsWith("failed to find global analyzer"));
 
         }
 

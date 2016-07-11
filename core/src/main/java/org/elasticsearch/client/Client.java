@@ -42,12 +42,6 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.percolate.MultiPercolateRequest;
-import org.elasticsearch.action.percolate.MultiPercolateRequestBuilder;
-import org.elasticsearch.action.percolate.MultiPercolateResponse;
-import org.elasticsearch.action.percolate.PercolateRequest;
-import org.elasticsearch.action.percolate.PercolateRequestBuilder;
-import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollRequestBuilder;
 import org.elasticsearch.action.search.ClearScrollResponse;
@@ -418,36 +412,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      * Multi get term vectors.
      */
     MultiTermVectorsRequestBuilder prepareMultiTermVectors();
-
-    /**
-     * Percolates a request returning the matches documents.
-     */
-    ActionFuture<PercolateResponse> percolate(PercolateRequest request);
-
-    /**
-     * Percolates a request returning the matches documents.
-     */
-    void percolate(PercolateRequest request, ActionListener<PercolateResponse> listener);
-
-    /**
-     * Percolates a request returning the matches documents.
-     */
-    PercolateRequestBuilder preparePercolate();
-
-    /**
-     * Performs multiple percolate requests.
-     */
-    ActionFuture<MultiPercolateResponse> multiPercolate(MultiPercolateRequest request);
-
-    /**
-     * Performs multiple percolate requests.
-     */
-    void multiPercolate(MultiPercolateRequest request, ActionListener<MultiPercolateResponse> listener);
-
-    /**
-     * Performs multiple percolate requests.
-     */
-    MultiPercolateRequestBuilder prepareMultiPercolate();
 
     /**
      * Computes a score explanation for the specified request.

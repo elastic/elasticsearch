@@ -20,6 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.SecureSM;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
@@ -119,7 +120,7 @@ final class Security {
         Policy.setPolicy(new ESPolicy(createPermissions(environment), getPluginPermissions(environment), filterBadDefaults));
 
         // enable security manager
-        System.setSecurityManager(new SecureSM());
+        System.setSecurityManager(new SecureSM(new String[] { "org.elasticsearch.bootstrap." }));
 
         // do some basic tests
         selfTest();
@@ -244,7 +245,7 @@ final class Security {
         addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.binFile(), "read,readlink");
         addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libFile(), "read,readlink");
         addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink");
-        addPath(policy, Environment.PATH_PLUGINS_SETTING.getKey(), environment.pluginsFile(), "read,readlink");
+        addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), "read,readlink");
         addPath(policy, Environment.PATH_CONF_SETTING.getKey(), environment.configFile(), "read,readlink");
         addPath(policy, Environment.PATH_SCRIPTS_SETTING.getKey(), environment.scriptsFile(), "read,readlink");
         // read-write dirs
@@ -256,8 +257,10 @@ final class Security {
         for (Path path : environment.dataFiles()) {
             addPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
         }
+        // TODO: this should be removed in ES 6.0! We will no longer support data paths with the cluster as a folder
+        assert Version.CURRENT.major < 6 : "cluster name is no longer used in data path";
         for (Path path : environment.dataWithClusterFiles()) {
-            addPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
+            addPathIfExists(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
         }
         for (Path path : environment.repoFiles()) {
             addPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete");
@@ -317,6 +320,27 @@ final class Security {
         policy.add(new FilePermission(path.toString(), permissions));
         policy.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", permissions));
     }
+
+    /**
+     * Add access to a directory iff it exists already
+     * @param policy current policy to add permissions to
+     * @param configurationName the configuration name associated with the path (for error messages only)
+     * @param path the path itself
+     * @param permissions set of filepermissions to grant to the path
+     */
+    static void addPathIfExists(Permissions policy, String configurationName, Path path, String permissions) {
+        if (Files.isDirectory(path)) {
+            // add each path twice: once for itself, again for files underneath it
+            policy.add(new FilePermission(path.toString(), permissions));
+            policy.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", permissions));
+            try {
+                path.getFileSystem().provider().checkAccess(path.toRealPath(), AccessMode.READ);
+            } catch (IOException e) {
+                throw new IllegalStateException("Unable to access '" + configurationName + "' (" + path + ")", e);
+            }
+        }
+    }
+
 
     /**
      * Ensures configured directory {@code path} exists.

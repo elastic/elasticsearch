@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A query builder for <tt>has_child</tt> query.
@@ -77,7 +78,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     private static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 
-    private final QueryBuilder<?> query;
+    private final QueryBuilder query;
     private final String type;
     private final ScoreMode scoreMode;
     private InnerHitBuilder innerHitBuilder;
@@ -85,11 +86,11 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     private int maxChildren = DEFAULT_MAX_CHILDREN;
     private boolean ignoreUnmapped = false;
 
-    public HasChildQueryBuilder(String type, QueryBuilder<?> query, ScoreMode scoreMode) {
+    public HasChildQueryBuilder(String type, QueryBuilder query, ScoreMode scoreMode) {
         this(type, query, DEFAULT_MIN_CHILDREN, DEFAULT_MAX_CHILDREN, scoreMode, null);
     }
 
-    private HasChildQueryBuilder(String type, QueryBuilder<?> query, int minChildren, int maxChildren, ScoreMode scoreMode,
+    private HasChildQueryBuilder(String type, QueryBuilder query, int minChildren, int maxChildren, ScoreMode scoreMode,
                                 InnerHitBuilder innerHitBuilder) {
         this.type = requireValue(type, "[" + NAME + "] requires 'type' field");
         this.query = requireValue(query, "[" + NAME + "] requires 'query' field");
@@ -158,7 +159,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     /**
      * Returns the children query to execute.
      */
-    public QueryBuilder<?> query() {
+    public QueryBuilder query() {
         return query;
     }
 
@@ -226,7 +227,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         builder.endObject();
     }
 
-    public static HasChildQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<HasChildQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String childType = null;
@@ -238,7 +239,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         InnerHitBuilder innerHitBuilder = null;
         String currentFieldName = null;
         XContentParser.Token token;
-        QueryBuilder<?> iqb = null;
+        Optional<QueryBuilder> iqb = Optional.empty();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -272,7 +273,13 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                 }
             }
         }
-        HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(childType, iqb, scoreMode);
+
+        if (iqb.isPresent() == false) {
+            // if inner query is empty, bubble this up to caller so they can decide how to deal with it
+            return Optional.empty();
+        }
+
+        HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(childType, iqb.get(), scoreMode);
         if (innerHitBuilder != null) {
             hasChildQueryBuilder.innerHit(innerHitBuilder);
         }
@@ -280,7 +287,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         hasChildQueryBuilder.queryName(queryName);
         hasChildQueryBuilder.boost(boost);
         hasChildQueryBuilder.ignoreUnmapped(ignoreUnmapped);
-        return hasChildQueryBuilder;
+        return Optional.of(hasChildQueryBuilder);
     }
 
     public static ScoreMode parseScoreMode(String scoreModeString) {
@@ -323,9 +330,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             context.setTypes(previousTypes);
         }
 
-        if (innerQuery == null) {
-            return null;
-        }
         DocumentMapper childDocMapper = context.getMapperService().documentMapper(type);
         if (childDocMapper == null) {
             if (ignoreUnmapped) {
@@ -353,7 +357,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                                     parentType, scoreMode, parentChildIndexFieldData, context.getSearchSimilarity());
     }
 
-    final static class LateParsingQuery extends Query {
+    static final class LateParsingQuery extends Query {
 
         private final Query toQuery;
         private final Query innerQuery;
@@ -407,7 +411,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
         @Override
         public boolean equals(Object o) {
-            if (!super.equals(o)) return false;
+            if (sameClassAs(o) == false) return false;
 
             LateParsingQuery that = (LateParsingQuery) o;
 
@@ -421,7 +425,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), toQuery, innerQuery, minChildren, maxChildren, parentType, scoreMode);
+            return Objects.hash(classHash(), toQuery, innerQuery, minChildren, maxChildren, parentType, scoreMode);
         }
 
         @Override
@@ -467,8 +471,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     }
 
     @Override
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        QueryBuilder<?> rewrite = query.rewrite(queryRewriteContext);
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder rewrite = query.rewrite(queryRewriteContext);
         if (rewrite != query) {
             return new HasChildQueryBuilder(type, rewrite, minChildren, minChildren, scoreMode, innerHitBuilder);
         }

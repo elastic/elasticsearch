@@ -19,18 +19,10 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.MockEngineFactoryPlugin;
-import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.MockSearchService;
-import org.elasticsearch.test.store.MockFSIndexStore;
-import org.elasticsearch.test.transport.AssertingLocalTransport;
-import org.elasticsearch.test.transport.MockTransportService;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 
 public abstract class NodeConfigurationSource {
 

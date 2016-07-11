@@ -70,6 +70,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -202,20 +203,14 @@ public class StringTermsTests extends AbstractTermsTestCase {
     // the main purpose of this test is to make sure we're not allocating 2GB of memory per shard
     public void testSizeIsZero() {
         final int minDocCount = randomInt(1);
-        SearchResponse response = client()
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> client()
                 .prepareSearch("idx")
                 .setTypes("high_card_type")
                 .addAggregation(
                         terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values())).minDocCount(minDocCount).size(0)).execute()
-                .actionGet();
-
-        assertSearchResponse(response);
-
-        Terms terms = response.getAggregations().get("terms");
-        assertThat(terms, notNullValue());
-        assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.getBuckets().size(), equalTo(minDocCount == 0 ? 105 : 100)); // 105 because of the other type
+                .actionGet());
+        assertThat(exception.getMessage(), containsString("[size] must be greater than 0. Found [0] in [terms]"));
     }
 
     public void testSingleValueField() throws Exception {
@@ -760,7 +755,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
                 .prepareSearch("idx_unmapped")
                 .setTypes("type")
                 .addAggregation(
-                        terms("terms").executionHint(randomExecutionHint()).size(randomInt(5)).field(SINGLE_VALUED_FIELD_NAME)
+                        terms("terms").executionHint(randomExecutionHint()).size(randomIntBetween(1, 5)).field(SINGLE_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))).execute().actionGet();
 
         assertSearchResponse(response);

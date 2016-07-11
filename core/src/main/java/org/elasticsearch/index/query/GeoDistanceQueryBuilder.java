@@ -45,6 +45,7 @@ import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Filter results of a query to include only those within a specific distance to some
@@ -73,8 +74,10 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
 
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
-    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
-    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize");
+    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed")
+            .withAllDeprecated("use validation_method instead");
+    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize")
+            .withAllDeprecated("use validation_method instead");
     private static final ParseField OPTIMIZE_BBOX_FIELD = new ParseField("optimize_bbox");
     private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
     private static final ParseField UNIT_FIELD = new ParseField("unit");
@@ -311,7 +314,10 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         // if index created V_2_3 > use prefix encoded postings format
         final GeoPointField.TermEncoding encoding = (indexVersionCreated.before(Version.V_2_3_0)) ?
             GeoPointField.TermEncoding.NUMERIC : GeoPointField.TermEncoding.PREFIX;
-        normDistance = GeoUtils.maxRadialDistance(center, normDistance);
+        // Lucene 6.0 and earlier requires a radial restriction
+        if (indexVersionCreated.before(Version.V_5_0_0_alpha4)) {
+            normDistance = GeoUtils.maxRadialDistance(center, normDistance);
+        }
         return new GeoPointDistanceQuery(fieldType.name(), encoding, center.lat(), center.lon(), normDistance);
     }
 
@@ -328,7 +334,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         builder.endObject();
     }
 
-    public static GeoDistanceQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<GeoDistanceQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token;
@@ -443,7 +449,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         qb.boost(boost);
         qb.queryName(queryName);
         qb.ignoreUnmapped(ignoreUnmapped);
-        return qb;
+        return Optional.of(qb);
     }
 
     @Override

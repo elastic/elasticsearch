@@ -105,7 +105,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
         });
     }
 
-    public static interface Listener {
+    public interface Listener {
         void onResponse(AllocateDangledResponse response);
 
         void onFailure(Throwable e);
@@ -175,12 +175,13 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.error("unexpected failure during [{}]", t, source);
+                public void onFailure(String source, Exception e) {
+                    logger.error("unexpected failure during [{}]", e, source);
                     try {
-                        channel.sendResponse(t);
-                    } catch (Exception e) {
-                        logger.warn("failed send response for allocating dangled", e);
+                        channel.sendResponse(e);
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        logger.warn("failed send response for allocating dangled", inner);
                     }
                 }
 

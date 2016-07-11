@@ -149,7 +149,7 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
                 backgroundIsSuperset);
     }
 
-    public static abstract class NXYParser implements SignificanceHeuristicParser {
+    public abstract static class NXYParser implements SignificanceHeuristicParser {
 
         @Override
         public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher)

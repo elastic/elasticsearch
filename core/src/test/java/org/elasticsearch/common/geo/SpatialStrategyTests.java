@@ -38,14 +38,14 @@ public class SpatialStrategyTests extends ESTestCase {
     public void testwriteTo() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             SpatialStrategy.TERM.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(0));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             SpatialStrategy.RECURSIVE.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(1));
             }
         }
@@ -54,13 +54,13 @@ public class SpatialStrategyTests extends ESTestCase {
     public void testReadFrom() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(0);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(SpatialStrategy.readFromStream(in), equalTo(SpatialStrategy.TERM));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(1);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(SpatialStrategy.readFromStream(in), equalTo(SpatialStrategy.RECURSIVE));
             }
         }
@@ -69,7 +69,7 @@ public class SpatialStrategyTests extends ESTestCase {
     public void testInvalidReadFrom() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(randomIntBetween(2, Integer.MAX_VALUE));
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 SpatialStrategy.readFromStream(in);
                 fail("Expected IOException");
             } catch(IOException e) {

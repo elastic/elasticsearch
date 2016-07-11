@@ -57,11 +57,11 @@ public class ReindexFailureTests extends ReindexTestCase {
          */
         copy.source().setSize(1);
 
-        ReindexResponse response = copy.get();
-        assertThat(response, responseMatcher()
+        BulkIndexByScrollResponse response = copy.get();
+        assertThat(response, matcher()
                 .batches(1)
                 .failures(both(greaterThan(0)).and(lessThanOrEqualTo(maximumNumberOfShards()))));
-        for (Failure failure: response.getIndexingFailures()) {
+        for (Failure failure: response.getBulkFailures()) {
             assertThat(failure.getMessage(), containsString("NumberFormatException[For input string: \"words words\"]"));
         }
     }
@@ -77,9 +77,9 @@ public class ReindexFailureTests extends ReindexTestCase {
         // CREATE will cause the conflict to prevent the write.
         copy.destination().setOpType(CREATE);
 
-        ReindexResponse response = copy.get();
-        assertThat(response, responseMatcher().batches(1).versionConflicts(1).failures(1).created(99));
-        for (Failure failure: response.getIndexingFailures()) {
+        BulkIndexByScrollResponse response = copy.get();
+        assertThat(response, matcher().batches(1).versionConflicts(1).failures(1).created(99));
+        for (Failure failure: response.getBulkFailures()) {
             assertThat(failure.getMessage(), containsString("VersionConflictEngineException[[test]["));
         }
     }
@@ -99,7 +99,7 @@ public class ReindexFailureTests extends ReindexTestCase {
             indexDocs(100);
             ReindexRequestBuilder copy = reindex().source("source").destination("dest");
             copy.source().setSize(10);
-            Future<ReindexResponse> response = copy.execute();
+            Future<BulkIndexByScrollResponse> response = copy.execute();
             client().admin().indices().prepareDelete("source").get();
 
             try {

@@ -8,6 +8,7 @@ graph where each user has an index).
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "indices_boost" : {
         "index1" : 1.4,
@@ -15,3 +16,4 @@ graph where each user has an index).
     }
 }
 --------------------------------------------------
+// CONSOLE

@@ -110,7 +110,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
      * <p>
      * Note: Call <b>must</b> release engine searcher associated with engineGetResult!
      */
-    public GetResult get(Engine.GetResult engineGetResult, String id, String type, String[] fields, FetchSourceContext fetchSourceContext, boolean ignoreErrorsOnGeneratedFields) {
+    public GetResult get(Engine.GetResult engineGetResult, String id, String type, String[] fields, FetchSourceContext fetchSourceContext) {
         if (!engineGetResult.exists()) {
             return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
         }
@@ -118,13 +118,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         currentMetric.inc();
         try {
             long now = System.nanoTime();
-            DocumentMapper docMapper = mapperService.documentMapper(type);
-            if (docMapper == null) {
-                missingMetric.inc(System.nanoTime() - now);
-                return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
-            }
             fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, fields);
-            GetResult getResult = innerGetLoadFromStoredFields(type, id, fields, fetchSourceContext, engineGetResult, docMapper, ignoreErrorsOnGeneratedFields);
+            GetResult getResult = innerGetLoadFromStoredFields(type, id, fields, fetchSourceContext, engineGetResult, mapperService);
             if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
             } else {
@@ -185,16 +180,10 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
         }
 
-        DocumentMapper docMapper = mapperService.documentMapper(type);
-        if (docMapper == null) {
-            get.release();
-            return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
-        }
-
         try {
             // break between having loaded it from translog (so we only have _source), and having a document to load
             if (get.docIdAndVersion() != null) {
-                return innerGetLoadFromStoredFields(type, id, gFields, fetchSourceContext, get, docMapper, ignoreErrorsOnGeneratedFields);
+                return innerGetLoadFromStoredFields(type, id, gFields, fetchSourceContext, get, mapperService);
             } else {
                 Translog.Source source = get.source();
 
@@ -205,6 +194,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 Set<String> neededFields = new HashSet<>();
                 // add meta fields
                 neededFields.add(RoutingFieldMapper.NAME);
+                DocumentMapper docMapper = mapperService.documentMapper(type);
                 if (docMapper.parentFieldMapper().active()) {
                     neededFields.add(ParentFieldMapper.NAME);
                 }
@@ -326,7 +316,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
     }
 
-    private GetResult innerGetLoadFromStoredFields(String type, String id, String[] gFields, FetchSourceContext fetchSourceContext, Engine.GetResult get, DocumentMapper docMapper, boolean ignoreErrorsOnGeneratedFields) {
+    private GetResult innerGetLoadFromStoredFields(String type, String id, String[] gFields, FetchSourceContext fetchSourceContext, Engine.GetResult get, MapperService mapperService) {
         Map<String, GetField> fields = null;
         BytesReference source = null;
         Versions.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
@@ -340,7 +330,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             source = fieldVisitor.source();
 
             if (!fieldVisitor.fields().isEmpty()) {
-                fieldVisitor.postProcess(docMapper);
+                fieldVisitor.postProcess(mapperService);
                 fields = new HashMap<>(fieldVisitor.fields().size());
                 for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {
                     fields.put(entry.getKey(), new GetField(entry.getKey(), entry.getValue()));
@@ -348,6 +338,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
         }
 
+        DocumentMapper docMapper = mapperService.documentMapper(type);
         if (docMapper.parentFieldMapper().active()) {
             String parentId = ParentFieldSubFetchPhase.getParentId(docMapper.parentFieldMapper(), docIdAndVersion.context.reader(), docIdAndVersion.docId);
             if (fields == null) {

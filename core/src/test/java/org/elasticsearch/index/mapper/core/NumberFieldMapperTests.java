@@ -316,4 +316,65 @@ public class NumberFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(e.getMessage(), containsString("Mapping definition for [foo] has unsupported parameters:  [norms"));
         }
     }
+
+    public void testNullValue() throws IOException {
+        for (String type : TYPES) {
+            doTestNullValue(type);
+        }
+    }
+
+    private void doTestNullValue(String type) throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", type)
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .nullField("field")
+                .endObject()
+                .bytes());
+        assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
+
+        Object missing;
+        if (Arrays.asList("float", "double").contains(type)) {
+            missing = 123d;
+        } else {
+            missing = 123L;
+        }
+        mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", type)
+                            .field("null_value", missing)
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+
+        mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .nullField("field")
+                .endObject()
+                .bytes());
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        IndexableField pointField = fields[0];
+        assertEquals(1, pointField.fieldType().pointDimensionCount());
+        assertFalse(pointField.fieldType().stored());
+        assertEquals(123, pointField.numericValue().doubleValue(), 0d);
+        IndexableField dvField = fields[1];
+        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        assertFalse(dvField.fieldType().stored());
+    }
 }

@@ -22,10 +22,11 @@ package org.elasticsearch.index.mapper.core;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,6 +39,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TermBasedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
 
@@ -48,7 +50,6 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 
 /**
  * A field mapper for boolean fields.
@@ -71,8 +72,8 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     public static class Values {
-        public final static BytesRef TRUE = new BytesRef("T");
-        public final static BytesRef FALSE = new BytesRef("F");
+        public static final BytesRef TRUE = new BytesRef("T");
+        public static final BytesRef FALSE = new BytesRef("F");
     }
 
     public static class Builder extends FieldMapper.Builder<Builder, BooleanFieldMapper> {
@@ -119,7 +120,7 @@ public class BooleanFieldMapper extends FieldMapper {
         }
     }
 
-    public static final class BooleanFieldType extends MappedFieldType {
+    public static final class BooleanFieldType extends TermBasedFieldType {
 
         public BooleanFieldType() {}
 
@@ -199,6 +200,15 @@ public class BooleanFieldMapper extends FieldMapper {
                     + "] does not support custom time zones");
             }
             return DocValueFormat.BOOLEAN;
+        }
+
+        @Override
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+            failIfNotIndexed();
+            return new TermRangeQuery(name(),
+                lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                includeLower, includeUpper);
         }
     }
 

@@ -131,10 +131,10 @@ specific index module:
 
     Set to `true` to disable index metadata reads and writes.
 
-`index.ttl.disable_purge`::
+`index.max_refresh_listeners`::
 
-    experimental[] Disables the purge of <<mapping-ttl-field,expired docs>> on
-    the current index.
+    Maximum number of refresh listeners available on each shard of the index.
+    These listeners are used to implement <<docs-refresh,`refresh=wait_for`>>.
 
 
 [float]

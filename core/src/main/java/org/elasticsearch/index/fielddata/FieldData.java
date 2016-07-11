@@ -502,7 +502,7 @@ public enum FieldData {
         };
     }
 
-    private static interface ToStringValues {
+    private interface ToStringValues {
 
         void get(int docID, List<CharSequence> values);
 

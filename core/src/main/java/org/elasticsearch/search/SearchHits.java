@@ -62,5 +62,5 @@ public interface SearchHits extends Streamable, ToXContent, Iterable<SearchHit> 
     /**
      * The hits of the search request (based on the search type, and from / size provided).
      */
-    public SearchHit[] getHits();
+    SearchHit[] getHits();
 }

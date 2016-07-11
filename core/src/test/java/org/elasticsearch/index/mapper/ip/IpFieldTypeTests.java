@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.ip;
 import java.net.InetAddress;
 
 import org.apache.lucene.document.InetAddressPoint;
-import org.apache.lucene.document.XInetAddressPoint;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.util.BytesRef;
@@ -69,11 +68,11 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
 
         ip = "2001:db8::2:1";
         String prefix = ip + "/64";
-        assertEquals(XInetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 64), ft.termQuery(prefix, null));
+        assertEquals(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 64), ft.termQuery(prefix, null));
 
         ip = "192.168.1.7";
         prefix = ip + "/16";
-        assertEquals(XInetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 16), ft.termQuery(prefix, null));
+        assertEquals(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 16), ft.termQuery(prefix, null));
 
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -88,7 +87,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         assertEquals(
                 InetAddressPoint.newRangeQuery("field",
                         InetAddresses.forString("::"),
-                        XInetAddressPoint.MAX_VALUE),
+                        InetAddressPoint.MAX_VALUE),
                 ft.rangeQuery(null, null, randomBoolean(), randomBoolean()));
 
         assertEquals(
@@ -106,13 +105,13 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         assertEquals(
                 InetAddressPoint.newRangeQuery("field",
                         InetAddresses.forString("2001:db8::"),
-                        XInetAddressPoint.MAX_VALUE),
+                        InetAddressPoint.MAX_VALUE),
                 ft.rangeQuery("2001:db8::", null, true, randomBoolean()));
 
         assertEquals(
                 InetAddressPoint.newRangeQuery("field",
                         InetAddresses.forString("2001:db8::1"),
-                        XInetAddressPoint.MAX_VALUE),
+                        InetAddressPoint.MAX_VALUE),
                 ft.rangeQuery("2001:db8::", null, false, randomBoolean()));
 
         assertEquals(
@@ -152,7 +151,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         assertEquals(
                 InetAddressPoint.newRangeQuery("field",
                         InetAddresses.forString("::1:0:0:0"),
-                        XInetAddressPoint.MAX_VALUE),
+                        InetAddressPoint.MAX_VALUE),
                 // same lo/hi values but inclusive=false so this won't match anything
                 ft.rangeQuery("255.255.255.255", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", false, true));
 

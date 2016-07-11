@@ -22,7 +22,6 @@ package org.elasticsearch.messy.tests;
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -35,7 +34,7 @@ import org.elasticsearch.search.aggregations.bucket.AbstractTermsTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
@@ -68,7 +67,7 @@ public class MinDocCountTests extends AbstractTermsTestCase {
         return Collections.singleton(GroovyPlugin.class);
     }
 
-    private static final QueryBuilder<?> QUERY = QueryBuilders.termQuery("match", true);
+    private static final QueryBuilder QUERY = QueryBuilders.termQuery("match", true);
 
     private static int cardinality;
 
@@ -113,17 +112,17 @@ public class MinDocCountTests extends AbstractTermsTestCase {
     private enum Script {
         NO {
             @Override
-            TermsAggregatorBuilder apply(TermsAggregatorBuilder builder, String field) {
+            TermsAggregationBuilder apply(TermsAggregationBuilder builder, String field) {
                 return builder.field(field);
             }
         },
         YES {
             @Override
-            TermsAggregatorBuilder apply(TermsAggregatorBuilder builder, String field) {
+            TermsAggregationBuilder apply(TermsAggregationBuilder builder, String field) {
                 return builder.script(new org.elasticsearch.script.Script("doc['" + field + "'].values"));
             }
         };
-        abstract TermsAggregatorBuilder apply(TermsAggregatorBuilder builder, String field);
+        abstract TermsAggregationBuilder apply(TermsAggregationBuilder builder, String field);
     }
 
     // check that terms2 is a subset of terms1
@@ -316,7 +315,8 @@ public class MinDocCountTests extends AbstractTermsTestCase {
                     Thread.sleep(60000);
                     logger.debug("1m passed. retrying.");
                     testMinDocCountOnTerms(field, script, order, include, false);
-                } catch (Throwable secondFailure) {
+                } catch (Exception secondFailure) {
+                    secondFailure.addSuppressed(ae);
                     logger.error("exception on retry (will re-throw the original in a sec)", secondFailure);
                 }
                 throw ae;

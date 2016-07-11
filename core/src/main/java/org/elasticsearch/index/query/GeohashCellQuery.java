@@ -21,12 +21,12 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,6 +42,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A geohash cell filter that filters {@link GeoPoint}s by their geohashes. Basically the a
@@ -280,7 +281,7 @@ public class GeohashCellQuery {
             builder.endObject();
         }
 
-        public static Builder fromXContent(QueryParseContext parseContext) throws IOException {
+        public static Optional<Builder> fromXContent(QueryParseContext parseContext) throws IOException {
             XContentParser parser = parseContext.parser();
 
             String fieldName = null;
@@ -362,7 +363,7 @@ public class GeohashCellQuery {
                 builder.boost(boost);
             }
             builder.ignoreUnmapped(ignoreUnmapped);
-            return builder;
+            return Optional.of(builder);
         }
 
         @Override

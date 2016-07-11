@@ -29,6 +29,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -584,7 +585,7 @@ public class BulkTests extends ESIntegTestCase {
                 .add(new IndexRequest("test", "type", "4").source("{ \"title\" : \"Great Title of doc 4\" }"))
                 .add(new IndexRequest("test", "type", "5").source("{ \"title\" : \"Great Title of doc 5\" }"))
                 .add(new IndexRequest("test", "type", "6").source("{ \"title\" : \"Great Title of doc 6\" }"))
-                .setRefresh(true)
+                .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
                 .get();
         assertNoFailures(indexBulkItemResponse);
 
@@ -622,7 +623,7 @@ public class BulkTests extends ESIntegTestCase {
                    .add(new IndexRequest("bulkindex2", "index2_type").source("text", "hallo2"))
                    .add(new UpdateRequest("bulkindex2", "index2_type", "2").doc("foo", "bar"))
                    .add(new DeleteRequest("bulkindex2", "index2_type", "3"))
-                   .refresh(true);
+                   .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
 
         client().bulk(bulkRequest).get();
         SearchResponse searchResponse = client().prepareSearch("bulkindex*").get();
@@ -643,10 +644,10 @@ public class BulkTests extends ESIntegTestCase {
         client().prepareIndex("bulkindex1", "index1_type", "1").setSource("text", "test").get();
         assertAcked(client().admin().indices().prepareClose("bulkindex1"));
 
-        BulkRequest bulkRequest = new BulkRequest();
+        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         bulkRequest.add(new IndexRequest("bulkindex1", "index1_type", "1").source("text", "hallo1"))
                 .add(new UpdateRequest("bulkindex1", "index1_type", "1").doc("foo", "bar"))
-                .add(new DeleteRequest("bulkindex1", "index1_type", "1")).refresh(true);
+                .add(new DeleteRequest("bulkindex1", "index1_type", "1"));
 
         BulkResponse bulkResponse = client().bulk(bulkRequest).get();
         assertThat(bulkResponse.hasFailures(), is(true));

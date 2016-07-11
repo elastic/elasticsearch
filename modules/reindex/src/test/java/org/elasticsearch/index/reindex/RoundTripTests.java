@@ -19,20 +19,22 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
+import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -55,11 +57,28 @@ public class RoundTripTests extends ESTestCase {
         randomRequest(reindex);
         reindex.getDestination().version(randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED, 12L, 1L, 123124L, 12L));
         reindex.getDestination().index("test");
+        if (randomBoolean()) {
+            int port = between(1, Integer.MAX_VALUE);
+            BytesReference query = new BytesArray(randomAsciiOfLength(5));
+            String username = randomBoolean() ? randomAsciiOfLength(5) : null;
+            String password = username != null && randomBoolean() ? randomAsciiOfLength(5) : null;
+            reindex.setRemoteInfo(new RemoteInfo(randomAsciiOfLength(5), randomAsciiOfLength(5), port, query, username, password));
+        }
         ReindexRequest tripped = new ReindexRequest();
         roundTrip(reindex, tripped);
         assertRequestEquals(reindex, tripped);
         assertEquals(reindex.getDestination().version(), tripped.getDestination().version());
         assertEquals(reindex.getDestination().index(), tripped.getDestination().index());
+        if (reindex.getRemoteInfo() == null) {
+            assertNull(tripped.getRemoteInfo());
+        } else {
+            assertNotNull(tripped.getRemoteInfo());
+            assertEquals(reindex.getRemoteInfo().getScheme(), tripped.getRemoteInfo().getScheme());
+            assertEquals(reindex.getRemoteInfo().getHost(), tripped.getRemoteInfo().getHost());
+            assertEquals(reindex.getRemoteInfo().getQuery(), tripped.getRemoteInfo().getQuery());
+            assertEquals(reindex.getRemoteInfo().getUsername(), tripped.getRemoteInfo().getUsername());
+            assertEquals(reindex.getRemoteInfo().getPassword(), tripped.getRemoteInfo().getPassword());
+        }
     }
 
     public void testUpdateByQueryRequest() throws IOException {
@@ -105,9 +124,9 @@ public class RoundTripTests extends ESTestCase {
     }
 
     public void testReindexResponse() throws IOException {
-        ReindexResponse response = new ReindexResponse(timeValueMillis(randomPositiveLong()), randomStatus(), randomIndexingFailures(),
-                randomSearchFailures(), randomBoolean());
-        ReindexResponse tripped = new ReindexResponse();
+        BulkIndexByScrollResponse response = new BulkIndexByScrollResponse(timeValueMillis(randomPositiveLong()), randomStatus(),
+                randomIndexingFailures(), randomSearchFailures(), randomBoolean());
+        BulkIndexByScrollResponse tripped = new BulkIndexByScrollResponse();
         roundTrip(response, tripped);
         assertResponseEquals(response, tripped);
     }
@@ -120,9 +139,24 @@ public class RoundTripTests extends ESTestCase {
         assertResponseEquals(response, tripped);
     }
 
+    public void testRethrottleRequest() throws IOException {
+        RethrottleRequest request = new RethrottleRequest();
+        request.setRequestsPerSecond((float) randomDoubleBetween(0, Float.POSITIVE_INFINITY, false));
+        if (randomBoolean()) {
+            request.setActions(randomFrom(UpdateByQueryAction.NAME, ReindexAction.NAME));
+        } else {
+            request.setTaskId(new TaskId(randomAsciiOfLength(5), randomLong()));
+        }
+        RethrottleRequest tripped = new RethrottleRequest();
+        roundTrip(request, tripped);
+        assertEquals(request.getRequestsPerSecond(), tripped.getRequestsPerSecond(), 0.00001);
+        assertArrayEquals(request.getActions(), tripped.getActions());
+        assertEquals(request.getTaskId(), tripped.getTaskId());
+    }
+
     private BulkByScrollTask.Status randomStatus() {
         return new BulkByScrollTask.Status(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                randomPositiveInt(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                randomInt(Integer.MAX_VALUE), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
                 parseTimeValue(randomPositiveTimeValue(), "test"), abs(random().nextFloat()),
                 random().nextBoolean() ? null : randomSimpleString(random()), parseTimeValue(randomPositiveTimeValue(), "test"));
     }
@@ -133,13 +167,19 @@ public class RoundTripTests extends ESTestCase {
                         randomSimpleString(random()), new IllegalArgumentException("test")));
     }
 
-    private List<ShardSearchFailure> randomSearchFailures() {
-        if (usually()) {
+    private List<SearchFailure> randomSearchFailures() {
+        if (randomBoolean()) {
             return emptyList();
         }
-        Index index = new Index(randomSimpleString(random()), "uuid");
-        return singletonList(new ShardSearchFailure(randomSimpleString(random()),
-                new SearchShardTarget(randomSimpleString(random()), index, randomInt()), randomFrom(RestStatus.values())));
+        String index = null;
+        Integer shardId = null;
+        String nodeId = null;
+        if (randomBoolean()) {
+            index = randomAsciiOfLength(5);
+            shardId = randomInt();
+            nodeId = usually() ? randomAsciiOfLength(5) : null;
+        }
+        return singletonList(new SearchFailure(new ElasticsearchException("foo"), index, shardId, nodeId));
     }
 
     private void roundTrip(Streamable example, Streamable empty) throws IOException {
@@ -163,17 +203,13 @@ public class RoundTripTests extends ESTestCase {
         return l;
     }
 
-    private int randomPositiveInt() {
-        return randomInt(Integer.MAX_VALUE);
-    }
-
     private void assertResponseEquals(BulkIndexByScrollResponse expected, BulkIndexByScrollResponse actual) {
         assertEquals(expected.getTook(), actual.getTook());
         assertTaskStatusEquals(expected.getStatus(), actual.getStatus());
-        assertEquals(expected.getIndexingFailures().size(), actual.getIndexingFailures().size());
-        for (int i = 0; i < expected.getIndexingFailures().size(); i++) {
-            Failure expectedFailure = expected.getIndexingFailures().get(i);
-            Failure actualFailure = actual.getIndexingFailures().get(i);
+        assertEquals(expected.getBulkFailures().size(), actual.getBulkFailures().size());
+        for (int i = 0; i < expected.getBulkFailures().size(); i++) {
+            Failure expectedFailure = expected.getBulkFailures().get(i);
+            Failure actualFailure = actual.getBulkFailures().get(i);
             assertEquals(expectedFailure.getIndex(), actualFailure.getIndex());
             assertEquals(expectedFailure.getType(), actualFailure.getType());
             assertEquals(expectedFailure.getId(), actualFailure.getId());
@@ -182,13 +218,15 @@ public class RoundTripTests extends ESTestCase {
         }
         assertEquals(expected.getSearchFailures().size(), actual.getSearchFailures().size());
         for (int i = 0; i < expected.getSearchFailures().size(); i++) {
-            ShardSearchFailure expectedFailure = expected.getSearchFailures().get(i);
-            ShardSearchFailure actualFailure = actual.getSearchFailures().get(i);
-            assertEquals(expectedFailure.shard(), actualFailure.shard());
-            assertEquals(expectedFailure.status(), actualFailure.status());
-            // We can't use getCause because throwable doesn't implement equals
-            assertEquals(expectedFailure.reason(), actualFailure.reason());
+            SearchFailure expectedFailure = expected.getSearchFailures().get(i);
+            SearchFailure actualFailure = actual.getSearchFailures().get(i);
+            assertEquals(expectedFailure.getIndex(), actualFailure.getIndex());
+            assertEquals(expectedFailure.getShardId(), actualFailure.getShardId());
+            assertEquals(expectedFailure.getNodeId(), actualFailure.getNodeId());
+            assertEquals(expectedFailure.getReason().getClass(), actualFailure.getReason().getClass());
+            assertEquals(expectedFailure.getReason().getMessage(), actualFailure.getReason().getMessage());
         }
+        
     }
 
     private void assertTaskStatusEquals(BulkByScrollTask.Status expected, BulkByScrollTask.Status actual) {
@@ -198,7 +236,8 @@ public class RoundTripTests extends ESTestCase {
         assertEquals(expected.getBatches(), actual.getBatches());
         assertEquals(expected.getVersionConflicts(), actual.getVersionConflicts());
         assertEquals(expected.getNoops(), actual.getNoops());
-        assertEquals(expected.getRetries(), actual.getRetries());
+        assertEquals(expected.getBulkRetries(), actual.getBulkRetries());
+        assertEquals(expected.getSearchRetries(), actual.getSearchRetries());
         assertEquals(expected.getThrottled(), actual.getThrottled());
         assertEquals(expected.getRequestsPerSecond(), actual.getRequestsPerSecond(), 0f);
         assertEquals(expected.getReasonCancelled(), actual.getReasonCancelled());

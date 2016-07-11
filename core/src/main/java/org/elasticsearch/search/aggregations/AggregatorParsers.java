@@ -24,7 +24,6 @@ import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -104,8 +103,8 @@ public class AggregatorParsers {
                         + token + "], expected a [" + XContentParser.Token.START_OBJECT + "].");
             }
 
-            AggregatorBuilder<?> aggFactory = null;
-            PipelineAggregatorBuilder<?> pipelineAggregatorFactory = null;
+            AggregationBuilder aggFactory = null;
+            PipelineAggregationBuilder pipelineAggregatorFactory = null;
             AggregatorFactories.Builder subFactories = null;
 
             Map<String, Object> metaData = null;

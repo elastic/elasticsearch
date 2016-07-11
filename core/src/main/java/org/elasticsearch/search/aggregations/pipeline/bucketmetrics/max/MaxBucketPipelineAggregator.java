@@ -37,9 +37,9 @@ import java.util.Map;
 
 public class MaxBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
 
-    public final static Type TYPE = new Type("max_bucket");
+    public static final Type TYPE = new Type("max_bucket");
 
-    public final static PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
+    public static final PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
         @Override
         public MaxBucketPipelineAggregator readResult(StreamInput in) throws IOException {
             MaxBucketPipelineAggregator result = new MaxBucketPipelineAggregator();

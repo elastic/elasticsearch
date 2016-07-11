@@ -26,4 +26,12 @@ public class IdFieldTypeTests extends FieldTypeTestCase {
     protected MappedFieldType createDefaultFieldType() {
         return new IdFieldMapper.IdFieldType();
     }
+
+    public void testRangeQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("_id");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> ft.rangeQuery(null, null, randomBoolean(), randomBoolean()));
+        assertEquals("Field [_id] of type [_id] does not support range queries", e.getMessage());
+    }
 }

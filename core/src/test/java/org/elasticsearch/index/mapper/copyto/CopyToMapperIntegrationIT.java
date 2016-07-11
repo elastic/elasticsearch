@@ -106,7 +106,8 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
                 .field("copy_to", "{name}_raw").endObject()
                 .endObject().endObject()
 
-                .endArray();
+                .endArray()
+                .endObject().endObject();
     }
 
 }

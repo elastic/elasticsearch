@@ -21,19 +21,26 @@ package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -45,6 +52,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -59,7 +67,8 @@ public class CreateIndexIT extends ESIntegTestCase {
             prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, 4L)).get();
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals("unknown setting [index.creation_date]", ex.getMessage());
+            assertEquals("unknown setting [index.creation_date] please check that any required plugins are installed, or check the " +
+                "breaking changes documentation for removed settings", ex.getMessage());
         }
     }
 
@@ -154,7 +163,8 @@ public class CreateIndexIT extends ESIntegTestCase {
                 .get();
             fail("should have thrown an exception about the shard count");
         } catch (IllegalArgumentException e) {
-            assertEquals("unknown setting [index.unknown.value]", e.getMessage());
+            assertEquals("unknown setting [index.unknown.value] please check that any required plugins are installed, or check the" +
+                " breaking changes documentation for removed settings", e.getMessage());
         }
     }
 
@@ -200,13 +210,16 @@ public class CreateIndexIT extends ESIntegTestCase {
                      @Override
                     public void run() {
                          try {
-                             client().prepareIndex("test", "test").setSource("index_version", indexVersion.get()).get(); // recreate that index
+                             // recreate that index
+                             client().prepareIndex("test", "test").setSource("index_version", indexVersion.get()).get();
                              synchronized (indexVersionLock) {
-                                 // we sync here since we have to ensure that all indexing operations below for a given ID are done before we increment the
-                                 // index version otherwise a doc that is in-flight could make it into an index that it was supposed to be deleted for and our assertion fail...
+                                 // we sync here since we have to ensure that all indexing operations below for a given ID are done before
+                                 // we increment the index version otherwise a doc that is in-flight could make it into an index that it
+                                 // was supposed to be deleted for and our assertion fail...
                                  indexVersion.incrementAndGet();
                              }
-                             assertAcked(client().admin().indices().prepareDelete("test").get()); // from here on all docs with index_version == 0|1 must be gone!!!! only 2 are ok;
+                             // from here on all docs with index_version == 0|1 must be gone!!!! only 2 are ok;
+                             assertAcked(client().admin().indices().prepareDelete("test").get());
                          } finally {
                              latch.countDown();
                          }
@@ -216,7 +229,7 @@ public class CreateIndexIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     throw new RuntimeException(e);
                 }
             }
@@ -238,8 +251,10 @@ public class CreateIndexIT extends ESIntegTestCase {
         latch.await();
         refresh();
 
-        // we only really assert that we never reuse segments of old indices or anything like this here and that nothing fails with crazy exceptions
-        SearchResponse expected = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(new RangeQueryBuilder("index_version").from(indexVersion.get(), true)).get();
+        // we only really assert that we never reuse segments of old indices or anything like this here and that nothing fails with
+        // crazy exceptions
+        SearchResponse expected = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setQuery(new RangeQueryBuilder("index_version").from(indexVersion.get(), true)).get();
         SearchResponse all = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
         assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits(), all.getHits().getTotalHits());
         logger.info("total: {}", expected.getHits().getTotalHits());
@@ -272,9 +287,191 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none")).get();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable",
+            "none")).get();
         client().admin().indices().prepareCreate("test").setSettings(indexSettings()).get();
         internalCluster().fullRestart();
         ensureGreen("test");
+    }
+
+    public void testCreateShrinkIndexToN() {
+        int[][] possibleShardSplits = new int[][] {{8,4,2}, {9, 3, 1}, {4, 2, 1}, {15,5,1}};
+        int[] shardSplits = randomFrom(possibleShardSplits);
+        assertEquals(shardSplits[0], (shardSplits[0] / shardSplits[1]) * shardSplits[1]);
+        assertEquals(shardSplits[1], (shardSplits[1] / shardSplits[2]) * shardSplits[2]);
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        prepareCreate("source").setSettings(Settings.builder().put(indexSettings()).put("number_of_shards", shardSplits[0])).get();
+        for (int i = 0; i < 20; i++) {
+            client().prepareIndex("source", "t1", Integer.toString(i)).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();
+        }
+        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
+            .getDataNodes();
+        assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
+        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
+        String mergeNode = discoveryNodes[0].getName();
+        // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
+        // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
+        // to the require._name below.
+        ensureGreen();
+        // relocate all shards to one node such that we can merge it.
+        client().admin().indices().prepareUpdateSettings("source")
+            .setSettings(Settings.builder()
+                .put("index.routing.allocation.require._name", mergeNode)
+                .put("index.blocks.write", true)).get();
+        ensureGreen();
+        // now merge source into a 4 shard index
+        assertAcked(client().admin().indices().prepareShrinkIndex("source", "first_shrink")
+            .setSettings(Settings.builder()
+                .put("index.number_of_replicas", 0)
+                .put("index.number_of_shards", shardSplits[1]).build()).get());
+        ensureGreen();
+        assertHitCount(client().prepareSearch("first_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+
+        for (int i = 0; i < 20; i++) { // now update
+            client().prepareIndex("first_shrink", "t1", Integer.toString(i)).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();
+        }
+        flushAndRefresh();
+        assertHitCount(client().prepareSearch("first_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+        assertHitCount(client().prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+
+        // relocate all shards to one node such that we can merge it.
+        client().admin().indices().prepareUpdateSettings("first_shrink")
+            .setSettings(Settings.builder()
+                .put("index.routing.allocation.require._name", mergeNode)
+                .put("index.blocks.write", true)).get();
+        ensureGreen();
+        // now merge source into a 2 shard index
+        assertAcked(client().admin().indices().prepareShrinkIndex("first_shrink", "second_shrink")
+            .setSettings(Settings.builder()
+                .put("index.number_of_replicas", 0)
+                .put("index.number_of_shards", shardSplits[2]).build()).get());
+        ensureGreen();
+        assertHitCount(client().prepareSearch("second_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+        // let it be allocated anywhere and bump replicas
+        client().admin().indices().prepareUpdateSettings("second_shrink")
+            .setSettings(Settings.builder()
+                .putNull("index.routing.allocation.include._id")
+                .put("index.number_of_replicas", 1)).get();
+        ensureGreen();
+        assertHitCount(client().prepareSearch("second_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+
+        for (int i = 0; i < 20; i++) { // now update
+            client().prepareIndex("second_shrink", "t1", Integer.toString(i)).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();
+        }
+        flushAndRefresh();
+        assertHitCount(client().prepareSearch("second_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+        assertHitCount(client().prepareSearch("first_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+        assertHitCount(client().prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+    }
+
+    public void testCreateShrinkIndex() {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        prepareCreate("source").setSettings(Settings.builder().put(indexSettings()).put("number_of_shards", randomIntBetween(2, 7))).get();
+        for (int i = 0; i < 20; i++) {
+            client().prepareIndex("source", randomFrom("t1", "t2", "t3")).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();
+        }
+        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
+            .getDataNodes();
+        assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
+        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
+        String mergeNode = discoveryNodes[0].getName();
+        // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
+        // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
+        // to the require._name below.
+        ensureGreen();
+        // relocate all shards to one node such that we can merge it.
+        client().admin().indices().prepareUpdateSettings("source")
+            .setSettings(Settings.builder()
+                .put("index.routing.allocation.require._name", mergeNode)
+                .put("index.blocks.write", true)).get();
+        ensureGreen();
+        // now merge source into a single shard index
+        assertAcked(client().admin().indices().prepareShrinkIndex("source", "target")
+            .setSettings(Settings.builder().put("index.number_of_replicas", 0).build()).get());
+        ensureGreen();
+        assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+        // bump replicas
+        client().admin().indices().prepareUpdateSettings("target")
+            .setSettings(Settings.builder()
+                .put("index.number_of_replicas", 1)).get();
+        ensureGreen();
+        assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+
+        for (int i = 20; i < 40; i++) {
+            client().prepareIndex("target", randomFrom("t1", "t2", "t3")).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();
+        }
+        flushAndRefresh();
+        assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 40);
+        assertHitCount(client().prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+
+    }
+    /**
+     * Tests that we can manually recover from a failed allocation due to shards being moved away etc.
+     */
+    public void testCreateShrinkIndexFails() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        prepareCreate("source").setSettings(Settings.builder().put(indexSettings())
+            .put("number_of_shards", randomIntBetween(2, 7))
+            .put("number_of_replicas", 0)).get();
+        for (int i = 0; i < 20; i++) {
+            client().prepareIndex("source", randomFrom("t1", "t2", "t3")).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();
+        }
+        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
+            .getDataNodes();
+        assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
+        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
+        String spareNode = discoveryNodes[0].getName();
+        String mergeNode = discoveryNodes[1].getName();
+        // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
+        // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
+        // to the require._name below.
+        ensureGreen();
+        // relocate all shards to one node such that we can merge it.
+        client().admin().indices().prepareUpdateSettings("source")
+            .setSettings(Settings.builder().put("index.routing.allocation.require._name", mergeNode)
+                .put("index.blocks.write", true)).get();
+        ensureGreen();
+
+        // now merge source into a single shard index
+        client().admin().indices().prepareShrinkIndex("source", "target")
+            .setSettings(Settings.builder()
+            .put("index.routing.allocation.exclude._name", mergeNode) // we manually exclude the merge node to forcefully fuck it up
+            .put("index.number_of_replicas", 0)
+            .put("index.allocation.max_retries", 1).build()).get();
+
+        // now we move all shards away from the merge node
+        client().admin().indices().prepareUpdateSettings("source")
+            .setSettings(Settings.builder().put("index.routing.allocation.require._name", spareNode)
+                .put("index.blocks.write", true)).get();
+        ensureGreen("source");
+
+        client().admin().indices().prepareUpdateSettings("target") // erase the forcefully fuckup!
+            .setSettings(Settings.builder().putNull("index.routing.allocation.exclude._name")).get();
+        // wait until it fails
+        assertBusy(() -> {
+            ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
+            RoutingTable routingTables = clusterStateResponse.getState().routingTable();
+            assertTrue(routingTables.index("target").shard(0).getShards().get(0).unassigned());
+            assertEquals(UnassignedInfo.Reason.ALLOCATION_FAILED,
+                routingTables.index("target").shard(0).getShards().get(0).unassignedInfo().getReason());
+            assertEquals(1,
+                routingTables.index("target").shard(0).getShards().get(0).unassignedInfo().getNumFailedAllocations());
+        });
+        client().admin().indices().prepareUpdateSettings("source") // now relocate them all to the right node
+            .setSettings(Settings.builder()
+                .put("index.routing.allocation.require._name", mergeNode)).get();
+        ensureGreen("source");
+
+        final InternalClusterInfoService infoService = (InternalClusterInfoService) internalCluster().getInstance(ClusterInfoService.class,
+            internalCluster().getMasterName());
+        infoService.refresh();
+        // kick off a retry and wait until it's done!
+        ClusterRerouteResponse clusterRerouteResponse = client().admin().cluster().prepareReroute().setRetryFailed(true).get();
+        long expectedShardSize = clusterRerouteResponse.getState().routingTable().index("target")
+            .shard(0).getShards().get(0).getExpectedShardSize();
+        // we support the expected shard size in the allocator to sum up over the source index shards
+        assertTrue("expected shard size must be set but wasn't: " + expectedShardSize, expectedShardSize > 0);
+        ensureGreen();
+        assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
     }
 }

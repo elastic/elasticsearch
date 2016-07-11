@@ -19,6 +19,7 @@
 package org.elasticsearch.cluster.serialization;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -27,7 +28,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.test.ESAllocationTestCase;
 
 import static java.util.Collections.emptyMap;
@@ -48,11 +50,11 @@ public class ClusterStateToStringTests extends ESAllocationTestCase {
                 .addAsNew(metaData.index("test_idx"))
                 .build();
 
-        DiscoveryNodes nodes = DiscoveryNodes.builder().put(new DiscoveryNode("node_foo", DummyTransportAddress.INSTANCE,
+        DiscoveryNodes nodes = DiscoveryNodes.builder().put(new DiscoveryNode("node_foo", LocalTransportAddress.buildUnique(),
                 emptyMap(), emptySet(), Version.CURRENT)).localNodeId("node_foo").masterNodeId("node_foo").build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).nodes(nodes).metaData(metaData)
-                .routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes)
+            .metaData(metaData).routingTable(routingTable).build();
 
         AllocationService strategy = createAllocationService();
         clusterState = ClusterState.builder(clusterState).routingTable(strategy.reroute(clusterState, "reroute").routingTable()).build();

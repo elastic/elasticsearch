@@ -33,37 +33,35 @@ public class FakeRestRequest extends RestRequest {
 
     private final BytesReference content;
 
+    private final Method method;
+
+    private final String path;
+
     public FakeRestRequest() {
-        this(new HashMap<>());
+        this(new HashMap<>(), new HashMap<>(), null, Method.GET, "/");
     }
 
-    public FakeRestRequest(Map<String, String> headers) {
-        this(headers, new HashMap<>());
-    }
-
-    public FakeRestRequest(Map<String, String> headers, Map<String, String> params) {
-        this(headers, params, null);
-    }
-
-    public FakeRestRequest(Map<String, String> headers, Map<String, String> params, BytesReference content) {
+    private FakeRestRequest(Map<String, String> headers, Map<String, String> params, BytesReference content, Method method, String path) {
         this.headers = headers;
         this.params = params;
         this.content = content;
+        this.method = method;
+        this.path = path;
     }
 
     @Override
     public Method method() {
-        return Method.GET;
+        return method;
     }
 
     @Override
     public String uri() {
-        return "/";
+        return path;
     }
 
     @Override
     public String rawPath() {
-        return "/";
+        return path;
     }
 
     @Override
@@ -109,4 +107,46 @@ public class FakeRestRequest extends RestRequest {
     public Map<String, String> params() {
         return params;
     }
+
+    public static class Builder {
+        private Map<String, String> headers = new HashMap<>();
+
+        private Map<String, String> params = new HashMap<>();
+
+        private BytesReference content;
+
+        private String path = "/";
+
+        private Method method = Method.GET;
+
+        public Builder withHeaders(Map<String, String> headers) {
+            this.headers = headers;
+            return this;
+        }
+
+        public Builder withParams(Map<String, String> params) {
+            this.params = params;
+            return this;
+        }
+
+        public Builder withContent(BytesReference content) {
+            this.content = content;
+            return this;
+        }
+
+        public Builder withPath(String path) {
+            this.path = path;
+            return this;
+        }
+
+        public Builder withMethod(Method method) {
+            this.method = method;
+            return this;
+        }
+
+        public FakeRestRequest build() {
+            return new FakeRestRequest(headers, params, content, method, path);
+        }
+    }
+
 }

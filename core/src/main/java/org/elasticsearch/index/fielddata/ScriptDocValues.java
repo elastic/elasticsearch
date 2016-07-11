@@ -27,6 +27,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
+import org.joda.time.ReadableDateTime;
 
 import java.util.AbstractList;
 import java.util.Collections;
@@ -49,7 +50,7 @@ public interface ScriptDocValues<T> extends List<T> {
      */
     List<T> getValues();
 
-    public final static class Strings extends AbstractList<String> implements ScriptDocValues<String> {
+    public static final class Strings extends AbstractList<String> implements ScriptDocValues<String> {
 
         private final SortedBinaryDocValues values;
 
@@ -131,7 +132,7 @@ public interface ScriptDocValues<T> extends List<T> {
             return Collections.unmodifiableList(this);
         }
 
-        public MutableDateTime getDate() {
+        public ReadableDateTime getDate() {
             date.setMillis(getValue());
             return date;
         }

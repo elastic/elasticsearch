@@ -265,15 +265,15 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                     }
                     try {
                         indicesService.deleteShardStore("no longer used", shardId, currentState);
-                    } catch (Throwable ex) {
+                    } catch (Exception ex) {
                         logger.debug("{} failed to delete unallocated shard, ignoring", ex, shardId);
                     }
                     return currentState;
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.error("{} unexpected error during deletion of unallocated shard", t, shardId);
+                public void onFailure(String source, Exception e) {
+                    logger.error("{} unexpected error during deletion of unallocated shard", e, shardId);
                 }
             });
         }
@@ -351,7 +351,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         }
 
         private IndexShard getShard(ShardActiveRequest request) {
-            ClusterName thisClusterName = clusterService.state().getClusterName();
+            ClusterName thisClusterName = clusterService.getClusterName();
             if (!thisClusterName.equals(request.clusterName)) {
                 logger.trace("shard exists request meant for cluster[{}], but this is cluster[{}], ignoring request", request.clusterName, thisClusterName);
                 return null;
@@ -385,7 +385,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            clusterName = ClusterName.readClusterName(in);
+            clusterName = new ClusterName(in);
             indexUUID = in.readString();
             shardId = ShardId.readShardId(in);
             timeout = new TimeValue(in.readLong(), TimeUnit.MILLISECONDS);

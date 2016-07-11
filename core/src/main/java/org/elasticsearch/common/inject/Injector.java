@@ -38,12 +38,6 @@ import java.util.Map;
  * An injector can also {@link #injectMembers(Object) inject the dependencies} of
  * already-constructed instances. This can be used to interoperate with objects created by other
  * frameworks or services.
- * <p>
- * Injectors can be {@link #createChildInjector(Iterable) hierarchical}. Child injectors inherit
- * the configuration of their parent injectors, but the converse does not hold.
- * <p>
- * The injector's {@link #getBindings() internal bindings} are available for introspection. This
- * enables tools and extensions to operate on an injector reflectively.
  *
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
@@ -86,41 +80,6 @@ public interface Injector {
      * @since 2.0
      */
     <T> MembersInjector<T> getMembersInjector(Class<T> type);
-
-    /**
-     * Returns all explicit bindings.
-     * <p>
-     * The returned map does not include bindings inherited from a {@link #getParent() parent
-     * injector}, should one exist. The returned map is guaranteed to iterate (for example, with
-     * its {@link java.util.Map#entrySet()} iterator) in the order of insertion. In other words,
-     * the order in which bindings appear in user Modules.
-     * <p>
-     * This method is part of the Guice SPI and is intended for use by tools and extensions.
-     */
-    Map<Key<?>, Binding<?>> getBindings();
-
-    /**
-     * Returns the binding for the given injection key. This will be an explicit bindings if the key
-     * was bound explicitly by a module, or an implicit binding otherwise. The implicit binding will
-     * be created if necessary.
-     * <p>
-     * This method is part of the Guice SPI and is intended for use by tools and extensions.
-     *
-     * @throws ConfigurationException if this injector cannot find or create the binding.
-     */
-    <T> Binding<T> getBinding(Key<T> key);
-
-    /**
-     * Returns the binding for the given type. This will be an explicit bindings if the injection key
-     * was bound explicitly by a module, or an implicit binding otherwise. The implicit binding will
-     * be created if necessary.
-     * <p>
-     * This method is part of the Guice SPI and is intended for use by tools and extensions.
-     *
-     * @throws ConfigurationException if this injector cannot find or create the binding.
-     * @since 2.0
-     */
-    <T> Binding<T> getBinding(Class<T> type);
 
     /**
      * Returns all explicit bindings for {@code type}.
@@ -166,45 +125,4 @@ public interface Injector {
      * @throws ProvisionException     if there was a runtime failure while providing an instance.
      */
     <T> T getInstance(Class<T> type);
-
-    /**
-     * Returns this injector's parent, or {@code null} if this is a top-level injector.
-     *
-     * @since 2.0
-     */
-    Injector getParent();
-
-    /**
-     * Returns a new injector that inherits all state from this injector. All bindings, scopes,
-     * interceptors and type converters are inherited -- they are visible to the child injector.
-     * Elements of the child injector are not visible to its parent.
-     * <p>
-     * Just-in-time bindings created for child injectors will be created in an ancestor injector
-     * whenever possible. This allows for scoped instances to be shared between injectors. Use
-     * explicit bindings to prevent bindings from being shared with the parent injector.
-     * <p>
-     * No key may be bound by both an injector and one of its ancestors. This includes just-in-time
-     * bindings. The lone exception is the key for {@code Injector.class}, which is bound by each
-     * injector to itself.
-     *
-     * @since 2.0
-     */
-    Injector createChildInjector(Iterable<? extends Module> modules);
-
-    /**
-     * Returns a new injector that inherits all state from this injector. All bindings, scopes,
-     * interceptors and type converters are inherited -- they are visible to the child injector.
-     * Elements of the child injector are not visible to its parent.
-     * <p>
-     * Just-in-time bindings created for child injectors will be created in an ancestor injector
-     * whenever possible. This allows for scoped instances to be shared between injectors. Use
-     * explicit bindings to prevent bindings from being shared with the parent injector.
-     * <p>
-     * No key may be bound by both an injector and one of its ancestors. This includes just-in-time
-     * bindings. The lone exception is the key for {@code Injector.class}, which is bound by each
-     * injector to itself.
-     *
-     * @since 2.0
-     */
-    Injector createChildInjector(Module... modules);
 }

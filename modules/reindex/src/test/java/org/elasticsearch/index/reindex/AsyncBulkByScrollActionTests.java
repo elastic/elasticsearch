@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -38,6 +40,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.ReduceSearchPhaseException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
@@ -58,9 +62,10 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
+import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -68,6 +73,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -90,20 +96,21 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
+import static java.util.Collections.singletonList;
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.action.bulk.BackoffPolicy.constantBackoff;
-import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
+import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.emptyCollectionOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AsyncBulkByScrollActionTests extends ESTestCase {
     private MyMockClient client;
@@ -121,9 +128,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     @Before
     public void setupForTest() {
         client = new MyMockClient(new NoOpClient(getTestName()));
-        threadPool = new ThreadPool(getTestName());
-        testRequest = new DummyAbstractBulkByScrollRequest();
-        firstSearchRequest = new SearchRequest().scroll(timeValueSeconds(10));
+        threadPool = new TestThreadPool(getTestName());
+        firstSearchRequest = new SearchRequest();
+        testRequest = new DummyAbstractBulkByScrollRequest(firstSearchRequest);
         listener = new PlainActionFuture<>();
         scrollId = null;
         taskManager = new TaskManager(Settings.EMPTY);
@@ -150,8 +157,60 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      * random scroll id so it is checked instead.
      */
     private String scrollId() {
-        scrollId = randomSimpleString(random(), 1, 1000); // Empty string's get special behavior we don't want
+        scrollId = randomSimpleString(random(), 1, 10); // Empty strings get special behavior we don't want
         return scrollId;
+    }
+
+    public void testStartRetriesOnRejectionAndSucceeds() throws Exception {
+        client.searchesToReject = randomIntBetween(0, testRequest.getMaxRetries() - 1);
+        DummyAbstractAsyncBulkByScrollAction action = new DummyActionWithoutBackoff();
+        action.start();
+        assertBusy(() -> assertEquals(client.searchesToReject + 1, client.searchAttempts.get()));
+        if (listener.isDone()) {
+            Object result = listener.get();
+            fail("Expected listener not to be done but it was and had " + result);
+        }
+        assertBusy(() -> assertNotNull("There should be a search attempt pending that we didn't reject", client.lastSearch.get()));
+        assertEquals(client.searchesToReject, testTask.getStatus().getSearchRetries());
+    }
+
+    public void testStartRetriesOnRejectionButFailsOnTooManyRejections() throws Exception {
+        client.searchesToReject = testRequest.getMaxRetries() + randomIntBetween(1, 100);
+        DummyAbstractAsyncBulkByScrollAction action = new DummyActionWithoutBackoff();
+        action.start();
+        assertBusy(() -> assertEquals(testRequest.getMaxRetries() + 1, client.searchAttempts.get()));
+        assertBusy(() -> assertTrue(listener.isDone()));
+        ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
+        assertThat(ExceptionsHelper.stackTrace(e), containsString(EsRejectedExecutionException.class.getSimpleName()));
+        assertNull("There shouldn't be a search attempt pending that we didn't reject", client.lastSearch.get());
+        assertEquals(testRequest.getMaxRetries(), testTask.getStatus().getSearchRetries());
+    }
+
+    public void testStartNextScrollRetriesOnRejectionAndSucceeds() throws Exception {
+        client.scrollsToReject = randomIntBetween(0, testRequest.getMaxRetries() - 1);
+        DummyAbstractAsyncBulkByScrollAction action = new DummyActionWithoutBackoff();
+        action.setScroll(scrollId());
+        action.startNextScroll(timeValueNanos(System.nanoTime()), 0);
+        assertBusy(() -> assertEquals(client.scrollsToReject + 1, client.scrollAttempts.get()));
+        if (listener.isDone()) {
+            Object result = listener.get();
+            fail("Expected listener not to be done but it was and had " + result);
+        }
+        assertBusy(() -> assertNotNull("There should be a scroll attempt pending that we didn't reject", client.lastScroll.get()));
+        assertEquals(client.scrollsToReject, testTask.getStatus().getSearchRetries());
+    }
+
+    public void testStartNextScrollRetriesOnRejectionButFailsOnTooManyRejections() throws Exception {
+        client.scrollsToReject = testRequest.getMaxRetries() + randomIntBetween(1, 100);
+        DummyAbstractAsyncBulkByScrollAction action = new DummyActionWithoutBackoff();
+        action.setScroll(scrollId());
+        action.startNextScroll(timeValueNanos(System.nanoTime()), 0);
+        assertBusy(() -> assertEquals(testRequest.getMaxRetries() + 1, client.scrollAttempts.get()));
+        assertBusy(() -> assertTrue(listener.isDone()));
+        ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
+        assertThat(ExceptionsHelper.stackTrace(e), containsString(EsRejectedExecutionException.class.getSimpleName()));
+        assertNull("There shouldn't be a scroll attempt pending that we didn't reject", client.lastScroll.get());
+        assertEquals(testRequest.getMaxRetries(), testTask.getStatus().getSearchRetries());
     }
 
     public void testScrollResponseSetsTotal() {
@@ -159,10 +218,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertEquals(0, testTask.getStatus().getTotal());
 
         long total = randomIntBetween(0, Integer.MAX_VALUE);
-        InternalSearchHits hits = new InternalSearchHits(null, total, 0);
-        InternalSearchResponse searchResponse = new InternalSearchResponse(hits, null, null, null, false, false);
-        new DummyAbstractAsyncBulkByScrollAction().onScrollResponse(timeValueSeconds(0),
-                new SearchResponse(searchResponse, scrollId(), 5, 4, randomLong(), null));
+        ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), total, emptyList(), null);
+        simulateScrollResponse(new DummyAbstractAsyncBulkByScrollAction(), timeValueSeconds(0), 0, response);
         assertEquals(total, testTask.getStatus().getTotal());
     }
 
@@ -172,23 +229,14 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     public void testScrollResponseBatchingBehavior() throws Exception {
         int maxBatches = randomIntBetween(0, 100);
         for (int batches = 1; batches < maxBatches; batches++) {
-            long now = System.nanoTime();
-            InternalSearchHit hit = new InternalSearchHit(0, "id", new Text("type"), emptyMap());
-            InternalSearchHits hits = new InternalSearchHits(new InternalSearchHit[] { hit }, 0, 0);
-            InternalSearchResponse searchResponse = new InternalSearchResponse(hits, null, null, null, false, false);
+            Hit hit = new ScrollableHitSource.BasicHit("index", "type", "id", 0);
+            ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), 1, singletonList(hit), null);
             DummyAbstractAsyncBulkByScrollAction action = new DummyAbstractAsyncBulkByScrollAction();
-            action.onScrollResponse(timeValueSeconds(0),
-                    new SearchResponse(searchResponse, scrollId(), 5, 4, randomLong(), null));
+            simulateScrollResponse(action, timeValueNanos(System.nanoTime()), 0, response);
 
             // Use assert busy because the update happens on another thread
             final int expectedBatches = batches;
             assertBusy(() -> assertEquals(expectedBatches, testTask.getStatus().getBatches()));
-
-            /*
-             * While we're here we can check that getting a scroll response sets the last scroll start time which makes sure the wait time
-             * isn't counted as time that the last batch took.
-             */
-            assertThat(action.getLastBatchStartTime(), greaterThanOrEqualTo(now));
 
             /*
              * Also while we're here check that we preserved the headers from the last request. assertBusy because no requests might have
@@ -239,7 +287,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 }
                 responses[i] = new BulkItemResponse(i, opType, new IndexResponse(shardId, "type", "id" + i, randomInt(), createdResponse));
             }
-            new DummyAbstractAsyncBulkByScrollAction().onBulkResponse(new BulkResponse(responses, 0));
+            new DummyAbstractAsyncBulkByScrollAction().onBulkResponse(timeValueNanos(System.nanoTime()), new BulkResponse(responses, 0));
             assertEquals(versionConflicts, testTask.getStatus().getVersionConflicts());
             assertEquals(updated, testTask.getStatus().getUpdated());
             assertEquals(created, testTask.getStatus().getCreated());
@@ -252,26 +300,22 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      * Mimicks a ThreadPool rejecting execution of the task.
      */
     public void testThreadPoolRejectionsAbortRequest() throws Exception {
-        TimeValue expectedDelay = parseTimeValue(randomPositiveTimeValue(), "test");
+        testTask.rethrottle(1);
         threadPool.shutdown();
-        threadPool = new ThreadPool(getTestName()) {
+        threadPool = new TestThreadPool(getTestName()) {
             @Override
             public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
-                assertEquals(expectedDelay, delay); // While we're here we can check that the sleep made it through
+                // While we're here we can check that the sleep made it through
+                assertThat(delay.nanos(), greaterThan(0L));
+                assertThat(delay.seconds(), lessThanOrEqualTo(10L));
                 ((AbstractRunnable) command).onRejection(new EsRejectedExecutionException("test"));
                 return null;
             }
         };
-        InternalSearchHits hits = new InternalSearchHits(null, 0, 0);
-        InternalSearchResponse searchResponse = new InternalSearchResponse(hits, null, null, null, false, false);
-        new DummyAbstractAsyncBulkByScrollAction()
-                .onScrollResponse(expectedDelay, new SearchResponse(searchResponse, scrollId(), 5, 4, randomLong(), null));
-        try {
-            listener.get();
-            fail("Expected a failure");
-        } catch (ExecutionException e) {
-            assertThat(e.getMessage(), equalTo("EsRejectedExecutionException[test]"));
-        }
+        ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), 0, emptyList(), null);
+        simulateScrollResponse(new DummyAbstractAsyncBulkByScrollAction(), timeValueNanos(System.nanoTime()), 10, response);
+        ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get()); 
+        assertThat(e.getMessage(), equalTo("EsRejectedExecutionException[test]"));
         assertThat(client.scrollsCleared, contains(scrollId));
 
         // When the task is rejected we don't increment the throttled timer
@@ -283,12 +327,12 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      * scroll request going down.
      */
     public void testShardFailuresAbortRequest() throws Exception {
-        ShardSearchFailure shardFailure = new ShardSearchFailure(new RuntimeException("test"));
-        InternalSearchResponse internalResponse = new InternalSearchResponse(null, null, null, null, false, null);
-        new DummyAbstractAsyncBulkByScrollAction().onScrollResponse(timeValueSeconds(0),
-                new SearchResponse(internalResponse, scrollId(), 5, 4, randomLong(), new ShardSearchFailure[] { shardFailure }));
+        SearchFailure shardFailure = new SearchFailure(new RuntimeException("test"));
+        ScrollableHitSource.Response scrollResponse = new ScrollableHitSource.Response(false, singletonList(shardFailure), 0,
+                emptyList(), null);
+        simulateScrollResponse(new DummyAbstractAsyncBulkByScrollAction(), timeValueNanos(System.nanoTime()), 0, scrollResponse);
         BulkIndexByScrollResponse response = listener.get();
-        assertThat(response.getIndexingFailures(), emptyCollectionOf(Failure.class));
+        assertThat(response.getBulkFailures(), empty());
         assertThat(response.getSearchFailures(), contains(shardFailure));
         assertFalse(response.isTimedOut());
         assertNull(response.getReasonCancelled());
@@ -299,17 +343,15 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      * Mimicks search timeouts.
      */
     public void testSearchTimeoutsAbortRequest() throws Exception {
-        InternalSearchResponse internalResponse = new InternalSearchResponse(null, null, null, null, true, null);
-        new DummyAbstractAsyncBulkByScrollAction().onScrollResponse(timeValueSeconds(0),
-                new SearchResponse(internalResponse, scrollId(), 5, 4, randomLong(), new ShardSearchFailure[0]));
+        ScrollableHitSource.Response scrollResponse = new ScrollableHitSource.Response(true, emptyList(), 0, emptyList(), null);
+        simulateScrollResponse(new DummyAbstractAsyncBulkByScrollAction(), timeValueNanos(System.nanoTime()), 0, scrollResponse);
         BulkIndexByScrollResponse response = listener.get();
-        assertThat(response.getIndexingFailures(), emptyCollectionOf(Failure.class));
-        assertThat(response.getSearchFailures(), emptyCollectionOf(ShardSearchFailure.class));
+        assertThat(response.getBulkFailures(), empty());
+        assertThat(response.getSearchFailures(), empty());
         assertTrue(response.isTimedOut());
         assertNull(response.getReasonCancelled());
         assertThat(client.scrollsCleared, contains(scrollId));
     }
-
 
     /**
      * Mimicks bulk indexing failures.
@@ -317,10 +359,11 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     public void testBulkFailuresAbortRequest() throws Exception {
         Failure failure = new Failure("index", "type", "id", new RuntimeException("test"));
         DummyAbstractAsyncBulkByScrollAction action = new DummyAbstractAsyncBulkByScrollAction();
-        action.onBulkResponse(new BulkResponse(new BulkItemResponse[] {new BulkItemResponse(0, "index", failure)}, randomLong()));
+        BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[] {new BulkItemResponse(0, "index", failure)}, randomLong());
+        action.onBulkResponse(timeValueNanos(System.nanoTime()), bulkResponse);
         BulkIndexByScrollResponse response = listener.get();
-        assertThat(response.getIndexingFailures(), contains(failure));
-        assertThat(response.getSearchFailures(), emptyCollectionOf(ShardSearchFailure.class));
+        assertThat(response.getBulkFailures(), contains(failure));
+        assertThat(response.getSearchFailures(), empty());
         assertNull(response.getReasonCancelled());
     }
 
@@ -330,21 +373,16 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     public void testListenerReceiveBuildBulkExceptions() throws Exception {
         DummyAbstractAsyncBulkByScrollAction action = new DummyAbstractAsyncBulkByScrollAction() {
             @Override
-            protected BulkRequest buildBulk(Iterable<SearchHit> docs) {
+            protected BulkRequest buildBulk(Iterable<? extends ScrollableHitSource.Hit> docs) {
                 throw new RuntimeException("surprise");
             }
         };
-        InternalSearchHit hit = new InternalSearchHit(0, "id", new Text("type"), emptyMap());
-        InternalSearchHits hits = new InternalSearchHits(new InternalSearchHit[] {hit}, 0, 0);
-        InternalSearchResponse searchResponse = new InternalSearchResponse(hits, null, null, null, false, false);
-        action.onScrollResponse(timeValueSeconds(0), new SearchResponse(searchResponse, scrollId(), 5, 4, randomLong(), null));
-        try {
-            listener.get();
-            fail("Expected failure.");
-        } catch (ExecutionException e) {
-            assertThat(e.getCause(), instanceOf(RuntimeException.class));
-            assertThat(e.getCause().getMessage(), equalTo("surprise"));
-        }
+        Hit hit = new ScrollableHitSource.BasicHit("index", "type", "id", 0);
+        ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), 1, singletonList(hit), null);
+        simulateScrollResponse(action, timeValueNanos(System.nanoTime()), 0, response);
+        ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
+        assertThat(e.getCause(), instanceOf(RuntimeException.class));
+        assertThat(e.getCause().getMessage(), equalTo("surprise"));
     }
 
     /**
@@ -354,8 +392,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         int bulksToTry = randomIntBetween(1, 10);
         long retryAttempts = 0;
         for (int i = 0; i < bulksToTry; i++) {
-            retryAttempts += retryTestCase(false);
-            assertEquals(retryAttempts, testTask.getStatus().getRetries());
+            bulkRetryTestCase(false);
+            retryAttempts += testRequest.getMaxRetries();
+            assertEquals(retryAttempts, testTask.getStatus().getBulkRetries());
         }
     }
 
@@ -363,19 +402,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      * Mimicks bulk rejections. These should be retried but we fail anyway because we run out of retries.
      */
     public void testBulkRejectionsRetryAndFailAnyway() throws Exception {
-        long retryAttempts = retryTestCase(true);
-        assertEquals(retryAttempts, testTask.getStatus().getRetries());
-    }
-
-    public void testPerfectlyThrottledBatchTime() {
-        DummyAbstractAsyncBulkByScrollAction action = new DummyAbstractAsyncBulkByScrollAction();
-        testRequest.setRequestsPerSecond(0);
-        assertThat((double) action.perfectlyThrottledBatchTime(randomInt()), closeTo(0f, 0f));
-
-        int total = between(0, 1000000);
-        testTask.rethrottle(1);
-        assertThat((double) action.perfectlyThrottledBatchTime(total),
-                closeTo(TimeUnit.SECONDS.toNanos(total), TimeUnit.SECONDS.toNanos(1)));
+        bulkRetryTestCase(true);
+        assertEquals(testRequest.getMaxRetries(), testTask.getStatus().getBulkRetries());
     }
 
     public void testScrollDelay() throws Exception {
@@ -386,7 +414,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         AtomicReference<TimeValue> capturedDelay = new AtomicReference<>();
         AtomicReference<Runnable> capturedCommand = new AtomicReference<>();
         threadPool.shutdown();
-        threadPool = new ThreadPool(getTestName()) {
+        threadPool = new TestThreadPool(getTestName()) {
             @Override
             public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
                 capturedDelay.set(delay);
@@ -398,34 +426,48 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         DummyAbstractAsyncBulkByScrollAction action = new DummyAbstractAsyncBulkByScrollAction();
         action.setScroll(scrollId());
 
-        // We'd like to get about 1 request a second
-        testTask.rethrottle(1f);
-        // Make the last scroll look nearly instant
-        action.setLastBatchStartTime(System.nanoTime());
-        // The last batch had 100 documents
-        action.startNextScroll(100);
+        // Set the base for the scroll to wait - this is added to the figure we calculate below
+        firstSearchRequest.scroll(timeValueSeconds(10));
 
-        // So the next request is going to have to wait an extra 100 seconds or so (base was 10, so 110ish)
+        // Set throttle to 1 request per second to make the math simpler
+        testTask.rethrottle(1f);
+        // Make the last batch look nearly instant but have 100 documents
+        action.startNextScroll(timeValueNanos(System.nanoTime()), 100);
+
+        // So the next request is going to have to wait an extra 100 seconds or so (base was 10 seconds, so 110ish)
         assertThat(client.lastScroll.get().request.scroll().keepAlive().seconds(), either(equalTo(110L)).or(equalTo(109L)));
 
         // Now we can simulate a response and check the delay that we used for the task
         InternalSearchHit hit = new InternalSearchHit(0, "id", new Text("type"), emptyMap());
         InternalSearchHits hits = new InternalSearchHits(new InternalSearchHit[] { hit }, 0, 0);
-        InternalSearchResponse searchResponse = new InternalSearchResponse(hits, null, null, null, false, false);
-        client.lastScroll.get().listener.onResponse(new SearchResponse(searchResponse, scrollId(), 5, 4, randomLong(), null));
+        InternalSearchResponse internalResponse = new InternalSearchResponse(hits, null, null, null, false, false);
+        SearchResponse searchResponse = new SearchResponse(internalResponse, scrollId(), 5, 4, randomLong(), null);
 
-        // The delay is still 100ish seconds because there hasn't been much time between when we requested the bulk and when we got it.
-        assertThat(capturedDelay.get().seconds(), either(equalTo(100L)).or(equalTo(99L)));
+        if (randomBoolean()) {
+            client.lastScroll.get().listener.onResponse(searchResponse);
+            // The delay is still 100ish seconds because there hasn't been much time between when we requested the bulk and when we got it.
+            assertThat(capturedDelay.get().seconds(), either(equalTo(100L)).or(equalTo(99L)));
+        } else {
+            // Let's rethrottle between the starting the scroll and getting the response
+            testTask.rethrottle(10f);
+            client.lastScroll.get().listener.onResponse(searchResponse);
+            // The delay uses the new throttle
+            assertThat(capturedDelay.get().seconds(), either(equalTo(10L)).or(equalTo(9L)));
+        }
 
         // Running the command ought to increment the delay counter on the task.
         capturedCommand.get().run();
         assertEquals(capturedDelay.get(), testTask.getStatus().getThrottled());
     }
 
-    private long retryTestCase(boolean failWithRejection) throws Exception {
+    /**
+     * Execute a bulk retry test case. The total number of failures is random and the number of retries attempted is set to
+     * testRequest.getMaxRetries and controled by the failWithRejection parameter.
+     */
+    private void bulkRetryTestCase(boolean failWithRejection) throws Exception {
         int totalFailures = randomIntBetween(1, testRequest.getMaxRetries());
         int size = randomIntBetween(1, 100);
-        int retryAttempts = totalFailures - (failWithRejection ? 1 : 0);
+        testRequest.setMaxRetries(totalFailures - (failWithRejection ? 1 : 0));
 
         client.bulksToReject = client.bulksAttempts.get() + totalFailures;
         /*
@@ -433,15 +475,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
          * deal with it. We just wait for it to happen.
          */
         CountDownLatch successLatch = new CountDownLatch(1);
-        DummyAbstractAsyncBulkByScrollAction action = new DummyAbstractAsyncBulkByScrollAction() {
+        DummyAbstractAsyncBulkByScrollAction action = new DummyActionWithoutBackoff() {
             @Override
-            BackoffPolicy backoffPolicy() {
-                // Force a backoff time of 0 to prevent sleeping
-                return constantBackoff(timeValueMillis(0), retryAttempts);
-            }
-
-            @Override
-            void startNextScroll(int lastBatchSize) {
+            void startNextScroll(TimeValue lastBatchStartTime, int lastBatchSize) {
                 successLatch.countDown();
             }
         };
@@ -449,24 +485,23 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         for (int i = 0; i < size + 1; i++) {
             request.add(new IndexRequest("index", "type", "id" + i));
         }
-        action.sendBulkRequest(request);
+        action.sendBulkRequest(timeValueNanos(System.nanoTime()), request);
         if (failWithRejection) {
             BulkIndexByScrollResponse response = listener.get();
-            assertThat(response.getIndexingFailures(), hasSize(1));
-            assertEquals(response.getIndexingFailures().get(0).getStatus(), RestStatus.TOO_MANY_REQUESTS);
-            assertThat(response.getSearchFailures(), emptyCollectionOf(ShardSearchFailure.class));
+            assertThat(response.getBulkFailures(), hasSize(1));
+            assertEquals(response.getBulkFailures().get(0).getStatus(), RestStatus.TOO_MANY_REQUESTS);
+            assertThat(response.getSearchFailures(), empty());
             assertNull(response.getReasonCancelled());
         } else {
             successLatch.await(10, TimeUnit.SECONDS);
         }
-        return retryAttempts;
     }
 
     /**
      * The default retry time matches what we say it is in the javadoc for the request.
      */
     public void testDefaultRetryTimes() {
-        Iterator<TimeValue> policy = new DummyAbstractAsyncBulkByScrollAction().backoffPolicy().iterator();
+        Iterator<TimeValue> policy = new DummyAbstractAsyncBulkByScrollAction().buildBackoffPolicy().iterator();
         long millis = 0;
         while (policy.hasNext()) {
             millis += policy.next().millis();
@@ -503,7 +538,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         if (addDestinationIndexes) {
             action.addDestinationIndices(singleton("foo"));
         }
-        action.startNormalTermination(emptyList(), emptyList(), false);
+        action.refreshAndFinish(emptyList(), emptyList(), false);
         if (shouldRefresh) {
             assertArrayEquals(new String[] {"foo"}, client.lastRefreshRequest.get().indices());
         } else {
@@ -517,27 +552,29 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
     public void testCancelBeforeScrollResponse() throws Exception {
         // We bail so early we don't need to pass in a half way valid response.
-        cancelTaskCase((DummyAbstractAsyncBulkByScrollAction action) -> action.onScrollResponse(timeValueSeconds(0), null));
+        cancelTaskCase((DummyAbstractAsyncBulkByScrollAction action) -> simulateScrollResponse(action, timeValueNanos(System.nanoTime()), 1,
+                null));
     }
 
     public void testCancelBeforeSendBulkRequest() throws Exception {
         // We bail so early we don't need to pass in a half way valid request.
-        cancelTaskCase((DummyAbstractAsyncBulkByScrollAction action) -> action.sendBulkRequest(null));
+        cancelTaskCase((DummyAbstractAsyncBulkByScrollAction action) -> action.sendBulkRequest(timeValueNanos(System.nanoTime()), null));
     }
 
     public void testCancelBeforeOnBulkResponse() throws Exception {
         // We bail so early we don't need to pass in a half way valid response.
-        cancelTaskCase((DummyAbstractAsyncBulkByScrollAction action) -> action.onBulkResponse(null));
+        cancelTaskCase((DummyAbstractAsyncBulkByScrollAction action) ->
+                action.onBulkResponse(timeValueNanos(System.nanoTime()), new BulkResponse(new BulkItemResponse[0], 0)));
     }
 
     public void testCancelBeforeStartNextScroll() throws Exception {
-        cancelTaskCase((DummyAbstractAsyncBulkByScrollAction action) -> action.startNextScroll(0));
+        cancelTaskCase((DummyAbstractAsyncBulkByScrollAction action) -> action.startNextScroll(timeValueNanos(System.nanoTime()), 0));
     }
 
-    public void testCancelBeforeStartNormalTermination() throws Exception {
+    public void testCancelBeforeRefreshAndFinish() throws Exception {
         // Refresh or not doesn't matter - we don't try to refresh.
         testRequest.setRefresh(usually());
-        cancelTaskCase((DummyAbstractAsyncBulkByScrollAction action) -> action.startNormalTermination(emptyList(), emptyList(), false));
+        cancelTaskCase((DummyAbstractAsyncBulkByScrollAction action) -> action.refreshAndFinish(emptyList(), emptyList(), false));
         assertNull("No refresh was attempted", client.lastRefreshRequest.get());
     }
 
@@ -553,7 +590,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
          * is a delay.
          */
         threadPool.shutdown();
-        threadPool = new ThreadPool(getTestName()) {
+        threadPool = new TestThreadPool(getTestName()) {
             @Override
             public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
                 /*
@@ -577,10 +614,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             action.setScroll(scrollId());
         }
         long total = randomIntBetween(0, Integer.MAX_VALUE);
-        InternalSearchHits hits = new InternalSearchHits(null, total, 0);
-        InternalSearchResponse searchResponse = new InternalSearchResponse(hits, null, null, null, false, false);
+        ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), total, emptyList(), null);
         // Use a long delay here so the test will time out if the cancellation doesn't reschedule the throttled task
-        action.onScrollResponse(timeValueMinutes(10), new SearchResponse(searchResponse, scrollId(), 5, 4, randomLong(), null));
+        testTask.rethrottle(1);
+        simulateScrollResponse(action, timeValueNanos(System.nanoTime()), 1000, response);
 
         // Now that we've got our cancel we'll just verify that it all came through all right
         assertEquals(reason, listener.get(10, TimeUnit.SECONDS).getReasonCancelled());
@@ -606,26 +643,44 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
     }
 
+    /**
+     * Simulate a scroll response by setting the scroll id and firing the onScrollResponse method.
+     */
+    private void simulateScrollResponse(DummyAbstractAsyncBulkByScrollAction action, TimeValue lastBatchTime, int lastBatchSize,
+            ScrollableHitSource.Response response) {
+        action.setScroll(scrollId());
+        action.onScrollResponse(lastBatchTime, lastBatchSize, response);
+    }
+
     private class DummyAbstractAsyncBulkByScrollAction
-            extends AbstractAsyncBulkByScrollAction<DummyAbstractBulkByScrollRequest, BulkIndexByScrollResponse> {
+            extends AbstractAsyncBulkByScrollAction<DummyAbstractBulkByScrollRequest> {
         public DummyAbstractAsyncBulkByScrollAction() {
-            super(testTask, logger, new ParentTaskAssigningClient(client, localNode, testTask), threadPool, testRequest, firstSearchRequest,
-                    listener);
+            super(testTask, AsyncBulkByScrollActionTests.this.logger, new ParentTaskAssigningClient(client, localNode, testTask),
+                    AsyncBulkByScrollActionTests.this.threadPool, testRequest, listener);
         }
 
         @Override
-        protected BulkRequest buildBulk(Iterable<SearchHit> docs) {
+        protected BulkRequest buildBulk(Iterable<? extends ScrollableHitSource.Hit> docs) {
             return new BulkRequest();
         }
+    }
 
+    /**
+     * An extension to {@linkplain DummyAbstractAsyncBulkByScrollAction} that uses a 0 delaying backoff policy.
+     */
+    private class DummyActionWithoutBackoff extends DummyAbstractAsyncBulkByScrollAction {
         @Override
-        protected BulkIndexByScrollResponse buildResponse(TimeValue took, List<Failure> indexingFailures,
-                List<ShardSearchFailure> searchFailures, boolean timedOut) {
-            return new BulkIndexByScrollResponse(took, task.getStatus(), indexingFailures, searchFailures, timedOut);
+        BackoffPolicy buildBackoffPolicy() {
+            // Force a backoff time of 0 to prevent sleeping
+            return constantBackoff(timeValueMillis(0), testRequest.getMaxRetries());
         }
     }
 
     private static class DummyAbstractBulkByScrollRequest extends AbstractBulkByScrollRequest<DummyAbstractBulkByScrollRequest> {
+        public DummyAbstractBulkByScrollRequest(SearchRequest searchRequest) {
+            super(searchRequest);
+        }
+
         @Override
         protected DummyAbstractBulkByScrollRequest self() {
             return this;
@@ -635,11 +690,23 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     private class MyMockClient extends FilterClient {
         private final List<String> scrollsCleared = new ArrayList<>();
         private final AtomicInteger bulksAttempts = new AtomicInteger();
+        private final AtomicInteger searchAttempts = new AtomicInteger();
+        private final AtomicInteger scrollAttempts = new AtomicInteger();
         private final AtomicReference<Map<String, String>> lastHeaders = new AtomicReference<>();
         private final AtomicReference<RefreshRequest> lastRefreshRequest = new AtomicReference<>();
+        /**
+         * Last search attempt that wasn't rejected outright.
+         */
+        private final AtomicReference<RequestAndListener<SearchRequest, SearchResponse>> lastSearch = new AtomicReference<>();
+        /**
+         * Last scroll attempt that wasn't rejected outright.
+         */
         private final AtomicReference<RequestAndListener<SearchScrollRequest, SearchResponse>> lastScroll = new AtomicReference<>();
 
+
         private int bulksToReject = 0;
+        private int searchesToReject = 0;
+        private int scrollsToReject = 0;
 
         public MyMockClient(Client in) {
             super(in);
@@ -661,7 +728,19 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 listener.onResponse(null);
                 return;
             }
+            if (request instanceof SearchRequest) {
+                if (searchAttempts.incrementAndGet() <= searchesToReject) {
+                    listener.onFailure(wrappedRejectedException());
+                    return;
+                }
+                lastSearch.set(new RequestAndListener<>((SearchRequest) request, (ActionListener<SearchResponse>) listener));
+                return;
+            }
             if (request instanceof SearchScrollRequest) {
+                if (scrollAttempts.incrementAndGet() <= scrollsToReject) {
+                    listener.onFailure(wrappedRejectedException());
+                    return;
+                }
                 lastScroll.set(new RequestAndListener<>((SearchScrollRequest) request, (ActionListener<SearchResponse>) listener));
                 return;
             }
@@ -714,6 +793,25 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 return;
             }
             super.doExecute(action, request, listener);
+        }
+
+        private Exception wrappedRejectedException() {
+            Exception e = new EsRejectedExecutionException();
+            int wraps = randomIntBetween(0, 4);
+            for (int i = 0; i < wraps; i++) {
+                switch (randomIntBetween(0, 2)) {
+                case 0:
+                    e = new SearchPhaseExecutionException("test", "test failure", e, new ShardSearchFailure[0]);
+                    continue;
+                case 1:
+                    e = new ReduceSearchPhaseException("test", "test failure", e, new ShardSearchFailure[0]);
+                    continue;
+                case 2:
+                    e = new ElasticsearchException(e);
+                    continue;
+                }
+            }
+            return e;
         }
     }
 

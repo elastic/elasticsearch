@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.update;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -47,18 +47,18 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestUpdateAction extends BaseRestHandler {
 
     @Inject
-    public RestUpdateAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestUpdateAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_update", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         UpdateRequest updateRequest = new UpdateRequest(request.param("index"), request.param("type"), request.param("id"));
         updateRequest.routing(request.param("routing"));
         updateRequest.parent(request.param("parent"));
         updateRequest.timeout(request.paramAsTime("timeout", updateRequest.timeout()));
-        updateRequest.refresh(request.paramAsBoolean("refresh", updateRequest.refresh()));
+        updateRequest.setRefreshPolicy(request.param("refresh"));
         String consistencyLevel = request.param("consistency");
         if (consistencyLevel != null) {
             updateRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));

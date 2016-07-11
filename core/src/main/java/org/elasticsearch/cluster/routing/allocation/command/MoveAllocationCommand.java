@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A command that moves a shard from a specific node to another node.<br>
@@ -194,5 +195,24 @@ public class MoveAllocationCommand implements AllocationCommand {
             throw new ElasticsearchParseException("[{}] command missing the to_node parameter", NAME);
         }
         return new MoveAllocationCommand(index, shardId, fromNode, toNode);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        MoveAllocationCommand other = (MoveAllocationCommand) obj;
+        // Override equals and hashCode for testing
+        return Objects.equals(index, other.index) &&
+                Objects.equals(shardId, other.shardId) &&
+                Objects.equals(fromNode, other.fromNode) &&
+                Objects.equals(toNode, other.toNode);
+    }
+
+    @Override
+    public int hashCode() {
+        // Override equals and hashCode for testing
+        return Objects.hash(index, shardId, fromNode, toNode);
     }
 }

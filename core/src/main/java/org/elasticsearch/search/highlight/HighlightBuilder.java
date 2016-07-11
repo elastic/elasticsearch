@@ -91,7 +91,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     /**
      * a {@link FieldOptions} with default settings
      */
-    final static FieldOptions defaultOptions = new SearchContextHighlight.FieldOptions.Builder()
+    static final FieldOptions defaultOptions = new SearchContextHighlight.FieldOptions.Builder()
             .preTags(DEFAULT_PRE_TAGS).postTags(DEFAULT_POST_TAGS).scoreOrdered(DEFAULT_SCORE_ORDERED)
             .highlightFilter(DEFAULT_HIGHLIGHT_FILTER).requireFieldMatch(DEFAULT_REQUIRE_FIELD_MATCH)
             .forceSource(DEFAULT_FORCE_SOURCE).fragmentCharSize(DEFAULT_FRAGMENT_CHAR_SIZE)

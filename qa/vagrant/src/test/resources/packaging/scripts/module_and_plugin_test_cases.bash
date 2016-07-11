@@ -113,25 +113,26 @@ fi
     fi
 }
 
-@test "[$GROUP] install jvm-example plugin with a custom path.plugins" {
+@test "[$GROUP] install jvm-example plugin with a symlinked plugins path" {
     # Clean up after the last time this test was run
     rm -rf /tmp/plugins.*
+    rm -rf /tmp/old_plugins.*
 
-    local oldPlugins="$ESPLUGINS"
-    export ESPLUGINS=$(mktemp -d -t 'plugins.XXXX')
-
-    # Modify the path.plugins setting in configuration file
-    echo "path.plugins: $ESPLUGINS" >> "$ESCONFIG/elasticsearch.yml"
-    chown -R elasticsearch:elasticsearch "$ESPLUGINS"
+    rm -rf "$ESPLUGINS"
+    local es_plugins=$(mktemp -d -t 'plugins.XXXX')
+    chown -R elasticsearch:elasticsearch "$es_plugins"
+    ln -s "$es_plugins" "$ESPLUGINS"
 
     install_jvm_example
     start_elasticsearch_service
-    # check that configuration was actually picked up
+    # check that symlinked plugin was actually picked up
     curl -s localhost:9200/_cat/configured_example | sed 's/ *$//' > /tmp/installed
     echo "foo" > /tmp/expected
     diff /tmp/installed /tmp/expected
     stop_elasticsearch_service
     remove_jvm_example
+
+    unlink "$ESPLUGINS"
 }
 
 @test "[$GROUP] install jvm-example plugin with a custom CONFIG_DIR" {
@@ -208,12 +209,8 @@ fi
     install_and_check_plugin discovery gce google-api-client-*.jar
 }
 
-@test "[$GROUP] install delete by query plugin" {
-    install_and_check_plugin - delete-by-query
-}
-
-@test "[$GROUP] install discovery-azure plugin" {
-    install_and_check_plugin discovery azure azure-core-*.jar
+@test "[$GROUP] install discovery-azure-classic plugin" {
+    install_and_check_plugin discovery azure-classic azure-core-*.jar
 }
 
 @test "[$GROUP] install discovery-ec2 plugin" {
@@ -221,18 +218,22 @@ fi
 }
 
 @test "[$GROUP] install ingest-attachment plugin" {
-    # we specify the version on the poi-3.13.jar so that the test does
+    # we specify the version on the poi-3.15-beta1.jar so that the test does
     # not spuriously pass if the jar is missing but the other poi jars
     # are present
-    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-3.13.jar
+    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-3.15-beta1.jar poi-ooxml-3.15-beta1.jar poi-ooxml-schemas-*.jar poi-scratchpad-*.jar
 }
 
 @test "[$GROUP] install ingest-geoip plugin" {
     install_and_check_plugin ingest geoip geoip2-*.jar jackson-annotations-*.jar jackson-databind-*.jar maxmind-db-*.jar
 }
 
-@test "[$GROUP] check ingest-grok module" {
-    check_module ingest-grok jcodings-*.jar joni-*.jar
+@test "[$GROUP] install ingest-user-agent plugin" {
+    install_and_check_plugin ingest user-agent
+}
+
+@test "[$GROUP] check ingest-common module" {
+    check_module ingest-common jcodings-*.jar joni-*.jar
 }
 
 @test "[$GROUP] check lang-expression module" {
@@ -251,10 +252,7 @@ fi
 }
 
 @test "[$GROUP] check lang-painless module" {
-    # we specify the version on the asm-5.0.4.jar so that the test does
-    # not spuriously pass if the jar is missing but the other asm jars
-    # are present
-    check_secure_module lang-painless antlr4-runtime-*.jar asm-5.0.4.jar asm-commons-*.jar asm-tree-*.jar
+    check_secure_module lang-painless antlr4-runtime-*.jar asm-debug-all-*.jar
 }
 
 @test "[$GROUP] install javascript plugin" {
@@ -287,6 +285,10 @@ fi
 
 @test "[$GROUP] install repository-azure plugin" {
     install_and_check_plugin repository azure azure-storage-*.jar
+}
+
+@test "[$GROUP] install repository-gcs plugin" {
+    install_and_check_plugin repository gcs google-api-services-storage-*.jar
 }
 
 @test "[$GROUP] install repository-s3 plugin" {
@@ -343,12 +345,8 @@ fi
     remove_plugin discovery-gce
 }
 
-@test "[$GROUP] remove delete by query plugin" {
-    remove_plugin delete-by-query
-}
-
-@test "[$GROUP] remove discovery-azure plugin" {
-    remove_plugin discovery-azure
+@test "[$GROUP] remove discovery-azure-classic plugin" {
+    remove_plugin discovery-azure-classic
 }
 
 @test "[$GROUP] remove discovery-ec2 plugin" {
@@ -361,6 +359,10 @@ fi
 
 @test "[$GROUP] remove ingest-geoip plugin" {
     remove_plugin ingest-geoip
+}
+
+@test "[$GROUP] remove ingest-user-agent plugin" {
+    remove_plugin ingest-user-agent
 }
 
 @test "[$GROUP] remove javascript plugin" {
@@ -385,6 +387,10 @@ fi
 
 @test "[$GROUP] remove repository-azure plugin" {
     remove_plugin repository-azure
+}
+
+@test "[$GROUP] remove repository-gcs plugin" {
+    remove_plugin repository-gcs
 }
 
 @test "[$GROUP] remove repository-hdfs plugin" {
@@ -420,17 +426,18 @@ fi
 @test "[$GROUP] install jvm-example with different logging modes and check output" {
     local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
     sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" > /tmp/plugin-cli-output
-    local loglines=$(cat /tmp/plugin-cli-output | wc -l)
+    # exclude progress line
+    local loglines=$(cat /tmp/plugin-cli-output | grep -v "^[[:cntrl:]]" | wc -l)
     if [ "$GROUP" == "TAR PLUGINS" ]; then
     # tar extraction does not create the plugins directory so the plugin tool will print an additional line that the directory will be created
         [ "$loglines" -eq "3" ] || {
-            echo "Expected 3 lines but the output was:"
+            echo "Expected 3 lines excluding progress bar but the output had $loglines lines and was:"
             cat /tmp/plugin-cli-output
             false
         }
     else
         [ "$loglines" -eq "2" ] || {
-            echo "Expected 2 lines but the output was:"
+            echo "Expected 2 lines excluding progress bar but the output had $loglines lines and was:"
             cat /tmp/plugin-cli-output
             false
         }
@@ -438,17 +445,17 @@ fi
     remove_jvm_example
 
     local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
-    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" -Des.logger.level=DEBUG > /tmp/plugin-cli-output
-    local loglines=$(cat /tmp/plugin-cli-output | wc -l)
+    sudo -E -u $ESPLUGIN_COMMAND_USER ES_JAVA_OPTS="-Des.logger.level=DEBUG" "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" > /tmp/plugin-cli-output
+    local loglines=$(cat /tmp/plugin-cli-output | grep -v "^[[:cntrl:]]" | wc -l)
     if [ "$GROUP" == "TAR PLUGINS" ]; then
         [ "$loglines" -gt "3" ] || {
-            echo "Expected more than 3 lines but the output was:"
+            echo "Expected more than 3 lines excluding progress bar but the output had $loglines lines and was:"
             cat /tmp/plugin-cli-output
             false
         }
     else
         [ "$loglines" -gt "2" ] || {
-            echo "Expected more than 2 lines but the output was:"
+            echo "Expected more than 2 lines excluding progress bar but the output had $loglines lines and was:"
             cat /tmp/plugin-cli-output
             false
         }
@@ -475,4 +482,16 @@ fi
 
     # restore JAVA_HOME
     export JAVA_HOME=$java_home
+}
+
+@test "[$GROUP] test ES_JAVA_OPTS" {
+    # preserve ES_JAVA_OPTS
+    local es_java_opts=$ES_JAVA_OPTS
+
+    export ES_JAVA_OPTS="-XX:+PrintFlagsFinal"
+    # this will fail if ES_JAVA_OPTS is not passed through
+    "$ESHOME/bin/elasticsearch-plugin" list | grep MaxHeapSize
+
+    # restore ES_JAVA_OPTS
+    export ES_JAVA_OPTS=$es_java_opts
 }

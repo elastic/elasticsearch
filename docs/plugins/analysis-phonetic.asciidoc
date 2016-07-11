@@ -50,7 +50,7 @@ The `phonetic` token filter takes the following settings:
     token. Accepts `true` (default) and `false`.  Not supported by
     `beidermorse` encoding.
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT phonetic_sample
 {
@@ -79,9 +79,11 @@ PUT phonetic_sample
   }
 }
 
+GET _cluster/health?wait_for_status=yellow
+
 POST phonetic_sample/_analyze?analyzer=my_analyzer&text=Joe Bloggs <1>
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Returns: `J`, `joe`, `BLKS`, `bloggs`
 
@@ -116,5 +118,3 @@ supported:
     be guessed. Accepts: `any`, `comomon`, `cyrillic`, `english`, `french`,
     `german`, `hebrew`, `hungarian`, `polish`, `romanian`, `russian`,
     `spanish`.
-
-

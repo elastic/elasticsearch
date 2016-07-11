@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.builder;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -30,12 +31,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.text.Text;
@@ -46,32 +47,25 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.query.AbstractQueryTestCase;
-import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptContextRegistry;
-import org.elasticsearch.script.ScriptEngineRegistry;
-import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.rescore.QueryRescoreBuilderTests;
+import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
@@ -79,26 +73,25 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilderTests;
 import org.elasticsearch.search.suggest.Suggesters;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class SearchSourceBuilderTests extends ESTestCase {
     private static Injector injector;
@@ -135,47 +128,24 @@ public class SearchSourceBuilderTests extends ESTestCase {
         final ClusterService clusterService = createClusterService(threadPool);
         setState(clusterService, new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder()
                 .put(new IndexMetaData.Builder(index.getName()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
-        SettingsModule settingsModule = new SettingsModule(settings);
-        settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
-        ScriptModule scriptModule = new ScriptModule() {
-            @Override
-            protected void configure() {
-                Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                        // no file watching, so we don't need a
-                        // ResourceWatcherService
-                        .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false).build();
-                MockScriptEngine mockScriptEngine = new MockScriptEngine();
-                Multibinder<ScriptEngineService> multibinder = Multibinder.newSetBinder(binder(), ScriptEngineService.class);
-                multibinder.addBinding().toInstance(mockScriptEngine);
-                Set<ScriptEngineService> engines = new HashSet<>();
-                engines.add(mockScriptEngine);
-                List<ScriptContext.Plugin> customContexts = new ArrayList<>();
-                ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections
-                        .singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES)));
-                bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);
-                ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
-                bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);
-                ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-                bind(ScriptSettings.class).toInstance(scriptSettings);
-                try {
-                    ScriptService scriptService = new ScriptService(settings, new Environment(settings), engines, null,
-                            scriptEngineRegistry, scriptContextRegistry, scriptSettings);
-                    bind(ScriptService.class).toInstance(scriptService);
-                } catch (IOException e) {
-                    throw new IllegalStateException("error while binding ScriptService", e);
-                }
-            }
-        };
-        scriptModule.prepareSettings(settingsModule);
+        ScriptModule scriptModule = newTestScriptModule();
+        List<Setting<?>> scriptSettings = scriptModule.getSettings();
+        scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
+        SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, Collections.emptyList());
         injector = new ModulesBuilder().add(
-                new EnvironmentModule(new Environment(settings)), settingsModule,
-                new ThreadPoolModule(threadPool),
-                scriptModule, new IndicesModule() {
+                (b) -> {
+                    b.bind(Environment.class).toInstance(new Environment(settings));
+                    b.bind(ThreadPool.class).toInstance(threadPool);
+                    b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
+                },
+                settingsModule,
+                new IndicesModule(namedWriteableRegistry, Collections.emptyList()) {
                     @Override
                     protected void configure() {
                         bindMapperExtension();
                     }
-                }, new SearchModule(settings, namedWriteableRegistry) {
+                },
+                new SearchModule(settings, namedWriteableRegistry, false) {
                     @Override
                     protected void configureSearch() {
                         // Skip me
@@ -237,7 +207,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
             builder.minScore(randomFloat() * 1000);
         }
         if (randomBoolean()) {
-            builder.timeout(new TimeValue(randomIntBetween(1, 100), randomFrom(TimeUnit.values())));
+            builder.timeout(TimeValue.parseTimeValue(randomTimeValue(), null, "timeout"));
         }
         if (randomBoolean()) {
             builder.terminateAfter(randomIntBetween(1, 100000));
@@ -251,12 +221,12 @@ public class SearchSourceBuilderTests extends ESTestCase {
             for (int i = 0; i < fieldsSize; i++) {
                 fields.add(randomAsciiOfLengthBetween(5, 50));
             }
-            builder.fields(fields);
+            builder.storedFields(fields);
         }
         if (randomBoolean()) {
             int fieldDataFieldsSize = randomInt(25);
             for (int i = 0; i < fieldDataFieldsSize; i++) {
-                builder.fieldDataField(randomAsciiOfLengthBetween(5, 50));
+                builder.docValueField(randomAsciiOfLengthBetween(5, 50));
             }
         }
         if (randomBoolean()) {
@@ -424,6 +394,16 @@ public class SearchSourceBuilderTests extends ESTestCase {
             xContentBuilder.endObject();
             builder.ext(xContentBuilder);
         }
+        if (randomBoolean()) {
+            String field = randomBoolean() ? null : randomAsciiOfLengthBetween(5, 20);
+            int max = between(2, 1000);
+            int id = randomInt(max-1);
+            if (field == null) {
+                builder.slice(new SliceBuilder(id, max));
+            } else {
+                builder.slice(new SliceBuilder(field, id, max));
+            }
+        }
         return builder;
     }
 
@@ -437,11 +417,17 @@ public class SearchSourceBuilderTests extends ESTestCase {
         assertParseSearchSource(testSearchSourceBuilder, builder.bytes());
     }
 
-    private void assertParseSearchSource(SearchSourceBuilder testBuilder, BytesReference searchSourceAsBytes) throws IOException {
+    private static void assertParseSearchSource(SearchSourceBuilder testBuilder, BytesReference searchSourceAsBytes) throws IOException {
+        assertParseSearchSource(testBuilder, searchSourceAsBytes, ParseFieldMatcher.STRICT);
+    }
+
+    private static void assertParseSearchSource(SearchSourceBuilder testBuilder, BytesReference searchSourceAsBytes, ParseFieldMatcher pfm)
+            throws IOException {
         XContentParser parser = XContentFactory.xContent(searchSourceAsBytes).createParser(searchSourceAsBytes);
-        QueryParseContext parseContext = createParseContext(parser);
+        QueryParseContext parseContext = new QueryParseContext(indicesQueriesRegistry, parser, pfm);
         if (randomBoolean()) {
-            parser.nextToken(); // sometimes we move it on the START_OBJECT to test the embedded case
+            parser.nextToken(); // sometimes we move it on the START_OBJECT to
+                                // test the embedded case
         }
         SearchSourceBuilder newBuilder = SearchSourceBuilder.fromXContent(parseContext, aggParsers, suggesters);
         assertNull(parser.nextToken());
@@ -458,7 +444,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
         SearchSourceBuilder testBuilder = createSearchSourceBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testBuilder.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 SearchSourceBuilder deserializedBuilder = new SearchSourceBuilder(in);
                 assertEquals(deserializedBuilder, testBuilder);
                 assertEquals(deserializedBuilder.hashCode(), testBuilder.hashCode());
@@ -469,7 +455,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
 
     public void testEqualsAndHashcode() throws IOException {
         SearchSourceBuilder firstBuilder = createSearchSourceBuilder();
-        assertFalse("source builder is equal to null", firstBuilder.equals(null));
+        assertNotNull("source builder is equal to null", firstBuilder);
         assertFalse("source builder is equal to incompatible type", firstBuilder.equals(""));
         assertTrue("source builder is not equal to self", firstBuilder.equals(firstBuilder));
         assertThat("same source builder's hashcode returns different values if called multiple times", firstBuilder.hashCode(),
@@ -498,7 +484,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
     protected SearchSourceBuilder copyBuilder(SearchSourceBuilder builder) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             builder.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 return new SearchSourceBuilder(in);
             }
         }
@@ -558,10 +544,87 @@ public class SearchSourceBuilderTests extends ESTestCase {
         }
     }
 
+    /**
+     * test that we can parse the `rescore` element either as single object or as array
+     */
+    public void testParseRescore() throws IOException {
+        {
+            String restContent = "{\n" +
+                "    \"query\" : {\n" +
+                "        \"match\": { \"content\": { \"query\": \"foo bar\" }}\n" +
+                "     },\n" +
+                "    \"rescore\": {" +
+                "        \"window_size\": 50,\n" +
+                "        \"query\": {\n" +
+                "            \"rescore_query\" : {\n" +
+                "                \"match\": { \"content\": { \"query\": \"baz\" } }\n" +
+                "            }\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n";
+            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
+                        aggParsers, suggesters);
+                assertEquals(1, searchSourceBuilder.rescores().size());
+                assertEquals(new QueryRescorerBuilder(QueryBuilders.matchQuery("content", "baz")).windowSize(50),
+                        searchSourceBuilder.rescores().get(0));
+            }
+        }
+
+        {
+            String restContent = "{\n" +
+                "    \"query\" : {\n" +
+                "        \"match\": { \"content\": { \"query\": \"foo bar\" }}\n" +
+                "     },\n" +
+                "    \"rescore\": [ {" +
+                "        \"window_size\": 50,\n" +
+                "        \"query\": {\n" +
+                "            \"rescore_query\" : {\n" +
+                "                \"match\": { \"content\": { \"query\": \"baz\" } }\n" +
+                "            }\n" +
+                "        }\n" +
+                "    } ]\n" +
+                "}\n";
+            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
+                        aggParsers, suggesters);
+                assertEquals(1, searchSourceBuilder.rescores().size());
+                assertEquals(new QueryRescorerBuilder(QueryBuilders.matchQuery("content", "baz")).windowSize(50),
+                        searchSourceBuilder.rescores().get(0));
+            }
+        }
+    }
+
+    public void testTimeoutWithUnits() throws IOException {
+        final String timeout = randomTimeValue();
+        final String query = "{ \"query\": { \"match_all\": {}}, \"timeout\": \"" + timeout + "\"}";
+        try (XContentParser parser = XContentFactory.xContent(query).createParser(query)) {
+            final SearchSourceBuilder builder = SearchSourceBuilder.fromXContent(createParseContext(parser), aggParsers, suggesters);
+            assertThat(builder.timeout(), equalTo(TimeValue.parseTimeValue(timeout, null, "timeout")));
+        }
+    }
+
+    public void testTimeoutWithoutUnits() throws IOException {
+        final int timeout = randomIntBetween(1, 1024);
+        final String query = "{ \"query\": { \"match_all\": {}}, \"timeout\": \"" + timeout + "\"}";
+        try (XContentParser parser = XContentFactory.xContent(query).createParser(query)) {
+            final ElasticsearchParseException e =
+                    expectThrows(
+                            ElasticsearchParseException.class,
+                            () -> SearchSourceBuilder.fromXContent(createParseContext(parser), aggParsers, suggesters));
+            assertThat(e, hasToString(containsString("unit is missing or unrecognized")));
+        }
+    }
+
     public void testEmptyPostFilter() throws IOException {
         SearchSourceBuilder builder = new SearchSourceBuilder();
-        builder.postFilter(new EmptyQueryBuilder());
         String query = "{ \"post_filter\": {} }";
-        assertParseSearchSource(builder, new BytesArray(query));
+        assertParseSearchSource(builder, new BytesArray(query), ParseFieldMatcher.EMPTY);
+    }
+
+    public void testEmptyQuery() throws IOException {
+        SearchSourceBuilder builder = new SearchSourceBuilder();
+        String query = "{ \"query\": {} }";
+        assertParseSearchSource(builder, new BytesArray(query), ParseFieldMatcher.EMPTY);
     }
 }

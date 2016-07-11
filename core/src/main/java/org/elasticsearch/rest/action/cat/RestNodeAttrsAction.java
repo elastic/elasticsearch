@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
@@ -47,8 +47,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestNodeAttrsAction extends AbstractCatAction {
 
     @Inject
-    public RestNodeAttrsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestNodeAttrsAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/_cat/nodeattrs", this);
     }
 
@@ -58,7 +58,7 @@ public class RestNodeAttrsAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));

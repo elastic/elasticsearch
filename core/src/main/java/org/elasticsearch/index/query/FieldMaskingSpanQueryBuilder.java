@@ -33,9 +33,10 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMaskingSpanQueryBuilder>
-        implements SpanQueryBuilder<FieldMaskingSpanQueryBuilder>{
+        implements SpanQueryBuilder {
 
     public static final String NAME = "field_masking_span";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
@@ -43,7 +44,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
     private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField QUERY_FIELD = new ParseField("query");
 
-    private final SpanQueryBuilder<?> queryBuilder;
+    private final SpanQueryBuilder queryBuilder;
 
     private final String fieldName;
 
@@ -53,7 +54,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
      * @param queryBuilder inner {@link SpanQueryBuilder}
      * @param fieldName the field name
      */
-    public FieldMaskingSpanQueryBuilder(SpanQueryBuilder<?> queryBuilder, String fieldName) {
+    public FieldMaskingSpanQueryBuilder(SpanQueryBuilder queryBuilder, String fieldName) {
         if (Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("field name is null or empty");
         }
@@ -69,7 +70,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
      */
     public FieldMaskingSpanQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        queryBuilder = (SpanQueryBuilder<?>) in.readNamedWriteable(QueryBuilder.class);
+        queryBuilder = (SpanQueryBuilder) in.readNamedWriteable(QueryBuilder.class);
         fieldName = in.readString();
     }
 
@@ -103,7 +104,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
         builder.endObject();
     }
 
-    public static FieldMaskingSpanQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<FieldMaskingSpanQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -119,11 +120,11 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (parseContext.getParseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
-                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
-                    if (!(query instanceof SpanQueryBuilder)) {
+                    Optional<QueryBuilder> query = parseContext.parseInnerQueryBuilder();
+                    if (query.isPresent() == false || query.get() instanceof SpanQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(), "[field_masking_span] query must be of type span query");
                     }
-                    inner = (SpanQueryBuilder) query;
+                    inner = (SpanQueryBuilder) query.get();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[field_masking_span] query does not support ["
                             + currentFieldName + "]");
@@ -151,7 +152,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
         FieldMaskingSpanQueryBuilder queryBuilder = new FieldMaskingSpanQueryBuilder(inner, field);
         queryBuilder.boost(boost);
         queryBuilder.queryName(queryName);
-        return queryBuilder;
+        return Optional.of(queryBuilder);
     }
 
     @Override

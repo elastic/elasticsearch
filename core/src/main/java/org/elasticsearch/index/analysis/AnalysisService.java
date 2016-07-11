@@ -48,7 +48,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
     private final NamedAnalyzer defaultSearchQuoteAnalyzer;
 
     public AnalysisService(IndexSettings indexSettings,
-                           Map<String, AnalyzerProvider> analyzerProviders,
+                           Map<String, AnalyzerProvider<?>> analyzerProviders,
                            Map<String, TokenizerFactory> tokenizerFactoryFactories,
                            Map<String, CharFilterFactory> charFilterFactoryFactories,
                            Map<String, TokenFilterFactory> tokenFilterFactoryFactories) {
@@ -69,8 +69,8 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         }
 
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();
-        for (Map.Entry<String, AnalyzerProvider> entry : analyzerProviders.entrySet()) {
-            AnalyzerProvider analyzerFactory = entry.getValue();
+        for (Map.Entry<String, AnalyzerProvider<?>> entry : analyzerProviders.entrySet()) {
+            AnalyzerProvider<?> analyzerFactory = entry.getValue();
             String name = entry.getKey();
             /*
              * Lucene defaults positionIncrementGap to 0 in all analyzers but

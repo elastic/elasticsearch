@@ -21,6 +21,7 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -35,11 +36,13 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
 
+import static org.elasticsearch.test.ESTestCase.createAnalysisService;
+
 
 public class MapperTestUtils {
 
     public static MapperService newMapperService(Path tempDir, Settings indexSettings) throws IOException {
-        IndicesModule indicesModule = new IndicesModule();
+        IndicesModule indicesModule = new IndicesModule(new NamedWriteableRegistry(), Collections.emptyList());
         return newMapperService(tempDir, indexSettings, indicesModule);
     }
 
@@ -53,7 +56,7 @@ public class MapperTestUtils {
         Settings finalSettings = settingsBuilder.build();
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", finalSettings);
-        AnalysisService analysisService = new AnalysisRegistry(null, new Environment(finalSettings)).build(indexSettings);
+        AnalysisService analysisService = createAnalysisService(indexSettings, finalSettings);
         SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
         return new MapperService(indexSettings,
             analysisService,

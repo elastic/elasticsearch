@@ -27,11 +27,11 @@ import org.jboss.netty.logging.AbstractInternalLogger;
  *
  */
 @SuppressLoggerChecks(reason = "safely delegates to logger")
-public class NettyInternalESLogger extends AbstractInternalLogger {
+final class NettyInternalESLogger extends AbstractInternalLogger {
 
     private final ESLogger logger;
 
-    public NettyInternalESLogger(ESLogger logger) {
+    NettyInternalESLogger(ESLogger logger) {
         this.logger = logger;
     }
 

@@ -43,8 +43,10 @@ public class GreaterThanAssertion extends Assertion {
     @SuppressWarnings("unchecked")
     protected void doAssert(Object actualValue, Object expectedValue) {
         logger.trace("assert that [{}] is greater than [{}] (field: [{}])", actualValue, expectedValue, getField());
-        assertThat("value of [" + getField() + "] is not comparable (got [" + safeClass(actualValue) + "])", actualValue, instanceOf(Comparable.class));
-        assertThat("expected value of [" + getField() + "] is not comparable (got [" + expectedValue.getClass() + "])", expectedValue, instanceOf(Comparable.class));
+        assertThat("value of [" + getField() + "] is not comparable (got [" + safeClass(actualValue) + "])",
+                actualValue, instanceOf(Comparable.class));
+        assertThat("expected value of [" + getField() + "] is not comparable (got [" + expectedValue.getClass() + "])",
+                expectedValue, instanceOf(Comparable.class));
         try {
             assertThat(errorMessage(), (Comparable) actualValue, greaterThan((Comparable) expectedValue));
         } catch (ClassCastException e) {

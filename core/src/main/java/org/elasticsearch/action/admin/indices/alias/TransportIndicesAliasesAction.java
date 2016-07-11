@@ -119,7 +119,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
                 logger.debug("failed to perform aliases", t);
                 listener.onFailure(t);
             }

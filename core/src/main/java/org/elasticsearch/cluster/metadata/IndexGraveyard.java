@@ -54,7 +54,7 @@ import java.util.function.BiFunction;
  * tombstones remain in the cluster state for a fixed period of time, after which
  * they are purged.
  */
-final public class IndexGraveyard implements MetaData.Custom {
+public final class IndexGraveyard implements MetaData.Custom {
 
     /**
      * Setting for the maximum tombstones allowed in the cluster state;
@@ -123,6 +123,18 @@ final public class IndexGraveyard implements MetaData.Custom {
         return tombstones;
     }
 
+    /**
+     * Returns true if the graveyard contains a tombstone for the given index.
+     */
+    public boolean containsIndex(final Index index) {
+        for (Tombstone tombstone : tombstones) {
+            if (tombstone.getIndex().equals(index)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startArray(TOMBSTONES_FIELD.getPreferredName());
@@ -176,7 +188,7 @@ final public class IndexGraveyard implements MetaData.Custom {
     /**
      * A class to build an IndexGraveyard.
      */
-    final public static class Builder {
+    public static final class Builder {
         private List<Tombstone> tombstones;
         private int numPurged = -1;
         private final long currentTime = System.currentTimeMillis();
@@ -207,8 +219,10 @@ final public class IndexGraveyard implements MetaData.Custom {
         /**
          * Add a set of deleted indexes to the list of tombstones in the cluster state.
          */
-        public Builder addTombstones(final Set<Index> indices) {
-            indices.stream().forEach(this::addTombstone);
+        public Builder addTombstones(final Index[] indices) {
+            for (Index index : indices) {
+                addTombstone(index);
+            }
             return this;
         }
 
@@ -259,7 +273,7 @@ final public class IndexGraveyard implements MetaData.Custom {
     /**
      * A class representing a diff of two IndexGraveyard objects.
      */
-    final public static class IndexGraveyardDiff implements Diff<MetaData.Custom> {
+    public static final class IndexGraveyardDiff implements Diff<MetaData.Custom> {
 
         private final List<Tombstone> added;
         private final int removedCount;
@@ -340,7 +354,7 @@ final public class IndexGraveyard implements MetaData.Custom {
     /**
      * An individual tombstone entry for representing a deleted index.
      */
-    final public static class Tombstone implements ToXContent, Writeable {
+    public static final class Tombstone implements ToXContent, Writeable {
 
         private static final String INDEX_KEY = "index";
         private static final String DELETE_DATE_IN_MILLIS_KEY = "delete_date_in_millis";
@@ -435,7 +449,7 @@ final public class IndexGraveyard implements MetaData.Custom {
         /**
          * A builder for building tombstone entries.
          */
-        final private static class Builder {
+        private static final class Builder {
             private Index index;
             private long deleteDateInMillis = -1L;
 

@@ -23,6 +23,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,7 +40,8 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- *
+ * Requests that are run on a particular replica, first on the primary and then on the replicas like {@link IndexRequest} or
+ * {@link TransportShardRefreshAction}.
  */
 public abstract class ReplicationRequest<Request extends ReplicationRequest<Request>> extends ActionRequest<Request>
         implements IndicesRequest {
@@ -64,7 +67,6 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     public ReplicationRequest() {
 
     }
-
 
     /**
      * Creates a new request with resolved shard id
@@ -122,9 +124,8 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
      * @return the shardId of the shard where this operation should be executed on.
      * can be null if the shardID has not yet been resolved
      */
-    public
     @Nullable
-    ShardId shardId() {
+    public ShardId shardId() {
         return shardId;
     }
 
@@ -179,7 +180,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
             shardId = null;
         }
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
-        timeout = TimeValue.readTimeValue(in);
+        timeout = new TimeValue(in);
         index = in.readString();
         routedBasedOnClusterVersion = in.readVLong();
         primaryTerm = in.readVLong();

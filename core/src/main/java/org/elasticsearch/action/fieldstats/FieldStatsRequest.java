@@ -39,11 +39,12 @@ import java.util.List;
  */
 public class FieldStatsRequest extends BroadcastRequest<FieldStatsRequest> {
 
-    public final static String DEFAULT_LEVEL = "cluster";
+    public static final String DEFAULT_LEVEL = "cluster";
 
     private String[] fields = Strings.EMPTY_ARRAY;
     private String level = DEFAULT_LEVEL;
     private IndexConstraint[] indexConstraints = new IndexConstraint[0];
+    private boolean useCache = true;
 
     public String[] getFields() {
         return fields;
@@ -54,6 +55,14 @@ public class FieldStatsRequest extends BroadcastRequest<FieldStatsRequest> {
             throw new NullPointerException("specified fields can't be null");
         }
         this.fields = fields;
+    }
+
+    public void setUseCache(boolean useCache) {
+        this.useCache = useCache;
+    }
+
+    public boolean shouldUseCache() {
+        return useCache;
     }
 
     public IndexConstraint[] getIndexConstraints() {
@@ -184,6 +193,7 @@ public class FieldStatsRequest extends BroadcastRequest<FieldStatsRequest> {
             indexConstraints[i] = new IndexConstraint(in);
         }
         level = in.readString();
+        useCache = in.readBoolean();
     }
 
     @Override
@@ -201,6 +211,7 @@ public class FieldStatsRequest extends BroadcastRequest<FieldStatsRequest> {
             }
         }
         out.writeString(level);
+        out.writeBoolean(useCache);
     }
 
 }

@@ -1,57 +1,306 @@
 [[analysis-ngram-tokenizer]]
 === NGram Tokenizer
 
-A tokenizer of type `nGram`.
+The `ngram` tokenizer first breaks text down into words whenever it encounters
+one of a list of specified characters, then it emits
+https://en.wikipedia.org/wiki/N-gram[N-grams] of each word of the specified
+length.
 
-The following are settings that can be set for a `nGram` tokenizer type:
-
-[cols="<,<,<",options="header",]
-|=======================================================================
-|Setting |Description |Default value
-|`min_gram` |Minimum size in codepoints of a single n-gram |`1`.
-
-|`max_gram` |Maximum size in codepoints of a single n-gram |`2`.
-
-|`token_chars` |Characters classes to keep in the
-tokens, Elasticsearch will split on characters that don't belong to any
-of these classes. |`[]` (Keep all characters)
-|=======================================================================
-
-`token_chars` accepts the following character classes:
-
-[horizontal]
-`letter`::      for example `a`, `b`, `ï` or `京`
-`digit`::       for example `3` or `7`
-`whitespace`::  for example `" "` or `"\n"`
-`punctuation`:: for example `!` or `"`
-`symbol`::      for example `$` or `√`
+N-grams are like a sliding window that moves across the word - a continuous
+sequence of characters of the specified length. They are useful for querying
+languages that don't use spaces or that have long compound words, like German.
 
 [float]
-==== Example
+=== Example output
+
+With the default settings, the `ngram` tokenizer treats the initial text as a
+single token and produces N-grams with minimum length `1` and maximum length
+`2`:
 
 [source,js]
---------------------------------------------------
-    curl -XPUT 'localhost:9200/test' -d '
-    {
-        "settings" : {
-            "analysis" : {
-                "analyzer" : {
-                    "my_ngram_analyzer" : {
-                        "tokenizer" : "my_ngram_tokenizer"
-                    }
-                },
-                "tokenizer" : {
-                    "my_ngram_tokenizer" : {
-                        "type" : "nGram",
-                        "min_gram" : "2",
-                        "max_gram" : "3",
-                        "token_chars": [ "letter", "digit" ]
-                    }
-                }
-            }
-        }
-    }'
+---------------------------
+POST _analyze
+{
+  "tokenizer": "ngram",
+  "text": "Quick Fox"
+}
+---------------------------
+// CONSOLE
 
-    curl 'localhost:9200/test/_analyze?pretty=1&analyzer=my_ngram_analyzer' -d 'FC Schalke 04'
-    # FC, Sc, Sch, ch, cha, ha, hal, al, alk, lk, lke, ke, 04
---------------------------------------------------
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "Q",
+      "start_offset": 0,
+      "end_offset": 1,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "Qu",
+      "start_offset": 0,
+      "end_offset": 2,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "u",
+      "start_offset": 1,
+      "end_offset": 2,
+      "type": "word",
+      "position": 2
+    },
+    {
+      "token": "ui",
+      "start_offset": 1,
+      "end_offset": 3,
+      "type": "word",
+      "position": 3
+    },
+    {
+      "token": "i",
+      "start_offset": 2,
+      "end_offset": 3,
+      "type": "word",
+      "position": 4
+    },
+    {
+      "token": "ic",
+      "start_offset": 2,
+      "end_offset": 4,
+      "type": "word",
+      "position": 5
+    },
+    {
+      "token": "c",
+      "start_offset": 3,
+      "end_offset": 4,
+      "type": "word",
+      "position": 6
+    },
+    {
+      "token": "ck",
+      "start_offset": 3,
+      "end_offset": 5,
+      "type": "word",
+      "position": 7
+    },
+    {
+      "token": "k",
+      "start_offset": 4,
+      "end_offset": 5,
+      "type": "word",
+      "position": 8
+    },
+    {
+      "token": "k ",
+      "start_offset": 4,
+      "end_offset": 6,
+      "type": "word",
+      "position": 9
+    },
+    {
+      "token": " ",
+      "start_offset": 5,
+      "end_offset": 6,
+      "type": "word",
+      "position": 10
+    },
+    {
+      "token": " F",
+      "start_offset": 5,
+      "end_offset": 7,
+      "type": "word",
+      "position": 11
+    },
+    {
+      "token": "F",
+      "start_offset": 6,
+      "end_offset": 7,
+      "type": "word",
+      "position": 12
+    },
+    {
+      "token": "Fo",
+      "start_offset": 6,
+      "end_offset": 8,
+      "type": "word",
+      "position": 13
+    },
+    {
+      "token": "o",
+      "start_offset": 7,
+      "end_offset": 8,
+      "type": "word",
+      "position": 14
+    },
+    {
+      "token": "ox",
+      "start_offset": 7,
+      "end_offset": 9,
+      "type": "word",
+      "position": 15
+    },
+    {
+      "token": "x",
+      "start_offset": 8,
+      "end_offset": 9,
+      "type": "word",
+      "position": 16
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
+The above sentence would produce the following terms:
+
+[source,text]
+---------------------------
+[ Q, Qu, u, ui, i, ic, c, ck, k, "k ", " ", " F", F, Fo, o, ox, x ]
+---------------------------
+
+[float]
+=== Configuration
+
+The `ngram` tokenizer accepts the following parameters:
+
+[horizontal]
+`min_gram`::
+    Minimum length of characters in a gram.  Defaults to `1`.
+
+`max_gram`::
+    Maximum length of characters in a gram.  Defaults to `2`.
+
+`token_chars`::
+
+    Character classes that should be included in a token.  Elasticsearch
+    will split on characters that don't belong to the classes specified.
+    Defaults to `[]` (keep all characters).
++
+Character classes may be any of the following:
++
+* `letter` --      for example `a`, `b`, `ï` or `京`
+* `digit` --       for example `3` or `7`
+* `whitespace` --  for example `" "` or `"\n"`
+* `punctuation` -- for example `!` or `"`
+* `symbol` --      for example `$` or `√`
+
+TIP:  It usually makes sense to set `min_gram` and `max_gram` to the same
+value.  The smaller the length, the more documents will match but the lower
+the quality of the matches.  The longer the length, the more specific the
+matches.  A tri-gram (length `3`) is a good place to start.
+
+[float]
+=== Example configuration
+
+In this example, we configure the `ngram` tokenizer to treat letters and
+digits as tokens, and to produce tri-grams (grams of length `3`):
+
+[source,js]
+----------------------------
+PUT my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "my_tokenizer"
+        }
+      },
+      "tokenizer": {
+        "my_tokenizer": {
+          "type": "ngram",
+          "min_gram": 3,
+          "max_gram": 3,
+          "token_chars": [
+            "letter",
+            "digit"
+          ]
+        }
+      }
+    }
+  }
+}
+
+GET _cluster/health?wait_for_status=yellow
+
+POST my_index/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "2 Quick Foxes."
+}
+----------------------------
+// CONSOLE
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "Qui",
+      "start_offset": 2,
+      "end_offset": 5,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "uic",
+      "start_offset": 3,
+      "end_offset": 6,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "ick",
+      "start_offset": 4,
+      "end_offset": 7,
+      "type": "word",
+      "position": 2
+    },
+    {
+      "token": "Fox",
+      "start_offset": 8,
+      "end_offset": 11,
+      "type": "word",
+      "position": 3
+    },
+    {
+      "token": "oxe",
+      "start_offset": 9,
+      "end_offset": 12,
+      "type": "word",
+      "position": 4
+    },
+    {
+      "token": "xes",
+      "start_offset": 10,
+      "end_offset": 13,
+      "type": "word",
+      "position": 5
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
+The above example produces the following terms:
+
+[source,text]
+---------------------------
+[ Qui, uic, ick, Fox, oxe, xes ]
+---------------------------
+
+

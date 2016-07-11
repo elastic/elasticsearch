@@ -20,7 +20,6 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
@@ -47,15 +46,14 @@ public class InternalTemplateService implements TemplateService {
             CompiledScript compiledScript = scriptService.compile(
                 script,
                 ScriptContext.Standard.INGEST,
-                Collections.emptyMap(),
-                null); // null == OK, because ingest templates are only inline templates.
+                Collections.emptyMap());
             return new Template() {
                 @Override
                 public String execute(Map<String, Object> model) {
                     ExecutableScript executableScript = scriptService.executable(compiledScript, model);
                     Object result = executableScript.run();
                     if (result instanceof BytesReference) {
-                        return ((BytesReference) result).toUtf8();
+                        return ((BytesReference) result).utf8ToString();
                     }
                     return String.valueOf(result);
                 }

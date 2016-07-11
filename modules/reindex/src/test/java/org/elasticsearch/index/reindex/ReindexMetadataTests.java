@@ -21,15 +21,14 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
 
 /**
  * Index-by-search test for ttl, timestamp, and routing.
  */
-public class ReindexMetadataTests extends AbstractAsyncBulkIndexbyScrollActionMetadataTestCase<ReindexRequest, ReindexResponse> {
+public class ReindexMetadataTests extends AbstractAsyncBulkIndexbyScrollActionMetadataTestCase<ReindexRequest, BulkIndexByScrollResponse> {
     public void testRoutingCopiedByDefault() throws Exception {
         IndexRequest index = new IndexRequest();
-        action().copyMetadata(index, doc(RoutingFieldMapper.NAME, "foo"));
+        action().copyMetadata(AbstractAsyncBulkIndexByScrollAction.wrap(index), doc().setRouting("foo"));
         assertEquals("foo", index.routing());
     }
 
@@ -37,7 +36,7 @@ public class ReindexMetadataTests extends AbstractAsyncBulkIndexbyScrollActionMe
         TransportReindexAction.AsyncIndexBySearchAction action = action();
         action.mainRequest.getDestination().routing("keep");
         IndexRequest index = new IndexRequest();
-        action.copyMetadata(index, doc(RoutingFieldMapper.NAME, "foo"));
+        action.copyMetadata(AbstractAsyncBulkIndexByScrollAction.wrap(index), doc().setRouting("foo"));
         assertEquals("foo", index.routing());
     }
 
@@ -45,7 +44,7 @@ public class ReindexMetadataTests extends AbstractAsyncBulkIndexbyScrollActionMe
         TransportReindexAction.AsyncIndexBySearchAction action = action();
         action.mainRequest.getDestination().routing("discard");
         IndexRequest index = new IndexRequest();
-        action.copyMetadata(index, doc(RoutingFieldMapper.NAME, "foo"));
+        action.copyMetadata(AbstractAsyncBulkIndexByScrollAction.wrap(index), doc().setRouting("foo"));
         assertEquals(null, index.routing());
     }
 
@@ -53,7 +52,7 @@ public class ReindexMetadataTests extends AbstractAsyncBulkIndexbyScrollActionMe
         TransportReindexAction.AsyncIndexBySearchAction action = action();
         action.mainRequest.getDestination().routing("=cat");
         IndexRequest index = new IndexRequest();
-        action.copyMetadata(index, doc(RoutingFieldMapper.NAME, "foo"));
+        action.copyMetadata(AbstractAsyncBulkIndexByScrollAction.wrap(index), doc().setRouting("foo"));
         assertEquals("cat", index.routing());
     }
 
@@ -61,13 +60,13 @@ public class ReindexMetadataTests extends AbstractAsyncBulkIndexbyScrollActionMe
         TransportReindexAction.AsyncIndexBySearchAction action = action();
         action.mainRequest.getDestination().routing("==]");
         IndexRequest index = new IndexRequest();
-        action.copyMetadata(index, doc(RoutingFieldMapper.NAME, "foo"));
+        action.copyMetadata(AbstractAsyncBulkIndexByScrollAction.wrap(index), doc().setRouting("foo"));
         assertEquals("=]", index.routing());
     }
 
     @Override
     protected TransportReindexAction.AsyncIndexBySearchAction action() {
-        return new TransportReindexAction.AsyncIndexBySearchAction(task, logger, null, null, null, threadPool, request(), listener());
+        return new TransportReindexAction.AsyncIndexBySearchAction(task, logger, null, threadPool, request(), listener(), null, null);
     }
 
     @Override

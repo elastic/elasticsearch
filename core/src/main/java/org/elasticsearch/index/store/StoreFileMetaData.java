@@ -21,10 +21,8 @@ package org.elasticsearch.index.store;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 
@@ -58,14 +56,15 @@ public class StoreFileMetaData implements Writeable {
     }
 
     public StoreFileMetaData(String name, long length, String checksum, Version writtenBy, BytesRef hash) {
-        assert writtenBy != null && writtenBy.onOrAfter(FIRST_LUCENE_CHECKSUM_VERSION) : "index version less that "
-            + FIRST_LUCENE_CHECKSUM_VERSION + " are not supported but got: " + writtenBy;
-        Objects.requireNonNull(writtenBy, "writtenBy must not be null");
-        Objects.requireNonNull(checksum, "checksum must not be null");
-        this.name = name;
+        // its possible here to have a _na_ checksum or an unsupported writtenBy version, if the
+        // file is a segments_N file, but that is fine in the case of a segments_N file because
+        // we handle that case upstream
+        assert name.startsWith("segments_") || (writtenBy != null && writtenBy.onOrAfter(FIRST_LUCENE_CHECKSUM_VERSION)) :
+            "index version less that " + FIRST_LUCENE_CHECKSUM_VERSION + " are not supported but got: " + writtenBy;
+        this.name = Objects.requireNonNull(name, "name must not be null");
         this.length = length;
-        this.checksum = checksum;
-        this.writtenBy = writtenBy;
+        this.checksum = Objects.requireNonNull(checksum, "checksum must not be null");
+        this.writtenBy = Objects.requireNonNull(writtenBy, "writtenBy must not be null");
         this.hash = hash == null ? new BytesRef() : hash;
     }
 

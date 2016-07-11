@@ -19,7 +19,7 @@ if %bad_env_var% == 1 (
     echo Error: encountered environment variables that are no longer supported
     echo Use jvm.options or ES_JAVA_OPTS to configure the JVM
     if not "%ES_MIN_MEM%" == "" echo ES_MIN_MEM=%ES_MIN_MEM%: set -Xms%ES_MIN_MEM% in jvm.options or add "-Xms%ES_MIN_MEM%" to ES_JAVA_OPTS
-    if not "%ES_MAX_MEM%" == "" echo ES_MAX_MEM=%ES_MAX_MEM%: set -Xms%ES_MAX_MEM% in jvm.options or add "-Xmx%ES_MAX_MEM%" to ES_JAVA_OPTS
+    if not "%ES_MAX_MEM%" == "" echo ES_MAX_MEM=%ES_MAX_MEM%: set -Xmx%ES_MAX_MEM% in jvm.options or add "-Xmx%ES_MAX_MEM%" to ES_JAVA_OPTS
     if not "%ES_HEAP_SIZE%" == "" echo ES_HEAP_SIZE=%ES_HEAP_SIZE%: set -Xms%ES_HEAP_SIZE% and -Xmx%ES_HEAP_SIZE% in jvm.options or add "-Xms%ES_HEAP_SIZE% -Xmx%ES_HEAP_SIZE%" to ES_JAVA_OPTS
     if not "%ES_HEAP_NEWSIZE%" == "" echo ES_HEAP_NEWSIZE=%ES_HEAP_NEWSIZE%: set -Xmn%ES_HEAP_NEWSIZE% in jvm.options or add "-Xmn%ES_HEAP_SIZE%" to ES_JAVA_OPTS
     if not "%ES_DIRECT_SIZE%" == "" echo ES_DIRECT_SIZE=%ES_DIRECT_SIZE%: set -XX:MaxDirectMemorySize=%ES_DIRECT_SIZE% in jvm.options or add "-XX:MaxDirectMemorySize=%ES_DIRECT_SIZE%" to ES_JAVA_OPTS
@@ -35,14 +35,14 @@ FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
     SET current=%%A
     SET params='%%B'
 	SET silent=N
-	
+
 	IF "!current!" == "-s" (
 		SET silent=Y
 	)
 	IF "!current!" == "--silent" (
 		SET silent=Y
-	)	
-	
+	)
+
 	IF "!silent!" == "Y" (
 		SET nopauseonerror=Y
 	) ELSE (
@@ -52,7 +52,7 @@ FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
             SET newparams=!current!
         )
 	)
-	
+
     IF "x!params!" NEQ "x" (
 		GOTO loop
 	)
@@ -79,6 +79,6 @@ IF ERRORLEVEL 1 (
 	EXIT /B %ERRORLEVEL%
 )
 
-"%JAVA_HOME%\bin\java" %ES_JAVA_OPTS% %ES_PARAMS% -cp "%ES_CLASSPATH%" "org.elasticsearch.bootstrap.Elasticsearch" !newparams!
+"%JAVA%" %ES_JAVA_OPTS% %ES_PARAMS% -cp "%ES_CLASSPATH%" "org.elasticsearch.bootstrap.Elasticsearch" !newparams!
 
 ENDLOCAL

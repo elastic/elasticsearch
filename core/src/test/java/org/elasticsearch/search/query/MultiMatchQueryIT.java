@@ -386,7 +386,6 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
 
             {
                 String minShouldMatch = randomBoolean() ? null : "" + between(0, 1);
-                Operator op = randomBoolean() ? Operator.AND : Operator.OR;
                 SearchResponse left = client().prepareSearch("test").setSize(numDocs)
                         .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_uid"))
                         .setQuery(randomizeType(multiMatchQuery("capta", "full_name", "first_name", "last_name", "category")
@@ -396,15 +395,14 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                         .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_uid"))
                         .setQuery(boolQuery().minimumShouldMatch(minShouldMatch)
                                 .should(matchPhrasePrefixQuery("full_name", "capta"))
-                                .should(matchPhrasePrefixQuery("first_name", "capta").operator(op))
-                                .should(matchPhrasePrefixQuery("last_name", "capta").operator(op))
-                                .should(matchPhrasePrefixQuery("category", "capta").operator(op))
+                                .should(matchPhrasePrefixQuery("first_name", "capta"))
+                                .should(matchPhrasePrefixQuery("last_name", "capta"))
+                                .should(matchPhrasePrefixQuery("category", "capta"))
                         ).get();
                 assertEquivalent("capta", left, right);
             }
             {
                 String minShouldMatch = randomBoolean() ? null : "" + between(0, 1);
-                Operator op = randomBoolean() ? Operator.AND : Operator.OR;
                 SearchResponse left;
                 if (randomBoolean()) {
                     left = client().prepareSearch("test").setSize(numDocs)
@@ -421,9 +419,9 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                         .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_uid"))
                         .setQuery(boolQuery().minimumShouldMatch(minShouldMatch)
                                 .should(matchPhraseQuery("full_name", "captain america"))
-                                .should(matchPhraseQuery("first_name", "captain america").operator(op))
-                                .should(matchPhraseQuery("last_name", "captain america").operator(op))
-                                .should(matchPhraseQuery("category", "captain america").operator(op))
+                                .should(matchPhraseQuery("first_name", "captain america"))
+                                .should(matchPhraseQuery("last_name", "captain america"))
+                                .should(matchPhraseQuery("category", "captain america"))
                         ).get();
                 assertEquivalent("captain america", left, right);
             }
@@ -441,8 +439,8 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 .setQuery(randomizeType(multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category")
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                         .operator(Operator.OR))).get();
-        assertFirstHit(searchResponse, hasId("theone"));
-        assertSecondHit(searchResponse, hasId("theother"));
+        assertFirstHit(searchResponse, hasId("theother"));
+        assertSecondHit(searchResponse, hasId("theone"));
         assertThat(searchResponse.getHits().hits()[0].getScore(), greaterThan(searchResponse.getHits().hits()[1].getScore()));
 
         searchResponse = client().prepareSearch("test")
@@ -625,7 +623,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("ultimate1"));
     }
 
-    private static final void assertEquivalent(String query, SearchResponse left, SearchResponse right) {
+    private static void assertEquivalent(String query, SearchResponse left, SearchResponse right) {
         assertNoFailures(left);
         assertNoFailures(right);
         SearchHits leftHits = left.getHits();

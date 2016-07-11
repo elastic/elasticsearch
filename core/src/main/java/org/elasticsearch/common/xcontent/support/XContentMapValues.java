@@ -40,7 +40,7 @@ public class XContentMapValues {
      */
     public static List<Object> extractRawValues(String path, Map<String, Object> map) {
         List<Object> values = new ArrayList<>();
-        String[] pathElements = Strings.splitStringToArray(path, '.');
+        String[] pathElements = path.split("\\.");
         if (pathElements.length == 0) {
             return values;
         }
@@ -93,7 +93,7 @@ public class XContentMapValues {
     }
 
     public static Object extractValue(String path, Map<String, Object> map) {
-        String[] pathElements = Strings.splitStringToArray(path, '.');
+        String[] pathElements = path.split("\\.");
         if (pathElements.length == 0) {
             return null;
         }

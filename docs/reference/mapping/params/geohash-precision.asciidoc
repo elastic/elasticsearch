@@ -56,5 +56,5 @@ GET my_index/_search?fielddata_fields=location.geohash
 }
 
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> A `geohash_precision` of 6 equates to geohash cells of approximately 1.26km x 0.6km

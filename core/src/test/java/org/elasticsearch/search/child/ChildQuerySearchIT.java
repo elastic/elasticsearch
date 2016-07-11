@@ -26,6 +26,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
@@ -201,7 +202,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         refresh();
 
         // TEST FETCHING _parent from child
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(idsQuery("child").addIds("c1")).fields("_parent").execute()
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(idsQuery("child").addIds("c1")).storedFields("_parent").execute()
                 .actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
@@ -209,7 +210,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).field("_parent").value().toString(), equalTo("p1"));
 
         // TEST matching on parent
-        searchResponse = client().prepareSearch("test").setQuery(termQuery("_parent#parent", "p1")).fields("_parent").get();
+        searchResponse = client().prepareSearch("test").setQuery(termQuery("_parent#parent", "p1")).storedFields("_parent").get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(2L));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("c1"), equalTo("c2")));
@@ -217,7 +218,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(1).id(), anyOf(equalTo("c1"), equalTo("c2")));
         assertThat(searchResponse.getHits().getAt(1).field("_parent").value().toString(), equalTo("p1"));
 
-        searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("_parent#parent:p1")).fields("_parent").get();
+        searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("_parent#parent:p1")).storedFields("_parent").get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(2L));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("c1"), equalTo("c2")));
@@ -754,10 +755,11 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertNoFailures(response);
         assertThat(response.getHits().totalHits(), equalTo(0L));
 
-        client().prepareIndex("test", "child1").setSource(jsonBuilder().startObject().field("text", "value").endObject()).setRefresh(true)
-                .get();
+        client().prepareIndex("test", "child1").setSource(jsonBuilder().startObject().field("text", "value").endObject())
+                .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
-        response = client().prepareSearch("test").setQuery(QueryBuilders.hasChildQuery("child", matchQuery("text", "value"), ScoreMode.None)).get();
+        response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.hasChildQuery("child", matchQuery("text", "value"), ScoreMode.None)).get();
         assertNoFailures(response);
         assertThat(response.getHits().totalHits(), equalTo(0L));
 
@@ -1321,29 +1323,6 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         }
     }
 
-    public void testAddParentFieldAfterIndexingParentDocButBeforeIndexingChildDoc() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings(Settings.builder()
-                        .put(indexSettings())
-                        .put("index.refresh_interval", -1)));
-        ensureGreen();
-
-        String parentId = "p1";
-        client().prepareIndex("test", "parent", parentId).setSource("p_field", "1").get();
-        refresh();
-
-        try {
-            assertAcked(client().admin()
-                    .indices()
-                    .preparePutMapping("test")
-                    .setType("child")
-                    .setSource("_parent", "type=parent"));
-            fail("Shouldn't be able the add the _parent field pointing to an already existing parent type");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("can't add a _parent field that points to an already existing type"));
-        }
-    }
-
     public void testParentChildCaching() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(
@@ -1415,7 +1394,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
             SearchResponse scrollResponse = client().prepareSearch("test")
                     .setScroll(TimeValue.timeValueSeconds(30))
                     .setSize(1)
-                    .addField("_id")
+                    .addStoredField("_id")
                     .setQuery(query)
                     .execute()
                     .actionGet();

@@ -32,7 +32,7 @@ public interface IndexTemplateFilter {
      */
     boolean apply(CreateIndexClusterStateUpdateRequest request, IndexTemplateMetaData template);
 
-    static class Compound implements IndexTemplateFilter {
+    class Compound implements IndexTemplateFilter {
 
         private IndexTemplateFilter[] filters;
 

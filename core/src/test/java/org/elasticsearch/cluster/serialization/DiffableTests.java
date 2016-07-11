@@ -310,7 +310,7 @@ public class DiffableTests extends ESTestCase {
                 logger.debug("--> serializing diff");
                 BytesStreamOutput out = new BytesStreamOutput();
                 diffMap.writeTo(out);
-                StreamInput in = StreamInput.wrap(out.bytes());
+                StreamInput in = out.bytes().streamInput();
                 logger.debug("--> reading diff back");
                 diffMap = readDiff(in);
             }

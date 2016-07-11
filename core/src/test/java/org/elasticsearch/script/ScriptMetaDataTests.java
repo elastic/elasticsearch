@@ -34,8 +34,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 
 public class ScriptMetaDataTests extends ESTestCase {
@@ -79,7 +77,7 @@ public class ScriptMetaDataTests extends ESTestCase {
         xContentBuilder.startObject();
         expected.toXContent(xContentBuilder, new ToXContent.MapParams(Collections.emptyMap()));
         xContentBuilder.endObject();
-        xContentBuilder = shuffleXContent(xContentBuilder, Collections.emptySet());
+        xContentBuilder = shuffleXContent(xContentBuilder);
 
         XContentParser parser = XContentHelper.createParser(xContentBuilder.bytes());
         parser.nextToken();

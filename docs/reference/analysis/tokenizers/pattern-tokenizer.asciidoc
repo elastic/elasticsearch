@@ -1,38 +1,268 @@
 [[analysis-pattern-tokenizer]]
 === Pattern Tokenizer
 
-A tokenizer of type `pattern` that can flexibly separate text into terms
-via a regular expression. Accepts the following settings:
+The `pattern` tokenizer uses a regular expression to either split text into
+terms whenever it matches a word separator, or to capture matching text as
+terms.
 
-[cols="<,<",options="header",]
-|======================================================================
-|Setting |Description
-|`pattern` |The regular expression pattern, defaults to `\W+`.
-|`flags` |The regular expression flags.
-|`group` |Which group to extract into tokens. Defaults to `-1` (split).
-|======================================================================
+The default pattern is `\W+`, which splits text whenever it encounters
+non-word characters.
 
-*IMPORTANT*: The regular expression should match the *token separators*,
-not the tokens themselves.
+[float]
+=== Example output
 
-*********************************************
-Note that you may need to escape `pattern` string literal according to
-your client language rules. For example, in many programming languages
-a string literal for `\W+` pattern is written as `"\\W+"`.
-There is nothing special about `pattern` (you may have to escape other
-string literals as well); escaping `pattern` is common just because it
-often contains characters that should be escaped.
-*********************************************
+[source,js]
+---------------------------
+POST _analyze
+{
+  "tokenizer": "pattern",
+  "text": "The foo_bar_size's default is 5."
+}
+---------------------------
+// CONSOLE
 
-`group` set to `-1` (the default) is equivalent to "split". Using group
->= 0 selects the matching group as the token. For example, if you have:
+/////////////////////
 
-------------------------
-pattern = '([^']+)'
-group   = 0
-input   = aaa 'bbb' 'ccc'
-------------------------
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "The",
+      "start_offset": 0,
+      "end_offset": 3,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "foo_bar_size",
+      "start_offset": 4,
+      "end_offset": 16,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "s",
+      "start_offset": 17,
+      "end_offset": 18,
+      "type": "word",
+      "position": 2
+    },
+    {
+      "token": "default",
+      "start_offset": 19,
+      "end_offset": 26,
+      "type": "word",
+      "position": 3
+    },
+    {
+      "token": "is",
+      "start_offset": 27,
+      "end_offset": 29,
+      "type": "word",
+      "position": 4
+    },
+    {
+      "token": "5",
+      "start_offset": 30,
+      "end_offset": 31,
+      "type": "word",
+      "position": 5
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
 
-the output will be two tokens: `'bbb'` and `'ccc'` (including the `'`
-marks). With the same input but using group=1, the output would be:
-`bbb` and `ccc` (no `'` marks).
+/////////////////////
+
+
+The above sentence would produce the following terms:
+
+[source,text]
+---------------------------
+[ The, foo_bar_size, s, default, is, 5 ]
+---------------------------
+
+[float]
+=== Configuration
+
+The `pattern` tokenizer accepts the following parameters:
+
+[horizontal]
+`pattern`::
+
+    A http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java regular expression], defaults to `\W+`.
+
+`flags`::
+
+    Java regular expression http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html#field.summary[flags].
+    lags should be pipe-separated, eg `"CASE_INSENSITIVE|COMMENTS"`.
+
+`group`::
+
+    Which capture group to extract as tokens.  Defaults to `-1` (split).
+
+[float]
+=== Example configuration
+
+In this example, we configure the `pattern` tokenizer to break text into
+tokens when it encounters commas:
+
+[source,js]
+----------------------------
+PUT my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "my_tokenizer"
+        }
+      },
+      "tokenizer": {
+        "my_tokenizer": {
+          "type": "pattern",
+          "pattern": ","
+        }
+      }
+    }
+  }
+}
+
+GET _cluster/health?wait_for_status=yellow
+
+POST my_index/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "comma,separated,values"
+}
+----------------------------
+// CONSOLE
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "comma",
+      "start_offset": 0,
+      "end_offset": 5,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "separated",
+      "start_offset": 6,
+      "end_offset": 15,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "values",
+      "start_offset": 16,
+      "end_offset": 22,
+      "type": "word",
+      "position": 2
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
+The above example produces the following terms:
+
+[source,text]
+---------------------------
+[ comma, separated, values ]
+---------------------------
+
+In the next example, we configure the `pattern` tokenizer to capture values
+enclosed in double quotes (ignoring embedded escaped quotes `\"`).  The regex
+itself looks like this:
+
+    "((?:\\"|[^"]|\\")*)"
+
+And reads as follows:
+
+* A literal `"`
+* Start capturing:
+** A literal `\"` OR any character except `"`
+** Repeat until no more characters match
+* A literal closing `"`
+
+When the pattern is specified in JSON, the `"` and `\` characters need to be
+escaped, so the pattern ends up looking like:
+
+    \"((?:\\\\\"|[^\"]|\\\\\")+)\"
+
+[source,js]
+----------------------------
+PUT my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "my_tokenizer"
+        }
+      },
+      "tokenizer": {
+        "my_tokenizer": {
+          "type": "pattern",
+          "pattern": "\"((?:\\\\\"|[^\"]|\\\\\")+)\"",
+          "group": 1
+        }
+      }
+    }
+  }
+}
+
+GET _cluster/health?wait_for_status=yellow
+
+POST my_index/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "\"value\", \"value with embedded \\\" quote\""
+}
+----------------------------
+// CONSOLE
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "value",
+      "start_offset": 1,
+      "end_offset": 6,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "value with embedded \\\" quote",
+      "start_offset": 10,
+      "end_offset": 38,
+      "type": "word",
+      "position": 1
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+The above example produces the following two terms:
+
+[source,text]
+---------------------------
+[ value, value with embedded \" quote ]
+---------------------------

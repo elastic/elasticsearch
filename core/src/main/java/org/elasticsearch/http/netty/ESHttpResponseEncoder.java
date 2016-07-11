@@ -19,7 +19,7 @@
 
 package org.elasticsearch.http.netty;
 
-import org.elasticsearch.common.netty.NettyUtils;
+import org.elasticsearch.transport.netty.NettyUtils;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.buffer.CompositeChannelBuffer;

@@ -24,50 +24,49 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.UserError;
+import org.elasticsearch.cli.SettingCommand;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 
 /**
  * A command for the plugin cli to remove a plugin from elasticsearch.
  */
-class RemovePluginCommand extends Command {
+class RemovePluginCommand extends SettingCommand {
 
-    private final Environment env;
     private final OptionSpec<String> arguments;
 
-    RemovePluginCommand(Environment env) {
+    RemovePluginCommand() {
         super("Removes a plugin from elasticsearch");
-        this.env = env;
         this.arguments = parser.nonOptions("plugin name");
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options) throws Exception {
-        // TODO: in jopt-simple 5.0 we can enforce a min/max number of positional args
-        List<String> args = arguments.values(options);
-        if (args.size() != 1) {
-            throw new UserError(ExitCodes.USAGE, "Must supply a single plugin id argument");
-        }
-        execute(terminal, args.get(0));
+    protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
+        String arg = arguments.value(options);
+        execute(terminal, arg, settings);
     }
 
     // pkg private for testing
-    void execute(Terminal terminal, String pluginName) throws Exception {
+    void execute(Terminal terminal, String pluginName, Map<String, String> settings) throws Exception {
+        final Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
+
         terminal.println("-> Removing " + Strings.coalesceToEmpty(pluginName) + "...");
 
         Path pluginDir = env.pluginsFile().resolve(pluginName);
         if (Files.exists(pluginDir) == false) {
-            throw new UserError(ExitCodes.USAGE, "Plugin " + pluginName + " not found. Run 'plugin list' to get list of installed plugins.");
+            throw new UserException(ExitCodes.USAGE, "plugin " + pluginName + " not found; run 'elasticsearch-plugin list' to get list of installed plugins");
         }
 
         List<Path> pluginPaths = new ArrayList<>();
@@ -75,7 +74,7 @@ class RemovePluginCommand extends Command {
         Path pluginBinDir = env.binFile().resolve(pluginName);
         if (Files.exists(pluginBinDir)) {
             if (Files.isDirectory(pluginBinDir) == false) {
-                throw new UserError(ExitCodes.IO_ERROR, "Bin dir for " + pluginName + " is not a directory");
+                throw new UserException(ExitCodes.IO_ERROR, "Bin dir for " + pluginName + " is not a directory");
             }
             pluginPaths.add(pluginBinDir);
             terminal.println(VERBOSE, "Removing: " + pluginBinDir);

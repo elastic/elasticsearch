@@ -1,0 +1,45 @@
+---
+"Test basic pipeline crud":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { pipelines.0.id: "my_pipeline" }
+  - match: { pipelines.0.config.description: "_description" }
+
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      ingest.get_pipeline:
+        id: "my_pipeline"
+
+---
+"Test invalid config":
+  - do:
+      catch: /parse_exception/
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                }
+              }
+            ]
+          }

@@ -428,7 +428,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
      }
 
     @Override
-    public final String toString() {
+    public String toString() {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.prettyPrint();
@@ -440,14 +440,14 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
     }
 
     @Override
-    public final int hashCode() {
+    public int hashCode() {
         return Objects.hash(field, preFilter, postFilter, suggestMode, accuracy,
                 size, sort, stringDistance, maxEdits, maxInspections,
                 maxTermFreq, prefixLength, minWordLength, minDocFreq);
     }
 
     @Override
-    public final boolean equals(Object obj) {
+    public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }

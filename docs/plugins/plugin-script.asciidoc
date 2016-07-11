@@ -51,7 +51,7 @@ sudo bin/elasticsearch-plugin install analysis-icu
 -----------------------------------
 
 This command will install the version of the plugin that matches your
-Elasticsearch version.
+Elasticsearch version and also show a progress bar while downloading.
 
 [float]
 === Custom URL or file system
@@ -77,7 +77,7 @@ to a local Java truststore and pass the location to the script as follows:
 
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin -Djavax.net.ssl.trustStore=/path/to/trustStore.jks install https://....
+sudo ES_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install https://....
 -----------------------------------
 
 [[listing-removing]]
@@ -117,8 +117,8 @@ The `plugin` scripts supports a number of other command line parameters:
 === Silent/Verbose mode
 
 The `--verbose` parameter outputs more debug information, while the `--silent`
-parameter turns off all output.  The script may return the following exit
-codes:
+parameter turns off all output including the progress bar. The script may
+return the following exit codes:
 
 [horizontal]
 `0`:: everything was OK
@@ -135,7 +135,7 @@ can do this as follows:
 
 [source,sh]
 ---------------------
-sudo bin/elasticsearch-plugin -Ees.path.conf=/path/to/custom/config/dir install <plugin name>
+sudo bin/elasticsearch-plugin -Epath.conf=/path/to/custom/config/dir install <plugin name>
 ---------------------
 
 You can also set the `CONF_DIR` environment variable to the custom config
@@ -169,7 +169,7 @@ options can be set on the command line:
 
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin install mobz/elasticsearch-head -DproxyHost=host_name -DproxyPort=port_number
+sudo ES_JAVA_OPTS="-DproxyHost=host_name -DproxyPort=port_number" bin/elasticsearch-plugin install mobz/elasticsearch-head
 -----------------------------------
 
 On Windows, they need to be added to the `ES_JAVA_OPTS` environment variable:
@@ -180,18 +180,7 @@ set ES_JAVA_OPTS="-DproxyHost=host_name -DproxyPort=port_number"
 bin/elasticsearch-plugin install analysis-icu
 -----------------------------------
 
-=== Settings related to plugins
-
-[float]
-=== Custom plugins directory
-
-The `plugins` directory can be changed from the default by adding the
-following to the `elasticsearch.yml` config file:
-
-[source,yml]
----------------------
-path.plugins: /path/to/custom/plugins/dir
----------------------
+=== Plugins directory
 
 The default location of the `plugins` directory depends on which package you install:
 

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.mapper.internal;
 
-import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -58,7 +58,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         public static final MappedFieldType FIELD_TYPE = new IndexFieldType();
 
         static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
@@ -67,35 +67,27 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
-
-        public static final EnabledAttributeMapper ENABLED_STATE = EnabledAttributeMapper.UNSET_DISABLED;
     }
 
     public static class Builder extends MetadataFieldMapper.Builder<Builder, IndexFieldMapper> {
 
-        private EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
-
         public Builder(MappedFieldType existing) {
             super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
-            indexName = Defaults.NAME;
-        }
-
-        public Builder enabled(EnabledAttributeMapper enabledState) {
-            this.enabledState = enabledState;
-            return this;
         }
 
         @Override
         public IndexFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            fieldType.setHasDocValues(false);
-            return new IndexFieldMapper(fieldType, enabledState, context.indexSettings());
+            return new IndexFieldMapper(fieldType, context.indexSettings());
         }
     }
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            if (parserContext.indexVersionCreated().onOrAfter(Version.V_5_0_0_alpha3)) {
+                throw new MapperParsingException(NAME + " is not configurable");
+            }
             return new Builder(parserContext.mapperService().fullName(NAME));
         }
 
@@ -138,9 +130,6 @@ public class IndexFieldMapper extends MetadataFieldMapper {
          */
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
-            if (context == null) {
-                return super.termQuery(value, context);
-            }
             if (isSameIndex(value, context.index().getName())) {
                 return Queries.newMatchAllQuery();
             } else {
@@ -179,43 +168,22 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private EnabledAttributeMapper enabledState;
-
     private IndexFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing, Defaults.ENABLED_STATE, indexSettings);
+        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing, indexSettings);
     }
 
-    private IndexFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabledState, Settings indexSettings) {
+    private IndexFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
         super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
-        this.enabledState = enabledState;
-    }
-
-    public boolean enabled() {
-        return this.enabledState.enabled;
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {
-        // we pre parse it and not in parse, since its not part of the root object
-        super.parse(context);
-    }
+    public void preParse(ParseContext context) throws IOException {}
 
     @Override
-    public void postParse(ParseContext context) throws IOException {
-    }
+    public void postParse(ParseContext context) throws IOException {}
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
-        return null;
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        if (!enabledState.enabled) {
-            return;
-        }
-        fields.add(new Field(fieldType().name(), context.index(), fieldType()));
-    }
+    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {}
 
     @Override
     protected String contentType() {
@@ -224,26 +192,12 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-
-        // if all defaults, no need to write it at all
-        if (includeDefaults == false && enabledState == Defaults.ENABLED_STATE) {
-            return builder;
-        }
-        builder.startObject(CONTENT_TYPE);
-        if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
-            builder.field("enabled", enabledState.enabled);
-        }
-        builder.endObject();
         return builder;
     }
 
     @Override
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
-        IndexFieldMapper indexFieldMapperMergeWith = (IndexFieldMapper) mergeWith;
-        if (indexFieldMapperMergeWith.enabledState != enabledState && !indexFieldMapperMergeWith.enabledState.unset()) {
-            this.enabledState = indexFieldMapperMergeWith.enabledState;
-        }
+        // nothing to do
     }
 
 }

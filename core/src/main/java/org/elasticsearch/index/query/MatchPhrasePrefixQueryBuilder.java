@@ -31,6 +31,7 @@ import org.elasticsearch.index.search.MatchQuery;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Match query is a query that analyzes the text and constructs a phrase prefix
@@ -191,7 +192,7 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         return Objects.hash(fieldName, value, analyzer, slop, maxExpansions);
     }
 
-    public static MatchPhrasePrefixQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<MatchPhrasePrefixQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
@@ -257,6 +258,6 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         matchQuery.maxExpansions(maxExpansion);
         matchQuery.queryName(queryName);
         matchQuery.boost(boost);
-        return matchQuery;
+        return Optional.of(matchQuery);
     }
 }

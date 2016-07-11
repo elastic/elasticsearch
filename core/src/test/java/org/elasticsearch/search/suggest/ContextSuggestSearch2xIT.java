@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestion;
@@ -193,6 +194,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
             .field("type", "geo")
             .field("precision", precision)
             .endObject()
+            .endObject()
             .endObject().endObject()
             .endObject().endObject();
 
@@ -211,6 +213,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
             .startObject("location")
             .field("type", "geo")
             .field("precision", precision)
+            .endObject()
             .endObject()
             .endObject().endObject()
             .endObject().endObject();
@@ -502,7 +505,7 @@ public class ContextSuggestSearch2xIT extends ESIntegTestCase {
         ensureGreen();
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(FIELD, "")
-            .setRefresh(true).get();
+            .setRefreshPolicy(IMMEDIATE).get();
 
     }
 

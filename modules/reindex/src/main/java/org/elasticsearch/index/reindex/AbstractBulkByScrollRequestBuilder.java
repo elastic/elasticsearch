@@ -21,7 +21,6 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -30,13 +29,12 @@ import org.elasticsearch.index.query.QueryBuilder;
 
 public abstract class AbstractBulkByScrollRequestBuilder<
                 Request extends AbstractBulkByScrollRequest<Request>,
-                Response extends ActionResponse,
-                Self extends AbstractBulkByScrollRequestBuilder<Request, Response, Self>>
-        extends ActionRequestBuilder<Request, Response, Self> {
+                Self extends AbstractBulkByScrollRequestBuilder<Request, Self>>
+        extends ActionRequestBuilder<Request, BulkIndexByScrollResponse, Self> {
     private final SearchRequestBuilder source;
 
     protected AbstractBulkByScrollRequestBuilder(ElasticsearchClient client,
-            Action<Request, Response, Self> action, SearchRequestBuilder source, Request request) {
+            Action<Request, BulkIndexByScrollResponse, Self> action, SearchRequestBuilder source, Request request) {
         super(client, action, request);
         this.source = source;
     }
@@ -62,7 +60,7 @@ public abstract class AbstractBulkByScrollRequestBuilder<
      * Set the query that will filter the source. Just a convenience method for
      * easy chaining.
      */
-    public Self filter(QueryBuilder<?> filter) {
+    public Self filter(QueryBuilder filter) {
         source.setQuery(filter);
         return self();
     }
@@ -104,6 +102,41 @@ public abstract class AbstractBulkByScrollRequestBuilder<
      */
     public Self consistency(WriteConsistencyLevel consistency) {
         request.setConsistency(consistency);
+        return self();
+    }
+
+    /**
+     * Initial delay after a rejection before retrying a bulk request. With the default maxRetries the total backoff for retrying rejections
+     * is about one minute per bulk request. Once the entire bulk request is successful the retry counter resets.
+     */
+    public Self setRetryBackoffInitialTime(TimeValue retryBackoffInitialTime) {
+        request.setRetryBackoffInitialTime(retryBackoffInitialTime);
+        return self();
+    }
+
+    /**
+     * Total number of retries attempted for rejections. There is no way to ask for unlimited retries.
+     */
+    public Self setMaxRetries(int maxRetries) {
+        request.setMaxRetries(maxRetries);
+        return self();
+    }
+
+    /**
+     * Set the throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
+     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
+     * make sure that it contains any time that we might wait.
+     */
+    public Self setRequestsPerSecond(float requestsPerSecond) {
+        request.setRequestsPerSecond(requestsPerSecond);
+        return self();
+    }
+
+    /**
+     * Should this task persist its result after it has finished?
+     */
+    public Self setShouldPersistResult(boolean shouldPersistResult) {
+        request.setShouldPersistResult(shouldPersistResult);
         return self();
     }
 }

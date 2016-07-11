@@ -37,7 +37,6 @@ public abstract class TransportAddressSerializers {
 
     static {
         Map<Short, Writeable.Reader<TransportAddress>> registry = new HashMap<>();
-        addAddressType(registry, DummyTransportAddress.INSTANCE.uniqueAddressTypeId(), (in) -> DummyTransportAddress.INSTANCE);
         addAddressType(registry, InetSocketTransportAddress.TYPE_ID, InetSocketTransportAddress::new);
         addAddressType(registry, LocalTransportAddress.TYPE_ID, LocalTransportAddress::new);
         ADDRESS_REGISTRY = unmodifiableMap(registry);

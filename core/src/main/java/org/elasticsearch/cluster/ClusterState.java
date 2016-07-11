@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -90,7 +91,7 @@ import java.util.Set;
  */
 public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
-    public static final ClusterState PROTO = builder(ClusterName.DEFAULT).build();
+    public static final ClusterState PROTO = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
 
     public static enum ClusterStateStatus {
         UNKNOWN((byte) 0),
@@ -114,7 +115,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         String type();
     }
 
-    private final static Map<String, Custom> customPrototypes = new HashMap<>();
+    private static final Map<String, Custom> customPrototypes = new HashMap<>();
 
     /**
      * Register a custom index meta data factory. Make sure to call it from a static block.
@@ -702,7 +703,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         public static byte[] toBytes(ClusterState state) throws IOException {
             BytesStreamOutput os = new BytesStreamOutput();
             state.writeTo(os);
-            return os.bytes().toBytes();
+            return BytesReference.toBytes(os.bytes());
         }
 
         /**
@@ -711,6 +712,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
          */
         public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode) throws IOException {
             return readFrom(StreamInput.wrap(data), localNode);
+
         }
 
         /**
@@ -734,7 +736,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
     }
 
     public ClusterState readFrom(StreamInput in, DiscoveryNode localNode) throws IOException {
-        ClusterName clusterName = ClusterName.readClusterName(in);
+        ClusterName clusterName = new ClusterName(in);
         Builder builder = new Builder(clusterName);
         builder.version = in.readLong();
         builder.uuid = in.readString();
@@ -805,7 +807,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         }
 
         public ClusterStateDiff(StreamInput in, ClusterState proto) throws IOException {
-            clusterName = ClusterName.readClusterName(in);
+            clusterName = new ClusterName(in);
             fromUuid = in.readString();
             toUuid = in.readString();
             toVersion = in.readLong();

@@ -19,7 +19,7 @@
 package org.elasticsearch.rest.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -34,30 +34,15 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestPutStoredScriptAction extends BaseRestHandler {
 
     @Inject
-    public RestPutStoredScriptAction(Settings settings, RestController controller, Client client) {
-        this(settings, controller, true, client);
+    public RestPutStoredScriptAction(Settings settings, RestController controller) {
+        this(settings, controller, true);
     }
 
-    protected RestPutStoredScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers, Client client) {
-        super(settings, client);
+    protected RestPutStoredScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers) {
+        super(settings);
         if (registerDefaultHandlers) {
             controller.registerHandler(POST, "/_scripts/{lang}/{id}", this);
             controller.registerHandler(PUT, "/_scripts/{lang}/{id}", this);
-
-            controller.registerHandler(PUT, "/_scripts/{lang}/{id}/_create", new CreateHandler(settings, controller, client));
-            controller.registerHandler(POST, "/_scripts/{lang}/{id}/_create", new CreateHandler(settings, controller, client));
-        }
-    }
-
-    final class CreateHandler extends BaseRestHandler {
-        protected CreateHandler(Settings settings, RestController controller, Client client) {
-            super(settings, client);
-        }
-
-        @Override
-        public void handleRequest(RestRequest request, RestChannel channel, final Client client) {
-            request.params().put("op_type", "create");
-            RestPutStoredScriptAction.this.handleRequest(request, channel, client);
         }
     }
 
@@ -66,10 +51,9 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, NodeClient client) {
         PutStoredScriptRequest putRequest = new PutStoredScriptRequest(getScriptLang(request), request.param("id"));
         putRequest.script(request.content());
         client.admin().cluster().putStoredScript(putRequest, new AcknowledgedRestListener<>(channel));
     }
-
 }

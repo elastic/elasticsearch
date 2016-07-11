@@ -47,7 +47,7 @@ public class HistogramParser extends NumericValuesSourceParser {
     @Override
     protected AbstractHistogramBuilder<?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        HistogramAggregatorBuilder factory = new HistogramAggregatorBuilder(aggregationName);
+        HistogramAggregationBuilder factory = new HistogramAggregationBuilder(aggregationName);
         Long interval = (Long) otherOptions.get(Rounding.Interval.INTERVAL_FIELD);
         if (interval == null) {
             throw new ParsingException(null, "Missing required field [interval] for histogram aggregation [" + aggregationName + "]");

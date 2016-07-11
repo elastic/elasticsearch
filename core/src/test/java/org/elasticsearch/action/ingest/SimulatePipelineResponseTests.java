@@ -21,7 +21,7 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 
@@ -30,7 +30,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import static org.elasticsearch.ingest.core.IngestDocumentTests.assertIngestDocument;
+import static org.elasticsearch.ingest.IngestDocumentTests.assertIngestDocument;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -73,7 +73,7 @@ public class SimulatePipelineResponseTests extends ESTestCase {
         SimulatePipelineResponse response = new SimulatePipelineResponse(randomAsciiOfLengthBetween(1, 10), isVerbose, results);
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
-        StreamInput streamInput = StreamInput.wrap(out.bytes());
+        StreamInput streamInput = out.bytes().streamInput();
         SimulatePipelineResponse otherResponse = new SimulatePipelineResponse();
         otherResponse.readFrom(streamInput);
 

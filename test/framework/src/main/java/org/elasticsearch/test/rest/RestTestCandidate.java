@@ -20,6 +20,7 @@ package org.elasticsearch.test.rest;
 
 import org.elasticsearch.test.rest.section.RestTestSuite;
 import org.elasticsearch.test.rest.section.SetupSection;
+import org.elasticsearch.test.rest.section.TeardownSection;
 import org.elasticsearch.test.rest.section.TestSection;
 
 /**
@@ -54,6 +55,10 @@ public class RestTestCandidate {
 
     public SetupSection getSetupSection() {
         return restTestSuite.getSetupSection();
+    }
+
+    public TeardownSection getTeardownSection() {
+        return restTestSuite.getTeardownSection();
     }
 
     public TestSection getTestSection() {

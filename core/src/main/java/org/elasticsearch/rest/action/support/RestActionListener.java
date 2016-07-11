@@ -45,19 +45,20 @@ public abstract class RestActionListener<Response> implements ActionListener<Res
     public final void onResponse(Response response) {
         try {
             processResponse(response);
-        } catch (Throwable t) {
-            onFailure(t);
+        } catch (Exception e) {
+            onFailure(e);
         }
     }
 
     protected abstract void processResponse(Response response) throws Exception;
 
     @Override
-    public final void onFailure(Throwable e) {
+    public final void onFailure(Exception e) {
         try {
             channel.sendResponse(new BytesRestResponse(channel, e));
-        } catch (Throwable e1) {
-            logger.error("failed to send failure response", e1);
+        } catch (Exception inner) {
+            inner.addSuppressed(e);
+            logger.error("failed to send failure response", inner);
         }
     }
 }

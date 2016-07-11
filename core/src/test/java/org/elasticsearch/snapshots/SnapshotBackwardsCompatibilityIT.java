@@ -86,7 +86,7 @@ public class SnapshotBackwardsCompatibilityIT extends ESBackcompatTestCase {
             counts[i] = client().prepareSearch(indices[i]).setSize(0).get().getHits().totalHits();
         }
 
-        logger.info("--> snapshot subset of indices before upgrage");
+        logger.info("--> snapshot subset of indices before upgrade");
         CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1").setWaitForCompletion(true).setIndices("index_before_*").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));

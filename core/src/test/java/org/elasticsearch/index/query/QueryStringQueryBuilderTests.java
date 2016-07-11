@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
@@ -27,7 +26,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -38,9 +36,9 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
 
@@ -149,7 +147,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryStringQueryBuilder.locale(randomLocale(random()));
         }
         if (randomBoolean()) {
-            queryStringQueryBuilder.timeZone(randomTimeZone());
+            queryStringQueryBuilder.timeZone(randomDateTimeZone().getID());
         }
         return queryStringQueryBuilder;
     }
@@ -393,16 +391,40 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
     }
 
-    public void testToQueryNumericRangeQuery() throws Exception {
+    public void testFuzzyNumeric() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        Query query = queryStringQuery("12~0.2").defaultField(INT_FIELD_NAME).toQuery(createShardContext());
-        if (getIndexVersionCreated().onOrAfter(Version.V_5_0_0_alpha2)) {
-            assertEquals(IntPoint.newExactQuery(INT_FIELD_NAME, 12), query);
-        } else {
-            LegacyNumericRangeQuery fuzzyQuery = (LegacyNumericRangeQuery) query;
-            assertThat(fuzzyQuery.getMin().longValue(), equalTo(12L));
-            assertThat(fuzzyQuery.getMax().longValue(), equalTo(12L));
-        }
+        QueryStringQueryBuilder query = queryStringQuery("12~0.2").defaultField(INT_FIELD_NAME);
+        QueryShardContext context = createShardContext();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> query.toQuery(context));
+        assertEquals("Can only use fuzzy queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
+                e.getMessage());
+        query.lenient(true);
+        query.toQuery(context); // no exception
+    }
+
+    public void testPrefixNumeric() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryStringQueryBuilder query = queryStringQuery("12*").defaultField(INT_FIELD_NAME);
+        QueryShardContext context = createShardContext();
+        QueryShardException e = expectThrows(QueryShardException.class,
+                () -> query.toQuery(context));
+        assertEquals("Can only use prefix queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
+                e.getMessage());
+        query.lenient(true);
+        query.toQuery(context); // no exception
+    }
+
+    public void testExactGeo() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryStringQueryBuilder query = queryStringQuery("2,3").defaultField(GEO_POINT_FIELD_NAME);
+        QueryShardContext context = createShardContext();
+        QueryShardException e = expectThrows(QueryShardException.class,
+                () -> query.toQuery(context));
+        assertEquals("Geo fields do not support exact searching, use dedicated geo queries instead: [mapped_geo_point]",
+                e.getMessage());
+        query.lenient(true);
+        query.toQuery(context); // no exception
     }
 
     public void testTimezone() throws Exception {
@@ -413,7 +435,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "        \"query\":\"" + DATE_FIELD_NAME + ":[2012 TO 2014]\"\n" +
                 "    }\n" +
                 "}";
-        QueryBuilder<?> queryBuilder = parseQuery(queryAsString);
+        QueryBuilder queryBuilder = parseQuery(queryAsString);
         assertThat(queryBuilder, instanceOf(QueryStringQueryBuilder.class));
         QueryStringQueryBuilder queryStringQueryBuilder = (QueryStringQueryBuilder) queryBuilder;
         assertThat(queryStringQueryBuilder.timeZone(), equalTo(DateTimeZone.forID("Europe/Paris")));
@@ -518,4 +540,5 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertEquals(json, "this AND that OR thus", parsed.queryString());
         assertEquals(json, "content", parsed.defaultField());
     }
+
 }

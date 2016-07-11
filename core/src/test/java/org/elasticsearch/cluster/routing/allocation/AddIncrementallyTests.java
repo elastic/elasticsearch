@@ -120,6 +120,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(INITIALIZING).size(), Matchers.equalTo(0));
 
         RoutingTable prev = routingTable;
+        logger.error(clusterState.prettyPrint());
         routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.getRoutingNodes();
@@ -305,7 +306,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         for (int i = 0; i < numberOfNodes; i++) {
             nodes.put(newNode("node" + i));
         }
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).nodes(nodes).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).metaData(metaData).routingTable(routingTable).build();
         routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         RoutingNodes routingNodes = clusterState.getRoutingNodes();

@@ -22,8 +22,9 @@ package org.elasticsearch.rest.action.search;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -32,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.TemplateQueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
@@ -40,7 +40,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -69,9 +68,9 @@ public class RestSearchAction extends BaseRestHandler {
     private final Suggesters suggesters;
 
     @Inject
-    public RestSearchAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry queryRegistry,
+    public RestSearchAction(Settings settings, RestController controller, IndicesQueriesRegistry queryRegistry,
             AggregatorParsers aggParsers, Suggesters suggesters) {
-        super(settings, client);
+        super(settings);
         this.queryRegistry = queryRegistry;
         this.aggParsers = aggParsers;
         this.suggesters = suggesters;
@@ -81,18 +80,13 @@ public class RestSearchAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/_search", this);
         controller.registerHandler(GET, "/{index}/{type}/_search", this);
         controller.registerHandler(POST, "/{index}/{type}/_search", this);
-        controller.registerHandler(GET, "/_search/template", this);
-        controller.registerHandler(POST, "/_search/template", this);
-        controller.registerHandler(GET, "/{index}/_search/template", this);
-        controller.registerHandler(POST, "/{index}/_search/template", this);
-        controller.registerHandler(GET, "/{index}/{type}/_search/template", this);
-        controller.registerHandler(POST, "/{index}/{type}/_search/template", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws IOException {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
-        parseSearchRequest(searchRequest, queryRegistry, request, parseFieldMatcher, aggParsers, suggesters, null);
+        BytesReference restContent = RestActions.hasBodyContent(request) ? RestActions.getRestContent(request) : null;
+        parseSearchRequest(searchRequest, queryRegistry, request, parseFieldMatcher, aggParsers, suggesters, restContent);
         client.search(searchRequest, new RestStatusToXContentListener<>(channel));
     }
 
@@ -113,23 +107,10 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.source(new SearchSourceBuilder());
         }
         searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
-        // get the content, and put it in the body
-        // add content/source as template if template flag is set
-        boolean isTemplateRequest = request.path().endsWith("/template");
-        if (restContent == null) {
-            if (RestActions.hasBodyContent(request)) {
-                restContent = RestActions.getRestContent(request);
-            }
-        }
         if (restContent != null) {
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, parseFieldMatcher);
-                if (isTemplateRequest) {
-                    Template template = TemplateQueryBuilder.parse(parser, context.getParseFieldMatcher(), "params", "template");
-                    searchRequest.template(template);
-                } else {
-                    searchRequest.source().parseXContent(context, aggParsers, suggesters);
-                }
+                searchRequest.source().parseXContent(context, aggParsers, suggesters);
             }
         }
 
@@ -162,7 +143,7 @@ public class RestSearchAction extends BaseRestHandler {
      * values that are not overridden by the rest request.
      */
     private static void parseSearchSource(final SearchSourceBuilder searchSourceBuilder, RestRequest request) {
-        QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
+        QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
         if (queryBuilder != null) {
             searchSourceBuilder.query(queryBuilder);
         }
@@ -195,27 +176,35 @@ public class RestSearchAction extends BaseRestHandler {
             }
         }
 
-        String sField = request.param("fields");
+        if (request.param("fields") != null) {
+            throw new IllegalArgumentException("The parameter [" +
+                SearchSourceBuilder.FIELDS_FIELD + "] is no longer supported, please use [" +
+                SearchSourceBuilder.STORED_FIELDS_FIELD + "] to retrieve stored fields or _source filtering " +
+                "if the field is not stored");
+        }
+
+        String sField = request.param("stored_fields");
         if (sField != null) {
             if (!Strings.hasText(sField)) {
-                searchSourceBuilder.noFields();
+                searchSourceBuilder.noStoredFields();
             } else {
                 String[] sFields = Strings.splitStringByCommaToArray(sField);
                 if (sFields != null) {
                     for (String field : sFields) {
-                        searchSourceBuilder.field(field);
+                        searchSourceBuilder.storedField(field);
                     }
                 }
             }
         }
-        String sFieldDataFields = request.param("fielddata_fields");
-        if (sFieldDataFields != null) {
-            if (Strings.hasText(sFieldDataFields)) {
-                String[] sFields = Strings.splitStringByCommaToArray(sFieldDataFields);
-                if (sFields != null) {
-                    for (String field : sFields) {
-                        searchSourceBuilder.fieldDataField(field);
-                    }
+        String sDocValueFields = request.param("docvalue_fields");
+        if (sDocValueFields == null) {
+            sDocValueFields = request.param("fielddata_fields");
+        }
+        if (sDocValueFields != null) {
+            if (Strings.hasText(sDocValueFields)) {
+                String[] sFields = Strings.splitStringByCommaToArray(sDocValueFields);
+                for (String field : sFields) {
+                    searchSourceBuilder.docValueField(field);
                 }
             }
         }

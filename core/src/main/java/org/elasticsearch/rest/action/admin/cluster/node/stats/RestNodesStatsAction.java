@@ -20,10 +20,9 @@
 package org.elasticsearch.rest.action.admin.cluster.node.stats;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -31,7 +30,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.support.RestToXContentListener;
+import org.elasticsearch.rest.action.support.RestActions.NodesResponseRestListener;
 
 import java.util.Set;
 
@@ -44,8 +43,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestNodesStatsAction extends BaseRestHandler {
 
     @Inject
-    public RestNodesStatsAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestNodesStatsAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/_nodes/stats", this);
         controller.registerHandler(GET, "/_nodes/{nodeId}/stats", this);
 
@@ -58,7 +57,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         Set<String> metrics = Strings.splitStringByCommaToSet(request.param("metric", "_all"));
 
@@ -114,6 +113,11 @@ public class RestNodesStatsAction extends BaseRestHandler {
             nodesStatsRequest.indices().includeSegmentFileSizes(true);
         }
 
-        client.admin().cluster().nodesStats(nodesStatsRequest, new RestToXContentListener<>(channel));
+        client.admin().cluster().nodesStats(nodesStatsRequest, new NodesResponseRestListener<>(channel));
+    }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
     }
 }

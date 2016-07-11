@@ -89,7 +89,7 @@ class SearchDfsQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<DfsSea
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
                 try {
                     onSecondPhaseFailure(t, querySearchRequest, shardIndex, dfsResult, counter);
                 } finally {
@@ -102,12 +102,12 @@ class SearchDfsQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<DfsSea
         });
     }
 
-    void onSecondPhaseFailure(Throwable t, QuerySearchRequest querySearchRequest, int shardIndex, DfsSearchResult dfsResult,
+    void onSecondPhaseFailure(Exception e, QuerySearchRequest querySearchRequest, int shardIndex, DfsSearchResult dfsResult,
                               AtomicInteger counter) {
         if (logger.isDebugEnabled()) {
-            logger.debug("[{}] Failed to execute query phase", t, querySearchRequest.id());
+            logger.debug("[{}] Failed to execute query phase", e, querySearchRequest.id());
         }
-        this.addShardFailure(shardIndex, dfsResult.shardTarget(), t);
+        this.addShardFailure(shardIndex, dfsResult.shardTarget(), e);
         successfulOps.decrementAndGet();
         if (counter.decrementAndGet() == 0) {
             finishHim();
@@ -123,19 +123,19 @@ class SearchDfsQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<DfsSea
                     queryFetchResults);
                 String scrollId = null;
                 if (request.scroll() != null) {
-                    scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults, null);
+                    scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults);
                 }
                 listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(),
                     buildTookInMillis(), buildShardFailures()));
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                ReduceSearchPhaseException failure = new ReduceSearchPhaseException("query_fetch", "", t, buildShardFailures());
+            public void onFailure(Exception e) {
+                ReduceSearchPhaseException failure = new ReduceSearchPhaseException("query_fetch", "", e, buildShardFailures());
                 if (logger.isDebugEnabled()) {
                     logger.debug("failed to reduce search", failure);
                 }
-                super.onFailure(t);
+                super.onFailure(e);
             }
         });
 

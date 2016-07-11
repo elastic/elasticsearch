@@ -83,13 +83,16 @@ public class EsExecutors {
     }
 
     public static String threadName(Settings settings, String namePrefix) {
-        String name = settings.get("node.name");
-        if (name == null) {
-            name = "elasticsearch";
+        String nodeName = settings.get("node.name");
+        if (nodeName == null) {
+            return threadName("", namePrefix);
         } else {
-            name = "elasticsearch[" + name + "]";
+            return threadName(nodeName, namePrefix);
         }
-        return name + "[" + namePrefix + "]";
+    }
+
+    public static String threadName(final String nodeName, final String namePrefix) {
+        return "elasticsearch" + (nodeName.isEmpty() ? "" : "[") + nodeName + (nodeName.isEmpty() ? "" : "]") + "[" + namePrefix + "]";
     }
 
     public static ThreadFactory daemonThreadFactory(Settings settings, String namePrefix) {

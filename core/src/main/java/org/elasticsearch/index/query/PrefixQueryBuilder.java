@@ -36,11 +36,12 @@ import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A Query that matches documents containing terms with a specified prefix.
  */
-public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder> implements MultiTermQueryBuilder<PrefixQueryBuilder> {
+public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder> implements MultiTermQueryBuilder {
 
     public static final String NAME = "prefix";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
@@ -118,7 +119,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         builder.endObject();
     }
 
-    public static PrefixQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<PrefixQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = parser.currentName();
@@ -163,10 +164,10 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         if (value == null) {
             throw new ParsingException(parser.getTokenLocation(), "No value specified for prefix query");
         }
-        return new PrefixQueryBuilder(fieldName, value)
+        return Optional.of(new PrefixQueryBuilder(fieldName, value)
                 .rewrite(rewrite)
                 .boost(boost)
-                .queryName(queryName);
+                .queryName(queryName));
     }
 
     @Override

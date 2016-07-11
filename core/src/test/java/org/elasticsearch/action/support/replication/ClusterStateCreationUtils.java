@@ -34,7 +34,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Arrays;
@@ -107,6 +107,7 @@ public class ClusterStateCreationUtils {
                 Set<String> unassignedNodesExecludingPrimary = new HashSet<>(unassignedNodes);
                 unassignedNodesExecludingPrimary.remove(newNode(0).getId());
                 primaryNode = selectAndRemove(unassignedNodesExecludingPrimary);
+                unassignedNodes.remove(primaryNode);
             }
             if (primaryState == ShardRoutingState.RELOCATING) {
                 relocatingNode = selectAndRemove(unassignedNodes);
@@ -219,7 +220,6 @@ public class ClusterStateCreationUtils {
      * Creates a cluster state with no index
      */
     public static ClusterState stateWithNoShard() {
-        int numberOfNodes = 2;
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         discoBuilder.localNodeId(newNode(0).getId());
         discoBuilder.masterNodeId(newNode(1).getId());
@@ -255,11 +255,11 @@ public class ClusterStateCreationUtils {
     }
 
     private static DiscoveryNode newNode(int nodeId) {
-        return new DiscoveryNode("node_" + nodeId, DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+        return new DiscoveryNode("node_" + nodeId, LocalTransportAddress.buildUnique(), Collections.emptyMap(),
                 new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.CURRENT);
     }
 
-    static private String selectAndRemove(Set<String> strings) {
+    private static String selectAndRemove(Set<String> strings) {
         String selection = randomFrom(strings.toArray(new String[strings.size()]));
         strings.remove(selection);
         return selection;

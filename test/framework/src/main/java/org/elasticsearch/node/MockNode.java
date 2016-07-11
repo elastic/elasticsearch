@@ -19,8 +19,10 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.Plugin;
 
@@ -35,21 +37,25 @@ import java.util.Collection;
  */
 public class MockNode extends Node {
 
-    // these are kept here so a copy of this MockNode can be created, since Node does not store them
-    private Version version;
+    private final boolean mockBigArrays;
     private Collection<Class<? extends Plugin>> plugins;
 
-    public MockNode(Settings settings, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
-        super(InternalSettingsPreparer.prepareEnvironment(settings, null), version, classpathPlugins);
-        this.version = version;
+    public MockNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins) {
+        super(InternalSettingsPreparer.prepareEnvironment(settings, null), classpathPlugins);
         this.plugins = classpathPlugins;
+        this.mockBigArrays = classpathPlugins.contains(NodeMocksPlugin.class); // if this plugin is present we mock bigarrays :)
     }
 
     public Collection<Class<? extends Plugin>> getPlugins() {
         return plugins;
     }
 
-    public Version getVersion() {
-        return version;
+    @Override
+    protected BigArrays createBigArrays(Settings settings, CircuitBreakerService circuitBreakerService) {
+        if (mockBigArrays) {
+            return new MockBigArrays(settings, circuitBreakerService);
+        } else {
+            return super.createBigArrays(settings, circuitBreakerService);
+        }
     }
 }

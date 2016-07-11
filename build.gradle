@@ -27,6 +27,31 @@ import org.apache.tools.ant.taskdefs.condition.Os
 subprojects {
   group = 'org.elasticsearch'
   version = org.elasticsearch.gradle.VersionProperties.elasticsearch
+  description = "Elasticsearch subproject ${project.path}"
+
+  // we only use maven publish to add tasks for pom generation
+  plugins.withType(MavenPublishPlugin).whenPluginAdded {
+    publishing {
+      publications {
+        // add license information to generated poms
+        all {
+          pom.withXml { XmlProvider xml ->
+            Node node = xml.asNode()
+            node.appendNode('inceptionYear', '2009')
+
+            Node license = node.appendNode('licenses').appendNode('license')
+            license.appendNode('name', 'The Apache Software License, Version 2.0')
+            license.appendNode('url', 'http://www.apache.org/licenses/LICENSE-2.0.txt')
+            license.appendNode('distribution', 'repo')
+
+            Node developer = node.appendNode('developers').appendNode('developer')
+            developer.appendNode('name', 'Elastic')
+            developer.appendNode('url', 'http://www.elastic.co')
+          }
+        }
+      }
+    }
+  }
 
   plugins.withType(NexusPlugin).whenPluginAdded {
     modifyPom {
@@ -56,7 +81,7 @@ subprojects {
     nexus {
       String buildSnapshot = System.getProperty('build.snapshot', 'true')
       if (buildSnapshot == 'false') {
-        Repository repo = new RepositoryBuilder().findGitDir(new File('.')).build()
+        Repository repo = new RepositoryBuilder().findGitDir(project.rootDir).build()
         String shortHash = repo.resolve('HEAD')?.name?.substring(0,7)
         repositoryUrl = project.hasProperty('build.repository') ? project.property('build.repository') : "file://${System.getenv('HOME')}/elasticsearch-releases/${version}-${shortHash}/"
       }
@@ -119,6 +144,14 @@ subprojects {
       // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
       javadoc.options.encoding='UTF8'
       javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
+      /*
+      TODO: building javadocs with java 9 b118 is currently broken with weird errors, so
+      for now this is commented out...try again with the next ea build...
+      javadoc.executable = new File(project.javaHome, 'bin/javadoc')
+      if (project.javaVersion == JavaVersion.VERSION_1_9) {
+        // TODO: remove this hack! gradle should be passing this...
+        javadoc.options.addStringOption('source', '8')
+      }*/
     }
   }
 
@@ -127,8 +160,12 @@ subprojects {
     them as external dependencies so the build plugin that we use can be used
     to build elasticsearch plugins outside of the elasticsearch source tree. */
   ext.projectSubstitutions = [
+    "org.elasticsearch.gradle:build-tools:${version}": ':build-tools',
     "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
     "org.elasticsearch:elasticsearch:${version}": ':core',
+    "org.elasticsearch.client:rest:${version}": ':client:rest',
+    "org.elasticsearch.client:sniffer:${version}": ':client:sniffer',
+    "org.elasticsearch.client:test:${version}": ':client:test',
     "org.elasticsearch.test:framework:${version}": ':test:framework',
     "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:integ-test-zip',
     "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:zip',
@@ -224,7 +261,6 @@ allprojects {
 
 idea {
   project {
-    languageLevel = org.elasticsearch.gradle.BuildPlugin.minimumJava.toString()
     vcs = 'Git'
   }
 }
@@ -236,13 +272,6 @@ tasks.idea.doLast {
 if (System.getProperty('idea.active') != null && ideaMarker.exists() == false) {
   throw new GradleException('You must run gradle idea from the root of elasticsearch before importing into IntelliJ')
 }
-// add buildSrc itself as a groovy project
-task buildSrcIdea(type: GradleBuild) {
-  buildFile = 'buildSrc/build.gradle'
-  tasks = ['cleanIdea', 'ideaModule']
-}
-tasks.idea.dependsOn(buildSrcIdea)
-
 
 // eclipse configuration
 allprojects {
@@ -278,19 +307,13 @@ allprojects {
     into '.settings'
   }
   // otherwise .settings is not nuked entirely
-  tasks.cleanEclipse {
+  task wipeEclipseSettings(type: Delete) {
     delete '.settings'
   }
+  tasks.cleanEclipse.dependsOn(wipeEclipseSettings)
   // otherwise the eclipse merging is *super confusing*
   tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
 }
-
-// add buildSrc itself as a groovy project
-task buildSrcEclipse(type: GradleBuild) {
-  buildFile = 'buildSrc/build.gradle'
-  tasks = ['cleanEclipse', 'eclipse']
-}
-tasks.eclipse.dependsOn(buildSrcEclipse)
 
 // we need to add the same --debug-jvm option as
 // the real RunTask has, so we can pass it through

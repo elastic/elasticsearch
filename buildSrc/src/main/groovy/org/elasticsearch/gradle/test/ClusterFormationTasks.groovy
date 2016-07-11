@@ -291,9 +291,10 @@ class ClusterFormationTasks {
         File configDir = new File(node.homeDir, 'config')
         copyConfig.into(configDir) // copy must always have a general dest dir, even though we don't use it
         for (Map.Entry<String,Object> extraConfigFile : node.config.extraConfigFiles.entrySet()) {
+            Object extraConfigFileValue = extraConfigFile.getValue()
             copyConfig.doFirst {
                 // make sure the copy won't be a no-op or act on a directory
-                File srcConfigFile = project.file(extraConfigFile.getValue())
+                File srcConfigFile = project.file(extraConfigFileValue)
                 if (srcConfigFile.isDirectory()) {
                     throw new GradleException("Source for extraConfigFile must be a file: ${srcConfigFile}")
                 }
@@ -303,7 +304,7 @@ class ClusterFormationTasks {
             }
             File destConfigFile = new File(node.homeDir, 'config/' + extraConfigFile.getKey())
             // wrap source file in closure to delay resolution to execution time
-            copyConfig.from({ extraConfigFile.getValue() }) {
+            copyConfig.from({ extraConfigFileValue }) {
                 // this must be in a closure so it is only applied to the single file specified in from above
                 into(configDir.toPath().relativize(destConfigFile.canonicalFile.parentFile.toPath()).toFile())
                 rename { destConfigFile.name }
@@ -418,8 +419,7 @@ class ClusterFormationTasks {
                 // argument are wrapped in an ExecArgWrapper that escapes commas
                 args execArgs.collect { a -> new EscapeCommaWrapper(arg: a) }
             } else {
-                executable 'sh'
-                args execArgs
+                commandLine execArgs
             }
         }
     }

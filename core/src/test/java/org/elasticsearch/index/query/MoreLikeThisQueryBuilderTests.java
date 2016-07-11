@@ -33,7 +33,6 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -120,6 +120,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             for (String field : randomFields) {
                 doc.field(field, randomAsciiOfLength(10));
             }
+            doc.endObject();
         } catch (IOException e) {
             throw new ElasticsearchException("Unable to generate random artificial doc!");
         }
@@ -206,7 +207,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
                 response.setExists(true);
                 Fields generatedFields;
                 if (request.doc() != null) {
-                    generatedFields = generateFields(randomFields, request.doc().toUtf8());
+                    generatedFields = generateFields(randomFields, request.doc().utf8ToString());
                 } else {
                     generatedFields = generateFields(request.selectedFields().toArray(new String[request.selectedFields().size()]), request.id());
                 }
@@ -290,7 +291,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         Item expectedItem = generateRandomItem();
         BytesStreamOutput output = new BytesStreamOutput();
         expectedItem.writeTo(output);
-        Item newItem = new Item(StreamInput.wrap(output.bytes()));
+        Item newItem = new Item(output.bytes().streamInput());
         assertEquals(expectedItem, newItem);
     }
 
@@ -304,30 +305,30 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
+                "{\n" +
                 "  \"more_like_this\" : {\n" +
-                "    \"fields\" : [ \"title\", \"description\" ],\n" + 
-                "    \"like\" : [ \"and potentially some more text here as well\", {\n" + 
-                "      \"_index\" : \"imdb\",\n" + 
-                "      \"_type\" : \"movies\",\n" + 
-                "      \"_id\" : \"1\"\n" + 
-                "    }, {\n" + 
-                "      \"_index\" : \"imdb\",\n" + 
-                "      \"_type\" : \"movies\",\n" + 
-                "      \"_id\" : \"2\"\n" + 
-                "    } ],\n" + 
-                "    \"max_query_terms\" : 12,\n" + 
-                "    \"min_term_freq\" : 1,\n" + 
-                "    \"min_doc_freq\" : 5,\n" + 
-                "    \"max_doc_freq\" : 2147483647,\n" + 
-                "    \"min_word_length\" : 0,\n" + 
-                "    \"max_word_length\" : 0,\n" + 
-                "    \"minimum_should_match\" : \"30%\",\n" + 
-                "    \"boost_terms\" : 0.0,\n" + 
-                "    \"include\" : false,\n" + 
-                "    \"fail_on_unsupported_field\" : true,\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "    \"fields\" : [ \"title\", \"description\" ],\n" +
+                "    \"like\" : [ \"and potentially some more text here as well\", {\n" +
+                "      \"_index\" : \"imdb\",\n" +
+                "      \"_type\" : \"movies\",\n" +
+                "      \"_id\" : \"1\"\n" +
+                "    }, {\n" +
+                "      \"_index\" : \"imdb\",\n" +
+                "      \"_type\" : \"movies\",\n" +
+                "      \"_id\" : \"2\"\n" +
+                "    } ],\n" +
+                "    \"max_query_terms\" : 12,\n" +
+                "    \"min_term_freq\" : 1,\n" +
+                "    \"min_doc_freq\" : 5,\n" +
+                "    \"max_doc_freq\" : 2147483647,\n" +
+                "    \"min_word_length\" : 0,\n" +
+                "    \"max_word_length\" : 0,\n" +
+                "    \"minimum_should_match\" : \"30%\",\n" +
+                "    \"boost_terms\" : 0.0,\n" +
+                "    \"include\" : false,\n" +
+                "    \"fail_on_unsupported_field\" : true,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
 
         MoreLikeThisQueryBuilder parsed = (MoreLikeThisQueryBuilder) parseQuery(json);

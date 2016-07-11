@@ -21,14 +21,15 @@ allocation before shutting down a node:
 
 [source,js]
 --------------------------------------------------
-PUT /_cluster/settings
+PUT _cluster/settings
 {
   "transient": {
     "cluster.routing.allocation.enable": "none"
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[skip:indexes don't assign]
 
 ==== Step 2: Stop non-essential indexing and perform a synced flush (Optional)
 
@@ -38,9 +39,9 @@ will be much faster if you temporarily stop non-essential indexing and issue a
 
 [source,js]
 --------------------------------------------------
-POST /_flush/synced
+POST _flush/synced
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 A synced flush request is a ``best effort'' operation. It will fail if there
 are any pending indexing operations, but it is safe to reissue the request
@@ -102,7 +103,7 @@ the log file or by checking the output of this request:
 --------------------------------------------------
 GET _cat/nodes
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 ==== Step 6: Reenable shard allocation
 
@@ -111,14 +112,14 @@ the node:
 
 [source,js]
 --------------------------------------------------
-PUT /_cluster/settings
+PUT _cluster/settings
 {
   "transient": {
     "cluster.routing.allocation.enable": "all"
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 ==== Step 7: Wait for the node to recover
 
@@ -130,7 +131,7 @@ request:
 --------------------------------------------------
 GET _cat/health
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Wait for the `status` column to move from `yellow` to `green`.  Status `green`
 means that all primary and replica shards have been allocated.
@@ -163,7 +164,7 @@ recover.  The recovery status of individual shards can be monitored with the
 --------------------------------------------------
 GET _cat/recovery
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 If you stopped indexing, then it is safe to resume indexing as soon as
 recovery has completed.
@@ -172,4 +173,3 @@ recovery has completed.
 
 When the cluster is stable and the node has recovered, repeat the above steps
 for all remaining nodes.
-

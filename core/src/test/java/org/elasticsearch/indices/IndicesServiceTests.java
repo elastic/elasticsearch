@@ -21,8 +21,10 @@ package org.elasticsearch.indices;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -47,6 +49,7 @@ import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
@@ -129,7 +132,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
 
         test = createIndex("test");
-        client().prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).get();
+        client().prepareIndex("test", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         client().admin().indices().prepareFlush("test").get();
         assertHitCount(client().prepareSearch("test").get(), 1);
         IndexMetaData secondMetaData = clusterService.state().metaData().index("test");
@@ -188,10 +191,12 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertTrue(path.exists());
 
         assertEquals(indicesService.numPendingDeletes(test.index()), numPending);
+        assertTrue(indicesService.hasUncompletedPendingDeletes());
 
         // shard lock released... we can now delete
         indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
         assertEquals(indicesService.numPendingDeletes(test.index()), 0);
+        assertFalse(indicesService.hasUncompletedPendingDeletes());
         assertFalse(path.exists());
 
         if (randomBoolean()) {
@@ -199,9 +204,11 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             indicesService.addPendingDelete(new ShardId(test.index(), 1), test.getIndexSettings());
             indicesService.addPendingDelete(new ShardId("bogus", "_na_", 1), test.getIndexSettings());
             assertEquals(indicesService.numPendingDeletes(test.index()), 2);
+            assertTrue(indicesService.hasUncompletedPendingDeletes());
             // shard lock released... we can now delete
             indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
             assertEquals(indicesService.numPendingDeletes(test.index()), 0);
+            assertTrue(indicesService.hasUncompletedPendingDeletes()); // "bogus" index has not been removed
         }
         assertAcked(client().admin().indices().prepareOpen("test"));
 
@@ -278,9 +285,36 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         listener.latch.await();
         assertThat(clusterService.state(), not(originalState));
         assertNotNull(clusterService.state().getMetaData().index(alias));
+    }
 
-        // cleanup
-        indicesService.deleteIndex(test.index(), "finished with test");
+    /**
+     * This test checks an edge case where, if a node had an index (lets call it A with UUID 1), then
+     * deleted it (so a tombstone entry for A will exist in the cluster state), then created
+     * a new index A with UUID 2, then shutdown, when the node comes back online, it will look at the
+     * tombstones for deletions, and it should proceed with trying to delete A with UUID 1 and not
+     * throw any errors that the index still exists in the cluster state.  This is a case of ensuring
+     * that tombstones that have the same name as current valid indices don't cause confusion by
+     * trying to delete an index that exists.
+     * See https://github.com/elastic/elasticsearch/issues/18054
+     */
+    public void testIndexAndTombstoneWithSameNameOnStartup() throws Exception {
+        final String indexName = "test";
+        final Index index = new Index(indexName, UUIDs.randomBase64UUID());
+        final IndicesService indicesService = getIndicesService();
+        final Settings idxSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                                         .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID())
+                                         .build();
+        final IndexMetaData indexMetaData = new IndexMetaData.Builder(index.getName())
+                                                .settings(idxSettings)
+                                                .numberOfShards(1)
+                                                .numberOfReplicas(0)
+                                                .build();
+        final Index tombstonedIndex = new Index(indexName, UUIDs.randomBase64UUID());
+        final IndexGraveyard graveyard = IndexGraveyard.builder().addTombstone(tombstonedIndex).build();
+        final MetaData metaData = MetaData.builder().put(indexMetaData, true).indexGraveyard(graveyard).build();
+        final ClusterState clusterState = new ClusterState.Builder(new ClusterName("testCluster")).metaData(metaData).build();
+        // if all goes well, this won't throw an exception, otherwise, it will throw an IllegalStateException
+        indicesService.verifyIndexIsDeleted(tombstonedIndex, clusterState);
     }
 
     private static class DanglingListener implements LocalAllocateDangledIndices.Listener {

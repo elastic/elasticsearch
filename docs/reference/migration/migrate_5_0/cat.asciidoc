@@ -38,3 +38,10 @@ and `i` for ingest. A node with no explicit roles will be a coordinating
 only node and marked with `-`. A node can have multiple roles. The
 master column has been adapted to return only whether a node is the
 current master (`*`) or not (`-`).
+
+==== Changes to cat field data API
+
+The cat field data endpoint adds a row per field instead of a column per field.
+
+The `total` field has been removed from the field data API. Total field data usage per node
+can be got by cat nodes API.

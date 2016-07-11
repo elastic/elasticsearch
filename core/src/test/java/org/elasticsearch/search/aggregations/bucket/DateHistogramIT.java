@@ -24,6 +24,7 @@ import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
@@ -46,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -64,7 +66,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -106,8 +107,7 @@ public class DateHistogramIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(prepareCreate("idx").addMapping("type", "_timestamp", "enabled=true"));
-        createIndex("idx_unmapped");
+        createIndex("idx", "idx_unmapped");
         // TODO: would be nice to have more random data here
         assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer"));
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -236,6 +236,46 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket.getKeyAsString(), equalTo(getBucketKeyAsString(key, tz)));
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
         assertThat(bucket.getDocCount(), equalTo(1L));
+    }
+
+    public void testSingleValued_timeZone_epoch() throws Exception {
+        String format = randomBoolean() ? "epoch_millis" : "epoch_second";
+        int millisDivider = format.equals("epoch_millis") ? 1 : 1000;
+        if (randomBoolean()) {
+            format = format + "||date_optional_time";
+        }
+        DateTimeZone tz = DateTimeZone.forID("+01:00");
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(dateHistogram("histo").field("date")
+                        .dateHistogramInterval(DateHistogramInterval.DAY).minDocCount(1)
+                        .timeZone(tz).format(format))
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(6));
+
+        List<DateTime> expectedKeys = new ArrayList<>();
+        expectedKeys.add(new DateTime(2012, 1, 1, 23, 0, DateTimeZone.UTC));
+        expectedKeys.add(new DateTime(2012, 2, 1, 23, 0, DateTimeZone.UTC));
+        expectedKeys.add(new DateTime(2012, 2, 14, 23, 0, DateTimeZone.UTC));
+        expectedKeys.add(new DateTime(2012, 3, 1, 23, 0, DateTimeZone.UTC));
+        expectedKeys.add(new DateTime(2012, 3, 14, 23, 0, DateTimeZone.UTC));
+        expectedKeys.add(new DateTime(2012, 3, 22, 23, 0, DateTimeZone.UTC));
+
+
+        Iterator<DateTime> keyIterator = expectedKeys.iterator();
+        for (Histogram.Bucket bucket : buckets) {
+            assertThat(bucket, notNullValue());
+            DateTime expectedKey = keyIterator.next();
+            assertThat(bucket.getKeyAsString(), equalTo(Long.toString(expectedKey.getMillis() / millisDivider)));
+            assertThat(((DateTime) bucket.getKey()), equalTo(expectedKey));
+            assertThat(bucket.getDocCount(), equalTo(1L));
+        }
     }
 
     public void testSingleValuedFieldOrderedByKeyAsc() throws Exception {
@@ -1140,10 +1180,26 @@ public class DateHistogramIT extends ESIntegTestCase {
         }
     }
 
-    public void testTimestampField() { // see #11692
-        SearchResponse response = client().prepareSearch("idx").addAggregation(dateHistogram("histo").field("_timestamp").dateHistogramInterval(randomFrom(DateHistogramInterval.DAY, DateHistogramInterval.MONTH))).get();
-        assertSearchResponse(response);
+    /**
+     * When DST ends, local time turns back one hour, so between 2am and 4am wall time we should have four buckets:
+     * "2015-10-25T02:00:00.000+02:00",
+     * "2015-10-25T02:00:00.000+01:00",
+     * "2015-10-25T03:00:00.000+01:00",
+     * "2015-10-25T04:00:00.000+01:00".
+     */
+    public void testDSTEndTransition() throws Exception {
+        SearchResponse response = client().prepareSearch("idx")
+                .setQuery(new MatchNoneQueryBuilder())
+                .addAggregation(dateHistogram("histo").field("date").timeZone(DateTimeZone.forID("Europe/Oslo"))
+                        .dateHistogramInterval(DateHistogramInterval.HOUR).minDocCount(0).extendedBounds(
+                                new ExtendedBounds("2015-10-25T02:00:00.000+02:00", "2015-10-25T04:00:00.000+01:00")))
+                .execute().actionGet();
+
         Histogram histo = response.getAggregations().get("histo");
-        assertThat(histo.getBuckets().size(), greaterThan(0));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(4));
+        assertThat(((DateTime) buckets.get(1).getKey()).getMillis() - ((DateTime) buckets.get(0).getKey()).getMillis(), equalTo(3600000L));
+        assertThat(((DateTime) buckets.get(2).getKey()).getMillis() - ((DateTime) buckets.get(1).getKey()).getMillis(), equalTo(3600000L));
+        assertThat(((DateTime) buckets.get(3).getKey()).getMillis() - ((DateTime) buckets.get(2).getKey()).getMillis(), equalTo(3600000L));
     }
 }

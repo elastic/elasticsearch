@@ -73,7 +73,6 @@ public final class ExternalTestCluster extends TestCluster {
         Settings clientSettings = Settings.builder()
                 .put(additionalSettings)
                 .put("node.name", InternalTestCluster.TRANSPORT_CLIENT_PREFIX + EXTERNAL_CLUSTER_PREFIX + counter.getAndIncrement())
-                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true) // prevents any settings to be replaced by system properties.
                 .put("client.transport.ignore_cluster_name", true)
                 .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
                 .put(Node.NODE_MODE_SETTING.getKey(), "network").build(); // we require network here!
@@ -87,12 +86,12 @@ public final class ExternalTestCluster extends TestCluster {
         try {
             client.addTransportAddresses(transportAddresses);
             NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().clear().setSettings(true).setHttp(true).get();
-            httpAddresses = new InetSocketAddress[nodeInfos.getNodes().length];
+            httpAddresses = new InetSocketAddress[nodeInfos.getNodes().size()];
             this.clusterName = nodeInfos.getClusterName().value();
             int dataNodes = 0;
             int masterAndDataNodes = 0;
-            for (int i = 0; i < nodeInfos.getNodes().length; i++) {
-                NodeInfo nodeInfo = nodeInfos.getNodes()[i];
+            for (int i = 0; i < nodeInfos.getNodes().size(); i++) {
+                NodeInfo nodeInfo = nodeInfos.getNodes().get(i);
                 httpAddresses[i] = ((InetSocketTransportAddress) nodeInfo.getHttp().address().publishAddress()).address();
                 if (DiscoveryNode.isDataNode(nodeInfo.getSettings())) {
                     dataNodes++;

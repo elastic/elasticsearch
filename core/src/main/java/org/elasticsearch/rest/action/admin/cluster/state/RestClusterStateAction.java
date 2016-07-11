@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.cluster.state;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
@@ -50,8 +50,8 @@ public class RestClusterStateAction extends BaseRestHandler {
     private final SettingsFilter settingsFilter;
 
     @Inject
-    public RestClusterStateAction(Settings settings, RestController controller, Client client, SettingsFilter settingsFilter) {
-        super(settings, client);
+    public RestClusterStateAction(Settings settings, RestController controller, SettingsFilter settingsFilter) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/state", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}/{indices}", this);
@@ -60,7 +60,7 @@ public class RestClusterStateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest();
         clusterStateRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterStateRequest.indicesOptions()));
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
@@ -94,6 +94,11 @@ public class RestClusterStateAction extends BaseRestHandler {
                 return new BytesRestResponse(RestStatus.OK, builder);
             }
         });
+    }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
     }
 
     static final class Fields {

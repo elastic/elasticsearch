@@ -198,7 +198,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build();
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
-        return createAnalysisService(new Index("test", "_na_"), nodeSettings, settings, new AnalysisKuromojiPlugin()::onModule);
+        return createAnalysisService(new Index("test", "_na_"), nodeSettings, settings, new AnalysisKuromojiPlugin());
     }
 
     public static void assertSimpleTSOutput(TokenStream stream,

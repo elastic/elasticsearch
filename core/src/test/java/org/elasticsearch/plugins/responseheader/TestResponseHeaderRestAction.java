@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.plugins.responseheader;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -32,13 +32,13 @@ import org.elasticsearch.rest.RestStatus;
 public class TestResponseHeaderRestAction extends BaseRestHandler {
 
     @Inject
-    public TestResponseHeaderRestAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public TestResponseHeaderRestAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.GET, "/_protected", this);
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel channel, Client client) {
+    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
         if ("password".equals(request.header("Secret"))) {
             RestResponse response = new BytesRestResponse(RestStatus.OK, "Access granted");
             response.addHeader("Secret", "granted");

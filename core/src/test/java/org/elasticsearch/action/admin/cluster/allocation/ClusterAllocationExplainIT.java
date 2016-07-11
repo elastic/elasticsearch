@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.HashMap;
 import java.util.List;
@@ -37,7 +36,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Tests for the cluster allocation explanation
@@ -50,12 +48,9 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         // Wait for all 3 nodes to be up
         logger.info("--> waiting for 3 nodes to be up");
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                NodesStatsResponse resp = client().admin().cluster().prepareNodesStats().get();
-                assertThat(resp.getNodes().length, equalTo(3));
-            }
+        assertBusy(() -> {
+            NodesStatsResponse resp = client().admin().cluster().prepareNodesStats().get();
+            assertThat(resp.getNodes().size(), equalTo(3));
         });
 
         logger.info("--> creating 'test' index");
@@ -122,12 +117,12 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertThat(cae.getShard().getIndexName(), equalTo("only-foo"));
         assertFalse(cae.isPrimary());
         assertFalse(cae.isAssigned());
+        assertFalse(cae.isStillFetchingShardData());
         assertThat(UnassignedInfo.Reason.INDEX_CREATED, equalTo(cae.getUnassignedInfo().getReason()));
         assertThat("expecting no remaining delay: " + cae.getRemainingDelayMillis(), cae.getRemainingDelayMillis(), equalTo(0L));
 
         Map<DiscoveryNode, NodeExplanation> explanations = cae.getNodeExplanations();
 
-        Float noAttrWeight = -1f;
         Float barAttrWeight = -1f;
         Float fooBarAttrWeight = -1f;
         for (Map.Entry<DiscoveryNode, NodeExplanation> entry : explanations.entrySet()) {
@@ -135,7 +130,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             String nodeName = node.getName();
             NodeExplanation explanation = entry.getValue();
             ClusterAllocationExplanation.FinalDecision finalDecision = explanation.getFinalDecision();
-            String finalExplanation = explanation.getFinalExplanation();
             ClusterAllocationExplanation.StoreCopy storeCopy = explanation.getStoreCopy();
             Decision d = explanation.getDecision();
             float weight = explanation.getWeight();
@@ -144,7 +138,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             assertEquals(d.type(), Decision.Type.NO);
             if (noAttrNode.equals(nodeName)) {
                 assertThat(d.toString(), containsString("node does not match index include filters [foo:\"bar\"]"));
-                noAttrWeight = weight;
                 assertNull(storeStatus);
                 assertEquals("the shard cannot be assigned because one or more allocation decider returns a 'NO' decision",
                         explanation.getFinalExplanation());

@@ -41,7 +41,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchAfterBuilderTests extends ESTestCase {
@@ -66,7 +65,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
         indicesQueriesRegistry = null;
     }
 
-    private final SearchAfterBuilder randomSearchFromBuilder() throws IOException {
+    private SearchAfterBuilder randomSearchFromBuilder() throws IOException {
         int numSearchFrom = randomIntBetween(1, 10);
         SearchAfterBuilder searchAfterBuilder = new SearchAfterBuilder();
         Object[] values = new Object[numSearchFrom];
@@ -113,7 +112,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
     // ensure that every number type remain the same before/after xcontent (de)serialization.
     // This is not a problem because the final type of each field value is extracted from associated sort field.
     // This little trick ensure that equals and hashcode are the same when using the xcontent serialization.
-    private final SearchAfterBuilder randomJsonSearchFromBuilder() throws IOException {
+    private SearchAfterBuilder randomJsonSearchFromBuilder() throws IOException {
         int numSearchAfter = randomIntBetween(1, 10);
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         jsonBuilder.startObject();
@@ -165,7 +164,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
     private static SearchAfterBuilder serializedCopy(SearchAfterBuilder original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 return new SearchAfterBuilder(in);
             }
         }
@@ -220,8 +219,8 @@ public class SearchAfterBuilderTests extends ESTestCase {
             builder.startObject();
             searchAfterBuilder.innerToXContent(builder);
             builder.endObject();
-            XContentParser parser = XContentHelper.createParser(builder.bytes());
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
+            XContentParser parser = XContentHelper.createParser(shuffleXContent(builder).bytes());
+            new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
             parser.nextToken();
             parser.nextToken();
             parser.nextToken();

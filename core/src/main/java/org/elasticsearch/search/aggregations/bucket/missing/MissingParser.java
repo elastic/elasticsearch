@@ -41,8 +41,8 @@ public class MissingParser extends AnyValuesSourceParser {
     }
 
     @Override
-    protected MissingAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        return new MissingAggregatorBuilder(aggregationName, targetValueType);
+    protected MissingAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                      ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        return new MissingAggregationBuilder(aggregationName, targetValueType);
     }
 }

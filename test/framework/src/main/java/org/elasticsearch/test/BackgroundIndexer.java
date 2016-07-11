@@ -49,7 +49,7 @@ public class BackgroundIndexer implements AutoCloseable {
 
     final Thread[] writers;
     final CountDownLatch stopLatch;
-    final CopyOnWriteArrayList<Throwable> failures;
+    final CopyOnWriteArrayList<Exception> failures;
     final AtomicBoolean stop = new AtomicBoolean(false);
     final AtomicLong idGenerator = new AtomicLong();
     final AtomicLong indexCounter = new AtomicLong();
@@ -169,7 +169,7 @@ public class BackgroundIndexer implements AutoCloseable {
                             }
                         }
                         logger.info("**** done indexing thread {}  stop: {} numDocsIndexed: {}", indexerId, stop.get(), indexCounter.get());
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         failures.add(e);
                         logger.warn("**** failed indexing thread {} on doc id {}", e, indexerId, id);
                     } finally {

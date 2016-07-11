@@ -41,11 +41,7 @@ public class Versions {
     /** indicates that the current document was not found in lucene and in the version map */
     public static final long NOT_FOUND = -1L;
 
-    /**
-     * used when the document is old and doesn't contain any version information in the index
-     * see {@link PerThreadIDAndVersionLookup#lookup}
-     */
-    public static final long NOT_SET = -2L;
+    // -2 was used for docs that can be found in the index but do not have a version
 
     /**
      * used to indicate that the write operation should be executed if the document is currently deleted
@@ -114,7 +110,7 @@ public class Versions {
     /**
      * Load the internal doc ID and version for the uid from the reader, returning<ul>
      * <li>null if the uid wasn't found,
-     * <li>a doc ID and a version otherwise, the version being potentially set to {@link #NOT_SET} if the uid has no associated version
+     * <li>a doc ID and a version otherwise
      * </ul>
      */
     public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term) throws IOException {
@@ -140,7 +136,6 @@ public class Versions {
     /**
      * Load the version for the uid from the reader, returning<ul>
      * <li>{@link #NOT_FOUND} if no matching doc exists,
-     * <li>{@link #NOT_SET} if no version is available,
      * <li>the version associated with the provided uid otherwise
      * </ul>
      */

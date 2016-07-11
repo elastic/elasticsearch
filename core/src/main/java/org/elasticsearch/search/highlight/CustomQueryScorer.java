@@ -24,6 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.QueryScorer;
 import org.apache.lucene.search.highlight.WeightedSpanTerm;
 import org.apache.lucene.search.highlight.WeightedSpanTermExtractor;
+import org.apache.lucene.spatial.geopoint.search.GeoPointInBBoxQuery;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 
@@ -87,6 +88,12 @@ public final class CustomQueryScorer extends QueryScorer {
             }
         }
 
+        protected void extract(Query query, float boost, Map<String, WeightedSpanTerm> terms) throws IOException {
+            // skip all geo queries, see https://issues.apache.org/jira/browse/LUCENE-7293 and
+            // https://github.com/elastic/elasticsearch/issues/17537
+            if (query instanceof GeoPointInBBoxQuery == false) {
+                super.extract(query, boost, terms);
+            }
+        }
     }
-
 }

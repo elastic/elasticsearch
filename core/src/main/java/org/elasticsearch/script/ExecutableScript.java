@@ -24,6 +24,14 @@ package org.elasticsearch.script;
  */
 public interface ExecutableScript {
 
+    /**
+     * Sets a runtime script parameter.
+     * <p>
+     * Note that this method may be slow, involving put() and get() calls
+     * to a hashmap or similar.
+     * @param name parameter name
+     * @param value parameter value
+     */
     void setNextVar(String name, Object value);
 
     /**

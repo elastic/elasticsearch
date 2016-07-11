@@ -27,7 +27,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class SerbianNormalizationFilterFactory extends AbstractTokenFilterFactory {
+public class SerbianNormalizationFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
     public SerbianNormalizationFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
@@ -36,5 +36,10 @@ public class SerbianNormalizationFilterFactory extends AbstractTokenFilterFactor
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new SerbianNormalizationFilter(tokenStream);
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
     }
 }

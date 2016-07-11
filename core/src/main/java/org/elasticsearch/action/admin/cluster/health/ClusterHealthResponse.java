@@ -182,12 +182,12 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         super.readFrom(in);
         clusterName = in.readString();
         clusterHealthStatus = ClusterHealthStatus.fromValue(in.readByte());
-        clusterStateHealth = ClusterStateHealth.readClusterHealth(in);
+        clusterStateHealth = new ClusterStateHealth(in);
         numberOfPendingTasks = in.readInt();
         timedOut = in.readBoolean();
         numberOfInFlightFetch = in.readInt();
         delayedUnassignedShards= in.readInt();
-        taskMaxWaitingTime = TimeValue.readTimeValue(in);
+        taskMaxWaitingTime = new TimeValue(in);
     }
 
     @Override
@@ -222,50 +222,48 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         return isTimedOut() ? RestStatus.REQUEST_TIMEOUT : RestStatus.OK;
     }
 
-    static final class Fields {
-        static final String CLUSTER_NAME = "cluster_name";
-        static final String STATUS = "status";
-        static final String TIMED_OUT = "timed_out";
-        static final String NUMBER_OF_NODES = "number_of_nodes";
-        static final String NUMBER_OF_DATA_NODES = "number_of_data_nodes";
-        static final String NUMBER_OF_PENDING_TASKS = "number_of_pending_tasks";
-        static final String NUMBER_OF_IN_FLIGHT_FETCH = "number_of_in_flight_fetch";
-        static final String DELAYED_UNASSIGNED_SHARDS = "delayed_unassigned_shards";
-        static final String TASK_MAX_WAIT_TIME_IN_QUEUE = "task_max_waiting_in_queue";
-        static final String TASK_MAX_WAIT_TIME_IN_QUEUE_IN_MILLIS = "task_max_waiting_in_queue_millis";
-        static final String ACTIVE_SHARDS_PERCENT_AS_NUMBER = "active_shards_percent_as_number";
-        static final String ACTIVE_SHARDS_PERCENT = "active_shards_percent";
-        static final String ACTIVE_PRIMARY_SHARDS = "active_primary_shards";
-        static final String ACTIVE_SHARDS = "active_shards";
-        static final String RELOCATING_SHARDS = "relocating_shards";
-        static final String INITIALIZING_SHARDS = "initializing_shards";
-        static final String UNASSIGNED_SHARDS = "unassigned_shards";
-        static final String INDICES = "indices";
-    }
+    private static final String CLUSTER_NAME = "cluster_name";
+    private static final String STATUS = "status";
+    private static final String TIMED_OUT = "timed_out";
+    private static final String NUMBER_OF_NODES = "number_of_nodes";
+    private static final String NUMBER_OF_DATA_NODES = "number_of_data_nodes";
+    private static final String NUMBER_OF_PENDING_TASKS = "number_of_pending_tasks";
+    private static final String NUMBER_OF_IN_FLIGHT_FETCH = "number_of_in_flight_fetch";
+    private static final String DELAYED_UNASSIGNED_SHARDS = "delayed_unassigned_shards";
+    private static final String TASK_MAX_WAIT_TIME_IN_QUEUE = "task_max_waiting_in_queue";
+    private static final String TASK_MAX_WAIT_TIME_IN_QUEUE_IN_MILLIS = "task_max_waiting_in_queue_millis";
+    private static final String ACTIVE_SHARDS_PERCENT_AS_NUMBER = "active_shards_percent_as_number";
+    private static final String ACTIVE_SHARDS_PERCENT = "active_shards_percent";
+    private static final String ACTIVE_PRIMARY_SHARDS = "active_primary_shards";
+    private static final String ACTIVE_SHARDS = "active_shards";
+    private static final String RELOCATING_SHARDS = "relocating_shards";
+    private static final String INITIALIZING_SHARDS = "initializing_shards";
+    private static final String UNASSIGNED_SHARDS = "unassigned_shards";
+    private static final String INDICES = "indices";
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(Fields.CLUSTER_NAME, getClusterName());
-        builder.field(Fields.STATUS, getStatus().name().toLowerCase(Locale.ROOT));
-        builder.field(Fields.TIMED_OUT, isTimedOut());
-        builder.field(Fields.NUMBER_OF_NODES, getNumberOfNodes());
-        builder.field(Fields.NUMBER_OF_DATA_NODES, getNumberOfDataNodes());
-        builder.field(Fields.ACTIVE_PRIMARY_SHARDS, getActivePrimaryShards());
-        builder.field(Fields.ACTIVE_SHARDS, getActiveShards());
-        builder.field(Fields.RELOCATING_SHARDS, getRelocatingShards());
-        builder.field(Fields.INITIALIZING_SHARDS, getInitializingShards());
-        builder.field(Fields.UNASSIGNED_SHARDS, getUnassignedShards());
-        builder.field(Fields.DELAYED_UNASSIGNED_SHARDS, getDelayedUnassignedShards());
-        builder.field(Fields.NUMBER_OF_PENDING_TASKS, getNumberOfPendingTasks());
-        builder.field(Fields.NUMBER_OF_IN_FLIGHT_FETCH, getNumberOfInFlightFetch());
-        builder.timeValueField(Fields.TASK_MAX_WAIT_TIME_IN_QUEUE_IN_MILLIS, Fields.TASK_MAX_WAIT_TIME_IN_QUEUE, getTaskMaxWaitingTime());
-        builder.percentageField(Fields.ACTIVE_SHARDS_PERCENT_AS_NUMBER, Fields.ACTIVE_SHARDS_PERCENT, getActiveShardsPercent());
+        builder.field(CLUSTER_NAME, getClusterName());
+        builder.field(STATUS, getStatus().name().toLowerCase(Locale.ROOT));
+        builder.field(TIMED_OUT, isTimedOut());
+        builder.field(NUMBER_OF_NODES, getNumberOfNodes());
+        builder.field(NUMBER_OF_DATA_NODES, getNumberOfDataNodes());
+        builder.field(ACTIVE_PRIMARY_SHARDS, getActivePrimaryShards());
+        builder.field(ACTIVE_SHARDS, getActiveShards());
+        builder.field(RELOCATING_SHARDS, getRelocatingShards());
+        builder.field(INITIALIZING_SHARDS, getInitializingShards());
+        builder.field(UNASSIGNED_SHARDS, getUnassignedShards());
+        builder.field(DELAYED_UNASSIGNED_SHARDS, getDelayedUnassignedShards());
+        builder.field(NUMBER_OF_PENDING_TASKS, getNumberOfPendingTasks());
+        builder.field(NUMBER_OF_IN_FLIGHT_FETCH, getNumberOfInFlightFetch());
+        builder.timeValueField(TASK_MAX_WAIT_TIME_IN_QUEUE_IN_MILLIS, TASK_MAX_WAIT_TIME_IN_QUEUE, getTaskMaxWaitingTime());
+        builder.percentageField(ACTIVE_SHARDS_PERCENT_AS_NUMBER, ACTIVE_SHARDS_PERCENT, getActiveShardsPercent());
 
         String level = params.param("level", "cluster");
         boolean outputIndices = "indices".equals(level) || "shards".equals(level);
 
         if (outputIndices) {
-            builder.startObject(Fields.INDICES);
+            builder.startObject(INDICES);
             for (ClusterIndexHealth indexHealth : clusterStateHealth.getIndices().values()) {
                 builder.startObject(indexHealth.getIndex());
                 indexHealth.toXContent(builder, params);

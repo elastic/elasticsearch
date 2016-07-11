@@ -20,7 +20,9 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.Map;
 
@@ -30,7 +32,8 @@ import static org.hamcrest.Matchers.containsString;
 /**
  * Tests index-by-search with a script modifying the documents.
  */
-public class ReindexScriptTests extends AbstractAsyncBulkIndexByScrollActionScriptTestCase<ReindexRequest, ReindexResponse> {
+public class ReindexScriptTests extends AbstractAsyncBulkIndexByScrollActionScriptTestCase<ReindexRequest, BulkIndexByScrollResponse> {
+
     public void testSetIndex() throws Exception {
         Object dest = randomFrom(new Object[] {234, 234L, "pancake"});
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_index", dest));
@@ -102,7 +105,7 @@ public class ReindexScriptTests extends AbstractAsyncBulkIndexByScrollActionScri
     }
 
     public void testSetTimestamp() throws Exception {
-        String timestamp = randomFrom(null, "now", "1234");
+        String timestamp = randomFrom("now", "1234", null);
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_timestamp", timestamp));
         assertEquals(timestamp, index.timestamp());
     }
@@ -129,11 +132,12 @@ public class ReindexScriptTests extends AbstractAsyncBulkIndexByScrollActionScri
 
     @Override
     protected ReindexRequest request() {
-        return new ReindexRequest();
+        return new ReindexRequest(new SearchRequest(), new IndexRequest());
     }
 
     @Override
-    protected AbstractAsyncBulkIndexByScrollAction<ReindexRequest, ReindexResponse> action() {
-        return new TransportReindexAction.AsyncIndexBySearchAction(task, logger, null, null, null, threadPool, request(), listener());
+    protected AbstractAsyncBulkIndexByScrollAction<ReindexRequest> action(ScriptService scriptService, ReindexRequest request) {
+        return new TransportReindexAction.AsyncIndexBySearchAction(task, logger, null, threadPool, request, listener(), scriptService,
+                null);
     }
 }

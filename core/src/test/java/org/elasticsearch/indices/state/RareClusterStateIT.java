@@ -42,7 +42,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -103,7 +103,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                         .nodes(DiscoveryNodes.EMPTY_NODES)
                         .build(), false
         );
-        RoutingAllocation routingAllocation = new RoutingAllocation(allocationDeciders, routingNodes, current.nodes(), ClusterInfo.EMPTY, System.nanoTime());
+        RoutingAllocation routingAllocation = new RoutingAllocation(allocationDeciders, routingNodes, current, ClusterInfo.EMPTY, System.nanoTime(), false);
         allocator.allocateUnassigned(routingAllocation);
     }
 
@@ -126,7 +126,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 // inject a node
                 ClusterState.Builder builder = ClusterState.builder(currentState);
                 builder.nodes(DiscoveryNodes.builder(currentState.nodes()).put(new DiscoveryNode("_non_existent",
-                        DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT)));
+                        LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT)));
 
                 // open index
                 final IndexMetaData indexMetaData = IndexMetaData.builder(currentState.metaData().index(index)).state(IndexMetaData.State.OPEN).build();
@@ -145,7 +145,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
+            public void onFailure(String source, Exception e) {
 
             }
         });
@@ -165,7 +165,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
+            public void onFailure(String source, Exception e) {
 
             }
         });
@@ -260,7 +260,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 putMappingResponse.set(e);
             }
         });
@@ -292,7 +292,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 docIndexResponse.set(e);
             }
         });
@@ -376,7 +376,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 putMappingResponse.set(e);
             }
         });
@@ -403,7 +403,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 docIndexResponse.set(e);
             }
         });

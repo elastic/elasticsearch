@@ -48,5 +48,5 @@ public interface TransportAddress extends Writeable {
 
     boolean isLoopbackOrLinkLocalAddress();
 
-    public String toString();
+    String toString();
 }

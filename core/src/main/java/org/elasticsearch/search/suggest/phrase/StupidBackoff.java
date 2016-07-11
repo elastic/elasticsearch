@@ -102,7 +102,7 @@ public final class StupidBackoff extends SmoothingModel {
     }
 
     @Override
-    protected final int doHashCode() {
+    protected int doHashCode() {
         return Objects.hash(discount);
     }
 

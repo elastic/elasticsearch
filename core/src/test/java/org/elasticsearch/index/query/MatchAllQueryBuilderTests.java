@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -52,10 +53,10 @@ public class MatchAllQueryBuilderTests extends AbstractQueryTestCase<MatchAllQue
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"match_all\" : {\n" + 
-                "    \"boost\" : 1.2\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"match_all\" : {\n" +
+                "    \"boost\" : 1.2\n" +
+                "  }\n" +
                 "}";
         MatchAllQueryBuilder parsed = (MatchAllQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

@@ -19,11 +19,14 @@
 package org.elasticsearch.test.rest.parser;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.test.rest.section.DoSection;
 import org.elasticsearch.test.rest.section.ExecutableSection;
 import org.elasticsearch.test.rest.section.SetupSection;
 import org.elasticsearch.test.rest.section.SkipSection;
+import org.elasticsearch.test.rest.section.TeardownSection;
 import org.elasticsearch.test.rest.section.TestSection;
 
 import java.io.IOException;
@@ -37,6 +40,7 @@ import java.util.Map;
 public class RestTestSuiteParseContext {
 
     private static final SetupSectionParser SETUP_SECTION_PARSER = new SetupSectionParser();
+    private static final TeardownSectionParser TEARDOWN_SECTION_PARSER = new TeardownSectionParser();
     private static final RestTestSectionParser TEST_SECTION_PARSER = new RestTestSectionParser();
     private static final SkipSectionParser SKIP_SECTION_PARSER = new SkipSectionParser();
     private static final DoSectionParser DO_SECTION_PARSER = new DoSectionParser();
@@ -90,6 +94,19 @@ public class RestTestSuiteParseContext {
         return SetupSection.EMPTY;
     }
 
+    public TeardownSection parseTeardownSection() throws IOException, RestTestParseException {
+        advanceToFieldName();
+
+        if ("teardown".equals(parser.currentName())) {
+            parser.nextToken();
+            TeardownSection teardownSection = TEARDOWN_SECTION_PARSER.parse(this);
+            parser.nextToken();
+            return teardownSection;
+        }
+
+        return TeardownSection.EMPTY;
+    }
+
     public TestSection parseTestSection() throws IOException, RestTestParseException {
         return TEST_SECTION_PARSER.parse(this);
     }
@@ -114,9 +131,14 @@ public class RestTestSuiteParseContext {
         if (execSectionParser == null) {
             throw new RestTestParseException("no parser found for executable section [" + section + "]");
         }
-        ExecutableSection executableSection = execSectionParser.parse(this);
-        parser.nextToken();
-        return executableSection;
+        XContentLocation location = parser.getTokenLocation();
+        try {
+            ExecutableSection executableSection = execSectionParser.parse(this);
+            parser.nextToken();
+            return executableSection;
+        } catch (Exception e) {
+            throw new IOException("Error parsing section starting at ["+ location + "]", e);
+        }
     }
 
     public DoSection parseDoSection() throws IOException, RestTestParseException {
@@ -136,7 +158,8 @@ public class RestTestSuiteParseContext {
             token = parser.nextToken();
         }
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new RestTestParseException("malformed test section: field name expected but found " + token + " at " + parser.getTokenLocation());
+            throw new RestTestParseException("malformed test section: field name expected but found " + token + " at "
+                    + parser.getTokenLocation());
         }
     }
 

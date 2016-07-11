@@ -29,11 +29,14 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.List;
+
+import static java.util.Collections.emptyList;
 
 public class TransportAnalyzeActionTests extends ESTestCase {
 
@@ -56,7 +59,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 .putArray("index.analysis.analyzer.custom_analyzer.filter", "lowercase", "wordDelimiter").build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
         environment = new Environment(settings);
-        registry = new AnalysisRegistry(null, environment);
+        registry = new AnalysisModule(environment, emptyList()).getAnalysisRegistry();
         analysisService = registry.build(idxSettings);
     }
 

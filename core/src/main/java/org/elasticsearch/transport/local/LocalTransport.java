@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
@@ -72,16 +73,15 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 /**
  *
  */
-public class LocalTransport extends AbstractLifecycleComponent<Transport> implements Transport {
+public class LocalTransport extends AbstractLifecycleComponent implements Transport {
 
     public static final String LOCAL_TRANSPORT_THREAD_NAME_PREFIX = "local_transport";
     final ThreadPool threadPool;
     private final ThreadPoolExecutor workers;
-    private final Version version;
     private volatile TransportServiceAdapter transportServiceAdapter;
     private volatile BoundTransportAddress boundAddress;
     private volatile LocalTransportAddress localAddress;
-    private final static ConcurrentMap<LocalTransportAddress, LocalTransport> transports = newConcurrentMap();
+    private static final ConcurrentMap<LocalTransportAddress, LocalTransport> transports = newConcurrentMap();
     private static final AtomicLong transportAddressIdGenerator = new AtomicLong();
     private final ConcurrentMap<DiscoveryNode, LocalTransport> connectedNodes = newConcurrentMap();
     protected final NamedWriteableRegistry namedWriteableRegistry;
@@ -92,11 +92,10 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     public static final String TRANSPORT_LOCAL_QUEUE = "transport.local.queue";
 
     @Inject
-    public LocalTransport(Settings settings, ThreadPool threadPool, Version version,
+    public LocalTransport(Settings settings, ThreadPool threadPool,
                           NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
         super(settings);
         this.threadPool = threadPool;
-        this.version = version;
         int workerCount = this.settings.getAsInt(TRANSPORT_LOCAL_WORKERS, EsExecutors.boundedNumberOfProcessors(settings));
         int queueSize = this.settings.getAsInt(TRANSPORT_LOCAL_QUEUE, -1);
         logger.debug("creating [{}] workers, queue_size [{}]", workerCount, queueSize);
@@ -207,7 +206,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     @Override
     public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request,
             TransportRequestOptions options) throws IOException, TransportException {
-        final Version version = Version.smallest(node.getVersion(), this.version);
+        final Version version = Version.smallest(node.getVersion(), getVersion());
 
         try (BytesStreamOutput stream = new BytesStreamOutput()) {
             stream.setVersion(version);
@@ -228,7 +227,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
                 throw new NodeNotConnectedException(node, "Node not connected");
             }
 
-            final byte[] data = stream.bytes().toBytes();
+            final byte[] data = BytesReference.toBytes(stream.bytes());
             transportServiceAdapter.sent(data.length);
             transportServiceAdapter.onRequestSent(node, requestId, action, request, options);
             targetTransport.workers().execute(() -> {
@@ -260,9 +259,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             long requestId = stream.readLong();
             byte status = stream.readByte();
             boolean isRequest = TransportStatus.isRequest(status);
+            threadPool.getThreadContext().readHeaders(stream);
             if (isRequest) {
-                ThreadContext threadContext = threadPool.getThreadContext();
-                threadContext.readHeaders(stream);
                 handleRequest(stream, requestId, data.length, sourceTransport, version);
             } else {
                 final TransportResponseHandler handler = transportServiceAdapter.onResponseReceived(requestId);
@@ -275,7 +273,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
                     }
                 }
             }
-        } catch (Throwable e) {
+        } catch (Exception e) {
             if (sendRequestId != null) {
                 TransportResponseHandler handler = sourceTransport.transportServiceAdapter.onResponseReceived(sendRequestId);
                 if (handler != null) {
@@ -297,12 +295,16 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
                                Version version) throws Exception {
         stream = new NamedWriteableAwareStreamInput(stream, namedWriteableRegistry);
         final String action = stream.readString();
+        final RequestHandlerRegistry reg = transportServiceAdapter.getRequestHandler(action);
         transportServiceAdapter.onRequestReceived(requestId, action);
-        inFlightRequestsBreaker().addEstimateBytesAndMaybeBreak(messageLengthBytes, "<transport_request>");
+        if (reg != null && reg.canTripCircuitBreaker()) {
+            inFlightRequestsBreaker().addEstimateBytesAndMaybeBreak(messageLengthBytes, "<transport_request>");
+        } else {
+            inFlightRequestsBreaker().addWithoutBreaking(messageLengthBytes);
+        }
         final LocalTransportChannel transportChannel = new LocalTransportChannel(this, transportServiceAdapter, sourceTransport, action,
-            requestId, version, messageLengthBytes);
+            requestId, version, messageLengthBytes, threadPool.getThreadContext());
         try {
-            final RequestHandlerRegistry reg = transportServiceAdapter.getRequestHandler(action);
             if (reg == null) {
                 throw new ActionNotFoundTransportException("Action [" + action + "] not found");
             }
@@ -326,25 +328,25 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         if (lifecycleState() == Lifecycle.State.STARTED) {
                             // we can only send a response transport is started....
                             try {
                                 transportChannel.sendResponse(e);
-                            } catch (Throwable e1) {
-                                logger.warn("Failed to send error message back to client for action [{}]", e1, action);
-                                logger.warn("Actual Exception", e);
+                            } catch (Exception inner) {
+                                inner.addSuppressed(e);
+                                logger.warn("Failed to send error message back to client for action [{}]", inner, action);
                             }
                         }
                     }
                 });
             }
-        } catch (Throwable e) {
+        } catch (Exception e) {
             try {
                 transportChannel.sendResponse(e);
-            } catch (Throwable e1) {
-                logger.warn("Failed to send error message back to client for action [{}]", e, action);
-                logger.warn("Actual Exception", e1);
+            } catch (Exception inner) {
+                inner.addSuppressed(e);
+                logger.warn("Failed to send error message back to client for action [{}]", inner, action);
             }
 
         }
@@ -356,7 +358,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         response.remoteAddress(sourceTransport.boundAddress.publishAddress());
         try {
             response.readFrom(buffer);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             handleException(handler, new TransportSerializationException(
                     "Failed to deserialize response of type [" + response.getClass().getName() + "]", e));
             return;
@@ -368,36 +370,40 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         threadPool.executor(handler.executor()).execute(() -> {
             try {
                 handler.handleResponse(response);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 handleException(handler, new ResponseHandlerFailureTransportException(e));
             }
         });
     }
 
     private void handleResponseError(StreamInput buffer, final TransportResponseHandler handler) {
-        Throwable error;
+        Exception exception;
         try {
-            error = buffer.readThrowable();
-        } catch (Throwable e) {
-            error = new TransportSerializationException("Failed to deserialize exception response from stream", e);
+            exception = buffer.readException();
+        } catch (Exception e) {
+            exception = new TransportSerializationException("Failed to deserialize exception response from stream", e);
         }
-        handleException(handler, error);
+        handleException(handler, exception);
     }
 
-    private void handleException(final TransportResponseHandler handler, Throwable error) {
-        if (!(error instanceof RemoteTransportException)) {
-            error = new RemoteTransportException("None remote transport exception", null, null, error);
+    private void handleException(final TransportResponseHandler handler, Exception exception) {
+        if (!(exception instanceof RemoteTransportException)) {
+            exception = new RemoteTransportException("Not a remote transport exception", null, null, exception);
         }
-        final RemoteTransportException rtx = (RemoteTransportException) error;
+        final RemoteTransportException rtx = (RemoteTransportException) exception;
         try {
             handler.handleException(rtx);
-        } catch (Throwable t) {
-            logger.error("failed to handle exception response [{}]", t, handler);
+        } catch (Exception e) {
+            logger.error("failed to handle exception response [{}]", e, handler);
         }
     }
 
     @Override
     public List<String> getLocalAddresses() {
         return Collections.singletonList("0.0.0.0");
+    }
+
+    protected Version getVersion() { // for tests
+        return Version.CURRENT;
     }
 }

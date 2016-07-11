@@ -20,7 +20,7 @@ package org.elasticsearch.rest.action.admin.indices.analyze;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -60,8 +60,8 @@ public class RestAnalyzeAction extends BaseRestHandler {
     }
 
     @Inject
-    public RestAnalyzeAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestAnalyzeAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/_analyze", this);
         controller.registerHandler(GET, "/{index}/_analyze", this);
         controller.registerHandler(POST, "/_analyze", this);
@@ -69,7 +69,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
 
         String[] texts = request.paramAsStringArrayOrEmptyIfAll("text");
 
@@ -87,7 +87,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
             XContentType type = RestActions.guessBodyContentType(request);
             if (type == null) {
                 if (texts == null || texts.length == 0) {
-                    texts = new String[]{ RestActions.getRestContent(request).toUtf8() };
+                    texts = new String[]{ RestActions.getRestContent(request).utf8ToString() };
                     analyzeRequest.text(texts);
                 }
             } else {

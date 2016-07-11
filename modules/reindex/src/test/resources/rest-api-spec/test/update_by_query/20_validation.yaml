@@ -41,20 +41,6 @@
         scroll_size: asdf
 
 ---
-"requests_per_second cannot be an empty string":
-  - do:
-      index:
-        index:   test
-        type:    test
-        id:      1
-        body:    { "text": "test" }
-  - do:
-      catch: /requests_per_second cannot be an empty string/
-      update_by_query:
-        index: test
-        requests_per_second: ''
-
----
 "update_by_query without source gives useful error message":
   - do:
       indices.create:
@@ -81,8 +67,32 @@
 ---
 "source fields may not be modified":
   - do:
-      catch: /fields is not supported in this context/
+      catch: /stored_fields is not supported in this context/
       update_by_query:
         index: test
         body:
-          fields: [_id]
+          stored_fields: [_id]
+
+---
+"requests_per_second cannot be an empty string":
+  - do:
+      catch: /\[requests_per_second\] must be a float greater than 0. Use "unlimited" to disable throttling./
+      update_by_query:
+        requests_per_second: ""
+        index: test
+
+---
+"requests_per_second cannot be negative":
+  - do:
+      catch: /\[requests_per_second\] must be a float greater than 0. Use "unlimited" to disable throttling./
+      update_by_query:
+        requests_per_second: -12
+        index: test
+
+---
+"requests_per_second cannot be zero":
+  - do:
+      catch: /\[requests_per_second\] must be a float greater than 0. Use "unlimited" to disable throttling./
+      update_by_query:
+        requests_per_second: 0
+        index: test

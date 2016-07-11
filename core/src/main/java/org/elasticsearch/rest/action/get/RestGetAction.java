@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.get;
 
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -47,13 +47,13 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetAction extends BaseRestHandler {
 
     @Inject
-    public RestGetAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestGetAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/{index}/{type}/{id}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
         getRequest.operationThreaded(true);
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));

@@ -24,14 +24,14 @@
 //// SecurityManager impl:
 //// Must have all permissions to properly perform access checks
 
-grant codeBase "${codebase.securesm-1.0.jar}" {
+grant codeBase "${codebase.securesm-1.1.jar}" {
   permission java.security.AllPermission;
 };
 
 //// Very special jar permissions:
 //// These are dangerous permissions that we don't want to grant to everything.
 
-grant codeBase "${codebase.lucene-core-6.0.0.jar}" {
+grant codeBase "${codebase.lucene-core-6.1.0.jar}" {
   // needed to allow MMapDirectory's "unmap hack" (die unmap hack, die)
   // java 8 package
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
@@ -40,6 +40,11 @@ grant codeBase "${codebase.lucene-core-6.0.0.jar}" {
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   // NOTE: also needed for RAMUsageEstimator size calculations
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+};
+
+grant codeBase "${codebase.lucene-misc-6.1.0.jar}" {
+  // needed to allow shard shrinking to use hard-links if possible via lucenes HardlinkCopyDirectoryWrapper
+  permission java.nio.file.LinkPermission "hard";
 };
 
 //// Everything else:
@@ -71,7 +76,7 @@ grant {
 
   // set by ESTestCase to improve test reproducibility
   // TODO: set this with gradle or some other way that repros with seed?
-  permission java.util.PropertyPermission "es.processors.override", "write";
+  permission java.util.PropertyPermission "processors.override", "write";
 
   // TODO: these simply trigger a noisy warning if its unable to clear the properties
   // fix that in randomizedtesting
@@ -124,4 +129,7 @@ grant {
 
   // read max virtual memory areas
   permission java.io.FilePermission "/proc/sys/vm/max_map_count", "read";
+
+  // io stats on Linux
+  permission java.io.FilePermission "/proc/diskstats", "read";
 };

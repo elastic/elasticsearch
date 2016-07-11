@@ -53,7 +53,6 @@ public class Environment {
     public static final Setting<List<String>> PATH_DATA_SETTING =
         Setting.listSetting("path.data", Collections.emptyList(), Function.identity(), Property.NodeScope);
     public static final Setting<String> PATH_LOGS_SETTING = Setting.simpleString("path.logs", Property.NodeScope);
-    public static final Setting<String> PATH_PLUGINS_SETTING = Setting.simpleString("path.plugins", Property.NodeScope);
     public static final Setting<List<String>> PATH_REPO_SETTING =
         Setting.listSetting("path.repo", Collections.emptyList(), Function.identity(), Property.NodeScope);
     public static final Setting<String> PATH_SHARED_DATA_SETTING = Setting.simpleString("path.shared_data", Property.NodeScope);
@@ -128,23 +127,20 @@ public class Environment {
             scriptsFile = configFile.resolve("scripts");
         }
 
-        if (PATH_PLUGINS_SETTING.exists(settings)) {
-            pluginsFile = PathUtils.get(cleanPath(PATH_PLUGINS_SETTING.get(settings)));
-        } else {
-            pluginsFile = homeFile.resolve("plugins");
-        }
+        pluginsFile = homeFile.resolve("plugins");
 
         List<String> dataPaths = PATH_DATA_SETTING.get(settings);
+        final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         if (dataPaths.isEmpty() == false) {
             dataFiles = new Path[dataPaths.size()];
             dataWithClusterFiles = new Path[dataPaths.size()];
             for (int i = 0; i < dataPaths.size(); i++) {
                 dataFiles[i] = PathUtils.get(dataPaths.get(i));
-                dataWithClusterFiles[i] = dataFiles[i].resolve(ClusterName.clusterNameFromSettings(settings).value());
+                dataWithClusterFiles[i] = dataFiles[i].resolve(clusterName.value());
             }
         } else {
             dataFiles = new Path[]{homeFile.resolve("data")};
-            dataWithClusterFiles = new Path[]{homeFile.resolve("data").resolve(ClusterName.clusterNameFromSettings(settings).value())};
+            dataWithClusterFiles = new Path[]{homeFile.resolve("data").resolve(clusterName.value())};
         }
         if (PATH_SHARED_DATA_SETTING.exists(settings)) {
             sharedDataFile = PathUtils.get(cleanPath(PATH_SHARED_DATA_SETTING.get(settings)));
@@ -200,7 +196,11 @@ public class Environment {
 
     /**
      * The data location with the cluster name as a sub directory.
+     *
+     * @deprecated Used to upgrade old data paths to new ones that do not include the cluster name, should not be used to write files to and
+     * will be removed in ES 6.0
      */
+    @Deprecated
     public Path[] dataWithClusterFiles() {
         return dataWithClusterFiles;
     }

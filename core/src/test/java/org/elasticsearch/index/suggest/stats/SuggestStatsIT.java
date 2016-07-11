@@ -119,10 +119,9 @@ public class SuggestStatsIT extends ESIntegTestCase {
         assertThat(suggest.getSuggestTimeInMillis(), lessThanOrEqualTo(totalShards * (endTime - startTime)));
 
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().execute().actionGet();
-        NodeStats[] nodes = nodeStats.getNodes();
         Set<String> nodeIdsWithIndex = nodeIdsWithIndex("test1", "test2");
         int num = 0;
-        for (NodeStats stat : nodes) {
+        for (NodeStats stat : nodeStats.getNodes()) {
             SearchStats.Stats suggestStats = stat.getIndices().getSearch().getTotal();
             logger.info("evaluating {}", stat.getNode());
             if (nodeIdsWithIndex.contains(stat.getNode().getId())) {

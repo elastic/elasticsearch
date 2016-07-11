@@ -146,7 +146,7 @@ public class RestTableTests extends ESTestCase {
     }
 
     private RestResponse assertResponseContentType(Map<String, String> headers, String mediaType) throws Exception {
-        FakeRestRequest requestWithAcceptHeader = new FakeRestRequest(headers);
+        FakeRestRequest requestWithAcceptHeader = new FakeRestRequest.Builder().withHeaders(headers).build();
         table.startRow();
         table.addCell("foo");
         table.addCell("foo");
@@ -169,7 +169,7 @@ public class RestTableTests extends ESTestCase {
 
     private void assertResponse(Map<String, String> headers, String mediaType, String body) throws Exception {
         RestResponse response = assertResponseContentType(headers, mediaType);
-        assertThat(response.content().toUtf8(), equalTo(body));
+        assertThat(response.content().utf8ToString(), equalTo(body));
     }
 
     private List<String> getHeaderNames(List<RestTable.DisplayHeader> headers) {

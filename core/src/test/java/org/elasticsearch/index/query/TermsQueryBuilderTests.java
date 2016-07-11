@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.indices.TermsLookup;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -74,7 +75,10 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         // terms query or lookup query
         if (randomBoolean()) {
             // make between 0 and 5 different values of the same type
-            String fieldName = getRandomFieldName();
+            String fieldName;
+            do {
+                fieldName = getRandomFieldName();
+            } while (fieldName.equals(GEO_POINT_FIELD_NAME) || fieldName.equals(GEO_SHAPE_FIELD_NAME));
             Object[] values = new Object[randomInt(5)];
             for (int i = 0; i < values.length; i++) {
                 values[i] = getRandomValueForFieldName(fieldName);
@@ -96,16 +100,22 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     protected void doAssertLuceneQuery(TermsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (queryBuilder.termsLookup() == null && (queryBuilder.values() == null || queryBuilder.values().isEmpty())) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
+            MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
+            assertThat(matchNoDocsQuery.toString(), containsString("No terms supplied for \"terms\" query."));
+        } else if (queryBuilder.termsLookup() != null && randomTerms.size() == 0){
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
+            MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
+            assertThat(matchNoDocsQuery.toString(), containsString("No terms supplied for \"terms\" query."));
         } else {
             assertThat(query, instanceOf(BooleanQuery.class));
             BooleanQuery booleanQuery = (BooleanQuery) query;
-    
+
             // we only do the check below for string fields (otherwise we'd have to decode the values)
             if (queryBuilder.fieldName().equals(INT_FIELD_NAME) || queryBuilder.fieldName().equals(DOUBLE_FIELD_NAME)
                     || queryBuilder.fieldName().equals(BOOLEAN_FIELD_NAME) || queryBuilder.fieldName().equals(DATE_FIELD_NAME)) {
                 return;
             }
-    
+
             // expected returned terms depending on whether we have a terms query or a terms lookup query
             List<Object> terms;
             if (queryBuilder.termsLookup() != null) {
@@ -113,7 +123,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             } else {
                 terms = queryBuilder.values();
             }
-    
+
             // compare whether we have the expected list of terms returned
             final List<Term> booleanTerms = new ArrayList<>();
             for (BooleanClause booleanClause : booleanQuery) {
@@ -229,25 +239,25 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     public void testNumeric() throws IOException {
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new int[]{1, 3, 4});
-            TermsQueryBuilder copy = assertSerialization(builder);
+            TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1, 3, 4), values);
         }
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new double[]{1, 3, 4});
-            TermsQueryBuilder copy = assertSerialization(builder);
+            TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1d, 3d, 4d), values);
         }
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new float[]{1, 3, 4});
-            TermsQueryBuilder copy = assertSerialization(builder);
+            TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1f, 3f, 4f), values);
         }
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new long[]{1, 3, 4});
-            TermsQueryBuilder copy = assertSerialization(builder);
+            TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1L, 3L, 4L), values);
         }
@@ -285,7 +295,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                         "    \"boost\" : 1.0\n" +
                         "  }\n" +
                         "}";
-        QueryBuilder<?> inShortcutParsed = parseQuery(json, ParseFieldMatcher.EMPTY);
+        QueryBuilder inShortcutParsed = parseQuery(json, ParseFieldMatcher.EMPTY);
         assertThat(inShortcutParsed, equalTo(parsed));
 
         try {
@@ -307,6 +317,16 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         }
         assertEquals(termsQueryBuilder.rewrite(createShardContext()), new TermsQueryBuilder(STRING_FIELD_NAME,
             randomTerms.stream().filter(x -> x != null).collect(Collectors.toList()))); // terms lookup removes null values
+    }
+
+    public void testGeo() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        TermsQueryBuilder query = new TermsQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
+        QueryShardContext context = createShardContext();
+        QueryShardException e = expectThrows(QueryShardException.class,
+                () -> query.toQuery(context));
+        assertEquals("Geo fields do not support exact searching, use dedicated geo queries instead: [mapped_geo_point]",
+                e.getMessage());
     }
 }
 

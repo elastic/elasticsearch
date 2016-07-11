@@ -220,7 +220,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             fail("did not hit expected exception");
         } catch (IllegalArgumentException iae) {
             // expected
-            assertTrue(iae.getMessage().contains("Failed to parse setting [index.gc_deletes] with value [42] as a time value: unit is missing or unrecognized"));
+            assertTrue(iae.getMessage().contains("failed to parse setting [index.gc_deletes] with value [42] as a time value: unit is missing or unrecognized"));
         }
     }
 

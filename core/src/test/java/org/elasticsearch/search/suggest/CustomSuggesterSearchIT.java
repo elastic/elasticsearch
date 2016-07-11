@@ -45,6 +45,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -65,7 +66,7 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
                 .startObject()
                 .field("name", "arbitrary content")
                 .endObject())
-                .setRefresh(true).execute().actionGet();
+                .setRefreshPolicy(IMMEDIATE).get();
         ensureYellow();
 
         String randomText = randomAsciiOfLength(10);

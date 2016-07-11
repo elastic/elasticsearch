@@ -30,7 +30,7 @@ PUT my_index
   }
 }
 --------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Sometimes it is useful to have both a full text (`text`) and a keyword
 (`keyword`) version of the same field: one for full text search and the

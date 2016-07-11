@@ -29,7 +29,6 @@ import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -74,12 +73,12 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             "type",
             // common keyword parameters, for which the upgrade is straightforward
             "index", "store", "doc_values", "omit_norms", "norms", "fields", "copy_to",
-            "fielddata", "ignore_above"));
+            "fielddata", "include_in_all", "ignore_above"));
     private static final Set<String> SUPPORTED_PARAMETERS_FOR_AUTO_UPGRADE_TO_TEXT = new HashSet<>(Arrays.asList(
             "type",
             // common text parameters, for which the upgrade is straightforward
             "index", "store", "doc_values", "omit_norms", "norms", "fields", "copy_to",
-            "fielddata", "analyzer", "search_analyzer", "search_quote_analyzer"));
+            "fielddata", "include_in_all", "analyzer", "search_analyzer", "search_quote_analyzer"));
 
     public static class Defaults {
         public static double FIELDDATA_MIN_FREQUENCY = 0;
@@ -204,6 +203,9 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         public Mapper.Builder parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             if (parserContext.indexVersionCreated().onOrAfter(Version.V_5_0_0_alpha1)) {
                 final Object index = node.get("index");
+                if (Arrays.asList(null, "no", "not_analyzed", "analyzed").contains(index) == false) {
+                    throw new IllegalArgumentException("Can't parse [index] value [" + index + "] for field [" + fieldName + "], expected [no], [not_analyzed] or [analyzed]");
+                }
                 final boolean keyword = index != null && "analyzed".equals(index) == false;
 
                 // Automatically upgrade simple mappings for ease of upgrade, otherwise fail
@@ -283,7 +285,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                     node.put("index", false);
                     break;
                 default:
-                    throw new IllegalArgumentException("Can't parse [index] value [" + index + "] for field [" + fieldName + "], expected [true], [false], [no], [not_analyzed] or [analyzed]");
+                    throw new IllegalArgumentException("Can't parse [index] value [" + index + "] for field [" + fieldName + "], expected [no], [not_analyzed] or [analyzed]");
                 }
             }
             final Object fielddataObject = node.get("fielddata");
@@ -353,7 +355,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         }
     }
 
-    public static final class StringFieldType extends MappedFieldType {
+    public static final class StringFieldType extends org.elasticsearch.index.mapper.StringFieldType {
 
         private boolean fielddata;
         private double fielddataMinFrequency;
@@ -482,15 +484,6 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                         + name() + "] in order to load fielddata in memory by uninverting the inverted index. Note that this can however "
                         + "use significant memory.");
             }
-        }
-
-        @Override
-        public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
-            RegexpQuery query = new RegexpQuery(new Term(name(), indexedValueForSearch(value)), flags, maxDeterminizedStates);
-            if (method != null) {
-                query.setRewriteMethod(method);
-            }
-            return query;
         }
     }
 

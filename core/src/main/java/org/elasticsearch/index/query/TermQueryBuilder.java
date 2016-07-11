@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * A Query that matches documents containing a term.
@@ -84,7 +85,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
         super(in);
     }
 
-    public static TermQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<TermQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String queryName = null;
@@ -140,7 +141,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
         if (queryName != null) {
             termQuery.queryName(queryName);
         }
-        return termQuery;
+        return Optional.of(termQuery);
     }
 
     @Override

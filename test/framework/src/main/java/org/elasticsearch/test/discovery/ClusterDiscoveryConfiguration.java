@@ -126,7 +126,7 @@ public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
         }
 
         @SuppressForbidden(reason = "we know we pass a IP address")
-        protected synchronized static int[] unicastHostPorts(int numHosts) {
+        protected static synchronized int[] unicastHostPorts(int numHosts) {
             int[] unicastHostPorts = new int[numHosts];
 
             final int basePort = calcBasePort();

@@ -303,15 +303,6 @@ public class MultiMatchQuery extends MatchQuery {
         return queryBuilder.blendTerm(term, fieldType);
     }
 
-    @Override
-    protected Query termQuery(MappedFieldType fieldType, Object value) {
-        if (queryBuilder == null) {
-            // Can be null when the MultiMatchQuery collapses into a MatchQuery
-            return super.termQuery(fieldType, value);
-        }
-        return queryBuilder.termQuery(fieldType, value);
-    }
-
     static final class FieldAndFieldType {
         final MappedFieldType fieldType;
         final float boost;

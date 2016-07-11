@@ -38,7 +38,7 @@ public enum PreBuiltCharFilters {
         }
     };
 
-    abstract public Reader create(Reader tokenStream, Version version);
+    public abstract  Reader create(Reader tokenStream, Version version);
 
     protected final PreBuiltCacheFactory.PreBuiltCache<CharFilterFactory> cache;
 

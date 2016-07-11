@@ -29,6 +29,8 @@ import com.amazonaws.services.ec2.model.AcceptVpcPeeringConnectionRequest;
 import com.amazonaws.services.ec2.model.AcceptVpcPeeringConnectionResult;
 import com.amazonaws.services.ec2.model.AllocateAddressRequest;
 import com.amazonaws.services.ec2.model.AllocateAddressResult;
+import com.amazonaws.services.ec2.model.AllocateHostsRequest;
+import com.amazonaws.services.ec2.model.AllocateHostsResult;
 import com.amazonaws.services.ec2.model.AssignPrivateIpAddressesRequest;
 import com.amazonaws.services.ec2.model.AssociateAddressRequest;
 import com.amazonaws.services.ec2.model.AssociateAddressResult;
@@ -80,6 +82,8 @@ import com.amazonaws.services.ec2.model.CreateInternetGatewayRequest;
 import com.amazonaws.services.ec2.model.CreateInternetGatewayResult;
 import com.amazonaws.services.ec2.model.CreateKeyPairRequest;
 import com.amazonaws.services.ec2.model.CreateKeyPairResult;
+import com.amazonaws.services.ec2.model.CreateNatGatewayRequest;
+import com.amazonaws.services.ec2.model.CreateNatGatewayResult;
 import com.amazonaws.services.ec2.model.CreateNetworkAclEntryRequest;
 import com.amazonaws.services.ec2.model.CreateNetworkAclRequest;
 import com.amazonaws.services.ec2.model.CreateNetworkAclResult;
@@ -120,6 +124,8 @@ import com.amazonaws.services.ec2.model.DeleteFlowLogsRequest;
 import com.amazonaws.services.ec2.model.DeleteFlowLogsResult;
 import com.amazonaws.services.ec2.model.DeleteInternetGatewayRequest;
 import com.amazonaws.services.ec2.model.DeleteKeyPairRequest;
+import com.amazonaws.services.ec2.model.DeleteNatGatewayRequest;
+import com.amazonaws.services.ec2.model.DeleteNatGatewayResult;
 import com.amazonaws.services.ec2.model.DeleteNetworkAclEntryRequest;
 import com.amazonaws.services.ec2.model.DeleteNetworkAclRequest;
 import com.amazonaws.services.ec2.model.DeleteNetworkInterfaceRequest;
@@ -161,6 +167,10 @@ import com.amazonaws.services.ec2.model.DescribeExportTasksRequest;
 import com.amazonaws.services.ec2.model.DescribeExportTasksResult;
 import com.amazonaws.services.ec2.model.DescribeFlowLogsRequest;
 import com.amazonaws.services.ec2.model.DescribeFlowLogsResult;
+import com.amazonaws.services.ec2.model.DescribeHostsRequest;
+import com.amazonaws.services.ec2.model.DescribeHostsResult;
+import com.amazonaws.services.ec2.model.DescribeIdFormatRequest;
+import com.amazonaws.services.ec2.model.DescribeIdFormatResult;
 import com.amazonaws.services.ec2.model.DescribeImageAttributeRequest;
 import com.amazonaws.services.ec2.model.DescribeImageAttributeResult;
 import com.amazonaws.services.ec2.model.DescribeImagesRequest;
@@ -181,6 +191,8 @@ import com.amazonaws.services.ec2.model.DescribeKeyPairsRequest;
 import com.amazonaws.services.ec2.model.DescribeKeyPairsResult;
 import com.amazonaws.services.ec2.model.DescribeMovingAddressesRequest;
 import com.amazonaws.services.ec2.model.DescribeMovingAddressesResult;
+import com.amazonaws.services.ec2.model.DescribeNatGatewaysRequest;
+import com.amazonaws.services.ec2.model.DescribeNatGatewaysResult;
 import com.amazonaws.services.ec2.model.DescribeNetworkAclsRequest;
 import com.amazonaws.services.ec2.model.DescribeNetworkAclsResult;
 import com.amazonaws.services.ec2.model.DescribeNetworkInterfaceAttributeRequest;
@@ -203,6 +215,10 @@ import com.amazonaws.services.ec2.model.DescribeReservedInstancesRequest;
 import com.amazonaws.services.ec2.model.DescribeReservedInstancesResult;
 import com.amazonaws.services.ec2.model.DescribeRouteTablesRequest;
 import com.amazonaws.services.ec2.model.DescribeRouteTablesResult;
+import com.amazonaws.services.ec2.model.DescribeScheduledInstanceAvailabilityRequest;
+import com.amazonaws.services.ec2.model.DescribeScheduledInstanceAvailabilityResult;
+import com.amazonaws.services.ec2.model.DescribeScheduledInstancesRequest;
+import com.amazonaws.services.ec2.model.DescribeScheduledInstancesResult;
 import com.amazonaws.services.ec2.model.DescribeSecurityGroupsRequest;
 import com.amazonaws.services.ec2.model.DescribeSecurityGroupsResult;
 import com.amazonaws.services.ec2.model.DescribeSnapshotAttributeRequest;
@@ -233,6 +249,8 @@ import com.amazonaws.services.ec2.model.DescribeVolumesRequest;
 import com.amazonaws.services.ec2.model.DescribeVolumesResult;
 import com.amazonaws.services.ec2.model.DescribeVpcAttributeRequest;
 import com.amazonaws.services.ec2.model.DescribeVpcAttributeResult;
+import com.amazonaws.services.ec2.model.DescribeVpcClassicLinkDnsSupportRequest;
+import com.amazonaws.services.ec2.model.DescribeVpcClassicLinkDnsSupportResult;
 import com.amazonaws.services.ec2.model.DescribeVpcClassicLinkRequest;
 import com.amazonaws.services.ec2.model.DescribeVpcClassicLinkResult;
 import com.amazonaws.services.ec2.model.DescribeVpcEndpointServicesRequest;
@@ -255,6 +273,8 @@ import com.amazonaws.services.ec2.model.DetachVolumeRequest;
 import com.amazonaws.services.ec2.model.DetachVolumeResult;
 import com.amazonaws.services.ec2.model.DetachVpnGatewayRequest;
 import com.amazonaws.services.ec2.model.DisableVgwRoutePropagationRequest;
+import com.amazonaws.services.ec2.model.DisableVpcClassicLinkDnsSupportRequest;
+import com.amazonaws.services.ec2.model.DisableVpcClassicLinkDnsSupportResult;
 import com.amazonaws.services.ec2.model.DisableVpcClassicLinkRequest;
 import com.amazonaws.services.ec2.model.DisableVpcClassicLinkResult;
 import com.amazonaws.services.ec2.model.DisassociateAddressRequest;
@@ -263,6 +283,8 @@ import com.amazonaws.services.ec2.model.DryRunResult;
 import com.amazonaws.services.ec2.model.DryRunSupportedRequest;
 import com.amazonaws.services.ec2.model.EnableVgwRoutePropagationRequest;
 import com.amazonaws.services.ec2.model.EnableVolumeIORequest;
+import com.amazonaws.services.ec2.model.EnableVpcClassicLinkDnsSupportRequest;
+import com.amazonaws.services.ec2.model.EnableVpcClassicLinkDnsSupportResult;
 import com.amazonaws.services.ec2.model.EnableVpcClassicLinkRequest;
 import com.amazonaws.services.ec2.model.EnableVpcClassicLinkResult;
 import com.amazonaws.services.ec2.model.Filter;
@@ -283,8 +305,13 @@ import com.amazonaws.services.ec2.model.ImportVolumeResult;
 import com.amazonaws.services.ec2.model.Instance;
 import com.amazonaws.services.ec2.model.InstanceState;
 import com.amazonaws.services.ec2.model.InstanceStateName;
+import com.amazonaws.services.ec2.model.ModifyHostsRequest;
+import com.amazonaws.services.ec2.model.ModifyHostsResult;
+import com.amazonaws.services.ec2.model.ModifyIdFormatRequest;
 import com.amazonaws.services.ec2.model.ModifyImageAttributeRequest;
 import com.amazonaws.services.ec2.model.ModifyInstanceAttributeRequest;
+import com.amazonaws.services.ec2.model.ModifyInstancePlacementRequest;
+import com.amazonaws.services.ec2.model.ModifyInstancePlacementResult;
 import com.amazonaws.services.ec2.model.ModifyNetworkInterfaceAttributeRequest;
 import com.amazonaws.services.ec2.model.ModifyReservedInstancesRequest;
 import com.amazonaws.services.ec2.model.ModifyReservedInstancesResult;
@@ -302,12 +329,16 @@ import com.amazonaws.services.ec2.model.MoveAddressToVpcRequest;
 import com.amazonaws.services.ec2.model.MoveAddressToVpcResult;
 import com.amazonaws.services.ec2.model.PurchaseReservedInstancesOfferingRequest;
 import com.amazonaws.services.ec2.model.PurchaseReservedInstancesOfferingResult;
+import com.amazonaws.services.ec2.model.PurchaseScheduledInstancesRequest;
+import com.amazonaws.services.ec2.model.PurchaseScheduledInstancesResult;
 import com.amazonaws.services.ec2.model.RebootInstancesRequest;
 import com.amazonaws.services.ec2.model.RegisterImageRequest;
 import com.amazonaws.services.ec2.model.RegisterImageResult;
 import com.amazonaws.services.ec2.model.RejectVpcPeeringConnectionRequest;
 import com.amazonaws.services.ec2.model.RejectVpcPeeringConnectionResult;
 import com.amazonaws.services.ec2.model.ReleaseAddressRequest;
+import com.amazonaws.services.ec2.model.ReleaseHostsRequest;
+import com.amazonaws.services.ec2.model.ReleaseHostsResult;
 import com.amazonaws.services.ec2.model.ReplaceNetworkAclAssociationRequest;
 import com.amazonaws.services.ec2.model.ReplaceNetworkAclAssociationResult;
 import com.amazonaws.services.ec2.model.ReplaceNetworkAclEntryRequest;
@@ -330,6 +361,8 @@ import com.amazonaws.services.ec2.model.RevokeSecurityGroupEgressRequest;
 import com.amazonaws.services.ec2.model.RevokeSecurityGroupIngressRequest;
 import com.amazonaws.services.ec2.model.RunInstancesRequest;
 import com.amazonaws.services.ec2.model.RunInstancesResult;
+import com.amazonaws.services.ec2.model.RunScheduledInstancesRequest;
+import com.amazonaws.services.ec2.model.RunScheduledInstancesResult;
 import com.amazonaws.services.ec2.model.StartInstancesRequest;
 import com.amazonaws.services.ec2.model.StartInstancesResult;
 import com.amazonaws.services.ec2.model.StopInstancesRequest;
@@ -520,6 +553,11 @@ public class AmazonEC2Mock implements AmazonEC2 {
     }
 
     @Override
+    public DeleteNatGatewayResult deleteNatGateway(DeleteNatGatewayRequest deleteNatGatewayRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
     public UnmonitorInstancesResult unmonitorInstances(UnmonitorInstancesRequest unmonitorInstancesRequest) throws AmazonServiceException, AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
@@ -636,6 +674,16 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public ImportVolumeResult importVolume(ImportVolumeRequest importVolumeRequest) throws AmazonServiceException, AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public ModifyHostsResult modifyHosts(ModifyHostsRequest modifyHostsRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public void modifyIdFormat(ModifyIdFormatRequest modifyIdFormatRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -965,6 +1013,11 @@ public class AmazonEC2Mock implements AmazonEC2 {
     }
 
     @Override
+    public DisableVpcClassicLinkDnsSupportResult disableVpcClassicLinkDnsSupport(DisableVpcClassicLinkDnsSupportRequest disableVpcClassicLinkDnsSupportRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
     public DescribeInstanceAttributeResult describeInstanceAttribute(DescribeInstanceAttributeRequest describeInstanceAttributeRequest) throws AmazonServiceException, AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
@@ -986,6 +1039,11 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public RunInstancesResult runInstances(RunInstancesRequest runInstancesRequest) throws AmazonServiceException, AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public RunScheduledInstancesResult runScheduledInstances(RunScheduledInstancesRequest runScheduledInstancesRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -1021,6 +1079,11 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public void modifyInstanceAttribute(ModifyInstanceAttributeRequest modifyInstanceAttributeRequest) throws AmazonServiceException, AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public ModifyInstancePlacementResult modifyInstancePlacement(ModifyInstancePlacementRequest modifyInstancePlacementRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -1156,6 +1219,11 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public PurchaseReservedInstancesOfferingResult purchaseReservedInstancesOffering(PurchaseReservedInstancesOfferingRequest purchaseReservedInstancesOfferingRequest) throws AmazonServiceException, AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public PurchaseScheduledInstancesResult purchaseScheduledInstances(PurchaseScheduledInstancesRequest purchaseScheduledInstancesRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -1335,12 +1403,22 @@ public class AmazonEC2Mock implements AmazonEC2 {
     }
 
     @Override
+    public ReleaseHostsResult releaseHosts(ReleaseHostsRequest releaseHostsRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
     public void resetInstanceAttribute(ResetInstanceAttributeRequest resetInstanceAttributeRequest) throws AmazonServiceException, AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreateKeyPairResult createKeyPair(CreateKeyPairRequest createKeyPairRequest) throws AmazonServiceException, AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CreateNatGatewayResult createNatGateway(CreateNatGatewayRequest createNatGatewayRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -1371,6 +1449,11 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public EnableVpcClassicLinkResult enableVpcClassicLink(EnableVpcClassicLinkRequest enableVpcClassicLinkRequest) throws AmazonServiceException, AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public EnableVpcClassicLinkDnsSupportResult enableVpcClassicLinkDnsSupport(EnableVpcClassicLinkDnsSupportRequest enableVpcClassicLinkDnsSupportRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -1490,6 +1573,16 @@ public class AmazonEC2Mock implements AmazonEC2 {
     }
 
     @Override
+    public DescribeScheduledInstanceAvailabilityResult describeScheduledInstanceAvailability(DescribeScheduledInstanceAvailabilityRequest describeScheduledInstanceAvailabilityRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeScheduledInstancesResult describeScheduledInstances(DescribeScheduledInstancesRequest describeScheduledInstancesRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
     public DescribeDhcpOptionsResult describeDhcpOptions() throws AmazonServiceException, AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
@@ -1530,6 +1623,11 @@ public class AmazonEC2Mock implements AmazonEC2 {
     }
 
     @Override
+    public DescribeNatGatewaysResult describeNatGateways(DescribeNatGatewaysRequest describeNatGatewaysRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
     public DescribeConversionTasksResult describeConversionTasks() throws AmazonServiceException, AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
@@ -1541,6 +1639,26 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public DescribeFlowLogsResult describeFlowLogs() throws AmazonServiceException, AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeHostsResult describeHosts(DescribeHostsRequest describeHostsRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeHostsResult describeHosts() {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeIdFormatResult describeIdFormat(DescribeIdFormatRequest describeIdFormatRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeIdFormatResult describeIdFormat() {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -1581,6 +1699,11 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public DescribeVpcClassicLinkResult describeVpcClassicLink() throws AmazonServiceException, AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeVpcClassicLinkDnsSupportResult describeVpcClassicLinkDnsSupport(DescribeVpcClassicLinkDnsSupportRequest describeVpcClassicLinkDnsSupportRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -1646,6 +1769,11 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public AllocateAddressResult allocateAddress() throws AmazonServiceException, AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public AllocateHostsResult allocateHosts(AllocateHostsRequest allocateHostsRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 

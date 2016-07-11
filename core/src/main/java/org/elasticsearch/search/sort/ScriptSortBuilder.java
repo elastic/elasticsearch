@@ -52,6 +52,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -60,6 +61,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Script sort builder allows to sort based on a custom script expression.
@@ -80,7 +82,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     private SortMode sortMode;
 
-    private QueryBuilder<?> nestedFilter;
+    private QueryBuilder nestedFilter;
 
     private String nestedPath;
 
@@ -170,7 +172,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
      * Sets the nested filter that the nested objects should match with in order to be taken into account
      * for sorting.
      */
-    public ScriptSortBuilder setNestedFilter(QueryBuilder<?> nestedFilter) {
+    public ScriptSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
         this.nestedFilter = nestedFilter;
         return this;
     }
@@ -178,7 +180,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     /**
      * Gets the nested filter.
      */
-    public QueryBuilder<?> getNestedFilter() {
+    public QueryBuilder getNestedFilter() {
         return this.nestedFilter;
     }
 
@@ -236,7 +238,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         ScriptSortType type = null;
         SortMode sortMode = null;
         SortOrder order = null;
-        QueryBuilder<?> nestedFilter = null;
+        Optional<QueryBuilder> nestedFilter = Optional.empty();
         String nestedPath = null;
         Map<String, Object> params = new HashMap<>();
 
@@ -291,9 +293,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         if (sortMode != null) {
             result.sortMode(sortMode);
         }
-        if (nestedFilter != null) {
-            result.setNestedFilter(nestedFilter);
-        }
+        nestedFilter.ifPresent(result::setNestedFilter);
         if (nestedPath != null) {
             result.setNestedPath(nestedPath);
         }
@@ -302,9 +302,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
 
     @Override
-    public SortField build(QueryShardContext context) throws IOException {
+    public SortFieldAndFormat build(QueryShardContext context) throws IOException {
         final SearchScript searchScript = context.getScriptService().search(
-                context.lookup(), script, ScriptContext.Standard.SEARCH, Collections.emptyMap(), context.getClusterState());
+                context.lookup(), script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
 
         MultiValueMode valueMode = null;
         if (sortMode != null) {
@@ -366,7 +366,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             throw new QueryShardException(context, "custom script sort type [" + type + "] not supported");
         }
 
-        return new SortField("_script", fieldComparatorSource, reverse);
+        return new SortFieldAndFormat(new SortField("_script", fieldComparatorSource, reverse), DocValueFormat.RAW);
     }
 
     @Override

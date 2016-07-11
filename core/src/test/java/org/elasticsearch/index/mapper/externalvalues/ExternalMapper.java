@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.externalvalues;
 import org.locationtech.spatial4j.shape.Point;
 import org.apache.lucene.document.Field;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
@@ -33,9 +32,9 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TermBasedFieldType;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
@@ -50,7 +49,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 
 /**
  * This mapper add a new sub fields
@@ -129,7 +127,7 @@ public class ExternalMapper extends FieldMapper {
         }
     }
 
-    static class ExternalFieldType extends MappedFieldType {
+    static class ExternalFieldType extends TermBasedFieldType {
 
         public ExternalFieldType() {}
 

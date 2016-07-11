@@ -1,0 +1,84 @@
+[[modules-scripting-native]]
+=== Native (Java) Scripts
+
+Sometimes `groovy` and <<modules-scripting-expression, expression>> aren't enough. For those times you can
+implement a native script.
+
+The best way to implement a native script is to write a plugin and install it.
+The plugin {plugins}/plugin-authors.html[documentation] has more information on
+how to write a plugin so that Elasticsearch will properly load it.
+
+To register the actual script you'll need to implement `NativeScriptFactory`
+to construct the script. The actual script will extend either
+`AbstractExecutableScript` or `AbstractSearchScript`. The second one is likely
+the most useful and has several helpful subclasses you can extend like
+`AbstractLongSearchScript` and `AbstractDoubleSearchScript`.
+Finally, your plugin should register the native
+script by declaring the `onModule(ScriptModule)` method.
+
+If you squashed the whole thing into one class it'd look like:
+
+[source,java]
+--------------------------------------------------
+public class MyNativeScriptPlugin extends Plugin {
+    @Override
+    public String name() {
+        return "my-native-script";
+    }
+    @Override
+    public String description() {
+        return "my native script that does something great";
+    }
+    public void onModule(ScriptModule scriptModule) {
+        scriptModule.registerScript("my_script", MyNativeScriptFactory.class);
+    }
+
+    public static class MyNativeScriptFactory implements NativeScriptFactory {
+        @Override
+        public ExecutableScript newScript(@Nullable Map<String, Object> params) {
+            return new MyNativeScript();
+        }
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
+    }
+
+    public static class MyNativeScript extends AbstractDoubleSearchScript {
+        @Override
+        public double runAsDouble() {
+            double a = (double) source().get("a");
+            double b = (double) source().get("b");
+            return a * b;
+        }
+    }
+}
+--------------------------------------------------
+
+You can execute the script by specifying its `lang` as `native`, and the name
+of the script as the `id`:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST localhost:9200/_search -d '{
+  "query": {
+    "function_score": {
+      "query": {
+        "match": {
+          "body": "foo"
+        }
+      },
+      "functions": [
+        {
+          "script_score": {
+            "script": {
+                "id": "my_script",
+                "lang" : "native"
+            }
+          }
+        }
+      ]
+    }
+  }
+}'
+--------------------------------------------------

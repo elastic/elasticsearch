@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -175,10 +176,15 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertAcked(admin().indices().prepareAliases().addAlias("test", "tests", termQuery("name", "test")));
 
         logger.info("--> indexing against [test]");
-        client().index(indexRequest("test").type("type1").id("1").source(source("1", "foo test")).refresh(true)).actionGet();
-        client().index(indexRequest("test").type("type1").id("2").source(source("2", "bar test")).refresh(true)).actionGet();
-        client().index(indexRequest("test").type("type1").id("3").source(source("3", "baz test")).refresh(true)).actionGet();
-        client().index(indexRequest("test").type("type1").id("4").source(source("4", "something else")).refresh(true)).actionGet();
+        client().index(indexRequest("test").type("type1").id("1").source(source("1", "foo test")).setRefreshPolicy(RefreshPolicy.IMMEDIATE))
+                .actionGet();
+        client().index(indexRequest("test").type("type1").id("2").source(source("2", "bar test")).setRefreshPolicy(RefreshPolicy.IMMEDIATE))
+                .actionGet();
+        client().index(indexRequest("test").type("type1").id("3").source(source("3", "baz test")).setRefreshPolicy(RefreshPolicy.IMMEDIATE))
+                .actionGet();
+        client().index(
+                indexRequest("test").type("type1").id("4").source(source("4", "something else")).setRefreshPolicy(RefreshPolicy.IMMEDIATE))
+                .actionGet();
 
         logger.info("--> checking single filtering alias search");
         SearchResponse searchResponse = client().prepareSearch("foos").setQuery(QueryBuilders.matchAllQuery()).get();
@@ -1029,13 +1035,13 @@ public class IndexAliasesIT extends ESIntegTestCase {
     }
 
     public void testAliasFilterWithNowInRangeFilterAndQuery() throws Exception {
-        assertAcked(prepareCreate("my-index").addMapping("my-type", "_timestamp", "enabled=true"));
-        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter1", rangeQuery("_timestamp").from("now-1d").to("now")));
-        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter2", rangeQuery("_timestamp").from("now-1d").to("now")));
+        assertAcked(prepareCreate("my-index").addMapping("my-type", "timestamp", "type=date"));
+        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter1", rangeQuery("timestamp").from("2016-12-01").to("2016-12-31")));
+        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter2", rangeQuery("timestamp").from("2016-01-01").to("2016-12-31")));
 
         final int numDocs = scaledRandomIntBetween(5, 52);
         for (int i = 1; i <= numDocs; i++) {
-            client().prepareIndex("my-index", "my-type").setCreate(true).setSource("{}").get();
+            client().prepareIndex("my-index", "my-type").setCreate(true).setSource("timestamp", "2016-12-12").get();
             if (i % 2 == 0) {
                 refresh();
                 SearchResponse response = client().prepareSearch("filter1").get();

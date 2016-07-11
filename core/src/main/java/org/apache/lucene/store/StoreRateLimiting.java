@@ -26,7 +26,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
  */
 public class StoreRateLimiting {
 
-    public static interface Provider {
+    public interface Provider {
 
         StoreRateLimiting rateLimiting();
     }

@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.cluster.repositories.verify;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -42,15 +41,13 @@ public class TransportVerifyRepositoryAction extends TransportMasterNodeAction<V
 
     private final RepositoriesService repositoriesService;
 
-    protected final ClusterName clusterName;
 
     @Inject
-    public TransportVerifyRepositoryAction(Settings settings, ClusterName clusterName, TransportService transportService, ClusterService clusterService,
+    public TransportVerifyRepositoryAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                            RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
                                            IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, VerifyRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, VerifyRepositoryRequest::new);
         this.repositoriesService = repositoriesService;
-        this.clusterName = clusterName;
     }
 
     @Override
@@ -76,12 +73,12 @@ public class TransportVerifyRepositoryAction extends TransportMasterNodeAction<V
                 if (verifyResponse.failed()) {
                     listener.onFailure(new RepositoryVerificationException(request.name(), verifyResponse.failureDescription()));
                 } else {
-                    listener.onResponse(new VerifyRepositoryResponse(clusterName, verifyResponse.nodes()));
+                    listener.onResponse(new VerifyRepositoryResponse(clusterService.getClusterName(), verifyResponse.nodes()));
                 }
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
         });

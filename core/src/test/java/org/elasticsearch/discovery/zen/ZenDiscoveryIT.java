@@ -261,8 +261,8 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                holder.set((IllegalStateException) t);
+            public void onFailure(Exception e) {
+                holder.set((IllegalStateException) e);
             }
         });
 
@@ -297,7 +297,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         Settings nodeSettings = Settings.builder()
                 .put("discovery.type", "zen") // <-- To override the local setting if set externally
                 .build();
-        String nodeName = internalCluster().startNode(nodeSettings, Version.CURRENT);
+        String nodeName = internalCluster().startNode(nodeSettings);
         ZenDiscovery zenDiscovery = (ZenDiscovery) internalCluster().getInstance(Discovery.class, nodeName);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeName);
         DiscoveryNode node = new DiscoveryNode("_node_id", new InetSocketTransportAddress(InetAddress.getByName("0.0.0.0"), 0),
@@ -309,8 +309,8 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                holder.set((IllegalStateException) t);
+            public void onFailure(Exception e) {
+                holder.set((IllegalStateException) e);
             }
         });
 
@@ -320,7 +320,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
     }
 
     public void testJoinElectedMaster_incompatibleMinVersion() {
-        ElectMasterService electMasterService = new ElectMasterService(Settings.EMPTY, Version.CURRENT);
+        ElectMasterService electMasterService = new ElectMasterService(Settings.EMPTY);
 
         DiscoveryNode node = new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), emptyMap(),
                 Collections.singleton(DiscoveryNode.Role.MASTER), Version.CURRENT);
@@ -349,9 +349,9 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
 
         logger.info("--> request node discovery stats");
         NodesStatsResponse statsResponse = client().admin().cluster().prepareNodesStats().clear().setDiscovery(true).get();
-        assertThat(statsResponse.getNodes().length, equalTo(1));
+        assertThat(statsResponse.getNodes().size(), equalTo(1));
 
-        DiscoveryStats stats = statsResponse.getNodes()[0].getDiscoveryStats();
+        DiscoveryStats stats = statsResponse.getNodes().get(0).getDiscoveryStats();
         assertThat(stats.getQueueStats(), notNullValue());
         assertThat(stats.getQueueStats().getTotal(), equalTo(0));
         assertThat(stats.getQueueStats().getCommitted(), equalTo(0));

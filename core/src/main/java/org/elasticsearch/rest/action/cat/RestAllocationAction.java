@@ -26,7 +26,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
@@ -48,8 +48,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestAllocationAction extends AbstractCatAction {
 
     @Inject
-    public RestAllocationAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestAllocationAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/_cat/allocation", this);
         controller.registerHandler(GET, "/_cat/allocation/{nodes}", this);
     }
@@ -60,7 +60,7 @@ public class RestAllocationAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final String[] nodes = Strings.splitStringByCommaToArray(request.param("nodes", "data:true"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().routingTable(true);

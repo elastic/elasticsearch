@@ -20,6 +20,8 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -33,7 +35,7 @@ import java.util.Map;
 /**
  *
  */
-public interface Transport extends LifecycleComponent<Transport> {
+public interface Transport extends LifecycleComponent {
 
 
     Setting<Boolean> TRANSPORT_TCP_COMPRESS = Setting.boolSetting("transport.tcp.compress", false, Property.NodeScope);
@@ -94,4 +96,9 @@ public interface Transport extends LifecycleComponent<Transport> {
     long serverOpen();
 
     List<String> getLocalAddresses();
+
+    default CircuitBreaker getInFlightRequestBreaker() {
+        return new NoopCircuitBreaker("in-flight-noop");
+    }
+
 }

@@ -37,6 +37,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -58,7 +59,7 @@ public class GroovyScriptTests extends ESIntegTestCase {
     }
 
     public void testGroovyBigDecimalTransformation() {
-        client().prepareIndex("test", "doc", "1").setSource("foo", 5).setRefresh(true).get();
+        client().prepareIndex("test", "doc", "1").setSource("foo", 5).setRefreshPolicy(IMMEDIATE).get();
 
         // Test that something that would usually be a BigDecimal is transformed into a Double
         assertScript("def n = 1.23; assert n instanceof Double; return n;");
@@ -98,15 +99,15 @@ public class GroovyScriptTests extends ESIntegTestCase {
 
         try {
             client().prepareSearch("test")
-                    .setQuery(constantScoreQuery(scriptQuery(new Script("assert false", ScriptType.INLINE, "groovy", null)))).get();
+                    .setQuery(constantScoreQuery(scriptQuery(new Script("null.foo", ScriptType.INLINE, "groovy", null)))).get();
             fail("should have thrown an exception");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString() + "should not contained NotSerializableTransportException",
                     e.toString().contains("NotSerializableTransportException"), equalTo(false));
             assertThat(e.toString() + "should have contained ScriptException",
                     e.toString().contains("ScriptException"), equalTo(true));
-            assertThat(e.toString()+ "should have contained an assert error",
-                    e.toString().contains("AssertionError[assert false"), equalTo(true));
+            assertThat(e.toString()+ "should have contained a NullPointerException",
+                    e.toString().contains("NullPointerException[Cannot get property 'foo' on null object]"), equalTo(true));
         }
     }
 

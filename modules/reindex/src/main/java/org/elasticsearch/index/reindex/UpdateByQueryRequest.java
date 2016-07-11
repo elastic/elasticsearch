@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.reindex;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static java.util.Collections.unmodifiableList;
 

@@ -1,32 +1,175 @@
 [[analysis-pathhierarchy-tokenizer]]
 === Path Hierarchy Tokenizer
 
-The `path_hierarchy` tokenizer takes something like this:
+The `path_hierarchy` tokenizer takes a hierarchical value like a filesystem
+path, splits on the path separator, and emits a term for each component in the
+tree.
 
--------------------------
-/something/something/else
--------------------------
+[float]
+=== Example output
 
-And produces tokens:
+[source,js]
+---------------------------
+POST _analyze
+{
+  "tokenizer": "path_hierarchy",
+  "text": "/one/two/three"
+}
+---------------------------
+// CONSOLE
 
--------------------------
-/something
-/something/something
-/something/something/else
--------------------------
+/////////////////////
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|`delimiter` |The character delimiter to use, defaults to `/`.
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "/one",
+      "start_offset": 0,
+      "end_offset": 4,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "/one/two",
+      "start_offset": 0,
+      "end_offset": 8,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "/one/two/three",
+      "start_offset": 0,
+      "end_offset": 14,
+      "type": "word",
+      "position": 0
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
 
-|`replacement` |An optional replacement character to use. Defaults to
-the `delimiter`.
+/////////////////////
 
-|`buffer_size` |The buffer size to use, defaults to `1024`.
 
-|`reverse` |Generates tokens in reverse order, defaults to `false`.
 
-|`skip` |Controls initial tokens to skip, defaults to `0`.
-|=======================================================================
+The above text would produce the following terms:
+
+[source,text]
+---------------------------
+[ /one, /one/two, /one/two/three ]
+---------------------------
+
+[float]
+=== Configuration
+
+The `path_hierarchy` tokenizer accepts the following parameters:
+
+[horizontal]
+`delimiter`::
+    The character to use as the path separator.  Defaults to `/`.
+
+`replacement`::
+    An optional replacement character to use for the delimiter.
+    Defaults to the `delimiter`.
+
+`buffer_size`::
+    The number of characters read into the term buffer in a single pass.
+    Defaults to `1024`.  The term buffer will grow by this size until all the
+    text has been consumed.  It is advisable not to change this setting.
+
+`reverse`::
+    If set to `true`, emits the tokens in reverse order.  Defaults to `false`.
+
+`skip`::
+    The number of initial tokens to skip.  Defaults to `0`.
+
+[float]
+=== Example configuration
+
+In this example, we configure the `path_hierarchy` tokenizer to split on `-`
+characters, and to replace them with `/`.  The first two tokens are skipped:
+
+[source,js]
+----------------------------
+PUT my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "my_tokenizer"
+        }
+      },
+      "tokenizer": {
+        "my_tokenizer": {
+          "type": "path_hierarchy",
+          "delimiter": "-",
+          "replacement": "/",
+          "skip": 2
+        }
+      }
+    }
+  }
+}
+
+GET _cluster/health?wait_for_status=yellow
+
+POST my_index/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "one-two-three-four-five"
+}
+----------------------------
+// CONSOLE
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "/three",
+      "start_offset": 7,
+      "end_offset": 13,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "/three/four",
+      "start_offset": 7,
+      "end_offset": 18,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "/three/four/five",
+      "start_offset": 7,
+      "end_offset": 23,
+      "type": "word",
+      "position": 0
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
+The above example produces the following terms:
+
+[source,text]
+---------------------------
+[ /three, /three/four, /three/four/five ]
+---------------------------
+
+If we were to set `reverse` to `true`, it would produce the following:
+
+[source,text]
+---------------------------
+[ one/two/three/, two/three/, three/ ]
+---------------------------
 

@@ -39,9 +39,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Set;
-
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -59,7 +56,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     @BeforeClass
     public static void init() throws IOException {
         namedWriteableRegistry = new NamedWriteableRegistry();
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, namedWriteableRegistry);
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, namedWriteableRegistry, false);
         queriesRegistry = searchModule.getQueryParserRegistry();
         suggesters = searchModule.getSuggesters();
         parseFieldMatcher = ParseFieldMatcher.STRICT;
@@ -173,8 +170,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
      * Subclasses can override this method and return a set of fields which should be protected from
      * recursive random shuffling in the {@link #testFromXContent()} test case
      */
-    protected Set<String> shuffleProtectedFields() {
-        return Collections.emptySet();
+    protected String[] shuffleProtectedFields() {
+        return new String[0];
     }
 
     private SB mutate(SB firstBuilder) throws IOException {
@@ -218,7 +215,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     protected SB serializedCopy(SB original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.writeNamedWriteable(original);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 return (SB) in.readNamedWriteable(SuggestionBuilder.class);
             }
         }

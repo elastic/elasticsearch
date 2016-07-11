@@ -1,6 +1,7 @@
-# you can override this using by setting a system property, for example -Ees.logger.level=DEBUG
-es.logger.level: INFO
-rootLogger: ${es.logger.level}, console
+# you can override using a command-line parameter
+# -E logger.level=(ERROR|WARN|INFO|DEBUG|TRACE)
+logger.level: INFO
+rootLogger: ${logger.level}, console
 logger:
   test: TRACE, console
 

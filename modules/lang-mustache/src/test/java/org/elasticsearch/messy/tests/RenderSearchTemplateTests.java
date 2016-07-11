@@ -19,16 +19,15 @@
 
 package org.elasticsearch.messy.tests;
 
-import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateResponse;
+import org.elasticsearch.action.search.template.SearchTemplateRequestBuilder;
+import org.elasticsearch.action.search.template.SearchTemplateResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -40,6 +39,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -51,6 +51,11 @@ public class RenderSearchTemplateTests extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(MustachePlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return nodePlugins();
     }
 
     @Override
@@ -75,14 +80,14 @@ public class RenderSearchTemplateTests extends ESIntegTestCase {
                 .put(Environment.PATH_CONF_SETTING.getKey(), configDir).build();
     }
 
-    public void testInlineTemplate() {
+    public void testInlineTemplate() throws ExecutionException, InterruptedException {
         Map<String, Object> params = new HashMap<>();
         params.put("value", "bar");
         params.put("size", 20);
-        Template template = new Template(TEMPLATE_CONTENTS, ScriptType.INLINE, MustacheScriptEngineService.NAME, XContentType.JSON, params);
-        RenderSearchTemplateResponse response = client().admin().cluster().prepareRenderSearchTemplate().template(template).get();
+        SearchTemplateResponse response = prepareRenderSearchTemplate(TEMPLATE_CONTENTS, ScriptType.INLINE, params).get();
         assertThat(response, notNullValue());
-        BytesReference source = response.source();
+        assertFalse(response.hasResponse());
+        BytesReference source = response.getSource();
         assertThat(source, notNullValue());
         Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, false).v2();
         assertThat(sourceAsMap, notNullValue());
@@ -93,10 +98,10 @@ public class RenderSearchTemplateTests extends ESIntegTestCase {
         params = new HashMap<>();
         params.put("value", "baz");
         params.put("size", 100);
-        template = new Template(TEMPLATE_CONTENTS, ScriptType.INLINE, MustacheScriptEngineService.NAME, XContentType.JSON, params);
-        response = client().admin().cluster().prepareRenderSearchTemplate().template(template).get();
+        response = prepareRenderSearchTemplate(TEMPLATE_CONTENTS, ScriptType.INLINE, params).get();
         assertThat(response, notNullValue());
-        source = response.source();
+        assertFalse(response.hasResponse());
+        source = response.getSource();
         assertThat(source, notNullValue());
         sourceAsMap = XContentHelper.convertToMap(source, false).v2();
         expected = TEMPLATE_CONTENTS.replace("{{value}}", "baz").replace("{{size}}", "100");
@@ -104,14 +109,14 @@ public class RenderSearchTemplateTests extends ESIntegTestCase {
         assertThat(sourceAsMap, equalTo(expectedMap));
     }
 
-    public void testIndexedTemplate() {
+    public void testIndexedTemplate() throws ExecutionException, InterruptedException {
         Map<String, Object> params = new HashMap<>();
         params.put("value", "bar");
         params.put("size", 20);
-        Template template = new Template("index_template_1", ScriptType.STORED, MustacheScriptEngineService.NAME, XContentType.JSON, params);
-        RenderSearchTemplateResponse response = client().admin().cluster().prepareRenderSearchTemplate().template(template).get();
+        SearchTemplateResponse response = prepareRenderSearchTemplate("index_template_1", ScriptType.STORED, params).get();
         assertThat(response, notNullValue());
-        BytesReference source = response.source();
+        assertFalse(response.hasResponse());
+        BytesReference source = response.getSource();
         assertThat(source, notNullValue());
         Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, false).v2();
         assertThat(sourceAsMap, notNullValue());
@@ -122,10 +127,9 @@ public class RenderSearchTemplateTests extends ESIntegTestCase {
         params = new HashMap<>();
         params.put("value", "baz");
         params.put("size", 100);
-        template = new Template("index_template_1", ScriptType.STORED, MustacheScriptEngineService.NAME, XContentType.JSON, params);
-        response = client().admin().cluster().prepareRenderSearchTemplate().template(template).get();
+        response = prepareRenderSearchTemplate("index_template_1", ScriptType.STORED, params).get();
         assertThat(response, notNullValue());
-        source = response.source();
+        source = response.getSource();
         assertThat(source, notNullValue());
         sourceAsMap = XContentHelper.convertToMap(source, false).v2();
         expected = TEMPLATE_CONTENTS.replace("{{value}}", "baz").replace("{{size}}", "100");
@@ -133,14 +137,14 @@ public class RenderSearchTemplateTests extends ESIntegTestCase {
         assertThat(sourceAsMap, equalTo(expectedMap));
     }
 
-    public void testFileTemplate() {
+    public void testFileTemplate() throws ExecutionException, InterruptedException {
         Map<String, Object> params = new HashMap<>();
         params.put("value", "bar");
         params.put("size", 20);
-        Template template = new Template("file_template_1", ScriptType.FILE, MustacheScriptEngineService.NAME, XContentType.JSON, params);
-        RenderSearchTemplateResponse response = client().admin().cluster().prepareRenderSearchTemplate().template(template).get();
+        SearchTemplateResponse response = prepareRenderSearchTemplate("file_template_1", ScriptType.FILE, params).get();
         assertThat(response, notNullValue());
-        BytesReference source = response.source();
+        assertFalse(response.hasResponse());
+        BytesReference source = response.getSource();
         assertThat(source, notNullValue());
         Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, false).v2();
         assertThat(sourceAsMap, notNullValue());
@@ -151,14 +155,17 @@ public class RenderSearchTemplateTests extends ESIntegTestCase {
         params = new HashMap<>();
         params.put("value", "baz");
         params.put("size", 100);
-        template = new Template("file_template_1", ScriptType.FILE, MustacheScriptEngineService.NAME, XContentType.JSON, params);
-        response = client().admin().cluster().prepareRenderSearchTemplate().template(template).get();
+        response = prepareRenderSearchTemplate("file_template_1", ScriptType.FILE, params).get();
         assertThat(response, notNullValue());
-        source = response.source();
+        source = response.getSource();
         assertThat(source, notNullValue());
         sourceAsMap = XContentHelper.convertToMap(source, false).v2();
         expected = TEMPLATE_CONTENTS.replace("{{value}}", "baz").replace("{{size}}", "100");
         expectedMap = XContentHelper.convertToMap(new BytesArray(expected), false).v2();
         assertThat(sourceAsMap, equalTo(expectedMap));
+    }
+
+    private SearchTemplateRequestBuilder prepareRenderSearchTemplate(String script, ScriptType type, Map<String, Object> params) {
+        return new SearchTemplateRequestBuilder(client()).setScript(script).setScriptType(type).setScriptParams(params).setSimulate(true);
     }
 }

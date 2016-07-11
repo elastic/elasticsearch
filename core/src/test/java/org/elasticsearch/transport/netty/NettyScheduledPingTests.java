@@ -29,8 +29,10 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -51,26 +53,28 @@ import static org.hamcrest.Matchers.greaterThan;
  */
 public class NettyScheduledPingTests extends ESTestCase {
     public void testScheduledPing() throws Exception {
-        ThreadPool threadPool = new ThreadPool(getClass().getName());
+        ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
         Settings settings = Settings.builder()
-            .put(NettyTransport.PING_SCHEDULE.getKey(), "5ms")
+            .put(TcpTransport.PING_SCHEDULE.getKey(), "5ms")
             .put(TransportSettings.PORT.getKey(), 0)
+            .put("cluster.name", "test")
             .build();
 
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
 
         NamedWriteableRegistry registryA = new NamedWriteableRegistry();
         final NettyTransport nettyA = new NettyTransport(settings, threadPool, new NetworkService(settings),
-            BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, registryA, circuitBreakerService);
+            BigArrays.NON_RECYCLING_INSTANCE, registryA, circuitBreakerService);
         MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool);
         serviceA.start();
         serviceA.acceptIncomingRequests();
 
         NamedWriteableRegistry registryB = new NamedWriteableRegistry();
         final NettyTransport nettyB = new NettyTransport(settings, threadPool, new NetworkService(settings),
-            BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, registryB, circuitBreakerService);
+            BigArrays.NON_RECYCLING_INSTANCE, registryB, circuitBreakerService);
         MockTransportService serviceB = new MockTransportService(settings, nettyB, threadPool);
+
         serviceB.start();
         serviceB.acceptIncomingRequests();
 
@@ -85,12 +89,12 @@ public class NettyScheduledPingTests extends ESTestCase {
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                assertThat(nettyA.scheduledPing.successfulPings.count(), greaterThan(100L));
-                assertThat(nettyB.scheduledPing.successfulPings.count(), greaterThan(100L));
+                assertThat(nettyA.getPing().getSuccessfulPings(), greaterThan(100L));
+                assertThat(nettyB.getPing().getSuccessfulPings(), greaterThan(100L));
             }
         });
-        assertThat(nettyA.scheduledPing.failedPings.count(), equalTo(0L));
-        assertThat(nettyB.scheduledPing.failedPings.count(), equalTo(0L));
+        assertThat(nettyA.getPing().getFailedPings(), equalTo(0L));
+        assertThat(nettyB.getPing().getFailedPings(), equalTo(0L));
 
         serviceA.registerRequestHandler("sayHello", TransportRequest.Empty::new, ThreadPool.Names.GENERIC,
             new TransportRequestHandler<TransportRequest.Empty>() {
@@ -110,7 +114,7 @@ public class NettyScheduledPingTests extends ESTestCase {
         for (int i = 0; i < rounds; i++) {
             serviceB.submitRequest(nodeA, "sayHello",
                     TransportRequest.Empty.INSTANCE, TransportRequestOptions.builder().withCompress(randomBoolean()).build(),
-                new BaseTransportResponseHandler<TransportResponse.Empty>() {
+                new TransportResponseHandler<TransportResponse.Empty>() {
                         @Override
                         public TransportResponse.Empty newInstance() {
                             return TransportResponse.Empty.INSTANCE;
@@ -133,15 +137,12 @@ public class NettyScheduledPingTests extends ESTestCase {
                     }).txGet();
         }
 
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat(nettyA.scheduledPing.successfulPings.count(), greaterThan(200L));
-                assertThat(nettyB.scheduledPing.successfulPings.count(), greaterThan(200L));
-            }
+        assertBusy(() -> {
+            assertThat(nettyA.getPing().getSuccessfulPings(), greaterThan(200L));
+            assertThat(nettyB.getPing().getSuccessfulPings(), greaterThan(200L));
         });
-        assertThat(nettyA.scheduledPing.failedPings.count(), equalTo(0L));
-        assertThat(nettyB.scheduledPing.failedPings.count(), equalTo(0L));
+        assertThat(nettyA.getPing().getFailedPings(), equalTo(0L));
+        assertThat(nettyB.getPing().getFailedPings(), equalTo(0L));
 
         Releasables.close(serviceA, serviceB);
         terminate(threadPool);

@@ -33,8 +33,8 @@ public class DiscoveryModuleTests extends ModuleTestCase {
 
     public static class DummyMasterElectionService extends ElectMasterService {
 
-        public DummyMasterElectionService(Settings settings, Version version) {
-            super(settings, version);
+        public DummyMasterElectionService(Settings settings) {
+            super(settings);
         }
     }
 

@@ -60,8 +60,7 @@ public class IndexGraveyardTests extends ESTestCase {
         final IndexGraveyard graveyard = createRandom();
         final BytesStreamOutput out = new BytesStreamOutput();
         graveyard.writeTo(out);
-        final ByteBufferStreamInput in = new ByteBufferStreamInput(ByteBuffer.wrap(out.bytes().toBytes()));
-        assertThat(IndexGraveyard.fromStream(in), equalTo(graveyard));
+        assertThat(IndexGraveyard.fromStream(out.bytes().streamInput()), equalTo(graveyard));
     }
 
     public void testXContent() throws IOException {
@@ -128,6 +127,23 @@ public class IndexGraveyardTests extends ESTestCase {
         final List<Index> actualAdded = diff.getAdded().stream().map(t -> t.getIndex()).collect(Collectors.toList());
         assertThat(new HashSet<>(actualAdded), equalTo(new HashSet<>(additions)));
         assertThat(diff.getRemovedCount(), equalTo(removals.size()));
+    }
+
+    public void testContains() {
+        List<Index> indices = new ArrayList<>();
+        final int numIndices = randomIntBetween(1, 5);
+        for (int i = 0; i < numIndices; i++) {
+            indices.add(new Index("idx-" + i, UUIDs.randomBase64UUID()));
+        }
+        final IndexGraveyard.Builder graveyard = IndexGraveyard.builder();
+        for (final Index index : indices) {
+            graveyard.addTombstone(index);
+        }
+        final IndexGraveyard indexGraveyard = graveyard.build();
+        for (final Index index : indices) {
+            assertTrue(indexGraveyard.containsIndex(index));
+        }
+        assertFalse(indexGraveyard.containsIndex(new Index(randomAsciiOfLength(6), UUIDs.randomBase64UUID())));
     }
 
     public static IndexGraveyard createRandom() {

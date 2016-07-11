@@ -42,6 +42,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
@@ -50,17 +51,15 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 
 /**
  * The test case for unit testing task manager and related transport actions
@@ -68,13 +67,13 @@ import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
 public abstract class TaskManagerTestCase extends ESTestCase {
 
     protected static ThreadPool threadPool;
-    public static final ClusterName CLUSTER_NAME = new ClusterName("test-cluster");
+    public static final Settings CLUSTER_SETTINGS = Settings.builder().put("cluster.name", "test-cluster").build();
     protected TestNode[] testNodes;
     protected int nodesCount;
 
     @BeforeClass
     public static void beforeClass() {
-        threadPool = new ThreadPool(TransportTasksActionTests.class.getSimpleName());
+        threadPool = new TestThreadPool(TransportTasksActionTests.class.getSimpleName());
     }
 
     @AfterClass
@@ -88,7 +87,6 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         testNodes = new TestNode[nodesCount];
         for (int i = 0; i < testNodes.length; i++) {
             testNodes[i] = new TestNode("node" + i, threadPool, settings);
-            ;
         }
     }
 
@@ -113,27 +111,22 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
     static class NodesResponse extends BaseNodesResponse<NodeResponse> {
 
-        private int failureCount;
-
-        protected NodesResponse(ClusterName clusterName, NodeResponse[] nodes, int failureCount) {
-            super(clusterName, nodes);
-            this.failureCount = failureCount;
+        protected NodesResponse(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
+            super(clusterName, nodes, failures);
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            failureCount = in.readVInt();
+        protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
+            return in.readStreamableList(NodeResponse::new);
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeVInt(failureCount);
+        protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
+            out.writeStreamableList(nodes);
         }
 
         public int failureCount() {
-            return failureCount;
+            return failures().size();
         }
     }
 
@@ -143,29 +136,17 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     abstract class AbstractTestNodesAction<NodesRequest extends BaseNodesRequest<NodesRequest>, NodeRequest extends BaseNodeRequest>
             extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
 
-        AbstractTestNodesAction(Settings settings, String actionName, ClusterName clusterName, ThreadPool threadPool,
+        AbstractTestNodesAction(Settings settings, String actionName, ThreadPool threadPool,
                                 ClusterService clusterService, TransportService transportService, Supplier<NodesRequest> request,
                                 Supplier<NodeRequest> nodeRequest) {
-            super(settings, actionName, clusterName, threadPool, clusterService, transportService,
+            super(settings, actionName, threadPool, clusterService, transportService,
                     new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
-                    request, nodeRequest, ThreadPool.Names.GENERIC);
+                    request, nodeRequest, ThreadPool.Names.GENERIC, NodeResponse.class);
         }
 
         @Override
-        protected NodesResponse newResponse(NodesRequest request, AtomicReferenceArray responses) {
-            final List<NodeResponse> nodesList = new ArrayList<>();
-            int failureCount = 0;
-            for (int i = 0; i < responses.length(); i++) {
-                Object resp = responses.get(i);
-                if (resp instanceof NodeResponse) { // will also filter out null response for unallocated ones
-                    nodesList.add((NodeResponse) resp);
-                } else if (resp instanceof FailedNodeException) {
-                    failureCount++;
-                } else {
-                    logger.warn("unknown response type [{}], expected NodeLocalGatewayMetaState or FailedNodeException", resp);
-                }
-            }
-            return new NodesResponse(clusterName, nodesList.toArray(new NodeResponse[nodesList.size()]), failureCount);
+        protected NodesResponse newResponse(NodesRequest request, List<NodeResponse> responses, List<FailedNodeException> failures) {
+            return new NodesResponse(clusterService.getClusterName(), responses, failures);
         }
 
         @Override
@@ -184,8 +165,9 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
     public static class TestNode implements Releasable {
         public TestNode(String name, ThreadPool threadPool, Settings settings) {
+            clusterService = createClusterService(threadPool);
             transportService = new TransportService(settings,
-                    new LocalTransport(settings, threadPool, Version.CURRENT, new NamedWriteableRegistry(),
+                    new LocalTransport(settings, threadPool, new NamedWriteableRegistry(),
                         new NoneCircuitBreakerService()), threadPool) {
                 @Override
                 protected TaskManager createTaskManager() {
@@ -197,15 +179,14 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 }
             };
             transportService.start();
-            clusterService = createClusterService(threadPool);
             clusterService.add(transportService.getTaskManager());
             discoveryNode = new DiscoveryNode(name, transportService.boundAddress().publishAddress(),
                     emptyMap(), emptySet(), Version.CURRENT);
             IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
             ActionFilters actionFilters = new ActionFilters(emptySet());
-            transportListTasksAction = new TransportListTasksAction(settings, CLUSTER_NAME, threadPool, clusterService, transportService,
+            transportListTasksAction = new TransportListTasksAction(settings, threadPool, clusterService, transportService,
                     actionFilters, indexNameExpressionResolver);
-            transportCancelTasksAction = new TransportCancelTasksAction(settings, CLUSTER_NAME, threadPool, clusterService,
+            transportCancelTasksAction = new TransportCancelTasksAction(settings, threadPool, clusterService,
                     transportService, actionFilters, indexNameExpressionResolver);
             transportService.acceptIncomingRequests();
         }
@@ -251,5 +232,4 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         }
         return listeners;
     }
-
 }

@@ -25,6 +25,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -153,12 +154,12 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"ids\" : {\n" + 
-                "    \"type\" : [ \"my_type\" ],\n" + 
-                "    \"values\" : [ \"1\", \"100\", \"4\" ],\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"ids\" : {\n" +
+                "    \"type\" : [ \"my_type\" ],\n" +
+                "    \"values\" : [ \"1\", \"100\", \"4\" ],\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
         IdsQueryBuilder parsed = (IdsQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

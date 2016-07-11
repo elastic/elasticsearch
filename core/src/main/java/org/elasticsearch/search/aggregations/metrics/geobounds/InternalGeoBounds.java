@@ -34,8 +34,8 @@ import java.util.Map;
 
 public class InternalGeoBounds extends InternalMetricsAggregation implements GeoBounds {
 
-    public final static Type TYPE = new Type("geo_bounds");
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final Type TYPE = new Type("geo_bounds");
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalGeoBounds readResult(StreamInput in) throws IOException {
             InternalGeoBounds result = new InternalGeoBounds();

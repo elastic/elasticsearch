@@ -21,18 +21,22 @@ package org.elasticsearch.search.innerhits;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.ArrayUtil;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -44,8 +48,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.function.Function;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
@@ -66,9 +74,17 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class InnerHitsIT extends ESIntegTestCase {
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockScriptEngine.TestPlugin.class);
+        return Collections.singleton(CustomScriptPlugin.class);
+    }
+
+    public static class CustomScriptPlugin extends MockScriptPlugin {
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            return Collections.emptyMap();
+        }
     }
 
     public void testSimpleNested() throws Exception {
@@ -151,7 +167,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox"), ScoreMode.Avg).innerHit(
                         new InnerHitBuilder().setHighlightBuilder(new HighlightBuilder().field("comments.message"))
                                 .setExplain(true)
-                                .addFieldDataField("comments.message")
+                                .addDocValueField("comments.message")
                                 .addScriptField("script", new Script("5", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap()))
                                 .setSize(1)
                 )).get();
@@ -282,7 +298,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .setQuery(
                         hasChildQuery("comment", matchQuery("message", "fox"), ScoreMode.None).innerHit(
                                 new InnerHitBuilder()
-                                        .addFieldDataField("message")
+                                        .addDocValueField("message")
                                         .setHighlightBuilder(new HighlightBuilder().field("message"))
                                         .setExplain(true).setSize(1)
                                         .addScriptField("script", new Script("5", ScriptService.ScriptType.INLINE,
@@ -916,7 +932,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .endObject()
                 .endArray()
                 .endObject())
-        .setRefresh(true)
+        .setRefreshPolicy(IMMEDIATE)
         .get();
 
         response = client().prepareSearch("index2")
@@ -925,6 +941,34 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
+    }
+
+    public void testNestedSourceFiltering() throws Exception {
+        assertAcked(prepareCreate("index1").addMapping("message", "comments", "type=nested"));
+        client().prepareIndex("index1", "message", "1").setSource(jsonBuilder().startObject()
+                .field("message", "quick brown fox")
+                .startArray("comments")
+                .startObject().field("message", "fox eat quick").endObject()
+                .startObject().field("message", "fox ate rabbit x y z").endObject()
+                .startObject().field("message", "rabbit got away").endObject()
+                .endArray()
+                .endObject()).get();
+        refresh();
+
+        // the field name (comments.message) used for source filtering should be the same as when using that field for
+        // other features (like in the query dsl or aggs) in order for consistency:
+        SearchResponse response = client().prepareSearch()
+                .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox"), ScoreMode.None)
+                .innerHit(new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext("comments.message"))))
+                .get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").totalHits(), equalTo(2L));
+        assertThat(extractValue("comments.message", response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).sourceAsMap()),
+                equalTo("fox eat quick"));
+        assertThat(extractValue("comments.message", response.getHits().getAt(0).getInnerHits().get("comments").getAt(1).sourceAsMap()),
+                equalTo("fox ate rabbit x y z"));
     }
 
 }

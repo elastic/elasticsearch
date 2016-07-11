@@ -24,8 +24,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -43,15 +44,15 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestAliasesExistAction extends BaseRestHandler {
 
     @Inject
-    public RestAliasesExistAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestAliasesExistAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(HEAD, "/_alias/{name}", this);
         controller.registerHandler(HEAD, "/{index}/_alias/{name}", this);
         controller.registerHandler(HEAD, "/{index}/_alias", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         String[] aliases = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         GetAliasesRequest getAliasesRequest = new GetAliasesRequest(aliases);
@@ -65,21 +66,23 @@ public class RestAliasesExistAction extends BaseRestHandler {
             public void onResponse(AliasesExistResponse response) {
                 try {
                     if (response.isExists()) {
-                        channel.sendResponse(new BytesRestResponse(OK));
+                        channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
                     } else {
-                        channel.sendResponse(new BytesRestResponse(NOT_FOUND));
+                        channel.sendResponse(new BytesRestResponse(NOT_FOUND, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
                     }
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     onFailure(e);
                 }
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 try {
-                    channel.sendResponse(new BytesRestResponse(ExceptionsHelper.status(e)));
-                } catch (Exception e1) {
-                    logger.error("Failed to send failure response", e1);
+                    channel.sendResponse(
+                        new BytesRestResponse(ExceptionsHelper.status(e), BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+                } catch (Exception inner) {
+                    inner.addSuppressed(e);
+                    logger.error("Failed to send failure response", inner);
                 }
             }
         });

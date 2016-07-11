@@ -150,8 +150,12 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         }
     }
 
+    private boolean globalBlocked(ClusterBlockLevel level) {
+        return global(level).isEmpty() == false;
+    }
+
     public ClusterBlockException globalBlockedException(ClusterBlockLevel level) {
-        if (global(level).isEmpty()) {
+        if (globalBlocked(level) == false) {
             return null;
         }
         return new ClusterBlockException(global(level));
@@ -175,10 +179,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
     }
 
     public boolean indexBlocked(ClusterBlockLevel level, String index) {
-        if (!global(level).isEmpty()) {
-            return true;
-        }
-        return !blocksForIndex(level, index).isEmpty();
+        return globalBlocked(level) || blocksForIndex(level, index).isEmpty() == false;
     }
 
     public ClusterBlockException indicesBlockedException(ClusterBlockLevel level, String[] indices) {
@@ -188,7 +189,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
                 indexIsBlocked = true;
             }
         }
-        if (!indexIsBlocked) {
+        if (globalBlocked(level) == false && indexIsBlocked == false) {
             return null;
         }
         Function<String, Stream<ClusterBlock>> blocksForIndexAtLevel = index -> blocksForIndex(level, index).stream();

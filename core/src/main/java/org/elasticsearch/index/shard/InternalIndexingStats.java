@@ -66,7 +66,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
 
     @Override
     public Engine.Index preIndex(Engine.Index operation) {
-        if (operation.origin() != Engine.Operation.Origin.RECOVERY) {
+        if (!operation.origin().isRecovery()) {
             totalStats.indexCurrent.inc();
             typeStats(operation.type()).indexCurrent.inc();
         }
@@ -75,7 +75,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
 
     @Override
     public void postIndex(Engine.Index index, boolean created) {
-        if (index.origin() != Engine.Operation.Origin.RECOVERY) {
+        if (!index.origin().isRecovery()) {
             long took = index.endTime() - index.startTime();
             totalStats.indexMetric.inc(took);
             totalStats.indexCurrent.dec();
@@ -86,8 +86,8 @@ final class InternalIndexingStats implements IndexingOperationListener {
     }
 
     @Override
-    public void postIndex(Engine.Index index, Throwable ex) {
-        if (index.origin() != Engine.Operation.Origin.RECOVERY) {
+    public void postIndex(Engine.Index index, Exception ex) {
+        if (!index.origin().isRecovery()) {
             totalStats.indexCurrent.dec();
             typeStats(index.type()).indexCurrent.dec();
             totalStats.indexFailed.inc();
@@ -97,7 +97,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
 
     @Override
     public Engine.Delete preDelete(Engine.Delete delete) {
-        if (delete.origin() != Engine.Operation.Origin.RECOVERY) {
+        if (!delete.origin().isRecovery()) {
             totalStats.deleteCurrent.inc();
             typeStats(delete.type()).deleteCurrent.inc();
         }
@@ -107,7 +107,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
 
     @Override
     public void postDelete(Engine.Delete delete) {
-        if (delete.origin() != Engine.Operation.Origin.RECOVERY) {
+        if (!delete.origin().isRecovery()) {
             long took = delete.endTime() - delete.startTime();
             totalStats.deleteMetric.inc(took);
             totalStats.deleteCurrent.dec();
@@ -118,8 +118,8 @@ final class InternalIndexingStats implements IndexingOperationListener {
     }
 
     @Override
-    public void postDelete(Engine.Delete delete, Throwable ex) {
-        if (delete.origin() != Engine.Operation.Origin.RECOVERY) {
+    public void postDelete(Engine.Delete delete, Exception ex) {
+        if (!delete.origin().isRecovery()) {
             totalStats.deleteCurrent.dec();
             typeStats(delete.type()).deleteCurrent.dec();
         }

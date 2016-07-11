@@ -63,9 +63,6 @@ import org.elasticsearch.common.io.PathUtils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -622,8 +619,12 @@ public long ramBytesUsed() {
       Set<BytesRef> seenSurfaceForms = new HashSet<>();
 
       int dedup = 0;
-      while (reader.read(scratch)) {
-        input.reset(scratch.bytes(), 0, scratch.length());
+      while (true) {
+        BytesRef bytes = reader.next();
+        if (bytes == null) {
+          break;
+        }
+        input.reset(bytes.bytes, bytes.offset, bytes.length);
         short analyzedLength = input.readShort();
         analyzed.grow(analyzedLength+2);
         input.readBytes(analyzed.bytes(), 0, analyzedLength);
@@ -631,13 +632,13 @@ public long ramBytesUsed() {
 
         long cost = input.readInt();
 
-        surface.bytes = scratch.bytes();
+        surface.bytes = bytes.bytes;
         if (hasPayloads) {
           surface.length = input.readShort();
           surface.offset = input.getPosition();
         } else {
           surface.offset = input.getPosition();
-          surface.length = scratch.length() - surface.offset;
+          surface.length = bytes.length - surface.offset;
         }
 
         if (previousAnalyzed == null) {
@@ -679,11 +680,11 @@ public long ramBytesUsed() {
           builder.add(scratchInts.get(), outputs.newPair(cost, BytesRef.deepCopyOf(surface)));
         } else {
           int payloadOffset = input.getPosition() + surface.length;
-          int payloadLength = scratch.length() - payloadOffset;
+          int payloadLength = bytes.length - payloadOffset;
           BytesRef br = new BytesRef(surface.length + 1 + payloadLength);
           System.arraycopy(surface.bytes, surface.offset, br.bytes, 0, surface.length);
           br.bytes[surface.length] = (byte) payloadSep;
-          System.arraycopy(scratch.bytes(), payloadOffset, br.bytes, surface.length+1, payloadLength);
+          System.arraycopy(bytes.bytes, payloadOffset, br.bytes, surface.length+1, payloadLength);
           br.length = br.bytes.length;
           builder.add(scratchInts.get(), outputs.newPair(cost, br));
         }
@@ -1109,7 +1110,7 @@ public long ramBytesUsed() {
             this.analyzed.copyBytes(analyzed);
         }
 
-        private final static class SurfaceFormAndPayload implements Comparable<SurfaceFormAndPayload> {
+        private static final class SurfaceFormAndPayload implements Comparable<SurfaceFormAndPayload> {
             BytesRef payload;
             long weight;
 

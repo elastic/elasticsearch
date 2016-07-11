@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Optional;
 
 /**
  * A Query builder which allows building a query given JSON string or binary data provided as input. This is useful when you want
@@ -84,7 +86,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
         if (source == null || source.length() == 0) {
             throw new IllegalArgumentException("query source text cannot be null or empty");
         }
-        this.source = source.array();
+        this.source = BytesRef.deepCopyOf(source.toBytesRef()).bytes;
     }
 
     /**
@@ -116,7 +118,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
         builder.endObject();
     }
 
-    public static WrapperQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<WrapperQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
@@ -125,7 +127,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
         }
         String fieldName = parser.currentName();
         if (! parseContext.getParseFieldMatcher().match(fieldName, QUERY_FIELD)) {
-            throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed, expected `query` but was" + fieldName);
+            throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed, expected `query` but was " + fieldName);
         }
         parser.nextToken();
 
@@ -136,7 +138,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
         if (source == null) {
             throw new ParsingException(parser.getTokenLocation(), "wrapper query has no [query] specified");
         }
-        return new WrapperQueryBuilder(source);
+        return Optional.of(new WrapperQueryBuilder(source));
     }
 
     @Override
@@ -160,11 +162,12 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     }
 
     @Override
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext context) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext context) throws IOException {
         try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(source)) {
             QueryParseContext parseContext = context.newParseContext(qSourceParser);
 
-            final QueryBuilder<?> queryBuilder = parseContext.parseInnerQueryBuilder();
+            final QueryBuilder queryBuilder = parseContext.parseInnerQueryBuilder().orElseThrow(
+                    () -> new ParsingException(qSourceParser.getTokenLocation(), "inner query cannot be empty"));
             if (boost() != DEFAULT_BOOST || queryName() != null) {
                 final BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
                 boolQueryBuilder.must(queryBuilder);

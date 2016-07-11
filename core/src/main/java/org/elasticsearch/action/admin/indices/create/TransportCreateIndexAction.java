@@ -87,7 +87,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
                 if (t instanceof IndexAlreadyExistsException) {
                     logger.trace("[{}] failed to create", t, request.index());
                 } else {

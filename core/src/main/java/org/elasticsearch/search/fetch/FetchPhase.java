@@ -29,7 +29,6 @@ import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.text.Text;
@@ -73,17 +72,14 @@ public class FetchPhase implements SearchPhase {
 
     private final FetchSubPhase[] fetchSubPhases;
 
-    @Inject
-    public FetchPhase(Set<FetchSubPhase> fetchSubPhases, InnerHitsFetchSubPhase innerHitsFetchSubPhase) {
-        innerHitsFetchSubPhase.setFetchPhase(this);
+    public FetchPhase(Set<FetchSubPhase> fetchSubPhases) {
         this.fetchSubPhases = fetchSubPhases.toArray(new FetchSubPhase[fetchSubPhases.size() + 1]);
-        this.fetchSubPhases[fetchSubPhases.size()] = innerHitsFetchSubPhase;
+        this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsFetchSubPhase(this);
     }
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
         Map<String, SearchParseElement> parseElements = new HashMap<>();
-        parseElements.put("fields", new FieldsParseElement());
         for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
             parseElements.putAll(fetchSubPhase.parseElements());
         }
@@ -164,16 +160,12 @@ public class FetchPhase implements SearchPhase {
             hits[index] = searchHit;
             hitContext.reset(searchHit, subReaderContext, subDocId, context.searcher());
             for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-                if (fetchSubPhase.hitExecutionNeeded(context)) {
-                    fetchSubPhase.hitExecute(context, hitContext);
-                }
+                fetchSubPhase.hitExecute(context, hitContext);
             }
         }
 
         for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-            if (fetchSubPhase.hitsExecutionNeeded(context)) {
-                fetchSubPhase.hitsExecute(context, hits);
-            }
+            fetchSubPhase.hitsExecute(context, hits);
         }
 
         context.fetchResult().hits(new InternalSearchHits(hits, context.queryResult().topDocs().totalHits, context.queryResult().topDocs().getMaxScore()));
@@ -240,14 +232,18 @@ public class FetchPhase implements SearchPhase {
             Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(source, true);
             Map<String, Object> sourceAsMap = tuple.v2();
 
-            List<Map<String, Object>> nestedParsedSource;
-            SearchHit.NestedIdentity nested = nestedIdentity;
-            do {
-                Object extractedValue = XContentMapValues.extractValue(nested.getField().string(), sourceAsMap);
-                if (extractedValue == null) {
-                    // The nested objects may not exist in the _source, because it was filtered because of _source filtering
-                    break;
-                } else if (extractedValue instanceof List) {
+            // Isolate the nested json array object that matches with nested hit and wrap it back into the same json
+            // structure with the nested json array object being the actual content. The latter is important, so that
+            // features like source filtering and highlighting work consistent regardless of whether the field points
+            // to a json object array for consistency reasons on how we refer to fields
+            Map<String, Object> nestedSourceAsMap = new HashMap<>();
+            Map<String, Object> current = nestedSourceAsMap;
+            for (SearchHit.NestedIdentity nested = nestedIdentity; nested != null; nested = nested.getChild()) {
+                String nestedPath = nested.getField().string();
+                current.put(nestedPath, new HashMap<>());
+                Object extractedValue = XContentMapValues.extractValue(nestedPath, sourceAsMap);
+                List<Map<String, Object>> nestedParsedSource;
+                if (extractedValue instanceof List) {
                     // nested field has an array value in the _source
                     nestedParsedSource = (List<Map<String, Object>>) extractedValue;
                 } else if (extractedValue instanceof Map) {
@@ -257,18 +253,22 @@ public class FetchPhase implements SearchPhase {
                     throw new IllegalStateException("extracted source isn't an object or an array");
                 }
                 sourceAsMap = nestedParsedSource.get(nested.getOffset());
-                nested = nested.getChild();
-            } while (nested != null);
-
-            context.lookup().source().setSource(sourceAsMap);
+                if (nested.getChild() == null) {
+                    current.put(nestedPath, sourceAsMap);
+                } else {
+                    Map<String, Object> next = new HashMap<>();
+                    current.put(nestedPath, next);
+                    current = next;
+                }
+            }
+            context.lookup().source().setSource(nestedSourceAsMap);
             XContentType contentType = tuple.v1();
             BytesReference nestedSource = contentBuilder(contentType).map(sourceAsMap).bytes();
             context.lookup().source().setSource(nestedSource);
             context.lookup().source().setSourceContentType(contentType);
         }
 
-        InternalSearchHit searchHit = new InternalSearchHit(nestedTopDocId, rootFieldsVisitor.uid().id(), documentMapper.typeText(), nestedIdentity, searchFields);
-        return searchHit;
+        return new InternalSearchHit(nestedTopDocId, rootFieldsVisitor.uid().id(), documentMapper.typeText(), nestedIdentity, searchFields);
     }
 
     private Map<String, SearchHitField> getSearchFields(SearchContext context, int nestedSubDocId, Set<String> fieldNames, List<String> fieldNamePatterns, LeafReaderContext subReaderContext) {

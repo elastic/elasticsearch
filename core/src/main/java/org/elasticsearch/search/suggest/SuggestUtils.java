@@ -99,7 +99,7 @@ public final class SuggestUtils {
         return result.get();
     }
 
-    public static abstract class TokenConsumer {
+    public abstract static class TokenConsumer {
         protected CharTermAttribute charTermAttr;
         protected PositionIncrementAttribute posIncAttr;
         protected OffsetAttribute offsetAttr;

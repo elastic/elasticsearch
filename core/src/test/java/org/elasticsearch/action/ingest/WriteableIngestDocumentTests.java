@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -34,7 +34,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.elasticsearch.ingest.core.IngestDocumentTests.assertIngestDocument;
+import static org.elasticsearch.ingest.IngestDocumentTests.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -112,7 +112,7 @@ public class WriteableIngestDocumentTests extends ESTestCase {
 
         BytesStreamOutput out = new BytesStreamOutput();
         writeableIngestDocument.writeTo(out);
-        StreamInput streamInput = StreamInput.wrap(out.bytes());
+        StreamInput streamInput = out.bytes().streamInput();
         WriteableIngestDocument otherWriteableIngestDocument = new WriteableIngestDocument(streamInput);
         assertIngestDocument(otherWriteableIngestDocument.getIngestDocument(), writeableIngestDocument.getIngestDocument());
     }

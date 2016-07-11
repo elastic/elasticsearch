@@ -239,6 +239,13 @@ public class TypeParsers {
             Map.Entry<String, Object> entry = iterator.next();
             final String propName = entry.getKey();
             final Object propNode = entry.getValue();
+            if (false == propName.equals("null_value") && propNode == null) {
+                /*
+                 * No properties *except* null_value are allowed to have null. So we catch it here and tell the user something useful rather
+                 * than send them a null pointer exception later.
+                 */
+                throw new MapperParsingException("[" + propName + "] must not have a [null] value");
+            }
             if (propName.equals("store")) {
                 builder.store(parseStore(name, propNode.toString(), parserContext));
                 iterator.remove();
@@ -438,7 +445,7 @@ public class TypeParsers {
     private static SimilarityProvider resolveSimilarity(Mapper.TypeParser.ParserContext parserContext, String name, String value) {
         if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha1) && "default".equals(value)) {
             // "default" similarity has been renamed into "classic" in 3.x.
-            value = SimilarityService.DEFAULT_SIMILARITY;
+            value = "classic";
         }
         SimilarityProvider similarityProvider = parserContext.getSimilarity(value);
         if (similarityProvider == null) {

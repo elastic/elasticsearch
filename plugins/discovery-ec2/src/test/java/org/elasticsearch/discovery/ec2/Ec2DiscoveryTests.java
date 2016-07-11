@@ -23,12 +23,14 @@ import com.amazonaws.services.ec2.model.Tag;
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.AfterClass;
@@ -52,7 +54,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
     @BeforeClass
     public static void createThreadPool() {
-        threadPool = new ThreadPool(Ec2DiscoveryTests.class.getName());
+        threadPool = new TestThreadPool(Ec2DiscoveryTests.class.getName());
     }
 
     @AfterClass
@@ -74,10 +76,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
     protected List<DiscoveryNode> buildDynamicNodes(Settings nodeSettings, int nodes, List<List<Tag>> tagsList) {
         AwsEc2Service awsEc2Service = new AwsEc2ServiceMock(nodeSettings, nodes, tagsList);
-
-        AwsEc2UnicastHostsProvider provider = new AwsEc2UnicastHostsProvider(nodeSettings, transportService,
-                awsEc2Service, Version.CURRENT);
-
+        AwsEc2UnicastHostsProvider provider = new AwsEc2UnicastHostsProvider(nodeSettings, transportService, awsEc2Service);
         List<DiscoveryNode> discoveryNodes = provider.buildDynamicNodes();
         logger.debug("--> nodes found: {}", discoveryNodes);
         return discoveryNodes;
@@ -229,14 +228,14 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
     abstract class DummyEc2HostProvider extends AwsEc2UnicastHostsProvider {
         public int fetchCount = 0;
-        public DummyEc2HostProvider(Settings settings, TransportService transportService, AwsEc2Service service, Version version) {
-            super(settings, transportService, service, version);
+        public DummyEc2HostProvider(Settings settings, TransportService transportService, AwsEc2Service service) {
+            super(settings, transportService, service);
         }
     }
 
     public void testGetNodeListEmptyCache() throws Exception {
         AwsEc2Service awsEc2Service = new AwsEc2ServiceMock(Settings.EMPTY, 1, null);
-        DummyEc2HostProvider provider = new DummyEc2HostProvider(Settings.EMPTY, transportService, awsEc2Service, Version.CURRENT) {
+        DummyEc2HostProvider provider = new DummyEc2HostProvider(Settings.EMPTY, transportService, awsEc2Service) {
             @Override
             protected List<DiscoveryNode> fetchDynamicNodes() {
                 fetchCount++;
@@ -253,7 +252,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
         Settings.Builder builder = Settings.builder()
                 .put(DISCOVERY_EC2.NODE_CACHE_TIME_SETTING.getKey(), "500ms");
         AwsEc2Service awsEc2Service = new AwsEc2ServiceMock(Settings.EMPTY, 1, null);
-        DummyEc2HostProvider provider = new DummyEc2HostProvider(builder.build(), transportService, awsEc2Service, Version.CURRENT) {
+        DummyEc2HostProvider provider = new DummyEc2HostProvider(builder.build(), transportService, awsEc2Service) {
             @Override
             protected List<DiscoveryNode> fetchDynamicNodes() {
                 fetchCount++;

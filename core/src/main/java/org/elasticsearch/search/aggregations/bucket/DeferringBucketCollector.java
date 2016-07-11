@@ -34,18 +34,13 @@ import java.io.IOException;
  */
 public abstract class DeferringBucketCollector extends BucketCollector {
 
-    private BucketCollector collector;
     /** Sole constructor. */
     public DeferringBucketCollector() {}
 
     /** Set the deferred collectors. */
-    public void setDeferredCollector(Iterable<BucketCollector> deferredCollectors) {
-        this.collector = BucketCollector.wrap(deferredCollectors);
-    }
+    public abstract void setDeferredCollector(Iterable<BucketCollector> deferredCollectors);
 
-
-    public final void replay(long... selectedBuckets) throws IOException
-    {
+    public final void replay(long... selectedBuckets) throws IOException {
         prepareSelectedBuckets(selectedBuckets);
     }
 

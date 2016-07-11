@@ -35,7 +35,7 @@ public class InternalReverseNested extends InternalSingleBucketAggregation imple
 
     public static final Type TYPE = new Type("reverse_nested");
 
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalReverseNested readResult(StreamInput in) throws IOException {
             InternalReverseNested result = new InternalReverseNested();

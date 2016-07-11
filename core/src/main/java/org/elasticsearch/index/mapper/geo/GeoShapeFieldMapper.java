@@ -23,6 +23,7 @@ import org.locationtech.spatial4j.shape.Shape;
 import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.TermQueryPrefixTreeStrategy;
@@ -46,6 +47,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -412,6 +415,10 @@ public class GeoShapeFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Unknown prefix tree strategy [" + strategyName + "]");
         }
 
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            throw new QueryShardException(context, "Geo fields do not support exact searching, use dedicated geo queries instead");
+        }
     }
 
     protected Explicit<Boolean> coerce;

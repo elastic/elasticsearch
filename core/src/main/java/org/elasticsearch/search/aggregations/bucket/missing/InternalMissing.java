@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.missing;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -28,37 +27,21 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class InternalMissing extends InternalSingleBucketAggregation implements Missing {
-
-    public final static Type TYPE = new Type("missing");
-
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalMissing readResult(StreamInput in) throws IOException {
-            InternalMissing missing = new InternalMissing();
-            missing.readFrom(in);
-            return missing;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-
-    InternalMissing() {
-    }
-
     InternalMissing(String name, long docCount, InternalAggregations aggregations, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, docCount, aggregations, pipelineAggregators, metaData);
     }
 
+    /**
+     * Read from a stream.
+     */
+    public InternalMissing(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    public String getWriteableName() {
+        return MissingAggregationBuilder.NAME;
     }
 
     @Override

@@ -67,6 +67,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
         TransportClient client = TransportClient.builder()
             .settings(Settings.builder()
                 .put("client.transport.sniff", false)
+                .put("cluster.name", "cluster1")
                 .put("node.name", "transport_client_" + this.getTestName())
                 .put(headersSettings)
                 .build())
@@ -103,14 +104,6 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
     public static class InternalTransportService extends TransportService {
 
         public static class TestPlugin extends Plugin {
-            @Override
-            public String name() {
-                return "mock-transport-service";
-            }
-            @Override
-            public String description() {
-                return "a mock transport service";
-            }
             public void onModule(NetworkModule transportModule) {
                 transportModule.registerTransportService("internal", InternalTransportService.class);
             }
@@ -132,7 +125,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
                                                               TransportRequestOptions options, TransportResponseHandler<T> handler) {
             if (TransportLivenessAction.NAME.equals(action)) {
                 assertHeaders(threadPool);
-                ((TransportResponseHandler<LivenessResponse>) handler).handleResponse(new LivenessResponse(ClusterName.DEFAULT, node));
+                ((TransportResponseHandler<LivenessResponse>) handler).handleResponse(new LivenessResponse(clusterName, node));
                 return;
             }
             if (ClusterStateAction.NAME.equals(action)) {

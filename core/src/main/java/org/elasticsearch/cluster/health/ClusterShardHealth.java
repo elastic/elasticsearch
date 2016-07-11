@@ -23,57 +23,69 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
-public final class ClusterShardHealth implements Streamable {
+public final class ClusterShardHealth implements Writeable {
 
-    private int shardId;
+    private final int shardId;
+    private final ClusterHealthStatus status;
+    private final int activeShards;
+    private final int relocatingShards;
+    private final int initializingShards;
+    private final int unassignedShards;
+    private final boolean primaryActive;
 
-    ClusterHealthStatus status = ClusterHealthStatus.RED;
-
-    private int activeShards = 0;
-
-    private int relocatingShards = 0;
-
-    private int initializingShards = 0;
-
-    private int unassignedShards = 0;
-
-    private boolean primaryActive = false;
-
-    private ClusterShardHealth() {
-
-    }
-
-    public ClusterShardHealth(int shardId, final IndexShardRoutingTable shardRoutingTable) {
+    public ClusterShardHealth(final int shardId, final IndexShardRoutingTable shardRoutingTable) {
         this.shardId = shardId;
+        int computeActiveShards = 0;
+        int computeRelocatingShards = 0;
+        int computeInitializingShards = 0;
+        int computeUnassignedShards = 0;
+        boolean computePrimaryActive = false;
         for (ShardRouting shardRouting : shardRoutingTable) {
             if (shardRouting.active()) {
-                activeShards++;
+                computeActiveShards++;
                 if (shardRouting.relocating()) {
                     // the shard is relocating, the one it is relocating to will be in initializing state, so we don't count it
-                    relocatingShards++;
+                    computeRelocatingShards++;
                 }
                 if (shardRouting.primary()) {
-                    primaryActive = true;
+                    computePrimaryActive = true;
                 }
             } else if (shardRouting.initializing()) {
-                initializingShards++;
+                computeInitializingShards++;
             } else if (shardRouting.unassigned()) {
-                unassignedShards++;
+                computeUnassignedShards++;
             }
         }
-        if (primaryActive) {
-            if (activeShards == shardRoutingTable.size()) {
-                status = ClusterHealthStatus.GREEN;
+        ClusterHealthStatus computeStatus;
+        if (computePrimaryActive) {
+            if (computeActiveShards == shardRoutingTable.size()) {
+                computeStatus = ClusterHealthStatus.GREEN;
             } else {
-                status = ClusterHealthStatus.YELLOW;
+                computeStatus = ClusterHealthStatus.YELLOW;
             }
         } else {
-            status = ClusterHealthStatus.RED;
+            computeStatus = ClusterHealthStatus.RED;
         }
+        this.status = computeStatus;
+        this.activeShards = computeActiveShards;
+        this.relocatingShards = computeRelocatingShards;
+        this.initializingShards = computeInitializingShards;
+        this.unassignedShards = computeUnassignedShards;
+        this.primaryActive = computePrimaryActive;
+    }
+
+    public ClusterShardHealth(final StreamInput in) throws IOException {
+        shardId = in.readVInt();
+        status = ClusterHealthStatus.fromValue(in.readByte());
+        activeShards = in.readVInt();
+        relocatingShards = in.readVInt();
+        initializingShards = in.readVInt();
+        unassignedShards = in.readVInt();
+        primaryActive = in.readBoolean();
     }
 
     public int getId() {
@@ -104,25 +116,8 @@ public final class ClusterShardHealth implements Streamable {
         return unassignedShards;
     }
 
-    static ClusterShardHealth readClusterShardHealth(StreamInput in) throws IOException {
-        ClusterShardHealth ret = new ClusterShardHealth();
-        ret.readFrom(in);
-        return ret;
-    }
-
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        shardId = in.readVInt();
-        status = ClusterHealthStatus.fromValue(in.readByte());
-        activeShards = in.readVInt();
-        relocatingShards = in.readVInt();
-        initializingShards = in.readVInt();
-        unassignedShards = in.readVInt();
-        primaryActive = in.readBoolean();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public void writeTo(final StreamOutput out) throws IOException {
         out.writeVInt(shardId);
         out.writeByte(status.value());
         out.writeVInt(activeShards);

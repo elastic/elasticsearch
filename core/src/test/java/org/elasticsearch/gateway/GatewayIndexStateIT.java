@@ -53,6 +53,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -245,7 +246,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         internalCluster().startNodesAsync(2).get();
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
 
         logger.info("--> waiting for green status");
         ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus()
@@ -285,7 +286,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         final String node_1 = internalCluster().startNodesAsync(2).get().get(0);
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
 
         logger.info("--> waiting for green status");
         ensureGreen();
@@ -297,15 +298,10 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
 
         logger.info("--> restarting the nodes");
-        final Gateway gateway1 = internalCluster().getInstance(GatewayService.class, node_1).getGateway();
         internalCluster().fullRestart(new RestartCallback() {
             @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                if (node_1.equals(nodeName)) {
-                    logger.info("--> deleting the data for the first node");
-                    gateway1.reset();
-                }
-                return null;
+            public boolean clearData(String nodeName) {
+                return node_1.equals(nodeName);
             }
         });
 
@@ -347,10 +343,10 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         } else {
             // test with a shadow replica index
             final Path dataPath = createTempDir();
-            logger.info("--> created temp data path for shadow replicas [" + dataPath + "]");
+            logger.info("--> created temp data path for shadow replicas [{}]", dataPath);
             logger.info("--> starting a cluster with " + numNodes + " nodes");
             final Settings nodeSettings = Settings.builder()
-                                                  .put("node.add_id_to_custom_path", false)
+                                                  .put("node.add_lock_id_to_custom_path", false)
                                                   .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), dataPath.toString())
                                                   .put("index.store.fs.fs_lock", randomFrom("native", "simple"))
                                                   .build();
@@ -408,7 +404,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> starting one node");
         internalCluster().startNode();
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
         logger.info("--> waiting for green status");
         if (usually()) {
             ensureYellow();
@@ -430,7 +426,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                  // this one is not validated ahead of time and breaks allocation
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
             ).build();
-            IndexMetaData.FORMAT.write(brokenMeta, brokenMeta.getVersion(), services.indexPaths(brokenMeta.getIndex()));
+            IndexMetaData.FORMAT.write(brokenMeta, services.indexPaths(brokenMeta.getIndex()));
         }
         internalCluster().fullRestart();
         // ensureGreen(closedIndex) waits for the index to show up in the metadata
@@ -445,13 +441,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertNotNull(ex.getCause());
         assertEquals(IllegalArgumentException.class, ex.getCause().getClass());
         assertEquals(ex.getCause().getMessage(), "Unknown tokenfilter type [icu_collation] for [myCollator]");
-
-        client().admin().indices().prepareUpdateSettings()
-            .setSettings(Settings.builder().putNull("index.analysis.filter.myCollator.type")).get();
-        client().admin().indices().prepareOpen("test").get();
-        ensureYellow();
-        logger.info("--> verify 1 doc in the index");
-        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
     }
 
     /**
@@ -477,7 +466,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 "    }\n" +
                 "  }}").get();
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value one").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value one").setRefreshPolicy(IMMEDIATE).get();
         logger.info("--> waiting for green status");
         if (usually()) {
             ensureYellow();
@@ -494,7 +483,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         for (NodeEnvironment services : internalCluster().getInstances(NodeEnvironment.class)) {
             IndexMetaData brokenMeta = IndexMetaData.builder(metaData).settings(metaData.getSettings()
                 .filter((s) -> "index.analysis.analyzer.test.tokenizer".equals(s) == false)).build();
-            IndexMetaData.FORMAT.write(brokenMeta, brokenMeta.getVersion(), services.indexPaths(brokenMeta.getIndex()));
+            IndexMetaData.FORMAT.write(brokenMeta, services.indexPaths(brokenMeta.getIndex()));
         }
         internalCluster().fullRestart();
         // ensureGreen(closedIndex) waits for the index to show up in the metadata
@@ -509,19 +498,12 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertNotNull(ex.getCause());
         assertEquals(MapperParsingException.class, ex.getCause().getClass());
         assertEquals(ex.getCause().getMessage(), "analyzer [test] not found for field [field1]");
-
-        client().admin().indices().prepareUpdateSettings()
-            .setSettings(Settings.builder().put("index.analysis.analyzer.test.tokenizer", "keyword")).get();
-        client().admin().indices().prepareOpen("test").get();
-        ensureYellow();
-        logger.info("--> verify 1 doc in the index");
-        assertHitCount(client().prepareSearch().setQuery(matchQuery("field1", "value one")).get(), 1L);
     }
 
     public void testArchiveBrokenClusterSettings() throws Exception {
         logger.info("--> starting one node");
         internalCluster().startNode();
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
         logger.info("--> waiting for green status");
         if (usually()) {
             ensureYellow();
@@ -539,7 +521,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             MetaData brokenMeta = MetaData.builder(metaData).persistentSettings(Settings.builder()
                 .put(metaData.persistentSettings()).put("this.is.unknown", true)
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), "broken").build()).build();
-            MetaData.FORMAT.write(brokenMeta, metaData.version(), nodeEnv.nodeDataPaths());
+            MetaData.FORMAT.write(brokenMeta, nodeEnv.nodeDataPaths());
         }
         internalCluster().fullRestart();
         ensureYellow("test"); // wait for state recovery

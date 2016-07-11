@@ -22,14 +22,13 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -38,7 +37,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.percolator.PercolatorQueryCache;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -59,6 +57,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.ArrayList;
@@ -71,7 +70,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public abstract class SearchContext implements Releasable {
 
     private static ThreadLocal<SearchContext> current = new ThreadLocal<>();
-    public final static int DEFAULT_TERMINATE_AFTER = 0;
+    public static final int DEFAULT_TERMINATE_AFTER = 0;
 
     public static void setCurrent(SearchContext value) {
         current.set(value);
@@ -222,19 +221,15 @@ public abstract class SearchContext implements Releasable {
 
     public abstract ScriptService scriptService();
 
-    public abstract PageCacheRecycler pageCacheRecycler();
-
     public abstract BigArrays bigArrays();
 
     public abstract BitsetFilterCache bitsetFilterCache();
 
     public abstract IndexFieldDataService fieldData();
 
-    public abstract PercolatorQueryCache percolatorQueryCache();
+    public abstract TimeValue timeout();
 
-    public abstract long timeoutInMillis();
-
-    public abstract void timeoutInMillis(long timeoutInMillis);
+    public abstract void timeout(TimeValue timeout);
 
     public abstract int terminateAfter();
 
@@ -244,9 +239,9 @@ public abstract class SearchContext implements Releasable {
 
     public abstract Float minimumScore();
 
-    public abstract SearchContext sort(Sort sort);
+    public abstract SearchContext sort(SortAndFormats sort);
 
-    public abstract Sort sort();
+    public abstract SortAndFormats sort();
 
     public abstract SearchContext trackScores(boolean trackScores);
 

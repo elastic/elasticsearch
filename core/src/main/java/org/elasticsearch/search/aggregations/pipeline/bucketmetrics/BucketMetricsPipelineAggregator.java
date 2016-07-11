@@ -59,6 +59,35 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
         this.format = format;
     }
 
+    /**
+     * Read from a stream.
+     */
+    protected BucketMetricsPipelineAggregator(StreamInput in) throws IOException {
+        super(in);
+        format = in.readNamedWriteable(DocValueFormat.class);
+        gapPolicy = GapPolicy.readFrom(in);
+    }
+
+    @Override
+    public final void doReadFrom(StreamInput in) throws IOException {
+        format = in.readNamedWriteable(DocValueFormat.class);
+        gapPolicy = GapPolicy.readFrom(in);
+        innerReadFrom(in);
+    }
+
+    protected void innerReadFrom(StreamInput in) throws IOException {
+    }
+
+    @Override
+    public final void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(format);
+        gapPolicy.writeTo(out);
+        innerWriteTo(out);
+    }
+
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+    }
+
     @Override
     public final InternalAggregation doReduce(Aggregations aggregations, ReduceContext context) {
         preCollection();
@@ -109,25 +138,4 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
      *            for this bucket
      */
     protected abstract void collectBucketValue(String bucketKey, Double bucketValue);
-
-    @Override
-    public final void doReadFrom(StreamInput in) throws IOException {
-        format = in.readNamedWriteable(DocValueFormat.class);
-        gapPolicy = GapPolicy.readFrom(in);
-        innerReadFrom(in);
-    }
-
-    protected void innerReadFrom(StreamInput in) throws IOException {
-    }
-
-    @Override
-    public final void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(format);
-        gapPolicy.writeTo(out);
-        innerWriteTo(out);
-    }
-
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-    }
-
 }

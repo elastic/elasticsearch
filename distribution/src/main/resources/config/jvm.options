@@ -33,7 +33,6 @@
 ################################################################
 
 ## GC configuration
--XX:+UseParNewGC
 -XX:+UseConcMarkSweepGC
 -XX:CMSInitiatingOccupancyFraction=75
 -XX:+UseCMSInitiatingOccupancyOnly
@@ -47,6 +46,9 @@
 -XX:+AlwaysPreTouch
 
 ## basic
+
+# force the server VM
+-server
 
 # set to headless, just in case
 -Djava.awt.headless=true

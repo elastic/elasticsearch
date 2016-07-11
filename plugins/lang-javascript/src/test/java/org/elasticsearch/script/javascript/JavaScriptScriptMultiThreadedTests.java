@@ -35,13 +35,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
     public void testExecutableNoRuntimeParams() throws Exception {
         final JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
-        final Object compiled = se.compile("x + y", Collections.emptyMap());
+        final Object compiled = se.compile(null, "x + y", Collections.emptyMap());
         final AtomicBoolean failed = new AtomicBoolean();
 
         Thread[] threads = new Thread[50];
@@ -64,9 +61,9 @@ public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
                             long result = ((Number) script.run()).longValue();
                             assertThat(result, equalTo(addition));
                         }
-                    } catch (Throwable t) {
+                    } catch (Exception e) {
                         failed.set(true);
-                        logger.error("failed", t);
+                        logger.error("failed", e);
                     } finally {
                         latch.countDown();
                     }
@@ -83,7 +80,7 @@ public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
 
     public void testExecutableWithRuntimeParams() throws Exception {
         final JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
-        final Object compiled = se.compile("x + y", Collections.emptyMap());
+        final Object compiled = se.compile(null, "x + y", Collections.emptyMap());
         final AtomicBoolean failed = new AtomicBoolean();
 
         Thread[] threads = new Thread[50];
@@ -106,9 +103,9 @@ public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
                             long result = ((Number) script.run()).longValue();
                             assertThat(result, equalTo(addition));
                         }
-                    } catch (Throwable t) {
+                    } catch (Exception e) {
                         failed.set(true);
-                        logger.error("failed", t);
+                        logger.error("failed", e);
                     } finally {
                         latch.countDown();
                     }
@@ -125,7 +122,7 @@ public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
 
     public void testExecute() throws Exception {
         final JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
-        final Object compiled = se.compile("x + y", Collections.emptyMap());
+        final Object compiled = se.compile(null, "x + y", Collections.emptyMap());
         final AtomicBoolean failed = new AtomicBoolean();
 
         Thread[] threads = new Thread[50];
@@ -147,9 +144,9 @@ public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
                             long result = ((Number) se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "testExecutableNoRuntimeParams", "js", compiled), runtimeVars).run()).longValue();
                             assertThat(result, equalTo(addition));
                         }
-                    } catch (Throwable t) {
+                    } catch (Exception e) {
                         failed.set(true);
-                        logger.error("failed", t);
+                        logger.error("failed", e);
                     } finally {
                         latch.countDown();
                     }

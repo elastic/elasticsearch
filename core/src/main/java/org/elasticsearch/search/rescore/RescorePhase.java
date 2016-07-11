@@ -22,32 +22,18 @@ package org.elasticsearch.search.rescore;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Map;
 
 /**
  */
 public class RescorePhase extends AbstractComponent implements SearchPhase {
 
-    @Inject
     public RescorePhase(Settings settings) {
         super(settings);
-    }
-
-    /**
-     * rescorers do not have a parse element, they use
-     * {@link RescoreBuilder#parseFromXContent(org.elasticsearch.index.query.QueryParseContext)} for parsing instead.
-     */
-    @Override
-    public Map<String, ? extends SearchParseElement> parseElements() {
-        return Collections.emptyMap();
     }
 
     @Override
@@ -61,7 +47,7 @@ public class RescorePhase extends AbstractComponent implements SearchPhase {
             for (RescoreSearchContext ctx : context.rescore()) {
                 topDocs = ctx.rescorer().rescore(topDocs, context, ctx);
             }
-            context.queryResult().topDocs(topDocs);
+            context.queryResult().topDocs(topDocs, context.queryResult().sortValueFormats());
         } catch (IOException e) {
             throw new ElasticsearchException("Rescore Phase Failed", e);
         }

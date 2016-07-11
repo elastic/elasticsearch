@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.http.netty;
 
-import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -30,6 +29,7 @@ import org.elasticsearch.http.netty.pipelining.OrderedDownstreamChannelEvent;
 import org.elasticsearch.http.netty.pipelining.OrderedUpstreamMessageEvent;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
@@ -68,16 +68,14 @@ import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 public class NettyHttpServerPipeliningTests extends ESTestCase {
     private NetworkService networkService;
     private ThreadPool threadPool;
-    private MockPageCacheRecycler mockPageCacheRecycler;
     private MockBigArrays bigArrays;
     private CustomNettyHttpServerTransport httpServerTransport;
 
     @Before
     public void setup() throws Exception {
         networkService = new NetworkService(Settings.EMPTY);
-        threadPool = new ThreadPool("test");
-        mockPageCacheRecycler = new MockPageCacheRecycler(Settings.EMPTY, threadPool);
-        bigArrays = new MockBigArrays(mockPageCacheRecycler, new NoneCircuitBreakerService());
+        threadPool = new TestThreadPool("test");
+        bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
     }
 
     @After
@@ -144,9 +142,9 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
         }
 
         @Override
-        public HttpServerTransport stop() {
+        public void stop() {
             executorService.shutdownNow();
-            return super.stop();
+            super.stop();
         }
     }
 

@@ -23,7 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -47,8 +47,8 @@ public class RestGetSettingsAction extends BaseRestHandler {
     private final SettingsFilter settingsFilter;
 
     @Inject
-    public RestGetSettingsAction(Settings settings, RestController controller, Client client, IndexScopedSettings indexScopedSettings, final SettingsFilter settingsFilter) {
-        super(settings, client);
+    public RestGetSettingsAction(Settings settings, RestController controller, IndexScopedSettings indexScopedSettings, final SettingsFilter settingsFilter) {
+        super(settings);
         this.indexScopedSettings = indexScopedSettings;
         controller.registerHandler(GET, "/{index}/_settings/{name}", this);
         controller.registerHandler(GET, "/_settings/{name}", this);
@@ -57,7 +57,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final String[] names = request.paramAsStringArrayOrEmptyIfAll("name");
         final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest()

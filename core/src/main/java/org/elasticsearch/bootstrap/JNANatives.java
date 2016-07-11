@@ -217,13 +217,13 @@ class JNANatives {
             if (ret == 1) {
                 LOCAL_SECCOMP_ALL = true;
             }
-        } catch (Throwable t) {
+        } catch (Exception e) {
             // this is likely to happen unless the kernel is newish, its a best effort at the moment
             // so we log stacktrace at debug for now...
             if (logger.isDebugEnabled()) {
-                logger.debug("unable to install syscall filter", t);
+                logger.debug("unable to install syscall filter", e);
             }
-            logger.warn("unable to install syscall filter: ", t);
+            logger.warn("unable to install syscall filter: ", e);
         }
     }
 }

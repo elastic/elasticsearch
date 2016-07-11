@@ -121,7 +121,7 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
         } else {
             shardId = null;
         }
-        timeout = TimeValue.readTimeValue(in);
+        timeout = new TimeValue(in);
         concreteIndex = in.readOptionalString();
     }
 

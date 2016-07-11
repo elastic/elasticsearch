@@ -17,6 +17,23 @@ user with access to the <<cluster-update-settings,cluster-update-settings>>
 API can make the cluster read-write again.
 
 
+[[cluster-max-tombstones]]
+==== Index Tombstones
+
+The cluster state maintains index tombstones to explicitly denote indices that 
+have been deleted.  The number of tombstones maintained in the cluster state is 
+controlled by the following property, which cannot be updated dynamically:
+
+`cluster.indices.tombstones.size`::
+
+Index tombstones prevent nodes that are not part of the cluster when a delete 
+occurs from joining the cluster and reimporting the index as though the delete 
+was never issued. To keep the cluster state from growing huge we only keep the 
+last `cluster.indices.tombstones.size` deletes, which defaults to 500. You can 
+increase it if you expect nodes to be absent from the cluster and miss more 
+than 500 deletes. We think that is rare, thus the default. Tombstones don't take 
+up much space, but we also think that a number like 50,000 is probably too big.
+
 [[cluster-logger]]
 ==== Logger
 

@@ -29,15 +29,12 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -57,18 +54,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
-import org.junit.Assert;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
@@ -81,16 +75,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.apache.lucene.util.LuceneTestCase.random;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -98,7 +88,6 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -106,9 +95,6 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-/**
- *
- */
 public class ElasticsearchAssertions {
 
     public static void assertAcked(AcknowledgedRequestBuilder<?, ?, ?> builder) {
@@ -253,13 +239,6 @@ public class ElasticsearchAssertions {
         assertVersionSerializable(countResponse);
     }
 
-    public static void assertMatchCount(PercolateResponse percolateResponse, long expectedHitCount) {
-        if (percolateResponse.getCount() != expectedHitCount) {
-            fail("Count is " + percolateResponse.getCount() + " but " + expectedHitCount + " was expected. " + formatShardStatus(percolateResponse));
-        }
-        assertVersionSerializable(percolateResponse);
-    }
-
     public static void assertExists(GetResponse response) {
         String message = String.format(Locale.ROOT, "Expected %s/%s/%s to exist, but does not", response.getIndex(), response.getType(), response.getId());
         assertThat(message, response.isExists(), is(true));
@@ -332,12 +311,6 @@ public class ElasticsearchAssertions {
         } catch (Exception e) {
             fail("SearchPhaseExecutionException expected but got " + e.getClass());
         }
-    }
-
-    public static void assertFailures(PercolateResponse percolateResponse) {
-        assertThat("Expected at least one shard failure, got none",
-            percolateResponse.getShardFailures().length, greaterThan(0));
-        assertVersionSerializable(percolateResponse);
     }
 
     public static void assertNoFailures(BroadcastResponse response) {
@@ -509,10 +482,6 @@ public class ElasticsearchAssertions {
         return new ElasticsearchMatchers.SearchHitHasScoreMatcher(score);
     }
 
-    public static Matcher<HttpResponse> hasStatus(RestStatus restStatus) {
-        return new ElasticsearchMatchers.HttpResponseHasStatusMatcher(restStatus);
-    }
-
     public static <T extends Query> T assertBooleanSubQuery(Query query, Class<T> subqueryType, int i) {
         assertThat(query, instanceOf(BooleanQuery.class));
         BooleanQuery q = (BooleanQuery) query;
@@ -583,7 +552,6 @@ public class ElasticsearchAssertions {
             extraInfo += " with status [" + status + "]";
         }
 
-
         try {
             future.actionGet();
             fail = true;
@@ -593,7 +561,7 @@ public class ElasticsearchAssertions {
             if (status != null) {
                 assertThat(extraInfo, ExceptionsHelper.status(esException), equalTo(status));
             }
-        } catch (Throwable e) {
+        } catch (Exception e) {
             assertThat(extraInfo, e, instanceOf(exceptionClass));
             if (status != null) {
                 assertThat(extraInfo, ExceptionsHelper.status(e), equalTo(status));
@@ -625,7 +593,7 @@ public class ElasticsearchAssertions {
         try {
             future.actionGet();
             fail = true;
-        } catch (Throwable e) {
+        } catch (Exception e) {
             assertThat(extraInfo, ExceptionsHelper.status(e), equalTo(status));
         }
         // has to be outside catch clause to get a proper message
@@ -659,7 +627,7 @@ public class ElasticsearchAssertions {
             registry = ESIntegTestCase.internalCluster().getInstance(NamedWriteableRegistry.class);
         } else {
             registry = new NamedWriteableRegistry();
-            new SearchModule(Settings.EMPTY, registry);
+            new SearchModule(Settings.EMPTY, registry, false);
         }
         assertVersionSerializable(version, streamable, registry);
     }
@@ -675,7 +643,7 @@ public class ElasticsearchAssertions {
                 ((ActionRequest<?>) streamable).validate();
             }
             BytesReference orig = serialize(version, streamable);
-            StreamInput input = StreamInput.wrap(orig);
+            StreamInput input = orig.streamInput();
             if (namedWriteableRegistry != null) {
                 input = new NamedWriteableAwareStreamInput(input, namedWriteableRegistry);
             }
@@ -685,35 +653,38 @@ public class ElasticsearchAssertions {
                     equalTo(0));
             assertThat("Serialization failed with version [" + version + "] bytes should be equal for streamable [" + streamable + "]",
                     serialize(version, streamable), equalTo(orig));
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             throw new RuntimeException("failed to check serialization - version [" + version + "] for streamable [" + streamable + "]", ex);
         }
 
     }
 
-    public static void assertVersionSerializable(Version version, final Throwable t) {
-        ElasticsearchAssertions.assertVersionSerializable(version, new ThrowableWrapper(t));
+    public static void assertVersionSerializable(Version version, final Exception e) {
+        ElasticsearchAssertions.assertVersionSerializable(version, new ExceptionWrapper(e));
     }
 
-    public static final class ThrowableWrapper implements Streamable {
-        Throwable throwable;
-        public ThrowableWrapper(Throwable t) {
-            throwable = t;
+    public static final class ExceptionWrapper implements Streamable {
+
+        private Exception exception;
+
+        public ExceptionWrapper(Exception e) {
+            exception = e;
         }
 
-        public ThrowableWrapper() {
-            throwable = null;
+        public ExceptionWrapper() {
+            exception = null;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            throwable = in.readThrowable();
+            exception = in.readException();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeThrowable(throwable);
+            out.writeException(exception);
         }
+
     }
 
 
@@ -725,7 +696,7 @@ public class ElasticsearchAssertions {
             assertThat(constructor, Matchers.notNullValue());
             Streamable newInstance = constructor.newInstance();
             return newInstance;
-        } catch (Throwable e) {
+        } catch (Exception e) {
             return null;
         }
     }

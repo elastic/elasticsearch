@@ -1,59 +1,261 @@
 [[analysis-custom-analyzer]]
 === Custom Analyzer
 
-An analyzer of type `custom` that allows to combine a `Tokenizer` with
-zero or more `Token Filters`, and zero or more `Char Filters`. The
-custom analyzer accepts a logical/registered name of the tokenizer to
-use, and a list of logical/registered names of token filters.
-The name of the custom analyzer must not start with "_".
+When the built-in analyzers do not fulfill your needs, you can create a
+`custom` analyzer which uses the appropriate combination of:
 
-The following are settings that can be set for a `custom` analyzer type:
+* zero or more <<analysis-charfilters, character filters>>
+* a <<analysis-tokenizers,tokenizer>>
+* zero or more <<analysis-tokenfilters,token filters>>.
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|`tokenizer` |The logical / registered name of the tokenizer to use.
+[float]
+=== Configuration
 
-|`filter` |An optional list of logical / registered name of token
-filters.
+The `custom` analyzer accepts the following parameters:
 
-|`char_filter` |An optional list of logical / registered name of char
-filters.
+[horizontal]
+`tokenizer`::
 
-|`position_increment_gap` |An optional number of positions to increment
-between each field value of a field using this analyzer. Defaults to 100.
-100 was chosen because it prevents phrase queries with reasonably large
-slops (less than 100) from matching terms across field values.
-|=======================================================================
+    A built-in or customised <<analysis-tokenizers,tokenizer>>.
+    (Required)
+
+`char_filter`::
+
+    An optional array of built-in or customised
+    <<analysis-charfilters, character filters>>.
+
+`filter`::
+
+    An optional array of built-in or customised
+    <<analysis-tokenfilters, token filters>>.
+
+`position_increment_gap`::
+
+    When indexing an array of text values, Elasticsearch inserts a fake "gap"
+    between the last term of one value and the first term of the next value to
+    ensure that a phrase query doesn't match two terms from different array
+    elements.  Defaults to `100`. See <<position-increment-gap>> for more.
+
+[float]
+=== Example configuration
+
+Here is an example that combines the following:
+
+Character Filter::
+* <<analysis-htmlstrip-charfilter,HTML Strip Character Filter>>
+
+Tokenizer::
+* <<analysis-standard-tokenizer,Standard Tokenizer>>
+
+Token Filters::
+* <<analysis-lowercase-tokenfilter,Lowercase Token Filter>>
+* <<analysis-asciifolding-tokenfilter,ASCII-Folding Token Filter>>
+
+[source,js]
+--------------------------------
+PUT my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_custom_analyzer": {
+          "type":      "custom",
+          "tokenizer": "standard",
+          "char_filter": [
+            "html_strip"
+          ],
+          "filter": [
+            "lowercase",
+            "asciifolding"
+          ]
+        }
+      }
+    }
+  }
+}
+
+GET _cluster/health?wait_for_status=yellow
+
+POST my_index/_analyze
+{
+  "analyzer": "my_custom_analyzer",
+  "text": "Is this <b>déjà vu</b>?"
+}
+--------------------------------
+// CONSOLE
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "is",
+      "start_offset": 0,
+      "end_offset": 2,
+      "type": "<ALPHANUM>",
+      "position": 0
+    },
+    {
+      "token": "this",
+      "start_offset": 3,
+      "end_offset": 7,
+      "type": "<ALPHANUM>",
+      "position": 1
+    },
+    {
+      "token": "deja",
+      "start_offset": 11,
+      "end_offset": 15,
+      "type": "<ALPHANUM>",
+      "position": 2
+    },
+    {
+      "token": "vu",
+      "start_offset": 16,
+      "end_offset": 22,
+      "type": "<ALPHANUM>",
+      "position": 3
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
+The above example produces the following terms:
+
+[source,text]
+---------------------------
+[ is, this, deja, vu ]
+---------------------------
+
+The previous example used tokenizer, token filters, and character filters with
+their default configurations, but it is possible to create configured versions
+of each and to use them in a custom analyzer.
+
+Here is a more complicated example that combines the following:
+
+Character Filter::
+* <<analysis-mapping-charfilter,Mapping Character Filter>>, configured to replace `:)` with `_happy_` and `:(` with `_sad_`
+
+Tokenizer::
+*  <<analysis-pattern-tokenizer,Pattern Tokenizer>>, configured to split on punctuation characters
+
+Token Filters::
+* <<analysis-lowercase-tokenfilter,Lowercase Token Filter>>
+* <<analysis-stop-tokenfilter,Stop Token Filter>>, configured to use the pre-defined list of English stop words
+
 
 Here is an example:
 
 [source,js]
 --------------------------------------------------
-index :
-    analysis :
-        analyzer :
-            myAnalyzer2 :
-                type : custom
-                tokenizer : myTokenizer1
-                filter : [myTokenFilter1, myTokenFilter2]
-                char_filter : [my_html]
-                position_increment_gap: 256
-        tokenizer :
-            myTokenizer1 :
-                type : standard
-                max_token_length : 900
-        filter :
-            myTokenFilter1 :
-                type : stop
-                stopwords : [stop1, stop2, stop3, stop4]
-            myTokenFilter2 :
-                type : length
-                min : 0
-                max : 2000
-        char_filter :
-              my_html :
-                type : html_strip
-                escaped_tags : [xxx, yyy]
-                read_ahead : 1024
+PUT my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_custom_analyzer": {
+          "type": "custom",
+          "char_filter": [
+            "emoticons" <1>
+          ],
+          "tokenizer": "punctuation", <1>
+          "filter": [
+            "lowercase",
+            "english_stop" <1>
+          ]
+        }
+      },
+      "tokenizer": {
+        "punctuation": { <1>
+          "type": "pattern",
+          "pattern": "[ .,!?]"
+        }
+      },
+      "char_filter": {
+        "emoticons": { <1>
+          "type": "mapping",
+          "mappings": [
+            ":) => _happy_",
+            ":( => _sad_"
+          ]
+        }
+      },
+      "filter": {
+        "english_stop": { <1>
+          "type": "stop",
+          "stopwords": "_english_"
+        }
+      }
+    }
+  }
+}
+
+GET _cluster/health?wait_for_status=yellow
+
+POST my_index/_analyze
+{
+  "analyzer": "my_custom_analyzer",
+  "text":     "I'm a :) person, and you?"
+}
 --------------------------------------------------
+// CONSOLE
+
+<1> The `emoticon` character filter, `punctuation` tokenizer and
+    `english_stop` token filter are custom implementations which are defined
+    in the same index settings.
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "i'm",
+      "start_offset": 0,
+      "end_offset": 3,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "_happy_",
+      "start_offset": 6,
+      "end_offset": 8,
+      "type": "word",
+      "position": 2
+    },
+    {
+      "token": "person",
+      "start_offset": 9,
+      "end_offset": 15,
+      "type": "word",
+      "position": 3
+    },
+    {
+      "token": "you",
+      "start_offset": 21,
+      "end_offset": 24,
+      "type": "word",
+      "position": 5
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
+The above example produces the following terms:
+
+[source,text]
+---------------------------
+[ i'm, _happy_, person, you ]
+---------------------------
+

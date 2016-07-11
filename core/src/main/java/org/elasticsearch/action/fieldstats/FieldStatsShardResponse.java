@@ -46,7 +46,6 @@ public class FieldStatsShardResponse extends BroadcastShardResponse {
         return fieldStats;
     }
 
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);

@@ -20,8 +20,9 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.GenericAction;
+import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,40 +38,24 @@ import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public abstract class AbstractBaseReindexRestHandler<
                 Request extends AbstractBulkByScrollRequest<Request>,
-                Response extends BulkIndexByScrollResponse,
-                TA extends TransportAction<Request, Response>
+                A extends GenericAction<Request, BulkIndexByScrollResponse>
             > extends BaseRestHandler {
-
-    /**
-     * @return requests_per_second from the request as a float if it was on the request, null otherwise
-     */
-    public static Float parseRequestsPerSecond(RestRequest request) {
-        String requestsPerSecond = request.param("requests_per_second");
-        if (requestsPerSecond == null) {
-            return null;
-        }
-        if ("".equals(requestsPerSecond)) {
-            throw new IllegalArgumentException("requests_per_second cannot be an empty string");
-        }
-        if ("unlimited".equals(requestsPerSecond)) {
-            return 0f;
-        }
-        return Float.parseFloat(requestsPerSecond);
-    }
 
     protected final IndicesQueriesRegistry indicesQueriesRegistry;
     protected final AggregatorParsers aggParsers;
     protected final Suggesters suggesters;
     private final ClusterService clusterService;
-    private final TA action;
+    private final A action;
 
-    protected AbstractBaseReindexRestHandler(Settings settings, Client client,
-            IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, Suggesters suggesters,
-            ClusterService clusterService, TA action) {
-        super(settings, client);
+    protected AbstractBaseReindexRestHandler(Settings settings, IndicesQueriesRegistry indicesQueriesRegistry,
+                                             AggregatorParsers aggParsers, Suggesters suggesters,
+                                             ClusterService clusterService, A action) {
+        super(settings);
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.aggParsers = aggParsers;
         this.suggesters = suggesters;
@@ -78,35 +63,95 @@ public abstract class AbstractBaseReindexRestHandler<
         this.action = action;
     }
 
-    protected void execute(RestRequest request, Request internalRequest, RestChannel channel) throws IOException {
-        Float requestsPerSecond = parseRequestsPerSecond(request);
-        if (requestsPerSecond != null) {
-            internalRequest.setRequestsPerSecond(requestsPerSecond);
+    protected void handleRequest(RestRequest request, RestChannel channel, NodeClient client,
+                                 boolean includeCreated, boolean includeUpdated) throws IOException {
+        // Build the internal request
+        Request internal = setCommonOptions(request, buildRequest(request));
+
+        // Executes the request and waits for completion
+        if (request.paramAsBoolean("wait_for_completion", true)) {
+            Map<String, String> params = new HashMap<>();
+            params.put(BulkByScrollTask.Status.INCLUDE_CREATED, Boolean.toString(includeCreated));
+            params.put(BulkByScrollTask.Status.INCLUDE_UPDATED, Boolean.toString(includeUpdated));
+
+            client.executeLocally(action, internal, new BulkIndexByScrollResponseContentListener(channel, params));
+            return;
+        } else {
+            internal.setShouldPersistResult(true);
         }
 
-        if (request.paramAsBoolean("wait_for_completion", true)) {
-            action.execute(internalRequest, new BulkIndexByScrollResponseContentListener<Response>(channel));
-            return;
-        }
         /*
-         * Lets try and validate before forking so the user gets some error. The
+         * Let's try and validate before forking so the user gets some error. The
          * task can't totally validate until it starts but this is better than
          * nothing.
          */
-        ActionRequestValidationException validationException = internalRequest.validate();
+        ActionRequestValidationException validationException = internal.validate();
         if (validationException != null) {
             channel.sendResponse(new BytesRestResponse(channel, validationException));
             return;
         }
-        Task task = action.execute(internalRequest, LoggingTaskListener.instance());
-        sendTask(channel, task);
+        sendTask(channel, client.executeLocally(action, internal, LoggingTaskListener.instance()));
+    }
+
+    /**
+     * Build the Request based on the RestRequest.
+     */
+    protected abstract Request buildRequest(RestRequest request) throws IOException;
+
+    /**
+     * Sets common options of {@link AbstractBulkByScrollRequest} requests.
+     */
+    protected Request setCommonOptions(RestRequest restRequest, Request request) {
+        assert restRequest != null : "RestRequest should not be null";
+        assert request != null : "Request should not be null";
+
+        request.setRefresh(restRequest.paramAsBoolean("refresh", request.isRefresh()));
+        request.setTimeout(restRequest.paramAsTime("timeout", request.getTimeout()));
+
+        String consistency = restRequest.param("consistency");
+        if (consistency != null) {
+            request.setConsistency(WriteConsistencyLevel.fromString(consistency));
+        }
+
+        Float requestsPerSecond = parseRequestsPerSecond(restRequest);
+        if (requestsPerSecond != null) {
+            request.setRequestsPerSecond(requestsPerSecond);
+        }
+        return request;
     }
 
     private void sendTask(RestChannel channel, Task task) throws IOException {
-        XContentBuilder builder = channel.newBuilder();
-        builder.startObject();
-        builder.field("task", clusterService.localNode().getId() + ":" + task.getId());
-        builder.endObject();
-        channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+        try (XContentBuilder builder = channel.newBuilder()) {
+            builder.startObject();
+            builder.field("task", clusterService.localNode().getId() + ":" + task.getId());
+            builder.endObject();
+            channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+        }
+    }
+
+    /**
+     * @return requests_per_second from the request as a float if it was on the request, null otherwise
+     */
+    public static Float parseRequestsPerSecond(RestRequest request) {
+        String requestsPerSecondString = request.param("requests_per_second");
+        if (requestsPerSecondString == null) {
+            return null;
+        }
+        if ("unlimited".equals(requestsPerSecondString)) {
+            return  Float.POSITIVE_INFINITY;
+        }
+        float requestsPerSecond;
+        try {
+            requestsPerSecond = Float.parseFloat(requestsPerSecondString);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                    "[requests_per_second] must be a float greater than 0. Use \"unlimited\" to disable throttling.", e);
+        }
+        if (requestsPerSecond <= 0) {
+            // We validate here and in the setters because the setters use "Float.POSITIVE_INFINITY" instead of "unlimited"
+            throw new IllegalArgumentException(
+                    "[requests_per_second] must be a float greater than 0. Use \"unlimited\" to disable throttling.");
+        }
+        return requestsPerSecond;
     }
 }

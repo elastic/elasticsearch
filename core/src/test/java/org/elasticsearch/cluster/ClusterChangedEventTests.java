@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
@@ -140,24 +140,24 @@ public class ClusterChangedEventTests extends ESTestCase {
      */
     public void testIndexMetaDataChange() {
         final int numNodesInCluster = 3;
-        final ClusterState originalState = createState(numNodesInCluster, randomBoolean(), initialIndices);
-        final ClusterState newState = originalState; // doesn't matter for this test, just need a non-null value
-        final ClusterChangedEvent event = new ClusterChangedEvent("_na_", originalState, newState);
+        final ClusterState state = createState(numNodesInCluster, randomBoolean(), initialIndices);
 
         // test when its not the same IndexMetaData
         final Index index = initialIndices.get(0);
-        final IndexMetaData originalIndexMeta = originalState.metaData().index(index);
+        final IndexMetaData originalIndexMeta = state.metaData().index(index);
         // make sure the metadata is actually on the cluster state
         assertNotNull("IndexMetaData for " + index + " should exist on the cluster state", originalIndexMeta);
         IndexMetaData newIndexMeta = createIndexMetadata(index, originalIndexMeta.getVersion() + 1);
-        assertTrue("IndexMetaData with different version numbers must be considered changed", event.indexMetaDataChanged(newIndexMeta));
+        assertTrue("IndexMetaData with different version numbers must be considered changed",
+            ClusterChangedEvent.indexMetaDataChanged(originalIndexMeta, newIndexMeta));
 
         // test when it doesn't exist
         newIndexMeta = createIndexMetadata(new Index("doesntexist", UUIDs.randomBase64UUID()));
-        assertTrue("IndexMetaData that didn't previously exist should be considered changed", event.indexMetaDataChanged(newIndexMeta));
+        assertTrue("IndexMetaData that didn't previously exist should be considered changed",
+            ClusterChangedEvent.indexMetaDataChanged(originalIndexMeta, newIndexMeta));
 
         // test when its the same IndexMetaData
-        assertFalse("IndexMetaData should be the same", event.indexMetaDataChanged(originalIndexMeta));
+        assertFalse("IndexMetaData should be the same", ClusterChangedEvent.indexMetaDataChanged(originalIndexMeta, originalIndexMeta));
     }
 
     /**
@@ -320,7 +320,8 @@ public class ClusterChangedEventTests extends ESTestCase {
 
     // Create a new DiscoveryNode
     private static DiscoveryNode newNode(final String nodeId, Set<DiscoveryNode.Role> roles) {
-        return new DiscoveryNode(nodeId, nodeId, DummyTransportAddress.INSTANCE, Collections.emptyMap(), roles, Version.CURRENT);
+        return new DiscoveryNode(nodeId, nodeId, nodeId, "host", "host_address", new LocalTransportAddress("_test_" + nodeId),
+            Collections.emptyMap(), roles, Version.CURRENT);
     }
 
     // Create the metadata for a cluster state.

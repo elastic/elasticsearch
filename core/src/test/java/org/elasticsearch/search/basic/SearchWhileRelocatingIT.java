@@ -43,15 +43,6 @@ import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class SearchWhileRelocatingIT extends ESIntegTestCase {
-    @Nightly
-    public void testSearchAndRelocateConcurrently0Replicas() throws Exception {
-        testSearchAndRelocateConcurrently(0);
-    }
-
-    @Nightly
-    public void testSearchAndRelocateConcurrently1Replicas() throws Exception {
-        testSearchAndRelocateConcurrently(1);
-    }
 
     public void testSearchAndRelocateConcurrentlyRanodmReplicas() throws Exception {
         testSearchAndRelocateConcurrently(randomIntBetween(0, 1));
@@ -107,11 +98,11 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                             if (numberOfReplicas == 1 || !ex.getMessage().contains("all shards failed")) {
                                 thrownExceptions.add(ex);
                             }
-                        } catch (Throwable t) {
+                        } catch (Exception ex) {
                             if (!criticalException) {
-                                nonCriticalExceptions.add(t);
+                                nonCriticalExceptions.add(ex);
                             } else {
-                                thrownExceptions.add(t);
+                                thrownExceptions.add(ex);
                             }
                         }
                     }

@@ -32,7 +32,8 @@ public abstract class ESThreadPoolTestCase extends ESTestCase {
                 return info;
             }
         }
-        throw new IllegalArgumentException(name);
+        assert "same".equals(name);
+        return null;
     }
 
     protected final ThreadPoolStats.Stats stats(final ThreadPool threadPool, final String name) {

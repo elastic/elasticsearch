@@ -33,9 +33,10 @@ import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.AggregatedDfs;
-import org.elasticsearch.search.profile.ProfileBreakdown;
-import org.elasticsearch.search.profile.ProfileWeight;
-import org.elasticsearch.search.profile.Profiler;
+import org.elasticsearch.search.profile.query.ProfileWeight;
+import org.elasticsearch.search.profile.query.QueryProfileBreakdown;
+import org.elasticsearch.search.profile.query.QueryProfiler;
+import org.elasticsearch.search.profile.query.QueryTimingType;
 
 import java.io.IOException;
 
@@ -54,7 +55,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private final Engine.Searcher engineSearcher;
 
     // TODO revisit moving the profiler to inheritance or wrapping model in the future
-    private Profiler profiler;
+    private QueryProfiler profiler;
 
     public ContextIndexSearcher(Engine.Searcher searcher,
             QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) {
@@ -70,7 +71,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     public void close() {
     }
 
-    public void setProfiler(Profiler profiler) {
+    public void setProfiler(QueryProfiler profiler) {
         this.profiler = profiler;
     }
 
@@ -114,14 +115,14 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // createWeight() is called for each query in the tree, so we tell the queryProfiler
             // each invocation so that it can build an internal representation of the query
             // tree
-            ProfileBreakdown profile = profiler.getQueryBreakdown(query);
-            profile.startTime(ProfileBreakdown.TimingType.CREATE_WEIGHT);
+            QueryProfileBreakdown profile = profiler.getQueryBreakdown(query);
+            profile.startTime(QueryTimingType.CREATE_WEIGHT);
             final Weight weight;
             try {
                 weight = super.createWeight(query, needsScores);
             } finally {
                 profile.stopAndRecordTime();
-                profiler.pollLastQuery();
+                profiler.pollLastElement();
             }
             return new ProfileWeight(query, weight, profile);
         } else {

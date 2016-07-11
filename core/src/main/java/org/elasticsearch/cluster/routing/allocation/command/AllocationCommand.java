@@ -22,13 +22,16 @@ package org.elasticsearch.cluster.routing.allocation.command;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
 /**
- * This interface defines the basic methods of commands for allocation
+ * A command to move shards in some way.
+ *
+ * Commands are registered in {@link NetworkModule}.
  */
 public interface AllocationCommand extends NamedWriteable, ToXContent {
     interface Parser<T extends AllocationCommand> {

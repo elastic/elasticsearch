@@ -355,7 +355,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
     // and shard id are equal during merging shard results.
     // This comparator uses a custom tie in case the scores are equal, so that both regular hits and rescored hits
     // are sorted equally. This is fine since tests only care about the fact the scores should be equal, not ordering.
-    private final static Comparator<SearchHit> searchHitsComparator = new Comparator<SearchHit>() {
+    private static final Comparator<SearchHit> searchHitsComparator = new Comparator<SearchHit>() {
         @Override
         public int compare(SearchHit hit1, SearchHit hit2) {
             int cmp = Float.compare(hit2.getScore(), hit1.getScore());
@@ -583,7 +583,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 String[] intToEnglish = new String[] { English.intToEnglish(i), English.intToEnglish(i + 1), English.intToEnglish(i + 2),
                         English.intToEnglish(i + 3) };
 
-                QueryBuilder<?> query = boolQuery().disableCoord(true)
+                QueryBuilder query = boolQuery().disableCoord(true)
                         .should(functionScoreQuery(termQuery("field1", intToEnglish[0]), weightFactorFunction(2.0f)).boostMode(REPLACE))
                         .should(functionScoreQuery(termQuery("field1", intToEnglish[1]), weightFactorFunction(3.0f)).boostMode(REPLACE))
                         .should(functionScoreQuery(termQuery("field1", intToEnglish[2]), weightFactorFunction(5.0f)).boostMode(REPLACE))

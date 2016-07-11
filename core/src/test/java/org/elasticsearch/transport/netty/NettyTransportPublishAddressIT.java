@@ -67,7 +67,7 @@ public class NettyTransportPublishAddressIT extends ESIntegTestCase {
 
         logger.info("--> checking if boundAddress matching publishAddress has same port");
         NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().get();
-        for (NodeInfo nodeInfo : nodesInfoResponse) {
+        for (NodeInfo nodeInfo : nodesInfoResponse.getNodes()) {
             BoundTransportAddress boundTransportAddress = nodeInfo.getTransport().getAddress();
             if (nodeInfo.getNode().getName().equals(ipv4OnlyNode)) {
                 assertThat(boundTransportAddress.boundAddresses().length, equalTo(1));

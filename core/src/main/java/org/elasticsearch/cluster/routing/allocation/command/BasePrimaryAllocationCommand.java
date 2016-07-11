@@ -71,7 +71,7 @@ public abstract class BasePrimaryAllocationCommand extends AbstractAllocateAlloc
         return acceptDataLoss;
     }
 
-    protected static abstract class Builder<T extends BasePrimaryAllocationCommand> extends AbstractAllocateAllocationCommand.Builder<T> {
+    protected abstract static class Builder<T extends BasePrimaryAllocationCommand> extends AbstractAllocateAllocationCommand.Builder<T> {
         protected boolean acceptDataLoss;
 
         public void setAcceptDataLoss(boolean acceptDataLoss) {
@@ -82,5 +82,19 @@ public abstract class BasePrimaryAllocationCommand extends AbstractAllocateAlloc
     @Override
     protected void extraXContent(XContentBuilder builder) throws IOException {
         builder.field(ACCEPT_DATA_LOSS_FIELD, acceptDataLoss);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (false == super.equals(obj)) {
+            return false;
+        }
+        BasePrimaryAllocationCommand other = (BasePrimaryAllocationCommand) obj;
+        return acceptDataLoss == other.acceptDataLoss;
+    }
+
+    @Override
+    public int hashCode() {
+        return 31 * super.hashCode() + Boolean.hashCode(acceptDataLoss);
     }
 }

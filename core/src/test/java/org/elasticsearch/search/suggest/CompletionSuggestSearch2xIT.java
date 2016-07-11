@@ -29,10 +29,9 @@ import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -65,7 +64,6 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.hamcrest.Matchers.containsString;
@@ -112,39 +110,6 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
 
         assertSuggestionsNotInOrder("f", "Foo Fighters", "Firestarter", "Foo Fighters Generator", "Foo Fighters Learn to Fly");
         assertSuggestionsNotInOrder("t", "The Prodigy", "Turbonegro", "Turbonegro Get it on", "The Prodigy Firestarter");
-    }
-
-    public void testSuggestFieldWithPercolateApi() throws Exception {
-        createIndexAndMapping(completionMappingBuilder);
-        String[][] inputs = {{"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"},
-            {"Generator", "Foo Fighters Generator"}, {"Learn to Fly", "Foo Fighters Learn to Fly"},
-            {"The Prodigy"}, {"The Prodigy"}, {"The Prodigy"}, {"Firestarter", "The Prodigy Firestarter"},
-            {"Turbonegro"}, {"Turbonegro"}, {"Get it on", "Turbonegro Get it on"}}; // work with frequencies
-        for (int i = 0; i < inputs.length; i++) {
-            XContentBuilder source = jsonBuilder()
-                .startObject().startObject(FIELD)
-                .startArray("input");
-            for (String input : inputs[i]) {
-                source.value(input);
-            }
-            source.endArray()
-                .endObject()
-                .endObject();
-            client().prepareIndex(INDEX, TYPE, "" + i)
-                .setSource(source).execute().actionGet();
-        }
-
-        client().prepareIndex(INDEX, ".percolator", "4")
-            .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
-            .execute().actionGet();
-
-        refresh();
-
-        PercolateResponse response = client().preparePercolate().setIndices(INDEX).setDocumentType(TYPE)
-            .setGetRequest(Requests.getRequest(INDEX).type(TYPE).id("1"))
-            .execute().actionGet();
-        assertThat(response.getCount(), equalTo(1L));
-
     }
 
     public void testBasicPrefixSuggestion() throws Exception {
@@ -509,7 +474,7 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
             .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))
             .addMapping(TYPE, mapping));
         client().prepareIndex(INDEX, TYPE, "1")
-            .setRefresh(true)
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
         ensureGreen(INDEX);
 
@@ -532,7 +497,7 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
         ).execute().actionGet();
         assertSuggestions(suggestResponse, "suggs");
 
-        client().prepareIndex(INDEX, TYPE, "1").setRefresh(true)
+        client().prepareIndex(INDEX, TYPE, "1").setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
         ensureGreen(INDEX);
 
@@ -558,7 +523,7 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
             .addMapping(TYPE, mapping)
             .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id)));
         client().prepareIndex(INDEX, TYPE, "1")
-            .setRefresh(true)
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
         ensureGreen(INDEX);
 
@@ -581,7 +546,7 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
         ).execute().actionGet();
         assertSuggestions(suggestResponse, "suggs");
 
-        client().prepareIndex(INDEX, TYPE, "1").setRefresh(true)
+        client().prepareIndex(INDEX, TYPE, "1").setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
         ensureGreen(INDEX);
 
@@ -767,10 +732,10 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
         assertThat(putMappingResponse.isAcknowledged(), is(true));
 
         // Index two entities
-        client().prepareIndex(INDEX, TYPE, "1").setRefresh(true)
+        client().prepareIndex(INDEX, TYPE, "1").setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").field(otherField, "WHATEVER").endObject())
             .get();
-        client().prepareIndex(INDEX, TYPE, "2").setRefresh(true)
+        client().prepareIndex(INDEX, TYPE, "2").setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(jsonBuilder().startObject().field(FIELD, "Bar Fighters").field(otherField, "WHATEVER2").endObject())
             .get();
 
@@ -1076,7 +1041,7 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
                 .startArray("input").value(str).endArray()
                 .field("output", "foobar")
                 .endObject().endObject()
-            ).setRefresh(true).get();
+            ).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
             // need to flush and refresh, because we keep changing the same document
             // we have to make sure that segments without any live documents are deleted
             flushAndRefresh();
@@ -1110,7 +1075,7 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
             .startArray("input").value(longString).endArray()
             .field("output", "foobar")
             .endObject().endObject()
-        ).setRefresh(true).get();
+        ).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
     }
 
@@ -1132,7 +1097,7 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
                 .startArray("input").value(string).endArray()
                 .field("output", "foobar")
                 .endObject().endObject()
-            ).setRefresh(true).get();
+            ).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
             fail("expected MapperParsingException");
         } catch (MapperParsingException expected) {}
     }
@@ -1152,7 +1117,7 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
             .startObject()
             .field(FIELD, string)
             .endObject()
-        ).setRefresh(true).get();
+        ).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
         try {
             client().prepareSearch(INDEX).addAggregation(AggregationBuilders.terms("suggest_agg").field(FIELD)
@@ -1184,11 +1149,11 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
         ensureGreen();
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(FIELD, "strings make me happy", FIELD + "_1", "nulls make me sad")
-            .setRefresh(true).get();
+        .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
         try {
             client().prepareIndex(INDEX, TYPE, "2").setSource(FIELD, null, FIELD + "_1", "nulls make me sad")
-                .setRefresh(true).get();
+                .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
             fail("Expected MapperParsingException for null value");
         } catch (MapperParsingException e) {
             // make sure that the exception has the name of the field causing the error

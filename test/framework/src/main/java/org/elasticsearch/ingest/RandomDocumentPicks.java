@@ -22,9 +22,6 @@ package org.elasticsearch.ingest;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.ingest.core.IngestDocument;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -105,7 +102,7 @@ public final class RandomDocumentPicks {
      * that each node of the tree either doesn't exist or is a map, otherwise new fields cannot be added.
      */
     public static boolean canAddField(String path, IngestDocument ingestDocument) {
-        String[] pathElements = Strings.splitStringToArray(path, '.');
+        String[] pathElements = path.split("\\.");
         Map<String, Object> innerMap = ingestDocument.getSourceAndMetadata();
         if (pathElements.length > 1) {
             for (int i = 0; i < pathElements.length - 1; i++) {

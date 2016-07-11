@@ -20,7 +20,7 @@ package org.elasticsearch.rest.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,12 +38,12 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestGetStoredScriptAction extends BaseRestHandler {
 
     @Inject
-    public RestGetStoredScriptAction(Settings settings, RestController controller, Client client) {
-        this(settings, controller, true, client);
+    public RestGetStoredScriptAction(Settings settings, RestController controller) {
+        this(settings, controller, true);
     }
 
-    protected RestGetStoredScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers, Client client) {
-        super(settings, client);
+    protected RestGetStoredScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers) {
+        super(settings);
         if (registerDefaultHandlers) {
             controller.registerHandler(GET, "/_scripts/{lang}/{id}", this);
         }
@@ -58,7 +58,7 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, NodeClient client) {
         final GetStoredScriptRequest getRequest = new GetStoredScriptRequest(getScriptLang(request), request.param("id"));
         client.admin().cluster().getStoredScript(getRequest, new RestBuilderListener<GetStoredScriptResponse>(channel) {
             @Override

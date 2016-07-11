@@ -86,7 +86,7 @@ public final class InnerHitsContext {
         innerHits.put(innerHit.getName(), innerHit);
     }
 
-    public static abstract class BaseInnerHits extends SubSearchContext {
+    public abstract static class BaseInnerHits extends SubSearchContext {
 
         private final String name;
         private InnerHitsContext childInnerHits;
@@ -142,7 +142,7 @@ public final class InnerHitsContext {
                 TopDocsCollector topDocsCollector;
                 if (sort() != null) {
                     try {
-                        topDocsCollector = TopFieldCollector.create(sort(), topN, true, trackScores(), trackScores());
+                        topDocsCollector = TopFieldCollector.create(sort().sort, topN, true, trackScores(), trackScores());
                     } catch (IOException e) {
                         throw ExceptionsHelper.convertToElastic(e);
                     }
@@ -175,7 +175,7 @@ public final class InnerHitsContext {
 
             @Override
             public boolean equals(Object obj) {
-                if (super.equals(obj) == false) {
+                if (sameClassAs(obj) == false) {
                     return false;
                 }
                 NestedChildrenQuery other = (NestedChildrenQuery) obj;
@@ -187,7 +187,7 @@ public final class InnerHitsContext {
 
             @Override
             public int hashCode() {
-                int hash = super.hashCode();
+                int hash = classHash();
                 hash = 31 * hash + parentFilter.hashCode();
                 hash = 31 * hash + childFilter.hashCode();
                 hash = 31 * hash + docId;
@@ -317,7 +317,7 @@ public final class InnerHitsContext {
                 int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
                 TopDocsCollector topDocsCollector;
                 if (sort() != null) {
-                    topDocsCollector = TopFieldCollector.create(sort(), topN, true, trackScores(), trackScores());
+                    topDocsCollector = TopFieldCollector.create(sort().sort, topN, true, trackScores(), trackScores());
                 } else {
                     topDocsCollector = TopScoreDocCollector.create(topN);
                 }

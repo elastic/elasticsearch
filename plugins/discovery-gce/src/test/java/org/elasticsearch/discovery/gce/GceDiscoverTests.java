@@ -28,6 +28,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugin.discovery.gce.GceDiscoveryPlugin;
@@ -48,6 +49,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -57,27 +59,16 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTi
 
 
 @ESIntegTestCase.SuppressLocalMode
-@ESIntegTestCase.ClusterScope(numDataNodes = 2, numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numDataNodes = 2, numClientNodes = 0)
 @SuppressForbidden(reason = "use http server")
 // TODO this should be a IT but currently all ITs in this project run against a real cluster
 public class GceDiscoverTests extends ESIntegTestCase {
 
     public static class TestPlugin extends Plugin {
-
         @Override
-        public String name() {
-            return "GceDiscoverTests";
-        }
-
-        @Override
-        public String description() {
-            return "GceDiscoverTests";
-        }
-
-        public void onModule(SettingsModule module) {
-            module.registerSetting(GceComputeServiceImpl.GCE_HOST);
-            module.registerSetting(GceComputeServiceImpl.GCE_ROOT_URL);
-            module.registerSetting(GceComputeServiceImpl.GCE_VALIDATE_CERTIFICATES);
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(GceComputeServiceImpl.GCE_HOST, GceComputeServiceImpl.GCE_ROOT_URL,
+                GceComputeServiceImpl.GCE_VALIDATE_CERTIFICATES);
         }
     }
 

@@ -59,7 +59,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             @Override
             public void run() {
                 NodesStatsResponse resp = client().admin().cluster().prepareNodesStats().get();
-                assertThat(resp.getNodes().length, equalTo(3));
+                assertThat(resp.getNodes().size(), equalTo(3));
             }
         });
 

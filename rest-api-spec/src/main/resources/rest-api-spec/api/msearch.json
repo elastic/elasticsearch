@@ -20,6 +20,10 @@
           "type" : "enum",
           "options" : ["query_then_fetch", "query_and_fetch", "dfs_query_then_fetch", "dfs_query_and_fetch"],
           "description" : "Search operation type"
+        },
+        "max_concurrent_searches" : {
+          "type" : "number",
+          "description" : "Controls the maximum number of concurrent searches the multi search api will execute"
         }
       }
     },

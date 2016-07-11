@@ -66,15 +66,15 @@ class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetc
                     firstResults);
                 String scrollId = null;
                 if (request.scroll() != null) {
-                    scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults, null);
+                    scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults);
                 }
                 listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(),
                     buildTookInMillis(), buildShardFailures()));
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                ReduceSearchPhaseException failure = new ReduceSearchPhaseException("merge", "", t, buildShardFailures());
+            public void onFailure(Exception e) {
+                ReduceSearchPhaseException failure = new ReduceSearchPhaseException("merge", "", e, buildShardFailures());
                 if (logger.isDebugEnabled()) {
                     logger.debug("failed to reduce search", failure);
                 }

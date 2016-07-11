@@ -50,6 +50,7 @@ import com.amazonaws.services.s3.model.CreateBucketRequest;
 import com.amazonaws.services.s3.model.DeleteBucketCrossOriginConfigurationRequest;
 import com.amazonaws.services.s3.model.DeleteBucketLifecycleConfigurationRequest;
 import com.amazonaws.services.s3.model.DeleteBucketPolicyRequest;
+import com.amazonaws.services.s3.model.DeleteBucketReplicationConfigurationRequest;
 import com.amazonaws.services.s3.model.DeleteBucketRequest;
 import com.amazonaws.services.s3.model.DeleteBucketTaggingConfigurationRequest;
 import com.amazonaws.services.s3.model.DeleteBucketWebsiteConfigurationRequest;
@@ -69,6 +70,7 @@ import com.amazonaws.services.s3.model.GetBucketReplicationConfigurationRequest;
 import com.amazonaws.services.s3.model.GetBucketTaggingConfigurationRequest;
 import com.amazonaws.services.s3.model.GetBucketVersioningConfigurationRequest;
 import com.amazonaws.services.s3.model.GetBucketWebsiteConfigurationRequest;
+import com.amazonaws.services.s3.model.GetObjectAclRequest;
 import com.amazonaws.services.s3.model.GetObjectMetadataRequest;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.GetS3AccountOwnerRequest;
@@ -254,6 +256,11 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
+    public AccessControlList getObjectAcl(GetObjectAclRequest getObjectAclRequest) throws AmazonClientException, AmazonServiceException {
+        return delegate.getObjectAcl(getObjectAclRequest);
+    }
+
+    @Override
     public void setObjectAcl(String bucketName, String key, AccessControlList acl) throws AmazonClientException, AmazonServiceException {
         delegate.setObjectAcl(bucketName, key, acl);
     }
@@ -356,6 +363,17 @@ public class AmazonS3Wrapper implements AmazonS3 {
     @Override
     public void deleteBucketReplicationConfiguration(String bucketName) throws AmazonServiceException, AmazonClientException {
         delegate.deleteBucketReplicationConfiguration(bucketName);
+    }
+
+    @Override
+    public void deleteBucketReplicationConfiguration(DeleteBucketReplicationConfigurationRequest request) throws AmazonServiceException,
+        AmazonClientException {
+        delegate.deleteBucketReplicationConfiguration(request);
+    }
+
+    @Override
+    public boolean doesObjectExist(String bucketName, String objectName) throws AmazonServiceException, AmazonClientException {
+        return delegate.doesObjectExist(bucketName, objectName);
     }
 
     @Override

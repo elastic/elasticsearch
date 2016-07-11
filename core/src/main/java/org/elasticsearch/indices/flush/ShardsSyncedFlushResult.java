@@ -141,7 +141,7 @@ public class ShardsSyncedFlushResult implements Streamable {
         int numResponses = in.readInt();
         shardResponses = new HashMap<>();
         for (int i = 0; i < numResponses; i++) {
-            ShardRouting shardRouting = ShardRouting.readShardRoutingEntry(in);
+            ShardRouting shardRouting = new ShardRouting(in);
             SyncedFlushService.ShardSyncedFlushResponse response = SyncedFlushService.ShardSyncedFlushResponse.readSyncedFlushResponse(in);
             shardResponses.put(shardRouting, response);
         }

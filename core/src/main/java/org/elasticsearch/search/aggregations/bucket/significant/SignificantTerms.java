@@ -29,7 +29,7 @@ import java.util.List;
 public interface SignificantTerms extends MultiBucketsAggregation, Iterable<SignificantTerms.Bucket> {
 
 
-    static abstract class Bucket extends InternalMultiBucketAggregation.InternalBucket {
+    abstract static class Bucket extends InternalMultiBucketAggregation.InternalBucket {
 
         long subsetDf;
         long subsetSize;

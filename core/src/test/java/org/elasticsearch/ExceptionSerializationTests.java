@@ -27,13 +27,13 @@ import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IllegalShardRoutingStateException;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -70,7 +70,9 @@ import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotException;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.VersionUtils;
@@ -78,6 +80,7 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.ActionTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -119,7 +122,6 @@ public class ExceptionSerializationTests extends ESTestCase {
                 .resolve("org").resolve("elasticsearch");
         final Set<? extends Class<?>> ignore = Sets.newHashSet(
                 org.elasticsearch.test.rest.parser.RestTestParseException.class,
-                org.elasticsearch.test.rest.client.RestException.class,
                 CancellableThreadsTests.CustomException.class,
                 org.elasticsearch.rest.BytesRestResponseTests.WithHeadersException.class,
                 AbstractClientHeadersTestCase.InternalException.class);
@@ -217,12 +219,12 @@ public class ExceptionSerializationTests extends ESTestCase {
         }
     }
 
-    private <T extends Throwable> T serialize(T exception) throws IOException {
+    private <T extends Exception> T serialize(T exception) throws IOException {
         ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(random()), exception);
         BytesStreamOutput out = new BytesStreamOutput();
-        out.writeThrowable(exception);
-        StreamInput in = StreamInput.wrap(out.bytes());
-        return in.readThrowable();
+        out.writeException(exception);
+        StreamInput in = out.bytes().streamInput();
+        return in.readException();
     }
 
     public void testIllegalShardRoutingStateException() throws IOException {
@@ -303,14 +305,16 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testSnapshotException() throws IOException {
-        SnapshotException ex = serialize(
-                new SnapshotException(new SnapshotId("repo", "snap"), "no such snapshot", new NullPointerException()));
-        assertEquals(ex.snapshot(), new SnapshotId("repo", "snap"));
-        assertEquals(ex.getMessage(), "[repo:snap] no such snapshot");
+        final Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap", UUIDs.randomBase64UUID()));
+        SnapshotException ex = serialize(new SnapshotException(snapshot, "no such snapshot", new NullPointerException()));
+        assertEquals(ex.getRepositoryName(), snapshot.getRepository());
+        assertEquals(ex.getSnapshotName(), snapshot.getSnapshotId().getName());
+        assertEquals(ex.getMessage(), "[" + snapshot + "] no such snapshot");
         assertTrue(ex.getCause() instanceof NullPointerException);
 
         ex = serialize(new SnapshotException(null, "no such snapshot", new NullPointerException()));
-        assertEquals(ex.snapshot(), null);
+        assertNull(ex.getRepositoryName());
+        assertNull(ex.getSnapshotName());
         assertEquals(ex.getMessage(), "[_na] no such snapshot");
         assertTrue(ex.getCause() instanceof NullPointerException);
     }
@@ -542,12 +546,20 @@ public class ExceptionSerializationTests extends ESTestCase {
         ex = serialize(new NotSerializableExceptionWrapper(new IllegalArgumentException("nono!")));
         assertEquals("{\"type\":\"illegal_argument_exception\",\"reason\":\"illegal_argument_exception: nono!\"}", toXContent(ex));
 
-        Throwable[] unknowns = new Throwable[]{
+        class UnknownException extends Exception {
+
+            public UnknownException(final String message) {
+                super(message);
+            }
+
+        }
+
+        Exception[] unknowns = new Exception[]{
                 new Exception("foobar"),
                 new ClassCastException("boom boom boom"),
-                new UnsatisfiedLinkError("booom")
+                new UnknownException("boom")
         };
-        for (Throwable t : unknowns) {
+        for (Exception t : unknowns) {
             if (randomBoolean()) {
                 t.addSuppressed(new UnsatisfiedLinkError("suppressed"));
                 t.addSuppressed(new NullPointerException());
@@ -663,7 +675,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(22, null); // was CreateFailedEngineException
         ids.put(23, org.elasticsearch.index.shard.IndexShardStartedException.class);
         ids.put(24, org.elasticsearch.search.SearchContextMissingException.class);
-        ids.put(25, org.elasticsearch.script.ScriptException.class);
+        ids.put(25, org.elasticsearch.script.GeneralScriptException.class);
         ids.put(26, org.elasticsearch.index.shard.TranslogRecoveryPerformer.BatchOperationException.class);
         ids.put(27, org.elasticsearch.snapshots.SnapshotCreationException.class);
         ids.put(28, org.elasticsearch.index.engine.DeleteFailedEngineException.class);
@@ -743,7 +755,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(105, org.elasticsearch.cluster.routing.RoutingException.class);
         ids.put(106, org.elasticsearch.index.shard.IndexShardRecoveryException.class);
         ids.put(107, org.elasticsearch.repositories.RepositoryMissingException.class);
-        ids.put(108, org.elasticsearch.index.percolator.PercolatorException.class);
+        ids.put(108, null);
         ids.put(109, org.elasticsearch.index.engine.DocumentSourceMissingException.class);
         ids.put(110, org.elasticsearch.index.engine.FlushNotAllowedEngineException.class);
         ids.put(111, org.elasticsearch.common.settings.NoClassSettingsException.class);
@@ -760,7 +772,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(122, null);
         ids.put(123, org.elasticsearch.indices.IndexAlreadyExistsException.class);
         ids.put(124, org.elasticsearch.script.Script.ScriptParseException.class);
-        ids.put(125, org.elasticsearch.transport.netty.SizeHeaderFrameDecoder.HttpOnTransportException.class);
+        ids.put(125, TcpTransport.HttpOnTransportException.class);
         ids.put(126, org.elasticsearch.index.mapper.MapperParsingException.class);
         ids.put(127, org.elasticsearch.search.SearchContextException.class);
         ids.put(128, org.elasticsearch.search.builder.SearchSourceBuilderException.class);
@@ -778,6 +790,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(140, org.elasticsearch.discovery.Discovery.FailedToCommitClusterStateException.class);
         ids.put(141, org.elasticsearch.index.query.QueryShardException.class);
         ids.put(142, ShardStateAction.NoLongerPrimaryShardException.class);
+        ids.put(143, org.elasticsearch.script.ScriptException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

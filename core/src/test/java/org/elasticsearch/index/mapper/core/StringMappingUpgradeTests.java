@@ -103,6 +103,22 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         assertEquals(IndexOptions.NONE, field.fieldType().indexOptions());
     }
 
+    public void testIllegalIndexValue() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "string")
+                        .field("index", false)
+                    .endObject()
+                .endObject() .endObject().endObject().string();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> parser.parse("type", new CompressedXContent(mapping)));
+        assertThat(e.getMessage(),
+                containsString("Can't parse [index] value [false] for field [field], expected [no], [not_analyzed] or [analyzed]"));
+    }
+
     public void testNotSupportedUpgrade() throws IOException {
         IndexService indexService = createIndex("test");
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
@@ -180,6 +196,32 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         assertEquals("standard", field.fieldType().indexAnalyzer().name());
         assertEquals("whitespace", field.fieldType().searchAnalyzer().name());
         assertEquals("keyword", field.fieldType().searchQuoteAnalyzer().name());
+    }
+
+    public void testUpgradeTextIncludeInAll() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "string")
+                .field("include_in_all", false).endObject().endObject()
+                .endObject().endObject().string();
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        FieldMapper field = mapper.mappers().getMapper("field");
+        assertThat(field, instanceOf(TextFieldMapper.class));
+        assertFalse(((TextFieldMapper) field).includeInAll());
+    }
+
+    public void testUpgradeKeywordIncludeInAll() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "string")
+                .field("index", "not_analyzed").field("include_in_all", true).endObject().endObject()
+                .endObject().endObject().string();
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        FieldMapper field = mapper.mappers().getMapper("field");
+        assertThat(field, instanceOf(KeywordFieldMapper.class));
+        assertTrue(((KeywordFieldMapper) field).includeInAll());
     }
 
     public void testUpgradeRandomMapping() throws IOException {

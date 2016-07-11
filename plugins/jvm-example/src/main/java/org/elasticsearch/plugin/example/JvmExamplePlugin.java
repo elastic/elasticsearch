@@ -44,16 +44,6 @@ public class JvmExamplePlugin extends Plugin {
     }
 
     @Override
-    public String name() {
-        return "jvm-example";
-    }
-
-    @Override
-    public String description() {
-        return "A plugin that extends all extension points";
-    }
-
-    @Override
     public Collection<Module> nodeModules() {
         return Collections.<Module>singletonList(new ConfiguredExampleModule());
     }

@@ -18,24 +18,23 @@
  */
 package org.elasticsearch.plugins;
 
+import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.responseheader.TestResponseHeaderPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 
 import java.util.Collection;
 
-import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.RestStatus.UNAUTHORIZED;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasStatus;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Test a rest action that sets special response headers
  */
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
+@ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
 public class ResponseHeaderPluginIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -52,12 +51,18 @@ public class ResponseHeaderPluginIT extends ESIntegTestCase {
 
     public void testThatSettingHeadersWorks() throws Exception {
         ensureGreen();
-        HttpResponse response = httpClient().method("GET").path("/_protected").execute();
-        assertThat(response, hasStatus(UNAUTHORIZED));
-        assertThat(response.getHeaders().get("Secret"), equalTo("required"));
+        try {
+            getRestClient().performRequest("GET", "/_protected");
+            fail("request should have failed");
+        } catch(ResponseException e) {
+            Response response = e.getResponse();
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(401));
+            assertThat(response.getHeader("Secret"), equalTo("required"));
+        }
 
-        HttpResponse authResponse = httpClient().method("GET").path("/_protected").addHeader("Secret", "password").execute();
-        assertThat(authResponse, hasStatus(OK));
-        assertThat(authResponse.getHeaders().get("Secret"), equalTo("granted"));
+        try (Response authResponse = getRestClient().performRequest("GET", "/_protected", new BasicHeader("Secret", "password"))) {
+            assertThat(authResponse.getStatusLine().getStatusCode(), equalTo(200));
+            assertThat(authResponse.getHeader("Secret"), equalTo("granted"));
+        }
     }
 }

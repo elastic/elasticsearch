@@ -20,12 +20,12 @@
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -33,12 +33,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * A simple {@link AllocationCommand} composite managing several
  * {@link AllocationCommand} implementations
  */
-public class AllocationCommands {
+public class AllocationCommands extends ToXContentToBytes {
     private final List<AllocationCommand> commands = new ArrayList<>();
 
     /**
@@ -171,21 +172,31 @@ public class AllocationCommands {
         return commands;
     }
 
-    /**
-     * Writes {@link AllocationCommands} to a {@link XContentBuilder}
-     *
-     * @param commands {@link AllocationCommands} to write
-     * @param builder {@link XContentBuilder} to use
-     * @param params Parameters to use for building
-     * @throws IOException if something bad happens while building the content
-     */
-    public static void toXContent(AllocationCommands commands, XContentBuilder builder, ToXContent.Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray("commands");
-        for (AllocationCommand command : commands.commands) {
+        for (AllocationCommand command : commands) {
             builder.startObject();
             builder.field(command.name(), command);
             builder.endObject();
         }
         builder.endArray();
+        return builder;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        AllocationCommands other = (AllocationCommands) obj;
+        // Override equals and hashCode for testing
+        return Objects.equals(commands, other.commands);
+    }
+
+    @Override
+    public int hashCode() {
+        // Override equals and hashCode for testing
+        return Objects.hashCode(commands);
     }
 }

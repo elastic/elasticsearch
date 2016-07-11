@@ -68,7 +68,6 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
     private TransportService transportService;
     private NetworkService networkService;
 
-    private final Version version;
     private final String project;
     private final List<String> zones;
     private final List<String> tags;
@@ -80,13 +79,11 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
     @Inject
     public GceUnicastHostsProvider(Settings settings, GceComputeService gceComputeService,
             TransportService transportService,
-            NetworkService networkService,
-            Version version) {
+            NetworkService networkService) {
         super(settings);
         this.gceComputeService = gceComputeService;
         this.transportService = transportService;
         this.networkService = networkService;
-        this.version = version;
 
         this.refreshInterval = GceComputeService.REFRESH_SETTING.get(settings);
         this.project = GceComputeService.PROJECT_SETTING.get(settings);
@@ -244,7 +241,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                             logger.trace("adding {}, type {}, address {}, transport_address {}, status {}", name, type,
                                     ip_private, transportAddress, status);
                             cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + name + "-" + 0, transportAddress,
-                                    emptyMap(), emptySet(), version.minimumCompatibilityVersion()));
+                                    emptyMap(), emptySet(), Version.CURRENT.minimumCompatibilityVersion()));
                         }
                     }
                 } catch (Exception e) {
@@ -252,8 +249,8 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                 }
 
             }
-        } catch (Throwable e) {
-            logger.warn("Exception caught during discovery: {}", e, e.getMessage());
+        } catch (Exception e) {
+            logger.warn("exception caught during discovery", e);
         }
 
         logger.debug("{} node(s) added", cachedDiscoNodes.size());

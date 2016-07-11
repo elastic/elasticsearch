@@ -57,7 +57,7 @@ setup:
                 query:
                     match:
                         file.content: "apache tika"
-                fields: []
+                stored_fields: []
                 highlight:
                   fields:
                     file.content: {}

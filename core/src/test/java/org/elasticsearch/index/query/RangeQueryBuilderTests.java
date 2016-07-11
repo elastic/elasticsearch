@@ -30,6 +30,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.chrono.ISOChronology;
@@ -69,7 +70,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 // otherwise we could trigger exception.
                 if (createShardContext().getMapperService().fullName(DATE_FIELD_NAME) != null) {
                     if (randomBoolean()) {
-                        query.timeZone(randomTimeZone());
+                        query.timeZone(randomDateTimeZone().getID());
                     }
                     if (randomBoolean()) {
                         query.format("yyyy-MM-dd'T'HH:mm:ss.SSSZZ");
@@ -464,7 +465,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         query.from(queryFromValue);
         query.to(queryToValue);
         QueryShardContext queryShardContext = createShardContext();
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
         RangeQueryBuilder rewrittenRange = (RangeQueryBuilder) rewritten;
         assertThat(rewrittenRange.fieldName(), equalTo(fieldName));
@@ -485,7 +486,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         query.from(queryFromValue);
         query.to(queryToValue);
         QueryShardContext queryShardContext = createShardContext();
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
     }
 
@@ -502,7 +503,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         query.from(queryFromValue);
         query.to(queryToValue);
         QueryShardContext queryShardContext = createShardContext();
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, sameInstance(query));
     }
 
@@ -515,7 +516,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             }
         };
         QueryShardContext queryShardContext = createShardContext();
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, sameInstance(query));
     }
 }

@@ -32,7 +32,7 @@ import java.io.IOException;
 public class IndexAlreadyExistsException extends ElasticsearchException {
 
     public IndexAlreadyExistsException(Index index) {
-        this(index, "already exists");
+        this(index, "index " + index.toString() + " already exists");
     }
 
     public IndexAlreadyExistsException(Index index, String message) {

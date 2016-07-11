@@ -404,9 +404,9 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             }
         }
 
-        public Builder updateNodes(RoutingNodes routingNodes) {
+        public Builder updateNodes(long version, RoutingNodes routingNodes) {
             // this is being called without pre initializing the routing table, so we must copy over the version as well
-            this.version = routingNodes.routingTable().version();
+            this.version = version;
 
             Map<String, IndexRoutingTable.Builder> indexRoutingTableBuilders = new HashMap<>();
             for (RoutingNode routingNode : routingNodes) {
@@ -422,8 +422,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                         indexRoutingTableBuilders.put(index.getName(), indexBuilder);
                     }
 
-                    IndexShardRoutingTable refData = routingNodes.routingTable().index(shardRoutingEntry.index().getName()).shard(shardRoutingEntry.id());
-                    indexBuilder.addShard(refData, shardRoutingEntry);
+                    indexBuilder.addShard(shardRoutingEntry);
                 }
             }
 
@@ -436,8 +435,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                     indexBuilder = new IndexRoutingTable.Builder(index);
                     indexRoutingTableBuilders.put(index.getName(), indexBuilder);
                 }
-                IndexShardRoutingTable refData = routingNodes.routingTable().index(shardRoutingEntry.index().getName()).shard(shardRoutingEntry.id());
-                indexBuilder.addShard(refData, shardRoutingEntry);
+                indexBuilder.addShard(shardRoutingEntry);
             }
 
             for (IndexRoutingTable.Builder indexBuilder : indexRoutingTableBuilders.values()) {

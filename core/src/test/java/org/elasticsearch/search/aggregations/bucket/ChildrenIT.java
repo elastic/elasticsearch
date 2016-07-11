@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.sameInstance;
 @ESIntegTestCase.SuiteScopeTestCase
 public class ChildrenIT extends ESIntegTestCase {
 
-    private final static Map<String, Control> categoryToControl = new HashMap<>();
+    private static final Map<String, Control> categoryToControl = new HashMap<>();
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
@@ -134,10 +134,9 @@ public class ChildrenIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(matchQuery("randomized", true))
                 .addAggregation(
-                        terms("category").field("category").size(0).subAggregation(
-children("to_comment", "comment")
+                        terms("category").field("category").size(10000).subAggregation(children("to_comment", "comment")
                                 .subAggregation(
-                                        terms("commenters").field("commenter").size(0).subAggregation(
+                                        terms("commenters").field("commenter").size(10000).subAggregation(
                                                 topHits("top_comments")
                                         ))
                         )
@@ -176,7 +175,7 @@ children("to_comment", "comment")
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(matchQuery("randomized", false))
                 .addAggregation(
-                        terms("category").field("category").size(0).subAggregation(
+                        terms("category").field("category").size(10000).subAggregation(
                         children("to_comment", "comment").subAggregation(topHits("top_comments").sort("_uid", SortOrder.ASC))
                         )
                 ).get();

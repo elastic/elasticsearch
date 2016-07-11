@@ -49,12 +49,19 @@ Computing the intraday return based on a script:
     ...,
 
     "aggs" : {
-        "intraday_return" : { "sum" : { "script" : "doc['change'].value" } }
+        "intraday_return" : { 
+            "sum" : { 
+                "script" : {
+                   "lang": "painless",
+                   "inline": "doc['change'].value" 
+                } 
+            }
+        }
     }
 }
 --------------------------------------------------
 
-This will interpret the `script` parameter as an `inline` script with the default script language and no script parameters. To use a file script use the following syntax:
+This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a file script use the following syntax:
 
 [source,js]
 --------------------------------------------------
@@ -92,7 +99,10 @@ Computing the sum of squares over all stock tick changes:
             "daytime_return" : {
                 "sum" : {
                     "field" : "change",
-                    "script" : "_value * _value"
+                    "script" : {
+                        "lang": "painless",
+                        "inline": "_value * _value"
+                    }
                 }
             }
         }

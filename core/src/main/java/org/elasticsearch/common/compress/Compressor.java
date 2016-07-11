@@ -33,21 +33,7 @@ public interface Compressor {
 
     boolean isCompressed(BytesReference bytes);
 
-    boolean isCompressed(ChannelBuffer buffer);
-
     StreamInput streamInput(StreamInput in) throws IOException;
 
     StreamOutput streamOutput(StreamOutput out) throws IOException;
-
-    /**
-     * @deprecated Used for backward comp. since we now use Lucene compressed codec.
-     */
-    @Deprecated
-    boolean isCompressed(IndexInput in) throws IOException;
-
-    /**
-     * @deprecated Used for backward comp. since we now use Lucene compressed codec.
-     */
-    @Deprecated
-    CompressedIndexInput indexInput(IndexInput in) throws IOException;
 }

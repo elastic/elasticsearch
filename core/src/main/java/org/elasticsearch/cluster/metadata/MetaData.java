@@ -1187,7 +1187,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         }
     }
 
-    private final static ToXContent.Params FORMAT_PARAMS;
+    private static final ToXContent.Params FORMAT_PARAMS;
     static {
         Map<String, String> params = new HashMap<>(2);
         params.put("binary", "true");
@@ -1198,7 +1198,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     /**
      * State format for {@link MetaData} to write to and load from disk
      */
-    public final static MetaDataStateFormat<MetaData> FORMAT = new MetaDataStateFormat<MetaData>(XContentType.SMILE, GLOBAL_STATE_FILE_PREFIX) {
+    public static final MetaDataStateFormat<MetaData> FORMAT = new MetaDataStateFormat<MetaData>(XContentType.SMILE, GLOBAL_STATE_FILE_PREFIX) {
 
         @Override
         public void toXContent(XContentBuilder builder, MetaData state) throws IOException {

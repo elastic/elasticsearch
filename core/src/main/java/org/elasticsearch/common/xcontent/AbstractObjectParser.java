@@ -21,7 +21,9 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -121,6 +123,17 @@ public abstract class AbstractObjectParser<Value, Context extends ParseFieldMatc
 
     public void declareIntArray(BiConsumer<Value, List<Integer>> consumer, ParseField field) {
         declareField(consumer, (p, c) -> parseArray(p, p::intValue), field, ValueType.INT_ARRAY);
+    }
+
+    public void declareRawObject(BiConsumer<Value, BytesReference> consumer, ParseField field) {
+        NoContextParser<BytesReference> bytesParser = p -> {
+            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                builder.prettyPrint();
+                builder.copyCurrentStructure(p);
+                return builder.bytes();
+            }
+        };
+        declareField(consumer, bytesParser, field, ValueType.OBJECT);
     }
 
     private interface IOSupplier<T> {

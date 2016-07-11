@@ -26,7 +26,7 @@ setting, as follows:
 
 [source,sh]
 -------------------------------
-./bin/elasticsearch -E es.path.conf=/path/to/my/config/
+./bin/elasticsearch -Epath.conf=/path/to/my/config/
 -------------------------------
 
 [float]
@@ -39,7 +39,7 @@ example of changing the path of the data and logs directories:
 --------------------------------------------------
 path:
     data: /var/lib/elasticsearch
-    logs: /var/logs/elasticsearch
+    logs: /var/log/elasticsearch
 --------------------------------------------------
 
 Settings can also be flattened as follows:
@@ -47,7 +47,7 @@ Settings can also be flattened as follows:
 [source,yaml]
 --------------------------------------------------
 path.data: /var/lib/elasticsearch
-path.logs: /var/logs/elasticsearch
+path.logs: /var/log/elasticsearch
 --------------------------------------------------
 
 [float]
@@ -93,15 +93,14 @@ is used in the settings and the process is run as a service or in the background
 === Setting default settings
 
 New default settings may be specified on the command line using the
-`es.default.` prefix instead of the `es.` prefix.  This will specify a value
-that will be used by default unless another value is specified in the config
-file.
+`default.` prefix.  This will specify a value that will be used by
+default unless another value is specified in the config file.
 
 For instance, if Elasticsearch is started as follows:
 
 [source,sh]
 ---------------------------
-./bin/elasticsearch -E es.default.node.name=My_Node
+./bin/elasticsearch -Edefault.node.name=My_Node
 ---------------------------
 
 the value for `node.name` will be `My_Node`, unless it is overwritten on the

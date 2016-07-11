@@ -305,7 +305,7 @@ public class RangeAggregator extends BucketsAggregator {
         };
     }
 
-    private final long subBucketOrdinal(long owningBucketOrdinal, int rangeOrd) {
+    private long subBucketOrdinal(long owningBucketOrdinal, int rangeOrd) {
         return owningBucketOrdinal * ranges.length + rangeOrd;
     }
 
@@ -337,7 +337,7 @@ public class RangeAggregator extends BucketsAggregator {
         return rangeFactory.create(name, buckets, format, keyed, pipelineAggregators(), metaData());
     }
 
-    private static final void sortRanges(final Range[] ranges) {
+    private static void sortRanges(final Range[] ranges) {
         new InPlaceMergeSorter() {
 
             @Override

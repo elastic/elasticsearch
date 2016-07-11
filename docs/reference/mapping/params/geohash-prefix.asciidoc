@@ -60,5 +60,5 @@ GET my_index/_search?fielddata_fields=location.geohash
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 

@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 1, numClientNodes = 0)
+@ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1, numClientNodes = 0)
 public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
 
     private static int randomPort = -1;

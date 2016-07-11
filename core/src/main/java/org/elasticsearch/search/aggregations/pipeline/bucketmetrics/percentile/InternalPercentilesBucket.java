@@ -39,9 +39,9 @@ import java.util.Map;
 
 public class InternalPercentilesBucket extends InternalNumericMetricsAggregation.MultiValue implements PercentilesBucket {
 
-    public final static Type TYPE = new Type("percentiles_bucket");
+    public static final Type TYPE = new Type("percentiles_bucket");
 
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalPercentilesBucket readResult(StreamInput in) throws IOException {
             InternalPercentilesBucket result = new InternalPercentilesBucket();

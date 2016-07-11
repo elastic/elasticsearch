@@ -100,7 +100,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
         contentBuilder.startObject();
         testModel.innerToXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
         contentBuilder.endObject();
-        XContentParser parser = XContentHelper.createParser(contentBuilder.bytes());
+        XContentParser parser = XContentHelper.createParser(shuffleXContent(contentBuilder).bytes());
         QueryParseContext context = new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.STRICT);
         parser.nextToken();  // go to start token, real parsing would do that in the outer element parser
         SmoothingModel parsedModel = fromXContent(context);
@@ -180,7 +180,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
     static SmoothingModel copyModel(SmoothingModel original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 return namedWriteableRegistry.getReader(SmoothingModel.class, original.getWriteableName()).read(in);
             }
         }

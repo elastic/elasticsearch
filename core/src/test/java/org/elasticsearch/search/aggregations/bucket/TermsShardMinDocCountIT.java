@@ -53,7 +53,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
     public void testShardMinDocCountSignificantTermsTest() throws Exception {
         String textMappings;
         if (randomBoolean()) {
-            textMappings = "type=keyword";
+            textMappings = "type=long";
         } else {
             textMappings = "type=text,fielddata=true";
         }

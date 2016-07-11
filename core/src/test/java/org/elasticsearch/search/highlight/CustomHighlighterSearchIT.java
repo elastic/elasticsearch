@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
+@ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
 public class CustomHighlighterSearchIT extends ESIntegTestCase {
 
     @Override

@@ -103,7 +103,7 @@ public abstract class WritableTestCase<M extends Writeable> extends ESTestCase {
     private M copyModel(M original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), provideNamedWritableRegistry())) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), provideNamedWritableRegistry())) {
                 return readFrom(in);
             }
         }

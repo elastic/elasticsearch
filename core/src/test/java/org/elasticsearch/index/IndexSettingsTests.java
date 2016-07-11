@@ -65,6 +65,31 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(42, integer.get());
     }
 
+    public void testSettingsUpdateValidator() {
+        Version version = VersionUtils.getPreviousVersion();
+        Settings theSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version)
+            .put(IndexMetaData.SETTING_INDEX_UUID, "0xdeadbeef").build();
+        final AtomicInteger integer = new AtomicInteger(0);
+        Setting<Integer> integerSetting = Setting.intSetting("index.test.setting.int", -1,
+            Property.Dynamic, Property.IndexScope);
+        IndexMetaData metaData = newIndexMeta("index", theSettings);
+        IndexSettings settings = newIndexSettings(newIndexMeta("index", theSettings), Settings.EMPTY, integerSetting);
+        settings.getScopedSettings().addSettingsUpdateConsumer(integerSetting, integer::set,
+            (i) -> {if (i == 42) throw new AssertionError("boom");});
+
+        assertEquals(version, settings.getIndexVersionCreated());
+        assertEquals("0xdeadbeef", settings.getUUID());
+
+        assertFalse(settings.updateIndexMetaData(metaData));
+        assertEquals(metaData.getSettings().getAsMap(), settings.getSettings().getAsMap());
+        assertEquals(0, integer.get());
+        expectThrows(IllegalArgumentException.class, () -> settings.updateIndexMetaData(newIndexMeta("index",
+            Settings.builder().put(theSettings).put("index.test.setting.int", 42).build())));
+        assertTrue(settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(theSettings).put("index.test.setting.int", 41)
+            .build())));
+        assertEquals(41, integer.get());
+    }
+
     public void testMergedSettingsArePassed() {
         Version version = VersionUtils.getPreviousVersion();
         Settings theSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version)
@@ -109,6 +134,15 @@ public class IndexSettingsTests extends ESTestCase {
         } catch (IllegalArgumentException ex) {
             assertTrue(ex.getMessage(), ex.getMessage().startsWith("version mismatch on settings update expected: "));
         }
+
+        // use version number that is unknown
+        metaData = newIndexMeta("index", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.fromId(999999))
+            .build());
+        settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertEquals(Version.fromId(999999), settings.getIndexVersionCreated());
+        assertEquals("_na_", settings.getUUID());
+        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED,
+            Version.fromId(999999)).put("index.test.setting.int", 42).build()));
 
         metaData = newIndexMeta("index", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_INDEX_UUID, "0xdeadbeef").build());

@@ -36,8 +36,8 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put("threadpool.search.size", 1)
-                .put("threadpool.search.queue_size", 1)
+                .put("thread_pool.search.size", 1)
+                .put("thread_pool.search.queue_size", 1)
                 .build();
     }
 
@@ -65,7 +65,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         for (int i = 0; i < numSearches; i++) {
             try {
                 responses[i].get();
-            } catch (Throwable t) {
+            } catch (Exception t) {
             }
         }
         awaitBusy(() -> client().admin().indices().prepareStats().execute().actionGet().getTotal().getSearch().getOpenContexts() == 0, 1, TimeUnit.SECONDS);

@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.indices.alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -46,13 +46,13 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestIndicesAliasesAction extends BaseRestHandler {
 
     @Inject
-    public RestIndicesAliasesAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestIndicesAliasesAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(POST, "/_aliases", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", indicesAliasesRequest.masterNodeTimeout()));
         try (XContentParser parser = XContentFactory.xContent(request.content()).createParser(request.content())) {

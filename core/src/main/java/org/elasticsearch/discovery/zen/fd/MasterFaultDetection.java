@@ -32,8 +32,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -54,7 +55,7 @@ public class MasterFaultDetection extends FaultDetection {
 
     public static final String MASTER_PING_ACTION_NAME = "internal:discovery/zen/fd/master_ping";
 
-    public static interface Listener {
+    public interface Listener {
 
         /** called when pinging the master failed, like a timeout, transport disconnects etc */
         void onMasterFailure(DiscoveryNode masterNode, Throwable cause, String reason);
@@ -75,13 +76,15 @@ public class MasterFaultDetection extends FaultDetection {
     private final AtomicBoolean notifiedMasterFailure = new AtomicBoolean();
 
     public MasterFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                ClusterName clusterName, ClusterService clusterService) {
-        super(settings, threadPool, transportService, clusterName);
+                                ClusterService clusterService) {
+        super(settings, threadPool, transportService, clusterService.getClusterName());
         this.clusterService = clusterService;
 
-        logger.debug("[master] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
+        logger.debug("[master] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout,
+            pingRetryCount);
 
-        transportService.registerRequestHandler(MASTER_PING_ACTION_NAME, MasterPingRequest::new, ThreadPool.Names.SAME, new MasterPingRequestHandler());
+        transportService.registerRequestHandler(
+            MASTER_PING_ACTION_NAME, MasterPingRequest::new, ThreadPool.Names.SAME, false, false, new MasterPingRequestHandler());
     }
 
     public DiscoveryNode masterNode() {
@@ -195,14 +198,15 @@ public class MasterFaultDetection extends FaultDetection {
 
     private void notifyMasterFailure(final DiscoveryNode masterNode, final Throwable cause, final String reason) {
         if (notifiedMasterFailure.compareAndSet(false, true)) {
-            threadPool.generic().execute(new Runnable() {
-                @Override
-                public void run() {
+            try {
+                threadPool.generic().execute(() -> {
                     for (Listener listener : listeners) {
                         listener.onMasterFailure(masterNode, cause, reason);
                     }
-                }
-            });
+                });
+            } catch (EsRejectedExecutionException e) {
+                logger.error("master failure notification was rejected, it's highly likely the node is shutting down", e);
+            }
             stop("master failure, " + reason);
         }
     }
@@ -227,10 +231,12 @@ public class MasterFaultDetection extends FaultDetection {
                 threadPool.schedule(pingInterval, ThreadPool.Names.SAME, MasterPinger.this);
                 return;
             }
-            final MasterPingRequest request = new MasterPingRequest(clusterService.localNode().getId(), masterToPing.getId(), clusterName);
-            final TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout).build();
-            transportService.sendRequest(masterToPing, MASTER_PING_ACTION_NAME, request, options, new BaseTransportResponseHandler<MasterPingResponseResponse>() {
 
+            final MasterPingRequest request = new MasterPingRequest(clusterService.localNode(), masterToPing, clusterName);
+            final TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.PING)
+                .withTimeout(pingRetryTimeout).build();
+            transportService.sendRequest(masterToPing, MASTER_PING_ACTION_NAME, request, options,
+                new TransportResponseHandler<MasterPingResponseResponse>() {
                         @Override
                         public MasterPingResponseResponse newInstance() {
                             return new MasterPingResponseResponse();
@@ -270,17 +276,21 @@ public class MasterFaultDetection extends FaultDetection {
                                         notifyMasterFailure(masterToPing, exp,"not master");
                                         return;
                                     } else if (exp.getCause() instanceof NodeDoesNotExistOnMasterException) {
-                                        logger.debug("[master] pinging a master {} but we do not exists on it, act as if its master failure", masterNode);
+                                        logger.debug("[master] pinging a master {} but we do not exists on it, act as if its master failure"
+                                            , masterNode);
                                         notifyMasterFailure(masterToPing, exp,"do not exists on master, act as master failure");
                                         return;
                                     }
 
                                     int retryCount = ++MasterFaultDetection.this.retryCount;
-                                    logger.trace("[master] failed to ping [{}], retry [{}] out of [{}]", exp, masterNode, retryCount, pingRetryCount);
+                                    logger.trace("[master] failed to ping [{}], retry [{}] out of [{}]", exp, masterNode, retryCount,
+                                        pingRetryCount);
                                     if (retryCount >= pingRetryCount) {
-                                        logger.debug("[master] failed to ping [{}], tried [{}] times, each with maximum [{}] timeout", masterNode, pingRetryCount, pingRetryTimeout);
+                                        logger.debug("[master] failed to ping [{}], tried [{}] times, each with maximum [{}] timeout",
+                                            masterNode, pingRetryCount, pingRetryTimeout);
                                         // not good, failure
-                                        notifyMasterFailure(masterToPing, null, "failed to ping, tried [" + pingRetryCount + "] times, each with  maximum [" + pingRetryTimeout + "] timeout");
+                                        notifyMasterFailure(masterToPing, null, "failed to ping, tried [" + pingRetryCount
+                                            + "] times, each with  maximum [" + pingRetryTimeout + "] timeout");
                                     } else {
                                         // resend the request, not reschedule, rely on send timeout
                                         transportService.sendRequest(masterToPing, MASTER_PING_ACTION_NAME, request, options, this);
@@ -328,14 +338,16 @@ public class MasterFaultDetection extends FaultDetection {
             final DiscoveryNodes nodes = clusterService.state().nodes();
             // check if we are really the same master as the one we seemed to be think we are
             // this can happen if the master got "kill -9" and then another node started using the same port
-            if (!request.masterNodeId.equals(nodes.getLocalNodeId())) {
+            if (!request.masterNode.equals(nodes.getLocalNode())) {
                 throw new ThisIsNotTheMasterYouAreLookingForException();
             }
 
             // ping from nodes of version < 1.4.0 will have the clustername set to null
             if (request.clusterName != null && !request.clusterName.equals(clusterName)) {
-                logger.trace("master fault detection ping request is targeted for a different [{}] cluster then us [{}]", request.clusterName, clusterName);
-                throw new ThisIsNotTheMasterYouAreLookingForException("master fault detection ping request is targeted for a different [" + request.clusterName + "] cluster then us [" + clusterName + "]");
+                logger.trace("master fault detection ping request is targeted for a different [{}] cluster then us [{}]",
+                    request.clusterName, clusterName);
+                throw new ThisIsNotTheMasterYouAreLookingForException("master fault detection ping request is targeted for a different ["
+                    + request.clusterName + "] cluster then us [" + clusterName + "]");
             }
 
             // when we are elected as master or when a node joins, we use a cluster state update thread
@@ -346,15 +358,15 @@ public class MasterFaultDetection extends FaultDetection {
             // all processing is finished.
             //
 
-            if (!nodes.isLocalNodeElectedMaster() || !nodes.nodeExists(request.nodeId)) {
-                logger.trace("checking ping from [{}] under a cluster state thread", request.nodeId);
-                clusterService.submitStateUpdateTask("master ping (from: [" + request.nodeId + "])", new ClusterStateUpdateTask() {
+            if (!nodes.isLocalNodeElectedMaster() || !nodes.nodeExists(request.sourceNode)) {
+                logger.trace("checking ping from {} under a cluster state thread", request.sourceNode);
+                clusterService.submitStateUpdateTask("master ping (from: " + request.sourceNode + ")", new ClusterStateUpdateTask() {
 
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
                         // if we are no longer master, fail...
                         DiscoveryNodes nodes = currentState.nodes();
-                        if (!nodes.nodeExists(request.nodeId)) {
+                        if (!nodes.nodeExists(request.sourceNode)) {
                             throw new NodeDoesNotExistOnMasterException();
                         }
                         return currentState;
@@ -366,14 +378,15 @@ public class MasterFaultDetection extends FaultDetection {
                     }
 
                     @Override
-                    public void onFailure(String source, @Nullable Throwable t) {
-                        if (t == null) {
-                            t = new ElasticsearchException("unknown error while processing ping");
+                    public void onFailure(String source, @Nullable Exception e) {
+                        if (e == null) {
+                            e = new ElasticsearchException("unknown error while processing ping");
                         }
                         try {
-                            channel.sendResponse(t);
-                        } catch (IOException e) {
-                            logger.warn("error while sending ping response", e);
+                            channel.sendResponse(e);
+                        } catch (IOException inner) {
+                            inner.addSuppressed(e);
+                            logger.warn("error while sending ping response", inner);
                         }
                     }
 
@@ -396,33 +409,33 @@ public class MasterFaultDetection extends FaultDetection {
 
     public static class MasterPingRequest extends TransportRequest {
 
-        private String nodeId;
+        private DiscoveryNode sourceNode;
 
-        private String masterNodeId;
+        private DiscoveryNode masterNode;
         private ClusterName clusterName;
 
         public MasterPingRequest() {
         }
 
-        private MasterPingRequest(String nodeId, String masterNodeId, ClusterName clusterName) {
-            this.nodeId = nodeId;
-            this.masterNodeId = masterNodeId;
+        private MasterPingRequest(DiscoveryNode sourceNode, DiscoveryNode masterNode, ClusterName clusterName) {
+            this.sourceNode = sourceNode;
+            this.masterNode = masterNode;
             this.clusterName = clusterName;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            nodeId = in.readString();
-            masterNodeId = in.readString();
-            clusterName = ClusterName.readClusterName(in);
+            sourceNode = new DiscoveryNode(in);
+            masterNode = new DiscoveryNode(in);
+            clusterName = new ClusterName(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(nodeId);
-            out.writeString(masterNodeId);
+            sourceNode.writeTo(out);
+            masterNode.writeTo(out);
             clusterName.writeTo(out);
         }
     }

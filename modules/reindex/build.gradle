@@ -21,3 +21,41 @@ esplugin {
   description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
   classname 'org.elasticsearch.index.reindex.ReindexPlugin'
 }
+
+integTest {
+  cluster {
+    // Whitelist reindexing from the local node so we can test it.
+    setting 'reindex.remote.whitelist', 'myself'
+  }
+}
+
+run {
+  // Whitelist reindexing from the local node so we can test it.
+  setting 'reindex.remote.whitelist', 'myself'
+}
+
+
+dependencies {
+  compile "org.elasticsearch.client:rest:${version}"
+  // dependencies of the rest client
+  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  compile "commons-codec:commons-codec:${versions.commonscodec}"
+  compile "commons-logging:commons-logging:${versions.commonslogging}"
+}
+
+dependencyLicenses {
+  // Don't check the client's license. We know it.
+  dependencies = project.configurations.runtime.fileCollection {
+    it.group.startsWith('org.elasticsearch') == false
+  } - project.configurations.provided
+}
+
+thirdPartyAudit.excludes = [
+  // Commons logging
+  'javax.servlet.ServletContextEvent',
+  'javax.servlet.ServletContextListener',
+  'org.apache.avalon.framework.logger.Logger',
+  'org.apache.log.Hierarchy',
+  'org.apache.log.Logger',
+]

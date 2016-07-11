@@ -37,9 +37,9 @@ import java.util.Map;
 
 public class MinBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
 
-    public final static Type TYPE = new Type("min_bucket");
+    public static final Type TYPE = new Type("min_bucket");
 
-    public final static PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
+    public static final PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
         @Override
         public MinBucketPipelineAggregator readResult(StreamInput in) throws IOException {
             MinBucketPipelineAggregator result = new MinBucketPipelineAggregator();

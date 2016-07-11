@@ -32,12 +32,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.cluster.ClusterName.readClusterName;
-
-/**
- *
- */
-public interface ZenPing extends LifecycleComponent<ZenPing> {
+public interface ZenPing extends LifecycleComponent {
 
     void setPingContextProvider(PingContextProvider contextProvider);
 
@@ -118,7 +113,7 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            clusterName = readClusterName(in);
+            clusterName = new ClusterName(in);
             node = new DiscoveryNode(in);
             if (in.readBoolean()) {
                 master = new DiscoveryNode(in);

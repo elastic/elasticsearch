@@ -39,7 +39,7 @@ import org.elasticsearch.search.aggregations.pipeline.movavg.models.LinearModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
@@ -79,7 +79,7 @@ public class MovAvgIT extends ESIntegTestCase {
     static int period;
     static HoltWintersModel.SeasonalityType seasonalityType;
     static BucketHelpers.GapPolicy gapPolicy;
-    static ValuesSourceAggregatorBuilder<? extends ValuesSource, ? extends ValuesSourceAggregatorBuilder<?, ?>> metric;
+    static ValuesSourceAggregationBuilder<? extends ValuesSource, ? extends ValuesSourceAggregationBuilder<?, ?>> metric;
     static List<PipelineAggregationHelperTests.MockBucket> mockHisto;
 
     static Map<String, ArrayList<Double>> testValues;
@@ -1289,8 +1289,8 @@ public class MovAvgIT extends ESIntegTestCase {
         }
     }
 
-    private ValuesSourceAggregatorBuilder<? extends ValuesSource, ? extends ValuesSourceAggregatorBuilder<?, ?>> randomMetric(String name,
-            String field) {
+    private ValuesSourceAggregationBuilder<? extends ValuesSource, ? extends ValuesSourceAggregationBuilder<?, ?>> randomMetric(String name,
+                                                                                                                                String field) {
         int rand = randomIntBetween(0,3);
 
         switch (rand) {

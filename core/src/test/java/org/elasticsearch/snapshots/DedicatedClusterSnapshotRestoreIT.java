@@ -31,6 +31,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -271,7 +272,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             }
 
             @Override
-            public void onFailure(String source, @Nullable Throwable t) {
+            public void onFailure(String source, @Nullable Exception e) {
                 countDownLatch.countDown();
             }
 
@@ -283,8 +284,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         countDownLatch.await();
     }
 
-    private static interface ClusterStateUpdater {
-        public ClusterState execute(ClusterState currentState) throws Exception;
+    private interface ClusterStateUpdater {
+        ClusterState execute(ClusterState currentState) throws Exception;
     }
 
     public void testSnapshotDuringNodeShutdown() throws Exception {
@@ -313,7 +314,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         // Pick one node and block it
-        String blockedNode = blockNodeWithIndex("test-idx");
+        String blockedNode = blockNodeWithIndex("test-repo", "test-idx");
 
         logger.info("--> snapshot");
         client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
@@ -322,7 +323,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         waitForBlock(blockedNode, "test-repo", TimeValue.timeValueSeconds(60));
 
         logger.info("--> execution was blocked on node [{}], shutting it down", blockedNode);
-        unblockNode(blockedNode);
+        unblockNode("test-repo", blockedNode);
 
         logger.info("--> stopping node [{}]", blockedNode);
         stopNode(blockedNode);
@@ -361,7 +362,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         // Pick one node and block it
-        String blockedNode = blockNodeWithIndex("test-idx");
+        String blockedNode = blockNodeWithIndex("test-repo", "test-idx");
         // Remove it from the list of available nodes
         nodes.remove(blockedNode);
 
@@ -377,7 +378,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         ListenableActionFuture<DeleteSnapshotResponse> deleteSnapshotResponseFuture = internalCluster().client(nodes.get(0)).admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").execute();
         // Make sure that abort makes some progress
         Thread.sleep(100);
-        unblockNode(blockedNode);
+        unblockNode("test-repo", blockedNode);
         logger.info("--> stopping node [{}]", blockedNode);
         stopNode(blockedNode);
         try {
@@ -391,8 +392,11 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> making sure that snapshot no longer exists");
         assertThrows(client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute(), SnapshotMissingException.class);
-        // Subtract index file from the count
-        assertThat("not all files were deleted during snapshot cancellation", numberOfFilesBeforeSnapshot, equalTo(numberOfFiles(repo) - 1));
+        // Subtract three files that will remain in the repository:
+        //   (1) index-1
+        //   (2) index-0 (because we keep the previous version) and
+        //   (3) index-latest
+        assertThat("not all files were deleted during snapshot cancellation", numberOfFilesBeforeSnapshot, equalTo(numberOfFiles(repo) - 3));
         logger.info("--> done");
     }
 
@@ -635,6 +639,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                         .put(MockRepository.Plugin.PASSWORD_SETTING.getKey(), "verysecretpassword")
         ).get();
 
+        NodeClient nodeClient = internalCluster().getInstance(NodeClient.class);
         RestGetRepositoriesAction getRepoAction = internalCluster().getInstance(RestGetRepositoriesAction.class);
         RestRequest getRepoRequest = new FakeRestRequest();
         getRepoRequest.params().put("repository", "test-repo");
@@ -644,14 +649,14 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             @Override
             public void sendResponse(RestResponse response) {
                 try {
-                    assertThat(response.content().toUtf8(), containsString("notsecretusername"));
-                    assertThat(response.content().toUtf8(), not(containsString("verysecretpassword")));
+                    assertThat(response.content().utf8ToString(), containsString("notsecretusername"));
+                    assertThat(response.content().utf8ToString(), not(containsString("verysecretpassword")));
                 } catch (AssertionError ex) {
                     getRepoError.set(ex);
                 }
                 getRepoLatch.countDown();
             }
-        });
+        }, nodeClient);
         assertTrue(getRepoLatch.await(1, TimeUnit.SECONDS));
         if (getRepoError.get() != null) {
             throw getRepoError.get();
@@ -665,14 +670,14 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             @Override
             public void sendResponse(RestResponse response) {
                 try {
-                    assertThat(response.content().toUtf8(), containsString("notsecretusername"));
-                    assertThat(response.content().toUtf8(), not(containsString("verysecretpassword")));
+                    assertThat(response.content().utf8ToString(), containsString("notsecretusername"));
+                    assertThat(response.content().utf8ToString(), not(containsString("verysecretpassword")));
                 } catch (AssertionError ex) {
                     clusterStateError.set(ex);
                 }
                 clusterStateLatch.countDown();
             }
-        });
+        }, nodeClient);
         assertTrue(clusterStateLatch.await(1, TimeUnit.SECONDS));
         if (clusterStateError.get() != null) {
             throw clusterStateError.get();

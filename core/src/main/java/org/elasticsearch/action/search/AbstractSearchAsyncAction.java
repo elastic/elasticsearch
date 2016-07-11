@@ -108,6 +108,15 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
 
         shardsIts = clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap, request.preference());
         final int shardCount = shardsIts.size();
+        failIfOverShardCountLimit(clusterService, shardCount);
+        expectedSuccessfulOps = shardCount;
+        // we need to add 1 for non active partition, since we count it in the total!
+        expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
+
+        firstResults = new AtomicArray<>(shardsIts.size());
+    }
+
+    private void failIfOverShardCountLimit(ClusterService clusterService, int shardCount) {
         final long shardCountLimit = clusterService.getClusterSettings().get(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING);
         if (shardCount > shardCountLimit) {
             throw new IllegalArgumentException("Trying to query " + shardCount + " shards, which is over the limit of "
@@ -116,11 +125,6 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                     + "have a smaller number of larger shards. Update [" + TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey()
                     + "] to a greater value if you really want to query that many shards at the same time.");
         }
-        expectedSuccessfulOps = shardCount;
-        // we need to add 1 for non active partition, since we count it in the total!
-        expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
-
-        firstResults = new AtomicArray<>(shardsIts.size());
     }
 
     public void start() {
@@ -163,7 +167,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                         }
 
                         @Override
-                        public void onFailure(Throwable t) {
+                        public void onFailure(Exception t) {
                             onFirstPhaseResult(shardIndex, shard, node.getId(), shardIt, t);
                         }
                     });
@@ -184,9 +188,9 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         if (xTotalOps == expectedTotalOps) {
             try {
                 innerMoveToSecondPhase();
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug(shardIt.shardId() + ": Failed to execute [" + request + "] while moving to second phase", e);
+                    logger.debug("{}: Failed to execute [{}] while moving to second phase", e, shardIt.shardId(), request);
                 }
                 raiseEarlyFailure(new ReduceSearchPhaseException(firstPhaseName(), "", e, buildShardFailures()));
             }
@@ -197,37 +201,34 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
     }
 
     void onFirstPhaseResult(final int shardIndex, @Nullable ShardRouting shard, @Nullable String nodeId,
-                            final ShardIterator shardIt, Throwable t) {
+                            final ShardIterator shardIt, Exception e) {
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard
         SearchShardTarget shardTarget = new SearchShardTarget(nodeId, shardIt.shardId().getIndex(), shardIt.shardId().getId());
-        addShardFailure(shardIndex, shardTarget, t);
+        addShardFailure(shardIndex, shardTarget, e);
 
         if (totalOps.incrementAndGet() == expectedTotalOps) {
             if (logger.isDebugEnabled()) {
-                if (t != null && !TransportActions.isShardNotAvailableException(t)) {
-                    if (shard != null) {
-                        logger.debug(shard.shortSummary() + ": Failed to execute [" + request + "]", t);
-                    } else {
-                        logger.debug(shardIt.shardId() + ": Failed to execute [" + request + "]", t);
-                    }
+                if (e != null && !TransportActions.isShardNotAvailableException(e)) {
+                    logger.debug("{}: Failed to execute [{}]", e, shard != null ? shard.shortSummary() : shardIt.shardId(), request);
                 } else if (logger.isTraceEnabled()) {
-                    logger.trace("{}: Failed to execute [{}]", t, shard, request);
+                    logger.trace("{}: Failed to execute [{}]", e, shard, request);
                 }
             }
             final ShardSearchFailure[] shardSearchFailures = buildShardFailures();
             if (successfulOps.get() == 0) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("All shards failed for phase: [{}]", t, firstPhaseName());
+                    logger.debug("All shards failed for phase: [{}]", e, firstPhaseName());
                 }
 
                 // no successful ops, raise an exception
-                raiseEarlyFailure(new SearchPhaseExecutionException(firstPhaseName(), "all shards failed", t, shardSearchFailures));
+                raiseEarlyFailure(new SearchPhaseExecutionException(firstPhaseName(), "all shards failed", e, shardSearchFailures));
             } else {
                 try {
                     innerMoveToSecondPhase();
-                } catch (Throwable e) {
-                    raiseEarlyFailure(new ReduceSearchPhaseException(firstPhaseName(), "", e, shardSearchFailures));
+                } catch (Exception inner) {
+                    inner.addSuppressed(e);
+                    raiseEarlyFailure(new ReduceSearchPhaseException(firstPhaseName(), "", inner, shardSearchFailures));
                 }
             }
         } else {
@@ -235,31 +236,25 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
             final boolean lastShard = nextShard == null;
             // trace log this exception
             if (logger.isTraceEnabled()) {
-                logger.trace(executionFailureMsg(shard, shardIt, request, lastShard), t);
+                logger.trace("{}: Failed to execute [{}] lastShard [{}]", e, shard != null ? shard.shortSummary() : shardIt.shardId(),
+                    request, lastShard);
             }
             if (!lastShard) {
                 try {
                     performFirstPhase(shardIndex, shardIt, nextShard);
-                } catch (Throwable t1) {
-                    onFirstPhaseResult(shardIndex, shard, shard.currentNodeId(), shardIt, t1);
+                } catch (Exception inner) {
+                    inner.addSuppressed(e);
+                    onFirstPhaseResult(shardIndex, shard, shard.currentNodeId(), shardIt, inner);
                 }
             } else {
                 // no more shards active, add a failure
                 if (logger.isDebugEnabled() && !logger.isTraceEnabled()) { // do not double log this exception
-                    if (t != null && !TransportActions.isShardNotAvailableException(t)) {
-                        logger.debug(executionFailureMsg(shard, shardIt, request, lastShard), t);
+                    if (e != null && !TransportActions.isShardNotAvailableException(e)) {
+                        logger.debug("{}: Failed to execute [{}] lastShard [{}]", e,
+                            shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard);
                     }
                 }
             }
-        }
-    }
-
-    private String executionFailureMsg(@Nullable ShardRouting shard, final ShardIterator shardIt, SearchRequest request,
-                                       boolean lastShard) {
-        if (shard != null) {
-            return shard.shortSummary() + ": Failed to execute [" + request + "] lastShard [" + lastShard + "]";
-        } else {
-            return shardIt.shardId() + ": Failed to execute [" + request + "] lastShard [" + lastShard + "]";
         }
     }
 
@@ -276,9 +271,9 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         return failures;
     }
 
-    protected final void addShardFailure(final int shardIndex, @Nullable SearchShardTarget shardTarget, Throwable t) {
+    protected final void addShardFailure(final int shardIndex, @Nullable SearchShardTarget shardTarget, Exception e) {
         // we don't aggregate shard failures on non active shards (but do keep the header counts right)
-        if (TransportActions.isShardNotAvailableException(t)) {
+        if (TransportActions.isShardNotAvailableException(e)) {
             return;
         }
 
@@ -292,26 +287,27 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         }
         ShardSearchFailure failure = shardFailures.get(shardIndex);
         if (failure == null) {
-            shardFailures.set(shardIndex, new ShardSearchFailure(t, shardTarget));
+            shardFailures.set(shardIndex, new ShardSearchFailure(e, shardTarget));
         } else {
             // the failure is already present, try and not override it with an exception that is less meaningless
             // for example, getting illegal shard state
-            if (TransportActions.isReadOverrideException(t)) {
-                shardFailures.set(shardIndex, new ShardSearchFailure(t, shardTarget));
+            if (TransportActions.isReadOverrideException(e)) {
+                shardFailures.set(shardIndex, new ShardSearchFailure(e, shardTarget));
             }
         }
     }
 
-    private void raiseEarlyFailure(Throwable t) {
+    private void raiseEarlyFailure(Exception e) {
         for (AtomicArray.Entry<FirstResult> entry : firstResults.asList()) {
             try {
                 DiscoveryNode node = nodes.get(entry.value.shardTarget().nodeId());
                 sendReleaseSearchContext(entry.value.id(), node);
-            } catch (Throwable t1) {
-                logger.trace("failed to release context", t1);
+            } catch (Exception inner) {
+                inner.addSuppressed(e);
+                logger.trace("failed to release context", inner);
             }
         }
-        listener.onFailure(t);
+        listener.onFailure(e);
     }
 
     /**
@@ -331,8 +327,8 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                     try {
                         DiscoveryNode node = nodes.get(entry.value.queryResult().shardTarget().nodeId());
                         sendReleaseSearchContext(entry.value.queryResult().id(), node);
-                    } catch (Throwable t1) {
-                        logger.trace("failed to release context", t1);
+                    } catch (Exception e) {
+                        logger.trace("failed to release context", e);
                     }
                 }
             }

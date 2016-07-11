@@ -20,7 +20,7 @@
 package org.elasticsearch.common.network;
 
 import org.elasticsearch.action.support.replication.ReplicationTask;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.ModuleTestCase;
@@ -36,11 +36,8 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
-import org.elasticsearch.rest.action.cat.RestNodesAction;
-import org.elasticsearch.rest.action.main.RestMainAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.transport.Transport;
@@ -52,17 +49,17 @@ public class NetworkModuleTests extends ModuleTestCase {
 
     static class FakeTransportService extends TransportService {
         public FakeTransportService() {
-            super(null, null);
+            super(null, null, null);
         }
     }
 
     static class FakeTransport extends AssertingLocalTransport {
         public FakeTransport() {
-            super(null, null, null, null, null);
+            super(null, null, null, null);
         }
     }
 
-    static class FakeHttpTransport extends AbstractLifecycleComponent<HttpServerTransport> implements HttpServerTransport {
+    static class FakeHttpTransport extends AbstractLifecycleComponent implements HttpServerTransport {
         public FakeHttpTransport() {
             super(null);
         }
@@ -90,18 +87,18 @@ public class NetworkModuleTests extends ModuleTestCase {
 
     static class FakeRestHandler extends BaseRestHandler {
         public FakeRestHandler() {
-            super(null, null);
+            super(null);
         }
         @Override
-        protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {}
+        public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {}
     }
 
     static class FakeCatRestHandler extends AbstractCatAction {
         public FakeCatRestHandler() {
-            super(null, null, null);
+            super(null);
         }
         @Override
-        protected void doRequest(RestRequest request, RestChannel channel, Client client) {}
+        protected void doRequest(RestRequest request, RestChannel channel, NodeClient client) {}
         @Override
         protected void documentation(StringBuilder sb) {}
         @Override
@@ -115,11 +112,13 @@ public class NetworkModuleTests extends ModuleTestCase {
         NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry());
         module.registerTransportService("custom", FakeTransportService.class);
         assertBinding(module, TransportService.class, FakeTransportService.class);
+        assertFalse(module.isTransportClient());
 
         // check it works with transport only as well
         module = new NetworkModule(new NetworkService(settings), settings, true, new NamedWriteableRegistry());
         module.registerTransportService("custom", FakeTransportService.class);
         assertBinding(module, TransportService.class, FakeTransportService.class);
+        assertTrue(module.isTransportClient());
     }
 
     public void testRegisterTransport() {
@@ -127,11 +126,13 @@ public class NetworkModuleTests extends ModuleTestCase {
         NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry());
         module.registerTransport("custom", FakeTransport.class);
         assertBinding(module, Transport.class, FakeTransport.class);
+        assertFalse(module.isTransportClient());
 
         // check it works with transport only as well
         module = new NetworkModule(new NetworkService(settings), settings, true, new NamedWriteableRegistry());
         module.registerTransport("custom", FakeTransport.class);
         assertBinding(module, Transport.class, FakeTransport.class);
+        assertTrue(module.isTransportClient());
     }
 
     public void testRegisterHttpTransport() {
@@ -139,9 +140,11 @@ public class NetworkModuleTests extends ModuleTestCase {
         NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry());
         module.registerHttpTransport("custom", FakeHttpTransport.class);
         assertBinding(module, HttpServerTransport.class, FakeHttpTransport.class);
+        assertFalse(module.isTransportClient());
 
         // check registration not allowed for transport only
         module = new NetworkModule(new NetworkService(settings), settings, true, new NamedWriteableRegistry());
+        assertTrue(module.isTransportClient());
         try {
             module.registerHttpTransport("custom", FakeHttpTransport.class);
             fail();
@@ -154,38 +157,14 @@ public class NetworkModuleTests extends ModuleTestCase {
         settings = Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).build();
         module = new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry());
         assertNotBound(module, HttpServerTransport.class);
-    }
-
-    public void testRegisterRestHandler() {
-        Settings settings = Settings.EMPTY;
-        NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry());
-        module.registerRestHandler(FakeRestHandler.class);
-        // also check a builtin is bound
-        assertSetMultiBinding(module, RestHandler.class, FakeRestHandler.class, RestMainAction.class);
-
-        // check registration not allowed for transport only
-        module = new NetworkModule(new NetworkService(settings), settings, true, new NamedWriteableRegistry());
-        try {
-            module.registerRestHandler(FakeRestHandler.class);
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("Cannot register rest handler"));
-            assertTrue(e.getMessage().contains("for transport client"));
-        }
-    }
-
-    public void testRegisterCatRestHandler() {
-        Settings settings = Settings.EMPTY;
-        NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry());
-        module.registerRestHandler(FakeCatRestHandler.class);
-        // also check a builtin is bound
-        assertSetMultiBinding(module, AbstractCatAction.class, FakeCatRestHandler.class, RestNodesAction.class);
+        assertFalse(module.isTransportClient());
     }
 
     public void testRegisterTaskStatus() {
         NamedWriteableRegistry registry = new NamedWriteableRegistry();
         Settings settings = Settings.EMPTY;
         NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, registry);
+        assertFalse(module.isTransportClient());
 
         // Builtin reader comes back
         assertNotNull(registry.getReader(Task.Status.class, ReplicationTask.Status.NAME));

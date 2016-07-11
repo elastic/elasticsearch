@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class RestApiParserTests extends AbstractParserTestCase {
     public void testParseRestSpecIndexApi() throws Exception {
         parser = JsonXContent.jsonXContent.createParser(REST_SPEC_INDEX_API);
-        RestApi restApi = new RestApiParser().parse(parser);
+        RestApi restApi = new RestApiParser().parse("location", parser);
 
         assertThat(restApi, notNullValue());
         assertThat(restApi.getName(), equalTo("index"));
@@ -51,7 +51,7 @@ public class RestApiParserTests extends AbstractParserTestCase {
 
     public void testParseRestSpecGetTemplateApi() throws Exception {
         parser = JsonXContent.jsonXContent.createParser(REST_SPEC_GET_TEMPLATE_API);
-        RestApi restApi = new RestApiParser().parse(parser);
+        RestApi restApi = new RestApiParser().parse("location", parser);
         assertThat(restApi, notNullValue());
         assertThat(restApi.getName(), equalTo("indices.get_template"));
         assertThat(restApi.getMethods().size(), equalTo(1));
@@ -68,7 +68,7 @@ public class RestApiParserTests extends AbstractParserTestCase {
 
     public void testParseRestSpecCountApi() throws Exception {
         parser = JsonXContent.jsonXContent.createParser(REST_SPEC_COUNT_API);
-        RestApi restApi = new RestApiParser().parse(parser);
+        RestApi restApi = new RestApiParser().parse("location", parser);
         assertThat(restApi, notNullValue());
         assertThat(restApi.getName(), equalTo("count"));
         assertThat(restApi.getMethods().size(), equalTo(2));

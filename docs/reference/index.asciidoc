@@ -1,7 +1,7 @@
 [[elasticsearch-reference]]
 = Elasticsearch Reference
 
-:version:       5.0.0-alpha1
+:version:       5.0.0-alpha4
 :major-version: 5.x
 :branch:        master
 :jdk:           1.8.0_73
@@ -42,6 +42,8 @@ include::modules.asciidoc[]
 include::index-modules.asciidoc[]
 
 include::ingest.asciidoc[]
+
+include::how-to.asciidoc[]
 
 include::testing.asciidoc[]
 

@@ -66,4 +66,14 @@ public class MatchNoDocsQuery extends Query {
     public String toString(String field) {
         return "MatchNoDocsQuery[\"" + reason + "\"]";
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        return sameClassAs(obj);
+    }
+
+    @Override
+    public int hashCode() {
+        return classHash();
+    }
 }

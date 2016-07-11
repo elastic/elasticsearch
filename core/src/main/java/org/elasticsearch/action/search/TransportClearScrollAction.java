@@ -103,7 +103,7 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
                         }
 
                         @Override
-                        public void onFailure(Throwable e) {
+                        public void onFailure(Exception e) {
                             onFailedFreedContext(e, node);
                         }
                     });
@@ -124,7 +124,7 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
                             }
 
                             @Override
-                            public void onFailure(Throwable e) {
+                            public void onFailure(Exception e) {
                                 onFailedFreedContext(e, node);
                             }
                         });

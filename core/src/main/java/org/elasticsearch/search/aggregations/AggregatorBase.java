@@ -165,7 +165,7 @@ public abstract class AggregatorBase extends Aggregator {
     public DeferringBucketCollector getDeferringCollector() {
         // Default impl is a collector that selects the best buckets
         // but an alternative defer policy may be based on best docs.
-        return new BestBucketsDeferringCollector();
+        return new BestBucketsDeferringCollector(context());
     }
 
     /**

@@ -47,8 +47,8 @@ import java.util.Optional;
 
 public final class ScriptMetaData implements MetaData.Custom {
 
-    public final static String TYPE = "stored_scripts";
-    public final static ScriptMetaData PROTO = new ScriptMetaData(Collections.emptyMap());
+    public static final String TYPE = "stored_scripts";
+    public static final ScriptMetaData PROTO = new ScriptMetaData(Collections.emptyMap());
 
     private final Map<String, ScriptAsBytes> scripts;
 
@@ -94,6 +94,7 @@ public final class ScriptMetaData implements MetaData.Custom {
                     // because the parsers current location is already beyond the beginning we need to add a START_OBJECT:
                     builder.startObject();
                     builder.copyCurrentStructure(parser);
+                    builder.endObject();
                     break;
             }
             return builder.string();
@@ -204,7 +205,7 @@ public final class ScriptMetaData implements MetaData.Custom {
         return language + "#" + id;
     }
 
-    final public static class Builder {
+    public static final class Builder {
 
         private Map<String, ScriptAsBytes> scripts;
 
@@ -233,7 +234,7 @@ public final class ScriptMetaData implements MetaData.Custom {
         }
     }
 
-    final static class ScriptMetadataDiff implements Diff<MetaData.Custom> {
+    static final class ScriptMetadataDiff implements Diff<MetaData.Custom> {
 
         final Diff<Map<String, ScriptAsBytes>> pipelines;
 
@@ -256,7 +257,7 @@ public final class ScriptMetaData implements MetaData.Custom {
         }
     }
 
-    final static class ScriptAsBytes extends AbstractDiffable<ScriptAsBytes> {
+    static final class ScriptAsBytes extends AbstractDiffable<ScriptAsBytes> {
 
         public ScriptAsBytes(BytesReference script) {
             this.script = script;

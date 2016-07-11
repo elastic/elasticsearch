@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index;
 
-import org.apache.lucene.document.Field.Store;
-import org.apache.lucene.document.LegacyIntField;
-import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -41,7 +39,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class IndexingSlowLogTests extends ESTestCase {
     public void testSlowLogParsedDocumentPrinterSourceToLog() throws IOException {
         BytesReference source = JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject().bytes();
-        ParsedDocument pd = new ParsedDocument(new StringField("uid", "test:id", Store.YES), new LegacyIntField("version", 1, Store.YES), "id",
+        ParsedDocument pd = new ParsedDocument(new NumericDocValuesField("version", 1), "id",
                 "test", null, 0, -1, null, source, null);
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
@@ -178,28 +176,28 @@ public class IndexingSlowLogTests extends ESTestCase {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Failed to parse setting [index.indexing.slowlog.threshold.index.trace] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            assertEquals(ex.getMessage(), "failed to parse setting [index.indexing.slowlog.threshold.index.trace] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
         }
 
         try {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Failed to parse setting [index.indexing.slowlog.threshold.index.debug] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            assertEquals(ex.getMessage(), "failed to parse setting [index.indexing.slowlog.threshold.index.debug] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
         }
 
         try {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Failed to parse setting [index.indexing.slowlog.threshold.index.info] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            assertEquals(ex.getMessage(), "failed to parse setting [index.indexing.slowlog.threshold.index.info] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
         }
 
         try {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Failed to parse setting [index.indexing.slowlog.threshold.index.warn] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            assertEquals(ex.getMessage(), "failed to parse setting [index.indexing.slowlog.threshold.index.warn] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
         }
     }
 

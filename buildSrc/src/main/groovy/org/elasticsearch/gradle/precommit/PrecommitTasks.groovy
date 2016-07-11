@@ -34,7 +34,6 @@ class PrecommitTasks {
             configureForbiddenApis(project),
             configureCheckstyle(project),
             configureNamingConventions(project),
-            configureLoggerUsage(project),
             project.tasks.create('forbiddenPatterns', ForbiddenPatternsTask.class),
             project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
             project.tasks.create('jarHell', JarHellTask.class),
@@ -49,6 +48,20 @@ class PrecommitTasks {
             UpdateShasTask updateShas = project.tasks.create('updateShas', UpdateShasTask.class)
             updateShas.parentTask = dependencyLicenses
         }
+        if (project.path != ':build-tools') {
+            /*
+             * Sadly, build-tools can't have logger-usage-check because that
+             * would create a circular project dependency between build-tools
+             * (which provides NamingConventionsCheck) and :test:logger-usage
+             * which provides the logger usage check. Since the build tools
+             * don't use the logger usage check because they don't have any
+             * of Elaticsearch's loggers and :test:logger-usage actually does
+             * use the NamingConventionsCheck we break the circular dependency
+             * here.
+             */
+            precommitTasks.add(configureLoggerUsage(project))
+        }
+
 
         Map<String, Object> precommitOptions = [
             name: 'precommit',
@@ -62,9 +75,8 @@ class PrecommitTasks {
     private static Task configureForbiddenApis(Project project) {
         project.pluginManager.apply(ForbiddenApisPlugin.class)
         project.forbiddenApis {
-            internalRuntimeForbidden = true
             failOnUnsupportedJava = false
-            bundledSignatures = ['jdk-unsafe', 'jdk-deprecated', 'jdk-system-out']
+            bundledSignatures = ['jdk-unsafe', 'jdk-deprecated', 'jdk-non-portable', 'jdk-system-out']
             signaturesURLs = [getClass().getResource('/forbidden/jdk-signatures.txt'),
                               getClass().getResource('/forbidden/es-all-signatures.txt')]
             suppressAnnotations = ['**.SuppressForbidden']

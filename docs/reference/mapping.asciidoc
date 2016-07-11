@@ -140,6 +140,7 @@ PUT my_index <1>
       }
     },
     "blogpost": { <2>
+      "_all":       { "enabled": false  }, <3>
       "properties": { <4>
         "title":    { "type": "text"  }, <5>
         "body":     { "type": "text"  }, <5>
@@ -155,7 +156,7 @@ PUT my_index <1>
   }
 }
 ---------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> Create an index called `my_index`.
 <2> Add mapping types called `user` and `blogpost`.
 <3> Disable the `_all` <<mapping-fields,meta field>> for the `user` mapping type.

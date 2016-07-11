@@ -18,20 +18,22 @@
  */
 package org.elasticsearch.script;
 
-import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class StoredScriptsIT extends ESIntegTestCase {
 
-    private final static int SCRIPT_MAX_SIZE_IN_BYTES = 64;
-    private final static String LANG = MockScriptEngine.NAME;
+    private static final int SCRIPT_MAX_SIZE_IN_BYTES = 64;
+    private static final String LANG = MockScriptEngine.NAME;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -42,7 +44,7 @@ public class StoredScriptsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockScriptEngine.TestPlugin.class);
+        return pluginList(CustomScriptPlugin.class);
     }
 
     public void testBasics() {
@@ -54,11 +56,6 @@ public class StoredScriptsIT extends ESIntegTestCase {
                 .get().getStoredScript();
         assertNotNull(script);
         assertEquals("1", script);
-
-        RenderSearchTemplateResponse response = client().admin().cluster().prepareRenderSearchTemplate()
-                .template(new Template("/" + LANG + "/foobar", ScriptService.ScriptType.STORED, LANG, null, null))
-                .get();
-        assertEquals("1", response.source().toUtf8());
 
         assertAcked(client().admin().cluster().prepareDeleteStoredScript()
                 .setId("foobar")
@@ -85,4 +82,11 @@ public class StoredScriptsIT extends ESIntegTestCase {
         assertEquals("Limit of script size in bytes [64] has been exceeded for script [foobar] with size [65]", e.getMessage());
     }
 
+    public static class CustomScriptPlugin extends MockScriptPlugin {
+
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            return Collections.emptyMap();
+        }
+    }
 }

@@ -92,7 +92,7 @@ public class GceNameResolver extends AbstractComponent implements CustomNameReso
         } else if (value.startsWith(GceAddressResolverType.PRIVATE_IP.configName)) {
             // We extract the network interface from gce:privateIp:XX
             String network = "0";
-            String[] privateIpConfig = Strings.splitStringToArray(value, ':');
+            String[] privateIpConfig = value.split(":");
             if (privateIpConfig != null && privateIpConfig.length == 3) {
                 network = privateIpConfig[2];
             }

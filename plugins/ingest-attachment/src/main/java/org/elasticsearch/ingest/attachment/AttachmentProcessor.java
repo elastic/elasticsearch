@@ -24,9 +24,9 @@ import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.ingest.core.AbstractProcessor;
-import org.elasticsearch.ingest.core.AbstractProcessorFactory;
-import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.AbstractProcessor;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.Processor;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -37,10 +37,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.ingest.core.ConfigurationUtils.newConfigurationException;
-import static org.elasticsearch.ingest.core.ConfigurationUtils.readIntProperty;
-import static org.elasticsearch.ingest.core.ConfigurationUtils.readOptionalList;
-import static org.elasticsearch.ingest.core.ConfigurationUtils.readStringProperty;
+import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.elasticsearch.ingest.ConfigurationUtils.readIntProperty;
+import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
+import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public final class AttachmentProcessor extends AbstractProcessor {
 
@@ -122,7 +122,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
                 String length = Strings.hasLength(contentLength) ? contentLength : String.valueOf(parsedContent.length());
                 additionalFields.put(Property.CONTENT_LENGTH.toLowerCase(), length);
             }
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new ElasticsearchParseException("Error parsing document in field [{}]", e, field);
         }
 
@@ -150,12 +150,13 @@ public final class AttachmentProcessor extends AbstractProcessor {
         return indexedChars;
     }
 
-    public static final class Factory extends AbstractProcessorFactory<AttachmentProcessor> {
+    public static final class Factory implements Processor.Factory {
 
         static final Set<Property> DEFAULT_PROPERTIES = EnumSet.allOf(Property.class);
 
         @Override
-        public AttachmentProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
+        public AttachmentProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+                                          Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "attachment");
             List<String> properyNames = readOptionalList(TYPE, processorTag, config, "properties");

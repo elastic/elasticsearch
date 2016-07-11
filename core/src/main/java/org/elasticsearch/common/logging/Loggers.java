@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.logging;
 
-import org.apache.lucene.util.SuppressForbidden;
 import org.elasticsearch.common.Classes;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -38,7 +38,7 @@ import static org.elasticsearch.common.util.CollectionUtils.asArrayList;
  */
 public class Loggers {
 
-    private final static String commonPrefix = System.getProperty("es.logger.prefix", "org.elasticsearch.");
+    private static final String commonPrefix = System.getProperty("es.logger.prefix", "org.elasticsearch.");
 
     public static final String SPACE = " ";
 

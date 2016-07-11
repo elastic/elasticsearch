@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 
-import static org.apache.lucene.spatial.util.GeoDistanceUtils.maxRadialDistanceMeters;
 
 import java.io.IOException;
 
@@ -66,6 +65,9 @@ public class GeoUtils {
 
     /** Earth ellipsoid polar distance in meters */
     public static final double EARTH_POLAR_DISTANCE = Math.PI * EARTH_SEMI_MINOR_AXIS;
+
+    /** rounding error for quantized latitude and longitude values */
+    public static final double TOLERANCE = 1E-6;
 
     /** Returns the minimum between the provided distance 'initialRadius' and the
      * maximum distance/radius from the point 'center' before overlapping
@@ -466,6 +468,14 @@ public class GeoUtils {
         } else {
             return point.resetFromGeoHash(data);
         }
+    }
+
+    /** Returns the maximum distance/radius (in meters) from the point 'center' before overlapping */
+    public static double maxRadialDistanceMeters(final double centerLat, final double centerLon) {
+      if (Math.abs(centerLat) == MAX_LAT) {
+        return SloppyMath.haversinMeters(centerLat, centerLon, 0, centerLon);
+      }
+      return SloppyMath.haversinMeters(centerLat, centerLon, centerLat, (MAX_LON + centerLon) % 360);
     }
 
     private GeoUtils() {

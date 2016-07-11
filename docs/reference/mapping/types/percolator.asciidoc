@@ -71,16 +71,15 @@ a percolator query does not exist, it will be handled as a default string field 
 fail.
 
 [float]
-==== Important Notes
+==== Limitations
 
 Because the `percolate` query is processing one document at a time, it doesn't support queries and filters that run
 against child documents such as `has_child` and `has_parent`.
+
+The percolator doesn't accepts percolator queries containing `range` queries with ranges that are based on current
+time (using `now`).
 
 There are a number of queries that fetch data via a get call during query parsing. For example the `terms` query when
 using terms lookup, `template` query when using indexed scripts and `geo_shape` when using pre-indexed shapes. When these
 queries are indexed by the `percolator` field type then the get call is executed once. So each time the `percolator`
 query evaluates these queries, the fetches terms, shapes etc. as the were upon index time will be used.
-
-The `wildcard` and `regexp` query natively use a lot of memory and because the percolator keeps the queries into memory
-this can easily take up the available memory in the heap space. If possible try to use a `prefix` query or ngramming to
-achieve the same result (with way less memory being used).

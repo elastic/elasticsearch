@@ -20,6 +20,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.pattern.PatternReplaceCharFilter;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -35,10 +36,11 @@ public class PatternReplaceCharFilterFactory extends AbstractCharFilterFactory {
     public PatternReplaceCharFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name);
 
-        if (!Strings.hasLength(settings.get("pattern"))) {
+        String sPattern = settings.get("pattern");
+        if (!Strings.hasLength(sPattern)) {
             throw new IllegalArgumentException("pattern is missing for [" + name + "] char filter of type 'pattern_replace'");
         }
-        pattern = Pattern.compile(settings.get("pattern"));
+        pattern = Regex.compile(sPattern, settings.get("flags"));
         replacement = settings.get("replacement", ""); // when not set or set to "", use "".
     }
 

@@ -120,4 +120,8 @@ public final class BootstrapInfo {
         }
         return SYSTEM_PROPERTIES;
     }
+
+    public static void init() {
+    }
+
 }

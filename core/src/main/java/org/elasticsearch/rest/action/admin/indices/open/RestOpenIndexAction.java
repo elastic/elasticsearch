@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.indices.open;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -38,14 +38,14 @@ import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 public class RestOpenIndexAction extends BaseRestHandler {
 
     @Inject
-    public RestOpenIndexAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestOpenIndexAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.POST, "/_open", this);
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_open", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         OpenIndexRequest openIndexRequest = new OpenIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
         openIndexRequest.timeout(request.paramAsTime("timeout", openIndexRequest.timeout()));
         openIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", openIndexRequest.masterNodeTimeout()));

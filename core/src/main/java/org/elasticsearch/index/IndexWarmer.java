@@ -146,8 +146,8 @@ public final class IndexWarmer extends AbstractComponent {
                             indexShard.warmerService().logger().trace("warmed global ordinals for [{}], took [{}]", fieldType.name(),
                                 TimeValue.timeValueNanos(System.nanoTime() - start));
                         }
-                    } catch (Throwable t) {
-                        indexShard.warmerService().logger().warn("failed to warm-up global ordinals for [{}]", t, fieldType.name());
+                    } catch (Exception e) {
+                        indexShard.warmerService().logger().warn("failed to warm-up global ordinals for [{}]", e, fieldType.name());
                     } finally {
                         latch.countDown();
                     }

@@ -70,7 +70,7 @@ public class MultiGetShardRequestTests extends ESTestCase {
         out.setVersion(randomVersion(random()));
         multiGetShardRequest.writeTo(out);
 
-        StreamInput in = StreamInput.wrap(out.bytes());
+        StreamInput in = out.bytes().streamInput();
         in.setVersion(out.getVersion());
         MultiGetShardRequest multiGetShardRequest2 = new MultiGetShardRequest();
         multiGetShardRequest2.readFrom(in);

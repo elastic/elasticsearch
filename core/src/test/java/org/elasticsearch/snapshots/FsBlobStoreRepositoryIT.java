@@ -20,7 +20,7 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.test.ESBlobStoreRepositoryIntegTestCase;
+import org.elasticsearch.repositories.ESBlobStoreRepositoryIntegTestCase;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 

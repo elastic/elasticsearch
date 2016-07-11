@@ -17,7 +17,8 @@ setting `size=0`. For example:
 
 [source,js]
 --------------------------------------------------
-$ curl -XGET 'http://localhost:9200/twitter/tweet/_search' -d '{
+GET /twitter/tweet/_search
+{
   "size": 0,
   "aggregations": {
     "my_agg": {
@@ -27,8 +28,9 @@ $ curl -XGET 'http://localhost:9200/twitter/tweet/_search' -d '{
     }
   }
 }
-'
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 Setting `size` to `0` avoids executing the fetch phase of the search making the request more efficient.
 
@@ -42,35 +44,41 @@ Consider this example where we want to associate the color blue with our `terms`
 
 [source,js]
 --------------------------------------------------
+GET /twitter/tweet/_search
 {
-    ...
-    "aggs": {
-        "titles": {
-            "terms": {
-                "field": "title"
-            },
-            "meta": {
-                "color": "blue"
-            },
-        }
+  "size": 0,
+  "aggs": {
+    "titles": {
+      "terms": {
+        "field": "title"
+      },
+      "meta": {
+        "color": "blue"
+      }
     }
+  }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 Then that piece of metadata will be returned in place for our `titles` terms aggregation
 
 [source,js]
 --------------------------------------------------
 {
-    ...
     "aggregations": {
         "titles": {
             "meta": {
                 "color" : "blue"
             },
+            "doc_count_error_upper_bound" : 0,
+            "sum_other_doc_count" : 0,
             "buckets": [
             ]
         }
-    }
+    },
+    ...
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": "$body.took", "timed_out": false, "_shards": "$body._shards", "hits": "$body.hits"/]

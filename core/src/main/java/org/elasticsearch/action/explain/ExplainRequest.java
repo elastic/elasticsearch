@@ -39,7 +39,7 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
     private String id;
     private String routing;
     private String preference;
-    private QueryBuilder<?> query;
+    private QueryBuilder query;
     private String[] fields;
     private FetchSourceContext fetchSourceContext;
 
@@ -100,11 +100,11 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
         return this;
     }
 
-    public QueryBuilder<?> query() {
+    public QueryBuilder query() {
         return query;
     }
 
-    public ExplainRequest query(QueryBuilder<?> query) {
+    public ExplainRequest query(QueryBuilder query) {
         this.query = query;
         return this;
     }

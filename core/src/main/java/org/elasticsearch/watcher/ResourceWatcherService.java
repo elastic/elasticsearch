@@ -40,7 +40,7 @@ import java.util.concurrent.ScheduledFuture;
  * registered watcher periodically. The frequency of checks can be specified using {@code resource.reload.interval} setting, which
  * defaults to {@code 60s}. The service can be disabled by setting {@code resource.reload.enabled} setting to {@code false}.
  */
-public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceWatcherService> {
+public class ResourceWatcherService extends AbstractLifecycleComponent {
 
     public enum Frequency {
 

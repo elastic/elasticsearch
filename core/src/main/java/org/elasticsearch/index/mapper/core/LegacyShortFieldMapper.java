@@ -164,21 +164,11 @@ public class LegacyShortFieldMapper extends LegacyNumberFieldMapper {
         }
 
         @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            short iValue = parseValue(value);
-            short iSim = fuzziness.asShort();
-            return LegacyNumericRangeQuery.newIntRange(name(), numericPrecisionStep(),
-                iValue - iSim,
-                iValue + iSim,
-                true, true);
-        }
-
-        @Override
         public FieldStats.Long stats(IndexReader reader) throws IOException {
             int maxDoc = reader.maxDoc();
             Terms terms = org.apache.lucene.index.MultiFields.getTerms(reader, name());
             if (terms == null) {
-                return new FieldStats.Long(maxDoc, isSearchable(), isAggregatable());
+                return null;
             }
             long minValue = LegacyNumericUtils.getMinInt(terms);
             long maxValue = LegacyNumericUtils.getMaxInt(terms);

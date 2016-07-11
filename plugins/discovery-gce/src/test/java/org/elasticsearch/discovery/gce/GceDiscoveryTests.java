@@ -21,11 +21,13 @@ package org.elasticsearch.discovery.gce;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.gce.GceComputeService;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -71,12 +73,12 @@ public class GceDiscoveryTests extends ESTestCase {
 
     @BeforeClass
     public static void createThreadPool() {
-        threadPool = new ThreadPool(GceDiscoveryTests.class.getName());
+        threadPool = new TestThreadPool(GceDiscoveryTests.class.getName());
     }
 
     @AfterClass
     public static void stopThreadPool() {
-        if (threadPool !=null) {
+        if (threadPool != null) {
             threadPool.shutdownNow();
             threadPool = null;
         }
@@ -109,8 +111,8 @@ public class GceDiscoveryTests extends ESTestCase {
     }
 
     protected List<DiscoveryNode> buildDynamicNodes(GceComputeService gceComputeService, Settings nodeSettings) {
-        GceUnicastHostsProvider provider = new GceUnicastHostsProvider(nodeSettings, gceComputeService,
-                transportService, new NetworkService(Settings.EMPTY), Version.CURRENT);
+        GceUnicastHostsProvider provider = new GceUnicastHostsProvider(nodeSettings, gceComputeService, transportService,
+            new NetworkService(Settings.EMPTY));
 
         List<DiscoveryNode> discoveryNodes = provider.buildDynamicNodes();
         logger.info("--> nodes found: {}", discoveryNodes);
@@ -251,5 +253,20 @@ public class GceDiscoveryTests extends ESTestCase {
         } catch (IllegalArgumentException expected) {
             assertThat(expected.getMessage(), containsString("one or more gce discovery settings are missing."));
         }
+    }
+
+    /**
+     * For issue https://github.com/elastic/elasticsearch/issues/16967:
+     * When using multiple regions and one of them has no instance at all, this
+     * was producing a NPE as a result.
+     */
+    public void testNoRegionReturnsEmptyList() {
+        Settings nodeSettings = Settings.builder()
+            .put(GceComputeService.PROJECT_SETTING.getKey(), projectName)
+            .putArray(GceComputeService.ZONE_SETTING.getKey(), "europe-west1-b", "us-central1-a")
+            .build();
+        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
+        assertThat(discoveryNodes, hasSize(1));
     }
 }

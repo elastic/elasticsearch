@@ -44,6 +44,7 @@ import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -53,7 +54,7 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-@ClusterScope(scope = Scope.TEST, numDataNodes = 1)
+@ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
 public class NettyTransportIT extends ESIntegTestCase {
     // static so we can use it in anonymous classes
     private static String channelProfileName = null;
@@ -86,14 +87,6 @@ public class NettyTransportIT extends ESIntegTestCase {
     public static final class ExceptionThrowingNettyTransport extends NettyTransport {
 
         public static class TestPlugin extends Plugin {
-            @Override
-            public String name() {
-                return "exception-throwing-netty-transport";
-            }
-            @Override
-            public String description() {
-                return "an exception throwing transport for testing";
-            }
             public void onModule(NetworkModule module) {
                 module.registerTransport("exception-throwing", ExceptionThrowingNettyTransport.class);
             }
@@ -101,50 +94,29 @@ public class NettyTransportIT extends ESIntegTestCase {
 
         @Inject
         public ExceptionThrowingNettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
-                                               Version version, NamedWriteableRegistry namedWriteableRegistry,
+                                               NamedWriteableRegistry namedWriteableRegistry,
                                                CircuitBreakerService circuitBreakerService) {
-            super(settings, threadPool, networkService, bigArrays, version, namedWriteableRegistry, circuitBreakerService);
+            super(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
+        }
+
+        protected String handleRequest(Channel channel, String profileName,
+                                       StreamInput stream, long requestId, int messageLengthBytes, Version version,
+                                       InetSocketAddress remoteAddress) throws IOException {
+            String action = super.handleRequest(channel, profileName, stream, requestId, messageLengthBytes, version,
+                remoteAddress);
+            channelProfileName = TransportSettings.DEFAULT_PROFILE;
+            return action;
         }
 
         @Override
-        public ChannelPipelineFactory configureServerChannelPipelineFactory(String name, Settings groupSettings) {
-            return new ErrorPipelineFactory(this, name, groupSettings);
-        }
-
-        private static class ErrorPipelineFactory extends ServerChannelPipelineFactory {
-
-            private final ESLogger logger;
-
-            public ErrorPipelineFactory(ExceptionThrowingNettyTransport nettyTransport, String name, Settings groupSettings) {
-                super(nettyTransport, name, groupSettings);
-                this.logger = nettyTransport.logger;
-            }
-
-            @Override
-            public ChannelPipeline getPipeline() throws Exception {
-                ChannelPipeline pipeline = super.getPipeline();
-                pipeline.replace("dispatcher", "dispatcher",
-                    new MessageChannelHandler(nettyTransport, logger, TransportSettings.DEFAULT_PROFILE) {
-
-                    @Override
-                    protected String handleRequest(Channel channel, Marker marker, StreamInput buffer, long requestId,
-                                                   int messageLengthBytes, Version version) throws IOException {
-                        String action = super.handleRequest(channel, marker, buffer, requestId, messageLengthBytes, version);
-                        channelProfileName = this.profileName;
-                        return action;
-                    }
-
-                    @Override
-                    protected void validateRequest(Marker marker, StreamInput buffer, long requestId, String action) throws IOException {
-                        super.validateRequest(marker, buffer, requestId, action);
-                        String error = threadPool.getThreadContext().getHeader("ERROR");
-                        if (error != null) {
-                            throw new ElasticsearchException(error);
-                        }
-                    }
-                });
-                return pipeline;
+        protected void validateRequest(StreamInput buffer, long requestId, String action)
+            throws IOException {
+            super.validateRequest(buffer, requestId, action);
+            String error = threadPool.getThreadContext().getHeader("ERROR");
+            if (error != null) {
+                throw new ElasticsearchException(error);
             }
         }
+
     }
 }

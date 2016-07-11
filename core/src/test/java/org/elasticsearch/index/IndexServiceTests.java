@@ -77,7 +77,6 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
 
     public void testFilteringAliases() throws Exception {
         IndexService indexService = createIndex("test", Settings.EMPTY);
-        IndexShard shard = indexService.getShard(0);
         add(indexService, "cats", filter(termQuery("animal", "cat")));
         add(indexService, "dogs", filter(termQuery("animal", "dog")));
         add(indexService, "all", null);
@@ -101,7 +100,6 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
 
     public void testAliasFilters() throws Exception {
         IndexService indexService = createIndex("test", Settings.EMPTY);
-        IndexShard shard = indexService.getShard(0);
 
         add(indexService, "cats", filter(termQuery("animal", "cat")));
         add(indexService, "dogs", filter(termQuery("animal", "dog")));
@@ -118,7 +116,6 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
 
     public void testRemovedAliasFilter() throws Exception {
         IndexService indexService = createIndex("test", Settings.EMPTY);
-        IndexShard shard = indexService.getShard(0);
 
         add(indexService, "cats", filter(termQuery("animal", "cat")));
         remove(indexService, "cats");
@@ -132,7 +129,6 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
 
     public void testUnknownAliasFilter() throws Exception {
         IndexService indexService = createIndex("test", Settings.EMPTY);
-        IndexShard shard = indexService.getShard(0);
 
         add(indexService, "cats", filter(termQuery("animal", "cat")));
         add(indexService, "dogs", filter(termQuery("animal", "dog")));

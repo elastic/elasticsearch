@@ -102,7 +102,7 @@ public class FiltersFunctionScoreQuery extends Query {
     final float maxBoost;
     private final Float minScore;
 
-    final protected CombineFunction combineFunction;
+    protected final CombineFunction combineFunction;
 
     public FiltersFunctionScoreQuery(Query subQuery, ScoreMode scoreMode, FilterFunction[] filterFunctions, float maxBoost, Float minScore, CombineFunction combineFunction) {
         this.subQuery = subQuery;
@@ -355,7 +355,7 @@ public class FiltersFunctionScoreQuery extends Query {
         if (this == o) {
             return true;
         }
-        if (super.equals(o) == false) {
+        if (sameClassAs(o) == false) {
             return false;
         }
         FiltersFunctionScoreQuery other = (FiltersFunctionScoreQuery) o;
@@ -367,6 +367,6 @@ public class FiltersFunctionScoreQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), subQuery, maxBoost, combineFunction, minScore, scoreMode, Arrays.hashCode(filterFunctions));
+        return Objects.hash(classHash(), subQuery, maxBoost, combineFunction, minScore, scoreMode, Arrays.hashCode(filterFunctions));
     }
 }

@@ -52,10 +52,10 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 // don't mess with this one! It's quite sensitive to a low queue size
                 // (see also ThreadedActionListener which is happily spawning threads even when we already got rejected)
-                //.put("threadpool.listener.queue_size", 1)
-                .put("threadpool.get.queue_size", 1)
+                //.put("thread_pool.listener.queue_size", 1)
+                .put("thread_pool.get.queue_size", 1)
                 // default is 50
-                .put("threadpool.bulk.queue_size", 30)
+                .put("thread_pool.bulk.queue_size", 30)
                 .build();
     }
 

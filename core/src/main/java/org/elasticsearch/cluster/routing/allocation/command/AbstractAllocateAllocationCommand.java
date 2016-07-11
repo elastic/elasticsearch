@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -37,7 +38,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Abstract base class for allocating an unassigned shard to a node
@@ -59,7 +62,7 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
     /**
      * Works around ObjectParser not supporting constructor arguments.
      */
-    protected static abstract class Builder<T extends AbstractAllocateAllocationCommand> {
+    protected abstract static class Builder<T extends AbstractAllocateAllocationCommand> {
         protected String index;
         protected int shard = -1;
         protected String node;
@@ -196,17 +199,17 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
      * @param routingNodes the routing nodes
      * @param routingNode the node to initialize it to
      * @param shardRouting the shard routing that is to be matched in unassigned shards
-     * @param shardRoutingChanges changes to apply for shard routing in unassigned shards before initialization
+     * @param unassignedInfo unassigned info to override
      */
     protected void initializeUnassignedShard(RoutingAllocation allocation, RoutingNodes routingNodes, RoutingNode routingNode,
-                                             ShardRouting shardRouting, @Nullable Consumer<ShardRouting> shardRoutingChanges) {
+                                             ShardRouting shardRouting, @Nullable UnassignedInfo unassignedInfo) {
         for (RoutingNodes.UnassignedShards.UnassignedIterator it = routingNodes.unassigned().iterator(); it.hasNext(); ) {
             ShardRouting unassigned = it.next();
             if (!unassigned.equalsIgnoringMetaData(shardRouting)) {
                 continue;
             }
-            if (shardRoutingChanges != null) {
-                shardRoutingChanges.accept(unassigned);
+            if (unassignedInfo != null) {
+                unassigned = it.updateUnassignedInfo(unassignedInfo);
             }
             it.initialize(routingNode.nodeId(), null, allocation.clusterInfo().getShardSize(unassigned, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
             return;
@@ -225,5 +228,23 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
     }
 
     protected void extraXContent(XContentBuilder builder) throws IOException {
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        AbstractAllocateAllocationCommand other = (AbstractAllocateAllocationCommand) obj;
+        // Override equals and hashCode for testing
+        return Objects.equals(index, other.index) &&
+                Objects.equals(shardId, other.shardId) &&
+                Objects.equals(node, other.node);
+    }
+
+    @Override
+    public int hashCode() {
+        // Override equals and hashCode for testing
+        return Objects.hash(index, shardId, node);
     }
 }

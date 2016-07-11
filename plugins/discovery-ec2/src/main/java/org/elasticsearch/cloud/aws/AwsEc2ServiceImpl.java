@@ -35,8 +35,6 @@ import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2Client;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.aws.network.Ec2NameResolver;
-import org.elasticsearch.cloud.aws.node.Ec2CustomNodeAttributes;
-import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -49,18 +47,17 @@ import java.util.Random;
 /**
  *
  */
-public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service> implements AwsEc2Service {
+public class AwsEc2ServiceImpl extends AbstractLifecycleComponent implements AwsEc2Service {
 
     public static final String EC2_METADATA_URL = "http://169.254.169.254/latest/meta-data/";
 
     private AmazonEC2Client client;
 
     @Inject
-    public AwsEc2ServiceImpl(Settings settings, NetworkService networkService, DiscoveryNodeService discoveryNodeService) {
+    public AwsEc2ServiceImpl(Settings settings, NetworkService networkService) {
         super(settings);
         // add specific ec2 name resolver
         networkService.addCustomNameResolver(new Ec2NameResolver(settings));
-        discoveryNodeService.addCustomAttributeProvider(new Ec2CustomNodeAttributes(settings));
     }
 
     @Override
@@ -148,6 +145,8 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
                 endpoint = "ec2.ap-southeast-1.amazonaws.com";
             } else if (region.equals("us-gov-west") || region.equals("us-gov-west-1")) {
                 endpoint = "ec2.us-gov-west-1.amazonaws.com";
+            } else if (region.equals("ap-south-1")) {
+                endpoint = "ec2.ap-south-1.amazonaws.com";
             } else if (region.equals("ap-southeast-2")) {
                 endpoint = "ec2.ap-southeast-2.amazonaws.com";
             } else if (region.equals("ap-northeast") || region.equals("ap-northeast-1")) {

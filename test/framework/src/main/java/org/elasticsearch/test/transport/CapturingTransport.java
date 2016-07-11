@@ -51,11 +51,11 @@ public class CapturingTransport implements Transport {
 
     private TransportServiceAdapter adapter;
 
-    static public class CapturedRequest {
-        final public DiscoveryNode node;
-        final public long requestId;
-        final public String action;
-        final public TransportRequest request;
+    public static class CapturedRequest {
+        public final DiscoveryNode node;
+        public final long requestId;
+        public final String action;
+        public final TransportRequest request;
 
         public CapturedRequest(DiscoveryNode node, long requestId, String action, TransportRequest request) {
             this.node = node;
@@ -242,19 +242,13 @@ public class CapturingTransport implements Transport {
     }
 
     @Override
-    public Transport start() {
-        return null;
-    }
+    public void start() {}
 
     @Override
-    public Transport stop() {
-        return null;
-    }
+    public void stop() {}
 
     @Override
-    public void close() {
-
-    }
+    public void close() {}
 
     @Override
     public List<String> getLocalAddresses() {

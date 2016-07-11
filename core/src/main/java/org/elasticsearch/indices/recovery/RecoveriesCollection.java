@@ -32,7 +32,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
 
 /**
  * This class holds a collection of all on going recoveries on the current node (i.e., the node is the target node
@@ -45,8 +44,8 @@ public class RecoveriesCollection {
     /** This is the single source of truth for ongoing recoveries. If it's not here, it was canceled or done */
     private final ConcurrentMap<Long, RecoveryTarget> onGoingRecoveries = ConcurrentCollections.newConcurrentMap();
 
-    final private ESLogger logger;
-    final private ThreadPool threadPool;
+    private final ESLogger logger;
+    private final ThreadPool threadPool;
 
     public RecoveriesCollection(ESLogger logger, ThreadPool threadPool) {
         this.logger = logger;
@@ -136,37 +135,18 @@ public class RecoveriesCollection {
         return onGoingRecoveries.size();
     }
 
-    /** cancel all ongoing recoveries for the given shard. typically because the shards is closed */
-    public boolean cancelRecoveriesForShard(ShardId shardId, String reason) {
-        return cancelRecoveriesForShard(shardId, reason, status -> true);
-    }
-
     /**
-     * cancel all ongoing recoveries for the given shard, if their status match a predicate
+     * cancel all ongoing recoveries for the given shard
      *
      * @param reason       reason for cancellation
      * @param shardId      shardId for which to cancel recoveries
-     * @param shouldCancel a predicate to check if a recovery should be cancelled or not.
-     *                     Note that the recovery state can change after this check, but before it is being cancelled via other
-     *                     already issued outstanding references.
      * @return true if a recovery was cancelled
      */
-    public boolean cancelRecoveriesForShard(ShardId shardId, String reason, Predicate<RecoveryTarget> shouldCancel) {
+    public boolean cancelRecoveriesForShard(ShardId shardId, String reason) {
         boolean cancelled = false;
         for (RecoveryTarget status : onGoingRecoveries.values()) {
             if (status.shardId().equals(shardId)) {
-                boolean cancel = false;
-                // if we can't increment the status, the recovery is not there any more.
-                if (status.tryIncRef()) {
-                    try {
-                        cancel = shouldCancel.test(status);
-                    } finally {
-                        status.decRef();
-                    }
-                }
-                if (cancel && cancelRecovery(status.recoveryId(), reason)) {
-                    cancelled = true;
-                }
+                cancelled |= cancelRecovery(status.recoveryId(), reason);
             }
         }
         return cancelled;
@@ -217,8 +197,8 @@ public class RecoveriesCollection {
         }
 
         @Override
-        public void onFailure(Throwable t) {
-            logger.error("unexpected error while monitoring recovery [{}]", t, recoveryId);
+        public void onFailure(Exception e) {
+            logger.error("unexpected error while monitoring recovery [{}]", e, recoveryId);
         }
 
         @Override

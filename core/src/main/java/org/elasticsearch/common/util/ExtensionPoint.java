@@ -162,7 +162,7 @@ public abstract class ExtensionPoint {
     /**
      * A set based extension point which allows to register extended classes that might be used to chain additional functionality etc.
      */
-    public final static class ClassSet<T> extends ExtensionPoint {
+    public static final class ClassSet<T> extends ExtensionPoint {
         protected final Class<T> extensionClass;
         private final Set<Class<? extends T>> extensions = new HashSet<>();
 
@@ -184,7 +184,7 @@ public abstract class ExtensionPoint {
          * @param extension the extension to register
          * @throws IllegalArgumentException iff the class is already registered
          */
-        public final void registerExtension(Class<? extends T> extension) {
+        public void registerExtension(Class<? extends T> extension) {
             if (extensions.contains(extension)) {
                 throw new IllegalArgumentException("Can't register the same [" + this.name + "] more than once for [" + extension.getName() + "]");
             }
@@ -192,7 +192,7 @@ public abstract class ExtensionPoint {
         }
 
         @Override
-        protected final void bindExtensions(Binder binder) {
+        protected void bindExtensions(Binder binder) {
             Multibinder<T> allocationMultibinder = Multibinder.newSetBinder(binder, extensionClass);
             for (Class<? extends T> clazz : extensions) {
                 binder.bind(clazz).asEagerSingleton();
@@ -205,7 +205,7 @@ public abstract class ExtensionPoint {
      * A an instance of a map, mapping one instance value to another. Both key and value are instances, not classes
      * like with other extension points.
      */
-    public final static class InstanceMap<K, V> extends ExtensionPoint {
+    public static final class InstanceMap<K, V> extends ExtensionPoint {
         private final Map<K, V> map = new HashMap<>();
         private final Class<K> keyType;
         private final Class<V> valueType;
@@ -227,7 +227,7 @@ public abstract class ExtensionPoint {
          *
          * @throws IllegalArgumentException iff the key is already registered
          */
-        public final void registerExtension(K key, V value) {
+        public void registerExtension(K key, V value) {
             V old = map.put(key, value);
             if (old != null) {
                 throw new IllegalArgumentException("Cannot register [" + this.name + "] with key [" + key + "] to [" + value + "], already registered to [" + old + "]");

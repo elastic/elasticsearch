@@ -38,7 +38,7 @@ setup:
       search:
           index: test
           body:
-              fields: [file.content, file.author, file.date, file.content_length, file.content_type]
+              stored_fields: [file.content, file.author, file.date, file.content_length, file.content_type]
   - match: { hits.total: 1 }
   - match: { hits.hits.0.fields: {
       file.content: ["Test elasticsearch\n"],
@@ -65,7 +65,7 @@ setup:
       search:
           index: test
           body:
-              fields: [file.content, file.author, file.date, file.content_length, file.content_type]
+              stored_fields: [file.content, file.author, file.date, file.content_length, file.content_type]
   - match: { hits.total: 1 }
   - match: { hits.hits.0.fields: {
       file.content: ["Test elasticsearch\n"],

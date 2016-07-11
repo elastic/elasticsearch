@@ -25,7 +25,6 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.CompiledScript;
@@ -57,8 +56,6 @@ import java.security.AccessController;
 import java.security.CodeSource;
 import java.security.PrivilegedAction;
 import java.security.cert.Certificate;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -68,7 +65,9 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class JavaScriptScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
-    public static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("js", "javascript"));
+    public static final String NAME = "javascript";
+
+    public static final String EXTENSION = "js";
 
     private final AtomicLong counter = new AtomicLong();
 
@@ -136,7 +135,6 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
     /** ensures this engine is initialized */
     public static void init() {}
 
-    @Inject
     public JavaScriptScriptEngineService(Settings settings) {
         super(settings);
 
@@ -150,34 +148,24 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
 
     @Override
     public void close() {
-
-    }
-
-    @Override
-    public void scriptRemoved(@Nullable CompiledScript compiledScript) {
         // Nothing to do here
     }
 
     @Override
-    public List<String> getTypes() {
-        return TYPES;
+    public String getType() {
+        return NAME;
     }
 
     @Override
-    public List<String> getExtensions() {
-        return Collections.unmodifiableList(Arrays.asList("js"));
+    public String getExtension() {
+        return EXTENSION;
     }
 
     @Override
-    public boolean isSandboxed() {
-        return false;
-    }
-
-    @Override
-    public Object compile(String script, Map<String, String> params) {
+    public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
         Context ctx = Context.enter();
         try {
-            return ctx.compileString(script, generateScriptName(), 1, DOMAIN);
+            return ctx.compileString(scriptSource, generateScriptName(), 1, DOMAIN);
         } finally {
             Context.exit();
         }
@@ -320,11 +308,6 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
             } finally {
                 Context.exit();
             }
-        }
-
-        @Override
-        public float runAsFloat() {
-            return ((Number) run()).floatValue();
         }
 
         @Override

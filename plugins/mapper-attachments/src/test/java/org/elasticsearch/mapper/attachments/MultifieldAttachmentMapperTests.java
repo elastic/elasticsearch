@@ -19,7 +19,6 @@
 
 package org.elasticsearch.mapper.attachments;
 
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -33,6 +32,7 @@ import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.instanceOf;
@@ -84,7 +84,7 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
         String originalText = "This is an elasticsearch mapper attachment test.";
         String forcedName = "dummyname.txt";
 
-        String bytes = Base64.encodeBytes(originalText.getBytes(StandardCharsets.ISO_8859_1));
+        String bytes = Base64.getEncoder().encodeToString(originalText.getBytes(StandardCharsets.ISO_8859_1));
 
         MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper());
 
@@ -150,7 +150,7 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
         String forcedLanguage = randomAsciiOfLength(20);
         String forcedContentType = randomAsciiOfLength(20);
 
-        String bytes = Base64.encodeBytes(originalText.getBytes(StandardCharsets.ISO_8859_1));
+        String bytes = Base64.getEncoder().encodeToString(originalText.getBytes(StandardCharsets.ISO_8859_1));
 
         MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(),
             Settings.builder().put(AttachmentMapper.INDEX_ATTACHMENT_DETECT_LANGUAGE_SETTING.getKey(), true).build(),

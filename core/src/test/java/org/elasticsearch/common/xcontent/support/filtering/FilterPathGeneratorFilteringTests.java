@@ -142,7 +142,7 @@ public class FilterPathGeneratorFilteringTests extends ESTestCase {
                     }
                 }
             }
-            assertThat(os.bytes().toUtf8(), equalTo(replaceQuotes(expected)));
+            assertThat(os.bytes().utf8ToString(), equalTo(replaceQuotes(expected)));
         }
     }
 

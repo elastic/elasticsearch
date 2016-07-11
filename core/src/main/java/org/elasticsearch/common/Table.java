@@ -149,7 +149,7 @@ public class Table {
                 // get the attributes of the header cell we are going to add
                 mAttr.putAll(headers.get(currentCells.size()).attr);
             }
-            String[] sAttrs = Strings.splitStringToArray(attributes, ';');
+            String[] sAttrs = attributes.split(";");
             for (String sAttr : sAttrs) {
                 if (sAttr.length() == 0) {
                     continue;

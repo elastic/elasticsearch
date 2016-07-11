@@ -19,30 +19,35 @@
 
 package org.elasticsearch.index.mapper.externalvalues;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 
-public class ExternalMapperPlugin extends Plugin {
+public class ExternalMapperPlugin extends Plugin implements MapperPlugin {
 
     public static final String EXTERNAL = "external";
     public static final String EXTERNAL_BIS = "external_bis";
     public static final String EXTERNAL_UPPER = "external_upper";
 
     @Override
-    public String name() {
-        return "external-mappers";
+    public Map<String, Mapper.TypeParser> getMappers() {
+        Map<String, Mapper.TypeParser> mappers = new HashMap<>();
+        mappers.put(EXTERNAL, new ExternalMapper.TypeParser(EXTERNAL, "foo"));
+        mappers.put(EXTERNAL_BIS, new ExternalMapper.TypeParser(EXTERNAL_BIS, "bar"));
+        mappers.put(EXTERNAL_UPPER, new ExternalMapper.TypeParser(EXTERNAL_UPPER, "FOO BAR"));
+        mappers.put(FakeStringFieldMapper.CONTENT_TYPE, new FakeStringFieldMapper.TypeParser());
+        return Collections.unmodifiableMap(mappers);
     }
 
     @Override
-    public String description() {
-        return "External Mappers Plugin";
-    }
-
-    public void onModule(IndicesModule indicesModule) {
-        indicesModule.registerMetadataMapper(ExternalMetadataMapper.CONTENT_TYPE, new ExternalMetadataMapper.TypeParser());
-        indicesModule.registerMapper(EXTERNAL, new ExternalMapper.TypeParser(EXTERNAL, "foo"));
-        indicesModule.registerMapper(EXTERNAL_BIS, new ExternalMapper.TypeParser(EXTERNAL_BIS, "bar"));
-        indicesModule.registerMapper(EXTERNAL_UPPER, new ExternalMapper.TypeParser(EXTERNAL_UPPER, "FOO BAR"));
+    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+        return Collections.singletonMap(ExternalMetadataMapper.CONTENT_TYPE, new ExternalMetadataMapper.TypeParser());
     }
 
 }

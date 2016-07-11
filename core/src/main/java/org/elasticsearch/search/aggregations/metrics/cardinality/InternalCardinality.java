@@ -34,23 +34,7 @@ import java.util.List;
 import java.util.Map;
 
 public final class InternalCardinality extends InternalNumericMetricsAggregation.SingleValue implements Cardinality {
-
-    public final static Type TYPE = new Type("cardinality");
-
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalCardinality readResult(StreamInput in) throws IOException {
-            InternalCardinality result = new InternalCardinality();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-    private HyperLogLogPlusPlus counts;
+    private final HyperLogLogPlusPlus counts;
 
     InternalCardinality(String name, HyperLogLogPlusPlus counts, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
@@ -58,26 +42,11 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
         this.counts = counts;
     }
 
-    private InternalCardinality() {
-    }
-
-    @Override
-    public double value() {
-        return getValue();
-    }
-
-    @Override
-    public long getValue() {
-        return counts == null ? 0 : counts.cardinality(0);
-    }
-
-    @Override
-    public Type type() {
-        return TYPE;
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
+    /**
+     * Read from a stream.
+     */
+    public InternalCardinality(StreamInput in) throws IOException {
+        super(in);
         format = in.readNamedWriteable(DocValueFormat.class);
         if (in.readBoolean()) {
             counts = HyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
@@ -95,6 +64,21 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
         } else {
             out.writeBoolean(false);
         }
+    }
+
+    @Override
+    public String getWriteableName() {
+        return CardinalityAggregationBuilder.NAME;
+    }
+
+    @Override
+    public double value() {
+        return getValue();
+    }
+
+    @Override
+    public long getValue() {
+        return counts == null ? 0 : counts.cardinality(0);
     }
 
     @Override

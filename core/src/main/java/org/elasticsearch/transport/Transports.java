@@ -20,7 +20,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.transport.local.LocalTransport;
-import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.util.Arrays;
 
@@ -28,7 +27,7 @@ public enum Transports {
     ;
 
     /** threads whose name is prefixed by this string will be considered network threads, even though they aren't */
-    public final static String TEST_MOCK_TRANSPORT_THREAD_PREFIX = "__mock_network_thread";
+    public static final String TEST_MOCK_TRANSPORT_THREAD_PREFIX = "__mock_network_thread";
 
     /**
      * Utility method to detect whether a thread is a network thread. Typically
@@ -39,10 +38,10 @@ public enum Transports {
         final String threadName = t.getName();
         for (String s : Arrays.asList(
                 LocalTransport.LOCAL_TRANSPORT_THREAD_NAME_PREFIX,
-                NettyTransport.HTTP_SERVER_BOSS_THREAD_NAME_PREFIX,
-                NettyTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX,
-                NettyTransport.TRANSPORT_CLIENT_WORKER_THREAD_NAME_PREFIX,
-                NettyTransport.TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX,
+                TcpTransport.HTTP_SERVER_BOSS_THREAD_NAME_PREFIX,
+                TcpTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX,
+                TcpTransport.TRANSPORT_CLIENT_WORKER_THREAD_NAME_PREFIX,
+                TcpTransport.TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX,
                 TEST_MOCK_TRANSPORT_THREAD_PREFIX)) {
             if (threadName.contains(s)) {
                 return true;

@@ -43,7 +43,6 @@ public class SegmentsStats implements Streamable, ToXContent {
     private long pointsMemoryInBytes;
     private long docValuesMemoryInBytes;
     private long indexWriterMemoryInBytes;
-    private long indexWriterMaxMemoryInBytes;
     private long versionMapMemoryInBytes;
     private long bitsetMemoryInBytes;
     private ImmutableOpenMap<String, Long> fileSizes = ImmutableOpenMap.of();
@@ -111,10 +110,6 @@ public class SegmentsStats implements Streamable, ToXContent {
         this.indexWriterMemoryInBytes += indexWriterMemoryInBytes;
     }
 
-    public void addIndexWriterMaxMemoryInBytes(long indexWriterMaxMemoryInBytes) {
-        this.indexWriterMaxMemoryInBytes += indexWriterMaxMemoryInBytes;
-    }
-
     public void addVersionMapMemoryInBytes(long versionMapMemoryInBytes) {
         this.versionMapMemoryInBytes += versionMapMemoryInBytes;
     }
@@ -151,7 +146,6 @@ public class SegmentsStats implements Streamable, ToXContent {
         addPointsMemoryInBytes(mergeStats.pointsMemoryInBytes);
         addDocValuesMemoryInBytes(mergeStats.docValuesMemoryInBytes);
         addIndexWriterMemoryInBytes(mergeStats.indexWriterMemoryInBytes);
-        addIndexWriterMaxMemoryInBytes(mergeStats.indexWriterMaxMemoryInBytes);
         addVersionMapMemoryInBytes(mergeStats.versionMapMemoryInBytes);
         addBitsetMemoryInBytes(mergeStats.bitsetMemoryInBytes);
         addFileSizes(mergeStats.fileSizes);
@@ -253,17 +247,6 @@ public class SegmentsStats implements Streamable, ToXContent {
     }
 
     /**
-     * Maximum memory index writer may use before it must write buffered documents to a new segment.
-     */
-    public long getIndexWriterMaxMemoryInBytes() {
-        return this.indexWriterMaxMemoryInBytes;
-    }
-
-    public ByteSizeValue getIndexWriterMaxMemory() {
-        return new ByteSizeValue(indexWriterMaxMemoryInBytes);
-    }
-
-    /**
      * Estimation of the memory usage by version map
      */
     public long getVersionMapMemoryInBytes() {
@@ -307,7 +290,6 @@ public class SegmentsStats implements Streamable, ToXContent {
         builder.byteSizeField(Fields.POINTS_MEMORY_IN_BYTES, Fields.POINTS_MEMORY, pointsMemoryInBytes);
         builder.byteSizeField(Fields.DOC_VALUES_MEMORY_IN_BYTES, Fields.DOC_VALUES_MEMORY, docValuesMemoryInBytes);
         builder.byteSizeField(Fields.INDEX_WRITER_MEMORY_IN_BYTES, Fields.INDEX_WRITER_MEMORY, indexWriterMemoryInBytes);
-        builder.byteSizeField(Fields.INDEX_WRITER_MAX_MEMORY_IN_BYTES, Fields.INDEX_WRITER_MAX_MEMORY, indexWriterMaxMemoryInBytes);
         builder.byteSizeField(Fields.VERSION_MAP_MEMORY_IN_BYTES, Fields.VERSION_MAP_MEMORY, versionMapMemoryInBytes);
         builder.byteSizeField(Fields.FIXED_BIT_SET_MEMORY_IN_BYTES, Fields.FIXED_BIT_SET, bitsetMemoryInBytes);
         builder.startObject(Fields.FILE_SIZES);
@@ -342,8 +324,6 @@ public class SegmentsStats implements Streamable, ToXContent {
         static final String DOC_VALUES_MEMORY_IN_BYTES = "doc_values_memory_in_bytes";
         static final String INDEX_WRITER_MEMORY = "index_writer_memory";
         static final String INDEX_WRITER_MEMORY_IN_BYTES = "index_writer_memory_in_bytes";
-        static final String INDEX_WRITER_MAX_MEMORY = "index_writer_max_memory";
-        static final String INDEX_WRITER_MAX_MEMORY_IN_BYTES = "index_writer_max_memory_in_bytes";
         static final String VERSION_MAP_MEMORY = "version_map_memory";
         static final String VERSION_MAP_MEMORY_IN_BYTES = "version_map_memory_in_bytes";
         static final String FIXED_BIT_SET = "fixed_bit_set";
@@ -366,7 +346,6 @@ public class SegmentsStats implements Streamable, ToXContent {
         docValuesMemoryInBytes = in.readLong();
         indexWriterMemoryInBytes = in.readLong();
         versionMapMemoryInBytes = in.readLong();
-        indexWriterMaxMemoryInBytes = in.readLong();
         bitsetMemoryInBytes = in.readLong();
 
         int size = in.readVInt();
@@ -391,7 +370,6 @@ public class SegmentsStats implements Streamable, ToXContent {
         out.writeLong(docValuesMemoryInBytes);
         out.writeLong(indexWriterMemoryInBytes);
         out.writeLong(versionMapMemoryInBytes);
-        out.writeLong(indexWriterMaxMemoryInBytes);
         out.writeLong(bitsetMemoryInBytes);
 
         out.writeVInt(fileSizes.size());

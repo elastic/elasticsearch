@@ -24,47 +24,22 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Map;
 
-import static java.util.Collections.singletonMap;
-
-/**
- *
- */
-public class VersionFetchSubPhase implements FetchSubPhase {
-    private static final Map<String, ? extends SearchParseElement> PARSE_ELEMENTS = singletonMap("version", new VersionParseElement());
-
-    @Override
-    public Map<String, ? extends SearchParseElement> parseElements() {
-        return PARSE_ELEMENTS;
-    }
-
-    @Override
-    public boolean hitsExecutionNeeded(SearchContext context) {
-        return false;
-    }
-
-    @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
-    }
-
-    @Override
-    public boolean hitExecutionNeeded(SearchContext context) {
-        return context.version();
-    }
+public final class VersionFetchSubPhase implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {
+        if (context.version() == false) {
+            return;
+        }
         // it might make sense to cache the TermDocs on a shared fetch context and just skip here)
         // it is going to mean we work on the high level multi reader and not the lower level reader as is
         // the case below...
-        long version;
+        final long version;
         try {
             BytesRef uid = Uid.createUidAsBytes(hitContext.hit().type(), hitContext.hit().id());
             version = Versions.loadVersion(
@@ -74,10 +49,6 @@ public class VersionFetchSubPhase implements FetchSubPhase {
         } catch (IOException e) {
             throw new ElasticsearchException("Could not query index for _version", e);
         }
-
-        if (version < 0) {
-            version = -1;
-        }
-        hitContext.hit().version(version);
+        hitContext.hit().version(version < 0 ? -1 : version);
     }
 }

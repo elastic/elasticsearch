@@ -25,6 +25,8 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -36,6 +38,7 @@ import org.junit.Before;
 
 import static org.hamcrest.Matchers.containsString;
 
+import java.io.IOException;
 import java.net.InetAddress;
 
 public class IpFieldMapperTests extends ESSingleNodeTestCase {
@@ -216,5 +219,74 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
 
         fields = doc.rootDoc().getFields("_all");
         assertEquals(0, fields.length);
+    }
+
+    public void testNullValue() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", "ip")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .nullField("field")
+                .endObject()
+                .bytes());
+        assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
+
+        mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", "ip")
+                            .field("null_value", "::1")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+
+        mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .nullField("field")
+                .endObject()
+                .bytes());
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        IndexableField pointField = fields[0];
+        assertEquals(1, pointField.fieldType().pointDimensionCount());
+        assertEquals(16, pointField.fieldType().pointNumBytes());
+        assertFalse(pointField.fieldType().stored());
+        assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))), pointField.binaryValue());
+        IndexableField dvField = fields[1];
+        assertEquals(DocValuesType.SORTED_SET, dvField.fieldType().docValuesType());
+        assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))), dvField.binaryValue());
+        assertFalse(dvField.fieldType().stored());
+    }
+
+    public void testSerializeDefaults() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("field").field("type", "ip").endObject().endObject()
+            .endObject().endObject().string();
+
+        DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping));
+        IpFieldMapper mapper = (IpFieldMapper)docMapper.root().getMapper("field");
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        mapper.doXContentBody(builder, true, ToXContent.EMPTY_PARAMS);
+        String got = builder.endObject().string();
+
+        // it would be nice to check the entire serialized default mapper, but there are
+        // a whole lot of bogus settings right now it picks up from calling super.doXContentBody...
+        assertTrue(got, got.contains("\"null_value\":null"));
+        assertTrue(got, got.contains("\"ignore_malformed\":false"));
+        assertTrue(got, got.contains("\"include_in_all\":false"));
     }
 }

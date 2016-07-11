@@ -26,9 +26,10 @@ import java.util.Objects;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.ValueSource;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.apache.lucene.queries.function.docvalues.DoubleDocValues;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
 
 /**
@@ -36,15 +37,12 @@ import org.elasticsearch.search.MultiValueMode;
  */
 class FieldDataValueSource extends ValueSource {
 
-    protected IndexFieldData<?> fieldData;
-    protected MultiValueMode multiValueMode;
+    final IndexFieldData<?> fieldData;
+    final MultiValueMode multiValueMode;
 
-    protected FieldDataValueSource(IndexFieldData<?> d, MultiValueMode m) {
-        Objects.requireNonNull(d);
-        Objects.requireNonNull(m);
-
-        fieldData = d;
-        multiValueMode = m;
+    protected FieldDataValueSource(IndexFieldData<?> fieldData, MultiValueMode multiValueMode) {
+        this.fieldData = Objects.requireNonNull(fieldData);
+        this.multiValueMode = Objects.requireNonNull(multiValueMode);
     }
 
     @Override
@@ -69,9 +67,14 @@ class FieldDataValueSource extends ValueSource {
     @Override
     @SuppressWarnings("rawtypes") // ValueSource uses a rawtype
     public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
-        AtomicFieldData leafData = fieldData.load(leaf);
-        assert(leafData instanceof AtomicNumericFieldData);
-        return new FieldDataFunctionValues(this, multiValueMode, (AtomicNumericFieldData)leafData);
+        AtomicNumericFieldData leafData = (AtomicNumericFieldData) fieldData.load(leaf);
+        NumericDoubleValues docValues = multiValueMode.select(leafData.getDoubleValues(), 0d);
+        return new DoubleDocValues(this) {
+          @Override
+          public double doubleVal(int doc) {
+            return docValues.get(doc);
+          }
+        };
     }
 
     @Override

@@ -154,13 +154,12 @@ locations for an RPM-based system:
 
 | logs
   | Log files location.
-  | /var/logs/elasticsearch
+  | /var/log/elasticsearch
   | path.logs
 
 | plugins
   | Plugin files location. Each plugin will be contained in a subdirectory.
   | /usr/share/elasticsearch/plugins
-  | path.plugins
 
 | repo
   | Shared file system repository locations. Can hold multiple locations. A file system repository can be placed in to any subdirectory of any directory specified here.
@@ -170,7 +169,7 @@ locations for an RPM-based system:
 | script
   | Location of script files.
   | /etc/elasticsearch/scripts
-  | path.script
+  | path.scripts
 
 |=======================================================================
 

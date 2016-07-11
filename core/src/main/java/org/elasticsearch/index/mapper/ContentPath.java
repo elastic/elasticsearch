@@ -42,10 +42,6 @@ public final class ContentPath {
     public ContentPath(int offset) {
         this.sb = new StringBuilder();
         this.offset = offset;
-        reset();
-    }
-
-    public void reset() {
         this.index = 0;
     }
 

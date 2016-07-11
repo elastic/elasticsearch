@@ -7,6 +7,7 @@ in the 2.x series are listed in <<release-notes-5.0.0-alpha1-2x>>.
 
 Also see <<breaking-changes-5.0>>.
 
+IMPORTANT: This is an alpha release and is intended for _testing purposes only_. Indices created in this version will *not be compatible with Elasticsearch 5.0.0 GA*. Upgrading 5.0.0-alpha1 to any other version is not supported.
 
 [[breaking-5.0.0-alpha1]]
 [float]

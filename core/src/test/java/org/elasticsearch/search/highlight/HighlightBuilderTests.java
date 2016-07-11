@@ -59,7 +59,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -84,7 +83,7 @@ public class HighlightBuilderTests extends ESTestCase {
     @BeforeClass
     public static void init() {
         namedWriteableRegistry = new NamedWriteableRegistry();
-        indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry).getQueryParserRegistry();
+        indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry, false).getQueryParserRegistry();
     }
 
     @AfterClass
@@ -150,7 +149,7 @@ public class HighlightBuilderTests extends ESTestCase {
                 builder.prettyPrint();
             }
             highlightBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
+            XContentBuilder shuffled = shuffleXContent(builder);
 
             XContentParser parser = XContentHelper.createParser(shuffled.bytes());
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
@@ -290,7 +289,7 @@ public class HighlightBuilderTests extends ESTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in highlighter
         QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, null, null, indicesQueriesRegistry,
-                null, null, null, null) {
+                null, null, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
@@ -485,14 +484,14 @@ public class HighlightBuilderTests extends ESTestCase {
     public void testOrderSerialization() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             Order.NONE.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(0));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             Order.SCORE.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(1));
             }
         }
@@ -739,7 +738,7 @@ public class HighlightBuilderTests extends ESTestCase {
     private static HighlightBuilder serializedCopy(HighlightBuilder original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 return new HighlightBuilder(in);
             }
         }

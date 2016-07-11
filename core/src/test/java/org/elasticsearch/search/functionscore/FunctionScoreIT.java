@@ -22,23 +22,31 @@ package org.elasticsearch.search.functionscore;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryFunctionTests;
+import org.elasticsearch.index.query.functionscore.QueryFunctionBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
+import static org.elasticsearch.index.query.functionscore.FunctionScoreQueryFunctionTests.getQueryFunctionQueryBuilder;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Tests for the {@code field_value_factor} function in a function_score query.
+ * Integration tests for functions in a function_score query.
  */
-public class FunctionScoreFieldValueIT extends ESIntegTestCase {
+public class FunctionScoreIT extends ESIntegTestCase {
     public void testFieldValueFactor() throws IOException {
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
@@ -126,5 +134,44 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
             // This is fine, the query will throw an exception if executed
             // locally, instead of just having failures
         }
+    }
+
+    public void testQueryFunction() throws ExecutionException, InterruptedException {
+        indexLimerick();
+
+        FunctionScoreQueryBuilder queryBuilder =  getQueryFunctionQueryBuilder();
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(queryBuilder).get();
+        assertNoFailures(searchResponse);
+        assertSearchHits(searchResponse, "4", "1", "3", "2");
+        assertThat(searchResponse.getHits().getAt(0).score(), equalTo(5f));
+        assertThat(searchResponse.getHits().getAt(1).score(), equalTo(4f));
+        assertThat(searchResponse.getHits().getAt(2).score(), equalTo(3f));
+        assertThat(searchResponse.getHits().getAt(3).score(), equalTo(2f));
+    }
+
+    public void indexLimerick() throws InterruptedException, ExecutionException {
+        indexRandom(true,
+            client().prepareIndex("test", "type", "1")
+                .setSource(FunctionScoreQueryFunctionTests.FIELD, FunctionScoreQueryFunctionTests.TEXT_1),
+            client().prepareIndex("test", "type", "2")
+                .setSource(FunctionScoreQueryFunctionTests.FIELD, FunctionScoreQueryFunctionTests.TEXT_2),
+            client().prepareIndex("test", "type", "3")
+                .setSource(FunctionScoreQueryFunctionTests.FIELD, FunctionScoreQueryFunctionTests.TEXT_3),
+            client().prepareIndex("test", "type", "4")
+                .setSource(FunctionScoreQueryFunctionTests.FIELD, FunctionScoreQueryFunctionTests.TEXT_4)
+        );
+    }
+
+    public void testQueryFunctionSingleFunction() throws ExecutionException, InterruptedException {
+        indexLimerick();
+        FunctionScoreQueryBuilder queryBuilder =  getQueryFunctionQueryBuilder();
+        FunctionScoreQueryBuilder finalQueryBuilder = new FunctionScoreQueryBuilder(new QueryFunctionBuilder(queryBuilder));
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(finalQueryBuilder).get();
+        assertNoFailures(searchResponse);
+        assertSearchHits(searchResponse, "4", "1", "3", "2");
+        assertThat(searchResponse.getHits().getAt(0).score(), equalTo(5f));
+        assertThat(searchResponse.getHits().getAt(1).score(), equalTo(4f));
+        assertThat(searchResponse.getHits().getAt(2).score(), equalTo(3f));
+        assertThat(searchResponse.getHits().getAt(3).score(), equalTo(2f));
     }
 }

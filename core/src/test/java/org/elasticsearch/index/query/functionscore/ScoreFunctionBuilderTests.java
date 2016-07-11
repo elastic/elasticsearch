@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query.functionscore;
 
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 
@@ -38,5 +39,6 @@ public class ScoreFunctionBuilderTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> new ExponentialDecayFunctionBuilder(null, "", "", ""));
         expectThrows(IllegalArgumentException.class, () -> new ExponentialDecayFunctionBuilder("", "", null, ""));
         expectThrows(IllegalArgumentException.class, () -> new ExponentialDecayFunctionBuilder("", "", null, "", randomDouble()));
+        expectThrows(IllegalArgumentException.class, () -> new QueryFunctionBuilder((QueryBuilder) null));
     }
 }

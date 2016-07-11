@@ -38,17 +38,7 @@ import static org.mockito.Mockito.when;
 public class QueryShardContextTests extends ESTestCase {
 
     public void testFailIfFieldMappingNotFound() {
-        IndexMetaData.Builder indexMetadata = new IndexMetaData.Builder("index");
-        indexMetadata.settings(Settings.builder().put("index.version.created", Version.CURRENT)
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 1)
-        );
-        IndexSettings indexSettings = new IndexSettings(indexMetadata.build(), Settings.EMPTY);
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
-        QueryShardContext context = new QueryShardContext(
-            indexSettings, null, null, mapperService, null, null, null, null, null, null
-        );
+        QueryShardContext context = getMockQueryShardContext();
 
         context.setAllowUnmappedFields(false);
         MappedFieldType fieldType = new TextFieldMapper.TextFieldType();
@@ -75,6 +65,20 @@ public class QueryShardContextTests extends ESTestCase {
         assertThat(result, notNullValue());
         assertThat(result, instanceOf(TextFieldMapper.TextFieldType.class));
         assertThat(result.name(), equalTo("name"));
+    }
+
+    public static QueryShardContext getMockQueryShardContext() {
+        IndexMetaData.Builder indexMetadata = new IndexMetaData.Builder("index");
+        indexMetadata.settings(Settings.builder().put("index.version.created", Version.CURRENT)
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 1)
+        );
+        IndexSettings indexSettings = new IndexSettings(indexMetadata.build(), Settings.EMPTY);
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        return new QueryShardContext(
+            indexSettings, null, null, mapperService, null, null, null, null, null, null
+        );
     }
 
 }

@@ -1,5 +1,5 @@
 {
-  "license.post": {
+  "xpack.license.post": {
     "documentation": "https://www.elastic.co/guide/en/shield/current/license-management.html",
     "methods": ["PUT", "POST"],
     "url": {

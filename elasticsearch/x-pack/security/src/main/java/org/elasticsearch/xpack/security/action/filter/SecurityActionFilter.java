@@ -60,7 +60,7 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
 
     @Inject
     public SecurityActionFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService,
-                                @Nullable CryptoService cryptoService, AuditTrail auditTrail, SecurityLicenseState licenseState,
+                                CryptoService cryptoService, AuditTrail auditTrail, SecurityLicenseState licenseState,
                                 SecurityActionMapper actionMapper, Set<RequestInterceptor> requestInterceptors, ThreadPool threadPool,
                                 SecurityContext securityContext) {
         super(settings);

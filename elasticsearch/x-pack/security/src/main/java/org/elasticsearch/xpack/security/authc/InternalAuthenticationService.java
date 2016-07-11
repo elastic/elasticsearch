@@ -53,7 +53,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     private final boolean runAsEnabled;
 
     @Inject
-    public InternalAuthenticationService(Settings settings, Realms realms, AuditTrail auditTrail, @Nullable CryptoService cryptoService,
+    public InternalAuthenticationService(Settings settings, Realms realms, AuditTrail auditTrail, CryptoService cryptoService,
                                          AuthenticationFailureHandler failureHandler, ThreadPool threadPool, RestController controller) {
         super(settings);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);

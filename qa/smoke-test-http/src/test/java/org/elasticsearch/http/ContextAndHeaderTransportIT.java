@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.transport;
+package org.elasticsearch.http;
 
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.ActionListener;
@@ -87,6 +87,11 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
+    }
+
+    @Override
+    protected boolean ignoreExternalCluster() {
+        return true;
     }
 
     @Override

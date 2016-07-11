@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.rest;
+package org.elasticsearch.http;
 
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Response;

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.rest;
+package org.elasticsearch.http;
 
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
@@ -43,8 +43,6 @@ import static org.hamcrest.Matchers.nullValue;
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
 public class CorsRegexIT extends ESIntegTestCase {
 
-    protected static final ESLogger logger = Loggers.getLogger(CorsRegexIT.class);
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
@@ -55,6 +53,11 @@ public class CorsRegexIT extends ESIntegTestCase {
                 .put(SETTING_CORS_ENABLED.getKey(), true)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
+    }
+
+    @Override
+    protected boolean ignoreExternalCluster() {
+        return true;
     }
 
     public void testThatRegularExpressionWorksOnMatch() throws Exception {

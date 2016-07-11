@@ -17,45 +17,45 @@
  * under the License.
  */
 
-package org.elasticsearch.options.detailederrors;
+package org.elasticsearch.http;
 
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.Collections;
 
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 /**
- * Tests that when disabling detailed errors, a request with the error_trace parameter returns a HTTP 400
+ * Tests that by default the error_trace parameter can be used to show stacktraces
  */
-@ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
-public class DetailedErrorsDisabledIT extends ESIntegTestCase {
-    // Build our cluster settings
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put(HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED.getKey(), false)
-                .build();
-    }
+public class DetailedErrorsEnabledIT extends ESIntegTestCase {
 
-    public void testThatErrorTraceParamReturns400() throws Exception {
+    public void testThatErrorTraceWorksByDefault() throws Exception {
         try {
             getRestClient().performRequest("DELETE", "/", Collections.singletonMap("error_trace", "true"));
             fail("request should have failed");
         } catch(ResponseException e) {
             Response response = e.getResponse();
-            assertThat(response.getHeader("Content-Type"), is("application/json"));
-            assertThat(e.getResponseBody(), is("{\"error\":\"error traces in responses are disabled.\"}"));
-            assertThat(response.getStatusLine().getStatusCode(), is(400));
+            assertThat(response.getHeader("Content-Type"), containsString("application/json"));
+            assertThat(e.getResponseBody(), containsString("\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; " +
+                    "nested: ActionRequestValidationException[Validation Failed: 1:"));
+        }
+
+        try {
+            getRestClient().performRequest("DELETE", "/");
+            fail("request should have failed");
+        } catch(ResponseException e) {
+            Response response = e.getResponse();
+            assertThat(response.getHeader("Content-Type"), containsString("application/json"));
+            assertThat(e.getResponseBody(), not(containsString("\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; "
+                    + "nested: ActionRequestValidationException[Validation Failed: 1:")));
         }
     }
 }

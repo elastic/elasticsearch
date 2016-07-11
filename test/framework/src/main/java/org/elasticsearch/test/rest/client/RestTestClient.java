@@ -26,10 +26,8 @@ import org.apache.http.client.config.RequestConfig;
 import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
 import org.apache.http.conn.socket.ConnectionSocketFactory;
-import org.apache.http.conn.socket.PlainConnectionSocketFactory;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.message.BasicHeader;
@@ -81,11 +79,6 @@ public class RestTestClient implements Closeable {
     public static final String PROTOCOL = "protocol";
     public static final String TRUSTSTORE_PATH = "truststore.path";
     public static final String TRUSTSTORE_PASSWORD = "truststore.password";
-
-    public static final int CONNECT_TIMEOUT_MILLIS = 1000;
-    public static final int SOCKET_TIMEOUT_MILLIS = 30000;
-    public static final int MAX_RETRY_TIMEOUT_MILLIS = SOCKET_TIMEOUT_MILLIS;
-    public static final int CONNECTION_REQUEST_TIMEOUT_MILLIS = 500;
 
     private static final ESLogger logger = Loggers.getLogger(RestTestClient.class);
     //query_string params that don't need to be declared in the spec, thay are supported by default
@@ -274,7 +267,7 @@ public class RestTestClient implements Closeable {
     }
 
     private static RestClient createRestClient(URL[] urls, Settings settings) throws IOException {
-        SSLConnectionSocketFactory sslsf;
+        PoolingHttpClientConnectionManager connectionManager;
         String keystorePath = settings.get(TRUSTSTORE_PATH);
         if (keystorePath != null) {
             final String keystorePass = settings.get(TRUSTSTORE_PASSWORD);
@@ -291,29 +284,18 @@ public class RestTestClient implements Closeable {
                     keyStore.load(is, keystorePass.toCharArray());
                 }
                 SSLContext sslcontext = SSLContexts.custom().loadTrustMaterial(keyStore, null).build();
-                sslsf = new SSLConnectionSocketFactory(sslcontext);
+                Registry<ConnectionSocketFactory> socketFactoryRegistry = RegistryBuilder.<ConnectionSocketFactory>create()
+                        .register("https", new SSLConnectionSocketFactory(sslcontext)).build();
+                connectionManager = new PoolingHttpClientConnectionManager(socketFactoryRegistry);
             } catch (KeyStoreException|NoSuchAlgorithmException|KeyManagementException|CertificateException e) {
                 throw new RuntimeException(e);
             }
         } else {
-            sslsf = SSLConnectionSocketFactory.getSocketFactory();
+            connectionManager = new PoolingHttpClientConnectionManager();
         }
-
-        Registry<ConnectionSocketFactory> socketFactoryRegistry = RegistryBuilder.<ConnectionSocketFactory>create()
-                .register("http", PlainConnectionSocketFactory.getSocketFactory())
-                .register("https", sslsf)
-                .build();
-        PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager(socketFactoryRegistry);
         //default settings may be too constraining
         connectionManager.setDefaultMaxPerRoute(10);
         connectionManager.setMaxTotal(30);
-
-        //default timeouts are all infinite
-        RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(CONNECT_TIMEOUT_MILLIS)
-            .setSocketTimeout(SOCKET_TIMEOUT_MILLIS)
-            .setConnectionRequestTimeout(CONNECTION_REQUEST_TIMEOUT_MILLIS).build();
-        CloseableHttpClient httpClient = HttpClientBuilder.create()
-            .setConnectionManager(connectionManager).setDefaultRequestConfig(requestConfig).build();
 
         String protocol = settings.get(PROTOCOL, "http");
         HttpHost[] hosts = new HttpHost[urls.length];
@@ -322,7 +304,18 @@ public class RestTestClient implements Closeable {
             hosts[i] = new HttpHost(url.getHost(), url.getPort(), protocol);
         }
 
-        RestClient.Builder builder = RestClient.builder(hosts).setHttpClient(httpClient).setMaxRetryTimeoutMillis(MAX_RETRY_TIMEOUT_MILLIS);
+        RestClient.Builder builder = RestClient.builder(hosts).setMaxRetryTimeoutMillis(30000)
+                .setHttpClientConfigCallback(new RestClient.HttpClientConfigCallback() {
+            @Override
+            public void customizeDefaultRequestConfig(RequestConfig.Builder requestConfigBuilder) {
+                requestConfigBuilder.setSocketTimeout(30000);
+            }
+
+            @Override
+            public void customizeHttpClient(HttpClientBuilder httpClientBuilder) {
+                httpClientBuilder.setConnectionManager(connectionManager);
+            }
+        });
         try (ThreadContext threadContext = new ThreadContext(settings)) {
             Header[] defaultHeaders = new Header[threadContext.getHeaders().size()];
             int i = 0;

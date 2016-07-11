@@ -22,9 +22,9 @@ import org.apache.http.Header;
 import org.apache.http.HttpException;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpResponseInterceptor;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.protocol.HttpContext;
 import org.elasticsearch.client.Response;
@@ -50,7 +50,7 @@ public class HttpCompressionIT extends ESIntegTestCase {
         ensureGreen();
         // we need to intercept early, otherwise internal logic in HttpClient will just remove the header and we cannot verify it
         ContentEncodingHeaderExtractor headerExtractor = new ContentEncodingHeaderExtractor();
-        try (RestClient client = createRestClient(HttpClients.custom().addInterceptorFirst(headerExtractor).build())) {
+        try (RestClient client = createRestClient(new ContentEncodingHeaderExtractorConfigCallback(headerExtractor))) {
             try (Response response = client.performRequest("GET", "/", new BasicHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING))) {
                 assertEquals(200, response.getStatusLine().getStatusCode());
                 assertTrue(headerExtractor.hasContentEncodingHeader());
@@ -62,8 +62,7 @@ public class HttpCompressionIT extends ESIntegTestCase {
     public void testUncompressedResponseByDefault() throws Exception {
         ensureGreen();
         ContentEncodingHeaderExtractor headerExtractor = new ContentEncodingHeaderExtractor();
-        CloseableHttpClient httpClient = HttpClients.custom().disableContentCompression().addInterceptorFirst(headerExtractor).build();
-        try (RestClient client = createRestClient(httpClient)) {
+        try (RestClient client = createRestClient(new NoContentCompressionConfigCallback(headerExtractor))) {
             try (Response response = client.performRequest("GET", "/")) {
                 assertEquals(200, response.getStatusLine().getStatusCode());
                 assertFalse(headerExtractor.hasContentEncodingHeader());
@@ -75,8 +74,7 @@ public class HttpCompressionIT extends ESIntegTestCase {
         ensureGreen();
         ContentEncodingHeaderExtractor headerExtractor = new ContentEncodingHeaderExtractor();
         // this disable content compression in both directions (request and response)
-        CloseableHttpClient httpClient = HttpClients.custom().disableContentCompression().addInterceptorFirst(headerExtractor).build();
-        try (RestClient client = createRestClient(httpClient)) {
+        try (RestClient client = createRestClient(new NoContentCompressionConfigCallback(headerExtractor))) {
             try (Response response = client.performRequest("POST", "/company/employees/1",
                     Collections.emptyMap(), SAMPLE_DOCUMENT)) {
                 assertEquals(201, response.getStatusLine().getStatusCode());
@@ -89,7 +87,7 @@ public class HttpCompressionIT extends ESIntegTestCase {
         ensureGreen();
         ContentEncodingHeaderExtractor headerExtractor = new ContentEncodingHeaderExtractor();
         // we don't call #disableContentCompression() hence the client will send the content compressed
-        try (RestClient client = createRestClient(HttpClients.custom().addInterceptorFirst(headerExtractor).build())) {
+        try (RestClient client = createRestClient(new ContentEncodingHeaderExtractorConfigCallback(headerExtractor))) {
             try (Response response = client.performRequest("POST", "/company/employees/2",
                     Collections.emptyMap(), SAMPLE_DOCUMENT)) {
                 assertEquals(201, response.getStatusLine().getStatusCode());
@@ -117,6 +115,36 @@ public class HttpCompressionIT extends ESIntegTestCase {
 
         public Header getContentEncodingHeader() {
             return contentEncodingHeader;
+        }
+    }
+
+    private static class NoContentCompressionConfigCallback extends ContentEncodingHeaderExtractorConfigCallback {
+        NoContentCompressionConfigCallback(ContentEncodingHeaderExtractor contentEncodingHeaderExtractor) {
+            super(contentEncodingHeaderExtractor);
+        }
+
+        @Override
+        public void customizeHttpClient(HttpClientBuilder httpClientBuilder) {
+            super.customizeHttpClient(httpClientBuilder);
+            httpClientBuilder.disableContentCompression();
+        }
+    }
+
+    private static class ContentEncodingHeaderExtractorConfigCallback implements RestClient.HttpClientConfigCallback {
+
+        private final ContentEncodingHeaderExtractor contentEncodingHeaderExtractor;
+
+        ContentEncodingHeaderExtractorConfigCallback(ContentEncodingHeaderExtractor contentEncodingHeaderExtractor) {
+            this.contentEncodingHeaderExtractor = contentEncodingHeaderExtractor;
+        }
+
+        @Override
+        public void customizeDefaultRequestConfig(RequestConfig.Builder requestConfigBuilder) {
+        }
+
+        @Override
+        public void customizeHttpClient(HttpClientBuilder httpClientBuilder) {
+            httpClientBuilder.addInterceptorFirst(contentEncodingHeaderExtractor);
         }
     }
 }

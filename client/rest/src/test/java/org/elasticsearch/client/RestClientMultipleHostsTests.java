@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
+import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpRequest;
 import org.apache.http.ProtocolVersion;
@@ -91,7 +92,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
             httpHosts[i] = new HttpHost("localhost", 9200 + i);
         }
         failureListener = new TrackingFailureListener();
-        restClient = RestClient.builder(httpHosts).setHttpClient(httpClient).setFailureListener(failureListener).build();
+        restClient = new RestClient(httpClient, 10000, new Header[0], httpHosts, failureListener);
     }
 
     public void testRoundRobinOkStatusCodes() throws Exception {

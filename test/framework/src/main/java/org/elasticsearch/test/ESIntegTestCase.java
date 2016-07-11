@@ -23,7 +23,6 @@ import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.http.HttpHost;
-import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
@@ -2075,11 +2074,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return restClient;
     }
 
-    protected static RestClient createRestClient(CloseableHttpClient httpClient) {
-        return createRestClient(httpClient, "http");
+    protected static RestClient createRestClient(RestClient.HttpClientConfigCallback httpClientConfigCallback) {
+        return createRestClient(httpClientConfigCallback, "http");
     }
 
-    protected static RestClient createRestClient(CloseableHttpClient httpClient, String protocol) {
+    protected static RestClient createRestClient(RestClient.HttpClientConfigCallback httpClientConfigCallback, String protocol) {
         final NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
         final List<NodeInfo> nodes = nodeInfos.getNodes();
         assertFalse(nodeInfos.hasFailures());
@@ -2093,8 +2092,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         }
         RestClient.Builder builder = RestClient.builder(hosts.toArray(new HttpHost[hosts.size()]));
-        if (httpClient != null) {
-            builder.setHttpClient(httpClient);
+        if (httpClientConfigCallback != null) {
+            builder.setHttpClientConfigCallback(httpClientConfigCallback);
         }
         return builder.build();
     }

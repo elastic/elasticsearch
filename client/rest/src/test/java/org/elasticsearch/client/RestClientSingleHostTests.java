@@ -128,8 +128,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         }
         httpHost = new HttpHost("localhost", 9200);
         failureListener = new TrackingFailureListener();
-        restClient = RestClient.builder(httpHost).setHttpClient(httpClient).setDefaultHeaders(defaultHeaders)
-                .setFailureListener(failureListener).build();
+        restClient = new RestClient(httpClient, 10000, defaultHeaders, new HttpHost[]{httpHost}, failureListener);
     }
 
     /**

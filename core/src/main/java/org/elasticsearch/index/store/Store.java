@@ -846,14 +846,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     logger.warn("failed to build store metadata. checking segment info integrity (with commit [{}])",
                             ex, commit == null ? "no" : "yes");
                     Lucene.checkSegmentInfoIntegrity(directory);
-                    throw ex;
                 } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException cex) {
                     cex.addSuppressed(ex);
                     throw cex;
                 } catch (Exception inner) {
-                    ex.addSuppressed(inner);
-                    throw ex;
+                    inner.addSuppressed(ex);
+                    throw inner;
                 }
+                throw ex;
             }
             return new LoadedMetadata(unmodifiableMap(builder), unmodifiableMap(commitUserDataBuilder), numDocs);
         }

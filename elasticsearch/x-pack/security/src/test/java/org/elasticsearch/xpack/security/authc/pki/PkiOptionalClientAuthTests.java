@@ -35,7 +35,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.SecureRandom;
-import java.util.Collections;
 
 import static org.elasticsearch.test.SecuritySettingsSource.DEFAULT_PASSWORD;
 import static org.elasticsearch.test.SecuritySettingsSource.DEFAULT_USER_NAME;
@@ -83,13 +82,13 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
         CloseableHttpClient httpClient = HttpClients.custom().setSSLContext(getSSLContext()).build();
         try (RestClient restClient = createRestClient(httpClient, "https")) {
             try {
-                restClient.performRequest("GET", "_nodes", Collections.emptyMap(), null);
+                restClient.performRequest("GET", "_nodes");
                 fail("request should have failed");
             } catch(ResponseException e) {
                 assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
             }
 
-            try (Response response = restClient.performRequest("GET", "_nodes", Collections.emptyMap(), null,
+            try (Response response = restClient.performRequest("GET", "_nodes",
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
                                     new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {

@@ -10,6 +10,7 @@ import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -103,7 +104,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
         CredentialsProvider provider = new BasicCredentialsProvider();
         provider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(nodeClientUsername(),
                 new String(nodeClientPassword().internalChars())));
-        try (CloseableHttpClient client = HttpClients.custom().setSslcontext(service.sslContext())
+        try (CloseableHttpClient client = HttpClients.custom().setSSLContext(service.sslContext())
                 .setDefaultCredentialsProvider(provider).build();
             CloseableHttpResponse response = client.execute(new HttpGet(getNodeUrl()))) {
             assertThat(response.getStatusLine().getStatusCode(), is(200));
@@ -119,7 +120,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
 
         sslContext.init(null, factory.getTrustManagers(), new SecureRandom());
         SSLConnectionSocketFactory sf = new SSLConnectionSocketFactory(sslContext, new String[]{ "SSLv3" }, null,
-                SSLConnectionSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
+                NoopHostnameVerifier.INSTANCE);
         try (CloseableHttpClient client = HttpClients.custom().setSSLSocketFactory(sf).build()) {
             client.execute(new HttpGet(getNodeUrl()));
             fail("Expected a connection error due to SSLv3 not being supported by default");

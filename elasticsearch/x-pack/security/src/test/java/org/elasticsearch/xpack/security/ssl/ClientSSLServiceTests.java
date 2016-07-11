@@ -41,8 +41,8 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class ClientSSLServiceTests extends ESTestCase {
 
-    Environment env;
-    Path testclientStore;
+    private Environment env;
+    private Path testclientStore;
 
     @Before
     public void setup() throws Exception {
@@ -181,7 +181,7 @@ public class ClientSSLServiceTests extends ESTestCase {
     public void testThatSSLContextWithoutSettingsWorks() throws Exception {
         ClientSSLService sslService = createClientSSLService(Settings.EMPTY);
         SSLContext sslContext = sslService.sslContext();
-        try (CloseableHttpClient client = HttpClients.custom().setSslcontext(sslContext).build()) {
+        try (CloseableHttpClient client = HttpClients.custom().setSSLContext(sslContext).build()) {
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA
             // This will result in a SSLHandshakeException if the SSLContext does not trust the CA, but the default
             // truststore trusts all common public CAs so the handshake will succeed
@@ -196,7 +196,7 @@ public class ClientSSLServiceTests extends ESTestCase {
                 .put("xpack.security.ssl.keystore.password", "testclient")
                 .build());
         SSLContext sslContext = sslService.sslContext();
-        try (CloseableHttpClient client = HttpClients.custom().setSslcontext(sslContext).build()) {
+        try (CloseableHttpClient client = HttpClients.custom().setSSLContext(sslContext).build()) {
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA which will succeed because the JDK
             // certs are trusted by default
             client.execute(new HttpGet("https://www.elastic.co/")).close();
@@ -208,7 +208,7 @@ public class ClientSSLServiceTests extends ESTestCase {
                 .put(Global.INCLUDE_JDK_CERTS_SETTING.getKey(), "false")
                 .build());
         sslContext = sslService.sslContext();
-        try (CloseableHttpClient client = HttpClients.custom().setSslcontext(sslContext).build()) {
+        try (CloseableHttpClient client = HttpClients.custom().setSSLContext(sslContext).build()) {
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA
             // This will result in a SSLHandshakeException because the truststore is the testnodestore, which doesn't
             // trust any public CAs
@@ -283,7 +283,7 @@ public class ClientSSLServiceTests extends ESTestCase {
         }
     }
 
-    ClientSSLService createClientSSLService(Settings settings) {
+    private ClientSSLService createClientSSLService(Settings settings) {
         ClientSSLService clientSSLService = new ClientSSLService(settings, new Global(settings));
         clientSSLService.setEnvironment(env);
         return clientSSLService;

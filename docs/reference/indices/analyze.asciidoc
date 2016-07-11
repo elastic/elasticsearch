@@ -70,7 +70,7 @@ can also be provided to use a different analyzer:
 curl -XGET 'localhost:9200/test/_analyze' -d '
 {
   "analyzer" : "whitespace",
-  "text : "this is a test"
+  "text" : "this is a test"
 }'
 --------------------------------------------------
 

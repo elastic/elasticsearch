@@ -32,7 +32,9 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
@@ -52,7 +54,8 @@ import java.util.Objects;
 import java.util.Set;
 
 public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHitsAggregationBuilder> {
-    public static final String NAME = InternalTopHits.TYPE.name();
+    public static final String NAME = "top_hits";
+    private static final InternalAggregation.Type TYPE = new Type(NAME);
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private int from = 0;
@@ -68,14 +71,14 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     private FetchSourceContext fetchSourceContext;
 
     public TopHitsAggregationBuilder(String name) {
-        super(name, InternalTopHits.TYPE);
+        super(name, TYPE);
     }
 
     /**
      * Read from a stream.
      */
     public TopHitsAggregationBuilder(StreamInput in) throws IOException {
-        super(in, InternalTopHits.TYPE);
+        super(in, TYPE);
         explain = in.readBoolean();
         fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);
         if (in.readBoolean()) {

@@ -126,7 +126,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
     private List<PipelineAggregator> pipelineAggregators;
 
     /** Constructs an un initialized addAggregation (used for serialization) **/
-    protected InternalAggregation() {}
+    protected InternalAggregation() {} // NORELEASE remove when removing Streamable
 
     /**
      * Constructs an get with a given name.

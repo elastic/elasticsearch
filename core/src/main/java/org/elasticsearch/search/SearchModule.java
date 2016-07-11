@@ -536,8 +536,11 @@ public class SearchModule extends AbstractModule {
                 RangeAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalRange::new));
         registerAggregation(new AggregationSpec(DateRangeAggregationBuilder::new, new DateRangeParser(),
                 DateRangeAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalDateRange::new));
-        registerAggregation(IpRangeAggregationBuilder::new, new IpRangeParser(), IpRangeAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(HistogramAggregationBuilder::new, new HistogramParser(), HistogramAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(
+                new AggregationSpec(IpRangeAggregationBuilder::new, new IpRangeParser(), IpRangeAggregationBuilder.AGGREGATION_NAME_FIELD)
+                        .addResultReader(InternalBinaryRange::new));
+        registerAggregation(new AggregationSpec(HistogramAggregationBuilder::new, new HistogramParser(),
+                HistogramAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalHistogram::new));
         registerAggregation(DateHistogramAggregationBuilder::new, new DateHistogramParser(),
                 DateHistogramAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(new AggregationSpec(GeoDistanceAggregationBuilder::new, new GeoDistanceParser(),
@@ -548,8 +551,8 @@ public class SearchModule extends AbstractModule {
                 NestedAggregationBuilder.AGGREGATION_FIELD_NAME).addResultReader(InternalNested::new));
         registerAggregation(new AggregationSpec(ReverseNestedAggregationBuilder::new, ReverseNestedAggregationBuilder::parse,
                 ReverseNestedAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalReverseNested::new));
-        registerAggregation(TopHitsAggregationBuilder::new, TopHitsAggregationBuilder::parse,
-                TopHitsAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(new AggregationSpec(TopHitsAggregationBuilder::new, TopHitsAggregationBuilder::parse,
+                TopHitsAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalTopHits::new));
         registerAggregation(new AggregationSpec(GeoBoundsAggregationBuilder::new, new GeoBoundsParser(),
                 GeoBoundsAggregationBuilder.AGGREGATION_NAME_FIED).addResultReader(InternalGeoBounds::new));
         registerAggregation(new AggregationSpec(GeoCentroidAggregationBuilder::new, new GeoCentroidParser(),
@@ -821,11 +824,6 @@ public class SearchModule extends AbstractModule {
     }
 
     static {
-        // buckets
-        InternalBinaryRange.registerStream();
-        InternalHistogram.registerStream();
-        InternalTopHits.registerStreams();
-
         // Pipeline Aggregations
         DerivativePipelineAggregator.registerStreams();
         InternalDerivative.registerStreams();

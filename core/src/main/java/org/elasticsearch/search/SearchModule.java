@@ -591,7 +591,8 @@ public class SearchModule extends AbstractModule {
                 ReverseNestedAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(TopHitsAggregationBuilder::new, TopHitsAggregationBuilder::parse,
                 TopHitsAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(GeoBoundsAggregationBuilder::new, new GeoBoundsParser(), GeoBoundsAggregationBuilder.AGGREGATION_NAME_FIED);
+        registerAggregation(new AggregationSpec(GeoBoundsAggregationBuilder::new, new GeoBoundsParser(),
+                GeoBoundsAggregationBuilder.AGGREGATION_NAME_FIED).addResultReader(InternalGeoBounds::new));
         registerAggregation(new AggregationSpec(GeoCentroidAggregationBuilder::new, new GeoCentroidParser(),
                 GeoCentroidAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalGeoCentroid::new));
         registerAggregation(new AggregationSpec(ScriptedMetricAggregationBuilder::new, ScriptedMetricAggregationBuilder::parse,
@@ -787,7 +788,6 @@ public class SearchModule extends AbstractModule {
         InternalNested.registerStream();
         InternalReverseNested.registerStream();
         InternalTopHits.registerStreams();
-        InternalGeoBounds.registerStream();
         InternalChildren.registerStream();
 
         // Pipeline Aggregations

@@ -292,7 +292,7 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
     public static class ActionLoggingPlugin extends Plugin implements ActionPlugin {
 
         @Override
-        public Collection<Module> nodeModules() {
+        public Collection<Module> createGuiceModules() {
             return Collections.<Module>singletonList(new ActionLoggingModule());
         }
 

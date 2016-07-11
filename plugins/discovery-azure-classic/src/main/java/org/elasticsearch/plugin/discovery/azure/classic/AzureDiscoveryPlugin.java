@@ -51,7 +51,7 @@ public class AzureDiscoveryPlugin extends Plugin {
     }
 
     @Override
-    public Collection<Module> nodeModules() {
+    public Collection<Module> createGuiceModules() {
         return Collections.singletonList((Module) new AzureDiscoveryModule(settings));
     }
 

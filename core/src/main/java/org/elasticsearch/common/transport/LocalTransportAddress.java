@@ -25,13 +25,17 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.transport.local.LocalTransport;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicLong;
 
-/**
- *
- */
 public final class LocalTransportAddress implements TransportAddress {
 
     public static final LocalTransportAddress PROTO = new LocalTransportAddress("_na");
+
+    private static final AtomicLong transportAddressIdGenerator = new AtomicLong();
+
+    public static LocalTransportAddress buildUnique() {
+        return new LocalTransportAddress(Long.toString(transportAddressIdGenerator.incrementAndGet()));
+    }
 
     private String id;
 

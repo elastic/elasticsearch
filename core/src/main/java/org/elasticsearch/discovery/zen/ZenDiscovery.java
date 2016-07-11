@@ -19,14 +19,18 @@
 
 package org.elasticsearch.discovery.zen;
 
+import com.google.common.base.Joiner;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.BasicClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateNonMasterUpdateTask;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -35,6 +39,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.Priority;
@@ -133,7 +138,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private final boolean masterElectionFilterDataNodes;
     private final TimeValue masterElectionWaitForJoinsTimeout;
 
-
     private final CopyOnWriteArrayList<InitialStateDiscoveryListener> initialStateListeners = new CopyOnWriteArrayList<>();
 
     private final JoinThreadControl joinThreadControl;
@@ -146,9 +150,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     @Nullable
     private NodeService nodeService;
 
-
     // must initialized in doStart(), when we have the routingService set
     private volatile NodeJoinController nodeJoinController;
+    private volatile NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
 
     @Inject
     public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
@@ -219,6 +223,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         joinThreadControl.start();
         pingService.start();
         this.nodeJoinController = new NodeJoinController(clusterService, routingService, discoverySettings, settings);
+        this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(routingService.getAllocationService(), electMaster, new NodeRemovalClusterStateTaskExecutor.Rejoin() {
+            @Override
+            public ClusterState apply(ClusterState clusterState, String reason) {
+                return ZenDiscovery.this.rejoin(clusterState, reason);
+            }
+        }, logger);
     }
 
     @Override
@@ -469,38 +479,122 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
     }
 
+    // visible for testing
+    static class NodeRemovalClusterStateTaskExecutor extends ClusterStateTaskExecutor<NodeRemovalClusterStateTaskExecutor.Task> implements ClusterStateTaskListener {
+
+        private final AllocationService allocationService;
+        private final ElectMasterService electMasterService;
+        private final Rejoin rejoin;
+        private final ESLogger logger;
+
+        static class Task {
+
+            private final DiscoveryNode node;
+            private final String reason;
+
+            public Task(final DiscoveryNode node, final String reason) {
+                this.node = node;
+                this.reason = reason;
+            }
+
+            public DiscoveryNode node() {
+                return node;
+            }
+
+            public String reason() {
+                return reason;
+            }
+
+            @Override
+            public String toString() {
+                return node + " " + reason;
+            }
+
+        }
+
+        interface Rejoin {
+            ClusterState apply(ClusterState clusterState, String reason);
+        }
+
+        NodeRemovalClusterStateTaskExecutor(
+                final AllocationService allocationService,
+                final ElectMasterService electMasterService,
+                final Rejoin rejoin,
+                final ESLogger logger) {
+            this.allocationService = allocationService;
+            this.electMasterService = electMasterService;
+            this.rejoin = rejoin;
+            this.logger = logger;
+        }
+
+        @Override
+        public BatchResult<Task> execute(final ClusterState currentState, final List<Task> tasks) throws Exception {
+            final DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(currentState.nodes());
+            boolean removed = false;
+            for (final Task task : tasks) {
+                if (currentState.nodes().nodeExists(task.node().getId())) {
+                    remainingNodesBuilder.remove(task.node().getId());
+                    removed = true;
+                } else {
+                    logger.debug("node [{}] does not exist in cluster state, ignoring", task);
+                }
+            }
+
+            if (!removed) {
+                // no nodes to remove, keep the current cluster state
+                return BatchResult.<Task>builder().successes(tasks).build(currentState);
+            }
+
+            final ClusterState remainingNodesClusterState = remainingNodesClusterState(currentState, remainingNodesBuilder);
+
+            final BatchResult.Builder<Task> resultBuilder = BatchResult.<Task>builder().successes(tasks);
+            if (!electMasterService.hasEnoughMasterNodes(remainingNodesClusterState.nodes())) {
+                return resultBuilder.build(rejoin.apply(remainingNodesClusterState, "not enough master nodes"));
+            } else {
+                final RoutingAllocation.Result routingResult = allocationService.reroute(remainingNodesClusterState, Joiner.on(",").join(tasks));
+                return resultBuilder.build(ClusterState.builder(remainingNodesClusterState).routingResult(routingResult).build());
+            }
+        }
+
+        // visible for testing
+        // hook is used in testing to ensure that correct cluster state is used to test whether a
+        // rejoin or reroute is needed
+        ClusterState remainingNodesClusterState(final ClusterState currentState, DiscoveryNodes.Builder remainingNodesBuilder) {
+            return ClusterState.builder(currentState).nodes(remainingNodesBuilder).build();
+        }
+
+        @Override
+        public void onFailure(String source, Throwable t) {
+            logger.error("unexpected failure during [{}]", t, source);
+        }
+
+        @Override
+        public void onNoLongerMaster(String source) {
+            logger.debug("no longer master while processing node removal [{}]", source);
+        }
+
+        @Override
+        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+        }
+
+    }
+
+    private void removeNode(final DiscoveryNode node, final String source, final String reason) {
+        clusterService.submitStateUpdateTask(
+                source + "(" + node + "), reason(" + reason + ")",
+                new NodeRemovalClusterStateTaskExecutor.Task(node, reason),
+                BasicClusterStateTaskConfig.create(Priority.IMMEDIATE),
+                nodeRemovalExecutor,
+                nodeRemovalExecutor);
+    }
+
     private void handleLeaveRequest(final DiscoveryNode node) {
         if (lifecycleState() != Lifecycle.State.STARTED) {
             // not started, ignore a node failure
             return;
         }
         if (localNodeMaster()) {
-            clusterService.submitStateUpdateTask("zen-disco-node_left(" + node + ")", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes()).remove(node.id());
-                    currentState = ClusterState.builder(currentState).nodes(builder).build();
-                    // check if we have enough master nodes, if not, we need to move into joining the cluster again
-                    if (!electMaster.hasEnoughMasterNodes(currentState.nodes())) {
-                        return rejoin(currentState, "not enough master nodes");
-                    }
-                    // eagerly run reroute to remove dead nodes from routing table
-                    RoutingAllocation.Result routingResult = routingService.getAllocationService().reroute(
-                            ClusterState.builder(currentState).build(),
-                            "[" + node + "] left");
-                    return ClusterState.builder(currentState).routingResult(routingResult).build();
-                }
-
-                @Override
-                public void onNoLongerMaster(String source) {
-                    // ignoring (already logged)
-                }
-
-                @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.error("unexpected failure during [{}]", t, source);
-                }
-            });
+            removeNode(node, "zen-disco-node-left", "left");
         } else if (node.equals(nodes().masterNode())) {
             handleMasterGone(node, "shut_down");
         }
@@ -515,42 +609,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             // nothing to do here...
             return;
         }
-        clusterService.submitStateUpdateTask("zen-disco-node_failed(" + node + "), reason " + reason, new ClusterStateUpdateTask(Priority.IMMEDIATE) {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                if (currentState.nodes().get(node.id()) == null) {
-                    logger.debug("node [{}] already removed from cluster state. ignoring.", node);
-                    return currentState;
-                }
-                DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes())
-                        .remove(node.id());
-                currentState = ClusterState.builder(currentState).nodes(builder).build();
-                // check if we have enough master nodes, if not, we need to move into joining the cluster again
-                if (!electMaster.hasEnoughMasterNodes(currentState.nodes())) {
-                    return rejoin(currentState, "not enough master nodes");
-                }
-                // eagerly run reroute to remove dead nodes from routing table
-                RoutingAllocation.Result routingResult = routingService.getAllocationService().reroute(
-                        ClusterState.builder(currentState).build(),
-                        "[" + node + "] failed");
-                return ClusterState.builder(currentState).routingResult(routingResult).build();
-            }
-
-            @Override
-            public void onNoLongerMaster(String source) {
-                // already logged
-            }
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                logger.error("unexpected failure during [{}]", t, source);
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                sendInitialStateEventIfNeeded();
-            }
-        });
+        removeNode(node, "zen-disco-node-failed", reason);
     }
 
     private void handleMinimumMasterNodesChanged(final int minimumMasterNodes) {

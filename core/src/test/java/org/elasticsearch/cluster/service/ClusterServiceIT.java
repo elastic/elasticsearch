@@ -520,7 +520,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertThat(clusterService.state().nodes().getMasterNode(), notNullValue());
         assertThat(clusterService.state().nodes().isLocalNodeElectedMaster(), is(true));
         assertThat(testService.master(), is(true));
-
         String node_1 = internalCluster().startNode(settings);
         final ClusterService clusterService1 = internalCluster().getInstance(ClusterService.class, node_1);
         MasterAwareService testService1 = internalCluster().getInstance(MasterAwareService.class, node_1);

@@ -386,10 +386,6 @@ public final class InternalTestCluster extends TestCluster {
     private Collection<Class<? extends Plugin>> getPlugins() {
         Set<Class<? extends Plugin>> plugins = new HashSet<>(nodeConfigurationSource.nodePlugins());
         plugins.addAll(mockPlugins);
-        if (isLocalTransportConfigured() == false) {
-            // this is crazy we must do this here...we should really just always be using local transport...
-            plugins.remove(AssertingLocalTransport.TestPlugin.class);
-        }
         return plugins;
     }
 

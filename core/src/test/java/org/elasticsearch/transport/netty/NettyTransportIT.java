@@ -39,6 +39,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.Transports;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
@@ -63,6 +64,7 @@ public class NettyTransportIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(Node.NODE_MODE_SETTING.getKey(), "network")
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, "netty")
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, "exception-throwing").build();
     }
 

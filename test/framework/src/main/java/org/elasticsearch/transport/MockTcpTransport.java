@@ -54,6 +54,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -174,9 +175,13 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
             Consumer<MockChannel> onClose = (channel) -> {
                 final NodeChannels connected = connectedNodes.get(node);
                 if (connected != null && connected.hasChannel(channel)) {
-                    executor.execute(() -> {
-                        disconnectFromNode(node, channel, "channel closed event");
-                    });
+                    try {
+                        executor.execute(() -> {
+                            disconnectFromNode(node, channel, "channel closed event");
+                        });
+                    } catch (RejectedExecutionException ex) {
+                        logger.debug("failed to run disconnectFromNode - node is shutting down");
+                    }
                 }
             };
             InetSocketAddress address = ((InetSocketTransportAddress) node.getAddress()).address();

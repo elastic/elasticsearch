@@ -132,6 +132,8 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * A node represent a node within a cluster (<tt>cluster.name</tt>). The {@link #client()} can be used
@@ -182,6 +184,7 @@ public class Node implements Closeable {
     private final NodeEnvironment nodeEnvironment;
     private final PluginsService pluginsService;
     private final NodeClient client;
+    private final Collection<LifecycleComponent> pluginLifecycleComponents;
 
     /**
      * Constructs a node with the given settings.
@@ -192,6 +195,7 @@ public class Node implements Closeable {
         this(InternalSettingsPreparer.prepareEnvironment(preparedSettings, null), Collections.<Class<? extends Plugin>>emptyList());
     }
 
+    @SuppressWarnings("unchecked")
     protected Node(Environment tmpEnv, Collection<Class<? extends Plugin>> classpathPlugins) {
         Settings tmpSettings = Settings.builder().put(tmpEnv.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
@@ -300,6 +304,7 @@ public class Node implements Closeable {
             resourcesToClose.add(bigArrays);
             modules.add(settingsModule);
             client = new NodeClient(settings, threadPool);
+            Collection<Object> pluginComponents = pluginsService.createComponenents();
             modules.add(b -> {
                     b.bind(PluginsService.class).toInstance(pluginsService);
                     b.bind(Client.class).toInstance(client);
@@ -314,9 +319,18 @@ public class Node implements Closeable {
                     b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
                     b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                     b.bind(IngestService.class).toInstance(ingestService);
+                    pluginComponents.stream().forEach(p -> b.bind((Class)p.getClass()).toInstance(p));
                 }
             );
             injector = modules.createInjector();
+
+            List<LifecycleComponent> pluginLifecycles = pluginComponents.stream()
+                .filter(p -> p instanceof LifecycleComponent)
+                .map(p -> (LifecycleComponent)p).collect(Collectors.toList());
+            pluginLifecycles.addAll(pluginsService.getGuiceServiceClasses().stream()
+                .map(injector::getInstance).collect(Collectors.toList()));
+            resourcesToClose.addAll(pluginLifecycles);
+            pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycles);
 
             client.intialize(injector.getInstance(new Key<Map<GenericAction, TransportAction>>() {}));
 
@@ -373,9 +387,7 @@ public class Node implements Closeable {
         logger.info("starting ...");
         // hack around dependency injection problem (for now...)
         injector.getInstance(Discovery.class).setAllocationService(injector.getInstance(AllocationService.class));
-        for (Class<? extends LifecycleComponent> plugin : pluginsService.nodeServices()) {
-            injector.getInstance(plugin).start();
-        }
+        pluginLifecycleComponents.forEach(LifecycleComponent::start);
 
         injector.getInstance(MappingUpdatedAction.class).setClient(client);
         injector.getInstance(IndicesService.class).start();
@@ -511,9 +523,7 @@ public class Node implements Closeable {
         injector.getInstance(RestController.class).stop();
         injector.getInstance(TransportService.class).stop();
 
-        for (Class<? extends LifecycleComponent> plugin : pluginsService.nodeServices()) {
-            injector.getInstance(plugin).stop();
-        }
+        pluginLifecycleComponents.forEach(LifecycleComponent::stop);
         // we should stop this last since it waits for resources to get released
         // if we had scroll searchers etc or recovery going on we wait for to finish.
         injector.getInstance(IndicesService.class).stop();
@@ -577,9 +587,9 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
 
-        for (Class<? extends LifecycleComponent> plugin : pluginsService.nodeServices()) {
-            toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getName() + ")"));
-            toClose.add(injector.getInstance(plugin));
+        for (LifecycleComponent plugin : pluginLifecycleComponents) {
+            toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));
+            toClose.add(plugin);
         }
         toClose.addAll(pluginsService.filterPlugins(Closeable.class));
 

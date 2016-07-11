@@ -86,7 +86,7 @@ public class Ec2DiscoveryPlugin extends Plugin {
     }
 
     @Override
-    public Collection<Module> nodeModules() {
+    public Collection<Module> createGuiceModules() {
         Collection<Module> modules = new ArrayList<>();
         modules.add(new Ec2Module());
         return modules;
@@ -94,7 +94,7 @@ public class Ec2DiscoveryPlugin extends Plugin {
 
     @Override
     @SuppressWarnings("rawtypes") // Supertype uses rawtype
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
+    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
         Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         services.add(AwsEc2ServiceImpl.class);
         return services;

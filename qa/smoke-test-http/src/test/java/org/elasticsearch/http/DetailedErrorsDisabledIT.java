@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.options.detailederrors;
+package org.elasticsearch.http;
 
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -45,6 +45,11 @@ public class DetailedErrorsDisabledIT extends ESIntegTestCase {
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put(HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED.getKey(), false)
                 .build();
+    }
+
+    @Override
+    protected boolean ignoreExternalCluster() {
+        return true;
     }
 
     public void testThatErrorTraceParamReturns400() throws Exception {

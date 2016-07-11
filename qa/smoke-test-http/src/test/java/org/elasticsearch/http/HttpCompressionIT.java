@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.http.netty;
+package org.elasticsearch.http;
 
 import org.apache.http.Header;
 import org.apache.http.HttpException;
@@ -29,16 +29,13 @@ import org.apache.http.message.BasicHeader;
 import org.apache.http.protocol.HttpContext;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 1)
-public class NettyHttpCompressionIT extends ESIntegTestCase {
+public class HttpCompressionIT extends ESIntegTestCase {
     private static final String GZIP_ENCODING = "gzip";
 
     private static final StringEntity SAMPLE_DOCUMENT = new StringEntity("{\n" +
@@ -48,14 +45,6 @@ public class NettyHttpCompressionIT extends ESIntegTestCase {
         "   }\n" +
         "}", RestClient.JSON_CONTENT_TYPE);
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-            .put(HttpTransportSettings.SETTING_HTTP_COMPRESSION.getKey(), true)
-            .build();
-    }
 
     public void testCompressesResponseIfRequested() throws Exception {
         ensureGreen();

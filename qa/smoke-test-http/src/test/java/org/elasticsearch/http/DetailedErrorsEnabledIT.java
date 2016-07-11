@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.options.detailederrors;
+package org.elasticsearch.http;
 
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -35,15 +35,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * Tests that by default the error_trace parameter can be used to show stacktraces
  */
-@ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
 public class DetailedErrorsEnabledIT extends ESIntegTestCase {
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .build();
-    }
 
     public void testThatErrorTraceWorksByDefault() throws Exception {
         try {

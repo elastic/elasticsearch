@@ -1688,9 +1688,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return Settings.EMPTY;
     }
 
+    protected boolean ignoreExternalCluster() {
+        return false;
+    }
+
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         String clusterAddresses = System.getProperty(TESTS_CLUSTER);
-        if (Strings.hasLength(clusterAddresses)) {
+        if (Strings.hasLength(clusterAddresses) && ignoreExternalCluster() == false) {
             if (scope == Scope.TEST) {
                 throw new IllegalArgumentException("Cannot run TEST scope test with " + TESTS_CLUSTER);
             }

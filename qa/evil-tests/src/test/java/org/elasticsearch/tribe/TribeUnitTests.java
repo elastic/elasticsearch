@@ -24,6 +24,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -56,7 +57,7 @@ public class TribeUnitTests extends ESTestCase {
     @BeforeClass
     public static void createTribes() {
         Settings baseSettings = Settings.builder()
-            .put("http.enabled", false)
+            .put(NetworkModule.HTTP_ENABLED.getKey(), false)
             .put(Node.NODE_MODE_SETTING.getKey(), NODE_MODE)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
 
@@ -95,7 +96,7 @@ public class TribeUnitTests extends ESTestCase {
     private static void assertTribeNodeSuccessfullyCreated(Settings extraSettings) throws Exception {
         //tribe node doesn't need the node.mode setting, as it's forced local internally anyways. The tribe clients do need it to make sure
         //they can find their corresponding tribes using the proper transport
-        Settings settings = Settings.builder().put("http.enabled", false).put("node.name", "tribe_node")
+        Settings settings = Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).put("node.name", "tribe_node")
                 .put("tribe.t1.node.mode", NODE_MODE).put("tribe.t2.node.mode", NODE_MODE)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(Node.NODE_MODE_SETTING.getKey(), NODE_MODE)

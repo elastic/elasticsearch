@@ -22,6 +22,7 @@ package org.elasticsearch.client.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
@@ -55,7 +56,7 @@ public class TransportClientIT extends ESIntegTestCase {
                 .put(internalCluster().getDefaultSettings())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("node.name", "testNodeVersionIsUpdated")
-                .put("http.enabled", false)
+                .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(Node.NODE_DATA_SETTING.getKey(), false)
                 .put("cluster.name", "foobar")
                 .build()).start()) {

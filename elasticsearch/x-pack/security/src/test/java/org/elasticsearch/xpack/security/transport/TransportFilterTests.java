@@ -116,7 +116,7 @@ public class TransportFilterTests extends ESIntegTestCase {
 
     public static class InternalPlugin extends Plugin {
         @Override
-        public Collection<Module> nodeModules() {
+        public Collection<Module> createGuiceModules() {
             return Collections.singletonList(new TestTransportFilterModule());
         }
     }

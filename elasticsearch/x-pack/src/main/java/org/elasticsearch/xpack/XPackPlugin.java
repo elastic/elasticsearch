@@ -140,7 +140,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
     }
 
     @Override
-    public Collection<Module> nodeModules() {
+    public Collection<Module> createGuiceModules() {
         ArrayList<Module> modules = new ArrayList<>();
         modules.add(b -> b.bind(Clock.class).toInstance(getClock()));
         modules.addAll(notification.nodeModules());
@@ -148,7 +148,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
         modules.addAll(security.nodeModules());
         modules.addAll(watcher.nodeModules());
         modules.addAll(monitoring.nodeModules());
-        modules.addAll(graph.nodeModules());
+        modules.addAll(graph.createGuiceModules());
 
         if (transportClientMode == false) {
             modules.add(new HttpClientModule());
@@ -158,14 +158,14 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
     }
 
     @Override
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
+    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
         ArrayList<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         services.addAll(notification.nodeServices());
         services.addAll(licensing.nodeServices());
         services.addAll(security.nodeServices());
         services.addAll(watcher.nodeServices());
         services.addAll(monitoring.nodeServices());
-        services.addAll(graph.nodeServices());
+        services.addAll(graph.getGuiceServiceClasses());
         return services;
     }
 

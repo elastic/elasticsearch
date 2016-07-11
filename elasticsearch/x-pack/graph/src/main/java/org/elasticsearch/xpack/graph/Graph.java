@@ -42,12 +42,12 @@ public class Graph extends Plugin implements ActionPlugin {
         return XPackPlugin.featureEnabled(settings, NAME, true);
     }
 
-    public Collection<Module> nodeModules() {
+    public Collection<Module> createGuiceModules() {
         return Collections.singletonList(new GraphModule(enabled, transportClientMode));
     }
 
     @Override
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
+    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
         if (enabled == false|| transportClientMode) {
             return Collections.emptyList();
         }

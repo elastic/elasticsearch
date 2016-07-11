@@ -46,7 +46,7 @@ public class ShardsTests extends MonitoringIntegTestCase {
                 .put(MonitoringSettings.INTERVAL.getKey(), "-1")
                 .put(MonitoringSettings.COLLECTORS.getKey(), ShardsCollector.NAME)
                 .put(MonitoringSettings.INDICES.getKey(), INDEX_PREFIX + "*")
-                .put("xpack.monitoring.agent.exporters.default_local.type", "local")
+                .put("xpack.monitoring.collection.exporters.default_local.type", "local")
                 .build();
     }
 

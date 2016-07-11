@@ -13,15 +13,14 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.xpack.security.authz.InternalAuthorizationService;
-import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
+import org.elasticsearch.xpack.security.authz.InternalAuthorizationService;
+import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.junit.BeforeClass;
 
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -54,7 +53,7 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
 
     public void testAuthenticateApi() throws Exception {
         try (Response response = getRestClient().performRequest(
-                "GET", "/_xpack/security/_authenticate", Collections.emptyMap(), null,
+                "GET", "/_xpack/security/_authenticate",
                 new BasicHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
                         new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
             assertThat(response.getStatusLine().getStatusCode(), is(200));
@@ -69,8 +68,7 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
     }
 
     public void testAuthenticateApiWithoutAuthentication() throws Exception {
-        try (Response response = getRestClient().performRequest("GET", "/_xpack/security/_authenticate",
-                Collections.emptyMap(), null)) {
+        try (Response response = getRestClient().performRequest("GET", "/_xpack/security/_authenticate")) {
             if (anonymousEnabled) {
                 assertThat(response.getStatusLine().getStatusCode(), is(200));
                 ObjectPath objectPath = ObjectPath.createFromXContent(XContentFactory.xContent(XContentType.JSON),

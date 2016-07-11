@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.xpack.common.secret;
 
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-
 import java.io.IOException;
 import java.util.Arrays;
+
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
 
 /**
  *
@@ -22,7 +23,10 @@ public class Secret implements ToXContent {
         this.text = text;
     }
 
-    public char[] text(SecretService service) {
+    public char[] text(CryptoService service) {
+        if (service == null) {
+            return text;
+        }
         return service.decrypt(text);
     }
 

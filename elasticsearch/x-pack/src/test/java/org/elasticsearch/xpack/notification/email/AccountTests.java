@@ -11,7 +11,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.notification.email.support.EmailServer;
 import org.elasticsearch.xpack.common.secret.Secret;
-import org.elasticsearch.xpack.common.secret.SecretService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -169,7 +168,7 @@ public class AccountTests extends ESTestCase {
                 .put("smtp.port", server.port())
                 .put("smtp.user", USERNAME)
                 .put("smtp.password", PASSWORD)
-                .build()), SecretService.Insecure.INSTANCE, logger);
+                .build()), null, logger);
 
         Email email = Email.builder()
                 .id("_id")
@@ -206,7 +205,7 @@ public class AccountTests extends ESTestCase {
                 .put("smtp.port", server.port())
                 .put("smtp.user", USERNAME)
                 .put("smtp.password", PASSWORD)
-                .build()), SecretService.Insecure.INSTANCE, logger);
+                .build()), null, logger);
 
         Email email = Email.builder()
                 .id("_id")
@@ -246,7 +245,7 @@ public class AccountTests extends ESTestCase {
         Account account = new Account(new Account.Config("default", Settings.builder()
                 .put("smtp.host", "localhost")
                 .put("smtp.port", server.port())
-                .build()), SecretService.Insecure.INSTANCE, logger);
+                .build()), null, logger);
 
         Email email = Email.builder()
                 .id("_id")
@@ -277,7 +276,7 @@ public class AccountTests extends ESTestCase {
         Account account = new Account(new Account.Config("default", Settings.builder()
                 .put("smtp.host", "localhost")
                 .put("smtp.port", server.port())
-                .build()), SecretService.Insecure.INSTANCE, logger);
+                .build()), null, logger);
 
         Properties mailProperties = account.getConfig().smtp.properties;
         assertThat(mailProperties.get("mail.smtp.connectiontimeout"), is(String.valueOf(TimeValue.timeValueMinutes(2).millis())));
@@ -292,7 +291,7 @@ public class AccountTests extends ESTestCase {
                 .put("smtp.connection_timeout", TimeValue.timeValueMinutes(4))
                 .put("smtp.write_timeout", TimeValue.timeValueMinutes(6))
                 .put("smtp.timeout", TimeValue.timeValueMinutes(8))
-                .build()), SecretService.Insecure.INSTANCE, logger);
+                .build()), null, logger);
 
         Properties mailProperties = account.getConfig().smtp.properties;
 
@@ -307,7 +306,7 @@ public class AccountTests extends ESTestCase {
                     .put("smtp.host", "localhost")
                     .put("smtp.port", server.port())
                     .put("smtp.connection_timeout", 4000)
-                    .build()), SecretService.Insecure.INSTANCE, logger);
+                    .build()), null, logger);
         });
     }
 }

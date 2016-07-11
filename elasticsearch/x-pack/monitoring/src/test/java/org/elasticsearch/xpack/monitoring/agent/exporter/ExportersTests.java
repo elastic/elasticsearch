@@ -176,8 +176,8 @@ public class ExportersTests extends ESTestCase {
         final AtomicReference<Settings> settingsHolder = new AtomicReference<>();
 
         Settings nodeSettings = Settings.builder()
-                .put("xpack.monitoring.agent.exporters._name0.type", "_type")
-                .put("xpack.monitoring.agent.exporters._name1.type", "_type")
+                .put("xpack.monitoring.collection.exporters._name0.type", "_type")
+                .put("xpack.monitoring.collection.exporters._name1.type", "_type")
                 .build();
         clusterSettings = new ClusterSettings(nodeSettings, new HashSet<>(Arrays.asList(MonitoringSettings.EXPORTERS_SETTINGS)));
 
@@ -197,8 +197,8 @@ public class ExportersTests extends ESTestCase {
         assertThat(settings, hasEntry("_name1.type", "_type"));
 
         Settings update = Settings.builder()
-                .put("xpack.monitoring.agent.exporters._name0.foo", "bar")
-                .put("xpack.monitoring.agent.exporters._name1.foo", "bar")
+                .put("xpack.monitoring.collection.exporters._name0.foo", "bar")
+                .put("xpack.monitoring.collection.exporters._name1.foo", "bar")
                 .build();
         clusterSettings.applySettings(update);
         assertThat(settingsHolder.get(), notNullValue());
@@ -216,8 +216,8 @@ public class ExportersTests extends ESTestCase {
         factories.put("mock", factory);
         factories.put("mock_master_only", masterOnlyFactory);
         Exporters exporters = new Exporters(Settings.builder()
-                .put("xpack.monitoring.agent.exporters._name0.type", "mock")
-                .put("xpack.monitoring.agent.exporters._name1.type", "mock_master_only")
+                .put("xpack.monitoring.collection.exporters._name0.type", "mock")
+                .put("xpack.monitoring.collection.exporters._name1.type", "mock_master_only")
                 .build(), factories, clusterService, clusterSettings);
         exporters.start();
 
@@ -241,8 +241,8 @@ public class ExportersTests extends ESTestCase {
         factories.put("mock", factory);
         factories.put("mock_master_only", masterOnlyFactory);
         Exporters exporters = new Exporters(Settings.builder()
-                .put("xpack.monitoring.agent.exporters._name0.type", "mock")
-                .put("xpack.monitoring.agent.exporters._name1.type", "mock_master_only")
+                .put("xpack.monitoring.collection.exporters._name0.type", "mock")
+                .put("xpack.monitoring.collection.exporters._name1.type", "mock_master_only")
                 .build(), factories, clusterService, clusterSettings);
         exporters.start();
 
@@ -270,7 +270,7 @@ public class ExportersTests extends ESTestCase {
         logger.info("--> creating {} exporters", nbExporters);
         Settings.Builder settings = Settings.builder();
         for (int i = 0; i < nbExporters; i++) {
-            settings.put("xpack.monitoring.agent.exporters._name" + String.valueOf(i) + ".type", "record");
+            settings.put("xpack.monitoring.collection.exporters._name" + String.valueOf(i) + ".type", "record");
         }
 
         Exporter.Factory factory = new CountingExportFactory("record", false);

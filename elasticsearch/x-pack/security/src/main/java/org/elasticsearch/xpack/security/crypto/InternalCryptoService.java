@@ -5,20 +5,6 @@
  */
 package org.elasticsearch.xpack.security.crypto;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.watcher.FileChangesListener;
-import org.elasticsearch.watcher.FileWatcher;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.security.authc.support.CharArrays;
-
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
@@ -27,7 +13,6 @@ import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -39,16 +24,25 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
+
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.security.authc.support.CharArrays;
 
 import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.authc.support.SecuredString.constantTimeEquals;
 
-public class InternalCryptoService extends AbstractLifecycleComponent implements CryptoService {
+public class InternalCryptoService extends AbstractComponent implements CryptoService {
 
     public static final String KEY_ALGO = "HmacSHA512";
     public static final int KEY_SIZE = 1024;
@@ -73,65 +67,33 @@ public class InternalCryptoService extends AbstractLifecycleComponent implements
     public static final Setting<String> ENCRYPTION_KEY_ALGO_SETTING =
             new Setting<>(setting("encryption_key.algorithm"), DEFAULT_KEY_ALGORITH, s -> s, Property.NodeScope);
 
-    private final Environment env;
-    private final ResourceWatcherService watcherService;
-    private final List<Listener> listeners;
     private final SecureRandom secureRandom = new SecureRandom();
     private final String encryptionAlgorithm;
     private final String keyAlgorithm;
     private final int keyLength;
     private final int ivLength;
 
-    private Path keyFile;
+    private final Path keyFile;
 
-    private SecretKey randomKey;
-    private String randomKeyBase64;
+    private final SecretKey randomKey;
+    private final String randomKeyBase64;
 
-    private volatile SecretKey encryptionKey;
-    private volatile SecretKey systemKey;
-    private volatile SecretKey signingKey;
+    private final SecretKey encryptionKey;
+    private final SecretKey systemKey;
+    private final SecretKey signingKey;
 
     @Inject
-    public InternalCryptoService(Settings settings, Environment env, ResourceWatcherService watcherService) {
-        this(settings, env, watcherService, Collections.<Listener>emptyList());
-    }
-
-    InternalCryptoService(Settings settings, Environment env, ResourceWatcherService watcherService, List<Listener> listeners) {
+    public InternalCryptoService(Settings settings, Environment env) throws Exception {
         super(settings);
-        this.env = env;
-        this.watcherService = watcherService;
-        this.listeners = new CopyOnWriteArrayList<>(listeners);
         this.encryptionAlgorithm = ENCRYPTION_ALGO_SETTING.get(settings);
         this.keyLength = ENCRYPTION_KEY_LENGTH_SETTING.get(settings);
         this.ivLength = keyLength / 8;
         this.keyAlgorithm = ENCRYPTION_KEY_ALGO_SETTING.get(settings);
-    }
 
-    @Override
-    protected void doStart() throws ElasticsearchException {
         if (keyLength % 8 != 0) {
             throw new IllegalArgumentException("invalid key length [" + keyLength + "]. value must be a multiple of 8");
         }
 
-        loadKeys();
-        FileWatcher watcher = new FileWatcher(keyFile.getParent());
-        watcher.addListener(new FileListener(listeners));
-        try {
-            watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
-        } catch (IOException e) {
-            throw new ElasticsearchException("failed to start watching system key file [" + keyFile.toAbsolutePath() + "]", e);
-        }
-    }
-
-    @Override
-    protected void doStop() throws ElasticsearchException {
-    }
-
-    @Override
-    protected void doClose() throws ElasticsearchException {
-    }
-
-    private void loadKeys() {
         keyFile = resolveSystemKey(settings, env);
         systemKey = readSystemKey(keyFile);
         randomKey = generateSecretKey(RANDOM_KEY_SIZE);
@@ -144,6 +106,7 @@ public class InternalCryptoService extends AbstractLifecycleComponent implements
         } catch (NoSuchAlgorithmException nsae) {
             throw new ElasticsearchException("failed to start crypto service. could not load encryption key", nsae);
         }
+        logger.info("system key [{}] has been loaded", keyFile.toAbsolutePath());
     }
 
     public static byte[] generateKey() {
@@ -194,23 +157,12 @@ public class InternalCryptoService extends AbstractLifecycleComponent implements
 
     @Override
     public String sign(String text) throws IOException {
-        return sign(text, this.signingKey, this.systemKey);
-    }
-
-    @Override
-    public String sign(String text, SecretKey signingKey, @Nullable SecretKey systemKey) throws IOException {
-        assert signingKey != null;
         String sigStr = signInternal(text, signingKey);
         return "$$" + sigStr.length() + "$$" + (systemKey == signingKey ? "" : randomKeyBase64) + "$$" + sigStr + text;
     }
 
     @Override
     public String unsignAndVerify(String signedText) {
-        return unsignAndVerify(signedText, this.systemKey);
-    }
-
-    @Override
-    public String unsignAndVerify(String signedText, SecretKey systemKey) {
         if (!signedText.startsWith("$$") || signedText.length() < 2) {
             throw new IllegalArgumentException("tampered signed text");
         }
@@ -276,7 +228,7 @@ public class InternalCryptoService extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public boolean signed(String text) {
+    public boolean isSigned(String text) {
         return SIG_PATTERN.matcher(text).matches();
     }
 
@@ -295,32 +247,12 @@ public class InternalCryptoService extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public byte[] encrypt(byte[] bytes) {
-        SecretKey key = this.encryptionKey;
-        if (key == null) {
-            logger.warn("encrypt called without a key, returning plain text. run syskeygen and copy same key to all nodes to enable " +
-                    "encryption");
-            return bytes;
-        }
-        byte[] encrypted = encryptInternal(bytes, key);
-        byte[] prefixed = new byte[ENCRYPTED_BYTE_PREFIX.length + encrypted.length];
-        System.arraycopy(ENCRYPTED_BYTE_PREFIX, 0, prefixed, 0, ENCRYPTED_BYTE_PREFIX.length);
-        System.arraycopy(encrypted, 0, prefixed, ENCRYPTED_BYTE_PREFIX.length, encrypted.length);
-        return prefixed;
-    }
-
-    @Override
     public char[] decrypt(char[] chars) {
-        return decrypt(chars, this.encryptionKey);
-    }
-
-    @Override
-    public char[] decrypt(char[] chars, SecretKey key) {
-        if (key == null) {
+        if (encryptionKey == null) {
             return chars;
         }
 
-        if (!encrypted(chars)) {
+        if (!isEncrypted(chars)) {
             // Not encrypted
             return chars;
         }
@@ -333,46 +265,17 @@ public class InternalCryptoService extends AbstractLifecycleComponent implements
             throw new ElasticsearchException("unable to decode encrypted data", e);
         }
 
-        byte[] decrypted = decryptInternal(bytes, key);
+        byte[] decrypted = decryptInternal(bytes, encryptionKey);
         return CharArrays.utf8BytesToChars(decrypted);
     }
 
     @Override
-    public byte[] decrypt(byte[] bytes) {
-        return decrypt(bytes, this.encryptionKey);
-    }
-
-    @Override
-    public byte[] decrypt(byte[] bytes, SecretKey key) {
-        if (key == null) {
-            return bytes;
-        }
-
-        if (!encrypted(bytes)) {
-            return bytes;
-        }
-
-        byte[] encrypted = Arrays.copyOfRange(bytes, ENCRYPTED_BYTE_PREFIX.length, bytes.length);
-        return decryptInternal(encrypted, key);
-    }
-
-    @Override
-    public boolean encrypted(char[] chars) {
+    public boolean isEncrypted(char[] chars) {
         return CharArrays.charsBeginsWith(ENCRYPTED_TEXT_PREFIX, chars);
     }
 
     @Override
-    public boolean encrypted(byte[] bytes) {
-        return bytesBeginsWith(ENCRYPTED_BYTE_PREFIX, bytes);
-    }
-
-    @Override
-    public void register(Listener listener) {
-        this.listeners.add(listener);
-    }
-
-    @Override
-    public boolean encryptionEnabled() {
+    public boolean isEncryptionEnabled() {
         return this.encryptionKey != null;
     }
 
@@ -457,105 +360,6 @@ public class InternalCryptoService extends AbstractLifecycleComponent implements
         byte[] truncatedDigest = Arrays.copyOfRange(digest, 0, (keyLength / 8));
 
         return new SecretKeySpec(truncatedDigest, algorithm);
-    }
-
-    private static boolean bytesBeginsWith(byte[] prefix, byte[] bytes) {
-        if (bytes == null || prefix == null) {
-            return false;
-        }
-
-        if (prefix.length > bytes.length) {
-            return false;
-        }
-
-        for (int i = 0; i < prefix.length; i++) {
-            if (bytes[i] != prefix[i]) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private class FileListener extends FileChangesListener {
-
-        private final List<Listener> listeners;
-
-        private FileListener(List<Listener> listeners) {
-            this.listeners = listeners;
-        }
-
-        @Override
-        public void onFileCreated(Path file) {
-            if (file.equals(keyFile)) {
-                final SecretKey oldSystemKey = systemKey;
-                final SecretKey oldEncryptionKey = encryptionKey;
-
-                systemKey = readSystemKey(file);
-                signingKey = createSigningKey(systemKey, randomKey);
-                try {
-                    encryptionKey = encryptionKey(signingKey, keyLength, keyAlgorithm);
-                } catch (NoSuchAlgorithmException nsae) {
-                    logger.error("could not load encryption key", nsae);
-                    encryptionKey = null;
-                }
-                logger.info("system key [{}] has been loaded", file.toAbsolutePath());
-                callListeners(oldSystemKey, oldEncryptionKey);
-            }
-        }
-
-        @Override
-        public void onFileDeleted(Path file) {
-            if (file.equals(keyFile)) {
-                final SecretKey oldSystemKey = systemKey;
-                final SecretKey oldEncryptionKey = encryptionKey;
-                logger.error("system key file was removed! as long as the system key file is missing, elasticsearch " +
-                        "won't function as expected for some requests (e.g. scroll/scan)");
-                systemKey = null;
-                encryptionKey = null;
-                signingKey = createSigningKey(systemKey, randomKey);
-
-                callListeners(oldSystemKey, oldEncryptionKey);
-            }
-        }
-
-        @Override
-        public void onFileChanged(Path file) {
-            if (file.equals(keyFile)) {
-                final SecretKey oldSystemKey = systemKey;
-                final SecretKey oldEncryptionKey = encryptionKey;
-
-                logger.warn("system key file changed!");
-                SecretKey systemKey = readSystemKey(file);
-                signingKey = createSigningKey(systemKey, randomKey);
-                try {
-                    encryptionKey = encryptionKey(signingKey, keyLength, keyAlgorithm);
-                } catch (NoSuchAlgorithmException nsae) {
-                    logger.error("could not load encryption key", nsae);
-                    encryptionKey = null;
-                }
-
-                callListeners(oldSystemKey, oldEncryptionKey);
-            }
-        }
-
-        private void callListeners(SecretKey oldSystemKey, SecretKey oldEncryptionKey) {
-            RuntimeException ex = null;
-            for (Listener listener : listeners) {
-                try {
-                    listener.onKeyChange(oldSystemKey, oldEncryptionKey);
-                } catch (Exception e) {
-                    if (ex == null) ex = new RuntimeException("exception calling key change listeners");
-                    ex.addSuppressed(e);
-                }
-            }
-
-            // all listeners were notified now rethrow
-            if (ex != null) {
-                logger.error("called all key change listeners but one or more exceptions was thrown", ex);
-                throw ex;
-            }
-        }
     }
 
     /**

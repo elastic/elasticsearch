@@ -44,7 +44,7 @@ public class ClusterStateTests extends MonitoringIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(MonitoringSettings.INTERVAL.getKey(), "-1")
                 .put(MonitoringSettings.COLLECTORS.getKey(), ClusterStateCollector.NAME)
-                .put("xpack.monitoring.agent.exporters.default_local.type", "local")
+                .put("xpack.monitoring.collection.exporters.default_local.type", "local")
                 .put("node.attr.custom", randomInt)
                 .build();
     }

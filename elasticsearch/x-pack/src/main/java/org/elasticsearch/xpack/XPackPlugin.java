@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.action.XPackInfoAction;
 import org.elasticsearch.xpack.action.XPackUsageAction;
 import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.common.http.HttpClientModule;
-import org.elasticsearch.xpack.common.secret.SecretModule;
 import org.elasticsearch.xpack.common.text.TextTemplateModule;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.extensions.XPackExtensionsService;
@@ -151,7 +150,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
 
         if (transportClientMode == false) {
             modules.add(new HttpClientModule());
-            modules.add(new SecretModule(settings));
             modules.add(new TextTemplateModule());
         }
         return modules;

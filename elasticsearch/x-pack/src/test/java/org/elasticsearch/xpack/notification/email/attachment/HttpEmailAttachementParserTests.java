@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.common.http.HttpResponse;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
-import org.elasticsearch.xpack.common.secret.SecretService;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 import org.junit.Before;
 
@@ -42,8 +41,7 @@ public class HttpEmailAttachementParserTests extends ESTestCase {
 
     @Before
     public void init() throws Exception {
-        SecretService.Insecure secretService = SecretService.Insecure.INSTANCE;
-        HttpAuthRegistry authRegistry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(secretService)));
+        HttpAuthRegistry authRegistry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(null)));
         httpRequestTemplateParser = new HttpRequestTemplate.Parser(authRegistry);
         httpClient = mock(HttpClient.class);
 

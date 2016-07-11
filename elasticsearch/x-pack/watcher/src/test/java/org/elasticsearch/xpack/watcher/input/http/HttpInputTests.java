@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.common.http.auth.HttpAuth;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
-import org.elasticsearch.xpack.common.secret.SecretService;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
@@ -71,15 +70,13 @@ import static org.mockito.Mockito.when;
 public class HttpInputTests extends ESTestCase {
     private HttpClient httpClient;
     private HttpInputFactory httpParser;
-    private SecretService secretService;
     private TextTemplateEngine templateEngine;
 
     @Before
     public void init() throws Exception {
         httpClient = mock(HttpClient.class);
         templateEngine = mock(TextTemplateEngine.class);
-        secretService = mock(SecretService.class);
-        HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap("basic", new BasicAuthFactory(secretService)));
+        HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap("basic", new BasicAuthFactory(null)));
         httpParser = new HttpInputFactory(Settings.EMPTY, httpClient, templateEngine, new HttpRequestTemplate.Parser(registry));
     }
 

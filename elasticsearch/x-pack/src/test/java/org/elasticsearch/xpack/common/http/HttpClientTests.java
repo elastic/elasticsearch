@@ -19,7 +19,6 @@ import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
-import org.elasticsearch.xpack.common.secret.SecretService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -49,15 +48,13 @@ public class HttpClientTests extends ESTestCase {
     private MockWebServer webServer;
     private HttpClient httpClient;
     private HttpAuthRegistry authRegistry;
-    private SecretService secretService;
     private Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
 
     private int webPort;
 
     @Before
     public void init() throws Exception {
-        secretService = SecretService.Insecure.INSTANCE;
-        authRegistry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(secretService)));
+        authRegistry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(null)));
         webServer = startWebServer();
         webPort = webServer.getPort();
         httpClient = new HttpClient(Settings.EMPTY, authRegistry, environment);

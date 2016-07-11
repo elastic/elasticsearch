@@ -38,7 +38,7 @@ public class IndexRecoveryTests extends MonitoringIntegTestCase {
                 .put(MonitoringSettings.INTERVAL.getKey(), "-1")
                 .put(MonitoringSettings.INDICES.getKey(), INDEX_PREFIX + "*")
                 .put(MonitoringSettings.COLLECTORS.getKey(), IndexRecoveryCollector.NAME)
-                .put("xpack.monitoring.agent.exporters.default_local.type", "local")
+                .put("xpack.monitoring.collection.exporters.default_local.type", "local")
                 .build();
     }
 

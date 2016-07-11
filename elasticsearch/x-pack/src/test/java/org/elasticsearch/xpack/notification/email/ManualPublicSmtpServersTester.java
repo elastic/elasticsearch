@@ -11,7 +11,6 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.xpack.common.secret.SecretService;
 
 import java.util.Collections;
 import java.util.Locale;
@@ -123,7 +122,7 @@ public class ManualPublicSmtpServersTester {
 
     static InternalEmailService startEmailService(Settings.Builder builder) {
         Settings settings = builder.build();
-        InternalEmailService service = new InternalEmailService(settings, SecretService.Insecure.INSTANCE,
+        InternalEmailService service = new InternalEmailService(settings, null,
                 new ClusterSettings(settings, Collections.singleton(InternalEmailService.EMAIL_ACCOUNT_SETTING)));
         service.start();
         return service;

@@ -32,7 +32,7 @@ public abstract class AbstractExporterTemplateTestCase extends MonitoringIntegTe
                 .put(MonitoringSettings.INTERVAL.getKey(), "-1");
 
         for (Map.Entry<String, String> setting : exporterSettings().getAsMap().entrySet()) {
-            settings.put("xpack.monitoring.agent.exporters._exporter." + setting.getKey(), setting.getValue());
+            settings.put("xpack.monitoring.collection.exporters._exporter." + setting.getKey(), setting.getValue());
         }
         return settings.build();
     }

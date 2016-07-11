@@ -54,7 +54,8 @@ import org.elasticsearch.xpack.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.AuthenticationModule;
-import org.elasticsearch.xpack.support.clock.ClockModule;
+import org.elasticsearch.xpack.support.clock.Clock;
+import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.Watcher;
 
 public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
@@ -131,10 +132,15 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
         return Collections.emptyList();
     }
 
+    // overridable by tests
+    protected Clock getClock() {
+        return SystemClock.INSTANCE;
+    }
+
     @Override
     public Collection<Module> nodeModules() {
         ArrayList<Module> modules = new ArrayList<>();
-        modules.add(new ClockModule());
+        modules.add(b -> b.bind(Clock.class).toInstance(getClock()));
         modules.addAll(notification.nodeModules());
         modules.addAll(licensing.nodeModules());
         modules.addAll(security.nodeModules());

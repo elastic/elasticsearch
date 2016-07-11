@@ -298,9 +298,9 @@ public class S3Repository extends BlobStoreRepository {
         // If the user defined a path style access setting, we rely on it otherwise we use the default
         // value set by the SDK
         Boolean pathStyleAccess = null;
-        if (Repository.PATH_STYLE_ACCESS_SETTING.exists(repositorySettings.settings()) ||
-            Repositories.PATH_STYLE_ACCESS_SETTING.exists(repositorySettings.globalSettings())) {
-            pathStyleAccess = getValue(repositorySettings, Repository.PATH_STYLE_ACCESS_SETTING, Repositories.PATH_STYLE_ACCESS_SETTING);
+        if (Repository.PATH_STYLE_ACCESS_SETTING.exists(metadata.settings()) ||
+            Repositories.PATH_STYLE_ACCESS_SETTING.exists(settings)) {
+            pathStyleAccess = getValue(metadata.settings(), settings, Repository.PATH_STYLE_ACCESS_SETTING, Repositories.PATH_STYLE_ACCESS_SETTING);
         }
 
         logger.debug("using bucket [{}], region [{}], endpoint [{}], protocol [{}], chunk_size [{}], server_side_encryption [{}], " +

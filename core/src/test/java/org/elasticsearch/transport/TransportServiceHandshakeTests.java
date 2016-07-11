@@ -20,7 +20,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -32,7 +31,6 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.netty.NettyTransport;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -45,27 +43,27 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 
-public class NettyTransportServiceHandshakeTests extends ESTestCase {
+public class TransportServiceHandshakeTests extends ESTestCase {
 
     private static ThreadPool threadPool;
     private static final long timeout = Long.MAX_VALUE;
 
     @BeforeClass
     public static void startThreadPool() {
-        threadPool = new TestThreadPool(NettyTransportServiceHandshakeTests.class.getSimpleName());
+        threadPool = new TestThreadPool(TransportServiceHandshakeTests.class.getSimpleName());
     }
 
     private List<TransportService> transportServices = new ArrayList<>();
 
     private NetworkHandle startServices(String nodeNameAndId, Settings settings, Version version) {
-        NettyTransport transport =
-                new NettyTransport(
+        MockTcpTransport transport =
+                new MockTcpTransport("mock",
                         settings,
                         threadPool,
-                        new NetworkService(settings),
                         BigArrays.NON_RECYCLING_INSTANCE,
+                        new NoneCircuitBreakerService(),
                         new NamedWriteableRegistry(),
-                        new NoneCircuitBreakerService());
+                        new NetworkService(settings));
         TransportService transportService = new MockTransportService(settings, transport, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();

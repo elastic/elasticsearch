@@ -23,11 +23,16 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.net.InetAddress;
@@ -39,10 +44,24 @@ import static org.hamcrest.Matchers.containsString;
 
 public class SimpleNettyTransportTests extends AbstractSimpleTransportTestCase {
 
+    public static MockTransportService nettyFromThreadPool(
+        Settings settings,
+        ThreadPool threadPool, final Version version) {
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        Transport transport = new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE,
+            namedWriteableRegistry, new NoneCircuitBreakerService()) {
+            @Override
+            protected Version getCurrentVersion() {
+                return version;
+            }
+        };
+        return new MockTransportService(Settings.EMPTY, transport, threadPool);
+    }
+
     @Override
     protected MockTransportService build(Settings settings, Version version) {
         settings = Settings.builder().put(settings).put(TransportSettings.PORT.getKey(), "0").build();
-        MockTransportService transportService = MockTransportService.nettyFromThreadPool(settings, threadPool, version);
+        MockTransportService transportService = nettyFromThreadPool(settings, threadPool, version);
         transportService.start();
         return transportService;
     }

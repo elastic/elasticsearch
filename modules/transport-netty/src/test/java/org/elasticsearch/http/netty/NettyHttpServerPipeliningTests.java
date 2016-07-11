@@ -95,7 +95,8 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
                                .build();
         httpServerTransport = new CustomNettyHttpServerTransport(settings);
         httpServerTransport.start();
-        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) randomFrom(httpServerTransport.boundAddress().boundAddresses());
+        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) randomFrom(httpServerTransport.boundAddress()
+            .boundAddresses());
 
         List<String> requests = Arrays.asList("/firstfast", "/slow?sleep=500", "/secondfast", "/slow?sleep=1000", "/thirdfast");
         try (NettyHttpClient nettyHttpClient = new NettyHttpClient()) {
@@ -112,7 +113,8 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
                                 .build();
         httpServerTransport = new CustomNettyHttpServerTransport(settings);
         httpServerTransport.start();
-        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) randomFrom(httpServerTransport.boundAddress().boundAddresses());
+        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) randomFrom(httpServerTransport.boundAddress()
+            .boundAddresses());
 
         List<String> requests = Arrays.asList("/slow?sleep=1000", "/firstfast", "/secondfast", "/thirdfast", "/slow?sleep=500");
         try (NettyHttpClient nettyHttpClient = new NettyHttpClient()) {
@@ -138,7 +140,8 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
 
         @Override
         public ChannelPipelineFactory configureServerChannelPipelineFactory() {
-            return new CustomHttpChannelPipelineFactory(this, executorService, NettyHttpServerPipeliningTests.this.threadPool.getThreadContext());
+            return new CustomHttpChannelPipelineFactory(this, executorService, NettyHttpServerPipeliningTests.this.threadPool
+                .getThreadContext());
         }
 
         @Override
@@ -152,7 +155,8 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
 
         private final ExecutorService executorService;
 
-        public CustomHttpChannelPipelineFactory(NettyHttpServerTransport transport, ExecutorService executorService, ThreadContext threadContext) {
+        public CustomHttpChannelPipelineFactory(NettyHttpServerTransport transport, ExecutorService executorService,
+                                                ThreadContext threadContext) {
             super(transport, randomBoolean(), threadContext);
             this.executorService = executorService;
         }
@@ -214,7 +218,8 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
 
             QueryStringDecoder decoder = new QueryStringDecoder(request.getUri());
 
-            final int timeout = request.getUri().startsWith("/slow") && decoder.getParameters().containsKey("sleep") ? Integer.valueOf(decoder.getParameters().get("sleep").get(0)) : 0;
+            final int timeout = request.getUri().startsWith("/slow") && decoder.getParameters().containsKey("sleep")
+                ? Integer.valueOf(decoder.getParameters().get("sleep").get(0)) : 0;
             if (timeout > 0) {
                 try {
                     Thread.sleep(timeout);

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport.netty;
 
+import org.elasticsearch.ESNettyIntegTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -46,8 +47,10 @@ import org.jboss.netty.channel.ChannelPipelineFactory;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -56,21 +59,22 @@ import static org.hamcrest.Matchers.is;
  *
  */
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
-public class NettyTransportIT extends ESIntegTestCase {
+public class NettyTransportIT extends ESNettyIntegTestCase {
     // static so we can use it in anonymous classes
     private static String channelProfileName = null;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(Node.NODE_MODE_SETTING.getKey(), "network")
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, "netty")
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, "exception-throwing").build();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(ExceptionThrowingNettyTransport.TestPlugin.class);
+        List<Class<? extends Plugin>> list = new ArrayList<>();
+        list.add(ExceptionThrowingNettyTransport.TestPlugin.class);
+        list.addAll(super.nodePlugins());
+        return Collections.unmodifiableCollection(list);
     }
 
     public void testThatConnectionFailsAsIntended() throws Exception {

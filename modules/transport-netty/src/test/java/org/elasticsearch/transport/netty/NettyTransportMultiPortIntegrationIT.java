@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport.netty;
 
+import org.elasticsearch.ESNettyIntegTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -30,11 +31,10 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.junit.annotations.Network;
+import org.elasticsearch.transport.NettyPlugin;
 
 import java.net.InetAddress;
 import java.util.Locale;
@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1, numClientNodes = 0)
-public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
+public class NettyTransportMultiPortIntegrationIT extends ESNettyIntegTestCase {
 
     private static int randomPort = -1;
     private static String randomPortRange;
@@ -62,8 +62,6 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
         Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("network.host", "127.0.0.1")
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, "netty")
-                .put(Node.NODE_MODE_SETTING.getKey(), "network")
                 .put("transport.profiles.client1.port", randomPortRange)
                 .put("transport.profiles.client1.publish_host", "127.0.0.7")
                 .put("transport.profiles.client1.publish_port", "4321")
@@ -77,7 +75,7 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, "netty")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
-        try (TransportClient transportClient = TransportClient.builder().settings(settings).build()) {
+        try (TransportClient transportClient = TransportClient.builder().addPlugin(NettyPlugin.class).settings(settings).build()) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("127.0.0.1"), randomPort));
             ClusterHealthResponse response = transportClient.admin().cluster().prepareHealth().get();
             assertThat(response.getStatus(), is(ClusterHealthStatus.GREEN));

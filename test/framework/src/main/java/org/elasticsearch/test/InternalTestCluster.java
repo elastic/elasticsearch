@@ -86,13 +86,11 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
-import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
-import org.elasticsearch.transport.netty.NettyTransport;
 import org.junit.Assert;
 
 import java.io.Closeable;
@@ -414,9 +412,8 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
 
-        // randomize netty settings
+        // randomize tcp settings
         if (random.nextBoolean()) {
-            builder.put(NettyTransport.WORKER_COUNT.getKey(), random.nextInt(3) + 1);
             builder.put(TcpTransport.CONNECTIONS_PER_NODE_RECOVERY.getKey(), random.nextInt(2) + 1);
             builder.put(TcpTransport.CONNECTIONS_PER_NODE_BULK.getKey(), random.nextInt(3) + 1);
             builder.put(TcpTransport.CONNECTIONS_PER_NODE_REG.getKey(), random.nextInt(6) + 1);

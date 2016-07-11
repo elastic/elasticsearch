@@ -18,16 +18,16 @@
  */
 package org.elasticsearch.http.netty;
 
-import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.ExternalTestCluster;
+import org.elasticsearch.transport.NettyPlugin;
 import org.jboss.netty.handler.codec.http.HttpResponse;
 
+import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.Locale;
 
@@ -36,26 +36,19 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 
-@ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
 public class NettyPipeliningEnabledIT extends ESIntegTestCase {
+
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-            .put("http.pipelining", true)
-            .build();
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return pluginList(NettyPlugin.class);
     }
 
     public void testThatNettyHttpServerSupportsPipelining() throws Exception {
         String[] requests = new String[]{"/", "/_nodes/stats", "/", "/_cluster/state", "/"};
 
-        HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
-        TransportAddress[] boundAddresses = httpServerTransport.boundAddress().boundAddresses();
-        InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) randomFrom(boundAddresses);
-
+        InetSocketAddress inetSocketAddress = randomFrom(cluster().httpAddresses());
         try (NettyHttpClient nettyHttpClient = new NettyHttpClient()) {
-            Collection<HttpResponse> responses = nettyHttpClient.get(inetSocketTransportAddress.address(), requests);
+            Collection<HttpResponse> responses = nettyHttpClient.get(inetSocketAddress, requests);
             assertThat(responses, hasSize(5));
 
             Collection<String> opaqueIds = returnOpaqueIds(responses);

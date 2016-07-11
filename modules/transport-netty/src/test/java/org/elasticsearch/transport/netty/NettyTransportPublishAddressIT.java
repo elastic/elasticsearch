@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.netty;
 
+import org.elasticsearch.ESNettyIntegTestCase;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.network.NetworkModule;
@@ -41,14 +42,7 @@ import static org.hamcrest.Matchers.instanceOf;
  * different ports on ipv4 and ipv6.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class NettyTransportPublishAddressIT extends ESIntegTestCase {
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, "netty")
-                .put(Node.NODE_MODE_SETTING.getKey(), "network").build();
-    }
+public class NettyTransportPublishAddressIT extends ESNettyIntegTestCase {
 
     public void testDifferentPorts() throws Exception {
         if (!NetworkUtils.SUPPORTS_V6) {

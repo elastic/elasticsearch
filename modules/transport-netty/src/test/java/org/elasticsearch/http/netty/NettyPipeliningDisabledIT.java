@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.http.netty;
 
+import org.elasticsearch.ESNettyIntegTestCase;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -41,7 +42,7 @@ import static org.hamcrest.Matchers.hasSize;
  *
  */
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
-public class NettyPipeliningDisabledIT extends ESIntegTestCase {
+public class NettyPipeliningDisabledIT extends ESNettyIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()

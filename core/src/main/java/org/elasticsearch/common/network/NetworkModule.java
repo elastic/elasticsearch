@@ -20,8 +20,6 @@
 package org.elasticsearch.common.network;
 
 import org.elasticsearch.action.support.replication.ReplicationTask;
-import org.elasticsearch.client.transport.TransportClientNodesService;
-import org.elasticsearch.client.transport.support.TransportProxyClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
@@ -41,13 +39,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.tasks.RawTaskStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
-import org.elasticsearch.transport.netty.NettyTransport;
 
 /**
  * A module to handle registering and binding all network related classes.
@@ -91,14 +87,9 @@ public class NetworkModule extends AbstractModule {
         this.namedWriteableRegistry = namedWriteableRegistry;
         registerTransportService(NETTY_TRANSPORT, TransportService.class);
         registerTransport(LOCAL_TRANSPORT, LocalTransport.class);
-        registerTransport(NETTY_TRANSPORT, NettyTransport.class);
         registerTaskStatus(ReplicationTask.Status.NAME, ReplicationTask.Status::new);
         registerTaskStatus(RawTaskStatus.NAME, RawTaskStatus::new);
         registerBuiltinAllocationCommands();
-
-        if (transportClient == false) {
-            registerHttpTransport(NETTY_TRANSPORT, NettyHttpServerTransport.class);
-        }
     }
 
     public boolean isTransportClient() {
@@ -184,5 +175,9 @@ public class NetworkModule extends AbstractModule {
         registerAllocationCommand(AllocateStalePrimaryAllocationCommand::new, AllocateStalePrimaryAllocationCommand::fromXContent,
                 AllocateStalePrimaryAllocationCommand.COMMAND_NAME_FIELD);
 
+    }
+
+    public boolean canRegisterHttpExtensions() {
+        return transportClient == false;
     }
 }

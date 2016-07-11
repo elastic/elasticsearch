@@ -35,7 +35,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -51,7 +50,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.local.LocalTransport;
-import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -100,21 +98,6 @@ public class MockTransportService extends TransportService {
         };
         return new MockTransportService(settings, transport, threadPool);
     }
-
-    public static MockTransportService nettyFromThreadPool(
-            Settings settings,
-            ThreadPool threadPool, final Version version) {
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-        Transport transport = new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE,
-                namedWriteableRegistry, new NoneCircuitBreakerService()) {
-            @Override
-            protected Version getCurrentVersion() {
-                return version;
-            }
-        };
-        return new MockTransportService(Settings.EMPTY, transport, threadPool);
-    }
-
 
     private final Transport original;
 

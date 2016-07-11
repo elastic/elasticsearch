@@ -195,7 +195,6 @@ public class Node implements Closeable {
         this(InternalSettingsPreparer.prepareEnvironment(preparedSettings, null), Collections.<Class<? extends Plugin>>emptyList());
     }
 
-    @SuppressWarnings("unchecked")
     protected Node(Environment tmpEnv, Collection<Class<? extends Plugin>> classpathPlugins) {
         Settings tmpSettings = Settings.builder().put(tmpEnv.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();

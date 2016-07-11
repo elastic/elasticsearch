@@ -583,7 +583,8 @@ public class SearchModule extends AbstractModule {
                 DateHistogramAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(new AggregationSpec(GeoDistanceAggregationBuilder::new, new GeoDistanceParser(),
                 GeoDistanceAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalGeoDistance::new));
-        registerAggregation(GeoGridAggregationBuilder::new, new GeoHashGridParser(), GeoGridAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(new AggregationSpec(GeoGridAggregationBuilder::new, new GeoHashGridParser(),
+                GeoGridAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalGeoHashGrid::new));
         registerAggregation(NestedAggregationBuilder::new, NestedAggregationBuilder::parse,
                 NestedAggregationBuilder.AGGREGATION_FIELD_NAME);
         registerAggregation(ReverseNestedAggregationBuilder::new, ReverseNestedAggregationBuilder::parse,
@@ -781,7 +782,6 @@ public class SearchModule extends AbstractModule {
         SignificantStringTerms.registerStreams();
         SignificantLongTerms.registerStreams();
         UnmappedSignificantTerms.registerStreams();
-        InternalGeoHashGrid.registerStreams();
         InternalBinaryRange.registerStream();
         InternalHistogram.registerStream();
         InternalNested.registerStream();

@@ -49,6 +49,8 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBuilder> {
 
+    boolean requiresRewrite = false;
+
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         mapperService.merge("nested_doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("nested_doc",
@@ -68,7 +70,12 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
      */
     @Override
     protected NestedQueryBuilder doCreateTestQueryBuilder() {
-        NestedQueryBuilder nqb = new NestedQueryBuilder("nested1", RandomQueryBuilder.createQuery(random()),
+        QueryBuilder innerQueryBuilder = RandomQueryBuilder.createQuery(random());
+        if (randomBoolean()) {
+            requiresRewrite = true;
+            innerQueryBuilder = new WrapperQueryBuilder(innerQueryBuilder.toString());
+        }
+        NestedQueryBuilder nqb = new NestedQueryBuilder("nested1", innerQueryBuilder,
                 RandomPicks.randomFrom(random(), ScoreMode.values()));
         if (randomBoolean()) {
             nqb.innerHit(new InnerHitBuilder()
@@ -87,24 +94,24 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         ToParentBlockJoinQuery parentBlockJoinQuery = (ToParentBlockJoinQuery) query;
         // TODO how to assert this?
         if (queryBuilder.innerHit() != null) {
+            // have to rewrite again because the provided queryBuilder hasn't been rewritten (directly returned from
+            // doCreateTestQueryBuilder)
+            queryBuilder = (NestedQueryBuilder) queryBuilder.rewrite(context);
+
             SearchContext searchContext = SearchContext.current();
             assertNotNull(searchContext);
-            if (query != null) {
-                Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
-                InnerHitBuilder.extractInnerHits(queryBuilder, innerHitBuilders);
-                for (InnerHitBuilder builder : innerHitBuilders.values()) {
-                    builder.build(searchContext, searchContext.innerHits());
-                }
-                assertNotNull(searchContext.innerHits());
-                assertEquals(1, searchContext.innerHits().getInnerHits().size());
-                assertTrue(searchContext.innerHits().getInnerHits().containsKey(queryBuilder.innerHit().getName()));
-                InnerHitsContext.BaseInnerHits innerHits = searchContext.innerHits().getInnerHits().get(queryBuilder.innerHit().getName());
-                assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
-                assertEquals(innerHits.sort().sort.getSort().length, 1);
-                assertEquals(innerHits.sort().sort.getSort()[0].getField(), INT_FIELD_NAME);
-            } else {
-                assertThat(searchContext.innerHits().getInnerHits().size(), equalTo(0));
+            Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
+            InnerHitBuilder.extractInnerHits(queryBuilder, innerHitBuilders);
+            for (InnerHitBuilder builder : innerHitBuilders.values()) {
+                builder.build(searchContext, searchContext.innerHits());
             }
+            assertNotNull(searchContext.innerHits());
+            assertEquals(1, searchContext.innerHits().getInnerHits().size());
+            assertTrue(searchContext.innerHits().getInnerHits().containsKey(queryBuilder.innerHit().getName()));
+            InnerHitsContext.BaseInnerHits innerHits = searchContext.innerHits().getInnerHits().get(queryBuilder.innerHit().getName());
+            assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
+            assertEquals(innerHits.sort().sort.getSort().length, 1);
+            assertEquals(innerHits.sort().sort.getSort()[0].getField(), INT_FIELD_NAME);
         }
     }
 
@@ -195,6 +202,17 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 } catch (JsonParseException e) {
                     // mutation produced invalid json
                 }
+            }
+        }
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        try {
+            super.testMustRewrite();
+        } catch (UnsupportedOperationException e) {
+            if (requiresRewrite == false) {
+                throw e;
             }
         }
     }

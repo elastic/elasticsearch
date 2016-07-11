@@ -472,9 +472,10 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        QueryBuilder rewrite = query.rewrite(queryRewriteContext);
-        if (rewrite != query) {
-            return new HasChildQueryBuilder(type, rewrite, minChildren, minChildren, scoreMode, innerHitBuilder);
+        QueryBuilder rewrittenQuery = query.rewrite(queryRewriteContext);
+        if (rewrittenQuery != query) {
+            InnerHitBuilder rewrittenInnerHit = InnerHitBuilder.rewrite(innerHitBuilder, rewrittenQuery);
+            return new HasChildQueryBuilder(type, rewrittenQuery, minChildren, maxChildren, scoreMode, rewrittenInnerHit);
         }
         return this;
     }

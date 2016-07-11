@@ -172,17 +172,17 @@ public class TransportClient extends AbstractClient {
                 final TransportProxyClient proxy = new TransportProxyClient(settings, transportService, nodesService,
                     actionModule.getActions().values().stream().map(x -> x.getAction()).collect(Collectors.toList()));
 
-                List<LifecycleComponent> pluginLifecycles = pluginComponents.stream()
+                List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream()
                     .filter(p -> p instanceof LifecycleComponent)
                     .map(p -> (LifecycleComponent)p).collect(Collectors.toList());
-                pluginLifecycles.addAll(pluginsService.getGuiceServiceClasses().stream()
+                pluginLifecycleComponents.addAll(pluginsService.getGuiceServiceClasses().stream()
                     .map(injector::getInstance).collect(Collectors.toList()));
-                resourcesToClose.addAll(pluginLifecycles);
+                resourcesToClose.addAll(pluginLifecycleComponents);
 
                 transportService.start();
                 transportService.acceptIncomingRequests();
 
-                TransportClient transportClient = new TransportClient(injector, pluginLifecycles, nodesService, proxy);
+                TransportClient transportClient = new TransportClient(injector, pluginLifecycleComponents, nodesService, proxy);
                 resourcesToClose.clear();
                 return transportClient;
             } finally {

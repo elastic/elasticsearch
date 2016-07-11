@@ -324,13 +324,13 @@ public class Node implements Closeable {
             );
             injector = modules.createInjector();
 
-            List<LifecycleComponent> pluginLifecycles = pluginComponents.stream()
+            List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream()
                 .filter(p -> p instanceof LifecycleComponent)
                 .map(p -> (LifecycleComponent)p).collect(Collectors.toList());
-            pluginLifecycles.addAll(pluginsService.getGuiceServiceClasses().stream()
+            pluginLifecycleComponents.addAll(pluginsService.getGuiceServiceClasses().stream()
                 .map(injector::getInstance).collect(Collectors.toList()));
-            resourcesToClose.addAll(pluginLifecycles);
-            pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycles);
+            resourcesToClose.addAll(pluginLifecycleComponents);
+            this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
 
             client.intialize(injector.getInstance(new Key<Map<GenericAction, TransportAction>>() {}));
 

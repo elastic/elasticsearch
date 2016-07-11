@@ -1,19 +1,21 @@
 ---
-"Test basic graph explore":
-  - do:
-     indices.create:
-       index:    test_1
-       body:
-         settings:
-           index:
-             number_of_replicas: 0
-             number_of_shards: 1
-         mappings:
-           test:
-             properties:
-               keys:
-                 type : "integer"
+setup:
+- do:
+    indices.create:
+      index: test_1
+      body:
+        settings:
+          index:
+            number_of_shards:   1
+            number_of_replicas: 0
+        mappings:
+          test:
+            properties:
+              keys:
+                type : integer
 
+---
+"Test basic graph explore":
   - do:
       index:
           index:  test_1

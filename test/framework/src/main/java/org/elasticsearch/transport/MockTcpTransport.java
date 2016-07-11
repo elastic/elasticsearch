@@ -33,6 +33,7 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -101,16 +102,20 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         }
         MockChannel serverMockChannel = new MockChannel(socket, name);
         CountDownLatch started = new CountDownLatch(1);
-        executor.execute(() -> {
-            try {
-                started.countDown();
-                serverMockChannel.accept(executor);
-            } catch (IOException e) {
+        executor.execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
                 try {
                     onException(serverMockChannel, e);
                 } catch (IOException ex) {
                     logger.warn("failed on handling exception", ex);
                 }
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                started.countDown();
+                serverMockChannel.accept(executor);
             }
         });
         try {
@@ -269,19 +274,23 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         }
 
         public void loopRead(Executor executor) {
-            executor.execute(() -> {
-                try {
-                    StreamInput input = new InputStreamStreamInput(new BufferedInputStream(activeChannel.getInputStream()));
-                    while(isOpen.get()) {
-                            cancellableThreads.executeIO(() -> readMessage(this, input));
-                    }
-                } catch (Exception e) {
+            executor.execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
                     if (isOpen.get()) {
                         try {
-                            onException(this, e);
+                            onException(MockChannel.this, e);
                         } catch (IOException ex) {
                             logger.warn("failed on handling exception", ex);
                         }
+                    }
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    StreamInput input = new InputStreamStreamInput(new BufferedInputStream(activeChannel.getInputStream()));
+                    while (isOpen.get()) {
+                        cancellableThreads.executeIO(() -> readMessage(MockChannel.this, input));
                     }
                 }
             });

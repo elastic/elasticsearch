@@ -544,10 +544,10 @@ public class SearchModule extends AbstractModule {
                 GeoDistanceAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalGeoDistance::new));
         registerAggregation(new AggregationSpec(GeoGridAggregationBuilder::new, new GeoHashGridParser(),
                 GeoGridAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalGeoHashGrid::new));
-        registerAggregation(NestedAggregationBuilder::new, NestedAggregationBuilder::parse,
-                NestedAggregationBuilder.AGGREGATION_FIELD_NAME);
-        registerAggregation(ReverseNestedAggregationBuilder::new, ReverseNestedAggregationBuilder::parse,
-                ReverseNestedAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(new AggregationSpec(NestedAggregationBuilder::new, NestedAggregationBuilder::parse,
+                NestedAggregationBuilder.AGGREGATION_FIELD_NAME).addResultReader(InternalNested::new));
+        registerAggregation(new AggregationSpec(ReverseNestedAggregationBuilder::new, ReverseNestedAggregationBuilder::parse,
+                ReverseNestedAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalReverseNested::new));
         registerAggregation(TopHitsAggregationBuilder::new, TopHitsAggregationBuilder::parse,
                 TopHitsAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(new AggregationSpec(GeoBoundsAggregationBuilder::new, new GeoBoundsParser(),
@@ -556,8 +556,8 @@ public class SearchModule extends AbstractModule {
                 GeoCentroidAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalGeoCentroid::new));
         registerAggregation(new AggregationSpec(ScriptedMetricAggregationBuilder::new, ScriptedMetricAggregationBuilder::parse,
                 ScriptedMetricAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalScriptedMetric::new));
-        registerAggregation(ChildrenAggregationBuilder::new, ChildrenAggregationBuilder::parse,
-                ChildrenAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(new AggregationSpec(ChildrenAggregationBuilder::new, ChildrenAggregationBuilder::parse,
+                ChildrenAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalChildren::new));
 
         registerPipelineAggregation(DerivativePipelineAggregationBuilder::new, DerivativePipelineAggregationBuilder::parse,
                 DerivativePipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
@@ -824,10 +824,7 @@ public class SearchModule extends AbstractModule {
         // buckets
         InternalBinaryRange.registerStream();
         InternalHistogram.registerStream();
-        InternalNested.registerStream();
-        InternalReverseNested.registerStream();
         InternalTopHits.registerStreams();
-        InternalChildren.registerStream();
 
         // Pipeline Aggregations
         DerivativePipelineAggregator.registerStreams();

@@ -36,6 +36,7 @@ public class IndexAuditIT extends ESIntegTestCase {
     private static final String USER = "test_user";
     private static final String PASS = "changeme";
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/2354")
     public void testShieldIndexAuditTrailWorking() throws Exception {
         try (Response response = getRestClient().performRequest("GET", "/",
                 new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,

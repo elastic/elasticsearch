@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.common.http.HttpMethod;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
-import org.elasticsearch.xpack.common.secret.SecretService;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.notification.email.DataAttachment;
@@ -149,7 +148,6 @@ public class WatchTests extends ESTestCase {
     private TextTemplateEngine templateEngine;
     private HtmlSanitizer htmlSanitizer;
     private HttpAuthRegistry authRegistry;
-    private SecretService secretService;
     private WatcherLicensee watcherLicensee;
     private ESLogger logger;
     private Settings settings = Settings.EMPTY;
@@ -163,9 +161,8 @@ public class WatchTests extends ESTestCase {
         emailService = mock(EmailService.class);
         templateEngine = mock(TextTemplateEngine.class);
         htmlSanitizer = mock(HtmlSanitizer.class);
-        secretService = mock(SecretService.class);
         watcherLicensee = mock(WatcherLicensee.class);
-        authRegistry = new HttpAuthRegistry(singletonMap("basic", new BasicAuthFactory(secretService)));
+        authRegistry = new HttpAuthRegistry(singletonMap("basic", new BasicAuthFactory(null)));
         logger = Loggers.getLogger(WatchTests.class);
         searchTemplateService = mock(WatcherSearchTemplateService.class);
     }
@@ -181,7 +178,6 @@ public class WatchTests extends ESTestCase {
         ScheduleRegistry scheduleRegistry = registry(schedule);
         TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, clock);
         TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
-        SecretService secretService = SecretService.Insecure.INSTANCE;
 
         ExecutableInput input = randomInput();
         InputRegistry inputRegistry = registry(input);
@@ -209,7 +205,7 @@ public class WatchTests extends ESTestCase {
         BytesReference bytes = XContentFactory.jsonBuilder().value(watch).bytes();
         logger.info("{}", bytes.utf8ToString());
         Watch.Parser watchParser = new Watch.Parser(settings, conditionRegistry, triggerService, transformRegistry, actionRegistry,
-                inputRegistry, secretService, clock);
+                inputRegistry, null, clock);
 
         Watch parsedWatch = watchParser.parse("_name", includeStatus, bytes);
 
@@ -231,7 +227,6 @@ public class WatchTests extends ESTestCase {
         ScheduleRegistry scheduleRegistry = registry(randomSchedule());
         TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, clock);
         TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
-        SecretService secretService = SecretService.Insecure.INSTANCE;
         ExecutableCondition condition = randomCondition();
         ConditionRegistry conditionRegistry = registry(condition);
         ExecutableInput input = randomInput();
@@ -248,7 +243,7 @@ public class WatchTests extends ESTestCase {
                     .startArray("actions").endArray()
                 .endObject();
         Watch.Parser watchParser = new Watch.Parser(settings, conditionRegistry, triggerService, transformRegistry, actionRegistry,
-                inputRegistry, secretService, clock);
+                inputRegistry, null, clock);
         try {
             watchParser.parse("failure", false, jsonBuilder.bytes());
             fail("This watch should fail to parse as actions is an array");
@@ -262,7 +257,6 @@ public class WatchTests extends ESTestCase {
         ScheduleRegistry scheduleRegistry = registry(schedule);
         TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, SystemClock.INSTANCE);
         TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
-        SecretService secretService = SecretService.Insecure.INSTANCE;
 
         ConditionRegistry conditionRegistry = registry(new ExecutableAlwaysCondition(logger));
         InputRegistry inputRegistry = registry(new ExecutableNoneInput(logger));
@@ -277,7 +271,7 @@ public class WatchTests extends ESTestCase {
                 .endObject();
         builder.endObject();
         Watch.Parser watchParser = new Watch.Parser(settings, conditionRegistry, triggerService, transformRegistry, actionRegistry,
-                inputRegistry, secretService, SystemClock.INSTANCE);
+                inputRegistry, null, SystemClock.INSTANCE);
         Watch watch = watchParser.parse("failure", false, builder.bytes());
         assertThat(watch, notNullValue());
         assertThat(watch.trigger(), instanceOf(ScheduleTrigger.class));

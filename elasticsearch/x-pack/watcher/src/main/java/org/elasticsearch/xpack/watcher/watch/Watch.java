@@ -19,7 +19,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.secret.Secret;
-import org.elasticsearch.xpack.common.secret.SecretService;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.support.clock.HaltedClock;
 import org.elasticsearch.xpack.watcher.Watcher;
@@ -213,7 +213,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         private final TransformRegistry transformRegistry;
         private final ActionRegistry actionRegistry;
         private final InputRegistry inputRegistry;
-        private final SecretService secretService;
+        private final CryptoService cryptoService;
         private final ExecutableInput defaultInput;
         private final ExecutableCondition defaultCondition;
         private final ExecutableActions defaultActions;
@@ -222,7 +222,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         @Inject
         public Parser(Settings settings, ConditionRegistry conditionRegistry, TriggerService triggerService,
                       TransformRegistry transformRegistry, ActionRegistry actionRegistry,
-                      InputRegistry inputRegistry, SecretService secretService, Clock clock) {
+                      InputRegistry inputRegistry, @Nullable CryptoService cryptoService, Clock clock) {
 
             super(settings);
             this.conditionRegistry = conditionRegistry;
@@ -230,7 +230,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             this.triggerService = triggerService;
             this.actionRegistry = actionRegistry;
             this.inputRegistry = inputRegistry;
-            this.secretService = Watcher.ENCRYPT_SENSITIVE_DATA_SETTING.get(settings) ? secretService : SecretService.Insecure.INSTANCE;
+            this.cryptoService = Watcher.ENCRYPT_SENSITIVE_DATA_SETTING.get(settings) ? cryptoService : null;
             this.defaultInput = new ExecutableNoneInput(logger);
             this.defaultCondition = new ExecutableAlwaysCondition(logger);
             this.defaultActions = new ExecutableActions(Collections.emptyList());
@@ -249,10 +249,8 @@ public class Watch implements TriggerEngine.Job, ToXContent {
          * Parses the watch represented by the given source. When parsing, any sensitive data that the
          * source might contain (e.g. passwords) will be converted to {@link Secret secrets}
          * Such that the returned watch will potentially hide this sensitive data behind a "secret". A secret
-         * is an abstraction around sensitive data (text). There can be different implementations of how the
-         * secret holds the data, depending on the wired up {@link SecretService}. When security is enabled, a
-         * {@link SecretService.Secure} is used, that potentially encrypts the data
-         * using the configured system key.
+         * is an abstraction around sensitive data (text). When security is enabled, the
+         * {@link CryptoService} is used to encrypt the secrets.
          *
          * This method is only called once - when the user adds a new watch. From that moment on, all representations
          * of the watch in the system will be use secrets for sensitive data.
@@ -269,7 +267,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             }
             XContentParser parser = null;
             try {
-                parser = new WatcherXContentParser(createParser(source), new HaltedClock(now), withSecrets ? secretService : null);
+                parser = new WatcherXContentParser(createParser(source), new HaltedClock(now), withSecrets ? cryptoService : null);
                 parser.nextToken();
                 return parse(id, includeStatus, parser);
             } catch (IOException ioe) {

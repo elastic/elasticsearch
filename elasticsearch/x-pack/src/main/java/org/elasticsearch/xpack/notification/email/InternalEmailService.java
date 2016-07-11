@@ -5,32 +5,33 @@
  */
 package org.elasticsearch.xpack.notification.email;
 
+import javax.mail.MessagingException;
+
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.common.secret.SecretService;
-
-import javax.mail.MessagingException;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
 
 /**
  *
  */
 public class InternalEmailService extends AbstractLifecycleComponent implements EmailService {
 
-    private final SecretService secretService;
+    private final CryptoService cryptoService;
     public static final Setting<Settings> EMAIL_ACCOUNT_SETTING =
             Setting.groupSetting("xpack.notification.email.", Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     private volatile Accounts accounts;
 
     @Inject
-    public InternalEmailService(Settings settings, SecretService secretService, ClusterSettings clusterSettings) {
+    public InternalEmailService(Settings settings, @Nullable CryptoService cryptoService, ClusterSettings clusterSettings) {
         super(settings);
-        this.secretService = secretService;
+        this.cryptoService = cryptoService;
         clusterSettings.addSettingsUpdateConsumer(EMAIL_ACCOUNT_SETTING, this::setEmailAccountSettings);
         setEmailAccountSettings(EMAIL_ACCOUNT_SETTING.get(settings));
     }
@@ -78,7 +79,7 @@ public class InternalEmailService extends AbstractLifecycleComponent implements 
     }
 
     protected Accounts createAccounts(Settings settings, ESLogger logger) {
-        return new Accounts(settings, secretService, logger);
+        return new Accounts(settings, cryptoService, logger);
     }
 
 }

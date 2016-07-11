@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.common.http.HttpResponse;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.xpack.common.secret.Secret;
-import org.elasticsearch.xpack.common.secret.SecretService;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
@@ -82,8 +81,7 @@ import static org.mockito.Mockito.when;
  */
 public class EmailActionTests extends ESTestCase {
 
-    private SecretService secretService = mock(SecretService.class);
-    private HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap("basic", new BasicAuthFactory(secretService)));
+    private HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap("basic", new BasicAuthFactory(null)));
     private HttpClient httpClient = mock(HttpClient.class);
     private EmailAttachmentsParser emailAttachmentParser;
 

@@ -12,12 +12,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.auth.basic.ApplicableBasicAuth;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
-import org.elasticsearch.xpack.common.secret.SecretService;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
@@ -117,18 +117,10 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         assertThat(value, notNullValue());
         if (securityEnabled() && encryptSensitiveData) {
             assertThat(value, not(is((Object) PASSWORD)));
-            SecretService secretService = getInstanceFromMaster(SecretService.class);
-            assertThat(secretService, instanceOf(SecretService.Secure.class));
-            assertThat(new String(secretService.decrypt(((String) value).toCharArray())), is(PASSWORD));
+            CryptoService cryptoService = getInstanceFromMaster(CryptoService.class);
+            assertThat(new String(cryptoService.decrypt(((String) value).toCharArray())), is(PASSWORD));
         } else {
             assertThat(value, is((Object) PASSWORD));
-            SecretService secretService = getInstanceFromMaster(SecretService.class);
-            if (securityEnabled()) {
-                assertThat(secretService, instanceOf(SecretService.Secure.class));
-            } else {
-                assertThat(secretService, instanceOf(SecretService.Insecure.class));
-            }
-            assertThat(new String(secretService.decrypt(((String) value).toCharArray())), is(PASSWORD));
         }
 
         // verifying the password is not returned by the GET watch API
@@ -189,18 +181,10 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
 
         if (securityEnabled() && encryptSensitiveData) {
             assertThat(value, not(is((Object) PASSWORD)));
-            SecretService secretService = getInstanceFromMaster(SecretService.class);
-            assertThat(secretService, instanceOf(SecretService.Secure.class));
-            assertThat(new String(secretService.decrypt(((String) value).toCharArray())), is(PASSWORD));
+            CryptoService cryptoService = getInstanceFromMaster(CryptoService.class);
+            assertThat(new String(cryptoService.decrypt(((String) value).toCharArray())), is(PASSWORD));
         } else {
             assertThat(value, is((Object) PASSWORD));
-            SecretService secretService = getInstanceFromMaster(SecretService.class);
-            if (securityEnabled()) {
-                assertThat(secretService, instanceOf(SecretService.Secure.class));
-            } else {
-                assertThat(secretService, instanceOf(SecretService.Insecure.class));
-            }
-            assertThat(new String(secretService.decrypt(((String) value).toCharArray())), is(PASSWORD));
         }
 
         // verifying the password is not returned by the GET watch API

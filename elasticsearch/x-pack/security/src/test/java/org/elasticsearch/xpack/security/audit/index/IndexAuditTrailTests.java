@@ -39,7 +39,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail.Message;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.security.crypto.InternalCryptoService;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
@@ -99,7 +99,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     @BeforeClass
     public static void configureBeforeClass() {
         remoteIndexing = randomBoolean();
-        systemKey = InternalCryptoService.generateKey();
+        systemKey = CryptoService.generateKey();
         if (remoteIndexing == false) {
             remoteSettings = Settings.EMPTY;
         }

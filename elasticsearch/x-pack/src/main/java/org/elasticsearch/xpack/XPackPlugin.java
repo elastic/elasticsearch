@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -109,18 +110,19 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
     protected Graph graph;
     protected Notification notification;
 
-    public XPackPlugin(Settings settings) {
+    public XPackPlugin(Settings settings) throws IOException {
         this.settings = settings;
         this.transportClientMode = transportClientMode(settings);
+        final Environment env = transportClientMode ? null : new Environment(settings);
+
         this.licensing = new Licensing(settings);
-        this.security = new Security(settings);
+        this.security = new Security(settings, env);
         this.monitoring = new Monitoring(settings);
         this.watcher = new Watcher(settings);
         this.graph = new Graph(settings);
         this.notification = new Notification(settings);
         // Check if the node is a transport client.
         if (transportClientMode == false) {
-            Environment env = new Environment(settings);
             this.extensionsService = new XPackExtensionsService(settings, resolveXPackExtensionsFile(env), getExtensions());
         } else {
             this.extensionsService = null;

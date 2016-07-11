@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class InternalCryptoServiceTests extends ESTestCase {
+public class CryptoServiceTests extends ESTestCase {
     private Settings settings;
     private Environment env;
     private Path keyFile;
@@ -30,9 +30,9 @@ public class InternalCryptoServiceTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         keyFile = createTempDir().resolve("system_key");
-        Files.write(keyFile, InternalCryptoService.generateKey());
+        Files.write(keyFile, CryptoService.generateKey());
         settings = Settings.builder()
-                .put(InternalCryptoService.FILE_SETTING.getKey(), keyFile.toAbsolutePath())
+                .put(CryptoService.FILE_SETTING.getKey(), keyFile.toAbsolutePath())
                 .put("resource.reload.interval.high", "2s")
                 .put("path.home", createTempDir())
                 .build();
@@ -42,14 +42,14 @@ public class InternalCryptoServiceTests extends ESTestCase {
     public void testSigned() throws Exception {
         // randomize whether to use a system key or not
         Settings settings = randomBoolean() ? this.settings : Settings.EMPTY;
-        InternalCryptoService service = new InternalCryptoService(settings, env);
+        CryptoService service = new CryptoService(settings, env);
         String text = randomAsciiOfLength(10);
         String signed = service.sign(text);
         assertThat(service.isSigned(signed), is(true));
     }
 
     public void testSignAndUnsign() throws Exception {
-        InternalCryptoService service = new InternalCryptoService(settings, env);
+        CryptoService service = new CryptoService(settings, env);
         String text = randomAsciiOfLength(10);
         String signed = service.sign(text);
         assertThat(text.equals(signed), is(false));
@@ -58,7 +58,7 @@ public class InternalCryptoServiceTests extends ESTestCase {
     }
 
     public void testSignAndUnsignNoKeyFile() throws Exception {
-        InternalCryptoService service = new InternalCryptoService(Settings.EMPTY, env);
+        CryptoService service = new CryptoService(Settings.EMPTY, env);
         final String text = randomAsciiOfLength(10);
         String signed = service.sign(text);
         // we always have some sort of key to sign with
@@ -68,7 +68,7 @@ public class InternalCryptoServiceTests extends ESTestCase {
     }
 
     public void testTamperedSignature() throws Exception {
-        InternalCryptoService service = new InternalCryptoService(settings, env);
+        CryptoService service = new CryptoService(settings, env);
         String text = randomAsciiOfLength(10);
         String signed = service.sign(text);
         int i = signed.indexOf("$$", 2);
@@ -85,7 +85,7 @@ public class InternalCryptoServiceTests extends ESTestCase {
     }
 
     public void testTamperedSignatureOneChar() throws Exception {
-        InternalCryptoService service = new InternalCryptoService(settings, env);
+        CryptoService service = new CryptoService(settings, env);
         String text = randomAsciiOfLength(10);
         String signed = service.sign(text);
         int i = signed.indexOf("$$", 2);
@@ -104,7 +104,7 @@ public class InternalCryptoServiceTests extends ESTestCase {
     }
 
     public void testTamperedSignatureLength() throws Exception {
-        InternalCryptoService service = new InternalCryptoService(settings, env);
+        CryptoService service = new CryptoService(settings, env);
         String text = randomAsciiOfLength(10);
         String signed = service.sign(text);
         int i = signed.indexOf("$$", 2);
@@ -131,7 +131,7 @@ public class InternalCryptoServiceTests extends ESTestCase {
     }
 
     public void testEncryptionAndDecryptionChars() throws Exception {
-        InternalCryptoService service = new InternalCryptoService(settings, env);
+        CryptoService service = new CryptoService(settings, env);
                 assertThat(service.isEncryptionEnabled(), is(true));
         final char[] chars = randomAsciiOfLengthBetween(0, 1000).toCharArray();
         final char[] encrypted = service.encrypt(chars);
@@ -143,7 +143,7 @@ public class InternalCryptoServiceTests extends ESTestCase {
     }
 
     public void testEncryptionAndDecryptionCharsWithoutKey() throws Exception {
-        InternalCryptoService service = new InternalCryptoService(Settings.EMPTY, env);
+        CryptoService service = new CryptoService(Settings.EMPTY, env);
                 assertThat(service.isEncryptionEnabled(), is(false));
         final char[] chars = randomAsciiOfLengthBetween(0, 1000).toCharArray();
         final char[] encryptedChars = service.encrypt(chars);
@@ -153,34 +153,34 @@ public class InternalCryptoServiceTests extends ESTestCase {
     }
 
     public void testEncryptionEnabledWithKey() throws Exception {
-        InternalCryptoService service = new InternalCryptoService(settings, env);
+        CryptoService service = new CryptoService(settings, env);
                 assertThat(service.isEncryptionEnabled(), is(true));
     }
 
     public void testEncryptionEnabledWithoutKey() throws Exception {
-        InternalCryptoService service = new InternalCryptoService(Settings.EMPTY, env);
+        CryptoService service = new CryptoService(Settings.EMPTY, env);
                 assertThat(service.isEncryptionEnabled(), is(false));
     }
 
     public void testEncryptedChar() throws Exception {
-        InternalCryptoService service = new InternalCryptoService(settings, env);
+        CryptoService service = new CryptoService(settings, env);
                 assertThat(service.isEncryptionEnabled(), is(true));
 
         assertThat(service.isEncrypted((char[]) null), is(false));
         assertThat(service.isEncrypted(new char[0]), is(false));
-        assertThat(service.isEncrypted(new char[InternalCryptoService.ENCRYPTED_TEXT_PREFIX.length()]), is(false));
-        assertThat(service.isEncrypted(InternalCryptoService.ENCRYPTED_TEXT_PREFIX.toCharArray()), is(true));
+        assertThat(service.isEncrypted(new char[CryptoService.ENCRYPTED_TEXT_PREFIX.length()]), is(false));
+        assertThat(service.isEncrypted(CryptoService.ENCRYPTED_TEXT_PREFIX.toCharArray()), is(true));
         assertThat(service.isEncrypted(randomAsciiOfLengthBetween(0, 100).toCharArray()), is(false));
         assertThat(service.isEncrypted(service.encrypt(randomAsciiOfLength(10).toCharArray())), is(true));
     }
 
     public void testSigningKeyCanBeRecomputedConsistently() {
-        final SecretKey systemKey = new SecretKeySpec(InternalCryptoService.generateKey(), InternalCryptoService.KEY_ALGO);
-        final SecretKey randomKey = InternalCryptoService.generateSecretKey(InternalCryptoService.RANDOM_KEY_SIZE);
+        final SecretKey systemKey = new SecretKeySpec(CryptoService.generateKey(), CryptoService.KEY_ALGO);
+        final SecretKey randomKey = CryptoService.generateSecretKey(CryptoService.RANDOM_KEY_SIZE);
         int iterations = randomInt(100);
-        final SecretKey signingKey = InternalCryptoService.createSigningKey(systemKey, randomKey);
+        final SecretKey signingKey = CryptoService.createSigningKey(systemKey, randomKey);
         for (int i = 0; i < iterations; i++) {
-            SecretKey regenerated = InternalCryptoService.createSigningKey(systemKey, randomKey);
+            SecretKey regenerated = CryptoService.createSigningKey(systemKey, randomKey);
             assertThat(regenerated, equalTo(signingKey));
         }
     }

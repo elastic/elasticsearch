@@ -5,6 +5,16 @@
  */
 package org.elasticsearch.xpack.security;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
+
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
@@ -12,6 +22,7 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.logging.Loggers;
@@ -21,6 +32,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.RestHandler;
@@ -64,8 +76,7 @@ import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
-import org.elasticsearch.xpack.security.crypto.CryptoModule;
-import org.elasticsearch.xpack.security.crypto.InternalCryptoService;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.rest.SecurityRestModule;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.realm.RestClearRealmCacheAction;
@@ -90,15 +101,6 @@ import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.function.Function;
-
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 
@@ -117,13 +119,17 @@ public class Security implements ActionPlugin {
     private final boolean enabled;
     private final boolean transportClientMode;
     private SecurityLicenseState securityLicenseState;
+    private final CryptoService cryptoService;
 
-    public Security(Settings settings) {
+    public Security(Settings settings, Environment env) throws IOException {
         this.settings = settings;
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
         this.enabled = XPackPlugin.featureEnabled(settings, NAME, true);
-        if (enabled && !transportClientMode) {
+        if (enabled && transportClientMode == false) {
             validateAutoCreateIndex(settings);
+            cryptoService = new CryptoService(settings, env);
+        } else {
+            cryptoService = null;
         }
     }
 
@@ -143,8 +149,8 @@ public class Security implements ActionPlugin {
         modules.add(new AuthenticationModule(settings));
         modules.add(new AuthorizationModule(settings));
         if (enabled == false) {
+            modules.add(b -> b.bind(CryptoService.class).toProvider(Providers.of(null)));
             modules.add(new SecurityModule(settings, securityLicenseState));
-            modules.add(new CryptoModule(settings));
             modules.add(new AuditTrailModule(settings));
             modules.add(new SecurityTransportModule(settings));
             return modules;
@@ -154,8 +160,8 @@ public class Security implements ActionPlugin {
         // which might not be the case during Plugin class instantiation. Once nodeModules are pulled
         // everything should have been loaded
         securityLicenseState = new SecurityLicenseState();
+        modules.add(b -> b.bind(CryptoService.class).toInstance(cryptoService));
         modules.add(new SecurityModule(settings, securityLicenseState));
-        modules.add(new CryptoModule(settings));
         modules.add(new AuditTrailModule(settings));
         modules.add(new SecurityRestModule(settings));
         modules.add(new SecurityActionModule(settings));
@@ -185,13 +191,18 @@ public class Security implements ActionPlugin {
             return Settings.EMPTY;
         }
 
+        return additionalSettings(settings);
+    }
+
+    // pkg private for testing
+    static Settings additionalSettings(Settings settings) {
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME);
         settingsBuilder.put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, Security.NAME);
         settingsBuilder.put(NetworkModule.HTTP_TYPE_SETTING.getKey(), Security.NAME);
         SecurityNettyHttpServerTransport.overrideSettings(settingsBuilder, settings);
-        addUserSettings(settingsBuilder);
-        addTribeSettings(settingsBuilder);
+        addUserSettings(settings, settingsBuilder);
+        addTribeSettings(settings, settingsBuilder);
         return settingsBuilder.build();
     }
 
@@ -233,7 +244,7 @@ public class Security implements ActionPlugin {
         SecurityNettyHttpServerTransport.addSettings(settingsList);
 
         // encryption settings
-        InternalCryptoService.addSettings(settingsList);
+        CryptoService.addSettings(settingsList);
 
         // hide settings
         settingsList.add(Setting.listSetting(setting("hide_settings"), Collections.emptyList(), Function.identity(),
@@ -345,7 +356,7 @@ public class Security implements ActionPlugin {
         }
     }
 
-    private void addUserSettings(Settings.Builder settingsBuilder) {
+    private static void addUserSettings(Settings settings, Settings.Builder settingsBuilder) {
         String authHeaderSettingName = ThreadContext.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER;
         if (settings.get(authHeaderSettingName) != null) {
             return;
@@ -373,7 +384,7 @@ public class Security implements ActionPlugin {
      *
      *    - forcibly enabling it (that means it's not possible to disable security on the tribe clients)
      */
-    private void addTribeSettings(Settings.Builder settingsBuilder) {
+    private static void addTribeSettings(Settings settings, Settings.Builder settingsBuilder) {
         Map<String, Settings> tribesSettings = settings.getGroups("tribe", true);
         if (tribesSettings.isEmpty()) {
             // it's not a tribe node

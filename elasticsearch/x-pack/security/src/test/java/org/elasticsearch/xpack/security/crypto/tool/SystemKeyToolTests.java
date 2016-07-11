@@ -11,7 +11,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.common.io.PathUtilsForTesting;
-import org.elasticsearch.xpack.security.crypto.InternalCryptoService;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.junit.After;
 
 import java.nio.file.FileSystem;
@@ -52,7 +52,7 @@ public class SystemKeyToolTests extends CommandTestCase {
         execute("-Epath.home=" + homeDir, path.toString());
         byte[] bytes = Files.readAllBytes(path);
         // TODO: maybe we should actually check the key is...i dunno...valid?
-        assertEquals(InternalCryptoService.KEY_SIZE / 8, bytes.length);
+        assertEquals(CryptoService.KEY_SIZE / 8, bytes.length);
 
         Set<PosixFilePermission> perms = Files.getPosixFilePermissions(path);
         assertTrue(perms.toString(), perms.contains(PosixFilePermission.OWNER_READ));
@@ -67,7 +67,7 @@ public class SystemKeyToolTests extends CommandTestCase {
         Files.createDirectories(path.getParent());
         execute("-Epath.home=" + homeDir.toString(), "-Expack.security.system_key.file=" + path.toAbsolutePath().toString());
         byte[] bytes = Files.readAllBytes(path);
-        assertEquals(InternalCryptoService.KEY_SIZE / 8, bytes.length);
+        assertEquals(CryptoService.KEY_SIZE / 8, bytes.length);
     }
 
     public void testGenerateDefaultPath() throws Exception {
@@ -76,7 +76,7 @@ public class SystemKeyToolTests extends CommandTestCase {
         Files.createDirectories(keyPath.getParent());
         execute("-Epath.home=" + homeDir.toString());
         byte[] bytes = Files.readAllBytes(keyPath);
-        assertEquals(InternalCryptoService.KEY_SIZE / 8, bytes.length);
+        assertEquals(CryptoService.KEY_SIZE / 8, bytes.length);
     }
 
     public void testThatSystemKeyMayOnlyBeReadByOwner() throws Exception {

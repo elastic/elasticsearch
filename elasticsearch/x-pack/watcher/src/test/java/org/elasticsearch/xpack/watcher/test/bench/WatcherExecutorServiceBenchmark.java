@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.xpack.watcher.trigger.TriggerModule;
 import org.elasticsearch.xpack.XPackPlugin;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -204,7 +205,7 @@ public class WatcherExecutorServiceBenchmark {
     public static final class XPackBenchmarkPlugin extends XPackPlugin {
 
 
-        public XPackBenchmarkPlugin(Settings settings) {
+        public XPackBenchmarkPlugin(Settings settings) throws IOException {
             super(settings);
             watcher = new BenchmarkWatcher(settings);
         }

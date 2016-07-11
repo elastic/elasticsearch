@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.junit.After;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -265,7 +266,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     public static class InternalXPackPlugin extends XPackPlugin {
 
-        public InternalXPackPlugin(Settings settings) {
+        public InternalXPackPlugin(Settings settings) throws IOException {
             super(settings);
             licensing = new InternalLicensing();
         }

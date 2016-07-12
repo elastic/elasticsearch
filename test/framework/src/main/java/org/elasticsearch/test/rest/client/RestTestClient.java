@@ -31,6 +31,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
@@ -267,7 +268,7 @@ public class RestTestClient implements Closeable {
             URL url = urls[i];
             hosts[i] = new HttpHost(url.getHost(), url.getPort(), protocol);
         }
-        RestClient.Builder builder = RestClient.builder(hosts).setMaxRetryTimeoutMillis(30000)
+        RestClientBuilder builder = RestClient.builder(hosts).setMaxRetryTimeoutMillis(30000)
                 .setRequestConfigCallback(requestConfigBuilder -> requestConfigBuilder.setSocketTimeout(30000));
 
         String keystorePath = settings.get(TRUSTSTORE_PATH);

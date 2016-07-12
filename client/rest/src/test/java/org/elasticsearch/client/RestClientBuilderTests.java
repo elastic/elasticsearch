@@ -104,16 +104,16 @@ public class RestClientBuilderTests extends RestClientTestCase {
         for (int i = 0; i < numNodes; i++) {
             hosts[i] = new HttpHost("localhost", 9200 + i);
         }
-        RestClient.Builder builder = RestClient.builder(hosts);
+        RestClientBuilder builder = RestClient.builder(hosts);
         if (getRandom().nextBoolean()) {
-            builder.setHttpClientConfigCallback(new RestClient.HttpClientConfigCallback() {
+            builder.setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
                 @Override
                 public void customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
                 }
             });
         }
         if (getRandom().nextBoolean()) {
-            builder.setRequestConfigCallback(new RestClient.RequestConfigCallback() {
+            builder.setRequestConfigCallback(new RestClientBuilder.RequestConfigCallback() {
                 @Override
                 public void customizeRequestConfig(RequestConfig.Builder requestConfigBuilder) {
                 }

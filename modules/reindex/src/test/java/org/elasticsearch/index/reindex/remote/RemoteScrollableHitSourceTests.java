@@ -25,6 +25,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.StatusLine;
 import org.apache.http.concurrent.FutureCallback;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
@@ -360,7 +361,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
                 } else {
                     StatusLine statusLine = new BasicStatusLine(protocolVersion, 200, "");
                     HttpResponse httpResponse = new BasicHttpResponse(statusLine);
-                    httpResponse.setEntity(new InputStreamEntity(resource.openStream()));
+                    httpResponse.setEntity(new InputStreamEntity(resource.openStream(), ContentType.APPLICATION_JSON));
                     futureCallback.completed(httpResponse);
                 }
                 return null;

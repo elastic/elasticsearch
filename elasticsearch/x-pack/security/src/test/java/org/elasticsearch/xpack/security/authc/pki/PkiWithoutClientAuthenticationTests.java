@@ -6,12 +6,12 @@
 package org.elasticsearch.xpack.security.authc.pki;
 
 
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.SSLSocketFactoryHttpConfigCallback;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -78,8 +78,8 @@ public class PkiWithoutClientAuthenticationTests extends SecurityIntegTestCase {
     public void testThatHttpWorks() throws Exception {
         SSLContext sc = SSLContext.getInstance("SSL");
         sc.init(null, trustAllCerts, new SecureRandom());
-        CloseableHttpClient httpClient = HttpClients.custom().setSSLContext(sc).build();
-        try (RestClient restClient =  createRestClient(httpClient, "https")) {
+        SSLConnectionSocketFactory sslConnectionSocketFactory = new SSLConnectionSocketFactory(sc);
+        try (RestClient restClient =  createRestClient(new SSLSocketFactoryHttpConfigCallback(sslConnectionSocketFactory), "https")) {
             try (Response response = restClient.performRequest("GET", "/_nodes",
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,

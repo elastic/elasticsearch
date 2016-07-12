@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.input.chain;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -13,7 +14,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
+import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
 import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
@@ -24,8 +26,6 @@ import org.elasticsearch.xpack.watcher.input.http.HttpInput;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInputFactory;
-import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
@@ -48,6 +48,7 @@ import static org.elasticsearch.xpack.watcher.input.InputBuilders.httpInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -158,6 +159,14 @@ public class ChainInputTests extends ESTestCase {
         // no exception means all good
     }
 
+    public void testThatSerializationOfFailedInputWorks() throws Exception {
+        ChainInput.Result chainedResult = new ChainInput.Result(new ElasticsearchException("foo"));
+
+        XContentBuilder builder = jsonBuilder();
+        chainedResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertThat(builder.bytes().utf8ToString(), containsString("\"reason\":\"ElasticsearchException[foo]\""));
+    }
+
     private WatchExecutionContext createContext() {
         Watch watch = new Watch("test-watch",
                 new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
@@ -165,7 +174,7 @@ public class ChainInputTests extends ESTestCase {
                 new ExecutableAlwaysCondition(logger),
                 null,
                 null,
-                new ExecutableActions(new ArrayList<ActionWrapper>()),
+                new ExecutableActions(new ArrayList<>()),
                 null,
                 new WatchStatus(new DateTime(0, UTC), emptyMap()));
         WatchExecutionContext ctx = new TriggeredExecutionContext(watch,

@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
@@ -31,13 +30,6 @@ import org.elasticsearch.license.core.LicenseVerifier;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequest;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
 import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.EmptyTransportResponseHandler;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.support.clock.Clock;
 
@@ -74,11 +66,10 @@ import java.util.concurrent.atomic.AtomicReference;
 public class LicensesService extends AbstractLifecycleComponent implements ClusterStateListener, LicensesManagerService,
         LicenseeRegistry, SchedulerEngine.Listener {
 
-    public static final String REGISTER_TRIAL_LICENSE_ACTION_NAME = "internal:plugin/license/cluster/register_trial_license";
+    // pkg private for tests
+    static final TimeValue TRIAL_LICENSE_DURATION = TimeValue.timeValueHours(30 * 24);
 
     private final ClusterService clusterService;
-
-    private final TransportService transportService;
 
     /**
      * Currently active consumers to notify to
@@ -98,11 +89,6 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
     private List<ExpirationCallback> expirationCallbacks = new ArrayList<>();
 
     /**
-     * Duration of generated trial license
-     */
-    private TimeValue trialLicenseDuration = TimeValue.timeValueHours(30 * 24);
-
-    /**
      * Max number of nodes licensed by generated trial license
      */
     private int trialLicenseMaxNodes = 1000;
@@ -120,14 +106,9 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
             "please read the following messages and update the license again, this time with the \"acknowledge=true\" parameter:";
 
     @Inject
-    public LicensesService(Settings settings, ClusterService clusterService, TransportService transportService, Clock clock) {
+    public LicensesService(Settings settings, ClusterService clusterService, Clock clock) {
         super(settings);
         this.clusterService = clusterService;
-        this.transportService = transportService;
-        if (DiscoveryNode.isMasterNode(settings)) {
-            transportService.registerRequestHandler(REGISTER_TRIAL_LICENSE_ACTION_NAME, TransportRequest.Empty::new,
-                    ThreadPool.Names.SAME, new RegisterTrialLicenseRequestHandler());
-        }
         populateExpirationCallbacks();
         this.clock = clock;
         this.scheduler = new SchedulerEngine(clock);
@@ -354,7 +335,7 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
      * has no signed/trial license
      */
     private void registerTrialLicense() {
-        clusterService.submitStateUpdateTask("generate trial license for [" + trialLicenseDuration + "]", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("generate trial license for [" + TRIAL_LICENSE_DURATION + "]", new ClusterStateUpdateTask() {
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 LicensesMetaData licensesMetaData = newState.metaData().custom(LicensesMetaData.TYPE);
@@ -376,7 +357,7 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
                             .issuedTo(clusterService.getClusterName().value())
                             .maxNodes(trialLicenseMaxNodes)
                             .issueDate(issueDate)
-                            .expiryDate(issueDate + trialLicenseDuration.getMillis());
+                            .expiryDate(issueDate + TRIAL_LICENSE_DURATION.getMillis());
                     License trialLicense = TrialLicense.create(specBuilder);
                     mdBuilder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(trialLicense));
                     return ClusterState.builder(currentState).metaData(mdBuilder).build();
@@ -411,7 +392,6 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
 
     @Override
     protected void doClose() throws ElasticsearchException {
-        transportService.removeHandler(REGISTER_TRIAL_LICENSE_ACTION_NAME);
     }
 
     /**
@@ -440,9 +420,10 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
             }
             // auto-generate license if no licenses ever existed
             // this will trigger a subsequent cluster changed event
-            if (prevLicensesMetaData == null
-                    && (currentLicensesMetaData == null || currentLicensesMetaData.getLicense() == null)) {
-                requestTrialLicense(currentClusterState);
+            if (currentClusterState.getNodes().isLocalNodeElectedMaster() &&
+                prevLicensesMetaData == null &&
+                (currentLicensesMetaData == null || currentLicensesMetaData.getLicense() == null)) {
+                registerTrialLicense();
             }
         } else if (logger.isDebugEnabled()) {
             logger.debug("skipped license notifications reason: [{}]", GatewayService.STATE_NOT_RECOVERED_BLOCK);
@@ -535,23 +516,15 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
                 && clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false
                 && clusterState.nodes().getMasterNode() != null) {
             final LicensesMetaData currentMetaData = clusterState.metaData().custom(LicensesMetaData.TYPE);
-            if (currentMetaData == null || currentMetaData.getLicense() == null) {
+            if (clusterState.getNodes().isLocalNodeElectedMaster() &&
+                (currentMetaData == null || currentMetaData.getLicense() == null)) {
                 // triggers a cluster changed event
                 // eventually notifying the current licensee
-                requestTrialLicense(clusterState);
+                registerTrialLicense();
             } else if (lifecycleState() == Lifecycle.State.STARTED) {
                 notifyLicensees(currentMetaData.getLicense());
             }
         }
-    }
-
-    private void requestTrialLicense(final ClusterState currentState) {
-        DiscoveryNode masterNode = currentState.nodes().getMasterNode();
-        if (masterNode == null) {
-            throw new IllegalStateException("master not available when registering auto-generated license");
-        }
-        transportService.sendRequest(masterNode,
-                REGISTER_TRIAL_LICENSE_ACTION_NAME, TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME);
     }
 
     License getLicense(final LicensesMetaData metaData) {
@@ -621,18 +594,6 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
                     licensee.onChange(Licensee.Status.MISSING);
                 }
             }
-        }
-    }
-
-    /**
-     * Request handler for trial license generation to master
-     */
-    private class RegisterTrialLicenseRequestHandler implements TransportRequestHandler<TransportRequest.Empty> {
-
-        @Override
-        public void messageReceived(TransportRequest.Empty empty, TransportChannel channel) throws Exception {
-            registerTrialLicense();
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 }

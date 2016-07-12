@@ -74,5 +74,5 @@ teardown:
   - match: { acknowledged: true }
 
   - do:
-      license.get: {}
+      xpack.license.get: {}
       catch: missing

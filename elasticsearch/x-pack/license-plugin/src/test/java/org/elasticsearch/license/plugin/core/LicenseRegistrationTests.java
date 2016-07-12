@@ -5,31 +5,39 @@
  */
 package org.elasticsearch.license.plugin.core;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.plugin.TestUtils;
-import org.elasticsearch.transport.EmptyTransportResponseHandler;
-import org.elasticsearch.transport.TransportRequest;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
-import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
 
     public void testTrialLicenseRequestOnEmptyLicenseState() throws Exception {
         setInitialState(null);
+        when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
+
         TestUtils.AssertingLicensee licensee = new TestUtils.AssertingLicensee(
                 "testTrialLicenseRequestOnEmptyLicenseState", logger);
         licensesService.start();
         licensesService.register(licensee);
-        verify(transportService, times(1))
-                .sendRequest(any(DiscoveryNode.class),
-                        eq(LicensesService.REGISTER_TRIAL_LICENSE_ACTION_NAME),
-                        any(TransportRequest.Empty.class), any(EmptyTransportResponseHandler.class));
-        assertThat(licensee.statuses.size(), equalTo(0));
+
+        ClusterState state = ClusterState.builder(new ClusterName("a")).build();
+        ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
+        verify(clusterService, Mockito.times(1)).submitStateUpdateTask(any(), stateUpdater.capture());
+        ClusterState stateWithLicense = stateUpdater.getValue().execute(state);
+        LicensesMetaData licenseMetaData = stateWithLicense.metaData().custom(LicensesMetaData.TYPE);
+        assertNotNull(licenseMetaData);
+        assertNotNull(licenseMetaData.getLicense());
+        assertEquals(clock.millis() + LicensesService.TRIAL_LICENSE_DURATION.millis(), licenseMetaData.getLicense().expiryDate());
+
         licensesService.stop();
     }
 

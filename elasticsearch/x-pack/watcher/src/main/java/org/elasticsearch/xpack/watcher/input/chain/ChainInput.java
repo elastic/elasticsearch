@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class ChainInput implements Input {
@@ -103,7 +104,7 @@ public class ChainInput implements Input {
 
     public static class Result extends Input.Result {
 
-        private List<Tuple<String, Input.Result>> results;
+        private List<Tuple<String, Input.Result>> results = Collections.emptyList();
 
         protected Result(List<Tuple<String, Input.Result>> results, Payload payload) {
             super(TYPE, payload);

@@ -7,7 +7,7 @@
         wait_for_status: yellow
 
   - do:
-      license.delete: {}
+      xpack.license.delete: {}
   - match: { acknowledged: true }
 
   # we don't have a license now
@@ -30,7 +30,7 @@
 #  - is_false:   features.monitoring.available  TODO fix once licensing is fixed
 
   - do:
-      license.post:
+      xpack.license.post:
         body: >
           {
             "license": {
@@ -49,7 +49,7 @@
   - match: { license_status:  "valid" }
 
   - do:
-      license.get: {}
+      xpack.license.get: {}
   - match: { license.uid: "893361dc-9749-4997-93cb-802e3dofh7aa" }
   - match: { license.type: "internal" }
   - match: { license.status: "active" }

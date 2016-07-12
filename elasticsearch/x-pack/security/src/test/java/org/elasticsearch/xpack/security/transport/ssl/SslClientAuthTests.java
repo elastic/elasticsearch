@@ -7,14 +7,13 @@ package org.elasticsearch.xpack.security.transport.ssl;
 
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.SSLSocketFactoryHttpConfigCallback;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -61,8 +60,7 @@ public class SslClientAuthTests extends SecurityIntegTestCase {
         SSLConnectionSocketFactory socketFactory = new SSLConnectionSocketFactory(
                 SSLContexts.createDefault(),
                 NoopHostnameVerifier.INSTANCE);
-
-        try (RestClient restClient = createRestClient(HttpClients.custom().setSSLSocketFactory(socketFactory).build(), "https")) {
+        try (RestClient restClient = createRestClient(new SSLSocketFactoryHttpConfigCallback(socketFactory), "https")) {
             restClient.performRequest("GET", "/");
             fail("Expected SSLHandshakeException");
         } catch (SSLHandshakeException e) {
@@ -75,14 +73,10 @@ public class SslClientAuthTests extends SecurityIntegTestCase {
                 .put(getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient"))
                 .build();
         ClientSSLService sslService = new ClientSSLService(settings, new Global(settings));
-
         SSLConnectionSocketFactory socketFactory = new SSLConnectionSocketFactory(
                 sslService.sslContext(),
                 NoopHostnameVerifier.INSTANCE);
-
-        CloseableHttpClient client = HttpClients.custom().setSSLSocketFactory(socketFactory).build();
-
-        try (RestClient restClient = createRestClient(client, "https")) {
+        try (RestClient restClient = createRestClient(new SSLSocketFactoryHttpConfigCallback(socketFactory), "https")) {
             try (Response response = restClient.performRequest("GET", "/",
                     new BasicHeader("Authorization", basicAuthHeaderValue(transportClientUsername(), transportClientPassword())))) {
                 assertThat(response.getStatusLine().getStatusCode(), equalTo(200));

@@ -19,12 +19,29 @@
 package org.elasticsearch.index.mapper.parent;
 
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class ParentMappingTests extends ESSingleNodeTestCase {
 
@@ -55,5 +72,24 @@ public class ParentMappingTests extends ESSingleNodeTestCase {
                 .bytes()).parent("1122"));
 
         assertEquals("1122", doc.rootDoc().getBinaryValue("_parent#p_type").utf8ToString());
+    }
+
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/19389")
+    public void testNoParentNullFieldCreatedIfNoParentSpecified() throws Exception {
+        Index index = new Index("_index", "testUUID");
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, Settings.EMPTY);
+        AnalysisService analysisService = new AnalysisService(indexSettings, Collections.emptyMap(), Collections.emptyMap(),
+            Collections.emptyMap(), Collections.emptyMap());
+        SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
+        MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService,
+            new IndicesModule(new NamedWriteableRegistry(), emptyList()).getMapperRegistry(), () -> null);
+        XContentBuilder mappingSource = jsonBuilder().startObject().startObject("some_type")
+            .startObject("properties")
+            .endObject()
+            .endObject().endObject();
+        mapperService.merge("some_type", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        Set<String> allFields = new HashSet<>(mapperService.simpleMatchToIndexNames("*"));
+        assertFalse(allFields.contains("_parent#null"));
     }
 }

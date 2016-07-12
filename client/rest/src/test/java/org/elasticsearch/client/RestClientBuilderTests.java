@@ -50,10 +50,14 @@ public class RestClientBuilderTests extends RestClientTestCase {
         }
 
         try {
-            RestClient.builder(new HttpHost[]{new HttpHost("localhost", 9200), null}).build();
+            RestClient.builder(new HttpHost("localhost", 9200), null);
             fail("should have failed");
         } catch(NullPointerException e) {
             assertEquals("host cannot be null", e.getMessage());
+        }
+
+        try (RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200)).build()) {
+            assertNotNull(restClient);
         }
 
         try {

@@ -59,6 +59,9 @@ public final class RestClientBuilder {
         if (hosts == null || hosts.length == 0) {
             throw new IllegalArgumentException("no hosts provided");
         }
+        for (HttpHost host : hosts) {
+            Objects.requireNonNull(host, "host cannot be null");
+        }
         this.hosts = hosts;
     }
 
@@ -123,8 +126,9 @@ public final class RestClientBuilder {
             failureListener = new RestClient.FailureListener();
         }
         CloseableHttpAsyncClient httpClient = createHttpClient();
+        RestClient restClient = new RestClient(httpClient, maxRetryTimeout, defaultHeaders, hosts, failureListener);
         httpClient.start();
-        return new RestClient(httpClient, maxRetryTimeout, defaultHeaders, hosts, failureListener);
+        return restClient;
     }
 
     private CloseableHttpAsyncClient createHttpClient() {

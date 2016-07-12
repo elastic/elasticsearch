@@ -5,16 +5,15 @@
  */
 package org.elasticsearch.xpack.security.transport.ssl;
 
-import org.apache.http.client.config.RequestConfig;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
-import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.SSLSocketFactoryHttpConfigCallback;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -108,25 +107,6 @@ public class SslClientAuthTests extends SecurityIntegTestCase {
             client.addTransportAddress(transportAddress);
 
             assertGreenClusterState(client);
-        }
-    }
-
-    private static class SSLSocketFactoryHttpConfigCallback implements RestClient.HttpClientConfigCallback {
-
-        private final SSLConnectionSocketFactory sslSocketFactory;
-
-        SSLSocketFactoryHttpConfigCallback(SSLConnectionSocketFactory sslSocketFactory) {
-            this.sslSocketFactory = sslSocketFactory;
-        }
-
-        @Override
-        public void customizeDefaultRequestConfig(RequestConfig.Builder requestConfigBuilder) {
-
-        }
-
-        @Override
-        public void customizeHttpClient(HttpClientBuilder httpClientBuilder) {
-            httpClientBuilder.setSSLSocketFactory(sslSocketFactory);
         }
     }
 }

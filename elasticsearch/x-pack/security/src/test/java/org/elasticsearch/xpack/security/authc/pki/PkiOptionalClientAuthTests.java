@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack.security.authc.pki;
 
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.SSLSocketFactoryHttpConfigCallback;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -77,7 +79,8 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
     }
 
     public void testRestClientWithoutClientCertificate() throws Exception {
-        try (RestClient restClient = createRestClient(new SSLContextHttpConfigCallback(getSSLContext()), "https")) {
+        SSLConnectionSocketFactory sslConnectionSocketFactory = new SSLConnectionSocketFactory(getSSLContext());
+        try (RestClient restClient = createRestClient(new SSLSocketFactoryHttpConfigCallback(sslConnectionSocketFactory), "https")) {
             try {
                 restClient.performRequest("GET", "_nodes");
                 fail("request should have failed");

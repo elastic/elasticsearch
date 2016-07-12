@@ -268,16 +268,10 @@ public class PluginsService extends AbstractComponent {
         return builder.put(this.settings).build();
     }
 
-    @SuppressWarnings("unchecked")
-    public Collection<Module> nodeModules() {
+    public Collection<Module> createGuiceModules() {
         List<Module> modules = new ArrayList<>();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
             modules.addAll(plugin.v2().createGuiceModules());
-            modules.add(b -> {
-                for (Object c : plugin.v2().createComponents()) {
-                    b.bind((Class)c.getClass()).toInstance(c);
-                }
-            });
         }
         return modules;
     }

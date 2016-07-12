@@ -141,7 +141,7 @@ public class TransportClient extends AbstractClient {
 
                 ModulesBuilder modules = new ModulesBuilder();
                 // plugin modules must be added here, before others or we can get crazy injection errors...
-                for (Module pluginModule : pluginsService.nodeModules()) {
+                for (Module pluginModule : pluginsService.createGuiceModules()) {
                     modules.add(pluginModule);
                 }
                 modules.add(new NetworkModule(networkService, settings, true, namedWriteableRegistry));

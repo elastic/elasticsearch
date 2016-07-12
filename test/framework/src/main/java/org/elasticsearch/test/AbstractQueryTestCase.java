@@ -874,7 +874,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 }
             };
             ModulesBuilder modulesBuilder = new ModulesBuilder();
-            for (Module pluginModule : pluginsService.nodeModules()) {
+            for (Module pluginModule : pluginsService.createGuiceModules()) {
                 modulesBuilder.add(pluginModule);
             }
             modulesBuilder.add(

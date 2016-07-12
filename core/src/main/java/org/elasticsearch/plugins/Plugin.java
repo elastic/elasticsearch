@@ -19,8 +19,13 @@
 
 package org.elasticsearch.plugins;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+
 import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Setting;
@@ -30,10 +35,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
-
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  * An extension point allowing to plug in custom functionality.
@@ -65,13 +67,17 @@ public abstract class Plugin {
     }
 
     /**
-     * Returns components maintained by this plugin.
+     * Returns components added by this plugin.
      *
      * Any components returned that implement {@link LifecycleComponent} will have their lifecycle managed.
      * Note: To aid in the migration away from guice, all objects returned as components will be bound in guice
      * to themselves.
+     *
+     * @param client A client to make requests to the system
+     * @param clusterService A service to allow watching and updating cluster state
+     * @param threadPool A service to allow retrieving an executor to run an async action
      */
-    public Collection<Object> createComponents() {
+    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool) {
         return Collections.emptyList();
     }
 

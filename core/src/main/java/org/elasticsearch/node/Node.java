@@ -303,7 +303,9 @@ public class Node implements Closeable {
             resourcesToClose.add(bigArrays);
             modules.add(settingsModule);
             client = new NodeClient(settings, threadPool);
-            Collection<Object> pluginComponents = pluginsService.createComponenents();
+            Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
+                .flatMap(p -> p.createComponents(client, clusterService, threadPool).stream())
+                .collect(Collectors.toList());
             modules.add(b -> {
                     b.bind(PluginsService.class).toInstance(pluginsService);
                     b.bind(Client.class).toInstance(client);

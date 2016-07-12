@@ -78,8 +78,6 @@ import org.jboss.netty.handler.timeout.ReadTimeoutException;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -112,9 +110,6 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
 import static org.elasticsearch.http.netty.cors.CorsHandler.ANY_ORIGIN;
 
-/**
- *
- */
 public class NettyHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
 
     static {
@@ -286,23 +281,17 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent impleme
     @Override
     protected void doStart() {
         this.serverOpenChannels = new OpenChannelsHandler(logger);
-        // this doPrivileged is for SelectorUtil.java that tries to set "sun.nio.ch.bugLevel"
-        AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
-                if (blockingServer) {
-                    serverBootstrap = new ServerBootstrap(new OioServerSocketChannelFactory(
-                        Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_boss")),
-                        Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_worker"))
-                    ));
-                } else {
-                    serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(
-                        Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_boss")),
-                        Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_worker")),
-                        workerCount));
-                }
-                return null;
-            });
-        assert System.getProperty("sun.nio.ch.bugLevel") != null :
-            "sun.nio.ch.bugLevel is null somebody pulls in SelectorUtil without doing stuff in a doPrivileged block?";
+        if (blockingServer) {
+            serverBootstrap = new ServerBootstrap(new OioServerSocketChannelFactory(
+                Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_boss")),
+                Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_worker"))
+            ));
+        } else {
+            serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(
+                Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_boss")),
+                Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_worker")),
+                workerCount));
+        }
         serverBootstrap.setPipelineFactory(configureServerChannelPipelineFactory());
 
         serverBootstrap.setOption("child.tcpNoDelay", tcpNoDelay);

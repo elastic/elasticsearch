@@ -65,8 +65,6 @@ import org.jboss.netty.util.HashedWheelTimer;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -185,24 +183,19 @@ public class NettyTransport extends TcpTransport<Channel> {
 
     private ClientBootstrap createClientBootstrap() {
         // this doPrivileged is for SelectorUtil.java that tries to set "sun.nio.ch.bugLevel"
-        AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
-                if (blockingClient) {
-                    clientBootstrap = new ClientBootstrap(new OioClientSocketChannelFactory(
-                        Executors.newCachedThreadPool(daemonThreadFactory(settings, TRANSPORT_CLIENT_WORKER_THREAD_NAME_PREFIX))));
-                } else {
-                    int bossCount = NETTY_BOSS_COUNT.get(settings);
-                    clientBootstrap = new ClientBootstrap(
-                        new NioClientSocketChannelFactory(
-                            Executors.newCachedThreadPool(daemonThreadFactory(settings, TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX)),
-                            bossCount,
-                            new NioWorkerPool(Executors.newCachedThreadPool(
-                                daemonThreadFactory(settings, TRANSPORT_CLIENT_WORKER_THREAD_NAME_PREFIX)), workerCount),
-                            new HashedWheelTimer(daemonThreadFactory(settings, "transport_client_timer"))));
-                }
-            return null;
-        });
-        assert System.getProperty("sun.nio.ch.bugLevel") != null :
-            "sun.nio.ch.bugLevel is null somebody pulls in SelectorUtil without doing stuff in a doPrivileged block?";
+        if (blockingClient) {
+            clientBootstrap = new ClientBootstrap(new OioClientSocketChannelFactory(
+                Executors.newCachedThreadPool(daemonThreadFactory(settings, TRANSPORT_CLIENT_WORKER_THREAD_NAME_PREFIX))));
+        } else {
+            int bossCount = NETTY_BOSS_COUNT.get(settings);
+            clientBootstrap = new ClientBootstrap(
+                new NioClientSocketChannelFactory(
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX)),
+                    bossCount,
+                    new NioWorkerPool(Executors.newCachedThreadPool(
+                        daemonThreadFactory(settings, TRANSPORT_CLIENT_WORKER_THREAD_NAME_PREFIX)), workerCount),
+                    new HashedWheelTimer(daemonThreadFactory(settings, "transport_client_timer"))));
+        }
         clientBootstrap.setPipelineFactory(configureClientChannelPipelineFactory());
         clientBootstrap.setOption("connectTimeoutMillis", connectTimeout.millis());
 
@@ -288,22 +281,18 @@ public class NettyTransport extends TcpTransport<Channel> {
 
         final ThreadFactory bossFactory = daemonThreadFactory(this.settings, HTTP_SERVER_BOSS_THREAD_NAME_PREFIX, name);
         final ThreadFactory workerFactory = daemonThreadFactory(this.settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX, name);
-        // this doPrivileged is for SelectorUtil.java that tries to set "sun.nio.ch.bugLevel"
-        ServerBootstrap serverBootstrap = AccessController.doPrivileged((PrivilegedAction<ServerBootstrap>) () -> {
-            if (blockingServer) {
-                return new ServerBootstrap(new OioServerSocketChannelFactory(
-                    Executors.newCachedThreadPool(bossFactory),
-                    Executors.newCachedThreadPool(workerFactory)
-                ));
-            } else {
-                return new ServerBootstrap(new NioServerSocketChannelFactory(
-                    Executors.newCachedThreadPool(bossFactory),
-                    Executors.newCachedThreadPool(workerFactory),
-                    workerCount));
-            }
-        });
-        assert System.getProperty("sun.nio.ch.bugLevel") != null :
-            "sun.nio.ch.bugLevel is null somebody pulls in SelectorUtil without doing stuff in a doPrivileged block?";
+        final ServerBootstrap serverBootstrap;
+        if (blockingServer) {
+            serverBootstrap = new ServerBootstrap(new OioServerSocketChannelFactory(
+                Executors.newCachedThreadPool(bossFactory),
+                Executors.newCachedThreadPool(workerFactory)
+            ));
+        } else {
+            serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(
+                Executors.newCachedThreadPool(bossFactory),
+                Executors.newCachedThreadPool(workerFactory),
+                workerCount));
+        }
         serverBootstrap.setPipelineFactory(configureServerChannelPipelineFactory(name, settings));
         if (!"default".equals(tcpNoDelay)) {
             serverBootstrap.setOption("child.tcpNoDelay", Booleans.parseBoolean(tcpNoDelay, null));

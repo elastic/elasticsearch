@@ -49,8 +49,6 @@ import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptParameterParser;
-import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -74,7 +72,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     public static final ParseField SORTMODE_FIELD = new ParseField("mode");
     public static final ParseField NESTED_PATH_FIELD = new ParseField("nested_path");
     public static final ParseField NESTED_FILTER_FIELD = new ParseField("nested_filter");
-    public static final ParseField PARAMS_FIELD = new ParseField("params");
 
     private final Script script;
 
@@ -231,7 +228,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
      *        in '{ "foo": { "order" : "asc"} }'. When parsing the inner object, the field name can be passed in via this argument
      */
     public static ScriptSortBuilder fromXContent(QueryParseContext context, String elementName) throws IOException {
-        ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
         XContentParser parser = context.parser();
         ParseFieldMatcher parseField = context.getParseFieldMatcher();
         Script script = null;
@@ -240,7 +236,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         SortOrder order = null;
         Optional<QueryBuilder> nestedFilter = Optional.empty();
         String nestedPath = null;
-        Map<String, Object> params = new HashMap<>();
 
         XContentParser.Token token;
         String currentName = parser.currentName();
@@ -250,8 +245,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (parseField.match(currentName, ScriptField.SCRIPT)) {
                     script = Script.parse(parser, parseField);
-                } else if (parseField.match(currentName, PARAMS_FIELD)) {
-                    params = parser.map();
                 } else if (parseField.match(currentName, NESTED_FILTER_FIELD)) {
                     nestedFilter = context.parseInnerQueryBuilder();
                 } else {
@@ -260,29 +253,19 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             } else if (token.isValue()) {
                 if (parseField.match(currentName, ORDER_FIELD)) {
                     order = SortOrder.fromString(parser.text());
-                } else if (scriptParameterParser.token(currentName, token, parser, parseField)) {
-                    // Do Nothing (handled by ScriptParameterParser
                 } else if (parseField.match(currentName, TYPE_FIELD)) {
                     type = ScriptSortType.fromString(parser.text());
                 } else if (parseField.match(currentName, SORTMODE_FIELD)) {
                     sortMode = SortMode.fromString(parser.text());
                 } else if (parseField.match(currentName, NESTED_PATH_FIELD)) {
                     nestedPath = parser.text();
+                } else if (parseField.match(currentName, ScriptField.SCRIPT)) {
+                    script = Script.parse(parser, parseField);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] failed to parse field [" + currentName + "]");
                 }
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] unexpected token [" + token + "]");
-            }
-        }
-
-        if (script == null) { // Didn't find anything using the new API so try using the old one instead
-            ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
-            if (scriptValue != null) {
-                if (params == null) {
-                    params = new HashMap<>();
-                }
-                script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
             }
         }
 

@@ -26,12 +26,9 @@ import org.elasticsearch.action.search.template.SearchTemplateAction;
 import org.elasticsearch.action.search.template.SearchTemplateRequest;
 import org.elasticsearch.action.search.template.SearchTemplateRequestBuilder;
 import org.elasticsearch.action.search.template.SearchTemplateResponse;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TemplateQueryBuilder;
@@ -156,12 +153,6 @@ public class TemplateQueryTests extends ESIntegTestCase {
         request.setRequest(searchRequest);
         SearchTemplateResponse response = client().execute(SearchTemplateAction.INSTANCE, request).get();
         assertHitCount(response.getResponse(), 2);
-    }
-
-    private Template parseTemplate(String template) throws IOException {
-        try (XContentParser parser = XContentFactory.xContent(template).createParser(template)) {
-            return TemplateQueryBuilder.parse(parser, ParseFieldMatcher.EMPTY, "params", "template");
-        }
     }
 
     // Relates to #6318

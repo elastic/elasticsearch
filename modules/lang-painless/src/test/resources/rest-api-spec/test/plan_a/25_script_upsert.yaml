@@ -7,9 +7,10 @@
           type:     test
           id:       1
           body:
-            script: "ctx._source.foo = params.bar"
-            lang: "painless"
-            params: { bar: 'xxx' }
+            script:
+              inline: "ctx._source.foo = params.bar"
+              lang: "painless"
+              params: { bar: 'xxx' }
             upsert: { foo: baz }
 
   - do:
@@ -27,9 +28,10 @@
           type:     test
           id:       1
           body:
-            script: "ctx._source.foo = params.bar"
-            lang: "painless"
-            params: { bar: 'xxx' }
+            script:
+              inline: "ctx._source.foo = params.bar"
+              lang: "painless"
+              params: { bar: 'xxx' }
             upsert: { foo: baz }
 
   - do:
@@ -46,9 +48,10 @@
           type:     test
           id:       2
           body:
-            script: "ctx._source.foo = params.bar"
-            lang: "painless"
-            params: { bar: 'xxx' }
+            script:
+              inline: "ctx._source.foo = params.bar"
+              lang: "painless"
+              params: { bar: 'xxx' }
             upsert: { foo: baz }
             scripted_upsert: true
 

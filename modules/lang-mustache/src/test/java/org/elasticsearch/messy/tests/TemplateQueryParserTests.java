@@ -153,7 +153,7 @@ public class TemplateQueryParserTests extends ESTestCase {
     }
 
     public void testParser() throws IOException {
-        String templateString = "{" + "\"query\":{\"match_{{template}}\": {}}," + "\"params\":{\"template\":\"all\"}" + "}";
+        String templateString = "{" + "\"inline\":{\"match_{{template}}\": {}}," + "\"params\":{\"template\":\"all\"}" + "}";
 
         XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
         QueryShardContext context = contextFactory.get();

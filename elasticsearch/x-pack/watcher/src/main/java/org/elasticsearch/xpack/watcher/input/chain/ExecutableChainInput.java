@@ -40,7 +40,7 @@ public class ExecutableChainInput extends ExecutableInput<ChainInput,ChainInput.
 
             return new ChainInput.Result(results, new Payload.Simple(payloads));
         } catch (Exception e) {
-            logger.error("failed to execute [{}] input for [{}]", e, ChainInput.TYPE, ctx.watch());
+            logger.error("failed to execute [{}] input for [{}]", e, ChainInput.TYPE, ctx.watch().id());
             return new ChainInput.Result(e);
         }
     }

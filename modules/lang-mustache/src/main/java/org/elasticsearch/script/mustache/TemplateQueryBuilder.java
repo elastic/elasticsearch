@@ -19,7 +19,6 @@
 package org.elasticsearch.script.mustache;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -49,9 +48,7 @@ import java.util.Optional;
  * Facilitates creating template query requests.
  * */
 public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuilder> {
-    /** Name to reference this type of query. */
     public static final String NAME = "template";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     /** Template to fill. */
     private final Script template;

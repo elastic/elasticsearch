@@ -22,7 +22,6 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,12 +33,15 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
@@ -110,12 +112,12 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertEquals(activeRefs, indexShard.store().refCount());
     }
 
-    public static class FailOnRewriteQueryPlugin extends Plugin {
-
-        public void onModule(SearchModule module) {
-            module.registerQuery(FailOnRewriteQueryBuilder::new, parseContext -> {
+    public static class FailOnRewriteQueryPlugin extends Plugin implements SearchPlugin {
+        @Override
+        public List<QuerySpec<?>> getQueries() {
+            return singletonList(new QuerySpec<>("fail_on_rewrite_query", FailOnRewriteQueryBuilder::new, parseContext -> {
                 throw new UnsupportedOperationException("No query parser for this plugin");
-            }, new ParseField("fail_on_rewrite_query"));
+            }));
         }
     }
 

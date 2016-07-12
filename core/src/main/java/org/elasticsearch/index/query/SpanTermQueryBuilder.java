@@ -38,9 +38,7 @@ import java.util.Optional;
  * @see SpanTermQuery
  */
 public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuilder> implements SpanQueryBuilder {
-
     public static final String NAME = "span_term";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField TERM_FIELD = new ParseField("term");
 

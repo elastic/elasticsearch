@@ -34,9 +34,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilder> implements SpanQueryBuilder {
-
     public static final String NAME = "span_not";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     /** the default pre parameter size */
     public static final int DEFAULT_PRE = 0;

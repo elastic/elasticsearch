@@ -57,9 +57,7 @@ import java.util.TreeMap;
  * them either using DisMax or a plain boolean query (see {@link #useDisMax(boolean)}).
  */
 public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQueryBuilder> {
-
     public static final String NAME = "query_string";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     public static final boolean DEFAULT_AUTO_GENERATE_PHRASE_QUERIES = false;
     public static final int DEFAULT_MAX_DETERMINED_STATES = Operations.DEFAULT_MAX_DETERMINIZED_STATES;

@@ -47,7 +47,7 @@ public class MonitoringWithSecurityInsufficientRoleIT extends ESRestTestCase {
     }
 
     @Override
-    public void test() throws IOException {
+    public void test() throws Exception {
         try {
             super.test();
             fail("should have failed because of missing role");

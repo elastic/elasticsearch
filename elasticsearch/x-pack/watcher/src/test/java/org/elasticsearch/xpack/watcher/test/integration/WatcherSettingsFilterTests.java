@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.junit.After;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
@@ -58,17 +57,15 @@ public class WatcherSettingsFilterTests extends AbstractWatcherIntegrationTestCa
         } else {
             headers = new Header[0];
         }
-        try (Response response = getRestClient().performRequest("GET", "/_nodes/settings",
-                Collections.emptyMap(), null, headers)) {
-            Map<String, Object> responseMap = JsonXContent.jsonXContent.createParser(response.getEntity().getContent()).map();
-            Map<String, Object> nodes = (Map<String, Object>) responseMap.get("nodes");
-            for (Object node : nodes.values()) {
-                Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) node).get("settings");
-                assertThat(XContentMapValues.extractValue("xpack.notification.email.account._email.smtp.user", settings),
-                        is((Object) "_user"));
-                assertThat(XContentMapValues.extractValue("xpack.notification.email.account._email.smtp.password", settings),
-                        nullValue());
-            }
+        Response response = getRestClient().performRequest("GET", "/_nodes/settings", headers);
+        Map<String, Object> responseMap = JsonXContent.jsonXContent.createParser(response.getEntity().getContent()).map();
+        Map<String, Object> nodes = (Map<String, Object>) responseMap.get("nodes");
+        for (Object node : nodes.values()) {
+            Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) node).get("settings");
+            assertThat(XContentMapValues.extractValue("xpack.notification.email.account._email.smtp.user", settings),
+                    is((Object) "_user"));
+            assertThat(XContentMapValues.extractValue("xpack.notification.email.account._email.smtp.password", settings),
+                    nullValue());
         }
     }
 }

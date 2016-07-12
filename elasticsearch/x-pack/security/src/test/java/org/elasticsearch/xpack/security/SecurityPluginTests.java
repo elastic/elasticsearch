@@ -14,8 +14,6 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 
-import java.io.IOException;
-
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.RestStatus.UNAUTHORIZED;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -31,7 +29,7 @@ public class SecurityPluginTests extends SecurityIntegTestCase {
                 .build();
     }
 
-    public void testThatPluginIsLoaded() throws IOException {
+    public void testThatPluginIsLoaded() throws Exception {
         try {
             logger.info("executing unauthorized request to /_xpack info");
             getRestClient().performRequest("GET", "/_xpack");
@@ -41,11 +39,10 @@ public class SecurityPluginTests extends SecurityIntegTestCase {
         }
 
         logger.info("executing authorized request to /_xpack infos");
-        try (Response response = getRestClient().performRequest("GET", "/_xpack",
+        Response response = getRestClient().performRequest("GET", "/_xpack",
                 new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                         basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
-                                new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
-            assertThat(response.getStatusLine().getStatusCode(), is(OK.getStatus()));
-        }
+                                new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))));
+        assertThat(response.getStatusLine().getStatusCode(), is(OK.getStatus()));
     }
 }

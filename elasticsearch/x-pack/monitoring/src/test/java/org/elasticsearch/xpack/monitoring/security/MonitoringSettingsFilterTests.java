@@ -15,14 +15,13 @@ import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 
-import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MonitoringSettingsFilterTests extends MonitoringIntegTestCase {
 
@@ -52,22 +51,20 @@ public class MonitoringSettingsFilterTests extends MonitoringIntegTestCase {
         } else {
             headers = new Header[0];
         }
-        try (Response response = getRestClient().performRequest("GET", "/_nodes/settings",
-                Collections.emptyMap(), null, headers)) {
-            Map<String, Object> responseMap = JsonXContent.jsonXContent.createParser(response.getEntity().getContent()).map();
+        Response response = getRestClient().performRequest("GET", "/_nodes/settings", headers);
+        Map<String, Object> responseMap = JsonXContent.jsonXContent.createParser(response.getEntity().getContent()).map();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> nodes = (Map<String, Object>) responseMap.get("nodes");
+        for (Object node : nodes.values()) {
             @SuppressWarnings("unchecked")
-            Map<String, Object> nodes = (Map<String, Object>) responseMap.get("nodes");
-            for (Object node : nodes.values()) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) node).get("settings");
-                assertThat(extractValue("xpack.monitoring.collection.exporters._http.type", settings), equalTo("http"));
-                assertThat(extractValue("xpack.monitoring.collection.exporters._http.enabled", settings), equalTo("false"));
-                assertNullSetting(settings, "xpack.monitoring.collection.exporters._http.auth.username");
-                assertNullSetting(settings, "xpack.monitoring.collection.exporters._http.auth.password");
-                assertNullSetting(settings, "xpack.monitoring.collection.exporters._http.ssl.truststore.path");
-                assertNullSetting(settings, "xpack.monitoring.collection.exporters._http.ssl.truststore.password");
-                assertNullSetting(settings, "xpack.monitoring.collection.exporters._http.ssl.hostname_verification");
-            }
+            Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) node).get("settings");
+            assertThat(extractValue("xpack.monitoring.collection.exporters._http.type", settings), equalTo("http"));
+            assertThat(extractValue("xpack.monitoring.collection.exporters._http.enabled", settings), equalTo("false"));
+            assertNullSetting(settings, "xpack.monitoring.collection.exporters._http.auth.username");
+            assertNullSetting(settings, "xpack.monitoring.collection.exporters._http.auth.password");
+            assertNullSetting(settings, "xpack.monitoring.collection.exporters._http.ssl.truststore.path");
+            assertNullSetting(settings, "xpack.monitoring.collection.exporters._http.ssl.truststore.password");
+            assertNullSetting(settings, "xpack.monitoring.collection.exporters._http.ssl.hostname_verification");
         }
     }
 

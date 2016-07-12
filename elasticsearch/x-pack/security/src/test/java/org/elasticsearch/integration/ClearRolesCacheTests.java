@@ -137,12 +137,11 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
             } else {
                 path = "/_xpack/security/role/" + Strings.arrayToCommaDelimitedString(rolesToClear) + "/_clear_cache";
             }
-            try (Response response = getRestClient().performRequest("POST", path,
+            Response response = getRestClient().performRequest("POST", path,
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
-                                    new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
-                assertThat(response.getStatusLine().getStatusCode(), is(RestStatus.OK.getStatus()));
-            }
+                                    new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))));
+            assertThat(response.getStatusLine().getStatusCode(), is(RestStatus.OK.getStatus()));
         } else {
             securityClient.prepareClearRolesCache().names(rolesToClear).get();
         }

@@ -6,14 +6,14 @@
 package org.elasticsearch.xpack.security.transport.ssl;
 
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.message.BasicHeader;
+import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.SSLSocketFactoryHttpConfigCallback;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -28,14 +28,15 @@ import org.elasticsearch.xpack.security.transport.netty.SecurityNettyHttpServerT
 import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
 
 import javax.net.ssl.SSLHandshakeException;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.cert.CertPathBuilderException;
 
 import static org.elasticsearch.test.SecuritySettingsSource.getSSLSettingsForStore;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class SslClientAuthTests extends SecurityIntegTestCase {
     @Override
@@ -56,32 +57,29 @@ public class SslClientAuthTests extends SecurityIntegTestCase {
         return true;
     }
 
-    public void testThatHttpFailsWithoutSslClientAuth() throws IOException {
-        SSLConnectionSocketFactory socketFactory = new SSLConnectionSocketFactory(
-                SSLContexts.createDefault(),
-                NoopHostnameVerifier.INSTANCE);
-        try (RestClient restClient = createRestClient(new SSLSocketFactoryHttpConfigCallback(socketFactory), "https")) {
+    public void testThatHttpFailsWithoutSslClientAuth() throws Exception {
+        SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(SSLContexts.createDefault(), NoopHostnameVerifier.INSTANCE);
+        try (RestClient restClient = createRestClient(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy), "https")) {
             restClient.performRequest("GET", "/");
             fail("Expected SSLHandshakeException");
         } catch (SSLHandshakeException e) {
-            assertThat(e.getMessage(), containsString("unable to find valid certification path to requested target"));
+            Throwable t = ExceptionsHelper.unwrap(e, CertPathBuilderException.class);
+            assertThat(t, instanceOf(CertPathBuilderException.class));
+            assertThat(t.getMessage(), containsString("unable to find valid certification path to requested target"));
         }
     }
 
-    public void testThatHttpWorksWithSslClientAuth() throws IOException {
+    public void testThatHttpWorksWithSslClientAuth() throws Exception {
         Settings settings = Settings.builder()
                 .put(getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient"))
                 .build();
         ClientSSLService sslService = new ClientSSLService(settings, new Global(settings));
-        SSLConnectionSocketFactory socketFactory = new SSLConnectionSocketFactory(
-                sslService.sslContext(),
-                NoopHostnameVerifier.INSTANCE);
-        try (RestClient restClient = createRestClient(new SSLSocketFactoryHttpConfigCallback(socketFactory), "https")) {
-            try (Response response = restClient.performRequest("GET", "/",
-                    new BasicHeader("Authorization", basicAuthHeaderValue(transportClientUsername(), transportClientPassword())))) {
-                assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-                assertThat(EntityUtils.toString(response.getEntity()), containsString("You Know, for Search"));
-            }
+        SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(sslService.sslContext(), NoopHostnameVerifier.INSTANCE);
+        try (RestClient restClient = createRestClient(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy), "https")) {
+            Response response = restClient.performRequest("GET", "/",
+                    new BasicHeader("Authorization", basicAuthHeaderValue(transportClientUsername(), transportClientPassword())));
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+            assertThat(EntityUtils.toString(response.getEntity()), containsString("You Know, for Search"));
         }
     }
 

@@ -52,23 +52,22 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
     }
 
     public void testAuthenticateApi() throws Exception {
-        try (Response response = getRestClient().performRequest(
-                "GET", "/_xpack/security/_authenticate",
+        Response response = getRestClient().performRequest("GET", "/_xpack/security/_authenticate",
                 new BasicHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
-                        new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
-            ObjectPath objectPath = ObjectPath.createFromXContent(XContentFactory.xContent(XContentType.JSON),
-                    EntityUtils.toString(response.getEntity()));
-            assertThat(objectPath.evaluate("username").toString(), equalTo(SecuritySettingsSource.DEFAULT_USER_NAME));
-            @SuppressWarnings("unchecked")
-            List<String> roles = (List<String>) objectPath.evaluate("roles");
-            assertThat(roles.size(), is(1));
-            assertThat(roles, contains(SecuritySettingsSource.DEFAULT_ROLE));
-        }
+                        new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))));
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        ObjectPath objectPath = ObjectPath.createFromXContent(XContentFactory.xContent(XContentType.JSON),
+                EntityUtils.toString(response.getEntity()));
+        assertThat(objectPath.evaluate("username").toString(), equalTo(SecuritySettingsSource.DEFAULT_USER_NAME));
+        @SuppressWarnings("unchecked")
+        List<String> roles = (List<String>) objectPath.evaluate("roles");
+        assertThat(roles.size(), is(1));
+        assertThat(roles, contains(SecuritySettingsSource.DEFAULT_ROLE));
     }
 
     public void testAuthenticateApiWithoutAuthentication() throws Exception {
-        try (Response response = getRestClient().performRequest("GET", "/_xpack/security/_authenticate")) {
+        try {
+            Response response = getRestClient().performRequest("GET", "/_xpack/security/_authenticate");
             if (anonymousEnabled) {
                 assertThat(response.getStatusLine().getStatusCode(), is(200));
                 ObjectPath objectPath = ObjectPath.createFromXContent(XContentFactory.xContent(XContentType.JSON),

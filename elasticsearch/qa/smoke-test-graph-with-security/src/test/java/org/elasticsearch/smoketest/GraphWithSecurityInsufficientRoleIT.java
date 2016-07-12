@@ -8,8 +8,6 @@ package org.elasticsearch.smoketest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.test.rest.RestTestCandidate;
 
-import java.io.IOException;
-
 import static org.hamcrest.Matchers.containsString;
 
 public class GraphWithSecurityInsufficientRoleIT extends GraphWithSecurityIT {
@@ -18,10 +16,10 @@ public class GraphWithSecurityInsufficientRoleIT extends GraphWithSecurityIT {
         super(testCandidate);
     }
 
-    public void test() throws IOException {
+    public void test() throws Exception {
         try {
             super.test();
-            fail();
+            fail("should have failed because of missing role");
         } catch(AssertionError ae) {
             assertThat(ae.getMessage(), containsString("action [indices:data/read/xpack/graph/explore"));
             assertThat(ae.getMessage(), containsString("returned [403 Forbidden]"));

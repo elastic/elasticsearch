@@ -5,12 +5,11 @@
  */
 package org.elasticsearch.xpack.security.authc.pki;
 
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.message.BasicHeader;
+import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.SSLSocketFactoryHttpConfigCallback;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -79,8 +78,8 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
     }
 
     public void testRestClientWithoutClientCertificate() throws Exception {
-        SSLConnectionSocketFactory sslConnectionSocketFactory = new SSLConnectionSocketFactory(getSSLContext());
-        try (RestClient restClient = createRestClient(new SSLSocketFactoryHttpConfigCallback(sslConnectionSocketFactory), "https")) {
+        SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(getSSLContext());
+        try (RestClient restClient = createRestClient(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy), "https")) {
             try {
                 restClient.performRequest("GET", "_nodes");
                 fail("request should have failed");
@@ -88,12 +87,11 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
                 assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
             }
 
-            try (Response response = restClient.performRequest("GET", "_nodes",
+            Response response = restClient.performRequest("GET", "_nodes",
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
-                                    new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
-                assertThat(response.getStatusLine().getStatusCode(), is(200));
-            }
+                                    new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))));
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
     }
 

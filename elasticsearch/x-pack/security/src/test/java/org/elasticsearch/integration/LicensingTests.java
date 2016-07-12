@@ -169,10 +169,9 @@ public class LicensingTests extends SecurityIntegTestCase {
     }
 
     public void testRestAuthenticationByLicenseType() throws Exception {
-        try (Response response = getRestClient().performRequest("GET", "/")) {
-            // the default of the licensing tests is basic
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
-        }
+        Response response = getRestClient().performRequest("GET", "/");
+        // the default of the licensing tests is basic
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
 
         // generate a new license with a mode that enables auth
         OperationMode mode = randomFrom(OperationMode.GOLD, OperationMode.TRIAL, OperationMode.PLATINUM, OperationMode.STANDARD);

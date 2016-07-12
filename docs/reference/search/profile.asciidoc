@@ -500,11 +500,17 @@ And the response:
                            "time": "0.4094560000ms",
                            "breakdown": {
                               "score": 0,
+                              "score_count": 1,
                               "next_doc": 0,
+                              "next_doc_count": 2,
                               "match": 0,
+                              "match_count": 0,
                               "create_weight": 31584,
+                              "create_weight_count": 1,
                               "build_scorer": 377872,
+                              "build_scorer_count": 1,
                               "advance": 0
+                              "advance_count": 0
                            }
                         },
                         {
@@ -513,11 +519,17 @@ And the response:
                            "time": "0.3037020000ms",
                            "breakdown": {
                               "score": 0,
+                              "score_count": 1,
                               "next_doc": 5936,
+                              "next_doc_count": 2,
                               "match": 0,
+                              "match_count": 0,
                               "create_weight": 185215,
+                              "create_weight_count": 1,
                               "build_scorer": 112551,
+                              "build_scorer_count": 1,
                               "advance": 0
+                              "advance_count": 0
                            }
                         }
                      ],
@@ -557,11 +569,17 @@ And the response:
                            "time": "0.04829300000ms",
                            "breakdown": {
                               "score": 0,
+                              "score_count": 1,
                               "next_doc": 3672,
+                              "next_doc_count": 2,
                               "match": 0,
+                              "match_count": 0,
                               "create_weight": 6311,
+                              "create_weight_count": 1,
                               "build_scorer": 38310,
+                              "build_scorer_count": 1,
                               "advance": 0
+                              "advance_count": 0
                            }
                         }
                      ],
@@ -654,9 +672,13 @@ Which yields the following aggregation profile output
     "time": "4280.456978ms",
     "breakdown": {
       "reduce": 0,
+      "reduce_count": 0,
       "build_aggregation": 49765,
+      "build_aggregation_count": 300,
       "initialise": 52785,
-      "collect": 3155490036
+      "initialize_count": 300,
+      "collect": 3155490036,
+      "collect_count": 1800
     },
     "children": [
       {
@@ -665,9 +687,13 @@ Which yields the following aggregation profile output
         "time": "1124.864392ms",
         "breakdown": {
           "reduce": 0,
+          "reduce_count": 0,
           "build_aggregation": 1394,
+          "build_aggregation_count": 150,
           "initialise": 2883,
-          "collect": 1124860115
+          "initialize_count": 150,
+          "collect": 1124860115,
+          "collect_count": 900
         }
       }
     ]
@@ -693,9 +719,13 @@ The `"breakdown"` component lists detailed timing statistics about low-level Luc
 --------------------------------------------------
 "breakdown": {
   "reduce": 0,
+  "reduce_count": 0,
   "build_aggregation": 49765,
+  "build_aggregation_count": 300,
   "initialise": 52785,
-  "collect": 3155490036
+  "initialize_count": 300,
+  "collect": 3155490036,
+  "collect_count": 1800
 }
 --------------------------------------------------
 
@@ -725,6 +755,10 @@ The meaning of the stats are as follows:
 `reduce`::
 
     This is not currently used and will always report `0`. Currently aggregation profiling only times the shard level parts of the aggregation execution. Timing of the reduce phase will be added later.
+
+`*_count`::
+    Records the number of invocations of the particular method.  For example, `"collect": 2,`
+    means the `collect()` method was called on two different documents.
 
 === Profiling Considerations
 

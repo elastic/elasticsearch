@@ -66,7 +66,7 @@ public class RetryTests extends ESSingleNodeTestCase {
     }
 
     public static final class BogusPlugin extends Plugin {
-        // se NettyUtils.... this runs without the permission from the netty module so it will fail since reindex can't set the property
+        // se NettyPlugin.... this runs without the permission from the netty module so it will fail since reindex can't set the property
         // to make it still work we disable that check but need to register the setting first
         private static final Setting<Boolean> ASSERT_NETTY_BUGLEVEL = Setting.boolSetting("netty.assert.buglevel", true,
             Setting.Property.NodeScope);

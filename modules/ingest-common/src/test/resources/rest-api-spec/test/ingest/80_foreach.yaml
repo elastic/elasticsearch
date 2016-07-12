@@ -10,13 +10,11 @@
               {
                 "foreach" : {
                   "field" : "values",
-                  "processors" : [
-                    {
+                  "processor" : {
                       "uppercase" : {
                         "field" : "_value"
                       }
-                    }
-                  ]
+                  }
                 }
               }
             ]

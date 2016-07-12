@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Module;
@@ -38,6 +39,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.action.XPackInfoAction;
@@ -177,7 +179,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
     }
 
     @Override
-    public Collection<Object> createComponents() {
+    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool) {
         List<Object> components = new ArrayList<>();
         if (transportClientMode == false) {
             // watcher http stuff

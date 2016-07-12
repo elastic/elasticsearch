@@ -66,7 +66,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
 
     private RestClient restClient;
     private HttpHost[] httpHosts;
-    private TrackingFailureListener failureListener;
+    private HostsTrackingFailureListener failureListener;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -101,7 +101,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
         for (int i = 0; i < numHosts; i++) {
             httpHosts[i] = new HttpHost("localhost", 9200 + i);
         }
-        failureListener = new TrackingFailureListener();
+        failureListener = new HostsTrackingFailureListener();
         restClient = new RestClient(httpClient, 10000, new Header[0], httpHosts, failureListener);
     }
 

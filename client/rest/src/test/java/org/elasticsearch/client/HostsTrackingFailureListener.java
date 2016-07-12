@@ -29,9 +29,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
 /**
- * {@link org.elasticsearch.client.RestClient.FailureListener} impl that allows to track when it gets called
+ * {@link org.elasticsearch.client.RestClient.FailureListener} impl that allows to track when it gets called for which host.
  */
-class TrackingFailureListener extends RestClient.FailureListener {
+class HostsTrackingFailureListener extends RestClient.FailureListener {
     private volatile Set<HttpHost> hosts = new HashSet<>();
 
     @Override

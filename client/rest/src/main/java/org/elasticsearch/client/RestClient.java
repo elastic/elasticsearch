@@ -248,14 +248,14 @@ public final class RestClient implements Closeable {
         URI uri = buildUri(endpoint, params);
         HttpRequestBase request = createHttpRequest(method, uri, entity);
         setHeaders(request, headers);
-        FailureTrackingListener failureTrackingListener = new FailureTrackingListener(responseListener);
+        FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
         long startTime = System.nanoTime();
-        performRequest(startTime, nextHost().iterator(), request, responseConsumer, failureTrackingListener);
+        performRequest(startTime, nextHost().iterator(), request, responseConsumer, failureTrackingResponseListener);
     }
 
     private void performRequest(final long startTime, final Iterator<HttpHost> hosts, final HttpRequestBase request,
                                 final HttpAsyncResponseConsumer<HttpResponse> responseConsumer,
-                                final FailureTrackingListener listener) {
+                                final FailureTrackingResponseListener listener) {
         final HttpHost host = hosts.next();
         //we stream the request body if the entity allows for it
         HttpAsyncRequestProducer requestProducer = HttpAsyncMethods.create(host, request);
@@ -473,11 +473,11 @@ public final class RestClient implements Closeable {
         }
     }
 
-    private static class FailureTrackingListener {
+    private static class FailureTrackingResponseListener {
         private final ResponseListener responseListener;
         private volatile Exception exception;
 
-        FailureTrackingListener(ResponseListener responseListener) {
+        FailureTrackingResponseListener(ResponseListener responseListener) {
             this.responseListener = responseListener;
         }
 

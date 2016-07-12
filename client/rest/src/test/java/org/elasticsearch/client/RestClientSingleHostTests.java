@@ -91,7 +91,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     private Header[] defaultHeaders;
     private HttpHost httpHost;
     private CloseableHttpAsyncClient httpClient;
-    private TrackingFailureListener failureListener;
+    private HostsTrackingFailureListener failureListener;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -141,7 +141,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             defaultHeaders[i] = new BasicHeader(headerName, headerValue);
         }
         httpHost = new HttpHost("localhost", 9200);
-        failureListener = new TrackingFailureListener();
+        failureListener = new HostsTrackingFailureListener();
         restClient = new RestClient(httpClient, 10000, defaultHeaders, new HttpHost[]{httpHost}, failureListener);
     }
 

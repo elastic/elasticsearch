@@ -11,8 +11,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.transport.NettyPlugin;
+import org.elasticsearch.xpack.MockNettyPlugin;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.security.Security;
@@ -52,7 +51,7 @@ public class WatcherPluginDisableTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(XPackPlugin.class, NettyPlugin.class);
+        return Arrays.asList(XPackPlugin.class, MockNettyPlugin.class);
     }
 
     @Override

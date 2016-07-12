@@ -11,7 +11,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.NettyPlugin;
+import org.elasticsearch.xpack.MockNettyPlugin;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.junit.Before;
@@ -137,7 +137,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(NettyPlugin.class); // for http
+        plugins.add(MockNettyPlugin.class); // for http
         return plugins;
     }
 

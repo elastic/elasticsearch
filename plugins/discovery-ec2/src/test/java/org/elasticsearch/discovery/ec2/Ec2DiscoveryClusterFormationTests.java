@@ -22,6 +22,8 @@ package org.elasticsearch.discovery.ec2;
 import com.amazonaws.util.IOUtils;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpServer;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.utils.URLEncodedUtils;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -30,7 +32,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.discovery.ec2.Ec2DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.jboss.netty.handler.codec.http.QueryStringDecoder;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -49,7 +50,6 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
@@ -101,9 +101,13 @@ public class Ec2DiscoveryClusterFormationTests extends ESIntegTestCase {
         httpServer.createContext("/", (s) -> {
             Headers headers = s.getResponseHeaders();
             headers.add("Content-Type", "text/xml; charset=UTF-8");
-            QueryStringDecoder decoder = new QueryStringDecoder("?" + IOUtils.toString(s.getRequestBody()));
-            Map<String, List<String>> queryParams = decoder.getParameters();
-            String action = queryParams.get("Action").get(0);
+            String action = null;
+            for (NameValuePair parse : URLEncodedUtils.parse(IOUtils.toString(s.getRequestBody()), StandardCharsets.UTF_8)) {
+                if ("Action".equals(parse.getName())) {
+                    action = parse.getValue();
+                    break;
+                }
+            }
             assertThat(action, equalTo("DescribeInstances"));
 
             XMLOutputFactory xmlOutputFactory = XMLOutputFactory.newFactory();

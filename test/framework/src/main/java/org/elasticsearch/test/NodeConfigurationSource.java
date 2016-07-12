@@ -29,12 +29,12 @@ public abstract class NodeConfigurationSource {
     public static final NodeConfigurationSource EMPTY = new NodeConfigurationSource() {
         @Override
         public Settings nodeSettings(int nodeOrdinal) {
-            return null;
+            return Settings.EMPTY;
         }
 
         @Override
         public Settings transportClientSettings() {
-            return null;
+            return Settings.EMPTY;
         }
     };
 
@@ -48,7 +48,9 @@ public abstract class NodeConfigurationSource {
         return Collections.emptyList();
     }
 
-    public abstract Settings transportClientSettings();
+    public Settings transportClientSettings() {
+        return Settings.EMPTY;
+    }
 
     /** Returns plugins that should be loaded in the transport client */
     public Collection<Class<? extends Plugin>> transportClientPlugins() {

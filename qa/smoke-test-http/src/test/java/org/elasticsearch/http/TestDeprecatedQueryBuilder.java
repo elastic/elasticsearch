@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.plugins;
+package org.elasticsearch.http;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;

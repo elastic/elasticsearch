@@ -21,7 +21,6 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.netty.NettyTransport;
@@ -30,6 +29,9 @@ import java.util.Arrays;
 import java.util.List;
 
 public class NettyPlugin extends Plugin {
+
+    public static final String NETTY_TRANSPORT_NAME = "netty";
+    public static final String NETTY_HTTP_TRANSPORT_NAME = "netty";
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -55,8 +57,8 @@ public class NettyPlugin extends Plugin {
 
     public void onModule(NetworkModule networkModule) {
         if (networkModule.canRegisterHttpExtensions()) {
-            networkModule.registerHttpTransport("netty", NettyHttpServerTransport.class);
+            networkModule.registerHttpTransport(NETTY_HTTP_TRANSPORT_NAME, NettyHttpServerTransport.class);
         }
-        networkModule.registerTransport("netty", NettyTransport.class);
+        networkModule.registerTransport(NETTY_TRANSPORT_NAME, NettyTransport.class);
     }
 }

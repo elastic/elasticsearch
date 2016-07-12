@@ -16,17 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.plugins;
+package org.elasticsearch.http;
 
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.responseheader.TestResponseHeaderPlugin;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
+import java.util.ArrayList;
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Test a rest action that sets special response headers
  */
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
-public class ResponseHeaderPluginIT extends ESIntegTestCase {
+public class ResponseHeaderPluginIT extends HttpSmokeTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
@@ -45,8 +45,15 @@ public class ResponseHeaderPluginIT extends ESIntegTestCase {
     }
 
     @Override
+    protected boolean ignoreExternalCluster() {
+        return true;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(TestResponseHeaderPlugin.class);
+        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(TestResponseHeaderPlugin.class);
+        return plugins;
     }
 
     public void testThatSettingHeadersWorks() throws Exception {

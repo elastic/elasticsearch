@@ -83,14 +83,6 @@ grant {
   permission java.util.PropertyPermission "junit4.childvm.count", "write";
   permission java.util.PropertyPermission "junit4.childvm.id", "write";
 
-  // set by NettyTransport/NettyHttpServerTransport based on another parameter
-  // TODO: look into this and decide if users should simply set the actual sysprop?!
-  permission java.util.PropertyPermission "org.jboss.netty.epollBugWorkaround", "write";
-
-  // Netty SelectorUtil wants to change this, because of https://bugs.openjdk.java.net/browse/JDK-6427854
-  // the bug says it only happened rarely, and that its fixed, but apparently it still happens rarely!
-  permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
-
   // needed by Settings
   permission java.lang.RuntimePermission "getenv.*";
 

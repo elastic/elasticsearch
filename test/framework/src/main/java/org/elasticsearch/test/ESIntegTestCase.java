@@ -1773,7 +1773,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             @Override
             public Collection<Class<? extends Plugin>> transportClientPlugins() {
                 Collection<Class<? extends Plugin>> plugins = ESIntegTestCase.this.transportClientPlugins();
-                if (isNetwork) {
+                if (isNetwork && plugins.contains(MockTcpTransportPlugin.class) == false) {
                     plugins = new ArrayList<>(plugins);
                     plugins.add(MockTcpTransportPlugin.class);
                 }

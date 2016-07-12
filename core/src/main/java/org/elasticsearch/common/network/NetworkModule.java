@@ -147,8 +147,9 @@ public class NetworkModule extends AbstractModule {
         bind(NetworkService.class).toInstance(networkService);
         bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
 
+        boolean nettyRegistered = transportTypes.getExtension(NETTY_TRANSPORT) != null;
         transportServiceTypes.bindType(binder(), settings, TRANSPORT_SERVICE_TYPE_KEY, NETTY_TRANSPORT);
-        String defaultTransport = DiscoveryNode.isLocalNode(settings) ? LOCAL_TRANSPORT : NETTY_TRANSPORT;
+        String defaultTransport = DiscoveryNode.isLocalNode(settings) || nettyRegistered == false ? LOCAL_TRANSPORT : NETTY_TRANSPORT;
         transportTypes.bindType(binder(), settings, TRANSPORT_TYPE_KEY, defaultTransport);
 
         if (transportClient == false) {

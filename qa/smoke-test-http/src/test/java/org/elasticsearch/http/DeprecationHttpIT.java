@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.rest;
+package org.elasticsearch.http;
 
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
@@ -29,10 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.plugins.TestDeprecatedQueryBuilder;
-import org.elasticsearch.rest.plugins.TestDeprecationHeaderRestAction;
-import org.elasticsearch.rest.plugins.TestDeprecationPlugin;
-import org.elasticsearch.test.ESIntegTestCase;
 
 import org.hamcrest.Matcher;
 
@@ -45,9 +41,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.plugins.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1;
-import static org.elasticsearch.rest.plugins.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2;
-import static org.elasticsearch.rest.plugins.TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING;
+import static org.elasticsearch.http.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1;
+import static org.elasticsearch.http.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2;
+import static org.elasticsearch.http.TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -56,7 +52,7 @@ import static org.hamcrest.Matchers.hasSize;
 /**
  * Tests {@code DeprecationLogger} uses the {@code ThreadContext} to add response headers.
  */
-public class DeprecationHttpIT extends ESIntegTestCase {
+public class DeprecationHttpIT extends HttpSmokeTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -73,7 +69,9 @@ public class DeprecationHttpIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(TestDeprecationPlugin.class);
+        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(TestDeprecationPlugin.class);
+        return plugins;
     }
 
     /**

@@ -105,7 +105,6 @@ public class NettyUtils {
     }
 
     public static void setup() {
-
     }
 
     /**

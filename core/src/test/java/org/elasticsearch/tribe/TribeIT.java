@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
@@ -131,6 +132,7 @@ public class TribeIT extends ESIntegTestCase {
                 .put("tribe.t1.cluster.name", internalCluster().getClusterName())
                 .put("tribe.t2.cluster.name", cluster2.getClusterName())
                 .put("tribe.blocks.write", false)
+                .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(settings)
                 .put(tribe1Defaults.build())
                 .put(tribe2Defaults.build())

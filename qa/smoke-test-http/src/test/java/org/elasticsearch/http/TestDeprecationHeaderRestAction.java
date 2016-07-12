@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.rest.plugins;
+package org.elasticsearch.http;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;

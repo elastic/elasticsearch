@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.plugins.responseheader;
+package org.elasticsearch.http;
 
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;

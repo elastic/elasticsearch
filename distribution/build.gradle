@@ -96,7 +96,6 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':modules:transport
   module.afterEvaluate({
     module.integTest.mustRunAfter(':distribution:integ-test-zip:integTest#stop')
   })
-  restTestExpansions['expected.modules.count'] += 1
 }
 
 

@@ -35,6 +35,7 @@ import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.NettyPlugin;
 import org.junit.After;
 import org.junit.Before;
 
@@ -59,7 +60,7 @@ public class RetryTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(ReindexPlugin.class);
+        return pluginList(ReindexPlugin.class, NettyPlugin.class); // we need netty here to http communication
     }
 
     /**

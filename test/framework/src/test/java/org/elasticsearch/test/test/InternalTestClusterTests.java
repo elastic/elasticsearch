@@ -24,6 +24,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.NodeEnvironment;
@@ -125,15 +126,16 @@ public class InternalTestClusterTests extends ESTestCase {
         boolean masterNodes = randomBoolean();
         int minNumDataNodes = randomIntBetween(0, 3);
         int maxNumDataNodes = randomIntBetween(minNumDataNodes, 4);
-        final String clusterName1 = "shared1";//clusterName("shared1", clusterSeed);
-        final String clusterName2 = "shared2";//clusterName("shared", Integer.toString(CHILD_JVM_ID), clusterSeed);
-        /*while (clusterName.equals(clusterName1)) {
-            clusterName1 = clusterName("shared", Integer.toString(CHILD_JVM_ID), clusterSeed);   // spin until the time changes
-        }*/
-        NodeConfigurationSource nodeConfigurationSource = NodeConfigurationSource.EMPTY;
+        final String clusterName1 = "shared1";
+        final String clusterName2 = "shared2";
+        NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
+            @Override
+            public Settings nodeSettings(int nodeOrdinal) {
+                return Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).build();
+            }
+        };
         int numClientNodes = randomIntBetween(0, 2);
         boolean enableHttpPipelining = randomBoolean();
-        int jvmOrdinal = randomIntBetween(0, 10);
         String nodePrefix = "foobar";
 
         Path baseDir = createTempDir();
@@ -177,8 +179,12 @@ public class InternalTestClusterTests extends ESTestCase {
         int minNumDataNodes = 2;
         int maxNumDataNodes = 2;
         final String clusterName1 = "shared1";
-        NodeConfigurationSource nodeConfigurationSource = NodeConfigurationSource.EMPTY;
-        int numClientNodes = randomIntBetween(0, 2);
+        NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
+            @Override
+            public Settings nodeSettings(int nodeOrdinal) {
+                return Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).build();
+            }
+        };        int numClientNodes = randomIntBetween(0, 2);
         boolean enableHttpPipelining = randomBoolean();
         String nodePrefix = "test";
         Path baseDir = createTempDir();
@@ -248,7 +254,9 @@ public class InternalTestClusterTests extends ESTestCase {
             new NodeConfigurationSource() {
                 @Override
                 public Settings nodeSettings(int nodeOrdinal) {
-                    return Settings.builder().put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0).build();
+                    return Settings.builder()
+                        .put(NetworkModule.HTTP_ENABLED.getKey(), false)
+                        .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0).build();
                 }
 
                 @Override

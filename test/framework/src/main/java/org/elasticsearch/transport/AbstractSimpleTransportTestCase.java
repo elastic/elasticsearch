@@ -563,9 +563,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             new TransportRequestHandler<StringMessageRequest>() {
                 @Override
                 public void messageReceived(StringMessageRequest request, TransportChannel channel) throws InterruptedException {
+                    String message = request.message;
                     inFlight.incrementAndGet();
                     try {
-                        String message = request.message;
                         if ("forever".equals(message)) {
                             waitForever.await();
                         } else {
@@ -577,13 +577,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         } catch (IOException e) {
                             logger.error("Unexpected failure", e);
                             fail(e.getMessage());
-                        } finally {
-                            if ("forever".equals(message)) {
-                                doneWaitingForever.countDown();
-                            }
                         }
                     } finally {
                         inFlight.decrementAndGet();
+                        if ("forever".equals(message)) {
+                            doneWaitingForever.countDown();
+                        }
                     }
                 }
             });

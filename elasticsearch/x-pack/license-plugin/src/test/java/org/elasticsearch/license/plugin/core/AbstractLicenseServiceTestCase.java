@@ -6,6 +6,7 @@
 package org.elasticsearch.license.plugin.core;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -17,8 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.support.clock.ClockMock;
 import org.junit.Before;
 
@@ -31,15 +30,15 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
 
     protected LicensesService licensesService;
     protected ClusterService clusterService;
-    protected TransportService transportService;
     protected ClockMock clock;
+    protected DiscoveryNodes discoveryNodes;
 
     @Before
     public void init() throws Exception {
         clusterService = mock(ClusterService.class);
-        transportService = mock(TransportService.class);
         clock = new ClockMock();
-        licensesService = new LicensesService(Settings.EMPTY, clusterService, transportService, clock);
+        licensesService = new LicensesService(Settings.EMPTY, clusterService, clock);
+        discoveryNodes = mock(DiscoveryNodes.class);
     }
 
     protected void setInitialState(License license) {
@@ -49,11 +48,13 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
         MetaData metaData = mock(MetaData.class);
         when(metaData.custom(LicensesMetaData.TYPE)).thenReturn(new LicensesMetaData(license));
         when(state.metaData()).thenReturn(metaData);
-        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         final DiscoveryNode mockNode = new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
         when(discoveryNodes.getMasterNode()).thenReturn(mockNode);
+        when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(false);
         when(state.nodes()).thenReturn(discoveryNodes);
+        when(state.getNodes()).thenReturn(discoveryNodes); // it is really ridiculous we have nodes() and getNodes()...
         when(clusterService.state()).thenReturn(state);
         when(clusterService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
+        when(clusterService.getClusterName()).thenReturn(new ClusterName("a"));
     }
 }

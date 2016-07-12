@@ -5,6 +5,10 @@
  */
 package org.elasticsearch.license.plugin.core;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.common.unit.TimeValue;
@@ -12,10 +16,6 @@ import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.TestUtils;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
 import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.elasticsearch.license.plugin.TestUtils.generateSignedLicense;
 import static org.hamcrest.Matchers.equalTo;

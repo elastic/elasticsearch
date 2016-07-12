@@ -9,6 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -16,18 +17,17 @@ import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.TestUtils;
-import org.elasticsearch.transport.EmptyTransportResponseHandler;
-import org.elasticsearch.transport.TransportRequest;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
 
@@ -70,11 +70,16 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
         DiscoveryNode master = new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
         ClusterState oldState = ClusterState.builder(new ClusterName("a"))
                 .nodes(DiscoveryNodes.builder().masterNodeId(master.getId()).put(master)).build();
-        ClusterState newState = ClusterState.builder(oldState).build();
+        when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
+        ClusterState newState = ClusterState.builder(oldState).nodes(discoveryNodes).build();
+
         licensesService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
-        verify(transportService, times(2))
-                .sendRequest(any(DiscoveryNode.class),
-                        eq(LicensesService.REGISTER_TRIAL_LICENSE_ACTION_NAME),
-                        any(TransportRequest.Empty.class), any(EmptyTransportResponseHandler.class));
+        ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
+        verify(clusterService, times(1)).submitStateUpdateTask(any(), stateUpdater.capture());
+        ClusterState stateWithLicense = stateUpdater.getValue().execute(newState);
+        LicensesMetaData licenseMetaData = stateWithLicense.metaData().custom(LicensesMetaData.TYPE);
+        assertNotNull(licenseMetaData);
+        assertNotNull(licenseMetaData.getLicense());
+        assertEquals(clock.millis() + LicensesService.TRIAL_LICENSE_DURATION.millis(), licenseMetaData.getLicense().expiryDate());
     }
 }

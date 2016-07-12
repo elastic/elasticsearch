@@ -791,6 +791,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(141, org.elasticsearch.index.query.QueryShardException.class);
         ids.put(142, ShardStateAction.NoLongerPrimaryShardException.class);
         ids.put(143, org.elasticsearch.script.ScriptException.class);
+        ids.put(144, org.elasticsearch.cluster.NotMasterException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

@@ -52,6 +52,7 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
     private Integer shard;
     private Boolean primary;
     private boolean includeYesDecisions = false;
+    private boolean includeDiskInfo = false;
 
     /** Explain the first unassigned shard */
     public ClusterAllocationExplainRequest() {
@@ -132,6 +133,16 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
     /** Returns true if all decisions should be included. Otherwise only "NO" and "THROTTLE" decisions are returned */
     public boolean includeYesDecisions() {
         return this.includeYesDecisions;
+    }
+
+    /** {@code true} to include information about the gathered disk information of nodes in the cluster */
+    public void includeDiskInfo(boolean includeDiskInfo) {
+        this.includeDiskInfo = includeDiskInfo;
+    }
+
+    /** Returns true if information about disk usage and shard sizes should also be returned */
+    public boolean includeDiskInfo() {
+        return this.includeDiskInfo;
     }
 
     @Override

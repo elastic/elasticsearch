@@ -157,13 +157,11 @@ public class TransportClient extends AbstractClient {
                 resourcesToClose.add(circuitBreakerService);
                 BigArrays bigArrays = new BigArrays(settings, circuitBreakerService);
                 resourcesToClose.add(bigArrays);
-                Collection<Object> pluginComponents = pluginsService.createComponenents();
                 modules.add(settingsModule);
                 modules.add((b -> {
                     b.bind(BigArrays.class).toInstance(bigArrays);
                     b.bind(PluginsService.class).toInstance(pluginsService);
                     b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService);
-                    pluginComponents.stream().forEach(p -> b.bind((Class)p.getClass()).toInstance(p));
                 }));
 
                 Injector injector = modules.createInjector();
@@ -173,9 +171,7 @@ public class TransportClient extends AbstractClient {
                 final TransportProxyClient proxy = new TransportProxyClient(settings, transportService, nodesService,
                     actionModule.getActions().values().stream().map(x -> x.getAction()).collect(Collectors.toList()));
 
-                List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream()
-                    .filter(p -> p instanceof LifecycleComponent)
-                    .map(p -> (LifecycleComponent)p).collect(Collectors.toList());
+                List<LifecycleComponent> pluginLifecycleComponents = new ArrayList<>();
                 pluginLifecycleComponents.addAll(pluginsService.getGuiceServiceClasses().stream()
                     .map(injector::getInstance).collect(Collectors.toList()));
                 resourcesToClose.addAll(pluginLifecycleComponents);

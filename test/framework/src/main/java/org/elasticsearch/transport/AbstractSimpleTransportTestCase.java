@@ -554,6 +554,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testTimeoutSendExceptionWithDelayedResponse() throws Exception {
         CountDownLatch doneLatch = new CountDownLatch(1);
+        CountDownLatch allResponded = new CountDownLatch(1);
         serviceA.registerRequestHandler("sayHelloTimeoutDelayedResponse", StringMessageRequest::new, ThreadPool.Names.GENERIC,
             new TransportRequestHandler<StringMessageRequest>() {
                 @Override
@@ -569,6 +570,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     } catch (IOException e) {
                         logger.error("Unexpected failure", e);
                         fail(e.getMessage());
+                    } finally {
+                        allResponded.countDown();
                     }
                 }
             });
@@ -641,6 +644,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         serviceA.removeHandler("sayHelloTimeoutDelayedResponse");
         doneLatch.countDown();
+        allResponded.await();
     }
 
     @TestLogging(value = "test. transport.tracer:TRACE")
@@ -1086,14 +1090,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testVersionFrom0to0() throws Exception {
         serviceA.registerRequestHandler("/version", Version0Request::new, ThreadPool.Names.SAME,
-            new TransportRequestHandler<Version0Request>() {
-                @Override
-                public void messageReceived(Version0Request request, TransportChannel channel) throws Exception {
-                    assertThat(request.value1, equalTo(1));
-                    Version0Response response = new Version0Response();
-                    response.value1 = 1;
-                    channel.sendResponse(response);
-                }
+            (request, channel) -> {
+                assertThat(request.value1, equalTo(1));
+                Version0Response response = new Version0Response();
+                response.value1 = 1;
+                channel.sendResponse(response);
             });
 
         Version0Request version0Request = new Version0Request();

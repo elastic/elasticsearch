@@ -86,6 +86,7 @@ public interface Transport extends LifecycleComponent {
 
     /**
      * Sends the request to the node.
+     * @throws NodeNotConnectedException if the given node is not connected
      */
     void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws
         IOException, TransportException;

@@ -918,7 +918,18 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions);
                 }
             };
-            sendMessage(targetChannel, message, onRequestSent, false);
+            try {
+                sendMessage(targetChannel, message, onRequestSent, false);
+            } catch (IOException ex) {
+                if (nodeConnected(node)) {
+                    throw ex;
+                } else {
+                    // we might got disconnected in between the nodeChannel(node, options) call and the sending -
+                    // in that case throw a subclass of ConnectTransportException since some code retries based on this
+                    // see TransportMasterNodeAction for instance
+                    throw new NodeNotConnectedException(node, "Node not connected");
+                }
+            }
             addedReleaseListener = true;
         } finally {
             IOUtils.close(stream);

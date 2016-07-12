@@ -10,7 +10,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.transport.NettyPlugin;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.compare.CompareCondition;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
@@ -23,6 +25,8 @@ import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.Collection;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -45,6 +49,13 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(NettyPlugin.class); // for http
+        return plugins;
     }
 
     @TestLogging("watcher.support.http:TRACE")

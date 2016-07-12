@@ -12,6 +12,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.transport.NettyPlugin;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.security.Security;
@@ -22,6 +23,7 @@ import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.watcher.execution.InternalWatchExecutor;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -50,7 +52,7 @@ public class WatcherPluginDisableTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.<Class<? extends Plugin>>singleton(XPackPlugin.class);
+        return Arrays.asList(XPackPlugin.class, NettyPlugin.class);
     }
 
     @Override
@@ -66,7 +68,6 @@ public class WatcherPluginDisableTests extends ESIntegTestCase {
     }
 
     public void testRestEndpoints() throws Exception {
-        HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
         try {
             getRestClient().performRequest("GET", "/_xpack/watcher");
             fail("request should have failed");

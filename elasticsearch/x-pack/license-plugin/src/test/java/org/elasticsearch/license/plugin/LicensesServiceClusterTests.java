@@ -25,8 +25,10 @@ import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.transport.NettyPlugin;
 import org.elasticsearch.xpack.XPackPlugin;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -59,7 +61,7 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(XPackPlugin.class);
+        return Arrays.asList(XPackPlugin.class, NettyPlugin.class);
     }
 
     @Override

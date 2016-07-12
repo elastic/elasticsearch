@@ -134,6 +134,7 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
                 .put("tribe.blocks.write", false)
                 .put(tribe1Defaults.build())
                 .put(tribe2Defaults.build())
+                .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(internalCluster().getDefaultSettings())
                 .put("node.name", "tribe_node") // make sure we can identify threads from this node
                 .put(Node.NODE_LOCAL_SETTING.getKey(), true)

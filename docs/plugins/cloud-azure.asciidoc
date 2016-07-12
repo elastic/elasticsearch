@@ -44,11 +44,11 @@ cloud:
     azure:
         management:
              subscription.id: XXX-XXX-XXX-XXX
-             cloud.service.name: es-demo-app
-             keystore:
-                   path: /path/to/azurekeystore.pkcs12
-                   password: WHATEVER
-                   type: pkcs12
+             resourcegroup.name: es-demo-resource
+             tenant.id: XXX-XXX-XXX-XXX
+             app:
+                id: XXX-XXX-XXX-XXX
+                secret: WHATEVER
 
 discovery:
     type: azure
@@ -81,25 +81,26 @@ You can use {ref}/modules-network.html[core network host settings]. For example 
 The following are a list of settings that can further control the credential API:
 
 [horizontal]
-`cloud.azure.management.keystore.path`::
 
-    /path/to/keystore
+`cloud.azure.management.resourcegroup.name`::
 
-`cloud.azure.management.keystore.type`::
-
-    `pkcs12`, `jceks` or `jks`. Defaults to `pkcs12`.
-
-`cloud.azure.management.keystore.password`::
-
-    your_password for the keystore
+    the azure resource group name
 
 `cloud.azure.management.subscription.id`::
 
     your_azure_subscription_id
 
-`cloud.azure.management.cloud.service.name`::
+`cloud.azure.management.tenant.id`::
 
-    your_azure_cloud_service_name
+    the azure tenant id
+
+`cloud.azure.management.app.id`::
+
+    your azure active directory application id
+
+`cloud.azure.management.app.secret`::
+
+    your_password for the azure active directory application
 
 
 [[cloud-azure-discovery-settings-advanced]]

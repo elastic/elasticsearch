@@ -19,28 +19,25 @@
 
 package org.elasticsearch.cloud.azure;
 
-import com.microsoft.windowsazure.management.compute.models.DeploymentSlot;
-import com.microsoft.windowsazure.management.compute.models.DeploymentStatus;
-import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDetailedResponse;
-import com.microsoft.windowsazure.management.compute.models.InstanceEndpoint;
-import com.microsoft.windowsazure.management.compute.models.RoleInstance;
+import com.microsoft.azure.management.network.models.NetworkInterface;
+import com.microsoft.azure.management.network.models.NetworkInterfaceIpConfiguration;
+import com.microsoft.azure.management.network.models.ResourceId;
+import com.microsoft.azure.management.network.models.Subnet;
+import com.microsoft.windowsazure.Configuration;
 import org.elasticsearch.cloud.azure.management.AzureComputeServiceAbstractMock;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 
-import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.Arrays;
-
-import static org.elasticsearch.common.util.CollectionUtils.newSingletonArrayList;
-
+import java.util.List;
 
 /**
  * Mock Azure API with two started nodes
  */
 public class AzureComputeServiceTwoNodesMock extends AzureComputeServiceAbstractMock {
+
     public static class TestPlugin extends Plugin {
         @Override
         public String name() {
@@ -63,48 +60,32 @@ public class AzureComputeServiceTwoNodesMock extends AzureComputeServiceAbstract
         this.networkService = networkService;
     }
 
-    @Override
-    public HostedServiceGetDetailedResponse getServiceDetails() {
-        HostedServiceGetDetailedResponse response = new HostedServiceGetDetailedResponse();
-        HostedServiceGetDetailedResponse.Deployment deployment = new HostedServiceGetDetailedResponse.Deployment();
+    public List<Subnet> listSubnets(String rgName, String vnetName) {
+        Subnet subnet = new Subnet();
+        String dummyPrivateIP = "10.0.0.1";
+        String dummyPrivateIP2 = "10.0.0.2";
 
-        // Fake the deployment
-        deployment.setName("dummy");
-        deployment.setDeploymentSlot(DeploymentSlot.Production);
-        deployment.setStatus(DeploymentStatus.Running);
 
-        // Fake a first instance
-        RoleInstance instance1 = new RoleInstance();
-        instance1.setInstanceName("dummy1");
+        ResourceId resourceId = new ResourceId();
+        resourceId.setId("/subscriptions/xx/resourceGroups/rgName/providers/Microsoft.Network/networkInterfaces/nic_dummy/ipConfigurations/Nic-IP-config");
 
-        // Fake the private IP
-        instance1.setIPAddress(InetAddress.getLoopbackAddress());
+        NetworkInterfaceIpConfiguration ipConfiguration = new NetworkInterfaceIpConfiguration();
+        ipConfiguration.setPrivateIpAddress(dummyPrivateIP);
 
-        // Fake the public IP
-        InstanceEndpoint endpoint1 = new InstanceEndpoint();
-        endpoint1.setName("elasticsearch");
-        endpoint1.setVirtualIPAddress(InetAddress.getLoopbackAddress());
-        endpoint1.setPort(9400);
-        instance1.setInstanceEndpoints(newSingletonArrayList(endpoint1));
+        NetworkInterfaceIpConfiguration ipConfiguration2 = new NetworkInterfaceIpConfiguration();
+        ipConfiguration2.setPrivateIpAddress(dummyPrivateIP2);
 
-        // Fake a first instance
-        RoleInstance instance2 = new RoleInstance();
-        instance2.setInstanceName("dummy1");
+        NetworkInterface nic = new NetworkInterface();
+        nic.setName("nic_dummy");
+        nic.setIpConfigurations(CollectionUtils.arrayAsArrayList(ipConfiguration, ipConfiguration2));
+        subnet.setIpConfigurations(CollectionUtils.asArrayList(resourceId));
 
-        // Fake the private IP
-        instance2.setIPAddress(InetAddress.getLoopbackAddress());
-
-        // Fake the public IP
-        InstanceEndpoint endpoint2 = new InstanceEndpoint();
-        endpoint2.setName("elasticsearch");
-        endpoint2.setVirtualIPAddress(InetAddress.getLoopbackAddress());
-        endpoint2.setPort(9401);
-        instance2.setInstanceEndpoints(newSingletonArrayList(endpoint2));
-
-        deployment.setRoleInstances(new ArrayList<>(Arrays.asList(instance1, instance2)));
-
-        response.setDeployments(newSingletonArrayList(deployment));
-
-        return response;
+        return CollectionUtils.asArrayList(subnet);
     }
+
+    @Override
+    public Configuration getConfiguration() {
+        return null;
+    }
+
 }

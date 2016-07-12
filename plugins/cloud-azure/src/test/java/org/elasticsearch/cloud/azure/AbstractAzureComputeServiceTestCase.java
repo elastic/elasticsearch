@@ -49,9 +49,10 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
         // We add a fake subscription_id to start mock compute service
         builder.put(Management.SUBSCRIPTION_ID, "fake")
             .put(Discovery.REFRESH, "5s")
-            .put(Management.KEYSTORE_PATH, "dummy")
-            .put(Management.KEYSTORE_PASSWORD, "dummy")
-            .put(Management.SERVICE_NAME, "dummy");
+            .put(Management.APP_ID, "dummy")
+            .put(Management.TENANT_ID, "dummy")
+            .put(Management.APP_SECRET, "dummy")
+            .put(Management.RESOURCE_GROUP_NAME, "dummy");
         return builder.build();
     }
 

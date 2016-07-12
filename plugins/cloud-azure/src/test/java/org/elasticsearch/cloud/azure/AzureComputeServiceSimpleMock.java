@@ -19,33 +19,56 @@
 
 package org.elasticsearch.cloud.azure;
 
-import com.microsoft.windowsazure.management.compute.models.DeploymentSlot;
-import com.microsoft.windowsazure.management.compute.models.DeploymentStatus;
-import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDetailedResponse;
-import com.microsoft.windowsazure.management.compute.models.InstanceEndpoint;
-import com.microsoft.windowsazure.management.compute.models.RoleInstance;
+import com.microsoft.azure.management.network.models.*;
+import com.microsoft.windowsazure.Configuration;
 import org.elasticsearch.cloud.azure.management.AzureComputeServiceAbstractMock;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 
 import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Mock Azure API with a single started node
  */
 public class AzureComputeServiceSimpleMock extends AzureComputeServiceAbstractMock {
 
+    
+    public List<Subnet> listSubnets(String rgName, String vnetName) {
+
+        Subnet subnet = new Subnet();
+        subnet.setName("dummySubnet");
+        String dummyPrivateIP = "10.0.0.1";
+
+        ResourceId resourceId = new ResourceId();
+        resourceId.setId("/subscriptions/xx/resourceGroups/myrg/providers/Microsoft.Network/networkInterfaces/nic_dummy/ipConfigurations/Nic-IP-config");
+
+        NetworkInterfaceIpConfiguration ipConfiguration = new NetworkInterfaceIpConfiguration();
+        ipConfiguration.setPrivateIpAddress(dummyPrivateIP);
+
+        NetworkInterface nic = new NetworkInterface();
+        nic.setName("nic_dummy");
+        nic.setIpConfigurations(CollectionUtils.asArrayList(ipConfiguration));
+        subnet.setIpConfigurations(CollectionUtils.asArrayList(resourceId));
+
+        return CollectionUtils.arrayAsArrayList(subnet);
+    }
+
     public static class TestPlugin extends Plugin {
         @Override
         public String name() {
             return "mock-compute-service";
         }
+
         @Override
         public String description() {
             return "plugs in a mock compute service for testing";
         }
+
         public void onModule(AzureModule azureModule) {
             azureModule.computeServiceImpl = AzureComputeServiceSimpleMock.class;
         }
@@ -57,32 +80,7 @@ public class AzureComputeServiceSimpleMock extends AzureComputeServiceAbstractMo
     }
 
     @Override
-    public HostedServiceGetDetailedResponse getServiceDetails() {
-        HostedServiceGetDetailedResponse response = new HostedServiceGetDetailedResponse();
-        HostedServiceGetDetailedResponse.Deployment deployment = new HostedServiceGetDetailedResponse.Deployment();
-
-        // Fake the deployment
-        deployment.setName("dummy");
-        deployment.setDeploymentSlot(DeploymentSlot.Production);
-        deployment.setStatus(DeploymentStatus.Running);
-
-        // Fake an instance
-        RoleInstance instance = new RoleInstance();
-        instance.setInstanceName("dummy1");
-
-        // Fake the private IP
-        instance.setIPAddress(InetAddress.getLoopbackAddress());
-
-        // Fake the public IP
-        InstanceEndpoint endpoint = new InstanceEndpoint();
-        endpoint.setName("elasticsearch");
-        endpoint.setVirtualIPAddress(InetAddress.getLoopbackAddress());
-        endpoint.setPort(9400);
-        instance.setInstanceEndpoints(CollectionUtils.newSingletonArrayList(endpoint));
-
-        deployment.setRoleInstances(CollectionUtils.newSingletonArrayList(instance));
-        response.setDeployments(CollectionUtils.newSingletonArrayList(deployment));
-
-        return response;
+    public Configuration getConfiguration() {
+        return null;
     }
 }

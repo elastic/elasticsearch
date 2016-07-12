@@ -42,7 +42,7 @@ public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
     @Test
     public void one_node_should_run_using_private_ip() {
         Settings.Builder settings = Settings.settingsBuilder()
-                .put(Management.SERVICE_NAME, "dummy")
+                .put("serviceName", "dummy")
                 .put(Discovery.HOST_TYPE, "private_ip");
 
         logger.info("--> start one node");
@@ -56,7 +56,7 @@ public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
     @Test
     public void one_node_should_run_using_public_ip() {
         Settings.Builder settings = Settings.settingsBuilder()
-                .put(Management.SERVICE_NAME, "dummy")
+                .put("serviceName", "dummy")
                 .put(Discovery.HOST_TYPE, "public_ip");
 
         logger.info("--> start one node");
@@ -70,7 +70,7 @@ public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
     @Test
     public void one_node_should_run_using_wrong_settings() {
         Settings.Builder settings = Settings.settingsBuilder()
-                .put(Management.SERVICE_NAME, "dummy")
+                .put("serviceName", "dummy")
                 .put(Discovery.HOST_TYPE, "do_not_exist");
 
         logger.info("--> start one node");

@@ -39,6 +39,8 @@ import org.elasticsearch.transport.TransportService;
 public class AzureDiscovery extends ZenDiscovery {
 
     public static final String AZURE = "azure";
+    public static final String VNET = "vnet";
+    public static final String SUBNET = "subnet";
 
     @Inject
     public AzureDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool, TransportService transportService,

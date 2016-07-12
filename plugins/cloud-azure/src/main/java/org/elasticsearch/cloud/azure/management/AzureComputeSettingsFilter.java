@@ -32,9 +32,9 @@ public class AzureComputeSettingsFilter extends AbstractComponent {
     public AzureComputeSettingsFilter(Settings settings, SettingsFilter settingsFilter) {
         super(settings);
         // Cloud management API settings we need to hide
-        settingsFilter.addFilter(KEYSTORE_PATH);
-        settingsFilter.addFilter(KEYSTORE_PASSWORD);
-        settingsFilter.addFilter(KEYSTORE_TYPE);
+        settingsFilter.addFilter(APP_ID);
+        settingsFilter.addFilter(APP_SECRET);
+        settingsFilter.addFilter(TENANT_ID);
         settingsFilter.addFilter(SUBSCRIPTION_ID);
     }
 }

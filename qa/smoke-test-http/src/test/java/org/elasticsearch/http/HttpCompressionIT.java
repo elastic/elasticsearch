@@ -34,7 +34,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.io.IOException;
 import java.util.Collections;
 
-public class HttpCompressionIT extends HttpSmokeTestCase {
+public class HttpCompressionIT extends ESIntegTestCase {
     private static final String GZIP_ENCODING = "gzip";
 
     private static final StringEntity SAMPLE_DOCUMENT = new StringEntity("{\n" +

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query.functionscore;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -28,7 +27,6 @@ import java.io.IOException;
 
 public class LinearDecayFunctionBuilder extends DecayFunctionBuilder<LinearDecayFunctionBuilder> {
     public static final String NAME = "linear";
-    public static final ParseField FUNCTION_NAME_FIELD = new ParseField(NAME);
     public static final ScoreFunctionParser<LinearDecayFunctionBuilder> PARSER = new DecayFunctionParser<>(LinearDecayFunctionBuilder::new);
     public static final DecayFunction LINEAR_DECAY_FUNCTION = new LinearDecayScoreFunction();
 

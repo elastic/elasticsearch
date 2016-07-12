@@ -39,13 +39,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.script.NativeScriptFactory;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngineService;
-import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 
 import java.io.IOException;
@@ -274,10 +268,10 @@ public class PluginsService extends AbstractComponent {
         return builder.put(this.settings).build();
     }
 
-    public Collection<Module> nodeModules() {
+    public Collection<Module> createGuiceModules() {
         List<Module> modules = new ArrayList<>();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            modules.addAll(plugin.v2().nodeModules());
+            modules.addAll(plugin.v2().createGuiceModules());
         }
         return modules;
     }
@@ -290,12 +284,18 @@ public class PluginsService extends AbstractComponent {
         return builders;
     }
 
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
+    /** Returns all classes injected into guice by plugins which extend {@link LifecycleComponent}. */
+    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
         List<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            services.addAll(plugin.v2().nodeServices());
+            services.addAll(plugin.v2().getGuiceServiceClasses());
         }
         return services;
+    }
+
+    /** Gets components from each plugin. This method should be called exactly once. */
+    public Collection<Object> createComponenents() {
+        return plugins.stream().flatMap(p -> p.v2().createComponents().stream()).collect(Collectors.toList());
     }
 
     public void onIndexModule(IndexModule indexModule) {

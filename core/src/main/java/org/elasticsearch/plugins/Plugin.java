@@ -20,6 +20,7 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Setting;
@@ -37,22 +38,40 @@ import java.util.List;
 /**
  * An extension point allowing to plug in custom functionality.
  * <p>
- * A plugin can be register custom extensions to builtin behavior by implementing <tt>onModule(AnyModule)</tt>,
- * and registering the extension with the given module.
+ * Implement any of these interfaces to extend Elasticsearch:
+ * <ul>
+ * <li>{@link ActionPlugin}
+ * <li>{@link AnalysisPlugin}
+ * <li>{@link MapperPlugin}
+ * <li>{@link ScriptPlugin}
+ * <li>{@link SearchPlugin}
+ * </ul>
  */
 public abstract class Plugin {
 
     /**
-     * Node level modules.
+     * Node level guice modules.
      */
-    public Collection<Module> nodeModules() {
+    public Collection<Module> createGuiceModules() {
         return Collections.emptyList();
     }
 
     /**
-     * Node level services that will be automatically started/stopped/closed.
+     * Node level services that will be automatically started/stopped/closed. This classes must be constructed
+     * by injection with guice.
      */
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
+    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Returns components maintained by this plugin.
+     *
+     * Any components returned that implement {@link LifecycleComponent} will have their lifecycle managed.
+     * Note: To aid in the migration away from guice, all objects returned as components will be bound in guice
+     * to themselves.
+     */
+    public Collection<Object> createComponents() {
         return Collections.emptyList();
     }
 

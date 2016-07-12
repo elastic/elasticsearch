@@ -76,6 +76,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static java.util.Collections.emptyList;
 import static org.apache.lucene.util.LuceneTestCase.random;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -627,7 +628,7 @@ public class ElasticsearchAssertions {
             registry = ESIntegTestCase.internalCluster().getInstance(NamedWriteableRegistry.class);
         } else {
             registry = new NamedWriteableRegistry();
-            new SearchModule(Settings.EMPTY, registry, false);
+            new SearchModule(Settings.EMPTY, registry, false, emptyList());
         }
         assertVersionSerializable(version, streamable, registry);
     }

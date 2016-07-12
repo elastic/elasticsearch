@@ -87,6 +87,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -145,7 +146,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
                         bindMapperExtension();
                     }
                 },
-                new SearchModule(settings, namedWriteableRegistry, false) {
+                new SearchModule(settings, namedWriteableRegistry, false, emptyList()) {
                     @Override
                     protected void configureSearch() {
                         // Skip me

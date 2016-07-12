@@ -579,7 +579,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
     public static class TestPlugin extends Plugin {
 
         @Override
-        public Collection<Class<? extends LifecycleComponent>> nodeServices() {
+        public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
             List<Class<? extends LifecycleComponent>> services = new ArrayList<>(1);
             services.add(MasterAwareService.class);
             return services;

@@ -21,6 +21,8 @@ package org.elasticsearch.client.transport;
 
 import java.io.Closeable;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -53,6 +55,7 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -138,12 +141,12 @@ public class TransportClient extends AbstractClient {
 
                 ModulesBuilder modules = new ModulesBuilder();
                 // plugin modules must be added here, before others or we can get crazy injection errors...
-                for (Module pluginModule : pluginsService.nodeModules()) {
+                for (Module pluginModule : pluginsService.createGuiceModules()) {
                     modules.add(pluginModule);
                 }
                 modules.add(new NetworkModule(networkService, settings, true, namedWriteableRegistry));
                 modules.add(b -> b.bind(ThreadPool.class).toInstance(threadPool));
-                modules.add(new SearchModule(settings, namedWriteableRegistry, true));
+                modules.add(new SearchModule(settings, namedWriteableRegistry, true, pluginsService.filterPlugins(SearchPlugin.class)));
                 ActionModule actionModule = new ActionModule(false, true, settings, null, settingsModule.getClusterSettings(),
                     pluginsService.filterPlugins(ActionPlugin.class));
                 modules.add(actionModule);
@@ -154,11 +157,13 @@ public class TransportClient extends AbstractClient {
                 resourcesToClose.add(circuitBreakerService);
                 BigArrays bigArrays = new BigArrays(settings, circuitBreakerService);
                 resourcesToClose.add(bigArrays);
+                Collection<Object> pluginComponents = pluginsService.createComponenents();
                 modules.add(settingsModule);
                 modules.add((b -> {
                     b.bind(BigArrays.class).toInstance(bigArrays);
                     b.bind(PluginsService.class).toInstance(pluginsService);
                     b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService);
+                    pluginComponents.stream().forEach(p -> b.bind((Class)p.getClass()).toInstance(p));
                 }));
 
                 Injector injector = modules.createInjector();
@@ -168,9 +173,17 @@ public class TransportClient extends AbstractClient {
                 final TransportProxyClient proxy = new TransportProxyClient(settings, transportService, nodesService,
                     actionModule.getActions().values().stream().map(x -> x.getAction()).collect(Collectors.toList()));
 
+                List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream()
+                    .filter(p -> p instanceof LifecycleComponent)
+                    .map(p -> (LifecycleComponent)p).collect(Collectors.toList());
+                pluginLifecycleComponents.addAll(pluginsService.getGuiceServiceClasses().stream()
+                    .map(injector::getInstance).collect(Collectors.toList()));
+                resourcesToClose.addAll(pluginLifecycleComponents);
+
                 transportService.start();
                 transportService.acceptIncomingRequests();
-                TransportClient transportClient = new TransportClient(injector, nodesService, proxy);
+
+                TransportClient transportClient = new TransportClient(injector, pluginLifecycleComponents, nodesService, proxy);
                 resourcesToClose.clear();
                 return transportClient;
             } finally {
@@ -183,12 +196,15 @@ public class TransportClient extends AbstractClient {
 
     final Injector injector;
 
+    private final List<LifecycleComponent> pluginLifecycleComponents;
     private final TransportClientNodesService nodesService;
     private final TransportProxyClient proxy;
 
-    private TransportClient(Injector injector, TransportClientNodesService nodesService, TransportProxyClient proxy) {
+    private TransportClient(Injector injector, List<LifecycleComponent> pluginLifecycleComponents,
+                            TransportClientNodesService nodesService, TransportProxyClient proxy) {
         super(injector.getInstance(Settings.class), injector.getInstance(ThreadPool.class));
         this.injector = injector;
+        this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
         this.nodesService = nodesService;
         this.proxy = proxy;
     }
@@ -269,8 +285,8 @@ public class TransportClient extends AbstractClient {
         closeables.add(nodesService);
         closeables.add(injector.getInstance(TransportService.class));
 
-        for (Class<? extends LifecycleComponent> plugin : injector.getInstance(PluginsService.class).nodeServices()) {
-            closeables.add(injector.getInstance(plugin));
+        for (LifecycleComponent plugin : pluginLifecycleComponents) {
+            closeables.add(plugin);
         }
         closeables.add(() -> ThreadPool.terminate(injector.getInstance(ThreadPool.class), 10, TimeUnit.SECONDS));
         closeables.add(injector.getInstance(BigArrays.class));

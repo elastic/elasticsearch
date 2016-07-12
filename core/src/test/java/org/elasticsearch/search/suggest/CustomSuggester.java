@@ -32,7 +32,7 @@ import java.util.Map;
 
 public class CustomSuggester extends Suggester<CustomSuggester.CustomSuggestionsContext> {
 
-    public static CustomSuggester INSTANCE = new CustomSuggester();
+    public static final CustomSuggester INSTANCE = new CustomSuggester();
 
     // This is a pretty dumb implementation which returns the original text + fieldName + custom config option + 12 or 123
     @Override

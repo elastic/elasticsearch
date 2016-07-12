@@ -29,7 +29,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.Highlighters;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
@@ -38,6 +37,7 @@ import org.mockito.Mockito;
 import java.util.Arrays;
 import java.util.Collections;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -49,7 +49,7 @@ public class PercolatorHighlightSubFetchPhaseTests extends ESTestCase {
                 "", ctx -> null, new BytesArray("{}"), new MatchAllDocsQuery(), Mockito.mock(IndexSearcher.class), new MatchAllDocsQuery()
         );
         PercolatorHighlightSubFetchPhase subFetchPhase = new PercolatorHighlightSubFetchPhase(Settings.EMPTY,
-            new Highlighters(Settings.EMPTY));
+            emptyMap());
         SearchContext searchContext = Mockito.mock(SearchContext.class);
         Mockito.when(searchContext.highlight()).thenReturn(new SearchContextHighlight(Collections.emptyList()));
         Mockito.when(searchContext.query()).thenReturn(new MatchAllDocsQuery());

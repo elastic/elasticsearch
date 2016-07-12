@@ -20,6 +20,7 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.BooleanQuery;
+import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
@@ -91,6 +92,10 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.WeightBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.SearchPlugin.FetchPhaseConstructionContext;
+import org.elasticsearch.plugins.SearchPlugin.ScoreFunctionSpec;
+import org.elasticsearch.plugins.SearchPlugin.SearchPluginSpec;
 import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -248,8 +253,11 @@ import org.elasticsearch.search.fetch.parent.ParentFieldSubFetchPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.source.FetchSourceSubPhase;
 import org.elasticsearch.search.fetch.version.VersionFetchSubPhase;
+import org.elasticsearch.search.highlight.FastVectorHighlighter;
 import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.highlight.Highlighter;
+import org.elasticsearch.search.highlight.PlainHighlighter;
+import org.elasticsearch.search.highlight.PostingsHighlighter;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -259,21 +267,33 @@ import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.Suggesters;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.completion.CompletionSuggester;
+import org.elasticsearch.search.suggest.phrase.Laplace;
+import org.elasticsearch.search.suggest.phrase.LinearInterpolation;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
+import org.elasticsearch.search.suggest.phrase.SmoothingModel;
+import org.elasticsearch.search.suggest.phrase.StupidBackoff;
+import org.elasticsearch.search.suggest.term.TermSuggester;
 
-import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Consumer;
+import java.util.function.Function;
+
+import static java.util.Collections.unmodifiableMap;
+import static java.util.Objects.requireNonNull;
 
 /**
- *
+ * Sets up things that can be done at search time like queries, aggregations, and suggesters.
  */
 public class SearchModule extends AbstractModule {
 
     private final boolean transportClient;
-    private final Highlighters highlighters;
-    private final Suggesters suggesters;
+    private final Map<String, Highlighter> highlighters;
+    private final Map<String, Suggester<?>> suggesters;
     private final ParseFieldRegistry<ScoreFunctionParser<?>> scoreFunctionParserRegistry = new ParseFieldRegistry<>("score_function");
     private final IndicesQueriesRegistry queryParserRegistry = new IndicesQueriesRegistry();
     private final ParseFieldRegistry<Aggregator.Parser> aggregationParserRegistry = new ParseFieldRegistry<>("aggregation");
@@ -285,7 +305,7 @@ public class SearchModule extends AbstractModule {
     private final ParseFieldRegistry<MovAvgModel.AbstractModelParser> movingAverageModelParserRegistry = new ParseFieldRegistry<>(
             "moving_avg_model");
 
-    private final Set<FetchSubPhase> fetchSubPhases = new HashSet<>();
+    private final List<FetchSubPhase> fetchSubPhases = new ArrayList<>();
 
     private final Settings settings;
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -295,53 +315,22 @@ public class SearchModule extends AbstractModule {
     // pkg private so tests can mock
     Class<? extends SearchService> searchServiceImpl = SearchService.class;
 
-    public SearchModule(Settings settings, NamedWriteableRegistry namedWriteableRegistry, boolean transportClient) {
+    public SearchModule(Settings settings, NamedWriteableRegistry namedWriteableRegistry, boolean transportClient,
+            List<SearchPlugin> plugins) {
         this.settings = settings;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.transportClient = transportClient;
-        suggesters = new Suggesters(namedWriteableRegistry);
-        highlighters = new Highlighters(settings);
-        registerBuiltinScoreFunctionParsers();
+        suggesters = setupSuggesters(plugins);
+        highlighters = setupHighlighters(settings, plugins);
+        registerScoreFunctions(plugins);
         registerBuiltinQueryParsers();
-        registerBuiltinRescorers();
-        registerBuiltinSorts();
-        registerBuiltinValueFormats();
-        registerBuiltinSignificanceHeuristics();
-        registerBuiltinMovingAverageModels();
-        registerBuiltinSubFetchPhases();
+        registerRescorers();
+        registerSorts();
+        registerValueFormats();
+        registerSignificanceHeuristics(plugins);
+        registerMovingAverageModels(plugins);
         registerBuiltinAggregations();
-    }
-
-    public void registerHighlighter(String key, Highlighter highligher) {
-        highlighters.registerHighlighter(key, highligher);
-    }
-
-    public void registerSuggester(String key, Suggester<?> suggester) {
-        suggesters.register(key, suggester);
-    }
-
-    /**
-     * Register a new ScoreFunctionBuilder. Registration does two things:
-     * <ul>
-     * <li>Register the {@link ScoreFunctionParser} which parses XContent into a {@link ScoreFunctionBuilder} using its {@link ParseField}
-     * </li>
-     * <li>Register the {@link Writeable.Reader} which reads a stream representation of the builder under the
-     * {@linkplain ParseField#getPreferredName()}.</li>
-     * </ul>
-     */
-    public <T extends ScoreFunctionBuilder<T>> void registerScoreFunction(Writeable.Reader<T> reader, ScoreFunctionParser<T> parser,
-            ParseField functionName) {
-        scoreFunctionParserRegistry.register(parser, functionName);
-        namedWriteableRegistry.register(ScoreFunctionBuilder.class, functionName.getPreferredName(), reader);
-    }
-
-    /**
-     * Register a new ValueFormat.
-     */
-    // private for now, we can consider making it public if there are actual use cases for plugins
-    // to register custom value formats
-    private void registerValueFormat(String name, Writeable.Reader<? extends DocValueFormat> reader) {
-        namedWriteableRegistry.register(DocValueFormat.class, name, reader);
+        registerFetchSubPhases(plugins);
     }
 
     /**
@@ -360,37 +349,19 @@ public class SearchModule extends AbstractModule {
         namedWriteableRegistry.register(QueryBuilder.class, queryName.getPreferredName(), reader);
     }
 
+    public Suggesters getSuggesters() {
+        return new Suggesters(suggesters);
+    }
+
     public IndicesQueriesRegistry getQueryParserRegistry() {
         return queryParserRegistry;
     }
 
     /**
-     * Registers a {@link FetchSubPhase} instance. This sub phase is executed when docuemnts are fetched for instanced to highlight
-     * documents.
-     */
-    public void registerFetchSubPhase(FetchSubPhase subPhase) {
-        fetchSubPhases.add(Objects.requireNonNull(subPhase, "FetchSubPhase must not be null"));
-    }
-
-    /**
      * Returns the {@link Highlighter} registry
      */
-    public Highlighters getHighlighters() {
+    public Map<String, Highlighter> getHighlighters() {
         return highlighters;
-    }
-
-    /**
-     * Register a {@link SignificanceHeuristic}.
-     *
-     * @param heuristicName the name(s) at which the heuristic is parsed and streamed. The {@link ParseField#getPreferredName()} is the name
-     *        under which it is streamed. All names work for the parser.
-     * @param reader reads the heuristic from a stream
-     * @param parser reads the heuristic from an XContentParser
-     */
-    public void registerSignificanceHeuristic(ParseField heuristicName, Writeable.Reader<SignificanceHeuristic> reader,
-            SignificanceHeuristicParser parser) {
-        significanceHeuristicParserRegistry.register(parser, heuristicName);
-        namedWriteableRegistry.register(SignificanceHeuristic.class, heuristicName.getPreferredName(), reader);
     }
 
     /**
@@ -398,20 +369,6 @@ public class SearchModule extends AbstractModule {
      */
     public ParseFieldRegistry<SignificanceHeuristicParser> getSignificanceHeuristicParserRegistry() {
         return significanceHeuristicParserRegistry;
-    }
-
-    /**
-     * Register a {@link MovAvgModel}.
-     *
-     * @param modelName the name(s) at which the model is parsed and streamed. The {@link ParseField#getPreferredName()} is the name under
-     *        which it is streamed. All named work for the parser.
-     * @param reader reads the model from a stream
-     * @param parser reads the model from an XContentParser
-     */
-    public void registerMovingAverageModel(ParseField modelName, Writeable.Reader<MovAvgModel> reader,
-            MovAvgModel.AbstractModelParser parser) {
-        movingAverageModelParserRegistry.register(parser, modelName);
-        namedWriteableRegistry.register(MovAvgModel.class, modelName.getPreferredName(), reader);
     }
 
     /**
@@ -517,7 +474,7 @@ public class SearchModule extends AbstractModule {
              * NamedWriteableRegistry.
              */
             bind(IndicesQueriesRegistry.class).toInstance(queryParserRegistry);
-            bind(Suggesters.class).toInstance(suggesters);
+            bind(Suggesters.class).toInstance(getSuggesters());
             configureSearch();
             configureShapes();
             bind(AggregatorParsers.class).toInstance(aggregatorParsers);
@@ -647,37 +604,88 @@ public class SearchModule extends AbstractModule {
         }
     }
 
-    private void registerBuiltinRescorers() {
+    private void registerRescorers() {
         namedWriteableRegistry.register(RescoreBuilder.class, QueryRescorerBuilder.NAME, QueryRescorerBuilder::new);
     }
 
-    private void registerBuiltinSorts() {
+    private void registerSorts() {
         namedWriteableRegistry.register(SortBuilder.class, GeoDistanceSortBuilder.NAME, GeoDistanceSortBuilder::new);
         namedWriteableRegistry.register(SortBuilder.class, ScoreSortBuilder.NAME, ScoreSortBuilder::new);
         namedWriteableRegistry.register(SortBuilder.class, ScriptSortBuilder.NAME, ScriptSortBuilder::new);
         namedWriteableRegistry.register(SortBuilder.class, FieldSortBuilder.NAME, FieldSortBuilder::new);
     }
 
-    private void registerBuiltinScoreFunctionParsers() {
-        registerScoreFunction(ScriptScoreFunctionBuilder::new, ScriptScoreFunctionBuilder::fromXContent,
-                ScriptScoreFunctionBuilder.FUNCTION_NAME_FIELD);
-        registerScoreFunction(GaussDecayFunctionBuilder::new, GaussDecayFunctionBuilder.PARSER,
-                GaussDecayFunctionBuilder.FUNCTION_NAME_FIELD);
-        registerScoreFunction(LinearDecayFunctionBuilder::new, LinearDecayFunctionBuilder.PARSER,
-                LinearDecayFunctionBuilder.FUNCTION_NAME_FIELD);
-        registerScoreFunction(ExponentialDecayFunctionBuilder::new, ExponentialDecayFunctionBuilder.PARSER,
-                ExponentialDecayFunctionBuilder.FUNCTION_NAME_FIELD);
-        registerScoreFunction(RandomScoreFunctionBuilder::new, RandomScoreFunctionBuilder::fromXContent,
-                RandomScoreFunctionBuilder.FUNCTION_NAME_FIELD);
-        registerScoreFunction(FieldValueFactorFunctionBuilder::new, FieldValueFactorFunctionBuilder::fromXContent,
-                FieldValueFactorFunctionBuilder.FUNCTION_NAME_FIELD);
+    private <T> void registerFromPlugin(List<SearchPlugin> plugins, Function<SearchPlugin, List<T>> producer, Consumer<T> consumer) {
+        for (SearchPlugin plugin : plugins) {
+            for (T t : producer.apply(plugin)) {
+                consumer.accept(t);
+            }
+        }
+    }
+
+    public static void registerSmoothingModels(NamedWriteableRegistry namedWriteableRegistry) {
+        namedWriteableRegistry.register(SmoothingModel.class, Laplace.NAME, Laplace::new);
+        namedWriteableRegistry.register(SmoothingModel.class, LinearInterpolation.NAME, LinearInterpolation::new);
+        namedWriteableRegistry.register(SmoothingModel.class, StupidBackoff.NAME, StupidBackoff::new);
+    }
+
+    private Map<String, Suggester<?>> setupSuggesters(List<SearchPlugin> plugins) {
+        registerSmoothingModels(namedWriteableRegistry);
+
+        // Suggester<?> is weird - it is both a Parser and a reader....
+        NamedRegistry<Suggester<?>> suggesters = new NamedRegistry<Suggester<?>>("suggester") {
+            @Override
+            public void register(String name, Suggester<?> t) {
+                super.register(name, t);
+                namedWriteableRegistry.register(SuggestionBuilder.class, name, t);
+            }
+        };
+        suggesters.register("phrase", PhraseSuggester.INSTANCE);
+        suggesters.register("term", TermSuggester.INSTANCE);
+        suggesters.register("completion", CompletionSuggester.INSTANCE);
+
+        suggesters.extractAndRegister(plugins, SearchPlugin::getSuggesters);
+        return unmodifiableMap(suggesters.getRegistry());
+    }
+
+    private Map<String, Highlighter> setupHighlighters(Settings settings, List<SearchPlugin> plugins) {
+        NamedRegistry<Highlighter> highlighters = new NamedRegistry<>("highlighter");
+        highlighters.register("fvh",  new FastVectorHighlighter(settings));
+        highlighters.register("plain", new PlainHighlighter());
+        highlighters.register("postings", new PostingsHighlighter());
+
+        highlighters.extractAndRegister(plugins, SearchPlugin::getHighlighters);
+
+        return unmodifiableMap(highlighters.getRegistry());
+    }
+
+    private void registerScoreFunctions(List<SearchPlugin> plugins) {
+        registerScoreFunction(new ScoreFunctionSpec<>(ScriptScoreFunctionBuilder.NAME, ScriptScoreFunctionBuilder::new,
+                ScriptScoreFunctionBuilder::fromXContent));
+        registerScoreFunction(
+                new ScoreFunctionSpec<>(GaussDecayFunctionBuilder.NAME, GaussDecayFunctionBuilder::new, GaussDecayFunctionBuilder.PARSER));
+        registerScoreFunction(new ScoreFunctionSpec<>(LinearDecayFunctionBuilder.NAME, LinearDecayFunctionBuilder::new,
+                LinearDecayFunctionBuilder.PARSER));
+        registerScoreFunction(new ScoreFunctionSpec<>(ExponentialDecayFunctionBuilder.NAME, ExponentialDecayFunctionBuilder::new,
+                ExponentialDecayFunctionBuilder.PARSER));
+        registerScoreFunction(new ScoreFunctionSpec<>(RandomScoreFunctionBuilder.NAME, RandomScoreFunctionBuilder::new,
+                RandomScoreFunctionBuilder::fromXContent));
+        registerScoreFunction(new ScoreFunctionSpec<>(FieldValueFactorFunctionBuilder.NAME, FieldValueFactorFunctionBuilder::new,
+                FieldValueFactorFunctionBuilder::fromXContent));
 
         //weight doesn't have its own parser, so every function supports it out of the box.
         //Can be a single function too when not associated to any other function, which is why it needs to be registered manually here.
         namedWriteableRegistry.register(ScoreFunctionBuilder.class, WeightBuilder.NAME, WeightBuilder::new);
+
+        registerFromPlugin(plugins, SearchPlugin::getScoreFunctions, this::registerScoreFunction);
     }
 
-    private void registerBuiltinValueFormats() {
+    private void registerScoreFunction(ScoreFunctionSpec<?> scoreFunction) {
+        scoreFunctionParserRegistry.register(scoreFunction.getParser(), scoreFunction.getName());
+        namedWriteableRegistry.register(ScoreFunctionBuilder.class, scoreFunction.getName().getPreferredName(), scoreFunction.getReader());
+    }
+
+    private void registerValueFormats() {
         registerValueFormat(DocValueFormat.BOOLEAN.getWriteableName(), in -> DocValueFormat.BOOLEAN);
         registerValueFormat(DocValueFormat.DateTime.NAME, DocValueFormat.DateTime::new);
         registerValueFormat(DocValueFormat.Decimal.NAME, DocValueFormat.Decimal::new);
@@ -686,24 +694,45 @@ public class SearchModule extends AbstractModule {
         registerValueFormat(DocValueFormat.RAW.getWriteableName(), in -> DocValueFormat.RAW);
     }
 
-    private void registerBuiltinSignificanceHeuristics() {
-        registerSignificanceHeuristic(ChiSquare.NAMES_FIELD, ChiSquare::new, ChiSquare.PARSER);
-        registerSignificanceHeuristic(GND.NAMES_FIELD, GND::new, GND.PARSER);
-        registerSignificanceHeuristic(JLHScore.NAMES_FIELD, JLHScore::new, JLHScore::parse);
-        registerSignificanceHeuristic(MutualInformation.NAMES_FIELD, MutualInformation::new, MutualInformation.PARSER);
-        registerSignificanceHeuristic(PercentageScore.NAMES_FIELD, PercentageScore::new, PercentageScore::parse);
-        registerSignificanceHeuristic(ScriptHeuristic.NAMES_FIELD, ScriptHeuristic::new, ScriptHeuristic::parse);
+    /**
+     * Register a new ValueFormat.
+     */
+    private void registerValueFormat(String name, Writeable.Reader<? extends DocValueFormat> reader) {
+        namedWriteableRegistry.register(DocValueFormat.class, name, reader);
     }
 
-    private void registerBuiltinMovingAverageModels() {
-        registerMovingAverageModel(SimpleModel.NAME_FIELD, SimpleModel::new, SimpleModel.PARSER);
-        registerMovingAverageModel(LinearModel.NAME_FIELD, LinearModel::new, LinearModel.PARSER);
-        registerMovingAverageModel(EwmaModel.NAME_FIELD, EwmaModel::new, EwmaModel.PARSER);
-        registerMovingAverageModel(HoltLinearModel.NAME_FIELD, HoltLinearModel::new, HoltLinearModel.PARSER);
-        registerMovingAverageModel(HoltWintersModel.NAME_FIELD, HoltWintersModel::new, HoltWintersModel.PARSER);
+    private void registerSignificanceHeuristics(List<SearchPlugin> plugins) {
+        registerSignificanceHeuristic(new SearchPluginSpec<>(ChiSquare.NAME, ChiSquare::new, ChiSquare.PARSER));
+        registerSignificanceHeuristic(new SearchPluginSpec<>(GND.NAME, GND::new, GND.PARSER));
+        registerSignificanceHeuristic(new SearchPluginSpec<>(JLHScore.NAME, JLHScore::new, JLHScore::parse));
+        registerSignificanceHeuristic(new SearchPluginSpec<>(MutualInformation.NAME, MutualInformation::new, MutualInformation.PARSER));
+        registerSignificanceHeuristic(new SearchPluginSpec<>(PercentageScore.NAME, PercentageScore::new, PercentageScore::parse));
+        registerSignificanceHeuristic(new SearchPluginSpec<>(ScriptHeuristic.NAME, ScriptHeuristic::new, ScriptHeuristic::parse));
+
+        registerFromPlugin(plugins, SearchPlugin::getSignificanceHeuristics, this::registerSignificanceHeuristic);
     }
 
-    private void registerBuiltinSubFetchPhases() {
+    private void registerSignificanceHeuristic(SearchPluginSpec<SignificanceHeuristic, SignificanceHeuristicParser> heuristic) {
+        significanceHeuristicParserRegistry.register(heuristic.getParser(), heuristic.getName());
+        namedWriteableRegistry.register(SignificanceHeuristic.class, heuristic.getName().getPreferredName(), heuristic.getReader());
+    }
+
+    private void registerMovingAverageModels(List<SearchPlugin> plugins) {
+        registerMovingAverageModel(new SearchPluginSpec<>(SimpleModel.NAME, SimpleModel::new, SimpleModel.PARSER));
+        registerMovingAverageModel(new SearchPluginSpec<>(LinearModel.NAME, LinearModel::new, LinearModel.PARSER));
+        registerMovingAverageModel(new SearchPluginSpec<>(EwmaModel.NAME, EwmaModel::new, EwmaModel.PARSER));
+        registerMovingAverageModel(new SearchPluginSpec<>(HoltLinearModel.NAME, HoltLinearModel::new, HoltLinearModel.PARSER));
+        registerMovingAverageModel(new SearchPluginSpec<>(HoltWintersModel.NAME, HoltWintersModel::new, HoltWintersModel.PARSER));
+
+        registerFromPlugin(plugins, SearchPlugin::getMovingAverageModels, this::registerMovingAverageModel);
+    }
+
+    private void registerMovingAverageModel(SearchPluginSpec<MovAvgModel, MovAvgModel.AbstractModelParser> movAvgModel) {
+        movingAverageModelParserRegistry.register(movAvgModel.getParser(), movAvgModel.getName());
+        namedWriteableRegistry.register(MovAvgModel.class, movAvgModel.getName().getPreferredName(), movAvgModel.getReader());
+    }
+
+    private void registerFetchSubPhases(List<SearchPlugin> plugins) {
         registerFetchSubPhase(new ExplainFetchSubPhase());
         registerFetchSubPhase(new FieldDataFieldsFetchSubPhase());
         registerFetchSubPhase(new ScriptFieldsFetchSubPhase());
@@ -712,6 +741,17 @@ public class SearchModule extends AbstractModule {
         registerFetchSubPhase(new MatchedQueriesFetchSubPhase());
         registerFetchSubPhase(new HighlightPhase(settings, highlighters));
         registerFetchSubPhase(new ParentFieldSubFetchPhase());
+
+        FetchPhaseConstructionContext context = new FetchPhaseConstructionContext(highlighters);
+        registerFromPlugin(plugins, p -> p.getFetchSubPhases(context), this::registerFetchSubPhase);
+    }
+
+    private void registerFetchSubPhase(FetchSubPhase subPhase) {
+        Class<?> subPhaseClass = subPhase.getClass();
+        if (fetchSubPhases.stream().anyMatch(p -> p.getClass().equals(subPhaseClass))) {
+            throw new IllegalArgumentException("FetchSubPhase [" + subPhaseClass + "] already registered");
+        }
+        fetchSubPhases.add(requireNonNull(subPhase, "FetchSubPhase must not be null"));
     }
 
     private void registerBuiltinQueryParsers() {
@@ -805,9 +845,5 @@ public class SearchModule extends AbstractModule {
         BucketScriptPipelineAggregator.registerStreams();
         BucketSelectorPipelineAggregator.registerStreams();
         SerialDiffPipelineAggregator.registerStreams();
-    }
-
-    public Suggesters getSuggesters() {
-        return suggesters;
     }
 }

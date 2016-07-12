@@ -35,9 +35,11 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -92,7 +94,7 @@ public class JarHell {
      * @return array of URLs
      * @throws IllegalStateException if the classpath contains empty elements
      */
-    public static URL[] parseClassPath()  {
+    public static Set<URL> parseClassPath()  {
         return parseClassPath(System.getProperty("java.class.path"));
     }
 
@@ -103,11 +105,11 @@ public class JarHell {
      * @throws IllegalStateException if the classpath contains empty elements
      */
     @SuppressForbidden(reason = "resolves against CWD because that is how classpaths work")
-    static URL[] parseClassPath(String classPath) {
+    static Set<URL> parseClassPath(String classPath) {
         String pathSeparator = System.getProperty("path.separator");
         String fileSeparator = System.getProperty("file.separator");
         String elements[] = classPath.split(pathSeparator);
-        URL urlElements[] = new URL[elements.length];
+        Set<URL> urlElements = new LinkedHashSet<>(); // order is already lost, but some filesystems have it
         for (int i = 0; i < elements.length; i++) {
             String element = elements[i];
             // Technically empty classpath element behaves like CWD.
@@ -135,13 +137,17 @@ public class JarHell {
             }
             // now just parse as ordinary file
             try {
-                urlElements[i] = PathUtils.get(element).toUri().toURL();
+                URL url = PathUtils.get(element).toUri().toURL();
+                if (urlElements.add(url) == false) {
+                        throw new IllegalStateException("jar hell!" + System.lineSeparator() +
+                                                        "duplicate jar on classpath: " + classPath);
+                }
             } catch (MalformedURLException e) {
                 // should not happen, as we use the filesystem API
                 throw new RuntimeException(e);
             }
         }
-        return urlElements;
+        return Collections.unmodifiableSet(urlElements);
     }
 
     /**
@@ -149,7 +155,7 @@ public class JarHell {
      * @throws IllegalStateException if jar hell was found
      */
     @SuppressForbidden(reason = "needs JarFile for speed, just reading entries")
-    public static void checkJarHell(URL urls[]) throws Exception {
+    public static void checkJarHell(Set<URL> urls) throws Exception {
         ESLogger logger = Loggers.getLogger(JarHell.class);
         // we don't try to be sneaky and use deprecated/internal/not portable stuff
         // like sun.boot.class.path, and with jigsaw we don't yet have a way to get
@@ -167,8 +173,8 @@ public class JarHell {
             }
             if (path.toString().endsWith(".jar")) {
                 if (!seenJars.add(path)) {
-                    logger.debug("excluding duplicate classpath element: {}", path);
-                    continue; // we can't fail because of sheistiness with joda-time
+                    throw new IllegalStateException("jar hell!" + System.lineSeparator() +
+                            "duplicate jar on classpath: " + path);
                 }
                 logger.debug("examining jar: {}", path);
                 try (JarFile file = new JarFile(path.toString())) {
@@ -197,7 +203,7 @@ public class JarHell {
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                         String entry = root.relativize(file).toString();
                         if (entry.endsWith(".class")) {
-                            // normalize with the os separator
+                            // normalize with the os separator, remove '.class'
                             entry = entry.replace(sep, ".").substring(0,  entry.length() - 6);
                             checkClass(clazzes, entry, path);
                         }
@@ -274,8 +280,8 @@ public class JarHell {
                 if (clazz.startsWith("org.apache.log4j")) {
                     return; // go figure, jar hell for what should be System.out.println...
                 }
-                if (clazz.equals("org.joda.time.base.BaseDateTime")) {
-                    return; // apparently this is intentional... clean this up
+                if (clazz.equals("module-info")) {
+                    return; // not really a java class: java 9 modular jar
                 }
                 throw new IllegalStateException("jar hell!" + System.lineSeparator() +
                         "class: " + clazz + System.lineSeparator() +

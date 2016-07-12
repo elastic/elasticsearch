@@ -64,8 +64,6 @@ dependencies {
 
   // time handling, remove with java 8 time
   compile 'joda-time:joda-time:2.9.4'
-  // joda 2.0 moved to using volatile fields for datetime
-  // When updating to a new version, make sure to update our copy of BaseDateTime
   compile 'org.joda:joda-convert:1.2'
 
   // json and yaml

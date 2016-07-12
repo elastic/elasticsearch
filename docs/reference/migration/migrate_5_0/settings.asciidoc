@@ -229,6 +229,11 @@ Elasticsearch could previously be configured on the command line by
 setting settings via `--name.of.setting value.of.setting`. This feature
 has been removed. Instead, use `-Ename.of.setting=value.of.setting`.
 
+==== Remove support for .properties config files
+
+The Elasticsearch configuration and logging configuration can no longer be stored in the Java
+properties file format (line-delimited key=value pairs with a `.properties` extension).
+
 ==== Discovery Settings
 
 The `discovery.zen.minimum_master_node` must be set for nodes that have

@@ -74,3 +74,8 @@ The `PUT /_scripts/{lang}/{id}/_create` endpoint that previously allowed to crea
 The `PUT /_search/template/{id}/_create` endpoint that previously allowed to create
  indexed template has been removed. Indexed templates have been replaced
  by <<pre-registered-templates, Pre-registered templates>>.
+
+==== Remove properties support
+
+Some REST endpoints (e.g., cluster update index settings) supported detecting content in the Java
+properties format (line-delimited key=value pairs). This support has been removed.

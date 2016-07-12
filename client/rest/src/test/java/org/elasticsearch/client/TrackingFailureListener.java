@@ -21,7 +21,6 @@ package org.elasticsearch.client;
 
 import org.apache.http.HttpHost;
 
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -33,10 +32,10 @@ import static org.junit.Assert.assertThat;
  * {@link org.elasticsearch.client.RestClient.FailureListener} impl that allows to track when it gets called
  */
 class TrackingFailureListener extends RestClient.FailureListener {
-    private Set<HttpHost> hosts = new HashSet<>();
+    private volatile Set<HttpHost> hosts = new HashSet<>();
 
     @Override
-    public void onFailure(HttpHost host) throws IOException {
+    public void onFailure(HttpHost host) {
         hosts.add(host);
     }
 

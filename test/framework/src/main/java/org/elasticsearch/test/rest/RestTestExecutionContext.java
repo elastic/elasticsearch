@@ -62,7 +62,7 @@ public class RestTestExecutionContext implements Closeable {
      * Saves the obtained response in the execution context.
      */
     public RestTestResponse callApi(String apiName, Map<String, String> params, List<Map<String, Object>> bodies,
-                                    Map<String, String> headers) throws IOException  {
+                                    Map<String, String> headers) throws Exception  {
         //makes a copy of the parameters before modifying them for this specific request
         HashMap<String, String> requestParams = new HashMap<>(params);
         for (Map.Entry<String, String> entry : requestParams.entrySet()) {
@@ -79,7 +79,7 @@ public class RestTestExecutionContext implements Closeable {
             stash.stashValue("body", response.getBody());
             return response;
         } catch(ResponseException e) {
-            response = new RestTestResponse(e);
+            response = new RestTestResponse(e.getResponse());
             throw e;
         }
     }
@@ -105,7 +105,7 @@ public class RestTestExecutionContext implements Closeable {
     }
 
     private RestTestResponse callApiInternal(String apiName, Map<String, String> params, String body, Map<String, String> headers)
-            throws IOException  {
+            throws Exception  {
         return restTestClient.callApi(apiName, params, body, headers);
     }
 
@@ -119,7 +119,7 @@ public class RestTestExecutionContext implements Closeable {
     /**
      * Creates the embedded REST client when needed. Needs to be called before each test.
      */
-    public void initClient(URL[] urls, Settings settings) throws IOException {
+    public void initClient(URL[] urls, Settings settings) throws Exception {
         if (restTestClient == null) {
             restTestClient = new RestTestClient(restSpec, settings, urls);
         }

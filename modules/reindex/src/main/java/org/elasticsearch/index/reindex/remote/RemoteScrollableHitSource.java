@@ -214,10 +214,9 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
             threadPool.generic().execute(new AbstractRunnable() {
                 @Override
                 protected void doRun() throws Exception {
-                    try (org.elasticsearch.client.Response response = restClient.performRequest(method, uri, params, entity)) {
-                        InputStream markSupportedInputStream = new BufferedInputStream(response.getEntity().getContent());
-                        listener.onResponse(markSupportedInputStream);
-                    }
+                    org.elasticsearch.client.Response response = restClient.performRequest(method, uri, params, entity);
+                    InputStream markSupportedInputStream = new BufferedInputStream(response.getEntity().getContent());
+                    listener.onResponse(markSupportedInputStream);
                 }
 
                 @Override

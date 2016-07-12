@@ -67,9 +67,8 @@ public class ResponseHeaderPluginIT extends HttpSmokeTestCase {
             assertThat(response.getHeader("Secret"), equalTo("required"));
         }
 
-        try (Response authResponse = getRestClient().performRequest("GET", "/_protected", new BasicHeader("Secret", "password"))) {
-            assertThat(authResponse.getStatusLine().getStatusCode(), equalTo(200));
-            assertThat(authResponse.getHeader("Secret"), equalTo("granted"));
-        }
+        Response authResponse = getRestClient().performRequest("GET", "/_protected", new BasicHeader("Secret", "password"));
+        assertThat(authResponse.getStatusLine().getStatusCode(), equalTo(200));
+        assertThat(authResponse.getHeader("Secret"), equalTo("granted"));
     }
 }

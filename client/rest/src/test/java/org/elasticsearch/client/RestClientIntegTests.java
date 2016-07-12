@@ -27,6 +27,7 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import org.apache.http.Consts;
 import org.apache.http.Header;
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
@@ -143,7 +144,7 @@ public class RestClientIntegTests extends RestClientTestCase {
     public void testHeaders() throws Exception {
         for (String method : getHttpMethods()) {
             Set<String> standardHeaders = new HashSet<>(
-                    Arrays.asList("Accept-encoding", "Connection", "Host", "User-agent", "Date"));
+                    Arrays.asList("Connection", "Host", "User-agent", "Date"));
             if (method.equals("HEAD") == false) {
                 standardHeaders.add("Content-length");
             }
@@ -162,9 +163,9 @@ public class RestClientIntegTests extends RestClientTestCase {
 
             int statusCode = randomStatusCode(getRandom());
             Response esResponse;
-            try (Response response = restClient.performRequest(method, "/" + statusCode,
-                    Collections.<String, String>emptyMap(), null, headers)) {
-                esResponse = response;
+            try {
+                esResponse = restClient.performRequest(method, "/" + statusCode, Collections.<String, String>emptyMap(),
+                        (HttpEntity)null, headers);
             } catch(ResponseException e) {
                 esResponse = e.getResponse();
             }
@@ -204,18 +205,14 @@ public class RestClientIntegTests extends RestClientTestCase {
     private void bodyTest(String method) throws Exception {
         String requestBody = "{ \"field\": \"value\" }";
         StringEntity entity = new StringEntity(requestBody);
-        Response esResponse;
-        String responseBody;
         int statusCode = randomStatusCode(getRandom());
-        try (Response response = restClient.performRequest(method, "/" + statusCode,
-                Collections.<String, String>emptyMap(), entity)) {
-            responseBody = EntityUtils.toString(response.getEntity());
-            esResponse = response;
+        Response esResponse;
+        try {
+            esResponse = restClient.performRequest(method, "/" + statusCode, Collections.<String, String>emptyMap(), entity);
         } catch(ResponseException e) {
-            responseBody = e.getResponseBody();
             esResponse = e.getResponse();
         }
         assertEquals(statusCode, esResponse.getStatusLine().getStatusCode());
-        assertEquals(requestBody, responseBody);
+        assertEquals(requestBody, EntityUtils.toString(esResponse.getEntity()));
     }
 }

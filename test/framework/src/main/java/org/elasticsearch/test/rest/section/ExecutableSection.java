@@ -20,8 +20,6 @@ package org.elasticsearch.test.rest.section;
 
 import org.elasticsearch.test.rest.RestTestExecutionContext;
 
-import java.io.IOException;
-
 /**
  * Represents a test fragment that can be executed (e.g. api call, assertion)
  */
@@ -30,5 +28,5 @@ public interface ExecutableSection {
     /**
      * Executes the section passing in the execution context
      */
-    void execute(RestTestExecutionContext executionContext) throws IOException;
+    void execute(RestTestExecutionContext executionContext) throws Exception;
 }

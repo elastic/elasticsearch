@@ -26,9 +26,9 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpEntityEnclosingRequest;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpRequest;
+import org.apache.http.HttpResponse;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.StatusLine;
-import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpOptions;
 import org.apache.http.client.methods.HttpPatch;
@@ -37,11 +37,15 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpTrace;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.conn.ConnectTimeoutException;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.message.BasicHeader;
+import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicStatusLine;
+import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
+import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.apache.http.util.EntityUtils;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -51,11 +55,11 @@ import org.mockito.stubbing.Answer;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Future;
 
 import static org.elasticsearch.client.RestClientTestUtil.getAllErrorStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
@@ -86,39 +90,49 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     private RestClient restClient;
     private Header[] defaultHeaders;
     private HttpHost httpHost;
-    private CloseableHttpClient httpClient;
+    private CloseableHttpAsyncClient httpClient;
     private TrackingFailureListener failureListener;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void createRestClient() throws IOException {
-        httpClient = mock(CloseableHttpClient.class);
-        when(httpClient.execute(any(HttpHost.class), any(HttpRequest.class))).thenAnswer(new Answer<CloseableHttpResponse>() {
-            @Override
-            public CloseableHttpResponse answer(InvocationOnMock invocationOnMock) throws Throwable {
-                HttpUriRequest request = (HttpUriRequest) invocationOnMock.getArguments()[1];
-                //return the desired status code or exception depending on the path
-                if (request.getURI().getPath().equals("/soe")) {
-                    throw new SocketTimeoutException();
-                } else if (request.getURI().getPath().equals("/coe")) {
-                    throw new ConnectTimeoutException();
-                }
-                int statusCode = Integer.parseInt(request.getURI().getPath().substring(1));
-                StatusLine statusLine = new BasicStatusLine(new ProtocolVersion("http", 1, 1), statusCode, "");
+        httpClient = mock(CloseableHttpAsyncClient.class);
+        when(httpClient.<HttpResponse>execute(any(HttpAsyncRequestProducer.class), any(HttpAsyncResponseConsumer.class),
+                any(FutureCallback.class))).thenAnswer(new Answer<Future<HttpResponse>>() {
+                    @Override
+                    public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
+                        HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
+                        @SuppressWarnings("unchecked")
+                        FutureCallback<HttpResponse> futureCallback = (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[2];
+                        HttpUriRequest request = (HttpUriRequest)requestProducer.generateRequest();
+                        //return the desired status code or exception depending on the path
+                        if (request.getURI().getPath().equals("/soe")) {
+                            futureCallback.failed(new SocketTimeoutException());
+                        } else if (request.getURI().getPath().equals("/coe")) {
+                            futureCallback.failed(new ConnectTimeoutException());
+                        } else {
+                            int statusCode = Integer.parseInt(request.getURI().getPath().substring(1));
+                            StatusLine statusLine = new BasicStatusLine(new ProtocolVersion("http", 1, 1), statusCode, "");
 
-                CloseableHttpResponse httpResponse = new CloseableBasicHttpResponse(statusLine);
-                //return the same body that was sent
-                if (request instanceof HttpEntityEnclosingRequest) {
-                    HttpEntity entity = ((HttpEntityEnclosingRequest) request).getEntity();
-                    if (entity != null) {
-                        assertTrue("the entity is not repeatable, cannot set it to the response directly", entity.isRepeatable());
-                        httpResponse.setEntity(entity);
+                            HttpResponse httpResponse = new BasicHttpResponse(statusLine);
+                            //return the same body that was sent
+                            if (request instanceof HttpEntityEnclosingRequest) {
+                                HttpEntity entity = ((HttpEntityEnclosingRequest) request).getEntity();
+                                if (entity != null) {
+                                    assertTrue("the entity is not repeatable, cannot set it to the response directly",
+                                            entity.isRepeatable());
+                                    httpResponse.setEntity(entity);
+                                }
+                            }
+                            //return the same headers that were sent
+                            httpResponse.setHeaders(request.getAllHeaders());
+                            futureCallback.completed(httpResponse);
+                        }
+                        return null;
                     }
-                }
-                //return the same headers that were sent
-                httpResponse.setHeaders(request.getAllHeaders());
-                return httpResponse;
-            }
-        });
+                });
+
+
         int numHeaders = RandomInts.randomIntBetween(getRandom(), 0, 3);
         defaultHeaders = new Header[numHeaders];
         for (int i = 0; i < numHeaders; i++) {
@@ -134,13 +148,15 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     /**
      * Verifies the content of the {@link HttpRequest} that's internally created and passed through to the http client
      */
+    @SuppressWarnings("unchecked")
     public void testInternalHttpRequest() throws Exception {
-        ArgumentCaptor<HttpUriRequest> requestArgumentCaptor = ArgumentCaptor.forClass(HttpUriRequest.class);
+        ArgumentCaptor<HttpAsyncRequestProducer> requestArgumentCaptor = ArgumentCaptor.forClass(HttpAsyncRequestProducer.class);
         int times = 0;
         for (String httpMethod : getHttpMethods()) {
             HttpUriRequest expectedRequest = performRandomRequest(httpMethod);
-            verify(httpClient, times(++times)).execute(any(HttpHost.class), requestArgumentCaptor.capture());
-            HttpUriRequest actualRequest = requestArgumentCaptor.getValue();
+            verify(httpClient, times(++times)).<HttpResponse>execute(requestArgumentCaptor.capture(),
+                    any(HttpAsyncResponseConsumer.class), any(FutureCallback.class));
+            HttpUriRequest actualRequest = (HttpUriRequest)requestArgumentCaptor.getValue().generateRequest();
             assertEquals(expectedRequest.getURI(), actualRequest.getURI());
             assertEquals(expectedRequest.getClass(), actualRequest.getClass());
             assertArrayEquals(expectedRequest.getAllHeaders(), actualRequest.getAllHeaders());
@@ -201,7 +217,8 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         for (String method : getHttpMethods()) {
             //error status codes should cause an exception to be thrown
             for (int errorStatusCode : getAllErrorStatusCodes()) {
-                try (Response response = performRequest(method, "/" + errorStatusCode)) {
+                try {
+                    Response response = performRequest(method, "/" + errorStatusCode);
                     if (method.equals("HEAD") && errorStatusCode == 404) {
                         //no exception gets thrown although we got a 404
                         assertThat(response.getStatusLine().getStatusCode(), equalTo(errorStatusCode));
@@ -223,7 +240,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         }
     }
 
-    public void testIOExceptions() throws IOException {
+    public void testIOExceptions() throws Exception {
         for (String method : getHttpMethods()) {
             //IOExceptions should be let bubble up
             try {
@@ -252,11 +269,9 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         StringEntity entity = new StringEntity(body);
         for (String method : Arrays.asList("DELETE", "GET", "PATCH", "POST", "PUT")) {
             for (int okStatusCode : getOkStatusCodes()) {
-                try (Response response = restClient.performRequest(method, "/" + okStatusCode,
-                        Collections.<String, String>emptyMap(), entity)) {
-                    assertThat(response.getStatusLine().getStatusCode(), equalTo(okStatusCode));
-                    assertThat(EntityUtils.toString(response.getEntity()), equalTo(body));
-                }
+                Response response = restClient.performRequest(method, "/" + okStatusCode, Collections.<String, String>emptyMap(), entity);
+                assertThat(response.getStatusLine().getStatusCode(), equalTo(okStatusCode));
+                assertThat(EntityUtils.toString(response.getEntity()), equalTo(body));
             }
             for (int errorStatusCode : getAllErrorStatusCodes()) {
                 try {
@@ -334,9 +349,8 @@ public class RestClientSingleHostTests extends RestClientTestCase {
 
             int statusCode = randomStatusCode(getRandom());
             Response esResponse;
-            try (Response response = restClient.performRequest(method, "/" + statusCode,
-                    Collections.<String, String>emptyMap(), null, headers)) {
-                esResponse = response;
+            try {
+                esResponse = restClient.performRequest(method, "/" + statusCode, headers);
             } catch(ResponseException e) {
                 esResponse = e.getResponse();
             }
@@ -349,7 +363,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         }
     }
 
-    private HttpUriRequest performRandomRequest(String method) throws IOException, URISyntaxException {
+    private HttpUriRequest performRandomRequest(String method) throws Exception {
         String uriAsString = "/" + randomStatusCode(getRandom());
         URIBuilder uriBuilder = new URIBuilder(uriAsString);
         Map<String, String> params = Collections.emptyMap();
@@ -434,14 +448,14 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         return request;
     }
 
-    private Response performRequest(String method, String endpoint, Header... headers) throws IOException {
+    private Response performRequest(String method, String endpoint, Header... headers) throws Exception {
         switch(randomIntBetween(0, 2)) {
             case 0:
                 return restClient.performRequest(method, endpoint, headers);
             case 1:
                 return restClient.performRequest(method, endpoint, Collections.<String, String>emptyMap(), headers);
             case 2:
-                return restClient.performRequest(method, endpoint, Collections.<String, String>emptyMap(), null, headers);
+                return restClient.performRequest(method, endpoint, Collections.<String, String>emptyMap(), (HttpEntity)null, headers);
             default:
                 throw new UnsupportedOperationException();
         }

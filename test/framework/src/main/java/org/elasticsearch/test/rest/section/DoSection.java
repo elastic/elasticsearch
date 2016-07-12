@@ -79,7 +79,7 @@ public class DoSection implements ExecutableSection {
     }
 
     @Override
-    public void execute(RestTestExecutionContext executionContext) throws IOException {
+    public void execute(RestTestExecutionContext executionContext) throws Exception {
 
         if ("param".equals(catchParam)) {
             //client should throw validation error before sending request
@@ -103,7 +103,7 @@ public class DoSection implements ExecutableSection {
                 fail(formatStatusCodeMessage(restTestResponse, catchStatusCode));
             }
         } catch(ResponseException e) {
-            RestTestResponse restTestResponse = new RestTestResponse(e);
+            RestTestResponse restTestResponse = new RestTestResponse(e.getResponse());
             if (!Strings.hasLength(catchParam)) {
                 fail(formatStatusCodeMessage(restTestResponse, "2xx"));
             } else if (catches.containsKey(catchParam)) {

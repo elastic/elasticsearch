@@ -22,16 +22,15 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
+import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.SSLSocketFactoryHttpConfigCallback;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
@@ -83,7 +82,7 @@ public class RestTestClient implements Closeable {
     private final RestClient restClient;
     private final Version esVersion;
 
-    public RestTestClient(RestSpec restSpec, Settings settings, URL[] urls) throws IOException {
+    public RestTestClient(RestSpec restSpec, Settings settings, URL[] urls) throws Exception {
         assert urls.length > 0;
         this.restSpec = restSpec;
         this.restClient = createRestClient(urls, settings);
@@ -91,7 +90,7 @@ public class RestTestClient implements Closeable {
         logger.info("REST client initialized {}, elasticsearch version: [{}]", urls, esVersion);
     }
 
-    private Version readAndCheckVersion(URL[] urls) throws IOException {
+    private Version readAndCheckVersion(URL[] urls) throws Exception {
         RestApi restApi = restApi("info");
         assert restApi.getPaths().size() == 1;
         assert restApi.getMethods().size() == 1;
@@ -126,7 +125,7 @@ public class RestTestClient implements Closeable {
      * Calls an api with the provided parameters and body
      */
     public RestTestResponse callApi(String apiName, Map<String, String> params, String body, Map<String, String> headers)
-            throws IOException {
+            throws Exception {
 
         if ("raw".equals(apiName)) {
             // Raw requests are bit simpler....
@@ -247,7 +246,7 @@ public class RestTestClient implements Closeable {
             return new RestTestResponse(response);
         } catch(ResponseException e) {
             if (ignores.contains(e.getResponse().getStatusLine().getStatusCode())) {
-                return new RestTestResponse(e);
+                return new RestTestResponse(e.getResponse());
             }
             throw e;
         }
@@ -287,8 +286,8 @@ public class RestTestClient implements Closeable {
                     keyStore.load(is, keystorePass.toCharArray());
                 }
                 SSLContext sslcontext = SSLContexts.custom().loadTrustMaterial(keyStore, null).build();
-                SSLConnectionSocketFactory sslConnectionSocketFactory = new SSLConnectionSocketFactory(sslcontext);
-                builder.setHttpClientConfigCallback(new SSLSocketFactoryHttpConfigCallback(sslConnectionSocketFactory));
+                SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(sslcontext);
+                builder.setHttpClientConfigCallback(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy));
             } catch (KeyStoreException|NoSuchAlgorithmException|KeyManagementException|CertificateException e) {
                 throw new RuntimeException(e);
             }

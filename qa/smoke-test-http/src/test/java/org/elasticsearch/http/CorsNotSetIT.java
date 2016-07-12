@@ -28,22 +28,19 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class CorsNotSetIT extends HttpSmokeTestCase {
 
-
     public void testCorsSettingDefaultBehaviourDoesNotReturnAnything() throws Exception {
         String corsValue = "http://localhost:9200";
-        try (Response response = getRestClient().performRequest("GET", "/",
-                new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue))) {
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
-            assertThat(response.getHeader("Access-Control-Allow-Origin"), nullValue());
-            assertThat(response.getHeader("Access-Control-Allow-Credentials"), nullValue());
-        }
+        Response response = getRestClient().performRequest("GET", "/",
+                new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue));
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertThat(response.getHeader("Access-Control-Allow-Origin"), nullValue());
+        assertThat(response.getHeader("Access-Control-Allow-Credentials"), nullValue());
     }
 
     public void testThatOmittingCorsHeaderDoesNotReturnAnything() throws Exception {
-        try (Response response = getRestClient().performRequest("GET", "/")) {
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
-            assertThat(response.getHeader("Access-Control-Allow-Origin"), nullValue());
-            assertThat(response.getHeader("Access-Control-Allow-Credentials"), nullValue());
-        }
+        Response response = getRestClient().performRequest("GET", "/");
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertThat(response.getHeader("Access-Control-Allow-Origin"), nullValue());
+        assertThat(response.getHeader("Access-Control-Allow-Credentials"), nullValue());
     }
 }

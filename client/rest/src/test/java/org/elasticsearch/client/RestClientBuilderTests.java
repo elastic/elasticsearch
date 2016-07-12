@@ -23,7 +23,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
-import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.message.BasicHeader;
 
 import java.io.IOException;
@@ -108,7 +108,7 @@ public class RestClientBuilderTests extends RestClientTestCase {
         if (getRandom().nextBoolean()) {
             builder.setHttpClientConfigCallback(new RestClient.HttpClientConfigCallback() {
                 @Override
-                public void customizeHttpClient(HttpClientBuilder httpClientBuilder) {
+                public void customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
                 }
             });
         }

@@ -299,7 +299,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * other tests.
      */
     @After
-    public void logIfThereAreRunningTasks() throws InterruptedException, IOException {
+    public void logIfThereAreRunningTasks() throws Exception {
         RestTestResponse tasks = adminExecutionContext.callApi("tasks.list", emptyMap(), emptyList(), emptyMap());
         Set<String> runningTasks = runningTasks(tasks);
         // Ignore the task list API - it doens't count against us
@@ -341,7 +341,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     @Before
-    public void reset() throws IOException {
+    public void reset() throws Exception {
         // admin context must be available for @After always, regardless of whether the test was blacklisted
         adminExecutionContext.initClient(clusterUrls, restAdminSettings());
         adminExecutionContext.clear();
@@ -378,7 +378,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         return messageBuilder.toString();
     }
 
-    public void test() throws IOException {
+    public void test() throws Exception {
         //let's check that there is something to run, otherwise there might be a problem with the test section
         if (testCandidate.getTestSection().getExecutableSections().size() == 0) {
             throw new IllegalArgumentException("No executable sections loaded for [" + testCandidate.getTestPath() + "]");

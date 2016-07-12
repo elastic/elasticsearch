@@ -25,9 +25,9 @@ import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpRequest;
+import org.apache.http.HttpResponse;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpOptions;
@@ -37,11 +37,16 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.methods.HttpTrace;
 import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.entity.ContentType;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
-import org.apache.http.util.EntityUtils;
+import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
+import org.apache.http.nio.client.methods.HttpAsyncMethods;
+import org.apache.http.nio.conn.SchemeIOSessionStrategy;
+import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
+import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -51,6 +56,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -58,6 +64,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -79,9 +86,8 @@ public final class RestClient implements Closeable {
     private static final Log logger = LogFactory.getLog(RestClient.class);
     public static ContentType JSON_CONTENT_TYPE = ContentType.create("application/json", Consts.UTF_8);
 
-    private final CloseableHttpClient client;
-    //we don't rely on default headers supported by HttpClient as those cannot be replaced, plus it would get hairy
-    //when we create the HttpClient instance on our own as there would be two different ways to set the default headers.
+    private final CloseableHttpAsyncClient client;
+    //we don't rely on default headers supported by HttpAsyncClient as those cannot be replaced
     private final Header[] defaultHeaders;
     private final long maxRetryTimeoutMillis;
     private final AtomicInteger lastHostIndex = new AtomicInteger(0);
@@ -89,7 +95,7 @@ public final class RestClient implements Closeable {
     private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
     private final FailureListener failureListener;
 
-    RestClient(CloseableHttpClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders,
+    RestClient(CloseableHttpAsyncClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders,
                        HttpHost[] hosts, FailureListener failureListener) {
         this.client = client;
         this.maxRetryTimeoutMillis = maxRetryTimeoutMillis;
@@ -127,8 +133,8 @@ public final class RestClient implements Closeable {
      * @throws ClientProtocolException in case of an http protocol error
      * @throws ResponseException in case elasticsearch responded with a status code that indicated an error
      */
-    public Response performRequest(String method, String endpoint, Header... headers) throws IOException {
-        return performRequest(method, endpoint, Collections.<String, String>emptyMap(), null, headers);
+    public Response performRequest(String method, String endpoint, Header... headers) throws Exception {
+        return performRequest(method, endpoint, Collections.<String, String>emptyMap(), (HttpEntity)null, headers);
     }
 
     /**
@@ -144,16 +150,16 @@ public final class RestClient implements Closeable {
      * @throws ClientProtocolException in case of an http protocol error
      * @throws ResponseException in case elasticsearch responded with a status code that indicated an error
      */
-    public Response performRequest(String method, String endpoint, Map<String, String> params, Header... headers) throws IOException {
-        return performRequest(method, endpoint, params, null, headers);
+    public Response performRequest(String method, String endpoint, Map<String, String> params, Header... headers) throws Exception {
+        return performRequest(method, endpoint, params, (HttpEntity)null, headers);
     }
 
     /**
-     * Sends a request to the elasticsearch cluster that the current client points to.
-     * Selects a host out of the provided ones in a round-robin fashion. Failing hosts are marked dead and retried after a certain
-     * amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times they previously failed (the more failures,
-     * the later they will be retried). In case of failures all of the alive nodes (or dead nodes that deserve a retry) are retried
-     * till one responds or none of them does, in which case an {@link IOException} will be thrown.
+     * Sends a request to the elasticsearch cluster that the current client points to. Blocks till the request is completed and returns
+     * its response of fails by throwing an exception. Selects a host out of the provided ones in a round-robin fashion. Failing hosts
+     * are marked dead and retried after a certain amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times
+     * they previously failed (the more failures, the later they will be retried). In case of failures all of the alive nodes (or dead
+     * nodes that deserve a retry) are retried till one responds or none of them does, in which case an {@link IOException} will be thrown.
      *
      * @param method the http method
      * @param endpoint the path of the request (without host and port)
@@ -166,73 +172,159 @@ public final class RestClient implements Closeable {
      * @throws ResponseException in case elasticsearch responded with a status code that indicated an error
      */
     public Response performRequest(String method, String endpoint, Map<String, String> params,
-                                   HttpEntity entity, Header... headers) throws IOException {
+                                   HttpEntity entity, Header... headers) throws Exception {
+        HttpAsyncResponseConsumer<HttpResponse> consumer = HttpAsyncMethods.createConsumer();
+        SyncResponseListener listener = new SyncResponseListener();
+        performRequest(method, endpoint, params, entity, consumer, listener, headers);
+        return listener.get();
+    }
+
+    /**
+     * Sends a request to the elasticsearch cluster that the current client points to.
+     * Shortcut to {@link #performRequest(String, String, Map, HttpEntity, HttpAsyncResponseConsumer, ResponseListener, Header...)}
+     * but without parameters, request body and async response consumer. A default response consumer, specifically an instance of
+     * ({@link org.apache.http.nio.protocol.BasicAsyncResponseConsumer} will be created and used.
+     *
+     * @param method the http method
+     * @param endpoint the path of the request (without host and port)
+     * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
+     * @param headers the optional request headers
+     */
+    public void performRequest(String method, String endpoint, ResponseListener responseListener, Header... headers) {
+        performRequest(method, endpoint, Collections.<String, String>emptyMap(), null, responseListener, headers);
+    }
+
+    /**
+     * Sends a request to the elasticsearch cluster that the current client points to.
+     * Shortcut to {@link #performRequest(String, String, Map, HttpEntity, HttpAsyncResponseConsumer, ResponseListener, Header...)}
+     * but without request body and async response consumer. A default response consumer, specifically an instance of
+     * ({@link org.apache.http.nio.protocol.BasicAsyncResponseConsumer} will be created and used.
+     *
+     * @param method the http method
+     * @param endpoint the path of the request (without host and port)
+     * @param params the query_string parameters
+     * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
+     * @param headers the optional request headers
+     */
+    public void performRequest(String method, String endpoint, Map<String, String> params,
+                               ResponseListener responseListener, Header... headers) {
+        performRequest(method, endpoint, params, null, responseListener, headers);
+    }
+
+    /**
+     /**
+     * Sends a request to the elasticsearch cluster that the current client points to.
+     * Shortcut to {@link #performRequest(String, String, Map, HttpEntity, HttpAsyncResponseConsumer, ResponseListener, Header...)}
+     * but without an async response consumer, meaning that a {@link org.apache.http.nio.protocol.BasicAsyncResponseConsumer}
+     * will be created and used.
+     *
+     * @param method the http method
+     * @param endpoint the path of the request (without host and port)
+     * @param params the query_string parameters
+     * @param entity the body of the request, null if not applicable
+     * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
+     * @param headers the optional request headers
+     */
+    public void performRequest(String method, String endpoint, Map<String, String> params,
+                               HttpEntity entity, ResponseListener responseListener, Header... headers) {
+        HttpAsyncResponseConsumer<HttpResponse> responseConsumer = HttpAsyncMethods.createConsumer();
+        performRequest(method, endpoint, params, entity, responseConsumer, responseListener, headers);
+    }
+
+    /**
+     * Sends a request to the elasticsearch cluster that the current client points to. The request is executed asynchronously
+     * and the provided {@link ResponseListener} gets notified whenever it is completed or it fails.
+     * Selects a host out of the provided ones in a round-robin fashion. Failing hosts are marked dead and retried after a certain
+     * amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times they previously failed (the more failures,
+     * the later they will be retried). In case of failures all of the alive nodes (or dead nodes that deserve a retry) are retried
+     * till one responds or none of them does, in which case an {@link IOException} will be thrown.
+     *
+     * @param method the http method
+     * @param endpoint the path of the request (without host and port)
+     * @param params the query_string parameters
+     * @param entity the body of the request, null if not applicable
+     * @param responseConsumer the {@link HttpAsyncResponseConsumer} callback
+     * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
+     * @param headers the optional request headers
+     */
+    public void performRequest(String method, String endpoint, Map<String, String> params,
+                               HttpEntity entity, HttpAsyncResponseConsumer<HttpResponse> responseConsumer,
+                               ResponseListener responseListener, Header... headers) {
         URI uri = buildUri(endpoint, params);
         HttpRequestBase request = createHttpRequest(method, uri, entity);
         setHeaders(request, headers);
-        //we apply a soft margin so that e.g. if a request took 59 seconds and timeout is set to 60 we don't do another attempt
-        long retryTimeoutMillis = Math.round(this.maxRetryTimeoutMillis / (float)100 * 98);
-        IOException lastSeenException = null;
+        FailureTrackingListener failureTrackingListener = new FailureTrackingListener(responseListener);
         long startTime = System.nanoTime();
-        for (HttpHost host : nextHost()) {
-            if (lastSeenException != null) {
-                //in case we are retrying, check whether maxRetryTimeout has been reached, in which case an exception will be thrown
-                long timeElapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
-                long timeout = retryTimeoutMillis - timeElapsedMillis;
-                if (timeout <= 0) {
-                    IOException retryTimeoutException = new IOException(
-                            "request retries exceeded max retry timeout [" + retryTimeoutMillis + "]");
-                    retryTimeoutException.addSuppressed(lastSeenException);
-                    throw retryTimeoutException;
+        performRequest(startTime, nextHost().iterator(), request, responseConsumer, failureTrackingListener);
+    }
+
+    private void performRequest(final long startTime, final Iterator<HttpHost> hosts, final HttpRequestBase request,
+                                final HttpAsyncResponseConsumer<HttpResponse> responseConsumer,
+                                final FailureTrackingListener listener) {
+        final HttpHost host = hosts.next();
+        //we stream the request body if the entity allows for it
+        HttpAsyncRequestProducer requestProducer = HttpAsyncMethods.create(host, request);
+        client.execute(requestProducer, responseConsumer, new FutureCallback<HttpResponse>() {
+            @Override
+            public void completed(HttpResponse httpResponse) {
+                try {
+                    RequestLogger.logResponse(logger, request, host, httpResponse);
+                    int statusCode = httpResponse.getStatusLine().getStatusCode();
+                    Response response = new Response(request.getRequestLine(), host, httpResponse);
+                    if (isSuccessfulResponse(request.getMethod(), statusCode)) {
+                        onResponse(host);
+                        listener.onSuccess(response);
+                    } else {
+                        ResponseException responseException = new ResponseException(response);
+                        if (mustRetry(statusCode)) {
+                            //mark host dead and retry against next one
+                            onFailure(host);
+                            retryIfPossible(responseException, hosts, request);
+                        } else {
+                            //mark host alive and don't retry, as the error should be a request problem
+                            onResponse(host);
+                            listener.onDefinitiveFailure(responseException);
+                        }
+                    }
+                } catch(Exception e) {
+                    listener.onDefinitiveFailure(e);
                 }
-                //also reset the request to make it reusable for the next attempt
-                request.reset();
             }
 
-            CloseableHttpResponse httpResponse;
-            try {
-                httpResponse = client.execute(host, request);
-            } catch(IOException e) {
-                RequestLogger.logFailedRequest(logger, request, host, e);
-                onFailure(host);
-                lastSeenException = addSuppressedException(lastSeenException, e);
-                continue;
-            }
-            Response response = new Response(request.getRequestLine(), host, httpResponse);
-            int statusCode = response.getStatusLine().getStatusCode();
-            if (statusCode < 300 || (request.getMethod().equals(HttpHead.METHOD_NAME) && statusCode == 404) ) {
-                RequestLogger.logResponse(logger, request, host, httpResponse);
-                onResponse(host);
-                return response;
-            }
-            RequestLogger.logResponse(logger, request, host, httpResponse);
-            String responseBody;
-            try {
-                if (response.getEntity() == null) {
-                    responseBody = null;
-                } else {
-                    responseBody = EntityUtils.toString(response.getEntity());
-                }
-            } finally {
-                response.close();
-            }
-            lastSeenException = addSuppressedException(lastSeenException, new ResponseException(response, responseBody));
-            switch(statusCode) {
-                case 502:
-                case 503:
-                case 504:
-                    //mark host dead and retry against next one
+            @Override
+            public void failed(Exception failure) {
+                try {
+                    RequestLogger.logFailedRequest(logger, request, host, failure);
                     onFailure(host);
-                    break;
-                default:
-                    //mark host alive and don't retry, as the error should be a request problem
-                    onResponse(host);
-                    throw lastSeenException;
+                    retryIfPossible(failure, hosts, request);
+                } catch(Exception e) {
+                    listener.onDefinitiveFailure(e);
+                }
             }
-        }
-        //we get here only when we tried all nodes and they all failed
-        assert lastSeenException != null;
-        throw lastSeenException;
+
+            private void retryIfPossible(Exception exception, Iterator<HttpHost> hosts, HttpRequestBase request) {
+                if (hosts.hasNext()) {
+                    //in case we are retrying, check whether maxRetryTimeout has been reached
+                    long timeElapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
+                    long timeout = maxRetryTimeoutMillis - timeElapsedMillis;
+                    if (timeout <= 0) {
+                        IOException retryTimeoutException = new IOException(
+                                "request retries exceeded max retry timeout [" + maxRetryTimeoutMillis + "]");
+                        listener.onDefinitiveFailure(retryTimeoutException);
+                    } else {
+                        listener.trackFailure(exception);
+                        request.reset();
+                        performRequest(startTime, hosts, request, responseConsumer, listener);
+                    }
+                } else {
+                    listener.onDefinitiveFailure(exception);
+                }
+            }
+
+            @Override
+            public void cancelled() {
+            }
+        });
     }
 
     private void setHeaders(HttpRequest httpRequest, Header[] requestHeaders) {
@@ -316,7 +408,21 @@ public final class RestClient implements Closeable {
         client.close();
     }
 
-    private static IOException addSuppressedException(IOException suppressedException, IOException currentException) {
+    private static boolean isSuccessfulResponse(String method, int statusCode) {
+        return statusCode < 300 || (HttpHead.METHOD_NAME.equals(method) && statusCode == 404);
+    }
+
+    private static boolean mustRetry(int statusCode) {
+        switch(statusCode) {
+            case 502:
+            case 503:
+            case 504:
+                return true;
+        }
+        return false;
+    }
+
+    private static Exception addSuppressedException(Exception suppressedException, Exception currentException) {
         if (suppressedException != null) {
             currentException.addSuppressed(suppressedException);
         }
@@ -372,6 +478,57 @@ public final class RestClient implements Closeable {
         }
     }
 
+    private static class FailureTrackingListener {
+        private final ResponseListener responseListener;
+        private volatile Exception exception;
+
+        FailureTrackingListener(ResponseListener responseListener) {
+            this.responseListener = responseListener;
+        }
+
+        void onSuccess(Response response) {
+            responseListener.onSuccess(response);
+        }
+
+        void onDefinitiveFailure(Exception exception) {
+            trackFailure(exception);
+            responseListener.onFailure(this.exception);
+        }
+
+        void trackFailure(Exception exception) {
+            this.exception = addSuppressedException(this.exception, exception);
+        }
+    }
+
+    private static class SyncResponseListener implements ResponseListener {
+        final CountDownLatch latch = new CountDownLatch(1);
+        volatile Response response;
+        volatile Exception exception;
+
+        @Override
+        public void onSuccess(Response response) {
+            this.response = response;
+            latch.countDown();
+
+        }
+
+        @Override
+        public void onFailure(Exception exception) {
+            this.exception = exception;
+            latch.countDown();
+        }
+
+        Response get() throws Exception {
+            latch.await();
+            if (response != null) {
+                assert exception == null;
+                return response;
+            }
+            assert exception != null;
+            throw exception;
+        }
+    }
+
     /**
      * Returns a new {@link Builder} to help with {@link RestClient} creation.
      */
@@ -380,13 +537,17 @@ public final class RestClient implements Closeable {
     }
 
     /**
-     * Rest client builder. Helps creating a new {@link RestClient}.
+     * Helps creating a new {@link RestClient}. Allows to set the most common http client configuration options when internally
+     * creating the underlying {@link org.apache.http.nio.client.HttpAsyncClient}. Also allows to provide an externally created
+     * {@link org.apache.http.nio.client.HttpAsyncClient} in case additional customization is needed.
      */
     public static final class Builder {
         public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 1000;
         public static final int DEFAULT_SOCKET_TIMEOUT_MILLIS = 10000;
         public static final int DEFAULT_MAX_RETRY_TIMEOUT_MILLIS = DEFAULT_SOCKET_TIMEOUT_MILLIS;
         public static final int DEFAULT_CONNECTION_REQUEST_TIMEOUT_MILLIS = 500;
+        public static final int DEFAULT_MAX_CONN_PER_ROUTE = 10;
+        public static final int DEFAULT_MAX_CONN_TOTAL = 30;
 
         private static final Header[] EMPTY_HEADERS = new Header[0];
 
@@ -408,21 +569,7 @@ public final class RestClient implements Closeable {
         }
 
         /**
-         * Sets the maximum timeout (in milliseconds) to honour in case of multiple retries of the same request.
-         * {@link #DEFAULT_MAX_RETRY_TIMEOUT_MILLIS} if not specified.
-         *
-         * @throws IllegalArgumentException if maxRetryTimeoutMillis is not greater than 0
-         */
-        public Builder setMaxRetryTimeoutMillis(int maxRetryTimeoutMillis) {
-            if (maxRetryTimeoutMillis <= 0) {
-                throw new IllegalArgumentException("maxRetryTimeoutMillis must be greater than 0");
-            }
-            this.maxRetryTimeout = maxRetryTimeoutMillis;
-            return this;
-        }
-
-        /**
-         * Sets the default request headers, to be used sent with every request unless overridden on a per request basis
+         * Sets the default request headers, which will be sent along with each request
          */
         public Builder setDefaultHeaders(Header[] defaultHeaders) {
             Objects.requireNonNull(defaultHeaders, "defaultHeaders must not be null");
@@ -439,6 +586,20 @@ public final class RestClient implements Closeable {
         public Builder setFailureListener(FailureListener failureListener) {
             Objects.requireNonNull(failureListener, "failureListener must not be null");
             this.failureListener = failureListener;
+            return this;
+        }
+
+        /**
+         * Sets the maximum timeout (in milliseconds) to honour in case of multiple retries of the same request.
+         * {@link #DEFAULT_MAX_RETRY_TIMEOUT_MILLIS} if not specified.
+         *
+         * @throws IllegalArgumentException if maxRetryTimeoutMillis is not greater than 0
+         */
+        public Builder setMaxRetryTimeoutMillis(int maxRetryTimeoutMillis) {
+            if (maxRetryTimeoutMillis <= 0) {
+                throw new IllegalArgumentException("maxRetryTimeoutMillis must be greater than 0");
+            }
+            this.maxRetryTimeout = maxRetryTimeoutMillis;
             return this;
         }
 
@@ -467,29 +628,23 @@ public final class RestClient implements Closeable {
             if (failureListener == null) {
                 failureListener = new FailureListener();
             }
-            CloseableHttpClient httpClient = createHttpClient();
+            CloseableHttpAsyncClient httpClient = createHttpClient();
+            httpClient.start();
             return new RestClient(httpClient, maxRetryTimeout, defaultHeaders, hosts, failureListener);
         }
 
-        private CloseableHttpClient createHttpClient() {
+        private CloseableHttpAsyncClient createHttpClient() {
             //default timeouts are all infinite
             RequestConfig.Builder requestConfigBuilder = RequestConfig.custom().setConnectTimeout(DEFAULT_CONNECT_TIMEOUT_MILLIS)
                     .setSocketTimeout(DEFAULT_SOCKET_TIMEOUT_MILLIS)
                     .setConnectionRequestTimeout(DEFAULT_CONNECTION_REQUEST_TIMEOUT_MILLIS);
-
             if (requestConfigCallback != null) {
                 requestConfigCallback.customizeRequestConfig(requestConfigBuilder);
             }
-            RequestConfig requestConfig = requestConfigBuilder.build();
 
-            PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
-            //default settings may be too constraining
-            connectionManager.setDefaultMaxPerRoute(10);
-            connectionManager.setMaxTotal(30);
-
-            HttpClientBuilder httpClientBuilder = HttpClientBuilder.create().setConnectionManager(connectionManager)
-                    .setDefaultRequestConfig(requestConfig);
-
+            HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create().setDefaultRequestConfig(requestConfigBuilder.build())
+                    //default settings for connection pooling may be too constraining
+                    .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE).setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL);
             if (httpClientConfigCallback != null) {
                 httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
             }
@@ -517,12 +672,12 @@ public final class RestClient implements Closeable {
      */
     public interface HttpClientConfigCallback {
         /**
-         * Allows to customize the {@link CloseableHttpClient} being created and used by the {@link RestClient}.
-         * It is common to customzie the default {@link org.apache.http.client.CredentialsProvider} through this method,
-         * without losing any other useful default value that the {@link RestClient.Builder} internally sets.
-         * Also useful to setup ssl through {@link SSLSocketFactoryHttpConfigCallback}.
+         * Allows to customize the {@link CloseableHttpAsyncClient} being created and used by the {@link RestClient}.
+         * Commonly used to customize the default {@link org.apache.http.client.CredentialsProvider} for authentication
+         * or the {@link SchemeIOSessionStrategy} for communication through ssl without losing any other useful default
+         * value that the {@link RestClient.Builder} internally sets, like connection pooling.
          */
-        void customizeHttpClient(HttpClientBuilder httpClientBuilder);
+        void customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder);
     }
 
     /**
@@ -533,7 +688,7 @@ public final class RestClient implements Closeable {
         /**
          * Notifies that the host provided as argument has just failed
          */
-        public void onFailure(HttpHost host) throws IOException {
+        public void onFailure(HttpHost host) {
 
         }
     }

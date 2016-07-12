@@ -19,24 +19,22 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.StatusLine;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.message.BasicHttpResponse;
-
-import java.io.IOException;
-
 /**
- * Simple {@link CloseableHttpResponse} impl needed to easily create http responses that are closeable given that
- * org.apache.http.impl.execchain.HttpResponseProxy is not public.
+ * Listener to be provided when calling async performRequest methods provided by {@link RestClient}.
+ * Those methods that do accept a listener will return immediately, execute asynchronously, and notify
+ * the listener whenever the request yielded a response, or failed with an exception.
  */
-class CloseableBasicHttpResponse extends BasicHttpResponse implements CloseableHttpResponse {
+public interface ResponseListener {
 
-    public CloseableBasicHttpResponse(StatusLine statusline) {
-        super(statusline);
-    }
+    /**
+     * Method invoked if the request yielded a successful response
+     */
+    void onSuccess(Response response);
 
-    @Override
-    public void close() throws IOException {
-        //nothing to close
-    }
+    /**
+     * Method invoked if the request failed. There are two main categories of failures: connection failures (usually
+     * {@link java.io.IOException}s, or responses that were treated as errors based on their error response code
+     * ({@link ResponseException}s).
+     */
+    void onFailure(Exception exception);
 }

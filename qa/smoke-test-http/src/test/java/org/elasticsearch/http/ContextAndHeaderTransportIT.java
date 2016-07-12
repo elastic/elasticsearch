@@ -220,18 +220,15 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
 
     public void testThatRelevantHttpHeadersBecomeRequestHeaders() throws Exception {
         final String IRRELEVANT_HEADER = "SomeIrrelevantHeader";
-
-        try (Response response = getRestClient().performRequest(
-                "GET", "/" + queryIndex + "/_search",
-                new BasicHeader(CUSTOM_HEADER, randomHeaderValue), new BasicHeader(IRRELEVANT_HEADER, randomHeaderValue))) {
-            assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-            List<RequestAndHeaders> searchRequests = getRequests(SearchRequest.class);
-            assertThat(searchRequests, hasSize(greaterThan(0)));
-            for (RequestAndHeaders requestAndHeaders : searchRequests) {
-                assertThat(requestAndHeaders.headers.containsKey(CUSTOM_HEADER), is(true));
-                // was not specified, thus is not included
-                assertThat(requestAndHeaders.headers.containsKey(IRRELEVANT_HEADER), is(false));
-            }
+        Response response = getRestClient().performRequest("GET", "/" + queryIndex + "/_search",
+                new BasicHeader(CUSTOM_HEADER, randomHeaderValue), new BasicHeader(IRRELEVANT_HEADER, randomHeaderValue));
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        List<RequestAndHeaders> searchRequests = getRequests(SearchRequest.class);
+        assertThat(searchRequests, hasSize(greaterThan(0)));
+        for (RequestAndHeaders requestAndHeaders : searchRequests) {
+            assertThat(requestAndHeaders.headers.containsKey(CUSTOM_HEADER), is(true));
+            // was not specified, thus is not included
+            assertThat(requestAndHeaders.headers.containsKey(IRRELEVANT_HEADER), is(false));
         }
     }
 

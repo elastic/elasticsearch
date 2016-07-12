@@ -28,20 +28,18 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
-public final class Benchmark {
+public final class BenchmarkRunner {
     private final int warmupIterations;
     private final int iterations;
-    private final int operationsPerIteration;
     private final BenchmarkTask task;
 
-    public Benchmark(int warmupIterations, int iterations, BenchmarkTask task) {
+    public BenchmarkRunner(int warmupIterations, int iterations, BenchmarkTask task) {
         this(warmupIterations, iterations, 1, task);
     }
 
-    public Benchmark(int warmupIterations, int iterations, int operationsPerIteration, BenchmarkTask task) {
+    public BenchmarkRunner(int warmupIterations, int iterations, int operationsPerIteration, BenchmarkTask task) {
         this.warmupIterations = warmupIterations;
         this.iterations = iterations;
-        this.operationsPerIteration = operationsPerIteration;
         this.task = task;
     }
 
@@ -61,7 +59,7 @@ public final class Benchmark {
         }
 
         List<Sample> samples = recorder.getSamples();
-        final List<Metrics> summaryMetrics = MetricsCalculator.calculate(samples, operationsPerIteration);
+        final List<Metrics> summaryMetrics = MetricsCalculator.calculate(samples);
 
         if (summaryMetrics.isEmpty()) {
             System.out.println("No results.");
@@ -70,12 +68,14 @@ public final class Benchmark {
         for (Metrics metrics : summaryMetrics) {
             System.out.printf(Locale.ROOT, "Operation: %s%n", metrics.operation);
             String stats = String.format(Locale.ROOT,
-                "Throughput = %f ops/s, p90 = %f ms, p95 = %f ms, p99 = %f ms, p99.9 = %f ms%n",
+                "Throughput = %f ops/s, p90 = %f ms, p95 = %f ms, p99 = %f ms, p99.9 = %f ms, p99.99 = %f ms",
                 metrics.throughput,
                 metrics.serviceTimeP90, metrics.serviceTimeP95,
-                metrics.serviceTimeP99, metrics.serviceTimeP999);
+                metrics.serviceTimeP99, metrics.serviceTimeP999,
+                metrics.serviceTimeP9999);
             System.out.println(repeat(stats.length(), '-'));
             System.out.println(stats);
+            System.out.printf("success count = %d, error count = %d%n", metrics.successCount, metrics.errorCount);
             System.out.println(repeat(stats.length(), '-'));
         }
     }

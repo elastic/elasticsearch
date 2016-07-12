@@ -22,17 +22,24 @@ import org.elasticsearch.client.benchmark.BenchmarkTask;
 import org.elasticsearch.client.benchmark.metrics.Sample;
 import org.elasticsearch.client.benchmark.metrics.SampleRecorder;
 
+import java.util.concurrent.TimeUnit;
+
 public class SearchBenchmarkTask implements BenchmarkTask {
+    private static final long MICROS_PER_SEC = TimeUnit.SECONDS.toMicros(1L);
+    private static final long NANOS_PER_MICRO = TimeUnit.MICROSECONDS.toNanos(1L);
+
     private final SearchRequestExecutor searchRequestExecutor;
     private final String searchRequestBody;
     private final int iterations;
+    private final int targetThroughput;
 
     private SampleRecorder sampleRecorder;
 
-    public SearchBenchmarkTask(SearchRequestExecutor searchRequestExecutor, String searchRequestBody, int iterations) {
+    public SearchBenchmarkTask(SearchRequestExecutor searchRequestExecutor, String body, int iterations, int targetThroughput) {
         this.searchRequestExecutor = searchRequestExecutor;
-        this.searchRequestBody = searchRequestBody;
+        this.searchRequestBody = body;
         this.iterations = iterations;
+        this.targetThroughput = targetThroughput;
     }
 
     @Override
@@ -47,6 +54,28 @@ public class SearchBenchmarkTask implements BenchmarkTask {
             boolean success = searchRequestExecutor.search(searchRequestBody);
             final long stop = System.nanoTime();
             sampleRecorder.addSample(new Sample("search", start, stop, success));
+
+            int waitTime = (int) Math.floor(MICROS_PER_SEC / targetThroughput - (stop - start) / NANOS_PER_MICRO);
+            if (waitTime > 0) {
+                // Thread.sleep() time is not very accurate (it's most of the time around 1 - 2 ms off)
+                // so we rather busy spin for the last few microseconds. Still not entirely accurate but way closer
+                waitMicros(waitTime);
+            }
+        }
+    }
+
+    private void waitMicros(int waitTime) throws InterruptedException {
+        int millis = waitTime / 1000;
+        int micros = waitTime % 1000;
+        if (millis > 0) {
+            Thread.sleep(millis);
+        }
+        // busy spin for the rest of the time
+        if (micros > 0) {
+            long end = System.nanoTime() + 1000L * micros;
+            while (end > System.nanoTime()) {
+                // busy spin
+            }
         }
     }
 

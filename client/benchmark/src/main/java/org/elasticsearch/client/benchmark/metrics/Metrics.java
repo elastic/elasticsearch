@@ -27,10 +27,11 @@ public final class Metrics {
     public final double serviceTimeP95;
     public final double serviceTimeP99;
     public final double serviceTimeP999;
+    public final double serviceTimeP9999;
 
     public Metrics(String operation, long successCount, long errorCount, double throughput,
                    double serviceTimeP90, double serviceTimeP95, double serviceTimeP99,
-                   double serviceTimeP999) {
+                   double serviceTimeP999, double serviceTimeP9999) {
         this.operation = operation;
         this.successCount = successCount;
         this.errorCount = errorCount;
@@ -39,6 +40,7 @@ public final class Metrics {
         this.serviceTimeP95 = serviceTimeP95;
         this.serviceTimeP99 = serviceTimeP99;
         this.serviceTimeP999 = serviceTimeP999;
+        this.serviceTimeP9999 = serviceTimeP9999;
     }
 }
 

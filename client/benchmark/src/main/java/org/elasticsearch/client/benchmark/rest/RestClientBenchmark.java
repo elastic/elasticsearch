@@ -29,13 +29,9 @@ import org.apache.http.impl.client.StandardHttpRequestRetryHandler;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.benchmark.Benchmark;
-import org.elasticsearch.client.benchmark.ops.bulk.BulkBenchmarkTask;
+import org.elasticsearch.client.benchmark.AbstractBenchmark;
 import org.elasticsearch.client.benchmark.ops.bulk.BulkRequestExecutor;
-import org.elasticsearch.client.benchmark.ops.search.SearchBenchmarkTask;
 import org.elasticsearch.client.benchmark.ops.search.SearchRequestExecutor;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -43,53 +39,32 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
-public final class RestClientBenchmark {
-    private static final int SEARCH_BENCHMARK_ITERATIONS = 10_000;
-
-    @SuppressForbidden(reason = "system out is ok for a command line tool")
+public final class RestClientBenchmark extends AbstractBenchmark<RestClient> {
     public static void main(String[] args) throws Exception {
-        if (args.length < 6) {
-            System.err.println(
-                "usage: benchmarkTargetHostIp indexFilePath indexName typeName numberOfDocuments bulkSize [search request body]");
-            System.exit(1);
-        }
-        String benchmarkTargetHost = args[0];
-        String indexFilePath = args[1];
-        String indexName = args[2];
-        String typeName = args[3];
-        int totalDocs = Integer.valueOf(args[4]);
-        int bulkSize = Integer.valueOf(args[5]);
+        RestClientBenchmark b = new RestClientBenchmark();
+        b.run(args);
+    }
 
-        int totalIterationCount = (int) Math.floor(totalDocs / bulkSize);
-        // consider 40% of all iterations as warmup iterations
-        int warmupIterations = (int) (0.4d * totalIterationCount);
-        int iterations = totalIterationCount - warmupIterations;
-        String searchBody = (args.length == 7) ? args[6] : null;
-
+    @Override
+    protected RestClient client(String benchmarkTargetHost) {
         CloseableHttpClient httpClient = HttpClients
             .custom()
             .setRetryHandler(new StandardHttpRequestRetryHandler(3, true))
             .build();
 
-        RestClient client = RestClient.builder(new HttpHost(benchmarkTargetHost, 9200))
+        return RestClient.builder(new HttpHost(benchmarkTargetHost, 9200))
             .setHttpClient(httpClient)
             .build();
+    }
 
-        Benchmark benchmark = new Benchmark(warmupIterations, iterations,
-            bulkSize, new BulkBenchmarkTask(
-            new RestBulkRequestExecutor(client, indexName, typeName), indexFilePath, warmupIterations + iterations, bulkSize));
+    @Override
+    protected BulkRequestExecutor bulkRequestExecutor(RestClient client, String indexName, String typeName) {
+        return new RestBulkRequestExecutor(client, indexName, typeName);
+    }
 
-        try {
-            benchmark.run();
-            if (searchBody != null) {
-                Benchmark searchBenchmark = new Benchmark(SEARCH_BENCHMARK_ITERATIONS, SEARCH_BENCHMARK_ITERATIONS,
-                    new SearchBenchmarkTask(
-                        new RestSearchRequestExecutor(client, indexName), searchBody, 2 * SEARCH_BENCHMARK_ITERATIONS));
-                searchBenchmark.run();
-            }
-        } finally {
-            httpClient.close();
-        }
+    @Override
+    protected SearchRequestExecutor searchRequestExecutor(RestClient client, String indexName) {
+        return new RestSearchRequestExecutor(client, indexName);
     }
 
     private static final class RestBulkRequestExecutor implements BulkRequestExecutor {
@@ -113,7 +88,7 @@ public final class RestClientBenchmark {
             Response response = null;
             try {
                 response = client.performRequest("POST", "/_bulk", Collections.emptyMap(), entity);
-                return response.getStatusLine().getStatusCode() == HttpStatus.SC_CREATED;
+                return response.getStatusLine().getStatusCode() == HttpStatus.SC_OK;
             } catch (Exception e) {
                 throw new ElasticsearchException(e);
             } finally {
@@ -143,7 +118,8 @@ public final class RestClientBenchmark {
             Response response = null;
             try {
                 response = client.performRequest("GET", endpoint, Collections.emptyMap(), searchBody);
-                return response.getStatusLine().getStatusCode() == RestStatus.OK.getStatus();
+                //System.out.println(new Scanner(response.getEntity().getContent()).useDelimiter("\\A").next().substring(0, 20));
+                return response.getStatusLine().getStatusCode() == HttpStatus.SC_OK;
             } catch (IOException e) {
                 throw new ElasticsearchException(e);
             } finally {

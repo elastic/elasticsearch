@@ -28,7 +28,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 public final class MetricsCalculator {
-    public static List<Metrics> calculate(Collection<Sample> samples, int operationsPerIteration) {
+    public static List<Metrics> calculate(Collection<Sample> samples) {
         Map<String, List<Sample>> samplesPerOperation = new HashMap<>();
 
         for (Sample sample : samples) {
@@ -49,20 +49,25 @@ public final class MetricsCalculator {
             for (Sample sample : m) {
                 firstStart = Math.min(sample.getStartTimestamp(), firstStart);
                 latestEnd = Math.max(sample.getStopTimestamp(), latestEnd);
-                serviceTimes[it++] = TimeUnit.MILLISECONDS.convert(sample.getServiceTime(), TimeUnit.NANOSECONDS);
+                serviceTimes[it++] = sample.getServiceTime();
             }
 
             metrics.add(new Metrics(operationAndMetrics.getKey(),
                 m.stream().filter((r) -> r.isSuccess()).count(),
                 m.stream().filter((r) -> !r.isSuccess()).count(),
                 // throughput calculation is based on the total (Wall clock) time it took to generate all samples
-                samples.size() / TimeUnit.SECONDS.convert(latestEnd - firstStart, TimeUnit.NANOSECONDS),
-                StatUtils.percentile(serviceTimes, 90.0d),
-                StatUtils.percentile(serviceTimes, 95.0d),
-                StatUtils.percentile(serviceTimes, 99.0d),
-                StatUtils.percentile(serviceTimes, 99.9d)
-            ));
+                calculateThroughput(samples.size(), latestEnd - firstStart),
+                // convert ns -> ms without losing precision
+                StatUtils.percentile(serviceTimes, 90.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
+                StatUtils.percentile(serviceTimes, 95.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
+                StatUtils.percentile(serviceTimes, 99.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
+                StatUtils.percentile(serviceTimes, 99.9d) / TimeUnit.MILLISECONDS.toNanos(1L),
+                StatUtils.percentile(serviceTimes, 99.99d) / TimeUnit.MILLISECONDS.toNanos(1L)));
         }
         return metrics;
+    }
+
+    private static double calculateThroughput(int sampleSize, double duration) {
+        return sampleSize * (TimeUnit.SECONDS.toNanos(1L) / duration);
     }
 }

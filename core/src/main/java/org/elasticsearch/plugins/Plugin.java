@@ -36,6 +36,7 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 /**
  * An extension point allowing to plug in custom functionality.
@@ -76,8 +77,10 @@ public abstract class Plugin {
      * @param client A client to make requests to the system
      * @param clusterService A service to allow watching and updating cluster state
      * @param threadPool A service to allow retrieving an executor to run an async action
+     * @param resourceWatcherService A service to watch for changes to node local files
      */
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool) {
+    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
+                                               ResourceWatcherService resourceWatcherService) {
         return Collections.emptyList();
     }
 

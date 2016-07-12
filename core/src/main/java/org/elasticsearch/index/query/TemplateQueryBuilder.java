@@ -20,7 +20,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,13 +29,10 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.Template;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -47,13 +43,6 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     /** Name to reference this type of query. */
     public static final String NAME = "template";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-
-    private static final Map<String, ScriptService.ScriptType> parametersToTypes = new HashMap<>();
-    static {
-        parametersToTypes.put("query", ScriptService.ScriptType.INLINE);
-        parametersToTypes.put("file", ScriptService.ScriptType.FILE);
-        parametersToTypes.put("id", ScriptService.ScriptType.STORED);
-    }
 
     /** Template to fill. */
     private final Template template;
@@ -74,32 +63,6 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     }
 
     /**
-     * @param template
-     *            the template to use for that query.
-     * @param vars
-     *            the parameters to fill the template with.
-     * @deprecated Use {@link #TemplateQueryBuilder(Template)} instead.
-     * */
-    @Deprecated
-    public TemplateQueryBuilder(String template, Map<String, Object> vars) {
-        this(new Template(template, ScriptService.ScriptType.INLINE, null, null, vars));
-    }
-
-    /**
-     * @param template
-     *            the template to use for that query.
-     * @param vars
-     *            the parameters to fill the template with.
-     * @param templateType
-     *            what kind of template (INLINE,FILE,ID)
-     * @deprecated Use {@link #TemplateQueryBuilder(Template)} instead.
-     * */
-    @Deprecated
-    public TemplateQueryBuilder(String template, ScriptService.ScriptType templateType, Map<String, Object> vars) {
-        this(new Template(template, templateType, null, null, vars));
-    }
-
-    /**
      * Read from a stream.
      */
     public TemplateQueryBuilder(StreamInput in) throws IOException {
@@ -116,42 +79,6 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     protected void doXContent(XContentBuilder builder, Params builderParams) throws IOException {
         builder.field(TemplateQueryBuilder.NAME);
         template.toXContent(builder, builderParams);
-    }
-
-    /**
-     * In the simplest case, parse template string and variables from the request,
-     * compile the template and execute the template against the given variables.
-     */
-    public static Optional<TemplateQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-        Template template = parse(parser, parseContext.getParseFieldMatcher());
-        return Optional.of(new TemplateQueryBuilder(template));
-    }
-
-    public static Template parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, String... parameters) throws IOException {
-        Map<String, ScriptService.ScriptType> parameterMap = new HashMap<>(parametersToTypes);
-        for (String parameter : parameters) {
-            parameterMap.put(parameter, ScriptService.ScriptType.INLINE);
-        }
-        return parse(parser, parameterMap, parseFieldMatcher);
-    }
-
-    public static Template parse(String defaultLang, XContentParser parser,
-                                 ParseFieldMatcher parseFieldMatcher, String... parameters) throws IOException {
-        Map<String, ScriptService.ScriptType> parameterMap = new HashMap<>(parametersToTypes);
-        for (String parameter : parameters) {
-            parameterMap.put(parameter, ScriptService.ScriptType.INLINE);
-        }
-        return Template.parse(parser, parameterMap, defaultLang, parseFieldMatcher);
-    }
-
-    public static Template parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        return parse(parser, parametersToTypes, parseFieldMatcher);
-    }
-
-    public static Template parse(XContentParser parser, Map<String, ScriptService.ScriptType> parameterMap,
-                                 ParseFieldMatcher parseFieldMatcher) throws IOException {
-        return Template.parse(parser, parameterMap, parseFieldMatcher);
     }
 
     @Override
@@ -182,7 +109,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
         try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
             final QueryParseContext queryParseContext = queryRewriteContext.newParseContext(qSourceParser);
             final QueryBuilder queryBuilder = queryParseContext.parseInnerQueryBuilder().orElseThrow(
-                    () -> new ParsingException(qSourceParser.getTokenLocation(), "inner query in [" + NAME + "] cannot be empty"));;
+                    () -> new ParsingException(qSourceParser.getTokenLocation(), "inner query in [" + NAME + "] cannot be empty"));
             if (boost() != DEFAULT_BOOST || queryName() != null) {
                 final BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
                 boolQueryBuilder.must(queryBuilder);
@@ -190,5 +117,15 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
             }
             return queryBuilder;
         }
+    }
+
+    /**
+     * In the simplest case, parse template string and variables from the request,
+     * compile the template and execute the template against the given variables.
+     */
+    public static Optional<TemplateQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+        Template template =  Template.parse(parser, parseContext.getParseFieldMatcher());
+        return Optional.of(new TemplateQueryBuilder(template));
     }
 }

@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 
 public class Template extends Script {
@@ -112,21 +111,11 @@ public class Template extends Script {
     }
 
     public static Script parse(Map<String, Object> config, boolean removeMatchedEntries, ParseFieldMatcher parseFieldMatcher) {
-        return new TemplateParser(Collections.emptyMap(), DEFAULT_LANG).parse(config, removeMatchedEntries, parseFieldMatcher);
+        return new TemplateParser(DEFAULT_LANG).parse(config, removeMatchedEntries, parseFieldMatcher);
     }
 
     public static Template parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        return new TemplateParser(Collections.emptyMap(), DEFAULT_LANG).parse(parser, parseFieldMatcher);
-    }
-
-    @Deprecated
-    public static Template parse(XContentParser parser, Map<String, ScriptType> additionalTemplateFieldNames, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        return new TemplateParser(additionalTemplateFieldNames, DEFAULT_LANG).parse(parser, parseFieldMatcher);
-    }
-
-    @Deprecated
-    public static Template parse(XContentParser parser, Map<String, ScriptType> additionalTemplateFieldNames, String defaultLang, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        return new TemplateParser(additionalTemplateFieldNames, defaultLang).parse(parser, parseFieldMatcher);
+        return new TemplateParser(DEFAULT_LANG).parse(parser, parseFieldMatcher);
     }
 
     @Override
@@ -150,11 +139,9 @@ public class Template extends Script {
     private static class TemplateParser extends AbstractScriptParser<Template> {
 
         private XContentType contentType = null;
-        private final Map<String, ScriptType> additionalTemplateFieldNames;
         private String defaultLang;
 
-        public TemplateParser(Map<String, ScriptType> additionalTemplateFieldNames, String defaultLang) {
-            this.additionalTemplateFieldNames = additionalTemplateFieldNames;
+        public TemplateParser(String defaultLang) {
             this.defaultLang = defaultLang;
         }
 
@@ -169,7 +156,7 @@ public class Template extends Script {
         }
 
         @Override
-        protected String parseInlineScript(XContentParser parser) throws IOException {
+        public String parseInlineScript(XContentParser parser) throws IOException {
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 contentType = parser.contentType();
                 XContentBuilder builder = XContentFactory.contentBuilder(contentType);
@@ -177,11 +164,6 @@ public class Template extends Script {
             } else {
                 return parser.text();
             }
-        }
-
-        @Override
-        protected Map<String, ScriptType> getAdditionalScriptParameters() {
-            return additionalTemplateFieldNames;
         }
 
         @Override

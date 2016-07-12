@@ -455,16 +455,21 @@ public class BulkTests extends ESIntegTestCase {
         byte[] addParent = new BytesArray("{\"index\" : { \"_index\" : \"test\", \"_type\" : \"parent\", \"_id\" : \"parent1\"}}\n" +
                 "{\"field1\" : \"value1\"}\n").array();
 
-        byte[] addChild = new BytesArray("{\"update\" : { \"_id\" : \"child1\", \"_type\" : \"child\", \"_index\" : \"test\", \"parent\" : \"parent1\"} }\n" +
+        byte[] addChild1 = new BytesArray("{\"update\" : { \"_id\" : \"child1\", \"_type\" : \"child\", \"_index\" : \"test\", \"parent\" : \"parent1\"} }\n" +
+                "{ \"script\" : {\"inline\" : \"ctx._source.field2 = 'value2'\"}, \"upsert\" : {\"field1\" : \"value1\"}}\n").array();
+
+        byte[] addChild2 = new BytesArray("{\"update\" : { \"_id\" : \"child1\", \"_type\" : \"child\", \"_index\" : \"test\", \"parent\" : \"parent1\"} }\n" +
                 "{ \"script\" : \"ctx._source.field2 = 'value2'\", \"upsert\" : {\"field1\" : \"value1\"}}\n").array();
 
         builder.add(addParent, 0, addParent.length);
-        builder.add(addChild, 0, addChild.length);
+        builder.add(addChild1, 0, addChild1.length);
+        builder.add(addChild2, 0, addChild2.length);
 
         BulkResponse bulkResponse = builder.get();
-        assertThat(bulkResponse.getItems().length, equalTo(2));
+        assertThat(bulkResponse.getItems().length, equalTo(3));
         assertThat(bulkResponse.getItems()[0].isFailed(), equalTo(false));
         assertThat(bulkResponse.getItems()[1].isFailed(), equalTo(false));
+        assertThat(bulkResponse.getItems()[2].isFailed(), equalTo(false));
 
         client().admin().indices().prepareRefresh("test").get();
 

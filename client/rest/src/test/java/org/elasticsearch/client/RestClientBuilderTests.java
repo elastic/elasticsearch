@@ -108,14 +108,16 @@ public class RestClientBuilderTests extends RestClientTestCase {
         if (getRandom().nextBoolean()) {
             builder.setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
                 @Override
-                public void customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
+                public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
+                    return httpClientBuilder;
                 }
             });
         }
         if (getRandom().nextBoolean()) {
             builder.setRequestConfigCallback(new RestClientBuilder.RequestConfigCallback() {
                 @Override
-                public void customizeRequestConfig(RequestConfig.Builder requestConfigBuilder) {
+                public RequestConfig.Builder customizeRequestConfig(RequestConfig.Builder requestConfigBuilder) {
+                    return requestConfigBuilder;
                 }
             });
         }

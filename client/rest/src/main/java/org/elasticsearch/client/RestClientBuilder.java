@@ -133,14 +133,14 @@ public final class RestClientBuilder {
                 .setSocketTimeout(DEFAULT_SOCKET_TIMEOUT_MILLIS)
                 .setConnectionRequestTimeout(DEFAULT_CONNECTION_REQUEST_TIMEOUT_MILLIS);
         if (requestConfigCallback != null) {
-            requestConfigCallback.customizeRequestConfig(requestConfigBuilder);
+            requestConfigBuilder = requestConfigCallback.customizeRequestConfig(requestConfigBuilder);
         }
 
         HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create().setDefaultRequestConfig(requestConfigBuilder.build())
                 //default settings for connection pooling may be too constraining
                 .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE).setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL);
         if (httpClientConfigCallback != null) {
-            httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
+            httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
         }
         return httpClientBuilder.build();
     }
@@ -155,7 +155,7 @@ public final class RestClientBuilder {
          * It is common to customize the different timeout values through this method without losing any other useful default
          * value that the {@link RestClientBuilder} internally sets.
          */
-        void customizeRequestConfig(RequestConfig.Builder requestConfigBuilder);
+        RequestConfig.Builder customizeRequestConfig(RequestConfig.Builder requestConfigBuilder);
     }
 
     /**
@@ -170,6 +170,6 @@ public final class RestClientBuilder {
          * or the {@link SchemeIOSessionStrategy} for communication through ssl without losing any other useful default
          * value that the {@link RestClientBuilder} internally sets, like connection pooling.
          */
-        void customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder);
+        HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder);
     }
 }

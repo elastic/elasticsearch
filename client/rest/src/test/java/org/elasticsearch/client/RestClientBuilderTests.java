@@ -92,6 +92,13 @@ public class RestClientBuilderTests extends RestClientTestCase {
             assertEquals("httpClientConfigCallback must not be null", e.getMessage());
         }
 
+        try {
+            RestClient.builder(new HttpHost("localhost", 9200)).setRequestConfigCallback(null);
+            fail("should have failed");
+        } catch(NullPointerException e) {
+            assertEquals("requestConfigCallback must not be null", e.getMessage());
+        }
+
         int numNodes = RandomInts.randomIntBetween(getRandom(), 1, 5);
         HttpHost[] hosts = new HttpHost[numNodes];
         for (int i = 0; i < numNodes; i++) {
@@ -101,13 +108,14 @@ public class RestClientBuilderTests extends RestClientTestCase {
         if (getRandom().nextBoolean()) {
             builder.setHttpClientConfigCallback(new RestClient.HttpClientConfigCallback() {
                 @Override
-                public void customizeDefaultRequestConfig(RequestConfig.Builder requestConfigBuilder) {
-
-                }
-
-                @Override
                 public void customizeHttpClient(HttpClientBuilder httpClientBuilder) {
-
+                }
+            });
+        }
+        if (getRandom().nextBoolean()) {
+            builder.setRequestConfigCallback(new RestClient.RequestConfigCallback() {
+                @Override
+                public void customizeRequestConfig(RequestConfig.Builder requestConfigBuilder) {
                 }
             });
         }

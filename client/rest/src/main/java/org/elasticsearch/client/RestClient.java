@@ -395,6 +395,7 @@ public final class RestClient implements Closeable {
         private Header[] defaultHeaders = EMPTY_HEADERS;
         private FailureListener failureListener;
         private HttpClientConfigCallback httpClientConfigCallback;
+        private RequestConfigCallback requestConfigCallback;
 
         /**
          * Creates a new builder instance and sets the hosts that the client will send requests to.
@@ -451,6 +452,15 @@ public final class RestClient implements Closeable {
         }
 
         /**
+         * Sets the {@link RequestConfigCallback} to be used to customize http client configuration
+         */
+        public Builder setRequestConfigCallback(RequestConfigCallback requestConfigCallback) {
+            Objects.requireNonNull(requestConfigCallback, "requestConfigCallback must not be null");
+            this.requestConfigCallback = requestConfigCallback;
+            return this;
+        }
+
+        /**
          * Creates a new {@link RestClient} based on the provided configuration.
          */
         public RestClient build() {
@@ -467,8 +477,8 @@ public final class RestClient implements Closeable {
                     .setSocketTimeout(DEFAULT_SOCKET_TIMEOUT_MILLIS)
                     .setConnectionRequestTimeout(DEFAULT_CONNECTION_REQUEST_TIMEOUT_MILLIS);
 
-            if (httpClientConfigCallback != null) {
-                httpClientConfigCallback.customizeDefaultRequestConfig(requestConfigBuilder);
+            if (requestConfigCallback != null) {
+                requestConfigCallback.customizeRequestConfig(requestConfigBuilder);
             }
             RequestConfig requestConfig = requestConfigBuilder.build();
 
@@ -488,23 +498,29 @@ public final class RestClient implements Closeable {
     }
 
     /**
+     * Callback used the default {@link RequestConfig} being set to the {@link CloseableHttpClient}
+     * @see HttpClientBuilder#setDefaultRequestConfig
+     */
+    public interface RequestConfigCallback {
+        /**
+         * Allows to customize the {@link RequestConfig} that will be used with each request.
+         * It is common to customize the different timeout values through this method without losing any other useful default
+         * value that the {@link RestClient.Builder} internally sets.
+         */
+        void customizeRequestConfig(RequestConfig.Builder requestConfigBuilder);
+    }
+
+    /**
      * Callback used to customize the {@link CloseableHttpClient} instance used by a {@link RestClient} instance.
      * Allows to customize default {@link RequestConfig} being set to the client and any parameter that
      * can be set through {@link HttpClientBuilder}
      */
     public interface HttpClientConfigCallback {
         /**
-         * Allows to customize the {@link RequestConfig} that will be used with each request.
-         * It is common to customize the different timeout values through this method without losing any other useful default
-         * value that the {@link RestClient.Builder} sets internally.
-         */
-        void customizeDefaultRequestConfig(RequestConfig.Builder requestConfigBuilder);
-
-        /**
          * Allows to customize the {@link CloseableHttpClient} being created and used by the {@link RestClient}.
          * It is common to customzie the default {@link org.apache.http.client.CredentialsProvider} through this method,
-         * or the {@link org.apache.http.conn.HttpClientConnectionManager} being used without losing any other useful default
-         * value that the {@link RestClient.Builder} sets internally.
+         * without losing any other useful default value that the {@link RestClient.Builder} internally sets.
+         * Also useful to setup ssl through {@link SSLSocketFactoryHttpConfigCallback}.
          */
         void customizeHttpClient(HttpClientBuilder httpClientBuilder);
     }

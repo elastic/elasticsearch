@@ -22,14 +22,8 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.config.Registry;
-import org.apache.http.config.RegistryBuilder;
-import org.apache.http.conn.socket.ConnectionSocketFactory;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.lucene.util.IOUtils;
@@ -37,6 +31,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.SSLSocketFactoryHttpConfigCallback;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
@@ -267,7 +262,15 @@ public class RestTestClient implements Closeable {
     }
 
     private static RestClient createRestClient(URL[] urls, Settings settings) throws IOException {
-        PoolingHttpClientConnectionManager connectionManager;
+        String protocol = settings.get(PROTOCOL, "http");
+        HttpHost[] hosts = new HttpHost[urls.length];
+        for (int i = 0; i < hosts.length; i++) {
+            URL url = urls[i];
+            hosts[i] = new HttpHost(url.getHost(), url.getPort(), protocol);
+        }
+        RestClient.Builder builder = RestClient.builder(hosts).setMaxRetryTimeoutMillis(30000)
+                .setRequestConfigCallback(requestConfigBuilder -> requestConfigBuilder.setSocketTimeout(30000));
+
         String keystorePath = settings.get(TRUSTSTORE_PATH);
         if (keystorePath != null) {
             final String keystorePass = settings.get(TRUSTSTORE_PASSWORD);
@@ -284,38 +287,13 @@ public class RestTestClient implements Closeable {
                     keyStore.load(is, keystorePass.toCharArray());
                 }
                 SSLContext sslcontext = SSLContexts.custom().loadTrustMaterial(keyStore, null).build();
-                Registry<ConnectionSocketFactory> socketFactoryRegistry = RegistryBuilder.<ConnectionSocketFactory>create()
-                        .register("https", new SSLConnectionSocketFactory(sslcontext)).build();
-                connectionManager = new PoolingHttpClientConnectionManager(socketFactoryRegistry);
+                SSLConnectionSocketFactory sslConnectionSocketFactory = new SSLConnectionSocketFactory(sslcontext);
+                builder.setHttpClientConfigCallback(new SSLSocketFactoryHttpConfigCallback(sslConnectionSocketFactory));
             } catch (KeyStoreException|NoSuchAlgorithmException|KeyManagementException|CertificateException e) {
                 throw new RuntimeException(e);
             }
-        } else {
-            connectionManager = new PoolingHttpClientConnectionManager();
-        }
-        //default settings may be too constraining
-        connectionManager.setDefaultMaxPerRoute(10);
-        connectionManager.setMaxTotal(30);
-
-        String protocol = settings.get(PROTOCOL, "http");
-        HttpHost[] hosts = new HttpHost[urls.length];
-        for (int i = 0; i < hosts.length; i++) {
-            URL url = urls[i];
-            hosts[i] = new HttpHost(url.getHost(), url.getPort(), protocol);
         }
 
-        RestClient.Builder builder = RestClient.builder(hosts).setMaxRetryTimeoutMillis(30000)
-                .setHttpClientConfigCallback(new RestClient.HttpClientConfigCallback() {
-            @Override
-            public void customizeDefaultRequestConfig(RequestConfig.Builder requestConfigBuilder) {
-                requestConfigBuilder.setSocketTimeout(30000);
-            }
-
-            @Override
-            public void customizeHttpClient(HttpClientBuilder httpClientBuilder) {
-                httpClientBuilder.setConnectionManager(connectionManager);
-            }
-        });
         try (ThreadContext threadContext = new ThreadContext(settings)) {
             Header[] defaultHeaders = new Header[threadContext.getHeaders().size()];
             int i = 0;

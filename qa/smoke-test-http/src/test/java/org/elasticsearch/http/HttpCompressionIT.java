@@ -22,7 +22,6 @@ import org.apache.http.Header;
 import org.apache.http.HttpException;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpResponseInterceptor;
-import org.apache.http.client.config.RequestConfig;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.message.BasicHeader;
@@ -136,10 +135,6 @@ public class HttpCompressionIT extends ESIntegTestCase {
 
         ContentEncodingHeaderExtractorConfigCallback(ContentEncodingHeaderExtractor contentEncodingHeaderExtractor) {
             this.contentEncodingHeaderExtractor = contentEncodingHeaderExtractor;
-        }
-
-        @Override
-        public void customizeDefaultRequestConfig(RequestConfig.Builder requestConfigBuilder) {
         }
 
         @Override

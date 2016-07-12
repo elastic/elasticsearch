@@ -59,7 +59,6 @@ public class Notification {
             return Collections.emptyList();
         }
         return Arrays.<Class<? extends LifecycleComponent>>asList(
-                HttpClient.class,
                 EmailService.class,
                 HipChatService.class,
                 SlackService.class,

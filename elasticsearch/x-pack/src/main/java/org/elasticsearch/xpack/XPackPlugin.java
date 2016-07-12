@@ -12,7 +12,9 @@ import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionRequest;
@@ -41,7 +43,12 @@ import org.elasticsearch.xpack.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.action.XPackInfoAction;
 import org.elasticsearch.xpack.action.XPackUsageAction;
 import org.elasticsearch.xpack.common.ScriptServiceProxy;
-import org.elasticsearch.xpack.common.http.HttpClientModule;
+import org.elasticsearch.xpack.common.http.HttpClient;
+import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.common.http.auth.HttpAuthFactory;
+import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
+import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
+import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.xpack.common.text.TextTemplateModule;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.extensions.XPackExtensionsService;
@@ -100,6 +107,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
     }
 
     protected final Settings settings;
+    private final Environment env;
     protected boolean transportClientMode;
     protected final XPackExtensionsService extensionsService;
 
@@ -113,7 +121,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
     public XPackPlugin(Settings settings) throws IOException {
         this.settings = settings;
         this.transportClientMode = transportClientMode(settings);
-        final Environment env = transportClientMode ? null : new Environment(settings);
+        this.env = transportClientMode ? null : new Environment(settings);
 
         this.licensing = new Licensing(settings);
         this.security = new Security(settings, env);
@@ -151,7 +159,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
         modules.addAll(graph.createGuiceModules());
 
         if (transportClientMode == false) {
-            modules.add(new HttpClientModule());
             modules.add(new TextTemplateModule());
         }
         return modules;
@@ -167,6 +174,22 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
         services.addAll(monitoring.nodeServices());
         services.addAll(graph.getGuiceServiceClasses());
         return services;
+    }
+
+    @Override
+    public Collection<Object> createComponents() {
+        List<Object> components = new ArrayList<>();
+        if (transportClientMode == false) {
+            // watcher http stuff
+            Map<String, HttpAuthFactory> httpAuthFactories = new HashMap<>();
+            httpAuthFactories.put(BasicAuth.TYPE, new BasicAuthFactory(security.getCryptoService()));
+            // TODO: add more auth types, or remove this indirection
+            HttpAuthRegistry httpAuthRegistry = new HttpAuthRegistry(httpAuthFactories);
+            components.add(new HttpRequestTemplate.Parser(httpAuthRegistry));
+            components.add(new HttpClient(settings, httpAuthRegistry, env));
+        }
+
+        return components;
     }
 
     @Override

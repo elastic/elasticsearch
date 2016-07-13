@@ -38,7 +38,7 @@ public class RestTestResponse {
     private final String body;
     private ObjectPath parsedResponse;
 
-    public RestTestResponse(Response response) throws IOException {
+    RestTestResponse(Response response) throws IOException {
         this.response = response;
         if (response.getEntity() != null) {
             try {

@@ -138,8 +138,12 @@ public class RestTestClient implements Closeable {
                 entity = new StringEntity(body, RestClient.JSON_CONTENT_TYPE);
             }
             // And everything else is a url parameter!
-            Response response = restClient.performRequest(method, path, queryStringParams, entity);
-            return new RestTestResponse(response);
+            try {
+                Response response = restClient.performRequest(method, path, queryStringParams, entity);
+                return new RestTestResponse(response);
+            } catch(ResponseException e) {
+                throw new RestTestResponseException(e);
+            }
         }
 
         List<Integer> ignores = new ArrayList<>();
@@ -242,14 +246,13 @@ public class RestTestClient implements Closeable {
 
         logger.debug("calling api [{}]", apiName);
         try {
-            Response response = restClient.performRequest(requestMethod, requestPath,
-                    queryStringParams, requestBody, requestHeaders);
+            Response response = restClient.performRequest(requestMethod, requestPath, queryStringParams, requestBody, requestHeaders);
             return new RestTestResponse(response);
         } catch(ResponseException e) {
             if (ignores.contains(e.getResponse().getStatusLine().getStatusCode())) {
                 return new RestTestResponse(e.getResponse());
             }
-            throw e;
+            throw new RestTestResponseException(e);
         }
     }
 

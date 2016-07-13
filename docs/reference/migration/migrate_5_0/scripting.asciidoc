@@ -110,7 +110,7 @@ This usage is valid:
 }
 -----------------------------------
 
-====== Template query
+==== Template query
 
 The `query` field in the `template` query can no longer be used.
 This 1.x syntax can no longer be used:
@@ -144,7 +144,7 @@ and instead the following syntax should be used:
     }
 }
 
-===== Search templates:
+==== Search templates:
 
 The top level `template` field in the search template api has been replaced with consistent template / script object
 syntax. This 1.x syntax can no longer be used:

@@ -100,6 +100,13 @@ public final class RestClient implements Closeable {
     }
 
     /**
+     * Returns a new {@link RestClientBuilder} to help with {@link RestClient} creation.
+     */
+    public static RestClientBuilder builder(HttpHost... hosts) {
+        return new RestClientBuilder(hosts);
+    }
+
+    /**
      * Replaces the hosts that the client communicates with.
      * @see HttpHost
      */
@@ -520,13 +527,6 @@ public final class RestClient implements Closeable {
             assert exception != null;
             throw exception;
         }
-    }
-
-    /**
-     * Returns a new {@link RestClientBuilder} to help with {@link RestClient} creation.
-     */
-    public static RestClientBuilder builder(HttpHost... hosts) {
-        return new RestClientBuilder(hosts);
     }
 
     /**

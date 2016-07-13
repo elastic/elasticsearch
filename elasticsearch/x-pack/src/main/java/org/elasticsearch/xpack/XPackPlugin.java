@@ -40,6 +40,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.action.XPackInfoAction;
@@ -179,7 +180,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
     }
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool) {
+    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
+            ResourceWatcherService resourceWatcherService) {
         List<Object> components = new ArrayList<>();
         if (transportClientMode == false) {
             // watcher http stuff

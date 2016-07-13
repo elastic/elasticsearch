@@ -123,7 +123,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         clusterService.submitStateUpdateTask("test-inject-node-and-reroute", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                // inject a  node
+                // inject a node
                 ClusterState.Builder builder = ClusterState.builder(currentState);
                 builder.nodes(DiscoveryNodes.builder(currentState.nodes()).put(new DiscoveryNode("_non_existent",
                         LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT)));

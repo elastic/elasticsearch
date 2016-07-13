@@ -11,10 +11,14 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.MockNettyPlugin;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
@@ -40,6 +44,13 @@ public class MonitoringSettingsFilterTests extends MonitoringIntegTestCase {
                 .put("xpack.monitoring.collection.exporters._http.ssl.truststore.password", "_passwd")
                 .put("xpack.monitoring.collection.exporters._http.ssl.hostname_verification", true)
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(MockNettyPlugin.class); // for http
+        return plugins;
     }
 
     public void testGetSettingsFiltered() throws Exception {

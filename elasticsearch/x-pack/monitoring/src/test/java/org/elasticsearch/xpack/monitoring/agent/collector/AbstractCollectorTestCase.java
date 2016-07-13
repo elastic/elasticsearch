@@ -57,7 +57,6 @@ public abstract class AbstractCollectorTestCase extends MonitoringIntegTestCase 
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(MonitoringSettings.INTERVAL.getKey(), "-1")
                 .build();
     }

@@ -10,12 +10,16 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.MockNettyPlugin;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.agent.AgentService;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -42,6 +46,13 @@ public class MonitoringSettingsTests extends MonitoringIntegTestCase {
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(monitoringSettings())
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(MockNettyPlugin.class); // for http
+        return plugins;
     }
 
     private Settings monitoringSettings() {

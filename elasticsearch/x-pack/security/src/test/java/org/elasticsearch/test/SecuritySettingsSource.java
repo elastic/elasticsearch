@@ -10,6 +10,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.xpack.MockNettyPlugin;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -160,12 +161,12 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
 
     @Override
     public Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(xpackPluginClass());
+        return Arrays.asList(xpackPluginClass(), MockNettyPlugin.class);
     }
 
     @Override
     public Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.<Class<? extends Plugin>>singletonList(xpackPluginClass());
+        return nodePlugins();
     }
 
     protected String configUsers() {

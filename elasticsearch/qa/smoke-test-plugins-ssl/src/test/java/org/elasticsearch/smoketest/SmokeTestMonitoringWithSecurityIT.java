@@ -9,9 +9,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -49,7 +51,6 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
     private static final String USER = "test_user";
     private static final String PASS = "changeme";
     private static final String KEYSTORE_PASS = "keypass";
-    
     private static final String MONITORING_PATTERN = ".monitoring-*";
 
     @Override
@@ -64,6 +65,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
                 .put(SecurityNettyTransport.SSL_SETTING.getKey(), true)
                 .put("xpack.security.ssl.keystore.path", clientKeyStore)
                 .put("xpack.security.ssl.keystore.password", KEYSTORE_PASS)
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME)
                 .build();
     }
 

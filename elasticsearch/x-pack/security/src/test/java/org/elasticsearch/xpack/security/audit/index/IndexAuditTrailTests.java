@@ -19,11 +19,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -32,6 +34,8 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.MockTcpTransport;
+import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.transport.TransportMessage;
@@ -56,7 +60,9 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -140,11 +146,20 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
                 Settings.Builder builder = Settings.builder()
                         .put(super.nodeSettings(nodeOrdinal))
                         .put(Security.enabledSetting(), useSecurity);
+                if (useSecurity == false && builder.get(NetworkModule.TRANSPORT_TYPE_KEY) == null) {
+                    builder.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
+                }
                 return builder.build();
             }
         };
+
+
+        Set<Class<? extends Plugin>> mockPlugins = new HashSet<>(getMockPlugins());
+        if (useSecurity == false) {
+            mockPlugins.add(MockTcpTransportPlugin.class);
+        }
         remoteCluster = new InternalTestCluster("network", randomLong(), createTempDir(), false, numNodes, numNodes, cluster2Name,
-                cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, getMockPlugins(),
+                cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, mockPlugins,
                 useSecurity ? getClientWrapper() : Function.identity());
         remoteCluster.beforeTest(random(), 0.5);
 

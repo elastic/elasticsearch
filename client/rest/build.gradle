@@ -58,6 +58,11 @@ forbiddenApisTest {
   signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
 }
 
+dependencyLicenses {
+  mapping from: /http.*/, to: 'httpclient'
+  mapping from: /commons-.*/, to: 'commons'
+}
+
 //JarHell is part of es core, which we don't want to pull in
 jarHell.enabled=false
 

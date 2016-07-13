@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.license.plugin.core;
 
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 
@@ -14,33 +15,17 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * A supporting base class for injectable Licensee components.
  */
-public abstract class AbstractLicenseeComponent<T extends AbstractLicenseeComponent<T>> extends AbstractLifecycleComponent
-        implements Licensee {
+public abstract class AbstractLicenseeComponent extends AbstractComponent implements Licensee {
 
     private final String id;
-    private final LicenseeRegistry clientService;
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
 
     // we initialize the licensee state to enabled with trial operation mode
     protected volatile Status status = Status.ENABLED;
 
-    protected AbstractLicenseeComponent(Settings settings, String id, LicenseeRegistry clientService) {
+    protected AbstractLicenseeComponent(Settings settings, String id) {
         super(settings);
         this.id = id;
-        this.clientService = clientService;
-    }
-
-    @Override
-    protected void doStart() {
-        clientService.register(this);
-    }
-
-    @Override
-    protected void doStop() {
-    }
-
-    @Override
-    protected void doClose() {
     }
 
     @Override

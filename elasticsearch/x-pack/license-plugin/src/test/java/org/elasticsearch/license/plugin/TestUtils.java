@@ -155,7 +155,7 @@ public class TestUtils {
 
     public static void registerAndAckSignedLicenses(final LicensesService licensesService, License license,
                                                     final LicensesStatus expectedStatus) {
-        PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(license);
+        PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(license).acknowledge(true);
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<LicensesStatus> status = new AtomicReference<>();
         licensesService.registerLicense(putLicenseRequest, new ActionListener<PutLicenseResponse>() {

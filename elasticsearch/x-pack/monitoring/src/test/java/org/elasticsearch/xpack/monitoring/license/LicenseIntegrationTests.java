@@ -7,9 +7,7 @@ package org.elasticsearch.xpack.monitoring.license;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
@@ -17,14 +15,17 @@ import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
-import org.elasticsearch.license.plugin.core.LicenseeRegistry;
-import org.elasticsearch.license.plugin.core.LicensesManagerService;
+import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.graph.GraphLicensee;
 import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
+import org.elasticsearch.xpack.security.SecurityLicenseState;
+import org.elasticsearch.xpack.support.clock.Clock;
+import org.elasticsearch.xpack.watcher.WatcherLicensee;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -92,7 +93,18 @@ public class LicenseIntegrationTests extends MonitoringIntegTestCase {
 
         @Override
         public Collection<Module> nodeModules() {
-            return Collections.<Module>singletonList(new InternalLicenseModule());
+            return Collections.singletonList(b -> b.bind(LicensesService.class).to(MockLicenseService.class));
+        }
+
+        @Override
+        public Collection<Object> createComponents(ClusterService clusterService, Clock clock,
+                                                   SecurityLicenseState securityLicenseState) {
+            WatcherLicensee watcherLicensee = new WatcherLicensee(settings);
+            MonitoringLicensee monitoringLicensee = new MonitoringLicensee(settings);
+            GraphLicensee graphLicensee = new GraphLicensee(settings);
+            LicensesService licensesService = new MockLicenseService(settings,
+                Arrays.asList(watcherLicensee, monitoringLicensee, graphLicensee));
+            return Arrays.asList(licensesService, watcherLicensee, monitoringLicensee, graphLicensee);
         }
 
         @Override
@@ -104,36 +116,16 @@ public class LicenseIntegrationTests extends MonitoringIntegTestCase {
         public List<Class<? extends RestHandler>> getRestHandlers() {
             return emptyList();
         }
-
-        @Override
-        public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-            return Collections.emptyList();
-        }
-
     }
 
-    public static class InternalLicenseModule extends AbstractModule {
-        @Override
-        protected void configure() {
-            bind(MockLicenseService.class).asEagerSingleton();
-            bind(LicenseeRegistry.class).to(MockLicenseService.class);
-            bind(LicensesManagerService.class).to(MockLicenseService.class);
-        }
-    }
+    public static class MockLicenseService extends LicensesService {
 
-    public static class MockLicenseService extends AbstractComponent implements LicenseeRegistry, LicensesManagerService {
-
-        private final List<Licensee> licensees = new ArrayList<>();
+        private final List<Licensee> licensees;
 
         @Inject
-        public MockLicenseService(Settings settings) {
-            super(settings);
-            enable();
-        }
-
-        @Override
-        public void register(Licensee licensee) {
-            licensees.add(licensee);
+        public MockLicenseService(Settings settings, List<Licensee> licensees) {
+            super(settings, null, null, licensees);
+            this.licensees = licensees;
             enable();
         }
 
@@ -159,6 +151,12 @@ public class LicenseIntegrationTests extends MonitoringIntegTestCase {
         public License getLicense() {
             return null;
         }
+
+        @Override
+        protected void doStart() {}
+
+        @Override
+        protected void doStop() {}
     }
 
     public static class InternalXPackPlugin extends XPackPlugin {

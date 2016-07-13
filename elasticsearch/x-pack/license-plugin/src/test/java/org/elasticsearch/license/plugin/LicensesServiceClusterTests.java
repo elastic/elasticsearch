@@ -176,6 +176,7 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
         License putLicenses = generateSignedLicense(TimeValue.timeValueMinutes(1));
         PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(cluster, PutLicenseAction.INSTANCE);
         putLicenseRequestBuilder.setLicense(putLicenses);
+        putLicenseRequestBuilder.setAcknowledge(true);
         final PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));

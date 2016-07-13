@@ -126,13 +126,6 @@ public class Watcher implements ActionPlugin {
         return modules;
     }
 
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-        if (enabled == false|| transportClient) {
-            return Collections.emptyList();
-        }
-        return Collections.singletonList(WatcherLicensee.class);
-    }
-
     public Settings additionalSettings() {
         return Settings.EMPTY;
     }

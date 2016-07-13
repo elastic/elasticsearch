@@ -118,7 +118,7 @@ public class Security implements ActionPlugin {
     private final Settings settings;
     private final boolean enabled;
     private final boolean transportClientMode;
-    private SecurityLicenseState securityLicenseState;
+    private final SecurityLicenseState securityLicenseState;
     private final CryptoService cryptoService;
 
     public Security(Settings settings, Environment env) throws IOException {
@@ -131,10 +131,15 @@ public class Security implements ActionPlugin {
         } else {
             cryptoService = null;
         }
+        securityLicenseState = new SecurityLicenseState();
     }
 
     public CryptoService getCryptoService() {
         return cryptoService;
+    }
+
+    public SecurityLicenseState getSecurityLicenseState() {
+        return securityLicenseState;
     }
 
     public Collection<Module> nodeModules() {
@@ -144,7 +149,7 @@ public class Security implements ActionPlugin {
             if (enabled == false) {
                 return modules;
             }
-            modules.add(new SecurityModule(settings, securityLicenseState));
+            modules.add(new SecurityModule(settings));
             modules.add(new SecurityTransportModule(settings));
             modules.add(new SSLModule(settings));
             return modules;
@@ -154,7 +159,7 @@ public class Security implements ActionPlugin {
         modules.add(new AuthorizationModule(settings));
         if (enabled == false) {
             modules.add(b -> b.bind(CryptoService.class).toProvider(Providers.of(null)));
-            modules.add(new SecurityModule(settings, securityLicenseState));
+            modules.add(new SecurityModule(settings));
             modules.add(new AuditTrailModule(settings));
             modules.add(new SecurityTransportModule(settings));
             return modules;
@@ -163,9 +168,9 @@ public class Security implements ActionPlugin {
         // we can't load that at construction time since the license plugin might not have been loaded at that point
         // which might not be the case during Plugin class instantiation. Once nodeModules are pulled
         // everything should have been loaded
-        securityLicenseState = new SecurityLicenseState();
+
         modules.add(b -> b.bind(CryptoService.class).toInstance(cryptoService));
-        modules.add(new SecurityModule(settings, securityLicenseState));
+        modules.add(new SecurityModule(settings));
         modules.add(new AuditTrailModule(settings));
         modules.add(new SecurityRestModule(settings));
         modules.add(new SecurityActionModule(settings));
@@ -184,7 +189,6 @@ public class Security implements ActionPlugin {
         if (AuditTrailModule.fileAuditLoggingEnabled(settings) == true) {
             list.add(LoggingAuditTrail.class);
         }
-        list.add(SecurityLicensee.class);
         list.add(FileRolesStore.class);
         list.add(Realms.class);
         return list;

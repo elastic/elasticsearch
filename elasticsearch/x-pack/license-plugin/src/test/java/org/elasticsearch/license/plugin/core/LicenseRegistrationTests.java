@@ -21,13 +21,11 @@ import static org.mockito.Mockito.when;
 public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
 
     public void testTrialLicenseRequestOnEmptyLicenseState() throws Exception {
-        setInitialState(null);
-        when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
-
         TestUtils.AssertingLicensee licensee = new TestUtils.AssertingLicensee(
-                "testTrialLicenseRequestOnEmptyLicenseState", logger);
+            "testTrialLicenseRequestOnEmptyLicenseState", logger);
+        setInitialState(null, licensee);
+        when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
         licensesService.start();
-        licensesService.register(licensee);
 
         ClusterState state = ClusterState.builder(new ClusterName("a")).build();
         ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
@@ -42,11 +40,10 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
     }
 
     public void testNotificationOnRegistration() throws Exception {
-        setInitialState(TestUtils.generateSignedLicense(TimeValue.timeValueHours(2)));
         TestUtils.AssertingLicensee licensee = new TestUtils.AssertingLicensee(
                 "testNotificationOnRegistration", logger);
+        setInitialState(TestUtils.generateSignedLicense(TimeValue.timeValueHours(2)), licensee);
         licensesService.start();
-        licensesService.register(licensee);
         assertThat(licensee.statuses.size(), equalTo(1));
         final LicenseState licenseState = licensee.statuses.get(0).getLicenseState();
         assertTrue(licenseState == LicenseState.ENABLED);

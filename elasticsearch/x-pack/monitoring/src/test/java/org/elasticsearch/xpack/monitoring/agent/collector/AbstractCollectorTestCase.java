@@ -5,42 +5,42 @@
  */
 package org.elasticsearch.xpack.monitoring.agent.collector;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SysGlobals;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
-import org.elasticsearch.license.plugin.core.LicenseeRegistry;
-import org.elasticsearch.license.plugin.core.LicensesManagerService;
+import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.graph.GraphLicensee;
+import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
+import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.security.SecurityLicenseState;
+import org.elasticsearch.xpack.support.clock.Clock;
+import org.elasticsearch.xpack.watcher.WatcherLicensee;
 import org.junit.Before;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
@@ -110,7 +110,7 @@ public abstract class AbstractCollectorTestCase extends MonitoringIntegTestCase 
         for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
             service.onChange(license.operationMode(), LicenseState.ENABLED);
         }
-        for (LicensesManagerServiceForCollectors service : internalCluster().getInstances(LicensesManagerServiceForCollectors.class)) {
+        for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
             service.update(license);
         }
     }
@@ -123,7 +123,7 @@ public abstract class AbstractCollectorTestCase extends MonitoringIntegTestCase 
         for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
             service.onChange(license.operationMode(), LicenseState.GRACE_PERIOD);
         }
-        for (LicensesManagerServiceForCollectors service : internalCluster().getInstances(LicensesManagerServiceForCollectors.class)) {
+        for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
             service.update(license);
         }
     }
@@ -136,7 +136,7 @@ public abstract class AbstractCollectorTestCase extends MonitoringIntegTestCase 
         for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
             service.onChange(license.operationMode(), LicenseState.DISABLED);
         }
-        for (LicensesManagerServiceForCollectors service : internalCluster().getInstances(LicensesManagerServiceForCollectors.class)) {
+        for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
             service.update(license);
         }
     }
@@ -149,7 +149,7 @@ public abstract class AbstractCollectorTestCase extends MonitoringIntegTestCase 
         for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
             service.onChange(license.operationMode(), LicenseState.DISABLED);
         }
-        for (LicensesManagerServiceForCollectors service : internalCluster().getInstances(LicensesManagerServiceForCollectors.class)) {
+        for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
             service.update(license);
         }
     }
@@ -190,16 +190,18 @@ public abstract class AbstractCollectorTestCase extends MonitoringIntegTestCase 
 
         @Override
         public Collection<Module> nodeModules() {
-            return Collections.<Module>singletonList(new AbstractModule() {
+            return Collections.singletonList(b -> b.bind(LicensesService.class).to(LicenseServiceForCollectors.class));
+        }
 
-                @Override
-                protected void configure() {
-                    bind(LicenseServiceForCollectors.class).asEagerSingleton();
-                    bind(LicenseeRegistry.class).to(LicenseServiceForCollectors.class);
-                    bind(LicensesManagerServiceForCollectors.class).asEagerSingleton();
-                    bind(LicensesManagerService.class).to(LicensesManagerServiceForCollectors.class);
-                }
-            });
+        @Override
+        public Collection<Object> createComponents(ClusterService clusterService, Clock clock,
+                                                   SecurityLicenseState securityLicenseState) {
+            WatcherLicensee watcherLicensee = new WatcherLicensee(settings);
+            MonitoringLicensee monitoringLicensee = new MonitoringLicensee(settings);
+            GraphLicensee graphLicensee = new GraphLicensee(settings);
+            LicensesService licensesService = new LicenseServiceForCollectors(settings,
+                Arrays.asList(watcherLicensee, monitoringLicensee, graphLicensee));
+            return Arrays.asList(licensesService, watcherLicensee, monitoringLicensee, graphLicensee);
         }
 
         @Override
@@ -211,11 +213,6 @@ public abstract class AbstractCollectorTestCase extends MonitoringIntegTestCase 
         public List<Class<? extends RestHandler>> getRestHandlers() {
             return emptyList();
         }
-
-        @Override
-        public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-            return Collections.emptyList();
-        }
     }
 
     public static class InternalXPackPlugin extends XPackPlugin {
@@ -226,18 +223,15 @@ public abstract class AbstractCollectorTestCase extends MonitoringIntegTestCase 
         }
     }
 
-    public static class LicenseServiceForCollectors extends AbstractComponent implements LicenseeRegistry {
+    public static class LicenseServiceForCollectors extends LicensesService {
 
-        private final List<Licensee> licensees = new ArrayList<>();
+        private final List<Licensee> licensees;
+        private volatile License license;
 
         @Inject
-        public LicenseServiceForCollectors(Settings settings) {
-            super(settings);
-        }
-
-        @Override
-        public void register(Licensee licensee) {
-            licensees.add(licensee);
+        public LicenseServiceForCollectors(Settings settings, List<Licensee> licensees) {
+            super(settings, null, null, licensees);
+            this.licensees = licensees;
         }
 
         public void onChange(License.OperationMode operationMode, LicenseState state) {
@@ -245,11 +239,6 @@ public abstract class AbstractCollectorTestCase extends MonitoringIntegTestCase 
                 licensee.onChange(new Licensee.Status(operationMode, state));
             }
         }
-    }
-
-    public static class LicensesManagerServiceForCollectors implements LicensesManagerService {
-
-        private volatile License license;
 
         @Override
         public LicenseState licenseState() {
@@ -264,5 +253,11 @@ public abstract class AbstractCollectorTestCase extends MonitoringIntegTestCase 
         public synchronized void update(License license) {
             this.license = license;
         }
+
+        @Override
+        protected void doStart() {}
+
+        @Override
+        protected void doStop() {}
     }
 }

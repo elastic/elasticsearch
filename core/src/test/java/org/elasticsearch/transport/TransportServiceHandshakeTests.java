@@ -57,8 +57,8 @@ public class TransportServiceHandshakeTests extends ESTestCase {
 
     private NetworkHandle startServices(String nodeNameAndId, Settings settings, Version version) {
         MockTcpTransport transport =
-                new MockTcpTransport("mock",
-                        settings,
+                new MockTcpTransport(
+                    settings,
                         threadPool,
                         BigArrays.NON_RECYCLING_INSTANCE,
                         new NoneCircuitBreakerService(),

@@ -198,7 +198,7 @@ public class UnicastZenPingIT extends ESTestCase {
 
     private NetworkHandle startServices(Settings settings, ThreadPool threadPool, NetworkService networkService, String nodeId,
                                         Version version) {
-        MockTcpTransport transport = new MockTcpTransport("mock", settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
+        MockTcpTransport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(), new NamedWriteableRegistry(), networkService, version);
         final TransportService transportService = new TransportService(settings, transport, threadPool);
         transportService.start();

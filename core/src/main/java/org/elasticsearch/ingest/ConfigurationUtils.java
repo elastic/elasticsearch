@@ -251,7 +251,7 @@ public final class ConfigurationUtils {
         return processors;
     }
 
-    private static Processor readProcessor(Map<String, Processor.Factory> processorFactories,
+    public static Processor readProcessor(Map<String, Processor.Factory> processorFactories,
                                            String type, Map<String, Object> config) throws Exception {
         Processor.Factory factory = processorFactories.get(type);
         if (factory != null) {

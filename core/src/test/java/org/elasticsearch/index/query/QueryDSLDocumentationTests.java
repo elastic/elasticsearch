@@ -76,7 +76,6 @@ import static org.elasticsearch.index.query.QueryBuilders.spanNotQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanOrQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanWithinQuery;
-import static org.elasticsearch.index.query.QueryBuilders.templateQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.typeQuery;
@@ -357,13 +356,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                     .addClause(spanTermQuery("field1", "baz"))
                     .inOrder(true),
                 spanTermQuery("field1", "foo"));
-    }
-
-    public void testTemplate() {
-        templateQuery(
-                "gender_template",
-                ScriptType.STORED,
-                new HashMap<>());
     }
 
     public void testTerm() {

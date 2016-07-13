@@ -289,3 +289,24 @@ registers the "js" file extension for on-disk scripts.
 ==== Removed scripting query string parameters from update rest api
 
 The `script`, `script_id` and `scripting_upsert` query string parameters have been removed from the update api.
+
+==== Java transport client
+
+The `TemplateQueryBuilder` has been moved to the `lang-mustache` module.
+Therefor when using the `TemplateQueryBuilder` from the Java native client the
+lang-mustache module should be on the classpath. Also the transport client
+should load the lang-mustache module as plugin:
+
+[source,java]
+--------------------------------------------------
+TransportClient transportClient = TransportClient.builder()
+        .settings(Settings.builder().put("node.name", "node"))
+        .addPlugin(MustachePlugin.class)
+        .build();
+transportClient.addTransportAddress(
+        new InetSocketTransportAddress(new InetSocketAddress(InetAddresses.forString("127.0.0.1"), 9300))
+);
+--------------------------------------------------
+
+Also the helper methods in `QueryBuilders` class that create a `TemplateQueryBuilder` instance have been removed,
+instead the constructors on `TemplateQueryBuilder` should be used.

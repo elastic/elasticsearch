@@ -30,13 +30,11 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.TemplateQueryBuilder;
+import org.elasticsearch.script.mustache.TemplateQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.action.search.template.RestSearchTemplateAction;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -95,8 +93,7 @@ public class TemplateQueryTests extends ESIntegTestCase {
         Map<String, Object> vars = new HashMap<>();
         vars.put("template", "all");
 
-        TemplateQueryBuilder builder = new TemplateQueryBuilder(new Template("{\"match_{{template}}\": {}}\"", ScriptType.INLINE, null,
-                null, vars));
+        TemplateQueryBuilder builder = new TemplateQueryBuilder("{\"match_{{template}}\": {}}\"", ScriptType.INLINE,vars);
         SearchResponse sr = client().prepareSearch().setQuery(builder)
                 .execute().actionGet();
         assertHitCount(sr, 2);
@@ -108,9 +105,8 @@ public class TemplateQueryTests extends ESIntegTestCase {
         SearchResponse sr = client().prepareSearch()
                 .setSource(
                         new SearchSourceBuilder().size(0).query(
-                                QueryBuilders.templateQuery(new Template("{ \"match_{{template}}\": {} }",
-                                        ScriptType.INLINE, null, null, params)))).execute()
-                .actionGet();
+                                new TemplateQueryBuilder("{ \"match_{{template}}\": {} }", ScriptType.INLINE, params)))
+                .get();
         assertNoFailures(sr);
         assertThat(sr.getHits().hits().length, equalTo(0));
     }
@@ -118,8 +114,7 @@ public class TemplateQueryTests extends ESIntegTestCase {
     public void testTemplateWOReplacementInBody() throws IOException {
         Map<String, Object> vars = new HashMap<>();
 
-        TemplateQueryBuilder builder = new TemplateQueryBuilder(new Template(
-                "{\"match_all\": {}}\"", ScriptType.INLINE, null, null, vars));
+        TemplateQueryBuilder builder = new TemplateQueryBuilder("{\"match_all\": {}}\"", ScriptType.INLINE, vars);
         SearchResponse sr = client().prepareSearch().setQuery(builder)
                 .execute().actionGet();
         assertHitCount(sr, 2);
@@ -129,8 +124,7 @@ public class TemplateQueryTests extends ESIntegTestCase {
         Map<String, Object> vars = new HashMap<>();
         vars.put("template", "all");
 
-        TemplateQueryBuilder builder = new TemplateQueryBuilder(new Template(
-                "storedTemplate", ScriptService.ScriptType.FILE, null, null, vars));
+        TemplateQueryBuilder builder = new TemplateQueryBuilder("storedTemplate", ScriptService.ScriptType.FILE, vars);
         SearchResponse sr = client().prepareSearch().setQuery(builder)
                 .execute().actionGet();
         assertHitCount(sr, 2);
@@ -139,7 +133,7 @@ public class TemplateQueryTests extends ESIntegTestCase {
     public void testRawFSTemplate() throws IOException {
         Map<String, Object> params = new HashMap<>();
         params.put("template", "all");
-        TemplateQueryBuilder builder = new TemplateQueryBuilder(new Template("storedTemplate", ScriptType.FILE, null, null, params));
+        TemplateQueryBuilder builder = new TemplateQueryBuilder("storedTemplate", ScriptType.FILE, params);
         SearchResponse sr = client().prepareSearch().setQuery(builder).get();
         assertHitCount(sr, 2);
     }
@@ -411,8 +405,7 @@ public class TemplateQueryTests extends ESIntegTestCase {
         Map<String, Object> vars = new HashMap<>();
         vars.put("fieldParam", "bar");
 
-        TemplateQueryBuilder builder = new TemplateQueryBuilder(new Template(
-                "3", ScriptService.ScriptType.STORED, null, null, vars));
+        TemplateQueryBuilder builder = new TemplateQueryBuilder("3", ScriptService.ScriptType.STORED, vars);
         SearchResponse sr = client().prepareSearch().setQuery(builder)
                 .execute().actionGet();
         assertHitCount(sr, 1);
@@ -420,11 +413,11 @@ public class TemplateQueryTests extends ESIntegTestCase {
         // "{\"template\": {\"id\": \"3\",\"params\" : {\"fieldParam\" : \"foo\"}}}";
         Map<String, Object> params = new HashMap<>();
         params.put("fieldParam", "foo");
-        TemplateQueryBuilder templateQuery = new TemplateQueryBuilder(new Template("3", ScriptType.STORED, null, null, params));
+        TemplateQueryBuilder templateQuery = new TemplateQueryBuilder("3", ScriptType.STORED, params);
         sr = client().prepareSearch().setQuery(templateQuery).get();
         assertHitCount(sr, 4);
 
-        templateQuery = new TemplateQueryBuilder(new Template("/mustache/3", ScriptType.STORED, null, null, params));
+        templateQuery = new TemplateQueryBuilder("/mustache/3", ScriptType.STORED, params);
         sr = client().prepareSearch().setQuery(templateQuery).get();
         assertHitCount(sr, 4);
     }

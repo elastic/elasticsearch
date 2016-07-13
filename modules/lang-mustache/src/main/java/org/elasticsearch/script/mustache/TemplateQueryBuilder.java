@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.query;
+package org.elasticsearch.script.mustache;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
@@ -27,12 +27,21 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.Template;
+import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -45,20 +54,25 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     /** Template to fill. */
-    private final Template template;
+    private final Script template;
 
-    /**
-     * @param template
-     *            the template to use for that query.
-     * */
-    public TemplateQueryBuilder(Template template) {
+    public TemplateQueryBuilder(String template, ScriptService.ScriptType scriptType, Map<String, Object> params) {
+        this.template = new Script(template, scriptType, "mustache", params);
+    }
+
+    public TemplateQueryBuilder(String template, ScriptService.ScriptType scriptType, Map<String, Object> params, XContentType ct) {
+        this.template = new Script(template, scriptType, "mustache", params, ct);
+    }
+
+    // for tests, so that mock script can be used:
+    TemplateQueryBuilder(Script template) {
         if (template == null) {
             throw new IllegalArgumentException("query template cannot be null");
         }
         this.template = template;
     }
 
-    public Template template() {
+    public Script template() {
         return template;
     }
 
@@ -67,7 +81,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
      */
     public TemplateQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        template = new Template(in);
+        template = new Script(in);
     }
 
     @Override
@@ -125,7 +139,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
      */
     public static Optional<TemplateQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-        Template template =  Template.parse(parser, parseContext.getParseFieldMatcher());
+        Script template = Script.parse(parser, parseContext.getParseFieldMatcher(), "mustache");
         return Optional.of(new TemplateQueryBuilder(template));
     }
 }

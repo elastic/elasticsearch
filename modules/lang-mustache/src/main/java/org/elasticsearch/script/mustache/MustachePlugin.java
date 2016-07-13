@@ -37,6 +37,7 @@ import org.elasticsearch.rest.action.search.template.RestPutSearchTemplateAction
 import org.elasticsearch.rest.action.search.template.RestRenderSearchTemplateAction;
 import org.elasticsearch.rest.action.search.template.RestSearchTemplateAction;
 import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.search.SearchModule;
 
 import java.util.Arrays;
 import java.util.List;
@@ -52,6 +53,10 @@ public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin
     public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
         return Arrays.asList(new ActionHandler<>(SearchTemplateAction.INSTANCE, TransportSearchTemplateAction.class),
                 new ActionHandler<>(MultiSearchTemplateAction.INSTANCE, TransportMultiSearchTemplateAction.class));
+    }
+
+    public void onModule(SearchModule module) {
+        module.registerQuery(TemplateQueryBuilder::new, TemplateQueryBuilder::fromXContent, TemplateQueryBuilder.QUERY_NAME_FIELD);
     }
 
     @Override

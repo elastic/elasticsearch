@@ -18,13 +18,11 @@
  */
 package org.elasticsearch.rest.action.search.template;
 
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestGetStoredScriptAction;
-import org.elasticsearch.script.Template;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -40,7 +38,7 @@ public class RestGetSearchTemplateAction extends RestGetStoredScriptAction {
 
     @Override
     protected String getScriptLang(RestRequest request) {
-        return Template.DEFAULT_LANG;
+        return "mustache";
     }
 
     @Override

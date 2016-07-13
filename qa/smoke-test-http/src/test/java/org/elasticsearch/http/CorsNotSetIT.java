@@ -26,7 +26,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class CorsNotSetIT extends ESIntegTestCase {
+public class CorsNotSetIT extends HttpSmokeTestCase {
 
 
     public void testCorsSettingDefaultBehaviourDoesNotReturnAnything() throws Exception {

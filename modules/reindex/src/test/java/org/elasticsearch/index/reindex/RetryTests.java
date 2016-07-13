@@ -28,6 +28,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.Retry;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -35,11 +36,13 @@ import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.NettyPlugin;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
 
@@ -59,7 +62,19 @@ public class RetryTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(ReindexPlugin.class);
+        return pluginList(ReindexPlugin.class, NettyPlugin.class, BogusPlugin.class); // we need netty here to http communication
+    }
+
+    public static final class BogusPlugin extends Plugin {
+        // se NettyPlugin.... this runs without the permission from the netty module so it will fail since reindex can't set the property
+        // to make it still work we disable that check but need to register the setting first
+        private static final Setting<Boolean> ASSERT_NETTY_BUGLEVEL = Setting.boolSetting("netty.assert.buglevel", true,
+            Setting.Property.NodeScope);
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Collections.singletonList(ASSERT_NETTY_BUGLEVEL);
+        }
     }
 
     /**
@@ -69,6 +84,7 @@ public class RetryTests extends ESSingleNodeTestCase {
     protected Settings nodeSettings() {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings());
         // Use pools of size 1 so we can block them
+        settings.put("netty.assert.buglevel", false);
         settings.put("thread_pool.bulk.size", 1);
         settings.put("thread_pool.search.size", 1);
         // Use queues of size 1 because size 0 is broken and because search requests need the queue to function
@@ -188,7 +204,7 @@ public class RetryTests extends ESSingleNodeTestCase {
                 barrier.await();
                 logger.info("Blocked the [{}] executor", name);
                 barrier.await();
-                logger.info("Ublocking the [{}] executor", name);
+                logger.info("Unblocking the [{}] executor", name);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

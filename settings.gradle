@@ -24,6 +24,7 @@ List projects = [
   'modules:lang-groovy',
   'modules:lang-mustache',
   'modules:lang-painless',
+  'modules:transport-netty',
   'modules:reindex',
   'modules:percolator',
   'plugins:analysis-icu',

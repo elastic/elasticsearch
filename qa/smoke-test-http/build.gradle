@@ -18,3 +18,7 @@
  */
 
 apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+    testCompile project(path: ':modules:transport-netty', configuration: 'runtime') // for http
+}

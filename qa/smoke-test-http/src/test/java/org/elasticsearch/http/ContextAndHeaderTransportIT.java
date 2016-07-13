@@ -47,7 +47,6 @@ import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -74,7 +73,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = SUITE)
-public class ContextAndHeaderTransportIT extends ESIntegTestCase {
+public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
     private static final List<RequestAndHeaders> requests =  new CopyOnWriteArrayList<>();
     private String randomHeaderKey = randomAsciiOfLength(10);
     private String randomHeaderValue = randomAsciiOfLength(20);
@@ -96,7 +95,9 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(ActionLoggingPlugin.class);
+        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(ActionLoggingPlugin.class);
+        return plugins;
     }
 
     @Before

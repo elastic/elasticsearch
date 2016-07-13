@@ -25,12 +25,18 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.transport.MockTcpTransportPlugin;
+import org.elasticsearch.transport.NettyPlugin;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -41,6 +47,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -72,14 +80,34 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
     private static String clusterAddresses;
     protected String index;
 
-    private static Client startClient(Path tempDir, TransportAddress... transportAddresses) {
-        Settings clientSettings = Settings.builder()
-                .put("node.name", "qa_smoke_client_" + counter.getAndIncrement())
-                .put("client.transport.ignore_cluster_name", true)
-                .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
-                .put(Node.NODE_MODE_SETTING.getKey(), "network").build(); // we require network here!
+    public static final class BogusPlugin extends Plugin {
+        // se NettyPlugin.... this runs without the permission from the netty module so it will fail since reindex can't set the property
+        // to make it still work we disable that check but need to register the setting first
+        private static final Setting<Boolean> ASSERT_NETTY_BUGLEVEL = Setting.boolSetting("netty.assert.buglevel", true,
+            Setting.Property.NodeScope);
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Collections.singletonList(ASSERT_NETTY_BUGLEVEL);
+        }
+    }
 
-        TransportClient.Builder transportClientBuilder = TransportClient.builder().settings(clientSettings);
+    private static Client startClient(Path tempDir, TransportAddress... transportAddresses) {
+        TransportClient.Builder transportClientBuilder = TransportClient.builder();
+        Settings.Builder builder = Settings.builder()
+            .put("node.name", "qa_smoke_client_" + counter.getAndIncrement())
+            .put("client.transport.ignore_cluster_name", true)
+            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
+            .put(Node.NODE_MODE_SETTING.getKey(), "network");// we require network here!
+        if (random().nextBoolean()) {
+            builder.put(NetworkModule.TRANSPORT_TYPE_KEY, NettyPlugin.NETTY_TRANSPORT_NAME);
+            transportClientBuilder.addPlugin(NettyPlugin.class);
+            transportClientBuilder.addPlugin(BogusPlugin.class);
+            builder.put("netty.assert.buglevel", false); // see BogusPlugin
+        } else {
+            builder.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
+            transportClientBuilder.addPlugin(MockTcpTransportPlugin.class);
+        }
+        transportClientBuilder.settings(builder.build());
         TransportClient client = transportClientBuilder.build().addTransportAddresses(transportAddresses);
 
         logger.info("--> Elasticsearch Java TransportClient started");

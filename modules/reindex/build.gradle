@@ -42,6 +42,8 @@ dependencies {
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
+  // for http - testing reindex from remote
+  testCompile project(path: ':modules:transport-netty', configuration: 'runtime')
 }
 
 dependencyLicenses {

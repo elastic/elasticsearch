@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -36,6 +37,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.transport.MockTcpTransport;
+import org.elasticsearch.transport.MockTcpTransportPlugin;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -70,14 +73,22 @@ public final class ExternalTestCluster extends TestCluster {
 
     public ExternalTestCluster(Path tempDir, Settings additionalSettings, Collection<Class<? extends Plugin>> pluginClasses, TransportAddress... transportAddresses) {
         super(0);
-        Settings clientSettings = Settings.builder()
-                .put(additionalSettings)
-                .put("node.name", InternalTestCluster.TRANSPORT_CLIENT_PREFIX + EXTERNAL_CLUSTER_PREFIX + counter.getAndIncrement())
-                .put("client.transport.ignore_cluster_name", true)
-                .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
-                .put(Node.NODE_MODE_SETTING.getKey(), "network").build(); // we require network here!
-
-        TransportClient.Builder transportClientBuilder = TransportClient.builder().settings(clientSettings);
+        Settings.Builder clientSettingsBuilder = Settings.builder()
+            .put(additionalSettings)
+            .put("node.name", InternalTestCluster.TRANSPORT_CLIENT_PREFIX + EXTERNAL_CLUSTER_PREFIX + counter.getAndIncrement())
+            .put("client.transport.ignore_cluster_name", true)
+            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
+            .put(Node.NODE_MODE_SETTING.getKey(), "network");// we require network here!
+        TransportClient.Builder transportClientBuilder = TransportClient.builder();
+        boolean addMockTcpTransport = additionalSettings.get(NetworkModule.TRANSPORT_TYPE_KEY) == null;
+        if (addMockTcpTransport) {
+            clientSettingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
+            if (pluginClasses.contains(MockTcpTransportPlugin.class) == false) {
+                transportClientBuilder.addPlugin(MockTcpTransportPlugin.class);
+            }
+        }
+        Settings clientSettings = clientSettingsBuilder.build();
+        transportClientBuilder.settings(clientSettings);
         for (Class<? extends Plugin> pluginClass : pluginClasses) {
             transportClientBuilder.addPlugin(pluginClass);
         }

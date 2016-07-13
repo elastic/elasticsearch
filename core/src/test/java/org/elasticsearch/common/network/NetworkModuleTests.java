@@ -108,7 +108,9 @@ public class NetworkModuleTests extends ModuleTestCase {
     }
 
     public void testRegisterTransportService() {
-        Settings settings = Settings.builder().put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, "custom").build();
+        Settings settings = Settings.builder().put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, "custom")
+            .put(NetworkModule.HTTP_ENABLED.getKey(), false)
+            .build();
         NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry());
         module.registerTransportService("custom", FakeTransportService.class);
         assertBinding(module, TransportService.class, FakeTransportService.class);
@@ -122,7 +124,9 @@ public class NetworkModuleTests extends ModuleTestCase {
     }
 
     public void testRegisterTransport() {
-        Settings settings = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "custom").build();
+        Settings settings = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "custom")
+            .put(NetworkModule.HTTP_ENABLED.getKey(), false)
+            .build();
         NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, new NamedWriteableRegistry());
         module.registerTransport("custom", FakeTransport.class);
         assertBinding(module, Transport.class, FakeTransport.class);

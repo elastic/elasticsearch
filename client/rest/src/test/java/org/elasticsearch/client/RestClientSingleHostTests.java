@@ -102,7 +102,6 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                     @Override
                     public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
                         HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
-                        @SuppressWarnings("unchecked")
                         FutureCallback<HttpResponse> futureCallback = (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[2];
                         HttpUriRequest request = (HttpUriRequest)requestProducer.generateRequest();
                         //return the desired status code or exception depending on the path

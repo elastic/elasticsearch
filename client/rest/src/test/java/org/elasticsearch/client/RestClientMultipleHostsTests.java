@@ -79,7 +79,6 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
                 HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
                 HttpUriRequest request = (HttpUriRequest)requestProducer.generateRequest();
                 HttpHost httpHost = requestProducer.getTarget();
-                @SuppressWarnings("unchecked")
                 FutureCallback<HttpResponse> futureCallback = (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[2];
                 //return the desired status code or exception depending on the path
                 if (request.getURI().getPath().equals("/soe")) {

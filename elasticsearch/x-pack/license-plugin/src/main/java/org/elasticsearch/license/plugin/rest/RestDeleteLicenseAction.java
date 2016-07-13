@@ -24,7 +24,7 @@ public class RestDeleteLicenseAction extends XPackRestHandler {
     public RestDeleteLicenseAction(Settings settings, RestController controller) {
         super(settings);
         // @deprecated Remove deprecations in 6.0
-        controller.registerWithDeprecatedHandler(DELETE, URI_BASE + "/_license", this,
+        controller.registerWithDeprecatedHandler(DELETE, URI_BASE + "/license", this,
                                                  DELETE, "/_license", deprecationLogger);
 
         // Remove _licenses support entirely in 6.0

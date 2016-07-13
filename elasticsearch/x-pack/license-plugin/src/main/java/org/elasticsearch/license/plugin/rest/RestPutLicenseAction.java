@@ -31,9 +31,9 @@ public class RestPutLicenseAction extends XPackRestHandler {
     public RestPutLicenseAction(Settings settings, RestController controller) {
         super(settings);
         // @deprecated Remove deprecations in 6.0
-        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/_license", this,
+        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/license", this,
                                                  POST, "/_license", deprecationLogger);
-        controller.registerWithDeprecatedHandler(PUT, URI_BASE + "/_license", this,
+        controller.registerWithDeprecatedHandler(PUT, URI_BASE + "/license", this,
                                                  PUT, "/_license", deprecationLogger);
 
         // Remove _licenses support entirely in 6.0

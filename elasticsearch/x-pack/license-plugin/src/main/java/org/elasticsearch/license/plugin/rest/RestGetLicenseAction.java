@@ -35,7 +35,7 @@ public class RestGetLicenseAction extends XPackRestHandler {
     public RestGetLicenseAction(Settings settings, RestController controller) {
         super(settings);
         // @deprecated Remove deprecations in 6.0
-        controller.registerWithDeprecatedHandler(GET,  URI_BASE + "/_license", this,
+        controller.registerWithDeprecatedHandler(GET,  URI_BASE + "/license", this,
                                                  GET, "/_license", deprecationLogger);
 
         // Remove _licenses support entirely in 6.0

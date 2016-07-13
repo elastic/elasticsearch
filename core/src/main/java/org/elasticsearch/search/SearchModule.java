@@ -430,13 +430,6 @@ public class SearchModule extends AbstractModule {
         }
     }
 
-    public void registerAggregation(Writeable.Reader<? extends AggregationBuilder> builderReader, Aggregator.Parser aggregationParser,
-            ParseField aggregationName) {
-        // NORELEASE remove me in favor of the above method
-        namedWriteableRegistry.register(AggregationBuilder.class, aggregationName.getPreferredName(), builderReader);
-        aggregationParserRegistry.register(aggregationParser, aggregationName);
-    }
-
     /**
      * Register a pipeline aggregation.
      *

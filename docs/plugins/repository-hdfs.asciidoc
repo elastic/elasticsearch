@@ -66,6 +66,7 @@ PUT _snapshot/my_hdfs_repository
 
 The following settings are supported:
 
+[horizontal]
 `uri`::
 
     The uri address for hdfs. ex: "hdfs://<host>:<port>/". (Required)

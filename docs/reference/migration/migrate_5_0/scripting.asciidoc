@@ -143,8 +143,9 @@ and instead the following syntax should be used:
         }
     }
 }
+-----------------------------------
 
-==== Search templates:
+==== Search templates
 
 The top level `template` field in the search template api has been replaced with consistent template / script object
 syntax. This 1.x syntax can no longer be used:

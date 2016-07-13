@@ -38,10 +38,8 @@ public class DiscoveryModuleTests extends ModuleTestCase {
         }
     }
 
-
     public void testRegisterMasterElectionService() {
-        Settings settings = Settings.builder().put(Node.NODE_LOCAL_SETTING.getKey(), false).
-                put(DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_SETTING.getKey(), "custom").build();
+        Settings settings = Settings.builder().put(DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_SETTING.getKey(), "custom").build();
         DiscoveryModule module = new DiscoveryModule(settings);
         module.addElectMasterService("custom", DummyMasterElectionService.class);
         assertBinding(module, ElectMasterService.class, DummyMasterElectionService.class);
@@ -49,24 +47,20 @@ public class DiscoveryModuleTests extends ModuleTestCase {
     }
 
     public void testLoadUnregisteredMasterElectionService() {
-        Settings settings = Settings.builder().put(Node.NODE_LOCAL_SETTING.getKey(), false).
-                put(DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_SETTING.getKey(), "foobar").build();
+        Settings settings = Settings.builder().put(DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_SETTING.getKey(), "foobar").build();
         DiscoveryModule module = new DiscoveryModule(settings);
         module.addElectMasterService("custom", DummyMasterElectionService.class);
         assertBindingFailure(module, "Unknown master service type [foobar]");
     }
 
     public void testRegisterDefaults() {
-        boolean local = randomBoolean();
-        Settings settings = Settings.builder().put(Node.NODE_LOCAL_SETTING.getKey(), local).build();
+        Settings settings = Settings.EMPTY;
         DiscoveryModule module = new DiscoveryModule(settings);
-        assertBinding(module, Discovery.class, local ? LocalDiscovery.class : ZenDiscovery.class);
+        assertBinding(module, Discovery.class, ZenDiscovery.class);
     }
 
     public void testRegisterDiscovery() {
-        boolean local = randomBoolean();
-        Settings settings = Settings.builder().put(Node.NODE_LOCAL_SETTING.getKey(), local).
-                put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "custom").build();
+        Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "custom").build();
         DiscoveryModule module = new DiscoveryModule(settings);
         module.addDiscoveryType("custom", NoopDiscovery.class);
         assertBinding(module, Discovery.class, NoopDiscovery.class);

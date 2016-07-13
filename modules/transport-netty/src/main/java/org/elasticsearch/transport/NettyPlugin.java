@@ -85,6 +85,13 @@ public class NettyPlugin extends Plugin {
         );
     }
 
+    @Override
+    public Settings additionalSettings() {
+        return Settings.builder().put(super.additionalSettings())
+            .put(NetworkModule.HTTP_DEFAULT_TYPE_SETTING.getKey(), NETTY_HTTP_TRANSPORT_NAME)
+            .put(NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.getKey(), NETTY_TRANSPORT_NAME).build();
+    }
+
     public void onModule(NetworkModule networkModule) {
         if (networkModule.canRegisterHttpExtensions()) {
             networkModule.registerHttpTransport(NETTY_HTTP_TRANSPORT_NAME, NettyHttpServerTransport.class);

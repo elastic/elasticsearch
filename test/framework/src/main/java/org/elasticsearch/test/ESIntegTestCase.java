@@ -28,6 +28,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -1724,37 +1725,53 @@ public abstract class ESIntegTestCase extends ESTestCase {
             maxNumDataNodes = getMaxNumDataNodes();
         }
         Collection<Class<? extends Plugin>> mockPlugins = getMockPlugins();
-        Tuple<String, NodeConfigurationSource> configSource = getNodeConfigSource();
-        final String nodeMode = configSource.v1();
-        final NodeConfigurationSource nodeConfigurationSource = configSource.v2();
-        return new InternalTestCluster(nodeMode, seed, createTempDir(), supportsDedicatedMasters, minNumDataNodes, maxNumDataNodes,
+        final NodeConfigurationSource nodeConfigurationSource = getNodeConfigSource();
+        if (addMockTransportService()) {
+            ArrayList<Class<? extends Plugin>> mocks = new ArrayList<>(mockPlugins);
+            // add both mock plugins - local and tcp if they are not there
+            // we do this in case somebody overrides getMockPlugins and misses to call super
+            if (mockPlugins.contains(AssertingLocalTransport.TestPlugin.class) == false) {
+                mocks.add(AssertingLocalTransport.TestPlugin.class);
+            }
+            if (mockPlugins.contains(MockTcpTransportPlugin.class) == false) {
+                mocks.add(MockTcpTransportPlugin.class);
+            }
+            mockPlugins = mocks;
+        }
+        return new InternalTestCluster(seed, createTempDir(), supportsDedicatedMasters, minNumDataNodes, maxNumDataNodes,
                 InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", nodeConfigurationSource, getNumClientNodes(),
                 InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix, mockPlugins, getClientWrapper());
     }
 
-    protected Tuple<String, NodeConfigurationSource> getNodeConfigSource() {
+    protected NodeConfigurationSource getNodeConfigSource() {
         SuppressLocalMode noLocal = getAnnotation(this.getClass(), SuppressLocalMode.class);
         SuppressNetworkMode noNetwork = getAnnotation(this.getClass(), SuppressNetworkMode.class);
-        String nodeMode = InternalTestCluster.configuredNodeMode();
         Settings.Builder networkSettings = Settings.builder();
+        final boolean isNetwork;
         if (noLocal != null && noNetwork != null) {
             throw new IllegalStateException("Can't suppress both network and local mode");
         } else if (noLocal != null) {
-            nodeMode = "network";
             if (addMockTransportService()) {
                 networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
             }
-        } else if (noNetwork != null) {
-            nodeMode = "local";
+            isNetwork = true;
+        } else {
             if (addMockTransportService()) {
                 networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, AssertingLocalTransport.ASSERTING_TRANSPORT_NAME);
+            } else {
+                networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, "local");
             }
+            isNetwork = false;
         }
-        final boolean isNetwork = "network".equals(nodeMode);
+
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
-                return Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).put(networkSettings.build()).
+                return Settings.builder()
+                    .put(NetworkModule.HTTP_ENABLED.getKey(), false)
+                    .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(),
+                        isNetwork ? DiscoveryModule.DISCOVERY_TYPE_SETTING.getDefault(Settings.EMPTY) : "local")
+                    .put(networkSettings.build()).
                     put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
             }
 
@@ -1775,11 +1792,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 if (isNetwork && plugins.contains(MockTcpTransportPlugin.class) == false) {
                     plugins = new ArrayList<>(plugins);
                     plugins.add(MockTcpTransportPlugin.class);
+                } else if (isNetwork == false && plugins.contains(AssertingLocalTransport.class) == false) {
+                    plugins = new ArrayList<>(plugins);
+                    plugins.add(AssertingLocalTransport.TestPlugin.class);
                 }
                 return Collections.unmodifiableCollection(plugins);
             }
         };
-        return new Tuple<>(nodeMode, nodeConfigurationSource);
+        return nodeConfigurationSource;
     }
 
     /**
@@ -1819,12 +1839,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 mocks.add(MockSearchService.TestPlugin.class);
             }
         }
-        mocks.add(TestSeedPlugin.class);
+
         if (addMockTransportService()) {
-            // add both mock plugins - local and tcp
             mocks.add(AssertingLocalTransport.TestPlugin.class);
             mocks.add(MockTcpTransportPlugin.class);
         }
+        mocks.add(TestSeedPlugin.class);
         return Collections.unmodifiableList(mocks);
     }
 

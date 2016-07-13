@@ -60,6 +60,11 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
         return pluginList(CustomSuggesterPlugin.class);
     }
 
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return pluginList(CustomSuggesterPlugin.class);
+    }
+
     public void testThatCustomSuggestersCanBeRegisteredAndWork() throws Exception {
         createIndex("test");
         client().prepareIndex("test", "test", "1").setSource(jsonBuilder()

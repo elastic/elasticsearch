@@ -44,6 +44,11 @@ public class CustomQueryParserIT extends ESIntegTestCase {
     }
 
     @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return pluginList(DummyQueryParserPlugin.class);
+    }
+
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();

@@ -72,7 +72,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * sending a request, a host gets selected out of the provided ones in a round-robin fashion. Failing hosts are marked dead and
  * retried after a certain amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times they previously
  * failed (the more failures, the later they will be retried). In case of failures all of the alive nodes (or dead nodes that
- * deserve a retry) are retried till one responds or none of them does, in which case an {@link IOException} will be thrown.
+ * deserve a retry) are retried until one responds or none of them does, in which case an {@link IOException} will be thrown.
  *
  * Requests can be traced by enabling trace logging for "tracer". The trace logger outputs requests and responses in curl format.
  */
@@ -150,11 +150,11 @@ public final class RestClient implements Closeable {
     }
 
     /**
-     * Sends a request to the elasticsearch cluster that the current client points to. Blocks till the request is completed and returns
+     * Sends a request to the elasticsearch cluster that the current client points to. Blocks until the request is completed and returns
      * its response of fails by throwing an exception. Selects a host out of the provided ones in a round-robin fashion. Failing hosts
      * are marked dead and retried after a certain amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times
      * they previously failed (the more failures, the later they will be retried). In case of failures all of the alive nodes (or dead
-     * nodes that deserve a retry) are retried till one responds or none of them does, in which case an {@link IOException} will be thrown.
+     * nodes that deserve a retry) are retried until one responds or none of them does, in which case an {@link IOException} will be thrown.
      *
      * @param method the http method
      * @param endpoint the path of the request (without host and port)
@@ -207,7 +207,6 @@ public final class RestClient implements Closeable {
     }
 
     /**
-     /**
      * Sends a request to the elasticsearch cluster that the current client points to.
      * Shortcut to {@link #performRequest(String, String, Map, HttpEntity, HttpAsyncResponseConsumer, ResponseListener, Header...)}
      * but without an async response consumer, meaning that a {@link org.apache.http.nio.protocol.BasicAsyncResponseConsumer}
@@ -232,7 +231,7 @@ public final class RestClient implements Closeable {
      * Selects a host out of the provided ones in a round-robin fashion. Failing hosts are marked dead and retried after a certain
      * amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times they previously failed (the more failures,
      * the later they will be retried). In case of failures all of the alive nodes (or dead nodes that deserve a retry) are retried
-     * till one responds or none of them does, in which case an {@link IOException} will be thrown.
+     * until one responds or none of them does, in which case an {@link IOException} will be thrown.
      *
      * @param method the http method
      * @param endpoint the path of the request (without host and port)
@@ -336,7 +335,7 @@ public final class RestClient implements Closeable {
     /**
      * Returns an iterator of hosts to be used for a request call.
      * Ideally, the first host is retrieved from the iterator and used successfully for the request.
-     * Otherwise, after each failure the next host should be retrieved from the iterator so that the request can be retried till
+     * Otherwise, after each failure the next host should be retrieved from the iterator so that the request can be retried until
      * the iterator is exhausted. The maximum total of attempts is equal to the number of hosts that are available in the iterator.
      * The iterator returned will never be empty, rather an {@link IllegalStateException} in case there are no hosts.
      * In case there are no healthy hosts available, or dead ones to be be retried, one dead host gets returned.

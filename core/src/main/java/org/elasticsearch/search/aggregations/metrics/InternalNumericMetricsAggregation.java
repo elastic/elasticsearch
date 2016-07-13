@@ -37,7 +37,7 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
 
     public abstract static class SingleValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.SingleValue {
 
-        protected SingleValue() {}
+        protected SingleValue() {} // NORELEASE remove when we remove Streamable
 
         protected SingleValue(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
             super(name, pipelineAggregators, metaData);
@@ -101,7 +101,7 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
         }
     }
 
-    private InternalNumericMetricsAggregation() {} // for serialization
+    private InternalNumericMetricsAggregation() {} // NORELEASE remove when we remove Streamable
 
     private InternalNumericMetricsAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);

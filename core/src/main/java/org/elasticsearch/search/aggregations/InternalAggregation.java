@@ -81,7 +81,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
 
         /**
          * @return  The name of the stream type (used for registering the aggregation stream
-         *          (see {@link AggregationStreams#registerStream(AggregationStreams.Stream, org.elasticsearch.common.bytes.BytesReference...)}).
+         *          (see {@link AggregationStreams#registerStream(AggregationStreams.Stream, BytesReference...)}).
          */
         public BytesReference stream() {
             return stream;
@@ -196,7 +196,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);    // NORELEASE remote writing the name? it is automatically handled with writeNamedWriteable
+        out.writeString(name);
         out.writeGenericValue(metaData);
         out.writeVInt(pipelineAggregators.size());
         for (PipelineAggregator pipelineAggregator : pipelineAggregators) {

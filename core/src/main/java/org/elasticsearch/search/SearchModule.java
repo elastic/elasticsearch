@@ -442,7 +442,7 @@ public class SearchModule extends AbstractModule {
      *
      * @param reader reads the aggregation builder from a stream
      * @param internalReader reads the {@link PipelineAggregator} from a stream
-     * @param internalReader reads the {@link InternalAggregation} that represents a bucket in this aggregation from a stream
+     * @param bucketReader reads the {@link InternalAggregation} that represents a bucket in this aggregation from a stream
      * @param aggregationParser reads the aggregation builder from XContent
      * @param aggregationName names by which the aggregation may be parsed. The first name is special because it is the name that the reader
      *        is registered under.
@@ -562,8 +562,8 @@ public class SearchModule extends AbstractModule {
         registerAggregation(new AggregationSpec(ChildrenAggregationBuilder::new, ChildrenAggregationBuilder::parse,
                 ChildrenAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalChildren::new));
 
-        registerPipelineAggregation(DerivativePipelineAggregationBuilder::new, DerivativePipelineAggregationBuilder::parse,
-                DerivativePipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerPipelineAggregation(DerivativePipelineAggregationBuilder::new, DerivativePipelineAggregator::new, InternalDerivative::new,
+                DerivativePipelineAggregationBuilder::parse, DerivativePipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerPipelineAggregation(MaxBucketPipelineAggregationBuilder::new, MaxBucketPipelineAggregationBuilder.PARSER,
                 MaxBucketPipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerPipelineAggregation(MinBucketPipelineAggregationBuilder::new, MinBucketPipelineAggregationBuilder.PARSER,
@@ -825,8 +825,6 @@ public class SearchModule extends AbstractModule {
 
     static {
         // Pipeline Aggregations
-        DerivativePipelineAggregator.registerStreams();
-        InternalDerivative.registerStreams();
         InternalSimpleValue.registerStreams();
         InternalBucketMetricValue.registerStreams();
         MaxBucketPipelineAggregator.registerStreams();

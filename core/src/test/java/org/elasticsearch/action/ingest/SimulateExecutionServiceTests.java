@@ -160,7 +160,24 @@ public class SimulateExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecuteVerboseItemExceptionWithIgnoreFailure() throws Exception {
-        TestProcessor testProcessor = new TestProcessor("processor_0", "mock", ingestDocument -> { throw new RuntimeException("processor failed"); });
+        RuntimeException exception = new RuntimeException("processor failed");
+        TestProcessor testProcessor = new TestProcessor("processor_0", "mock", ingestDocument -> { throw exception; });
+        CompoundProcessor processor = new CompoundProcessor(true, Collections.singletonList(testProcessor), Collections.emptyList());
+        Pipeline pipeline = new Pipeline("_id", "_description", new CompoundProcessor(processor));
+        SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, true);
+        assertThat(testProcessor.getInvokedCounter(), equalTo(1));
+        assertThat(actualItemResponse, instanceOf(SimulateDocumentVerboseResult.class));
+        SimulateDocumentVerboseResult simulateDocumentVerboseResult = (SimulateDocumentVerboseResult) actualItemResponse;
+        assertThat(simulateDocumentVerboseResult.getProcessorResults().size(), equalTo(1));
+        assertThat(simulateDocumentVerboseResult.getProcessorResults().get(0).getProcessorTag(), equalTo("processor_0"));
+        assertThat(simulateDocumentVerboseResult.getProcessorResults().get(0).getFailure(), sameInstance(exception));
+        assertThat(simulateDocumentVerboseResult.getProcessorResults().get(0).getIngestDocument(), not(sameInstance(ingestDocument)));
+        assertIngestDocument(simulateDocumentVerboseResult.getProcessorResults().get(0).getIngestDocument(), ingestDocument);
+        assertThat(simulateDocumentVerboseResult.getProcessorResults().get(0).getIngestDocument().getSourceAndMetadata(), not(sameInstance(ingestDocument.getSourceAndMetadata())));
+    }
+
+    public void testExecuteVerboseItemWithoutExceptionAndWithIgnoreFailure() throws Exception {
+        TestProcessor testProcessor = new TestProcessor("processor_0", "mock", ingestDocument -> { });
         CompoundProcessor processor = new CompoundProcessor(true, Collections.singletonList(testProcessor), Collections.emptyList());
         Pipeline pipeline = new Pipeline("_id", "_description", new CompoundProcessor(processor));
         SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, true);

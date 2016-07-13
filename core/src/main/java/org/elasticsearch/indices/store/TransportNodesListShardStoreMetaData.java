@@ -150,7 +150,10 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
             if (shardPath == null) {
                 return new StoreFilesMetaData(shardId, Store.MetadataSnapshot.EMPTY);
             }
-            return new StoreFilesMetaData(shardId, Store.readMetadataSnapshot(shardPath.resolveIndex(), shardId, logger));
+            // note that this may fail if it can't get access to the shard lock. Since we check above there is an active shard, this means:
+            // 1) a shard is being constructed, which means the master will not use a copy of this replcia
+            return new StoreFilesMetaData(shardId, Store.readMetadataSnapshot(shardPath.resolveIndex(), shardId,
+                nodeEnv::shardLock, logger));
         } finally {
             TimeValue took = new TimeValue(System.nanoTime() - startTimeNS, TimeUnit.NANOSECONDS);
             if (exists) {

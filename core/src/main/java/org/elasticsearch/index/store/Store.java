@@ -88,6 +88,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.zip.CRC32;
@@ -403,8 +404,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @throws IOException if the index we try to read is corrupted
      */
-    public static MetadataSnapshot readMetadataSnapshot(Path indexLocation, ShardId shardId, ESLogger logger) throws IOException {
-        try (Directory dir = new SimpleFSDirectory(indexLocation)) {
+    public static MetadataSnapshot readMetadataSnapshot(Path indexLocation, ShardId shardId, ShardLocker shardLocker,
+                                                        ESLogger logger) throws IOException {
+        try (ShardLock lock = shardLocker.lock(shardId, TimeUnit.SECONDS.toMillis(5));
+             Directory dir = new SimpleFSDirectory(indexLocation)) {
             failIfCorrupted(dir, shardId);
             return new MetadataSnapshot(null, dir, logger);
         } catch (IndexNotFoundException ex) {
@@ -420,9 +423,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * can be successfully opened. This includes reading the segment infos and possible
      * corruption markers.
      */
-    public static boolean canOpenIndex(ESLogger logger, Path indexLocation, ShardId shardId) throws IOException {
+    public static boolean canOpenIndex(ESLogger logger, Path indexLocation, ShardId shardId, ShardLocker shardLocker) throws IOException {
         try {
-            tryOpenIndex(indexLocation, shardId, logger);
+            tryOpenIndex(indexLocation, shardId, shardLocker, logger);
         } catch (Exception ex) {
             logger.trace("Can't open index for path [{}]", ex, indexLocation);
             return false;
@@ -435,8 +438,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * segment infos and possible corruption markers. If the index can not
      * be opened, an exception is thrown
      */
-    public static void tryOpenIndex(Path indexLocation, ShardId shardId, ESLogger logger) throws IOException {
-        try (Directory dir = new SimpleFSDirectory(indexLocation)) {
+    public static void tryOpenIndex(Path indexLocation, ShardId shardId, ShardLocker shardLocker, ESLogger logger) throws IOException {
+        try (ShardLock lock = shardLocker.lock(shardId, TimeUnit.SECONDS.toMillis(5));
+             Directory dir = new SimpleFSDirectory(indexLocation)) {
             failIfCorrupted(dir, shardId);
             SegmentInfos segInfo = Lucene.readSegmentInfos(dir);
             logger.trace("{} loaded segment info [{}]", shardId, segInfo);
@@ -1398,4 +1402,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
+    /**
+     * A shard lock supplier that is used by the static methods on this class. Normal methods rely on
+     * the shard lock passed to the constructor.
+     */
+    @FunctionalInterface
+    public interface ShardLocker {
+
+        ShardLock lock(ShardId shardId, long lockTimeoutMS) throws IOException;
+    }
 }

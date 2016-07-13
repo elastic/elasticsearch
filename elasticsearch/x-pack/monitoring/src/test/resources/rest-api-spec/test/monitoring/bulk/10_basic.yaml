@@ -10,6 +10,7 @@ setup:
       cluster.health:
           index: ".monitoring-data-*"
           wait_for_active_shards: 1
+          timeout: 60s
 
 ---
 "Bulk indexing of monitoring data":

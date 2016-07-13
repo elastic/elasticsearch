@@ -25,14 +25,12 @@ import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
-import org.apache.http.client.methods.CloseableHttpResponse;
 
 import java.util.Objects;
 
 /**
- * Holds an elasticsearch response. It wraps the {@link CloseableHttpResponse} response and associates it with
+ * Holds an elasticsearch response. It wraps the {@link HttpResponse} returned and associates it with
  * its corresponding {@link RequestLine} and {@link HttpHost}.
- * It must be closed to free any resource held by it, as well as the corresponding connection in the connection pool.
  */
 public class Response {
 

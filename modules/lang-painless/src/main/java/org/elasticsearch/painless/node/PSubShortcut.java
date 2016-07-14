@@ -19,8 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
+import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -86,7 +88,7 @@ final class PSubShortcut extends AStoreable {
     }
 
     @Override
-    boolean isDefLink() {
+    boolean updateActual(Type actual) {
         return false;
     }
 

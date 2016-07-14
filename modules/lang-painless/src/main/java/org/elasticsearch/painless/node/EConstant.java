@@ -43,7 +43,7 @@ final class EConstant extends AExpression {
 
     @Override
     void extractVariables(Set<String> variables) {
-        // Do nothing.
+        throw new IllegalStateException("Illegal tree structure.");
     }
 
     @Override

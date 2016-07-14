@@ -375,22 +375,19 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitPostfix(PainlessParser.PostfixContext ctx);
   /**
-   * Visit a parse tree produced by the {@code callinvoke}
-   * labeled alternative in {@link PainlessParser#dot}.
+   * Visit a parse tree produced by {@link PainlessParser#callinvoke}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitCallinvoke(PainlessParser.CallinvokeContext ctx);
   /**
-   * Visit a parse tree produced by the {@code fieldaccess}
-   * labeled alternative in {@link PainlessParser#dot}.
+   * Visit a parse tree produced by {@link PainlessParser#fieldaccess}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitFieldaccess(PainlessParser.FieldaccessContext ctx);
   /**
-   * Visit a parse tree produced by the {@code braceaccess}
-   * labeled alternative in {@link PainlessParser#brace}.
+   * Visit a parse tree produced by {@link PainlessParser#braceaccess}.
    * @param ctx the parse tree
    * @return the visitor result
    */

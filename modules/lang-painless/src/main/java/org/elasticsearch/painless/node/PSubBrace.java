@@ -20,64 +20,76 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Locals;
-import org.objectweb.asm.Type;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Objects;
 import java.util.Set;
 
-import org.elasticsearch.painless.MethodWriter;
-
 /**
- * Represents an array load/store or shortcut on a def type.  (Internal only.)
+ * Represents an array load/store.
  */
-final class LDefArray extends ALink implements IDefLink {
+final class PSubBrace extends AStoreable {
 
+    final Type type;
     AExpression index;
 
-    LDefArray(Location location, AExpression index) {
-        super(location, 2);
+    PSubBrace(Location location, Type type, AExpression index) {
+        super(location);
 
+        this.type = Objects.requireNonNull(type);
         this.index = Objects.requireNonNull(index);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         index.extractVariables(variables);
     }
 
     @Override
-    ALink analyze(Locals locals) {
+    void analyze(Locals locals) {
+        index.expected = Definition.INT_TYPE;
         index.analyze(locals);
-        index.expected = index.actual;
         index = index.cast(locals);
 
-        after = Definition.DEF_TYPE;
-
-        return this;
+        actual = Definition.getType(type.struct, type.dimensions - 1);
     }
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        if (!store) {
+            prestore(writer, globals);
+            load(writer, globals);
+        }
+    }
+
+    @Override
+    int size() {
+        return 2;
+    }
+
+    @Override
+    boolean updateActual(Type actual) {
+        return false;
+    }
+
+    @Override
+    void prestore(MethodWriter writer, Globals globals) {
         index.write(writer, globals);
     }
 
     @Override
     void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
-
-        Type methodType = Type.getMethodType(after.type, Definition.DEF_TYPE.type, index.actual.type);
-        writer.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD);
+        writer.arrayLoad(actual.type);
     }
 
     @Override
     void store(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
-
-        Type methodType = Type.getMethodType(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, index.actual.type, after.type);
-        writer.invokeDefCall("arrayStore", methodType, DefBootstrap.ARRAY_STORE);
+        writer.arrayStore(actual.type);
     }
 }

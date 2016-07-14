@@ -28,6 +28,8 @@ import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
 
+import java.util.Objects;
+
 /**
  * The superclass for all E* (expression) nodes.
  */
@@ -116,7 +118,7 @@ public abstract class AExpression extends ANode {
     protected AExpression(Location location, AExpression prefix) {
         super(location);
 
-        this.prefix = prefix;
+        this.prefix = Objects.requireNonNull(prefix);
     }
 
     /**

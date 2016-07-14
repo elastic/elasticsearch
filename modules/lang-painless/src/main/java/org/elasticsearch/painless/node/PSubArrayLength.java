@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Locals;
@@ -73,7 +74,7 @@ final class PSubArrayLength extends AStoreable {
     }
 
     @Override
-    boolean isDefLink() {
+    boolean updateActual(Type actual) {
         throw new IllegalStateException("Illegal tree structure.");
     }
 

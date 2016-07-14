@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -46,11 +47,11 @@ public abstract class AStoreable extends AExpression {
     abstract int size();
 
     /**
-     * Returns whether or not this node or a sub-node of this node is an
-     * {@link IDefLink}.  This is used for an optimization during assignment
-     * to def type targets.
+     * If this node or a sub-node of this node uses dynamic calls then
+     * actual will be set to this value.  Returns true if actual was updated.
+     * This is used for an optimization during assignment to def type targets.
      */
-    abstract boolean isDefLink();
+    abstract boolean updateActual(Type actual);
 
     /**
      * Called before a storeable node is loaded or stored used to push load/store

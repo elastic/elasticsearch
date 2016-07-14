@@ -35,20 +35,21 @@ import java.util.Set;
 /**
  * Represents a method call made on a def type. (Internal only.)
  */
-final class LDefCall extends ALink implements IDefLink {
+final class PSubDefCall extends AExpression {
 
     final String name;
     final List<AExpression> arguments;
-    StringBuilder recipe;
+
+    StringBuilder recipe = null;
     List<String> pointers = new ArrayList<>();
 
-    LDefCall(Location location, String name, List<AExpression> arguments) {
-        super(location, -1);
+    PSubDefCall(Location location, String name, List<AExpression> arguments) {
+        super(location);
 
         this.name = Objects.requireNonNull(name);
         this.arguments = Objects.requireNonNull(arguments);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         for (AExpression argument : arguments) {
@@ -57,9 +58,10 @@ final class LDefCall extends ALink implements IDefLink {
     }
 
     @Override
-    ALink analyze(Locals locals) {
+    void analyze(Locals locals) {
         recipe = new StringBuilder();
         int totalCaptures = 0;
+
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
@@ -79,19 +81,11 @@ final class LDefCall extends ALink implements IDefLink {
             arguments.set(argument, expression.cast(locals));
         }
 
-        statement = true;
-        after = Definition.DEF_TYPE;
-
-        return this;
+        actual = expected == null ? Definition.DEF_TYPE : expected;
     }
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        // Do nothing.
-    }
-
-    @Override
-    void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
         List<Type> parameterTypes = new ArrayList<>();
@@ -102,8 +96,10 @@ final class LDefCall extends ALink implements IDefLink {
         // append each argument
         for (AExpression argument : arguments) {
             parameterTypes.add(argument.actual.type);
+
             if (argument instanceof ILambda) {
                 ILambda lambda = (ILambda) argument;
+
                 for (Type capture : lambda.getCaptures()) {
                     parameterTypes.add(capture);
                 }
@@ -112,16 +108,11 @@ final class LDefCall extends ALink implements IDefLink {
         }
 
         // create method type from return value and arguments
-        Type methodType = Type.getMethodType(after.type, parameterTypes.toArray(new Type[0]));
+        Type methodType = Type.getMethodType(actual.type, parameterTypes.toArray(new Type[0]));
 
         List<Object> args = new ArrayList<>();
         args.add(recipe.toString());
         args.addAll(pointers);
         writer.invokeDefCall(name, methodType, DefBootstrap.METHOD_CALL, args.toArray());
-    }
-
-    @Override
-    void store(MethodWriter writer, Globals globals) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

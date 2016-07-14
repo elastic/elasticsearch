@@ -34,7 +34,7 @@ import org.elasticsearch.painless.MethodWriter;
 /**
  * Represents a field load/store or shortcut on a def type.  (Internal only.)
  */
-final class PSubDefField extends AStoreable implements IDefLink {
+final class PSubDefField extends AStoreable {
 
     final String value;
 
@@ -65,7 +65,9 @@ final class PSubDefField extends AStoreable implements IDefLink {
     }
 
     @Override
-    boolean isDefLink() {
+    boolean updateActual(Definition.Type actual) {
+        this.actual = actual;
+
         return true;
     }
 

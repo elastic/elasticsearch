@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Globals;
@@ -73,7 +74,7 @@ public final class EVariable extends AStoreable {
     }
 
     @Override
-    boolean isDefLink() {
+    boolean updateActual(Type actual) {
         return false;
     }
 

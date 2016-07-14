@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Struct;
+import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Method;
@@ -96,7 +97,7 @@ final class PSubMapShortcut extends AStoreable {
     }
 
     @Override
-    boolean isDefLink() {
+    boolean updateActual(Type actual) {
         return false;
     }
 

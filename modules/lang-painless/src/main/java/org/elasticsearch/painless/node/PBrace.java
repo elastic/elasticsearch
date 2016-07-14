@@ -19,14 +19,10 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -36,23 +32,24 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Represents a field load/store or defers to a possible shortcuts.
+ * Represents an array load/store or defers to possible shortcuts.
  */
-public final class PField extends AStoreable {
+public final class PBrace extends AStoreable {
 
-    final String value;
+    AExpression index;
 
     AStoreable sub = null;
 
-    public PField(Location location, AExpression prefix, String value) {
+    public PBrace(Location location, AExpression prefix, AExpression index) {
         super(location, prefix);
 
-        this.value = Objects.requireNonNull(value);
+        this.index = Objects.requireNonNull(index);
     }
 
     @Override
     void extractVariables(Set<String> variables) {
         prefix.extractVariables(variables);
+        index.extractVariables(variables);
     }
 
     @Override
@@ -64,46 +61,15 @@ public final class PField extends AStoreable {
         Sort sort = prefix.actual.sort;
 
         if (sort == Sort.ARRAY) {
-            sub = new PSubArrayLength(location,prefix.actual.name, value);
+            sub = new PSubBrace(location, prefix.actual, index);
         } else if (sort == Sort.DEF) {
-            sub = new PSubDefField(location, value);
+            sub = new PSubDefArray(location, index);
+        } else if (Map.class.isAssignableFrom(prefix.actual.clazz)) {
+            sub = new PSubMapShortcut(location, prefix.actual.struct, index);
+        } else if (List.class.isAssignableFrom(prefix.actual.clazz)) {
+            sub = new PSubListShortcut(location, prefix.actual.struct, index);
         } else {
-            Struct struct = prefix.actual.struct;
-            Field field = prefix instanceof EStatic ? struct.staticMembers.get(value) : struct.members.get(value);
-
-            if (field != null) {
-                sub = new PSubField(location, field);
-            } else {
-                Method getter = struct.methods.get(
-                    new Definition.MethodKey("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
-
-                if (getter == null) {
-                    getter = struct.methods.get(
-                        new Definition.MethodKey("is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
-                }
-
-                Method setter = struct.methods.get(
-                    new Definition.MethodKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
-
-                if (getter != null || setter != null) {
-                    sub = new PSubShortcut(location, value, prefix.actual.name, getter, setter);
-                } else {
-                    EConstant index = new EConstant(location, value);
-                    index.analyze(locals);
-
-                    if (Map.class.isAssignableFrom(prefix.actual.clazz)) {
-                        sub = new PSubMapShortcut(location, struct, index);
-                    }
-
-                    if (List.class.isAssignableFrom(prefix.actual.clazz)) {
-                        sub = new PSubListShortcut(location, struct, index);
-                    }
-                }
-            }
-        }
-
-        if (sub == null) {
-            throw createError(new IllegalArgumentException("Unknown field [" + value + "] for type [" + prefix.actual.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal array access on type [" + prefix.actual.name + "]."));
         }
 
         sub.store = store;

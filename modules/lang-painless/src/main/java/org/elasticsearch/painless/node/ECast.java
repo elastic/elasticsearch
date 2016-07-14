@@ -47,10 +47,10 @@ final class ECast extends AExpression {
         this.child = Objects.requireNonNull(child);
         this.cast = Objects.requireNonNull(cast);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
-        child.extractVariables(variables);
+        throw new IllegalStateException("Illegal tree structure.");
     }
 
     @Override

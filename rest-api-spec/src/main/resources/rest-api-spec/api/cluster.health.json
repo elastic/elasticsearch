@@ -38,6 +38,11 @@
           "type" : "string",
           "description" : "Wait until the specified number of nodes is available"
         },
+        "wait_for_events": {
+          "type" : "enum",
+          "options" : ["immediate", "urgent", "high", "normal", "low", "languid"],
+          "description" : "Wait until all currently queued events with the given priorty are processed"
+        },
         "wait_for_relocating_shards": {
           "type" : "number",
           "description" : "Wait until the specified number of relocating shards is finished"

@@ -22,6 +22,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Locale;
 
 /**
  *
@@ -56,7 +60,7 @@ public final class Priority implements Comparable<Priority> {
     public static final Priority NORMAL = new Priority((byte) 2);
     public static final Priority LOW = new Priority((byte) 3);
     public static final Priority LANGUID = new Priority((byte) 4);
-    private static final Priority[] values = new Priority[] { IMMEDIATE, URGENT, HIGH, NORMAL, LOW, LANGUID };
+    private static final List<Priority> values = Arrays.asList(IMMEDIATE, URGENT, HIGH, NORMAL, LOW, LANGUID);
 
     private final byte value;
 
@@ -65,9 +69,9 @@ public final class Priority implements Comparable<Priority> {
     }
 
     /**
-     * @return an array of all available priorities, sorted from the highest to the lowest.
+     * @return a list of all available priorities, sorted from the highest to the lowest.
      */
-    public static Priority[] values() {
+    public static List<Priority> values() {
         return values;
     }
 
@@ -111,6 +115,25 @@ public final class Priority implements Comparable<Priority> {
             case (byte) 3: return "LOW";
             default:
                 return "LANGUID";
+        }
+    }
+
+    public static Priority valueOf(String value) {
+        switch (value) {
+            case "IMMEDIATE":
+                return IMMEDIATE;
+            case "URGENT":
+                return URGENT;
+            case "HIGH":
+                return HIGH;
+            case "NORMAL":
+                return NORMAL;
+            case "LOW":
+                return LOW;
+            case "LANGUID":
+                return LANGUID;
+            default:
+                throw new IllegalArgumentException("no such priority: " + value);
         }
     }
 }

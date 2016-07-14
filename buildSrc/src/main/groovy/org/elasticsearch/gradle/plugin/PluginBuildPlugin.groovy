@@ -18,14 +18,21 @@
  */
 package org.elasticsearch.gradle.plugin
 
-import nebula.plugin.publishing.maven.MavenBasePublishPlugin
-import nebula.plugin.publishing.maven.MavenScmPlugin
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
 import org.gradle.api.Project
+import org.gradle.api.Task
+import org.gradle.api.XmlProvider
+import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.bundling.Zip
+
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.StandardCopyOption
+
 /**
  * Encapsulates build configuration for an Elasticsearch plugin.
  */
@@ -38,19 +45,35 @@ public class PluginBuildPlugin extends BuildPlugin {
         // this afterEvaluate must happen before the afterEvaluate added by integTest creation,
         // so that the file name resolution for installing the plugin will be setup
         project.afterEvaluate {
+            boolean isModule = project.path.startsWith(':modules:')
             String name = project.pluginProperties.extension.name
             project.jar.baseName = name
             project.bundlePlugin.baseName = name
 
+            if (project.pluginProperties.extension.hasClientJar) {
+                // for plugins which work with the transport client, we copy the jar
+                // file to a new name, copy the nebula generated pom to the same name,
+                // and generate a different pom for the zip
+                project.signArchives.enabled = false
+                addJarPomGeneration(project)
+                addClientJarTask(project)
+                if (isModule == false) {
+                    addZipPomGeneration(project)
+                }
+            } else {
+                // no client plugin, so use the pom file from nebula, without jar, for the zip
+                project.ext.set("nebulaPublish.maven.jar", false)
+            }
+
             project.integTest.dependsOn(project.bundlePlugin)
             project.tasks.run.dependsOn(project.bundlePlugin)
-            if (project.path.startsWith(':modules:')) {
+            if (isModule) {
                 project.integTest.clusterConfig.module(project)
                 project.tasks.run.clusterConfig.module(project)
             } else {
                 project.integTest.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
                 project.tasks.run.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
-                addPomGeneration(project)
+                addZipPomGeneration(project)
             }
 
             project.namingConventions {
@@ -127,31 +150,71 @@ public class PluginBuildPlugin extends BuildPlugin {
         project.artifacts.add('default', bundle)
     }
 
-    /**
-     * Adds the plugin jar and zip as publications.
-     */
-    protected static void addPomGeneration(Project project) {
-        project.plugins.apply(MavenBasePublishPlugin.class)
-        project.plugins.apply(MavenScmPlugin.class)
+    /** Adds a task to move jar and associated files to a "-client" name. */
+    protected static void addClientJarTask(Project project) {
+        Task clientJar = project.tasks.create('clientJar')
+        clientJar.dependsOn('generatePomFileForJarPublication', project.jar, project.javadocJar, project.sourcesJar)
+        clientJar.doFirst {
+            Path jarFile = project.jar.outputs.files.singleFile.toPath()
+            String clientFileName = jarFile.fileName.toString().replace(project.version, "client-${project.version}")
+            Files.move(jarFile, jarFile.resolveSibling(clientFileName), StandardCopyOption.REPLACE_EXISTING)
+
+            String pomFileName = jarFile.fileName.toString().replace('.jar', '.pom')
+            String clientPomFileName = clientFileName.replace('.jar', '.pom')
+            Files.move(jarFile.resolveSibling(pomFileName), jarFile.resolveSibling(clientPomFileName),
+                    StandardCopyOption.REPLACE_EXISTING)
+
+            String sourcesFileName = jarFile.fileName.toString().replace('.jar', '-sources.jar')
+            String clientSourcesFileName = clientFileName.replace('.jar', '-sources.jar')
+            Files.move(jarFile.resolveSibling(sourcesFileName), jarFile.resolveSibling(clientSourcesFileName),
+                    StandardCopyOption.REPLACE_EXISTING)
+
+            String javadocFileName = jarFile.fileName.toString().replace('.jar', '-javadoc.jar')
+            String clientJavadocFileName = clientFileName.replace('.jar', '-javadoc.jar')
+            Files.move(jarFile.resolveSibling(javadocFileName), jarFile.resolveSibling(clientJavadocFileName),
+                    StandardCopyOption.REPLACE_EXISTING)
+        }
+        project.assemble.dependsOn(clientJar)
+    }
+
+    /** Adds nebula publishing task to generate a pom file for the plugin. */
+    protected static void addJarPomGeneration(Project project) {
+        project.plugins.apply(MavenPublishPlugin.class)
 
         project.publishing {
             publications {
-                nebula {
-                    artifact project.bundlePlugin
-                    pom.withXml {
-                        // overwrite the name/description in the pom nebula set up
-                        Node root = asNode()
-                        for (Node node : root.children()) {
-                            if (node.name() == 'name') {
-                                node.setValue(project.pluginProperties.extension.name)
-                            } else if (node.name() == 'description') {
-                                node.setValue(project.pluginProperties.extension.description)
-                            }
-                        }
+                jar(MavenPublication) {
+                    from project.components.java
+                    pom.withXml { XmlProvider xml ->
+                        Node root = xml.asNode()
+                        root.appendNode('name', project.pluginProperties.extension.name)
+                        root.appendNode('description', project.pluginProperties.extension.description)
+                        Node scmNode = root.appendNode('scm')
+                        scmNode.appendNode('url', project.scminfo.origin)
                     }
                 }
             }
         }
+    }
 
+    /** Adds a task to generate a*/
+    protected void addZipPomGeneration(Project project) {
+        project.plugins.apply(MavenPublishPlugin.class)
+
+        project.publishing {
+            publications {
+                zip(MavenPublication) {
+                    artifact project.bundlePlugin
+                    pom.packaging = 'pom'
+                    pom.withXml { XmlProvider xml ->
+                        Node root = xml.asNode()
+                        root.appendNode('name', project.pluginProperties.extension.name)
+                        root.appendNode('description', project.pluginProperties.extension.description)
+                        Node scmNode = root.appendNode('scm')
+                        scmNode.appendNode('url', project.scminfo.origin)
+                    }
+                }
+            }
+        }
     }
 }

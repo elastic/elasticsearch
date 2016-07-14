@@ -40,7 +40,7 @@
         },
         "wait_for_events": {
           "type" : "enum",
-          "options" : ["immediate", "urgent", "high", "low", "languid"],
+          "options" : ["immediate", "urgent", "high", "normal", "low", "languid"],
           "description" : "Wait until all currently queued events with the given priorty are processed"
         },
         "wait_for_relocating_shards": {

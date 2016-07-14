@@ -20,9 +20,9 @@
 package org.elasticsearch.client.transport;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.MockTransportClient;
 
 import java.util.concurrent.ExecutionException;
 
@@ -32,12 +32,10 @@ import static org.hamcrest.object.HasToString.hasToString;
 public class TransportClientTests extends ESTestCase {
 
     public void testThatUsingAClosedClientThrowsAnException() throws ExecutionException, InterruptedException {
-        final TransportClient client = TransportClient.builder().settings(Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "local"))
-            .build();
+        final TransportClient client =  new MockTransportClient(Settings.EMPTY);
         client.close();
         final IllegalStateException e =
             expectThrows(IllegalStateException.class, () -> client.admin().cluster().health(new ClusterHealthRequest()).get());
         assertThat(e, hasToString(containsString("transport client is closed")));
     }
-
 }

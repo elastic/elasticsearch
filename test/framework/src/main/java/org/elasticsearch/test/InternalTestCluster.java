@@ -88,6 +88,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
@@ -904,11 +905,7 @@ public final class InternalTestCluster extends TestCluster {
             if ( NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings)) {
                 builder.put(NetworkModule.TRANSPORT_TYPE_KEY, NetworkModule.TRANSPORT_TYPE_SETTING.get(settings));
             }
-            TransportClient.Builder clientBuilder = TransportClient.builder().settings(builder.build());
-            for (Class<? extends Plugin> plugin : plugins) {
-                clientBuilder.addPlugin(plugin);
-            }
-            TransportClient client = clientBuilder.build();
+            TransportClient client = new MockTransportClient(builder.build(), plugins);
             client.addTransportAddress(addr);
             return client;
         }

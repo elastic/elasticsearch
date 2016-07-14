@@ -34,15 +34,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
+import org.elasticsearch.transport.MockTransportClient;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -78,20 +77,17 @@ public final class ExternalTestCluster extends TestCluster {
             .put("node.name", InternalTestCluster.TRANSPORT_CLIENT_PREFIX + EXTERNAL_CLUSTER_PREFIX + counter.getAndIncrement())
             .put("client.transport.ignore_cluster_name", true)
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir);
-        TransportClient.Builder transportClientBuilder = TransportClient.builder();
         boolean addMockTcpTransport = additionalSettings.get(NetworkModule.TRANSPORT_TYPE_KEY) == null;
+
         if (addMockTcpTransport) {
             clientSettingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
             if (pluginClasses.contains(MockTcpTransportPlugin.class) == false) {
-                transportClientBuilder.addPlugin(MockTcpTransportPlugin.class);
+                pluginClasses = new ArrayList<>(pluginClasses);
+                pluginClasses.add(MockTcpTransportPlugin.class);
             }
         }
         Settings clientSettings = clientSettingsBuilder.build();
-        transportClientBuilder.settings(clientSettings);
-        for (Class<? extends Plugin> pluginClass : pluginClasses) {
-            transportClientBuilder.addPlugin(pluginClass);
-        }
-        TransportClient client = transportClientBuilder.build();
+        TransportClient client = new MockTransportClient(clientSettings, pluginClasses);
 
         try {
             client.addTransportAddresses(transportAddresses);

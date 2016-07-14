@@ -26,6 +26,7 @@ import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -45,6 +46,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * as blob names and repository blob formats have changed between the snapshot versions.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
+// this test sometimes fails in recovery when the recovery is reset, increasing the logging level to help debug 
+@TestLogging("indices.recovery:DEBUG")
 public class RepositoryUpgradabilityIT extends AbstractSnapshotIntegTestCase {
 
     /**

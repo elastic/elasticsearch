@@ -757,7 +757,7 @@ The meaning of the stats are as follows:
     This is not currently used and will always report `0`. Currently aggregation profiling only times the shard level parts of the aggregation execution. Timing of the reduce phase will be added later.
 
 `*_count`::
-    Records the number of invocations of the particular method.  For example, `"collect": 2,`
+    Records the number of invocations of the particular method.  For example, `"collect_count": 2,`
     means the `collect()` method was called on two different documents.
 
 === Profiling Considerations

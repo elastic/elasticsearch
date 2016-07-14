@@ -40,7 +40,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -89,6 +91,7 @@ import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.authz.AuthorizationModule;
 import org.elasticsearch.xpack.security.authz.InternalAuthorizationService;
+import org.elasticsearch.xpack.security.authz.accesscontrol.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
@@ -125,7 +128,7 @@ import static java.util.Collections.singletonList;
 /**
  *
  */
-public class Security implements ActionPlugin {
+public class Security implements ActionPlugin, IngestPlugin {
 
     private static final ESLogger logger = Loggers.getLogger(XPackPlugin.class);
 
@@ -456,6 +459,11 @@ public class Security implements ActionPlugin {
                 RestPutRoleAction.class,
                 RestDeleteRoleAction.class,
                 RestChangePasswordAction.class);
+    }
+
+    @Override
+    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+        return Collections.singletonMap(SetSecurityUserProcessor.TYPE, new SetSecurityUserProcessor.Factory(parameters.threadContext));
     }
 
     public void onModule(NetworkModule module) {

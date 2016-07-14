@@ -35,8 +35,10 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestHandler;
@@ -75,7 +77,7 @@ import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.support.WatcherScript;
 
-public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
+public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, IngestPlugin {
 
     public static final String NAME = "x-pack";
 
@@ -306,6 +308,11 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
         handlers.addAll(watcher.getRestHandlers());
         handlers.addAll(graph.getRestHandlers());
         return handlers;
+    }
+
+    @Override
+    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+        return security.getProcessors(parameters);
     }
 
     public void onModule(AuthenticationModule module) {

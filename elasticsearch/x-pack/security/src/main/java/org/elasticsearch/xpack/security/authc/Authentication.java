@@ -77,6 +77,10 @@ public class Authentication {
         return deserializeHeaderAndPutInContext(authenticationHeader, ctx, cryptoService, sign);
     }
 
+    public static Authentication getAuthentication(ThreadContext context) {
+        return context.getTransient(Authentication.AUTHENTICATION_KEY);
+    }
+
     static Authentication deserializeHeaderAndPutInContext(String header, ThreadContext ctx, CryptoService cryptoService, boolean sign)
             throws IOException, IllegalArgumentException {
         assert ctx.getTransient(AUTHENTICATION_KEY) == null;

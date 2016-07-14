@@ -18,6 +18,7 @@ import java.util.function.Function;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -179,11 +180,6 @@ public class Security implements ActionPlugin {
             return Collections.emptyList();
         }
         List<Class<? extends LifecycleComponent>> list = new ArrayList<>();
-
-        //TODO why only focus on file audit logs? shouldn't we just check if audit trail is enabled in general?
-        if (AuditTrailModule.fileAuditLoggingEnabled(settings) == true) {
-            list.add(LoggingAuditTrail.class);
-        }
         list.add(SecurityLicensee.class);
         list.add(FileRolesStore.class);
         list.add(Realms.class);

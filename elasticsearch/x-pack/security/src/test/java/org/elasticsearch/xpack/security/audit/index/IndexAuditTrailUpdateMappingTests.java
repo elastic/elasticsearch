@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.audit.index;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
@@ -48,11 +49,11 @@ public class IndexAuditTrailUpdateMappingTests extends SecurityIntegTestCase {
         IndexNameResolver.Rollover rollover = randomFrom(HOURLY, DAILY, WEEKLY, MONTHLY);
         Settings settings = Settings.builder().put("xpack.security.audit.index.rollover", rollover.name().toLowerCase(Locale.ENGLISH))
                 .put("path.home", createTempDir()).build();
-        Transport transport = mock(Transport.class);
-        when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { LocalTransportAddress.buildUnique() },
-                LocalTransportAddress.buildUnique()));
-        auditor = new IndexAuditTrail(settings, transport, Providers.of(internalClient()), threadPool,
-                mock(ClusterService.class));
+        DiscoveryNode localNode = mock(DiscoveryNode.class);
+        when(localNode.getHostAddress()).thenReturn(LocalTransportAddress.buildUnique().toString());
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.localNode()).thenReturn(localNode);
+        auditor = new IndexAuditTrail(settings, Providers.of(internalClient()), threadPool, clusterService);
 
         // before starting we add an event
         auditor.authenticationFailed(new FakeRestRequest());

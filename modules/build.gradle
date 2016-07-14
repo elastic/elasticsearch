@@ -18,6 +18,7 @@
  */
 
 subprojects {
+  group = 'org.elasticsearch.plugin' // for modules which publish client jars
   apply plugin: 'elasticsearch.esplugin'
 
   esplugin {

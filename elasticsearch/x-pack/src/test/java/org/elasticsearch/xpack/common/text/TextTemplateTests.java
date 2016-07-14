@@ -15,7 +15,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.Template;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.junit.Before;
@@ -59,7 +59,7 @@ public class TextTemplateTests extends ESTestCase {
         ScriptType type = randomFrom(ScriptType.values());
 
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(proxy.compile(new Template(templateText, type, lang, null, merged), Collections.singletonMap("content_type", "text/plain")))
+        when(proxy.compile(new Script(templateText, type, lang, merged), Collections.singletonMap("content_type", "text/plain")))
                 .thenReturn(compiledScript);
         when(proxy.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
@@ -75,7 +75,7 @@ public class TextTemplateTests extends ESTestCase {
         ScriptType scriptType = randomFrom(ScriptType.values());
 
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(proxy.compile(new Template(templateText, scriptType, lang, null, model),
+        when(proxy.compile(new Script(templateText, scriptType, lang, model),
                     Collections.singletonMap("content_type", "text/plain")))
                 .thenReturn(compiledScript);
         when(proxy.executable(compiledScript, model)).thenReturn(script);
@@ -90,7 +90,7 @@ public class TextTemplateTests extends ESTestCase {
         Map<String, Object> model = singletonMap("key", "model_val");
 
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(proxy.compile(new Template(templateText, ScriptType.INLINE, lang, null, model),
+        when(proxy.compile(new Script(templateText, ScriptType.INLINE, lang, model),
                     Collections.singletonMap("content_type", "text/plain")))
                 .thenReturn(compiledScript);
         when(proxy.executable(compiledScript, model)).thenReturn(script);

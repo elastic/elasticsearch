@@ -66,6 +66,10 @@ pick the first interface not marked as loopback. Instead, specify by address
 scope (e.g. `_local_,_site_` for all loopback and private network addresses)
 or by explicit interface names, hostnames, or addresses.
 
+The `netty.epollBugWorkaround` settings is removed. This settings allow people to enable
+a netty work around for https://github.com/netty/netty/issues/327[a high CPU usage issue] with early JVM versions. 
+This bug was http://bugs.java.com/view_bug.do?bug_id=6403933[fixed in Java 7]. Since Elasticsearch 5.0 requires Java 8 the settings is removed. Note that if the workaround needs to be reintroduced you can still set the `org.jboss.netty.epollBugWorkaround` system property to control Netty directly.
+
 ==== Forbid changing of thread pool types
 
 Previously, <<modules-threadpool,thread pool types>> could be dynamically

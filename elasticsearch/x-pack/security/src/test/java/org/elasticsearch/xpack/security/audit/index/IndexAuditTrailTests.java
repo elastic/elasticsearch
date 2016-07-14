@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.util.Providers;
@@ -268,13 +269,14 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
 
         Settings settings = builder.put(settings(rollover, includes, excludes)).build();
         logger.info("--> settings: [{}]", settings.getAsMap().toString());
-        Transport transport = mock(Transport.class);
-        BoundTransportAddress boundTransportAddress = new BoundTransportAddress(new TransportAddress[]{ remoteHostAddress()},
-                remoteHostAddress());
-        when(transport.boundAddress()).thenReturn(boundTransportAddress);
+        DiscoveryNode localNode = mock(DiscoveryNode.class);
+        when(localNode.getHostAddress()).thenReturn(remoteHostAddress().getAddress());
+        when(localNode.getHostName()).thenReturn(remoteHostAddress().getHost());
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.localNode()).thenReturn(localNode);
         threadPool = new TestThreadPool("index audit trail tests");
         enqueuedMessage = new SetOnce<>();
-        auditor = new IndexAuditTrail(settings, transport, Providers.of(internalClient()), threadPool, mock(ClusterService.class)) {
+        auditor = new IndexAuditTrail(settings, Providers.of(internalClient()), threadPool, clusterService) {
             @Override
             void enqueue(Message message, String type) {
                 enqueuedMessage.set(message);

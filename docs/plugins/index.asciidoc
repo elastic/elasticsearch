@@ -10,6 +10,8 @@ Plugins are a way to enhance the core Elasticsearch functionality in a custom
 manner. They range from adding custom mapping types, custom analyzers, native
 scripts, custom discovery and more.
 
+deprecated[2.3.0,Site plugins and mixed plugins are deprecated and will be removed in 5.0.0.  Instead, site plugins should either be migrated to Kibana or should use a standalone web server]
+
 There are three types of plugins:
 
 Java plugins::
@@ -22,7 +24,7 @@ Site plugins::
 +
 --
 
-These plugins contain static web content like Javascript, HTML, and CSS files,
+deprecated[2.3.0] These plugins contain static web content like Javascript, HTML, and CSS files,
 that can be served directly from Elasticsearch. Site plugins may only need to
 be installed on one node, and do not require a restart to become visible. The
 content of site plugins is accessible via a URL like:
@@ -33,7 +35,7 @@ content of site plugins is accessible via a URL like:
 
 Mixed plugins::
 
-    Mixed plugins contain both JAR files and web content.
+    deprecated[2.3.0] Mixed plugins contain both JAR files and web content.
 
 For advice on writing your own plugin, see <<plugin-authors>>.
 

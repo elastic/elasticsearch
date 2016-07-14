@@ -98,6 +98,13 @@ public class QueryProfilerTests extends ESTestCase {
         assertThat(breakdown.get(QueryTimingType.SCORE.toString()).longValue(), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.MATCH.toString()).longValue(), equalTo(0L));
 
+        assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString() + "_count").longValue(), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString() + "_count").longValue(), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString() + "_count").longValue(), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.ADVANCE.toString() + "_count").longValue(), equalTo(0L));
+        assertThat(breakdown.get(QueryTimingType.SCORE.toString() + "_count").longValue(), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.MATCH.toString() + "_count").longValue(), equalTo(0L));
+
         long rewriteTime = profiler.getRewriteTime();
         assertThat(rewriteTime, greaterThan(0L));
     }
@@ -116,6 +123,13 @@ public class QueryProfilerTests extends ESTestCase {
         assertThat(breakdown.get(QueryTimingType.ADVANCE.toString()).longValue(), equalTo(0L));
         assertThat(breakdown.get(QueryTimingType.SCORE.toString()).longValue(), equalTo(0L));
         assertThat(breakdown.get(QueryTimingType.MATCH.toString()).longValue(), equalTo(0L));
+
+        assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString() + "_count").longValue(), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString() + "_count").longValue(), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString() + "_count").longValue(), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.ADVANCE.toString() + "_count").longValue(), equalTo(0L));
+        assertThat(breakdown.get(QueryTimingType.SCORE.toString() + "_count").longValue(), equalTo(0L));
+        assertThat(breakdown.get(QueryTimingType.MATCH.toString() + "_count").longValue(), equalTo(0L));
 
         long rewriteTime = profiler.getRewriteTime();
         assertThat(rewriteTime, greaterThan(0L));
@@ -151,6 +165,13 @@ public class QueryProfilerTests extends ESTestCase {
         assertThat(breakdown.get(QueryTimingType.ADVANCE.toString()).longValue(), equalTo(0L));
         assertThat(breakdown.get(QueryTimingType.SCORE.toString()).longValue(), equalTo(0L));
         assertThat(breakdown.get(QueryTimingType.MATCH.toString()).longValue(), greaterThan(0L));
+
+        assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString() + "_count").longValue(), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString() + "_count").longValue(), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString() + "_count").longValue(), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.ADVANCE.toString() + "_count").longValue(), equalTo(0L));
+        assertThat(breakdown.get(QueryTimingType.SCORE.toString() + "_count").longValue(), equalTo(0L));
+        assertThat(breakdown.get(QueryTimingType.MATCH.toString() + "_count").longValue(), greaterThan(0L));
 
         long rewriteTime = profiler.getRewriteTime();
         assertThat(rewriteTime, greaterThan(0L));

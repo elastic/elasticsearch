@@ -5,23 +5,19 @@
  */
 package org.elasticsearch.xpack.security.audit.index;
 
+import java.util.Locale;
+
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
 import org.junit.After;
 import org.junit.Before;
-
-import java.util.Locale;
 
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.Rollover.DAILY;
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.Rollover.HOURLY;
@@ -53,7 +49,7 @@ public class IndexAuditTrailUpdateMappingTests extends SecurityIntegTestCase {
         when(localNode.getHostAddress()).thenReturn(LocalTransportAddress.buildUnique().toString());
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(localNode);
-        auditor = new IndexAuditTrail(settings, Providers.of(internalClient()), threadPool, clusterService);
+        auditor = new IndexAuditTrail(settings, internalClient(), threadPool, clusterService);
 
         // before starting we add an event
         auditor.authenticationFailed(new FakeRestRequest());

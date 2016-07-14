@@ -30,6 +30,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -151,7 +152,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
     private final String nodeName;
-    private final Provider<InternalClient> clientProvider;
+    private final Client client;
     private final BlockingQueue<Message> eventQueue;
     private final QueueConsumer queueConsumer;
     private final ThreadPool threadPool;
@@ -160,7 +161,6 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     private final boolean indexToRemoteCluster;
 
     private BulkProcessor bulkProcessor;
-    private Client client;
     private IndexNameResolver.Rollover rollover;
     private String nodeHostName;
     private String nodeHostAddress;
@@ -172,10 +172,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Inject
-    public IndexAuditTrail(Settings settings, Provider<InternalClient> clientProvider, ThreadPool threadPool,
+    public IndexAuditTrail(Settings settings, InternalClient client, ThreadPool threadPool,
                            ClusterService clusterService) {
         super(settings);
-        this.clientProvider = clientProvider;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.nodeName = settings.get("name");
@@ -197,6 +196,13 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             events = parse(DEFAULT_EVENT_INCLUDES, Collections.emptyList());
         }
         this.indexToRemoteCluster = REMOTE_CLIENT_SETTINGS.get(settings).names().size() > 0;
+
+        if (indexToRemoteCluster == false) {
+            // in the absence of client settings for remote indexing, fall back to the client that was passed in.
+            this.client = client;
+        } else {
+            this.client = initializeRemoteClient(settings, logger);
+        }
 
     }
 
@@ -222,16 +228,6 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
      */
     public synchronized boolean canStart(ClusterChangedEvent event, boolean master) {
         if (indexToRemoteCluster) {
-            try {
-                if (client == null) {
-                    initializeClient();
-                }
-            } catch (Exception e) {
-                logger.error("failed to initialize client for remote indexing. index based output is disabled", e);
-                state.set(State.FAILED);
-                return false;
-            }
-
             ClusterStateResponse response = client.admin().cluster().prepareState().execute().actionGet();
             return canStart(response.getState(), master);
         }
@@ -278,10 +274,6 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         if (state.compareAndSet(State.INITIALIZED, State.STARTING)) {
             this.nodeHostName = clusterService.localNode().getHostName();
             this.nodeHostAddress = clusterService.localNode().getHostAddress();
-
-            if (client == null) {
-                initializeClient();
-            }
 
             if (master) {
                 putTemplate(customAuditIndexSettings(settings));
@@ -717,56 +709,51 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         return eventQueue.peek();
     }
 
-    private void initializeClient() {
-        if (indexToRemoteCluster == false) {
-            // in the absence of client settings for remote indexing, fall back to the client that was passed in.
-            this.client = clientProvider.get();
-        } else {
-            Settings clientSettings = REMOTE_CLIENT_SETTINGS.get(settings);
-            String[] hosts = clientSettings.getAsArray("hosts");
-            if (hosts.length == 0) {
-                throw new ElasticsearchException("missing required setting " +
-                        "[" + REMOTE_CLIENT_SETTINGS.getKey() + ".hosts] for remote audit log indexing");
-            }
-
-            if (clientSettings.get("cluster.name", "").isEmpty()) {
-                throw new ElasticsearchException("missing required setting " +
-                        "[" + REMOTE_CLIENT_SETTINGS.getKey() + ".cluster.name] for remote audit log indexing");
-            }
-
-            List<Tuple<String, Integer>> hostPortPairs = new ArrayList<>();
-
-            for (String host : hosts) {
-                List<String> hostPort = Arrays.asList(host.trim().split(":"));
-                if (hostPort.size() != 1 && hostPort.size() != 2) {
-                    logger.warn("invalid host:port specified: [{}] for setting [{}.hosts]", REMOTE_CLIENT_SETTINGS.getKey(), host);
-                }
-                hostPortPairs.add(new Tuple<>(hostPort.get(0), hostPort.size() == 2 ? Integer.valueOf(hostPort.get(1)) : 9300));
-            }
-
-            if (hostPortPairs.size() == 0) {
-                throw new ElasticsearchException("no valid host:port pairs specified for setting ["
-                        + REMOTE_CLIENT_SETTINGS.getKey() + ".hosts]");
-            }
-            final Settings theClientSetting = clientSettings.filter((s) -> s.startsWith("hosts") == false); // hosts is not a valid setting
-            final TransportClient transportClient = TransportClient.builder()
-                    .settings(Settings.builder()
-                            .put("node.name", DEFAULT_CLIENT_NAME + "-" + Node.NODE_NAME_SETTING.get(settings))
-                            .put(theClientSetting))
-                    .addPlugin(XPackPlugin.class)
-                    .build();
-            for (Tuple<String, Integer> pair : hostPortPairs) {
-                try {
-                    transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName(pair.v1()), pair.v2()));
-                } catch (UnknownHostException e) {
-                    throw new ElasticsearchException("could not find host {}", e, pair.v1());
-                }
-            }
-
-            this.client = transportClient;
-            logger.info("forwarding audit events to remote cluster [{}] using hosts [{}]",
-                    clientSettings.get("cluster.name", ""), hostPortPairs.toString());
+    private static Client initializeRemoteClient(Settings settings, ESLogger logger) {
+        Settings clientSettings = REMOTE_CLIENT_SETTINGS.get(settings);
+        String[] hosts = clientSettings.getAsArray("hosts");
+        if (hosts.length == 0) {
+            throw new ElasticsearchException("missing required setting " +
+                    "[" + REMOTE_CLIENT_SETTINGS.getKey() + ".hosts] for remote audit log indexing");
         }
+
+        if (clientSettings.get("cluster.name", "").isEmpty()) {
+            throw new ElasticsearchException("missing required setting " +
+                    "[" + REMOTE_CLIENT_SETTINGS.getKey() + ".cluster.name] for remote audit log indexing");
+        }
+
+        List<Tuple<String, Integer>> hostPortPairs = new ArrayList<>();
+
+        for (String host : hosts) {
+            List<String> hostPort = Arrays.asList(host.trim().split(":"));
+            if (hostPort.size() != 1 && hostPort.size() != 2) {
+                logger.warn("invalid host:port specified: [{}] for setting [{}.hosts]", REMOTE_CLIENT_SETTINGS.getKey(), host);
+            }
+            hostPortPairs.add(new Tuple<>(hostPort.get(0), hostPort.size() == 2 ? Integer.valueOf(hostPort.get(1)) : 9300));
+        }
+
+        if (hostPortPairs.size() == 0) {
+            throw new ElasticsearchException("no valid host:port pairs specified for setting ["
+                    + REMOTE_CLIENT_SETTINGS.getKey() + ".hosts]");
+        }
+        final Settings theClientSetting = clientSettings.filter((s) -> s.startsWith("hosts") == false); // hosts is not a valid setting
+        final TransportClient transportClient = TransportClient.builder()
+                .settings(Settings.builder()
+                        .put("node.name", DEFAULT_CLIENT_NAME + "-" + Node.NODE_NAME_SETTING.get(settings))
+                        .put(theClientSetting))
+                .addPlugin(XPackPlugin.class)
+                .build();
+        for (Tuple<String, Integer> pair : hostPortPairs) {
+            try {
+                transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName(pair.v1()), pair.v2()));
+            } catch (UnknownHostException e) {
+                throw new ElasticsearchException("could not find host {}", e, pair.v1());
+            }
+        }
+
+        logger.info("forwarding audit events to remote cluster [{}] using hosts [{}]",
+                clientSettings.get("cluster.name", ""), hostPortPairs.toString());
+        return transportClient;
     }
 
     Settings customAuditIndexSettings(Settings nodeSettings) {

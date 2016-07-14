@@ -93,7 +93,7 @@ public class Authentication {
         return authentication;
     }
 
-    void writeToContextIfMissing(ThreadContext context, CryptoService cryptoService, boolean sign)
+    public void writeToContextIfMissing(ThreadContext context, CryptoService cryptoService, boolean sign)
             throws IOException, IllegalArgumentException {
         if (context.getTransient(AUTHENTICATION_KEY) != null) {
             if (context.getHeader(AUTHENTICATION_KEY) == null) {

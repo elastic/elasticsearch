@@ -26,6 +26,7 @@
 esplugin {
     description 'Netty 3 based transport implementation'
     classname 'org.elasticsearch.transport.NettyPlugin'
+    hasClientJar = true
 }
 
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"

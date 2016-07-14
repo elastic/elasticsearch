@@ -62,7 +62,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
                         LocalTransportAddress.buildUnique()));
 
         threadPool = new TestThreadPool("index audit trail tests");
-        transportClient = TransportClient.builder().settings(Settings.EMPTY).build();
+        transportClient = TransportClient.builder().settings(Settings.builder().put("transport.type", "local")).build();
         clientCalled = new AtomicBoolean(false);
         class IClient extends FilterClient implements InternalClient {
            IClient(Client transportClient){

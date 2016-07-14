@@ -19,6 +19,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.node.Node;
@@ -59,7 +60,8 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
     protected final Settings nodeSettings(int nodeOrdinal) {
         final Settings.Builder builder = Settings.builder()
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                .put(Node.NODE_LOCAL_SETTING.getKey(), true);
+                .put("transport.type", "local")
+                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local");
         List<String> enabledFeatures = enabledFeatures();
         for (String feature : ALL_FEATURES) {
             builder.put(XPackPlugin.featureEnabledSetting(feature), enabledFeatures.contains(feature));
@@ -99,7 +101,7 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
                 return TribeTransportTestCase.this.transportClientPlugins();
             }
         };
-        final InternalTestCluster cluster2 = new InternalTestCluster(InternalTestCluster.configuredNodeMode(),
+        final InternalTestCluster cluster2 = new InternalTestCluster(
                 randomLong(), createTempDir(), true, 2, 2,
                 UUIDs.randomBase64UUID(random()), nodeConfigurationSource, 1, false, "tribe_node2",
                 getMockPlugins(), getClientWrapper());
@@ -131,13 +133,17 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
         Settings merged = Settings.builder()
                 .put("tribe.t1.cluster.name", internalCluster().getClusterName())
                 .put("tribe.t2.cluster.name", cluster2.getClusterName())
+                .put("tribe.t1.transport.type", "local")
+                .put("tribe.t2.transport.type", "local")
+                .put("tribe.t1.discovery.type", "local")
+                .put("tribe.t2.discovery.type", "local")
                 .put("tribe.blocks.write", false)
                 .put(tribe1Defaults.build())
                 .put(tribe2Defaults.build())
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(internalCluster().getDefaultSettings())
                 .put("node.name", "tribe_node") // make sure we can identify threads from this node
-                .put(Node.NODE_LOCAL_SETTING.getKey(), true)
+                .put("transport.type", "local")
                 .build();
 
         final Node tribeNode = new Node(merged).start();

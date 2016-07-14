@@ -10,6 +10,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.xpack.MockNettyPlugin;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.plugins.Plugin;
@@ -53,7 +54,7 @@ import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.UnicastZen {
 
     public static final Settings DEFAULT_SETTINGS = Settings.builder()
-            .put("node.mode", "network")
+            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen")
             .build();
 
     public static final String DEFAULT_USER_NAME = "test_user";

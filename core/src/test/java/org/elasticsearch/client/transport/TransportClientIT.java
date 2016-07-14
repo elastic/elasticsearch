@@ -56,6 +56,7 @@ public class TransportClientIT extends ESIntegTestCase {
                 .put(internalCluster().getDefaultSettings())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("node.name", "testNodeVersionIsUpdated")
+                .put("transport.type", "local")
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(Node.NODE_DATA_SETTING.getKey(), false)
                 .put("cluster.name", "foobar")
@@ -90,7 +91,8 @@ public class TransportClientIT extends ESIntegTestCase {
     public void testThatTransportClientSettingCannotBeChanged() {
         Settings baseSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-             .build();
+            .put("transport.type", "local")
+            .build();
         try (TransportClient client = TransportClient.builder().settings(baseSettings).build()) {
             Settings settings = client.injector.getInstance(Settings.class);
             assertThat(Client.CLIENT_TYPE_SETTING_S.get(settings), is("transport"));

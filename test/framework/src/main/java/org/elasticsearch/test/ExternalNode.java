@@ -51,7 +51,7 @@ final class ExternalNode implements Closeable {
 
     public static final Settings REQUIRED_SETTINGS = Settings.builder()
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen")
-            .put(Node.NODE_MODE_SETTING.getKey(), "network").build(); // we need network mode for this
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, "netty").build(); // we need network mode for this
 
     private final Path path;
     private final Random random;
@@ -106,8 +106,6 @@ final class ExternalNode implements Closeable {
                 case "cluster.name":
                 case "node.name":
                 case "path.home":
-                case "node.mode":
-                case "node.local":
                 case NetworkModule.TRANSPORT_TYPE_KEY:
                 case "discovery.type":
                 case NetworkModule.TRANSPORT_SERVICE_TYPE_KEY:

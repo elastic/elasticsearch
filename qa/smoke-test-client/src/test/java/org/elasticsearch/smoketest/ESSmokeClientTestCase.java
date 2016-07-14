@@ -96,8 +96,7 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
         Settings.Builder builder = Settings.builder()
             .put("node.name", "qa_smoke_client_" + counter.getAndIncrement())
             .put("client.transport.ignore_cluster_name", true)
-            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
-            .put(Node.NODE_MODE_SETTING.getKey(), "network");// we require network here!
+            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir);
         if (random().nextBoolean()) {
             builder.put(NetworkModule.TRANSPORT_TYPE_KEY, NettyPlugin.NETTY_TRANSPORT_NAME);
             transportClientBuilder.addPlugin(NettyPlugin.class);

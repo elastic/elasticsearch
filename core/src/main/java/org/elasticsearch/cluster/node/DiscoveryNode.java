@@ -48,23 +48,6 @@ import static org.elasticsearch.common.transport.TransportAddressSerializers.add
  */
 public class DiscoveryNode implements Writeable, ToXContent {
 
-    public static boolean isLocalNode(Settings settings) {
-        if (Node.NODE_LOCAL_SETTING.exists(settings)) {
-            return Node.NODE_LOCAL_SETTING.get(settings);
-        }
-        if (Node.NODE_MODE_SETTING.exists(settings)) {
-            String nodeMode = Node.NODE_MODE_SETTING.get(settings);
-            if ("local".equals(nodeMode)) {
-                return true;
-            } else if ("network".equals(nodeMode)) {
-                return false;
-            } else {
-                throw new IllegalArgumentException("unsupported node.mode [" + nodeMode + "]. Should be one of [local, network].");
-            }
-        }
-        return false;
-    }
-
     public static boolean nodeRequiresLocalStorage(Settings settings) {
         boolean localStorageEnable = Node.NODE_LOCAL_STORAGE_SETTING.get(settings);
         if (localStorageEnable == false &&

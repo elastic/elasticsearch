@@ -33,8 +33,6 @@ import java.util.Arrays;
 import java.util.List;
 
 public class NettyPlugin extends Plugin {
-
-
     public static final String NETTY_TRANSPORT_NAME = "netty";
     public static final String NETTY_HTTP_TRANSPORT_NAME = "netty";
 
@@ -83,6 +81,16 @@ public class NettyPlugin extends Plugin {
             NettyTransport.NETTY_RECEIVE_PREDICTOR_MAX,
             NettyTransport.NETTY_BOSS_COUNT
         );
+    }
+
+    @Override
+    public Settings additionalSettings() {
+        return Settings.builder()
+            // here we set the netty transport and http transport as the default. This is a set once setting
+            // ie. if another plugin does that as well the server will fail - only one default network can exist!
+            .put(NetworkModule.HTTP_DEFAULT_TYPE_SETTING.getKey(), NETTY_HTTP_TRANSPORT_NAME)
+            .put(NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.getKey(), NETTY_TRANSPORT_NAME)
+            .build();
     }
 
     public void onModule(NetworkModule networkModule) {

@@ -128,6 +128,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
      * {@code group_by=nodes}.
      */
     public void setDiscoveryNodes(DiscoveryNodes discoveryNodes) {
+        //WTF is this? Why isn't this set by default;
         this.discoveryNodes = discoveryNodes;
     }
 

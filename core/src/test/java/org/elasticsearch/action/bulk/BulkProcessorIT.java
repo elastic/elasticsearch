@@ -158,6 +158,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
         //we create a transport client with no nodes to make sure it throws NoNodeAvailableException
         Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .put("transport.type", "local")
                 .build();
         Client transportClient = TransportClient.builder().settings(settings).build();
 

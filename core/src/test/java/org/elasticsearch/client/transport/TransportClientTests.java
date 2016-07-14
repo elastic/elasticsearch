@@ -20,6 +20,7 @@
 package org.elasticsearch.client.transport;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -31,7 +32,8 @@ import static org.hamcrest.object.HasToString.hasToString;
 public class TransportClientTests extends ESTestCase {
 
     public void testThatUsingAClosedClientThrowsAnException() throws ExecutionException, InterruptedException {
-        final TransportClient client = TransportClient.builder().settings(Settings.EMPTY).build();
+        final TransportClient client = TransportClient.builder().settings(Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "local"))
+            .build();
         client.close();
         final IllegalStateException e =
             expectThrows(IllegalStateException.class, () -> client.admin().cluster().health(new ClusterHealthRequest()).get());

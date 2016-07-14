@@ -72,7 +72,7 @@ public abstract class ExtensionPoint {
      */
     public static class ClassMap<T> extends ExtensionPoint {
         protected final Class<T> extensionClass;
-        private final Map<String, Class<? extends T>> extensions = new HashMap<>();
+        protected final Map<String, Class<? extends T>> extensions = new HashMap<>();
         private final Set<String> reservedKeys;
 
         /**
@@ -147,7 +147,8 @@ public abstract class ExtensionPoint {
             }
             final Class<? extends T> instance = getExtension(type);
             if (instance == null) {
-                throw new IllegalArgumentException("Unknown [" + this.name + "] type [" + type + "]");
+                throw new IllegalArgumentException("Unknown [" + this.name + "] type [" + type + "] possible values: "
+                    + extensions.keySet());
             }
             if (extensionClass == instance) {
                 binder.bind(extensionClass).asEagerSingleton();

@@ -77,8 +77,7 @@ public final class ExternalTestCluster extends TestCluster {
             .put(additionalSettings)
             .put("node.name", InternalTestCluster.TRANSPORT_CLIENT_PREFIX + EXTERNAL_CLUSTER_PREFIX + counter.getAndIncrement())
             .put("client.transport.ignore_cluster_name", true)
-            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
-            .put(Node.NODE_MODE_SETTING.getKey(), "network");// we require network here!
+            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir);
         TransportClient.Builder transportClientBuilder = TransportClient.builder();
         boolean addMockTcpTransport = additionalSettings.get(NetworkModule.TRANSPORT_TYPE_KEY) == null;
         if (addMockTcpTransport) {

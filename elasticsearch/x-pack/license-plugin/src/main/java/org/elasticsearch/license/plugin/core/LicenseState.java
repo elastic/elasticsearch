@@ -5,6 +5,11 @@
  */
 package org.elasticsearch.license.plugin.core;
 
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.license.core.License;
+
+import static org.elasticsearch.license.plugin.core.LicensesService.days;
+
 /**
  * States of a registered licensee
  * based on the current license
@@ -38,5 +43,26 @@ public enum LicenseState {
      * changes to {@link #ENABLED}, otherwise
      * remains unchanged
      */
-    DISABLED
+    DISABLED;
+
+    /**
+     * Duration of grace period after a license has expired
+     */
+    public static final TimeValue GRACE_PERIOD_DURATION = days(7);
+
+    public static LicenseState resolve(final License license, long time) {
+        if (license == null) {
+            return DISABLED;
+        }
+        if (license.issueDate() > time) {
+            return DISABLED;
+        }
+        if (license.expiryDate() > time) {
+            return ENABLED;
+        }
+        if ((license.expiryDate() + GRACE_PERIOD_DURATION.getMillis()) > time) {
+            return GRACE_PERIOD;
+        }
+        return DISABLED;
+    }
 }

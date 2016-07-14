@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseAction;
 import org.elasticsearch.license.plugin.action.delete.TransportDeleteLicenseAction;
 import org.elasticsearch.license.plugin.action.get.GetLicenseAction;
@@ -25,6 +26,7 @@ import org.elasticsearch.license.plugin.rest.RestGetLicenseAction;
 import org.elasticsearch.license.plugin.rest.RestPutLicenseAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.graph.GraphLicensee;
 import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
 import org.elasticsearch.xpack.security.SecurityLicenseState;
@@ -83,14 +85,16 @@ public class Licensing implements ActionPlugin {
                 RestDeleteLicenseAction.class);
     }
 
-    public Collection<Object> createComponents(ClusterService clusterService, Clock clock,
+    public Collection<Object> createComponents(ClusterService clusterService, Clock clock, Environment environment,
+                                               ResourceWatcherService resourceWatcherService,
                                                SecurityLicenseState securityLicenseState) {
         SecurityLicensee securityLicensee = new SecurityLicensee(settings, securityLicenseState);
         WatcherLicensee watcherLicensee = new WatcherLicensee(settings);
         MonitoringLicensee monitoringLicensee = new MonitoringLicensee(settings);
         GraphLicensee graphLicensee = new GraphLicensee(settings);
         LicensesService licensesService = new LicensesService(settings, clusterService, clock,
-            Arrays.asList(securityLicensee, watcherLicensee, monitoringLicensee, graphLicensee));
+                environment, resourceWatcherService,
+                Arrays.asList(securityLicensee, watcherLicensee, monitoringLicensee, graphLicensee));
 
         return Arrays.asList(licensesService, securityLicenseState, securityLicensee, watcherLicensee, monitoringLicensee, graphLicensee);
     }

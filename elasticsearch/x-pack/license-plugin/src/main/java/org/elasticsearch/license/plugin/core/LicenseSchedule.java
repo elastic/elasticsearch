@@ -8,8 +8,6 @@ package org.elasticsearch.license.plugin.core;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.xpack.scheduler.SchedulerEngine;
 
-import static org.elasticsearch.license.plugin.core.LicensesService.GRACE_PERIOD_DURATION;
-import static org.elasticsearch.license.plugin.core.LicensesService.getLicenseState;
 
 public class LicenseSchedule implements SchedulerEngine.Schedule {
 
@@ -22,12 +20,12 @@ public class LicenseSchedule implements SchedulerEngine.Schedule {
     @Override
     public long nextScheduledTimeAfter(long startTime, long time) {
         long nextScheduledTime = -1;
-        switch (getLicenseState(license, time)) {
+        switch (LicenseState.resolve(license, time)) {
             case ENABLED:
                 nextScheduledTime = license.expiryDate();
                 break;
             case GRACE_PERIOD:
-                nextScheduledTime = license.expiryDate() + GRACE_PERIOD_DURATION.getMillis();
+                nextScheduledTime = license.expiryDate() + LicenseState.GRACE_PERIOD_DURATION.getMillis();
                 break;
             case DISABLED:
                 if (license.issueDate() > time) {

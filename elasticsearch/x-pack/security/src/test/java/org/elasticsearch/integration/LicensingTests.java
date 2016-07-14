@@ -31,6 +31,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.core.License.OperationMode;
 import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.license.plugin.core.LicenseState;
@@ -42,6 +43,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.MockNetty3Plugin;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.graph.GraphLicensee;
@@ -258,16 +260,17 @@ public class LicensingTests extends SecurityIntegTestCase {
         }
 
         @Override
-        public Collection<Object> createComponents(ClusterService clusterService, Clock clock,
+        public Collection<Object> createComponents(ClusterService clusterService, Clock clock, Environment environment,
+                                                   ResourceWatcherService resourceWatcherService,
                                                    SecurityLicenseState securityLicenseState) {
             SecurityLicensee securityLicensee = new SecurityLicensee(settings, securityLicenseState);
             WatcherLicensee watcherLicensee = new WatcherLicensee(settings);
             MonitoringLicensee monitoringLicensee = new MonitoringLicensee(settings);
             GraphLicensee graphLicensee = new GraphLicensee(settings);
-            TestLicensesService licensesService = new TestLicensesService(settings,
-                Arrays.asList(securityLicensee, watcherLicensee, monitoringLicensee, graphLicensee));
+            TestLicensesService licensesService = new TestLicensesService(settings, environment, resourceWatcherService,
+                    Arrays.asList(securityLicensee, watcherLicensee, monitoringLicensee, graphLicensee));
             return Arrays.asList(securityLicensee, licensesService, watcherLicensee, monitoringLicensee,
-                graphLicensee, securityLicenseState);
+                    graphLicensee, securityLicenseState);
         }
 
         public InternalLicensing() {
@@ -297,8 +300,9 @@ public class LicensingTests extends SecurityIntegTestCase {
 
         private final List<Licensee> licensees;
 
-        public TestLicensesService(Settings settings, List<Licensee> licensees) {
-            super(settings, null, null, Collections.emptyList());
+        public TestLicensesService(Settings settings, Environment env, ResourceWatcherService resourceWatcherService,
+                                   List<Licensee> licensees) {
+            super(settings, null, null, env, resourceWatcherService, Collections.emptyList());
             this.licensees = licensees;
             enable(OperationMode.BASIC);
         }

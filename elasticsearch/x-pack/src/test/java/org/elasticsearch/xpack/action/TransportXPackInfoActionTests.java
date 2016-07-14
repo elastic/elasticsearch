@@ -22,6 +22,7 @@ import org.junit.Before;
 
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -80,6 +81,8 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         when(license.status()).thenReturn(status);
         String type = randomAsciiOfLength(10);
         when(license.type()).thenReturn(type);
+        License.OperationMode mode = randomFrom(License.OperationMode.values());
+        when(license.operationMode()).thenReturn(mode);
         String uid = randomAsciiOfLength(30);
         when(license.uid()).thenReturn(uid);
         when(licensesService.getLicense()).thenReturn(license);
@@ -129,6 +132,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
             assertThat(response.get().getLicenseInfo().getExpiryDate(), is(expiryDate));
             assertThat(response.get().getLicenseInfo().getStatus(), is(status));
             assertThat(response.get().getLicenseInfo().getType(), is(type));
+            assertThat(response.get().getLicenseInfo().getMode(), is(mode.name().toLowerCase(Locale.ROOT)));
             assertThat(response.get().getLicenseInfo().getUid(), is(uid));
         } else {
             assertThat(response.get().getLicenseInfo(), nullValue());

@@ -35,8 +35,6 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
         assertNotNull(licenseMetaData);
         assertNotNull(licenseMetaData.getLicense());
         assertEquals(clock.millis() + LicensesService.TRIAL_LICENSE_DURATION.millis(), licenseMetaData.getLicense().expiryDate());
-
-        licensesService.stop();
     }
 
     public void testNotificationOnRegistration() throws Exception {
@@ -47,6 +45,5 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
         assertThat(licensee.statuses.size(), equalTo(1));
         final LicenseState licenseState = licensee.statuses.get(0).getLicenseState();
         assertTrue(licenseState == LicenseState.ENABLED);
-        licensesService.stop();
     }
 }

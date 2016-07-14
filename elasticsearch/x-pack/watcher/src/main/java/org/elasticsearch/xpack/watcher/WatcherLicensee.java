@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.core.License.OperationMode;
 import org.elasticsearch.license.plugin.core.AbstractLicenseeComponent;
 import org.elasticsearch.license.plugin.core.LicenseState;
@@ -30,17 +29,15 @@ public class WatcherLicensee extends AbstractLicenseeComponent {
     }
 
     @Override
-    public String[] acknowledgmentMessages(License currentLicense, License newLicense) {
-        switch (newLicense.operationMode()) {
+    public String[] acknowledgmentMessages(OperationMode currentMode, OperationMode newMode) {
+        switch (newMode) {
             case BASIC:
-                if (currentLicense != null) {
-                    switch (currentLicense.operationMode()) {
-                        case TRIAL:
-                        case STANDARD:
-                        case GOLD:
-                        case PLATINUM:
-                            return new String[] { "Watcher will be disabled" };
-                    }
+                switch (currentMode) {
+                    case TRIAL:
+                    case STANDARD:
+                    case GOLD:
+                    case PLATINUM:
+                        return new String[] { "Watcher will be disabled" };
                 }
                 break;
         }

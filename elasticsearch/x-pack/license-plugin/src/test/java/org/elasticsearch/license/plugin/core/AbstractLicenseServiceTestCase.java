@@ -6,7 +6,6 @@
 package org.elasticsearch.license.plugin.core;
 
 import java.util.Arrays;
-import java.util.Collections;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -19,10 +18,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.support.clock.ClockMock;
+import org.junit.After;
 import org.junit.Before;
+
+import java.nio.file.Path;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -33,18 +37,25 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
 
     protected LicensesService licensesService;
     protected ClusterService clusterService;
+    protected ResourceWatcherService resourceWatcherService;
     protected ClockMock clock;
     protected DiscoveryNodes discoveryNodes;
+    protected Environment environment;
 
     @Before
     public void init() throws Exception {
         clusterService = mock(ClusterService.class);
         clock = new ClockMock();
         discoveryNodes = mock(DiscoveryNodes.class);
+        resourceWatcherService = mock(ResourceWatcherService.class);
+        environment = mock(Environment.class);
     }
 
     protected void setInitialState(License license, Licensee... licensees) {
-        licensesService = new LicensesService(Settings.EMPTY, clusterService, clock, Arrays.asList(licensees));
+        Path tempDir = createTempDir();
+        when(environment.configFile()).thenReturn(tempDir);
+        licensesService = new LicensesService(Settings.EMPTY, clusterService, clock, environment,
+                resourceWatcherService, Arrays.asList(licensees));
         ClusterState state = mock(ClusterState.class);
         final ClusterBlocks noBlock = ClusterBlocks.builder().build();
         when(state.blocks()).thenReturn(noBlock);
@@ -59,5 +70,10 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
         when(clusterService.state()).thenReturn(state);
         when(clusterService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         when(clusterService.getClusterName()).thenReturn(new ClusterName("a"));
+    }
+
+    @After
+    public void after() {
+        licensesService.stop();
     }
 }

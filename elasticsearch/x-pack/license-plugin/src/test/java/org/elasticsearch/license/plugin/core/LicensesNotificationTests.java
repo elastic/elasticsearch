@@ -37,7 +37,7 @@ public class LicensesNotificationTests extends AbstractLicenseServiceTestCase {
             assertLicenseStates(assertingLicensee, LicenseState.ENABLED, LicenseState.GRACE_PERIOD);
         }
         clock.fastForward(TimeValue.timeValueMillis((license.expiryDate() +
-                LicensesService.GRACE_PERIOD_DURATION.getMillis()) - clock.millis()));
+                LicenseState.GRACE_PERIOD_DURATION.getMillis()) - clock.millis()));
         licensesService.onUpdate(licensesMetaData);
         for (AssertingLicensee assertingLicensee : assertingLicensees) {
             assertLicenseStates(assertingLicensee, LicenseState.ENABLED, LicenseState.GRACE_PERIOD, LicenseState.DISABLED);
@@ -45,12 +45,12 @@ public class LicensesNotificationTests extends AbstractLicenseServiceTestCase {
         clock.setTime(new DateTime(DateTimeZone.UTC));
         final License newLicense = TestUtils.generateSignedLicense(TimeValue.timeValueHours(2));
         clock.fastForward(TimeValue.timeValueHours(1));
-        licensesService.onUpdate(new LicensesMetaData(newLicense));
+        LicensesMetaData licensesMetaData1 = new LicensesMetaData(newLicense);
+        licensesService.onUpdate(licensesMetaData1);
         for (AssertingLicensee assertingLicensee : assertingLicensees) {
             assertLicenseStates(assertingLicensee, LicenseState.ENABLED, LicenseState.GRACE_PERIOD, LicenseState.DISABLED,
                     LicenseState.ENABLED);
         }
-        licensesService.stop();
     }
 
     private void assertLicenseStates(AssertingLicensee licensee, LicenseState... states) {

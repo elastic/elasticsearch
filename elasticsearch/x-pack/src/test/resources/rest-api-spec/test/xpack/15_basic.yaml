@@ -61,7 +61,7 @@
   - is_true:    license
   - match: { license.uid: "893361dc-9749-4997-93cb-802e3dofh7aa" }
   - match: { license.type: "internal" }
-  - match: { license.mode: "platinum" }
+  - match: { license.mode: "trial" }
   - match: { license.status: "active" }
   - match: { license.expiry_date_in_millis: 1914278399999 }
   - is_true:    features
@@ -133,7 +133,7 @@
   - is_true:    license
   - match: { license.uid: "893361dc-9749-4997-93cb-802e3dofh7aa" }
   - match: { license.type: "internal" }
-  - match: { license.mode: "platinum" }
+  - match: { license.mode: "trial" }
   - match: { license.status: "active" }
   - match: { license.expiry_date_in_millis: 1914278399999 }
 
@@ -147,7 +147,7 @@
   - is_true:    license
   - match: { license.uid: "893361dc-9749-4997-93cb-802e3dofh7aa" }
   - match: { license.type: "internal" }
-  - match: { license.mode: "platinum" }
+  - match: { license.mode: "trial" }
   - match: { license.status: "active" }
   - match: { license.expiry_date_in_millis: 1914278399999 }
   - is_true:    features

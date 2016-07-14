@@ -22,6 +22,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.license.plugin.core.LicenseState;
@@ -31,6 +32,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.graph.GraphLicensee;
 import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
@@ -194,13 +196,14 @@ public abstract class AbstractCollectorTestCase extends MonitoringIntegTestCase 
         }
 
         @Override
-        public Collection<Object> createComponents(ClusterService clusterService, Clock clock,
+        public Collection<Object> createComponents(ClusterService clusterService, Clock clock, Environment environment,
+                                                   ResourceWatcherService resourceWatcherService,
                                                    SecurityLicenseState securityLicenseState) {
             WatcherLicensee watcherLicensee = new WatcherLicensee(settings);
             MonitoringLicensee monitoringLicensee = new MonitoringLicensee(settings);
             GraphLicensee graphLicensee = new GraphLicensee(settings);
-            LicensesService licensesService = new LicenseServiceForCollectors(settings,
-                Arrays.asList(watcherLicensee, monitoringLicensee, graphLicensee));
+            LicensesService licensesService = new LicenseServiceForCollectors(settings, environment,
+                    resourceWatcherService, Arrays.asList(watcherLicensee, monitoringLicensee, graphLicensee));
             return Arrays.asList(licensesService, watcherLicensee, monitoringLicensee, graphLicensee);
         }
 
@@ -229,8 +232,9 @@ public abstract class AbstractCollectorTestCase extends MonitoringIntegTestCase 
         private volatile License license;
 
         @Inject
-        public LicenseServiceForCollectors(Settings settings, List<Licensee> licensees) {
-            super(settings, null, null, licensees);
+        public LicenseServiceForCollectors(Settings settings, Environment env,
+                                           ResourceWatcherService resourceWatcherService, List<Licensee> licensees) {
+            super(settings, null, null, env, resourceWatcherService, licensees);
             this.licensees = licensees;
         }
 
@@ -241,7 +245,7 @@ public abstract class AbstractCollectorTestCase extends MonitoringIntegTestCase 
         }
 
         @Override
-        public LicenseState licenseState() {
+        public Licensee.Status licenseeStatus() {
             return null;
         }
 

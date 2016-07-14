@@ -191,7 +191,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
         final InternalClient internalClient = new InternalClient(settings, threadPool, client, security.getCryptoService());
         components.add(internalClient);
 
-        components.addAll(licensing.createComponents(clusterService, getClock(), security.getSecurityLicenseState()));
+        components.addAll(licensing.createComponents(clusterService, getClock(), env, resourceWatcherService,
+                security.getSecurityLicenseState()));
         components.addAll(security.createComponents(resourceWatcherService));
 
         // watcher http stuff

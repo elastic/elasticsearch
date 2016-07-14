@@ -199,7 +199,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         @SuppressWarnings("unchecked")
         public R create(String name, List<B> ranges, DocValueFormat formatter, boolean keyed, List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) {
-            return (R) new InternalRange<>(name, ranges, formatter, keyed, pipelineAggregators, metaData);
+            return (R) new InternalRange<B, R>(name, ranges, formatter, keyed, pipelineAggregators, metaData);
         }
 
         @SuppressWarnings("unchecked")
@@ -210,7 +210,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         @SuppressWarnings("unchecked")
         public R create(List<B> ranges, R prototype) {
-            return (R) new InternalRange<>(prototype.name, ranges, prototype.format, prototype.keyed, prototype.pipelineAggregators(),
+            return (R) new InternalRange<B, R>(prototype.name, ranges, prototype.format, prototype.keyed, prototype.pipelineAggregators(),
                     prototype.metaData);
         }
 
@@ -295,7 +295,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<Bucket>[] rangeList = new List[ranges.size()];
         for (int i = 0; i < rangeList.length; ++i) {
-            rangeList[i] = new ArrayList<Bucket>();
+            rangeList[i] = new ArrayList<>();
         }
         for (InternalAggregation aggregation : aggregations) {
             InternalRange<B, R> ranges = (InternalRange<B, R>) aggregation;

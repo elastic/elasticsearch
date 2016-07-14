@@ -266,7 +266,8 @@ public class LicensingTests extends SecurityIntegTestCase {
             GraphLicensee graphLicensee = new GraphLicensee(settings);
             TestLicensesService licensesService = new TestLicensesService(settings,
                 Arrays.asList(securityLicensee, watcherLicensee, monitoringLicensee, graphLicensee));
-            return Arrays.asList(securityLicensee, licensesService, watcherLicensee, monitoringLicensee, graphLicensee, securityLicenseState);
+            return Arrays.asList(securityLicensee, licensesService, watcherLicensee, monitoringLicensee,
+                graphLicensee, securityLicenseState);
         }
 
         public InternalLicensing() {

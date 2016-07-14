@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Method;
@@ -34,35 +35,38 @@ import org.elasticsearch.painless.MethodWriter;
 /**
  * Represents a list load/store shortcut.  (Internal only.)
  */
-final class LListShortcut extends ALink {
+final class PSubListShortcut extends AStoreable {
 
+    final Struct struct;
     AExpression index;
+
     Method getter;
     Method setter;
 
-    LListShortcut(Location location, AExpression index) {
-        super(location, 2);
+    PSubListShortcut(Location location, Struct struct, AExpression index) {
+        super(location);
 
+        this.struct = Objects.requireNonNull(struct);
         this.index = Objects.requireNonNull(index);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
-        index.extractVariables(variables);
+        throw new IllegalStateException("Illegal tree structure.");
     }
 
     @Override
-    ALink analyze(Locals locals) {
-        getter = before.struct.methods.get(new Definition.MethodKey("get", 1));
-        setter = before.struct.methods.get(new Definition.MethodKey("set", 2));
+    void analyze(Locals locals) {
+        getter = struct.methods.get(new Definition.MethodKey("get", 1));
+        setter = struct.methods.get(new Definition.MethodKey("set", 2));
 
         if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1 ||
             getter.arguments.get(0).sort != Sort.INT)) {
-            throw createError(new IllegalArgumentException("Illegal list get shortcut for type [" + before.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal list get shortcut for type [" + struct.name + "]."));
         }
 
         if (setter != null && (setter.arguments.size() != 2 || setter.arguments.get(0).sort != Sort.INT)) {
-            throw createError(new IllegalArgumentException("Illegal list set shortcut for type [" + before.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal list set shortcut for type [" + struct.name + "]."));
         }
 
         if (getter != null && setter != null && (!getter.arguments.get(0).equals(setter.arguments.get(0))
@@ -70,21 +74,35 @@ final class LListShortcut extends ALink {
             throw createError(new IllegalArgumentException("Shortcut argument types must match."));
         }
 
-        if ((load || store) && (!load || getter != null) && (!store || setter != null)) {
+        if ((read || store) && (!read || getter != null) && (!store || setter != null)) {
             index.expected = Definition.INT_TYPE;
             index.analyze(locals);
             index = index.cast(locals);
 
-            after = setter != null ? setter.arguments.get(1) : getter.rtn;
+            actual = setter != null ? setter.arguments.get(1) : getter.rtn;
         } else {
-            throw createError(new IllegalArgumentException("Illegal list shortcut for type [" + before.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal list shortcut for type [" + struct.name + "]."));
         }
-
-        return this;
     }
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        prestore(writer, globals);
+        load(writer, globals);
+    }
+
+    @Override
+    int size() {
+        return 2;
+    }
+
+    @Override
+    boolean isDefLink() {
+        return false;
+    }
+
+    @Override
+    void prestore(MethodWriter writer, Globals globals) {
         index.write(writer, globals);
     }
 

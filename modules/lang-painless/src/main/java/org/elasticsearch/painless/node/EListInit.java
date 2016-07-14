@@ -54,6 +54,10 @@ public class EListInit extends AExpression {
 
     @Override
     void analyze(Locals locals) {
+        if (!read) {
+            throw createError(new IllegalArgumentException("Must read from list initializer."));
+        }
+
         try {
             actual = Definition.getType("ArrayList");
         } catch (IllegalArgumentException exception) {

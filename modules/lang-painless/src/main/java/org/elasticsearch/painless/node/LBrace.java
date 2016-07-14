@@ -43,7 +43,7 @@ public final class LBrace extends ALink {
 
         this.index = Objects.requireNonNull(index);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         index.extractVariables(variables);
@@ -68,9 +68,9 @@ public final class LBrace extends ALink {
         } else if (sort == Sort.DEF) {
             return new LDefArray(location, index).copy(this).analyze(locals);
         } else if (Map.class.isAssignableFrom(before.clazz)) {
-            return new LMapShortcut(location, index).copy(this).analyze(locals);
+            return new PSubMapShortcut(location, index).copy(this).analyze(locals);
         } else if (List.class.isAssignableFrom(before.clazz)) {
-            return new LListShortcut(location, index).copy(this).analyze(locals);
+            return new PSubListShortcut(location, index).copy(this).analyze(locals);
         }
 
         throw createError(new IllegalArgumentException("Illegal array access on type [" + before.name + "]."));

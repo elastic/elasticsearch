@@ -40,9 +40,11 @@ final class EConstant extends AExpression {
 
         this.constant = constant;
     }
-    
+
     @Override
-    void extractVariables(Set<String> variables) {}
+    void extractVariables(Set<String> variables) {
+        // Do nothing.
+    }
 
     @Override
     void analyze(Locals locals) {

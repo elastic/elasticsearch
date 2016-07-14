@@ -34,6 +34,15 @@ import org.elasticsearch.painless.MethodWriter;
 public abstract class AExpression extends ANode {
 
     /**
+     * Prefix is the predecessor to this node in a variable chain.
+     * This is used to analyze and write variable chains in a
+     * more natural order since the parent node of a variable
+     * chain will want the data from the final postfix to be
+     * analyzed.
+     */
+    protected AExpression prefix = null;
+
+    /**
      * Set to false when an expression will not be read from such as
      * a basic assignment.  Note this variable is always set by the parent
      * as input.
@@ -100,8 +109,14 @@ public abstract class AExpression extends ANode {
      */
     protected Label fals = null;
 
-    public AExpression(Location location) {
+    protected AExpression(Location location) {
         super(location);
+    }
+
+    protected AExpression(Location location, AExpression prefix) {
+        super(location);
+
+        this.prefix = prefix;
     }
 
     /**
@@ -119,8 +134,8 @@ public abstract class AExpression extends ANode {
      * nodes with the constant variable set to a non-null value with {@link EConstant}.
      * @return The new child node for the parent node calling this method.
      */
-    AExpression cast(Locals locals) {
-        final Cast cast = AnalyzerCaster.getLegalCast(location, actual, expected, explicit, internal);
+    protected AExpression cast(Locals locals) {
+        Cast cast = AnalyzerCaster.getLegalCast(location, actual, expected, explicit, internal);
 
         if (cast == null) {
             if (constant == null || this instanceof EConstant) {

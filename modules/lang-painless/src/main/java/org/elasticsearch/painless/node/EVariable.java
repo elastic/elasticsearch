@@ -32,52 +32,63 @@ import java.util.Set;
 /**
  * Represents a variable load/store.
  */
-public final class LVariable extends ALink {
+public final class EVariable extends AStoreable {
 
     final String name;
 
-    Variable variable;
+    Variable variable = null;
 
-    public LVariable(Location location, String name) {
-        super(location, 0);
+    public EVariable(Location location, String name) {
+        super(location);
 
         this.name = Objects.requireNonNull(name);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         variables.add(name);
     }
 
     @Override
-    ALink analyze(Locals locals) {
-        if (before != null) {
-            throw createError(new IllegalArgumentException("Illegal variable [" + name + "] access with target already defined."));
-        }
-
+    void analyze(Locals locals) {
         variable = locals.getVariable(location, name);
 
         if (store && variable.readonly) {
             throw createError(new IllegalArgumentException("Variable [" + variable.name + "] is read-only."));
         }
 
-        after = variable.type;
-
-        return this;
+        actual = variable.type;
     }
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        if (!store) {
+            load(writer, globals);
+        }
+    }
+
+    @Override
+    int size() {
+        return 0;
+    }
+
+    @Override
+    boolean isDefLink() {
+        return false;
+    }
+
+    @Override
+    void prestore(MethodWriter writer, Globals globals) {
         // Do nothing.
     }
 
     @Override
     void load(MethodWriter writer, Globals globals) {
-        writer.visitVarInsn(after.type.getOpcode(Opcodes.ILOAD), variable.getSlot());
+        writer.visitVarInsn(actual.type.getOpcode(Opcodes.ILOAD), variable.getSlot());
     }
 
     @Override
     void store(MethodWriter writer, Globals globals) {
-        writer.visitVarInsn(after.type.getOpcode(Opcodes.ISTORE), variable.getSlot());
+        writer.visitVarInsn(actual.type.getOpcode(Opcodes.ISTORE), variable.getSlot());
     }
 }

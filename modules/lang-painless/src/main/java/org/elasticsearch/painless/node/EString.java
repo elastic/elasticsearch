@@ -31,44 +31,30 @@ import java.util.Set;
 /**
  * Represents a string constant.
  */
-public final class LString extends ALink {
+public final class EString extends AExpression {
 
-    public LString(Location location, String string) {
-        super(location, -1);
+    public EString(Location location, String string) {
+        super(location);
 
-        this.string = Objects.requireNonNull(string);
-    }
-    
-    @Override
-    void extractVariables(Set<String> variables) {}
-
-    @Override
-    ALink analyze(Locals locals) {
-        if (before != null) {
-            throw createError(new IllegalArgumentException("Illegal String constant [" + string + "]."));
-        } else if (store) {
-            throw createError(new IllegalArgumentException("Cannot write to read-only String constant [" + string + "]."));
-        } else if (!load) {
-            throw createError(new IllegalArgumentException("Must read String constant [" + string + "]."));
-        }
-
-        after = Definition.STRING_TYPE;
-
-        return this;
+        this.constant = Objects.requireNonNull(string);
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
+    void extractVariables(Set<String> variables) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter writer, Globals globals) {
-        writer.push(string);
+    void analyze(Locals locals) {
+        if (!read) {
+            throw createError(new IllegalArgumentException("Must read from constant [" + constant + "]."));
+        }
+
+        actual = Definition.STRING_TYPE;
     }
 
     @Override
-    void store(MethodWriter writer, Globals globals) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
+    void write(MethodWriter writer, Globals globals) {
+        throw new IllegalStateException("Illegal tree structure.");
     }
 }

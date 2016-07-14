@@ -70,7 +70,7 @@ public abstract class ALink extends ANode {
     boolean statement = false;
 
     /**
-     * Used by {@link LString} to set the value of the String constant.  Also
+     * Used by {@link EString} to set the value of the String constant.  Also
      * used by shortcuts to represent a constant key.
      */
     String string = null;

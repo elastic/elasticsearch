@@ -60,6 +60,10 @@ public class EMapInit extends AExpression {
 
     @Override
     void analyze(Locals locals) {
+        if (!read) {
+            throw createError(new IllegalArgumentException("Must read from map initializer."));
+        }
+
         try {
             actual = Definition.getType("HashMap");
         } catch (IllegalArgumentException exception) {

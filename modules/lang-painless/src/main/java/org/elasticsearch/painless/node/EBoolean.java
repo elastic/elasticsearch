@@ -37,12 +37,16 @@ public final class EBoolean extends AExpression {
 
         this.constant = constant;
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {}
 
     @Override
     void analyze(Locals locals) {
+        if (!read) {
+            throw createError(new IllegalArgumentException("Must read from constant [" + constant + "]."));
+        }
+
         actual = Definition.BOOLEAN_TYPE;
     }
 

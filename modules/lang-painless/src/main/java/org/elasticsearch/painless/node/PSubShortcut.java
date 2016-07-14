@@ -19,72 +19,80 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
-
-import java.util.Objects;
-import java.util.Set;
-
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
+import java.util.Set;
+
 /**
- * Represents a map load/store shortcut. (Internal only.)
+ * Represents a field load/store shortcut.  (Internal only.)
  */
-final class LMapShortcut extends ALink {
+final class PSubShortcut extends AStoreable {
 
-    AExpression index;
-    Method getter;
-    Method setter;
+    final String value;
+    final String type;
+    final Method getter;
+    final Method setter;
 
-    LMapShortcut(Location location, AExpression index) {
-        super(location, 2);
+    PSubShortcut(Location location, String value, String type, Method getter, Method setter) {
+        super(location);
 
-        this.index = Objects.requireNonNull(index);
+        this.value = value;
+        this.type = type;
+        this.getter = getter;
+        this.setter = setter;
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
-        index.extractVariables(variables);
+        throw new IllegalStateException("Illegal tree structure.");
     }
 
     @Override
-    ALink analyze(Locals locals) {
-        getter = before.struct.methods.get(new Definition.MethodKey("get", 1));
-        setter = before.struct.methods.get(new Definition.MethodKey("put", 2));
-
-        if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1)) {
-            throw createError(new IllegalArgumentException("Illegal map get shortcut for type [" + before.name + "]."));
+    void analyze(Locals locals) {
+        if (getter != null && (getter.rtn.sort == Sort.VOID || !getter.arguments.isEmpty())) {
+            throw createError(new IllegalArgumentException(
+                "Illegal get shortcut on field [" + value + "] for type [" + type + "]."));
         }
 
-        if (setter != null && setter.arguments.size() != 2) {
-            throw createError(new IllegalArgumentException("Illegal map set shortcut for type [" + before.name + "]."));
+        if (setter != null && (setter.rtn.sort != Sort.VOID || setter.arguments.size() != 1)) {
+            throw createError(new IllegalArgumentException(
+                "Illegal set shortcut on field [" + value + "] for type [" + type + "]."));
         }
 
-        if (getter != null && setter != null &&
-            (!getter.arguments.get(0).equals(setter.arguments.get(0)) || !getter.rtn.equals(setter.arguments.get(1)))) {
+        if (getter != null && setter != null && setter.arguments.get(0) != getter.rtn) {
             throw createError(new IllegalArgumentException("Shortcut argument types must match."));
         }
 
-        if ((load || store) && (!load || getter != null) && (!store || setter != null)) {
-            index.expected = setter != null ? setter.arguments.get(0) : getter.arguments.get(0);
-            index.analyze(locals);
-            index = index.cast(locals);
-
-            after = setter != null ? setter.arguments.get(1) : getter.rtn;
+        if ((getter != null || setter != null) && (!read || getter != null) && (!store || setter != null)) {
+            actual = setter != null ? setter.arguments.get(0) : getter.rtn;
         } else {
-            throw createError(new IllegalArgumentException("Illegal map shortcut for type [" + before.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal shortcut on field [" + value + "] for type [" + type + "]."));
         }
-
-        return this;
     }
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        index.write(writer, globals);
+        load(writer, globals);
+    }
+
+    @Override
+    int size() {
+        return 1;
+    }
+
+    @Override
+    boolean isDefLink() {
+        return false;
+    }
+
+    @Override
+    void prestore(MethodWriter writer, Globals globals) {
+        // Do nothing.
     }
 
     @Override

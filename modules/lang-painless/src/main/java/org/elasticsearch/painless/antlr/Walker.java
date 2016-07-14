@@ -135,12 +135,12 @@ import org.elasticsearch.painless.node.LBrace;
 import org.elasticsearch.painless.node.LCallInvoke;
 import org.elasticsearch.painless.node.LCallLocal;
 import org.elasticsearch.painless.node.LCast;
-import org.elasticsearch.painless.node.LField;
+import org.elasticsearch.painless.node.PField;
 import org.elasticsearch.painless.node.LNewArray;
 import org.elasticsearch.painless.node.LNewObj;
 import org.elasticsearch.painless.node.LRegex;
-import org.elasticsearch.painless.node.LStatic;
-import org.elasticsearch.painless.node.LString;
+import org.elasticsearch.painless.node.EStatic;
+import org.elasticsearch.painless.node.EString;
 import org.elasticsearch.painless.node.LVariable;
 import org.elasticsearch.painless.node.SBlock;
 import org.elasticsearch.painless.node.SBreak;
@@ -315,7 +315,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
         } else if (ctx.empty() != null) {
             return new SWhile(location(ctx), expression, null);
         } else {
-            throw location(ctx).createError(new IllegalStateException(" Illegal tree structure."));
+            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
@@ -359,7 +359,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
 
         return new SEach(location(ctx), type, name, expression, block);
     }
-    
+
     @Override
     public Object visitIneach(IneachContext ctx) {
         reserved.peek().setMaxLoopCounter(settings.getMaxLoopCounter());
@@ -559,7 +559,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
         } else if (ctx.BWOR() != null) {
             operation = Operation.BWOR;
         } else {
-            throw location(ctx).createError(new IllegalStateException("Unexpected state."));
+            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
         }
 
         return new EBinary(location(ctx), operation, left, right);
@@ -588,7 +588,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
         } else if (ctx.NER() != null) {
             operation = Operation.NER;
         } else {
-            throw location(ctx).createError(new IllegalStateException("Unexpected state."));
+            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
         }
 
         return new EComp(location(ctx), operation, left, right);
@@ -605,7 +605,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
         } else if (ctx.BOOLOR() != null) {
             operation = Operation.OR;
         } else {
-            throw location(ctx).createError(new IllegalStateException("Unexpected state."));
+            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
         }
 
         return new EBool(location(ctx), operation, left, right);
@@ -818,7 +818,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
         String type = ctx.decltype().getText();
         List<ALink> links = new ArrayList<>();
 
-        links.add(new LStatic(location(ctx), type));
+        links.add(new EStatic(location(ctx), type));
         links.add((ALink)visit(ctx.dot()));
 
         for (SecondaryContext secondary : ctx.secondary()) {
@@ -847,7 +847,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
     public Object visitString(StringContext ctx) {
         String string = ctx.STRING().getText().substring(1, ctx.STRING().getText().length() - 1);
         List<ALink> links = new ArrayList<>();
-        links.add(new LString(location(ctx), string));
+        links.add(new EString(location(ctx), string));
 
         return links;
     }
@@ -930,7 +930,7 @@ public final class Walker extends PainlessParserBaseVisitor<Object> {
             throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        return new LField(location(ctx), value);
+        return new PField(location(ctx), value);
     }
 
     @Override

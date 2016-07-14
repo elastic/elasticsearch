@@ -31,49 +31,64 @@ import java.util.Set;
 /**
  * Represents an array length field load.
  */
-public final class LArrayLength extends ALink {
+final class PSubArrayLength extends AStoreable {
 
+    final String type;
     final String value;
 
-    LArrayLength(Location location, String value) {
-        super(location, -1);
+    PSubArrayLength(Location location, String type, String value) {
+        super(location);
 
+        this.type = Objects.requireNonNull(type);
         this.value = Objects.requireNonNull(value);
     }
-    
-    @Override
-    void extractVariables(Set<String> variables) {}
 
     @Override
-    ALink analyze(Locals locals) {
+    void extractVariables(Set<String> variables) {
+        throw new IllegalStateException("Illegal tree structure.");
+    }
+
+    @Override
+    void analyze(Locals locals) {
         if ("length".equals(value)) {
-            if (!load) {
-                throw createError(new IllegalArgumentException("Must read array field [length]."));
-            } else if (store) {
-                throw createError(new IllegalArgumentException("Cannot write to read-only array field [length]."));
+            if (store) {
+                throw createError(new IllegalArgumentException("Cannot write to read-only field [length]."));
             }
 
-            after = Definition.INT_TYPE;
+            actual = Definition.INT_TYPE;
         } else {
-            throw createError(new IllegalArgumentException("Illegal field access [" + value + "]."));
+            throw createError(new IllegalArgumentException("Field [" + value + "] does not exist for type [" + type + "]."));
         }
-
-        return this;
     }
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        // Do nothing.
-    }
-
-    @Override
-    void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
         writer.arrayLength();
     }
 
     @Override
+    int size() {
+        throw new IllegalStateException("Illegal tree structure.");
+    }
+
+    @Override
+    boolean isDefLink() {
+        throw new IllegalStateException("Illegal tree structure.");
+    }
+
+    @Override
+    void prestore(MethodWriter writer, Globals globals) {
+        throw new IllegalStateException("Illegal tree structure.");
+    }
+
+    @Override
+    void load(MethodWriter writer, Globals globals) {
+        throw new IllegalStateException("Illegal tree structure.");
+    }
+
+    @Override
     void store(MethodWriter writer, Globals globals) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
+        throw new IllegalStateException("Illegal tree structure.");
     }
 }

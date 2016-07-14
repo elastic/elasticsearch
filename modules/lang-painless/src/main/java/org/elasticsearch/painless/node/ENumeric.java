@@ -44,12 +44,16 @@ public final class ENumeric extends AExpression {
         this.value = Objects.requireNonNull(value);
         this.radix = radix;
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {}
 
     @Override
     void analyze(Locals locals) {
+        if (!read) {
+            throw createError(new IllegalArgumentException("Must read from constant [" + value + "]."));
+        }
+
         if (value.endsWith("d") || value.endsWith("D")) {
             if (radix != 10) {
                 throw createError(new IllegalStateException("Illegal tree structure."));

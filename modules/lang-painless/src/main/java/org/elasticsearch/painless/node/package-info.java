@@ -51,7 +51,7 @@
  * {@link org.elasticsearch.painless.node.ENumeric} - Represents a non-decimal numeric constant.
  * {@link org.elasticsearch.painless.node.EUnary} - Represents a unary math expression.
  * {@link org.elasticsearch.painless.node.IDefLink} - A marker interface for all LDef* (link) nodes.
- * {@link org.elasticsearch.painless.node.LArrayLength} - Represents an array length field load.
+ * {@link org.elasticsearch.painless.node.PSubArrayLength} - Represents an array length field load.
  * {@link org.elasticsearch.painless.node.LBrace} - Represents an array load/store or defers to possible shortcuts.
  * {@link org.elasticsearch.painless.node.LCallInvoke} - Represents a method call or defers to a def call.
  * {@link org.elasticsearch.painless.node.LCallLocal} - Represents a user-defined call.
@@ -59,14 +59,14 @@
  * {@link org.elasticsearch.painless.node.LDefArray} - Represents an array load/store or shortcut on a def type.  (Internal only.)
  * {@link org.elasticsearch.painless.node.LDefCall} - Represents a method call made on a def type. (Internal only.)
  * {@link org.elasticsearch.painless.node.LDefField} - Represents a field load/store or shortcut on a def type.  (Internal only.)
- * {@link org.elasticsearch.painless.node.LField} - Represents a field load/store or defers to a possible shortcuts.
- * {@link org.elasticsearch.painless.node.LListShortcut} - Represents a list load/store shortcut.  (Internal only.)
- * {@link org.elasticsearch.painless.node.LMapShortcut} - Represents a map load/store shortcut. (Internal only.)
+ * {@link org.elasticsearch.painless.node.PField} - Represents a field load/store or defers to a possible shortcuts.
+ * {@link org.elasticsearch.painless.node.PSubListShortcut} - Represents a list load/store shortcut.  (Internal only.)
+ * {@link org.elasticsearch.painless.node.PSubMapShortcut} - Represents a map load/store shortcut. (Internal only.)
  * {@link org.elasticsearch.painless.node.LNewArray} - Represents an array instantiation.
  * {@link org.elasticsearch.painless.node.LNewObj} - Represents and object instantiation.
  * {@link org.elasticsearch.painless.node.LShortcut} - Represents a field load/store shortcut.  (Internal only.)
- * {@link org.elasticsearch.painless.node.LStatic} - Represents a static type target.
- * {@link org.elasticsearch.painless.node.LString} - Represents a string constant.
+ * {@link org.elasticsearch.painless.node.EStatic} - Represents a static type target.
+ * {@link org.elasticsearch.painless.node.EString} - Represents a string constant.
  * {@link org.elasticsearch.painless.node.LVariable} - Represents a variable load/store.
  * {@link org.elasticsearch.painless.node.SBlock} - Represents a set of statements as a branch of control-flow.
  * {@link org.elasticsearch.painless.node.SBreak} - Represents a break statement.

@@ -18,7 +18,6 @@ import java.util.function.Function;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -63,7 +62,6 @@ import org.elasticsearch.xpack.security.action.user.TransportPutUserAction;
 import org.elasticsearch.xpack.security.audit.AuditTrailModule;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
-import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.AuthenticationModule;
 import org.elasticsearch.xpack.security.authc.InternalAuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
@@ -136,6 +134,10 @@ public class Security implements ActionPlugin {
 
     public CryptoService getCryptoService() {
         return cryptoService;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
     }
 
     public Collection<Module> nodeModules() {

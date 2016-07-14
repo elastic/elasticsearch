@@ -52,7 +52,7 @@ public class WatcherClientProxy extends ClientProxy {
      */
     public static WatcherClientProxy of(Client client) {
         return new WatcherClientProxy(Settings.EMPTY, client instanceof InternalClient ? (InternalClient) client :
-                new InternalClient.Insecure(client.settings(), client.threadPool(), client));
+                new InternalClient(client.settings(), client.threadPool(), client, null));
     }
 
     public IndexResponse index(IndexRequest request, TimeValue timeout) {

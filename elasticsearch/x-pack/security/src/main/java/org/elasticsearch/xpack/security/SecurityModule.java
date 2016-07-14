@@ -40,12 +40,8 @@ public class SecurityModule extends AbstractSecurityModule {
             bind(SecurityContext.Secure.class).asEagerSingleton();
             bind(SecurityContext.class).to(SecurityContext.Secure.class);
             bind(SecurityLifecycleService.class).asEagerSingleton();
-            bind(InternalClient.Secure.class).asEagerSingleton();
-            bind(InternalClient.class).to(InternalClient.Secure.class);
         } else {
             bind(SecurityContext.class).toInstance(SecurityContext.Insecure.INSTANCE);
-            bind(InternalClient.Insecure.class).asEagerSingleton();
-            bind(InternalClient.class).to(InternalClient.Insecure.class);
         }
     }
 

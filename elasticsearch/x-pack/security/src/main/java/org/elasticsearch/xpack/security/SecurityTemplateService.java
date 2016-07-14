@@ -37,19 +37,18 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
     public static final String SECURITY_TEMPLATE_NAME = "security-index-template";
 
     private final ThreadPool threadPool;
-    private final Provider<InternalClient> clientProvider;
+    private final InternalClient client;
     private final AtomicBoolean templateCreationPending = new AtomicBoolean(false);
 
     public SecurityTemplateService(Settings settings, ClusterService clusterService,
-                                   Provider<InternalClient> clientProvider, ThreadPool threadPool) {
+                                   InternalClient client, ThreadPool threadPool) {
         super(settings);
         this.threadPool = threadPool;
-        this.clientProvider = clientProvider;
+        this.client = client;
         clusterService.add(this);
     }
 
     private void createSecurityTemplate() {
-        final Client client = clientProvider.get();
         try (InputStream is = getClass().getResourceAsStream("/" + SECURITY_TEMPLATE_NAME + ".json")) {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             Streams.copy(is, out);

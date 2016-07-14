@@ -114,20 +114,19 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     private final Hasher hasher = Hasher.BCRYPT;
     private final List<ChangeListener> listeners = new CopyOnWriteArrayList<>();
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
-    private final Provider<InternalClient> clientProvider;
+    private final InternalClient client;
     private final ThreadPool threadPool;
 
     private SelfReschedulingRunnable userPoller;
-    private Client client;
     private int scrollSize;
     private TimeValue scrollKeepAlive;
 
     private volatile boolean securityIndexExists = false;
 
     @Inject
-    public NativeUsersStore(Settings settings, Provider<InternalClient> clientProvider, ThreadPool threadPool) {
+    public NativeUsersStore(Settings settings, InternalClient client, ThreadPool threadPool) {
         super(settings);
-        this.clientProvider = clientProvider;
+        this.client = client;
         this.threadPool = threadPool;
     }
 
@@ -526,7 +525,6 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     public void start() {
         try {
             if (state.compareAndSet(State.INITIALIZED, State.STARTING)) {
-                this.client = clientProvider.get();
                 this.scrollSize = SCROLL_SIZE_SETTING.get(settings);
                 this.scrollKeepAlive = SCROLL_KEEP_ALIVE_SETTING.get(settings);
 
@@ -703,7 +701,6 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
             throw new IllegalStateException("can only reset if stopped!!!");
         }
         this.listeners.clear();
-        this.client = null;
         this.securityIndexExists = false;
         this.state.set(State.INITIALIZED);
     }

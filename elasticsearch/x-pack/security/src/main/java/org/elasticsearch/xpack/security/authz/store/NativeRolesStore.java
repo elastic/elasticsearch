@@ -105,12 +105,11 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
 
     public static final String ROLE_DOC_TYPE = "role";
 
-    private final Provider<InternalClient> clientProvider;
+    private final InternalClient client;
     private final ThreadPool threadPool;
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
     private final ConcurrentHashMap<String, RoleAndVersion> roleCache = new ConcurrentHashMap<>();
 
-    private Client client;
     private SecurityClient securityClient;
     private int scrollSize;
     private TimeValue scrollKeepAlive;
@@ -119,9 +118,9 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
     private volatile boolean securityIndexExists = false;
 
     @Inject
-    public NativeRolesStore(Settings settings, Provider<InternalClient> clientProvider, ThreadPool threadPool) {
+    public NativeRolesStore(Settings settings, InternalClient client, ThreadPool threadPool) {
         super(settings);
-        this.clientProvider = clientProvider;
+        this.client = client;
         this.threadPool = threadPool;
     }
 
@@ -150,7 +149,6 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
     public void start() {
         try {
             if (state.compareAndSet(State.INITIALIZED, State.STARTING)) {
-                this.client = clientProvider.get();
                 this.securityClient = new SecurityClient(client);
                 this.scrollSize = SCROLL_SIZE_SETTING.get(settings);
                 this.scrollKeepAlive = SCROLL_KEEP_ALIVE_SETTING.get(settings);
@@ -501,7 +499,6 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
             throw new IllegalStateException("can only reset if stopped!!!");
         }
         this.roleCache.clear();
-        this.client = null;
         this.securityIndexExists = false;
         this.state.set(State.INITIALIZED);
     }

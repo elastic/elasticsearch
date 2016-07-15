@@ -53,7 +53,7 @@ import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.joda.time.DateTime;
@@ -173,7 +173,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
                 builder.put("xpack.security.audit.index.client." + entry.getKey(), entry.getValue());
             }
         } else {
-            builder.put("xpack.security.audit.index.client." + SecurityNettyTransport.SSL_SETTING.getKey(), false);
+            builder.put("xpack.security.audit.index.client." + SecurityNetty3Transport.SSL_SETTING.getKey(), false);
         }
         remoteSettings = builder.build();
     }

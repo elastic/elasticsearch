@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.transport.netty;
+package org.elasticsearch.xpack.security.transport.netty3;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
@@ -61,8 +61,8 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
                 .put(TransportSettings.BIND_HOST.getKey(), "127.0.0.1")
                 .put("network.host", "127.0.0.1")
                 .put("xpack.security.ssl.client.auth", "false")
-                .put(SecurityNettyTransport.HOSTNAME_VERIFICATION_SETTING.getKey(), true)
-                .put(SecurityNettyTransport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING.getKey(), false)
+                .put(SecurityNetty3Transport.HOSTNAME_VERIFICATION_SETTING.getKey(), true)
+                .put(SecurityNetty3Transport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING.getKey(), false)
                 .build();
     }
 
@@ -78,8 +78,8 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
         clientSettings = builder.build();
 
         return Settings.builder().put(clientSettings)
-                .put(SecurityNettyTransport.HOSTNAME_VERIFICATION_SETTING.getKey(), true)
-                .put(SecurityNettyTransport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING.getKey(), false)
+                .put(SecurityNetty3Transport.HOSTNAME_VERIFICATION_SETTING.getKey(), true)
+                .put(SecurityNetty3Transport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING.getKey(), false)
                 .put("xpack.security.ssl.keystore.path", keystore.toAbsolutePath())
                 .put("xpack.security.ssl.keystore.password", "testnode-ip-only")
                 .put("xpack.security.ssl.truststore.path", keystore.toAbsolutePath())

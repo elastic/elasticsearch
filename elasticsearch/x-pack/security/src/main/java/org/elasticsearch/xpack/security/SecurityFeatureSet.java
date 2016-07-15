@@ -21,8 +21,8 @@ import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.security.authz.store.RolesStore;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyHttpServerTransport;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -122,8 +122,8 @@ public class SecurityFeatureSet implements XPackFeatureSet {
 
     static Map<String, Object> sslUsage(Settings settings) {
         Map<String, Object> map = new HashMap<>(2);
-        map.put("http", Collections.singletonMap("enabled", SecurityNettyHttpServerTransport.SSL_SETTING.get(settings)));
-        map.put("transport", Collections.singletonMap("enabled", SecurityNettyTransport.SSL_SETTING.get(settings)));
+        map.put("http", Collections.singletonMap("enabled", SecurityNetty3HttpServerTransport.SSL_SETTING.get(settings)));
+        map.put("transport", Collections.singletonMap("enabled", SecurityNetty3Transport.SSL_SETTING.get(settings)));
         return map;
     }
 

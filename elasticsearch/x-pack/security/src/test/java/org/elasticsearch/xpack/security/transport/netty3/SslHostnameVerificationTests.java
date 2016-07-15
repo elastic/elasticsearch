@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.transport.netty;
+package org.elasticsearch.xpack.security.transport.netty3;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
@@ -11,10 +11,10 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.security.Security;
 
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
@@ -59,7 +59,7 @@ public class SslHostnameVerificationTests extends SecurityIntegTestCase {
                 .put("xpack.security.ssl.truststore.path", keystore.toAbsolutePath())
                 .put("xpack.security.ssl.truststore.password", "testnode-no-subjaltname")
                 // disable hostname verification as this test uses non-localhost addresses
-                .put(SecurityNettyTransport.HOSTNAME_VERIFICATION_SETTING.getKey(), false)
+                .put(SecurityNetty3Transport.HOSTNAME_VERIFICATION_SETTING.getKey(), false)
                 .build();
     }
 
@@ -77,7 +77,7 @@ public class SslHostnameVerificationTests extends SecurityIntegTestCase {
             }
         }
 
-        builder.put(SecurityNettyTransport.HOSTNAME_VERIFICATION_SETTING.getKey(), false)
+        builder.put(SecurityNetty3Transport.HOSTNAME_VERIFICATION_SETTING.getKey(), false)
                 .put("xpack.security.ssl.keystore.path", keystore.toAbsolutePath()) // settings for client keystore
                 .put("xpack.security.ssl.keystore.password", "testnode-no-subjaltname");
 
@@ -96,7 +96,7 @@ public class SslHostnameVerificationTests extends SecurityIntegTestCase {
         InetSocketAddress inetSocketAddress = ((InetSocketTransportAddress) transportAddress).address();
 
         Settings settings = Settings.builder().put(transportClientSettings())
-                .put(SecurityNettyTransport.HOSTNAME_VERIFICATION_SETTING.getKey(), true)
+                .put(SecurityNetty3Transport.HOSTNAME_VERIFICATION_SETTING.getKey(), true)
                 .build();
 
         try (TransportClient client = TransportClient.builder().addPlugin(XPackPlugin.class).settings(settings).build()) {

@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.xpack.MockNettyPlugin;
+import org.elasticsearch.xpack.MockNetty3Plugin;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -25,8 +25,8 @@ import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyHttpServerTransport;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -162,7 +162,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
 
     @Override
     public Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(xpackPluginClass(), MockNettyPlugin.class);
+        return Arrays.asList(xpackPluginClass(), MockNetty3Plugin.class);
     }
 
     @Override
@@ -259,18 +259,18 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
         Path store = resolveResourcePath(resourcePathToStore);
 
         final String sslEnabledSetting =
-                randomFrom(SecurityNettyTransport.SSL_SETTING.getKey(), SecurityNettyTransport.DEPRECATED_SSL_SETTING.getKey());
+                randomFrom(SecurityNetty3Transport.SSL_SETTING.getKey(), SecurityNetty3Transport.DEPRECATED_SSL_SETTING.getKey());
         Settings.Builder builder = Settings.builder().put(sslEnabledSetting, sslTransportEnabled);
 
         if (transportClient == false) {
-            builder.put(SecurityNettyHttpServerTransport.SSL_SETTING.getKey(), false);
+            builder.put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), false);
         }
 
         if (sslTransportEnabled) {
             builder.put("xpack.security.ssl.keystore.path", store)
                     .put("xpack.security.ssl.keystore.password", password)
-                    .put(SecurityNettyTransport.HOSTNAME_VERIFICATION_SETTING.getKey(), hostnameVerificationEnabled)
-                    .put(SecurityNettyTransport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING.getKey(),
+                    .put(SecurityNetty3Transport.HOSTNAME_VERIFICATION_SETTING.getKey(), hostnameVerificationEnabled)
+                    .put(SecurityNetty3Transport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING.getKey(),
                             hostnameVerificationResolveNameEnabled);
         }
 
@@ -287,20 +287,20 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
                                             boolean transportClient) {
         Settings.Builder builder = Settings.builder();
         final String sslEnabledSetting =
-                randomFrom(SecurityNettyTransport.SSL_SETTING.getKey(), SecurityNettyTransport.DEPRECATED_SSL_SETTING.getKey());
+                randomFrom(SecurityNetty3Transport.SSL_SETTING.getKey(), SecurityNetty3Transport.DEPRECATED_SSL_SETTING.getKey());
         builder.put(sslEnabledSetting, sslTransportEnabled);
 
         if (transportClient == false) {
-            builder.put(SecurityNettyHttpServerTransport.SSL_SETTING.getKey(), false);
+            builder.put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), false);
         }
 
         if (sslTransportEnabled) {
             builder.put("xpack.security.ssl.key.path", resolveResourcePath(keyPath))
                     .put("xpack.security.ssl.key.password", password)
                     .put("xpack.security.ssl.cert", Strings.arrayToCommaDelimitedString(resolvePathsToString(certificateFiles)))
-                    .put(randomFrom(SecurityNettyTransport.HOSTNAME_VERIFICATION_SETTING.getKey(),
-                            SecurityNettyTransport.DEPRECATED_HOSTNAME_VERIFICATION_SETTING.getKey()), hostnameVerificationEnabled)
-                    .put(SecurityNettyTransport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING.getKey(),
+                    .put(randomFrom(SecurityNetty3Transport.HOSTNAME_VERIFICATION_SETTING.getKey(),
+                            SecurityNetty3Transport.DEPRECATED_HOSTNAME_VERIFICATION_SETTING.getKey()), hostnameVerificationEnabled)
+                    .put(SecurityNetty3Transport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING.getKey(),
                             hostnameVerificationResolveNameEnabled);
 
             if (trustedCertificates.isEmpty() == false) {

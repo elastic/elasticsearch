@@ -344,6 +344,20 @@
 
   <target name="stop-external-cluster" if="integ.pidfile.exists">
     <stop-node/>
+    <condition property="tests.failed">
+      <not>
+        <resourcecontains resource="${project.build.directory}/failsafe-reports/failsafe-summary.xml"
+          substring="&lt;failures&gt;0&lt;/failures&gt;"/>
+      </not>
+    </condition>
+    <antcall target="dump-cluster-log-if-failed"/>
+  </target>
+
+  <target name="dump-cluster-log-if-failed" if="tests.failed">
+    <local name="log.contents"/>
+    <loadfile srcFile="${integ.scratch}/elasticsearch-${elasticsearch.version}/logs/prepare_release.log"
+              property="log.contents"/>
+    <echo message="${log.contents}" taskname="elasticsearch"/>
   </target>
 
   <!-- distribution tests: .zip -->

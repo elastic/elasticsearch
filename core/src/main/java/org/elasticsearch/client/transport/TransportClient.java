@@ -19,14 +19,6 @@
 
 package org.elasticsearch.client.transport;
 
-import java.io.Closeable;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -61,6 +53,13 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.Closeable;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one
@@ -115,6 +114,9 @@ public class TransportClient extends AbstractClient {
                     .put(InternalSettingsPreparer.prepareSettings(settings))
                     .put(NetworkService.NETWORK_SERVER.getKey(), false)
                     .put(CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE);
+            if (Node.NODE_NAME_SETTING.exists(settings) == false) {
+                settingsBuilder.put(Node.NODE_NAME_SETTING.getKey(), "_client_");
+            }
             return new PluginsService(settingsBuilder.build(), null, null, pluginClasses);
         }
 

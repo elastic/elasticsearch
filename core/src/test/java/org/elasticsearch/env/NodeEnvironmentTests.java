@@ -389,21 +389,20 @@ public class NodeEnvironmentTests extends ESTestCase {
         assertThat("index paths uses the regular template",
                 env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID())));
 
-        env.close();
-        NodeEnvironment env2 = newNodeEnvironment(dataPaths, "/tmp",
+        IndexSettings s3 = new IndexSettings(s2.getIndexMetaData(),
                 Settings.builder().put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), false).build());
 
-        assertThat(env2.availableShardPaths(sid), equalTo(env2.availableShardPaths(sid)));
-        assertThat(env2.resolveCustomLocation(s2, sid), equalTo(PathUtils.get("/tmp/foo/" + index.getUUID() + "/0")));
+        assertThat(env.availableShardPaths(sid), equalTo(env.availableShardPaths(sid)));
+        assertThat(env.resolveCustomLocation(s3, sid), equalTo(PathUtils.get("/tmp/foo/" + index.getUUID() + "/0")));
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
-                env2.availableShardPaths(sid),
+                env.availableShardPaths(sid),
                 equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID() + "/0")));
 
         assertThat("index paths uses the regular template",
-                env2.indexPaths(index), equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID())));
+                env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID())));
 
-        env2.close();
+        env.close();
     }
 
     public void testWhetherClusterFolderShouldBeUsed() throws Exception {

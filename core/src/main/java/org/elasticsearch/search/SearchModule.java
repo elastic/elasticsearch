@@ -382,10 +382,8 @@ public class SearchModule extends AbstractModule {
      * Register an aggregation.
      */
     public void registerAggregation(AggregationSpec spec) {
-        if (false == transportClient) {
-            namedWriteableRegistry.register(AggregationBuilder.class, spec.aggregationName.getPreferredName(), spec.builderReader);
-            aggregationParserRegistry.register(spec.aggregationParser, spec.aggregationName);
-        }
+        namedWriteableRegistry.register(AggregationBuilder.class, spec.aggregationName.getPreferredName(), spec.builderReader);
+        aggregationParserRegistry.register(spec.aggregationParser, spec.aggregationName);
         for (Map.Entry<String, Writeable.Reader<? extends InternalAggregation>> t : spec.resultReaders.entrySet()) {
             String writeableName = t.getKey();
             Writeable.Reader<? extends InternalAggregation> internalReader = t.getValue();
@@ -414,7 +412,7 @@ public class SearchModule extends AbstractModule {
         }
 
         /**
-         * Add a reader for the shard level results of the aggregation with {@linkplain aggregationName}'s
+         * Add a reader for the shard level results of the aggregation with {@linkplain #aggregationName}'s
          * {@link ParseField#getPreferredName()} as the {@link NamedWriteable#getWriteableName()}.
          */
         public AggregationSpec addResultReader(Writeable.Reader<? extends InternalAggregation> resultReader) {
@@ -444,9 +442,9 @@ public class SearchModule extends AbstractModule {
             Writeable.Reader<? extends PipelineAggregator> internalReader, Writeable.Reader<? extends InternalAggregation> bucketReader,
             PipelineAggregator.Parser aggregationParser, ParseField aggregationName) {
         if (false == transportClient) {
-            namedWriteableRegistry.register(PipelineAggregationBuilder.class, aggregationName.getPreferredName(), reader);
             pipelineAggregationParserRegistry.register(aggregationParser, aggregationName);
         }
+        namedWriteableRegistry.register(PipelineAggregationBuilder.class, aggregationName.getPreferredName(), reader);
         namedWriteableRegistry.register(PipelineAggregator.class, aggregationName.getPreferredName(), internalReader);
         namedWriteableRegistry.register(InternalAggregation.class, aggregationName.getPreferredName(), bucketReader);
     }
@@ -469,9 +467,9 @@ public class SearchModule extends AbstractModule {
             bind(IndicesQueriesRegistry.class).toInstance(queryParserRegistry);
             bind(Suggesters.class).toInstance(getSuggesters());
             configureSearch();
-            configureShapes();
             bind(AggregatorParsers.class).toInstance(aggregatorParsers);
         }
+        configureShapes();
     }
 
     private void registerBuiltinAggregations() {

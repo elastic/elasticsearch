@@ -80,7 +80,6 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                                 .endObject()
                                 .endObject()
                                 .endObject().endObject()).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         client().index(
                 indexRequest("test").type("type1").id("1")

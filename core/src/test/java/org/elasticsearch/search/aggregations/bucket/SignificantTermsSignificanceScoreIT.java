@@ -451,7 +451,6 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     public void testScriptScore() throws ExecutionException, InterruptedException, IOException {
         indexRandomFrequencies01(randomBoolean() ? "text" : "long");
         ScriptHeuristic scriptHeuristic = getScriptSignificanceHeuristic();
-        ensureYellow();
         SearchResponse response = client().prepareSearch(INDEX_NAME)
                 .addAggregation(terms("class").field(CLASS_FIELD)
                         .subAggregation(significantTerms("mySignificantTerms")

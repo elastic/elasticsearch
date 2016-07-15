@@ -41,7 +41,6 @@ public class IndicesExistsIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareExists("_all").get().isExists(), equalTo(false));
 
         createIndex("foo", "foobar", "bar", "barbaz");
-        ensureYellow();
 
         assertThat(client().admin().indices().prepareExists("foo*").get().isExists(), equalTo(true));
         assertThat(client().admin().indices().prepareExists("foobar").get().isExists(), equalTo(true));
@@ -52,7 +51,6 @@ public class IndicesExistsIT extends ESIntegTestCase {
 
     public void testIndicesExistsWithBlocks() {
         createIndex("ro");
-        ensureYellow();
 
         // Request is not blocked
         for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {

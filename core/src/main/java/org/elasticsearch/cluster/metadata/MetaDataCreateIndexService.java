@@ -27,9 +27,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+import org.elasticsearch.cluster.ack.CreateIndexClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -68,6 +70,7 @@ import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -108,13 +111,15 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final Environment env;
     private final NodeServicesProvider nodeServicesProvider;
     private final IndexScopedSettings indexScopedSettings;
-
+    private final ActiveShardsObserver activeShardsObserver;
 
     @Inject
     public MetaDataCreateIndexService(Settings settings, ClusterService clusterService,
                                       IndicesService indicesService, AllocationService allocationService,
                                       AliasValidator aliasValidator,
-                                      Set<IndexTemplateFilter> indexTemplateFilters, Environment env, NodeServicesProvider nodeServicesProvider, IndexScopedSettings indexScopedSettings) {
+                                      Set<IndexTemplateFilter> indexTemplateFilters, Environment env,
+                                      NodeServicesProvider nodeServicesProvider, IndexScopedSettings indexScopedSettings,
+                                      ThreadPool threadPool) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -135,6 +140,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
             this.indexTemplateFilter = new IndexTemplateFilter.Compound(templateFilters);
         }
+        this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
     }
 
     public void validateIndexName(String index, ClusterState state) {
@@ -176,7 +182,38 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
     }
 
-    public void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+    /**
+     * Creates an index in the cluster state and waits for the specified number of shard copies to
+     * become active (as specified in {@link CreateIndexClusterStateUpdateRequest#waitForActiveShards()})
+     * before sending the response on the listener. If the index creation was successfully applied on
+     * the cluster state, then {@link CreateIndexClusterStateUpdateResponse#isAcknowledged()} will return
+     * true, otherwise it will return false and no waiting will occur for started shards
+     * ({@link CreateIndexClusterStateUpdateResponse#isShardsAcked()} will also be false).  If the index
+     * creation in the cluster state was successful and the requisite shard copies were started before
+     * the timeout, then {@link CreateIndexClusterStateUpdateResponse#isShardsAcked()} will
+     * return true, otherwise if the operation timed out, then it will return false.
+     *
+     * @param request the index creation cluster state update request
+     * @param listener the listener on which to send the index creation cluster state update response
+     */
+    public void createIndex(final CreateIndexClusterStateUpdateRequest request,
+                            final ActionListener<CreateIndexClusterStateUpdateResponse> listener) {
+        onlyCreateIndex(request, ActionListener.wrap(response -> {
+            if (response.isAcknowledged()) {
+                activeShardsObserver.waitForActiveShards(request.index(), request.waitForActiveShards(), request.ackTimeout(),
+                    shardsAcked -> {
+                        logger.debug("[{}] index created, but the operation timed out while waiting for " +
+                                         "enough shards to be started.", request.index());
+                        listener.onResponse(new CreateIndexClusterStateUpdateResponse(response.isAcknowledged(), shardsAcked));
+                    }, listener::onFailure);
+            } else {
+                listener.onResponse(new CreateIndexClusterStateUpdateResponse(false, false));
+            }
+        }, listener::onFailure));
+    }
+
+    private void onlyCreateIndex(final CreateIndexClusterStateUpdateRequest request,
+                                 final ActionListener<ClusterStateUpdateResponse> listener) {
         Settings.Builder updatedSettingsBuilder = Settings.builder();
         updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
         indexScopedSettings.validate(updatedSettingsBuilder);
@@ -308,6 +345,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 .setRoutingNumShards(routingNumShards);
                             // Set up everything, now locally create the index to see that things are ok, and apply
                             final IndexMetaData tmpImd = tmpImdBuilder.settings(actualIndexSettings).build();
+                            if (request.waitForActiveShards().resolve(tmpImd) > tmpImd.getNumberOfReplicas() + 1) {
+                                throw new IllegalArgumentException("invalid wait_for_active_shards[" + request.waitForActiveShards() +
+                                                                   "]: cannot be greater than number of shard copies [" +
+                                                                   (tmpImd.getNumberOfReplicas() + 1) + "]");
+                            }
                             // create the index here (on the master) to validate it can be created, as well as adding the mapping
                             final IndexService indexService = indicesService.createIndex(nodeServicesProvider, tmpImd, Collections.emptyList());
                             createdIndex = indexService.index();
@@ -407,6 +449,16 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 indicesService.removeIndex(createdIndex, removalReason != null ? removalReason : "failed to create index");
                             }
                         }
+                    }
+
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        if (e instanceof IndexAlreadyExistsException) {
+                            logger.trace("[{}] failed to create", e, request.index());
+                        } else {
+                            logger.debug("[{}] failed to create", e, request.index());
+                        }
+                        super.onFailure(source, e);
                     }
                 });
     }

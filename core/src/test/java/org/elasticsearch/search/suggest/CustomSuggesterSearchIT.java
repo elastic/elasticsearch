@@ -60,6 +60,11 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
         return pluginList(CustomSuggesterPlugin.class);
     }
 
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return pluginList(CustomSuggesterPlugin.class);
+    }
+
     public void testThatCustomSuggestersCanBeRegisteredAndWork() throws Exception {
         createIndex("test");
         client().prepareIndex("test", "test", "1").setSource(jsonBuilder()
@@ -67,7 +72,6 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
                 .field("name", "arbitrary content")
                 .endObject())
                 .setRefreshPolicy(IMMEDIATE).get();
-        ensureYellow();
 
         String randomText = randomAsciiOfLength(10);
         String randomField = randomAsciiOfLength(10);

@@ -140,8 +140,7 @@ public class ReproduceInfoPrinter extends RunListener {
             appendProperties("tests.es.logger.level");
             if (inVerifyPhase()) {
                 // these properties only make sense for integration tests
-                appendProperties("tests.es.node.mode", "tests.es.node.local", TESTS_CLUSTER,
-                    ESIntegTestCase.TESTS_ENABLE_MOCK_MODULES);
+                appendProperties(TESTS_CLUSTER, ESIntegTestCase.TESTS_ENABLE_MOCK_MODULES);
             }
             appendProperties("tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms",
                              "tests.client.ratio", "tests.heap.size", "tests.bwc", "tests.bwc.version");

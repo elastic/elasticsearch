@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.shrink;
 import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
@@ -130,6 +131,8 @@ public class TransportShrinkActionTests extends ESTestCase {
         int numSourceShards = clusterState.metaData().index(indexName).getNumberOfShards();
         DocsStats stats = new DocsStats(randomIntBetween(0, (IndexWriter.MAX_DOCS) / numSourceShards), randomIntBetween(1, 1000));
         ShrinkRequest target = new ShrinkRequest("target", indexName);
+        final ActiveShardCount activeShardCount = randomBoolean() ? ActiveShardCount.ALL : ActiveShardCount.ONE;
+        target.setWaitForActiveShards(activeShardCount);
         CreateIndexClusterStateUpdateRequest request = TransportShrinkAction.prepareCreateIndexRequest(
             target, clusterState, (i) -> stats,
             new IndexNameExpressionResolver(Settings.EMPTY));
@@ -137,6 +140,7 @@ public class TransportShrinkActionTests extends ESTestCase {
         assertEquals(indexName, request.shrinkFrom().getName());
         assertEquals("1", request.settings().get("index.number_of_shards"));
         assertEquals("shrink_index", request.cause());
+        assertEquals(request.waitForActiveShards(), activeShardCount);
     }
 
     private DiscoveryNode newNode(String nodeId) {

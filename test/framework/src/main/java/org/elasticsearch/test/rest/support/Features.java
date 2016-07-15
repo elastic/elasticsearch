@@ -34,7 +34,8 @@ import java.util.List;
  */
 public final class Features {
 
-    private static final List<String> SUPPORTED = Arrays.asList("stash_in_path", "groovy_scripting", "headers", "embedded_stash_key");
+    private static final List<String> SUPPORTED =
+            Arrays.asList("stash_in_path", "groovy_scripting", "headers", "embedded_stash_key", "yaml");
 
     private Features() {
 

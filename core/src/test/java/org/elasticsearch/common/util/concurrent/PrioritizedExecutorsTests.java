@@ -41,16 +41,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 public class PrioritizedExecutorsTests extends ESTestCase {
 
     private final ThreadContext holder = new ThreadContext(Settings.EMPTY);
 
     public void testPriorityQueue() throws Exception {
         PriorityBlockingQueue<Priority> queue = new PriorityBlockingQueue<>();
-        List<Priority> priorities = Priority.values();
+        List<Priority> priorities = Arrays.asList(Priority.values());
         Collections.shuffle(priorities, random());
 
         for (Priority priority : priorities) {

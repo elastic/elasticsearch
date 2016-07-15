@@ -43,9 +43,7 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put("discovery.type", "azure")
-                // We need the network to make the mock working
-            .put(Node.NODE_MODE_SETTING.getKey(), "network");
+            .put("discovery.type", "azure");
 
         // We add a fake subscription_id to start mock compute service
         builder.put(Management.SUBSCRIPTION_ID_SETTING.getKey(), "fake")

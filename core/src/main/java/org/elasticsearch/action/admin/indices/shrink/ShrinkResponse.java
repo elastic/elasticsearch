@@ -25,7 +25,7 @@ public final class ShrinkResponse extends CreateIndexResponse {
     ShrinkResponse() {
     }
 
-    ShrinkResponse(boolean acknowledged) {
-        super(acknowledged);
+    ShrinkResponse(boolean acknowledged, boolean shardsAcked) {
+        super(acknowledged, shardsAcked);
     }
 }

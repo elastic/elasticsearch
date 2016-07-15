@@ -22,18 +22,14 @@ package org.elasticsearch.ingest.attachment;
 import java.util.Collections;
 import java.util.Map;
 
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.TemplateService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptService;
 
 public class IngestAttachmentPlugin extends Plugin implements IngestPlugin {
 
     @Override
-    public Map<String, Processor.Factory> getProcessors(
-        Environment env, ScriptService scriptService, TemplateService templateService) {
+    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         return Collections.singletonMap(AttachmentProcessor.TYPE, new AttachmentProcessor.Factory());
     }
 }

@@ -125,7 +125,6 @@ public class RandomScoreFunctionTests extends ESIntegTestCase {
     public void testScoreAccessWithinScript() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type", "body", "type=text", "index",
                 "type=" + randomFrom("short", "float", "long", "integer", "double")));
-        ensureYellow();
 
         int docCount = randomIntBetween(100, 200);
         for (int i = 0; i < docCount; i++) {

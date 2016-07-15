@@ -44,7 +44,7 @@ dependencies {
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
   // for http - testing reindex from remote
-  testCompile project(path: ':modules:transport-netty', configuration: 'runtime')
+  testCompile project(path: ':modules:transport-netty3', configuration: 'runtime')
 }
 
 dependencyLicenses {

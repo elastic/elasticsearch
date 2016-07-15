@@ -69,8 +69,6 @@ PUT my_index
   }
 }
 
-GET _cluster/health?wait_for_status=yellow
-
 GET my_index/_analyze <3>
 {
   "analyzer": "std_folded", <4>

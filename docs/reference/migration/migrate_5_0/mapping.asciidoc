@@ -224,7 +224,7 @@ POST _reindex
 }
 ---------------
 // CONSOLE
-// TEST[s/^/PUT oldindex\nGET _cluster\/health?wait_for_status=yellow\n/]
+// TEST[s/^/PUT oldindex\n/]
 
 You can replace `_ttl` with time based index names (preferred) or by adding a
 cron job which runs a delete-by-query on a timestamp field in the source

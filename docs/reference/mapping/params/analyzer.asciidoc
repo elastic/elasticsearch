@@ -60,8 +60,6 @@ PUT /my_index
   }
 }
 
-GET _cluster/health?wait_for_status=yellow
-
 GET my_index/_analyze?field=text <3>
 {
   "text": "The quick Brown Foxes."

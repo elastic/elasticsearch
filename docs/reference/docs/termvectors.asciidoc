@@ -39,7 +39,7 @@ statistics are returned for all fields but no term statistics.
  * term frequency in the field (always returned)
  * term positions (`positions` : true)
  * start and end offsets (`offsets` : true)
- * term payloads (`payloads` : true), as base64 encoded bytes
+ * term payloads (`payloads` : true), as base64 encoded bytes 
 
 If the requested information wasn't stored in the index, it will be
 computed on the fly if possible. Additionally, term vectors could be computed

@@ -23,7 +23,6 @@ import org.apache.lucene.search.Scorer;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.LeafFieldsLookup;
-import org.elasticsearch.search.lookup.LeafIndexLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -85,13 +84,6 @@ public abstract class AbstractSearchScript extends AbstractExecutableScript impl
      */
     protected final SourceLookup source() {
         return lookup.source();
-    }
-
-    /**
-     * Allows to access statistics on terms and fields.
-     */
-    protected final LeafIndexLookup indexLookup() {
-        return lookup.indexLookup();
     }
 
     /**

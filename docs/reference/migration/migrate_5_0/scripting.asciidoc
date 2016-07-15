@@ -289,3 +289,7 @@ registers the "js" file extension for on-disk scripts.
 ==== Removed scripting query string parameters from update rest api
 
 The `script`, `script_id` and `scripting_upsert` query string parameters have been removed from the update api.
+
+==== Removed access to index internal via the _index variable
+
+The `_index` variable has been removed. If you used it for advanced scoring, consider writing a `Similarity` plugin.

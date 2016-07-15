@@ -2437,9 +2437,9 @@ class PainlessParser extends Parser {
   }
 
   public static class PostfixContext extends ParserRuleContext {
-    public boolean c =  true;
-    public boolean f =  true;
-    public boolean b =  true;
+    public boolean c;
+    public boolean f;
+    public boolean b;
     public CallinvokeContext callinvoke() {
       return getRuleContext(CallinvokeContext.class,0);
     }
@@ -2450,7 +2450,7 @@ class PainlessParser extends Parser {
       return getRuleContext(BraceaccessContext.class,0);
     }
     public PostfixContext(ParserRuleContext parent, int invokingState) { super(parent, invokingState); }
-    public PostfixContext(ParserRuleContext parent, int invokingState, boolean c =  true, boolean f =  true, boolean b =  true) {
+    public PostfixContext(ParserRuleContext parent, int invokingState, boolean c, boolean f, boolean b) {
       super(parent, invokingState);
       this.c = c;
       this.f = f;
@@ -2464,7 +2464,7 @@ class PainlessParser extends Parser {
     }
   }
 
-  public final PostfixContext postfix(boolean c =  true,boolean f =  true,boolean b =  true) throws RecognitionException {
+  public final PostfixContext postfix(boolean c,boolean f,boolean b) throws RecognitionException {
     PostfixContext _localctx = new PostfixContext(_ctx, getState(), c, f, b);
     enterRule(_localctx, 36, RULE_postfix);
     try {
@@ -2474,7 +2474,7 @@ class PainlessParser extends Parser {
         enterOuterAlt(_localctx, 1);
         {
         setState(343);
-        if (!( c )) throw new FailedPredicateException(this, " c ");
+        if (!( _localctx.c )) throw new FailedPredicateException(this, " $c ");
         setState(344);
         callinvoke();
         }
@@ -2483,7 +2483,7 @@ class PainlessParser extends Parser {
         enterOuterAlt(_localctx, 2);
         {
         setState(345);
-        if (!( f )) throw new FailedPredicateException(this, " f ");
+        if (!( _localctx.f )) throw new FailedPredicateException(this, " $f ");
         setState(346);
         fieldaccess();
         }
@@ -2492,7 +2492,7 @@ class PainlessParser extends Parser {
         enterOuterAlt(_localctx, 3);
         {
         setState(347);
-        if (!( b )) throw new FailedPredicateException(this, " b ");
+        if (!( _localctx.b )) throw new FailedPredicateException(this, " $b ");
         setState(348);
         braceaccess();
         }
@@ -3573,11 +3573,11 @@ class PainlessParser extends Parser {
   private boolean postfix_sempred(PostfixContext _localctx, int predIndex) {
     switch (predIndex) {
     case 15:
-      return  c ;
+      return  _localctx.c ;
     case 16:
-      return  f ;
+      return  _localctx.f ;
     case 17:
-      return  b ;
+      return  _localctx.b ;
     }
     return true;
   }
@@ -3720,8 +3720,8 @@ class PainlessParser extends Parser {
     "\u0157\u0149\3\2\2\2\u0157\u014a\3\2\2\2\u0157\u014b\3\2\2\2\u0157\u014c"+
     "\3\2\2\2\u0157\u014d\3\2\2\2\u0157\u014e\3\2\2\2\u0157\u014f\3\2\2\2\u0157"+
     "\u0150\3\2\2\2\u0157\u0151\3\2\2\2\u0157\u0152\3\2\2\2\u0157\u0154\3\2"+
-    "\2\2\u0158%\3\2\2\2\u0159\u015a\6\24\21\2\u015a\u0160\5(\25\2\u015b\u015c"+
-    "\6\24\22\2\u015c\u0160\5*\26\2\u015d\u015e\6\24\23\2\u015e\u0160\5,\27"+
+    "\2\2\u0158%\3\2\2\2\u0159\u015a\6\24\21\3\u015a\u0160\5(\25\2\u015b\u015c"+
+    "\6\24\22\3\u015c\u0160\5*\26\2\u015d\u015e\6\24\23\3\u015e\u0160\5,\27"+
     "\2\u015f\u0159\3\2\2\2\u015f\u015b\3\2\2\2\u015f\u015d\3\2\2\2\u0160\'"+
     "\3\2\2\2\u0161\u0162\7\13\2\2\u0162\u0163\7T\2\2\u0163\u0164\5\66\34\2"+
     "\u0164)\3\2\2\2\u0165\u0166\7\13\2\2\u0166\u0167\t\r\2\2\u0167+\3\2\2"+

@@ -73,6 +73,8 @@ final class EConstant extends AExpression {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        checkWriteBranch(null);
+
         Sort sort = actual.sort;
 
         switch (sort) {
@@ -96,10 +98,6 @@ final class EConstant extends AExpression {
                 break;
             default:
                 throw createError(new IllegalStateException("Illegal tree structure."));
-        }
-
-        if (sort != Sort.BOOL) {
-            writer.writeBranch(tru, fals);
         }
     }
 }

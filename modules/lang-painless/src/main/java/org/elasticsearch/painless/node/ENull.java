@@ -39,7 +39,9 @@ public final class ENull extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {}
+    void extractVariables(Set<String> variables) {
+        // Do nothing.
+    }
 
     @Override
     void analyze(Locals locals) {
@@ -62,6 +64,7 @@ public final class ENull extends AExpression {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        checkWriteBranch(null);
         writer.visitInsn(Opcodes.ACONST_NULL);
     }
 }

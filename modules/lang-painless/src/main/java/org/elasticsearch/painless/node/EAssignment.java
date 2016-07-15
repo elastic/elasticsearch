@@ -19,17 +19,17 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
+import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Operation;
 
 import java.util.Objects;
 import java.util.Set;
@@ -37,21 +37,21 @@ import java.util.Set;
 /**
  * Represents the entirety of a variable/method chain for read/write operations.
  */
-public final class EStore extends AExpression {
+public final class EAssignment extends AExpression {
 
-    AExpression lhs;
-    AExpression rhs;
-    final boolean pre;
-    final boolean post;
-    Operation operation;
+    private AExpression lhs;
+    private AExpression rhs;
+    private final boolean pre;
+    private final boolean post;
+    private Operation operation;
 
-    boolean cat = false;
-    Type promote = null;
-    Type shiftDistance; // for shifts, the RHS is promoted independently
-    Cast there = null;
-    Cast back = null;
+    private boolean cat = false;
+    private Type promote = null;
+    private Type shiftDistance; // for shifts, the RHS is promoted independently
+    private Cast there = null;
+    private Cast back = null;
 
-    public EStore(Location location, AExpression lhs, AExpression rhs, boolean pre, boolean post, Operation operation) {
+    public EAssignment(Location location, AExpression lhs, AExpression rhs, boolean pre, boolean post, Operation operation) {
         super(location);
 
         this.lhs = Objects.requireNonNull(lhs);
@@ -83,11 +83,13 @@ public final class EStore extends AExpression {
 
     private void analyzeLHS(Locals locals) {
         if (lhs instanceof AStoreable) {
-            AStoreable storeable = (AStoreable)lhs;
-            storeable.store = true;
-            storeable.analyze(locals);
+            AStoreable lhs = (AStoreable)this.lhs;
+
+            lhs.read = read;
+            lhs.write = true;
+            lhs.analyze(locals);
         } else {
-            throw new IllegalArgumentException("Illegal left-hand side.");
+            throw new IllegalArgumentException("Left-hand side cannot be assigned a value.");
         }
     }
 
@@ -176,8 +178,7 @@ public final class EStore extends AExpression {
         cat = operation == Operation.ADD && promote.sort == Sort.STRING;
 
         if (cat) {
-            if (rhs instanceof EBinary && ((EBinary)rhs).operation == Operation.ADD &&
-                rhs.actual.sort == Sort.STRING) {
+            if (rhs instanceof EBinary && ((EBinary)rhs).operation == Operation.ADD && rhs.actual.sort == Sort.STRING) {
                 ((EBinary)rhs).cat = true;
             }
 
@@ -206,10 +207,13 @@ public final class EStore extends AExpression {
     }
 
     private void analyzeSimple(Locals locals) {
-        // If the lhs node is a def node we update the actual type to remove the need for a cast.
-        if (((AStoreable)lhs).updateActual(rhs.actual)) {
+        AStoreable lhs = (AStoreable)this.lhs;
+
+        // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
+        if (lhs.isDefOptimized()) {
             rhs.analyze(locals);
             rhs.expected = rhs.actual;
+            lhs.updateActual(rhs.actual);
         // Otherwise, we must adapt the rhs type to the lhs type with a cast.
         } else {
             rhs.expected = lhs.actual;
@@ -243,12 +247,9 @@ public final class EStore extends AExpression {
             catElementStackSize = writer.writeNewStrings();
         }
 
-        // Load any prefixes for the storable lhs node.  The lhs node will not write the final link in the chain during a store.
-        lhs.write(writer, globals);
-
         // Cast the lhs to a storeable to perform the necessary operations to store the rhs.
         AStoreable lhs = (AStoreable)this.lhs;
-        lhs.prestore(writer, globals); // call the prestore method on the lhs to prepare for a load/store operation
+        lhs.setup(writer, globals); // call the setup method on the lhs to prepare for a load/store operation
 
         if (cat) {
             // Handle the case where we are doing a compound assignment
@@ -260,8 +261,7 @@ public final class EStore extends AExpression {
 
             rhs.write(writer, globals); // write the bytecode for the rhs
 
-            if (!(rhs instanceof EBinary) ||
-                ((EBinary)rhs).operation != Operation.ADD || rhs.actual.sort != Sort.STRING) {
+            if (!(rhs instanceof EBinary) || ((EBinary)rhs).cat) {
                 writer.writeAppendStrings(rhs.actual); // append the rhs's value unless it's also a concatenation
             }
 
@@ -320,6 +320,6 @@ public final class EStore extends AExpression {
             lhs.store(writer, globals); // store the lhs's value from the stack in its respective variable/field/array
         }
 
-        writer.writeBranch(tru, fals); // if this is a branch node, write the bytecode to make an appropiate jump
+        checkWriteBranch(writer); // if this is a branch node, write the bytecode to make an appropiate jump
     }
 }

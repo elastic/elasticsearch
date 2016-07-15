@@ -20,11 +20,11 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Opcodes;
 
 import java.util.Objects;
@@ -35,9 +35,9 @@ import java.util.Set;
  */
 public final class EVariable extends AStoreable {
 
-    final String name;
+    private final String name;
 
-    Variable variable = null;
+    private Variable variable = null;
 
     public EVariable(Location location, String name) {
         super(location);
@@ -54,7 +54,7 @@ public final class EVariable extends AStoreable {
     void analyze(Locals locals) {
         variable = locals.getVariable(location, name);
 
-        if (store && variable.readonly) {
+        if (write && variable.readonly) {
             throw createError(new IllegalArgumentException("Variable [" + variable.name + "] is read-only."));
         }
 
@@ -63,9 +63,8 @@ public final class EVariable extends AStoreable {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        if (!store) {
-            load(writer, globals);
-        }
+        writer.visitVarInsn(actual.type.getOpcode(Opcodes.ILOAD), variable.getSlot());
+        checkWriteBranch(writer);
     }
 
     @Override
@@ -74,12 +73,17 @@ public final class EVariable extends AStoreable {
     }
 
     @Override
-    boolean updateActual(Type actual) {
+    boolean isDefOptimized() {
         return false;
     }
 
     @Override
-    void prestore(MethodWriter writer, Globals globals) {
+    void updateActual(Type actual) {
+        throw new IllegalArgumentException("Illegal tree structure.");
+    }
+
+    @Override
+    void setup(MethodWriter writer, Globals globals) {
         // Do nothing.
     }
 

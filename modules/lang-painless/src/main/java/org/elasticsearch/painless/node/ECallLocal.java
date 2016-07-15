@@ -35,12 +35,12 @@ import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 /**
  * Represents a user-defined call.
  */
-public class ECallLocal extends AExpression {
+public final class ECallLocal extends AExpression {
 
-    final String name;
-    final List<AExpression> arguments;
+    private final String name;
+    private final List<AExpression> arguments;
 
-    Method method = null;
+    private Method method = null;
 
     public ECallLocal(Location location, String name, List<AExpression> arguments) {
         super(location);
@@ -89,5 +89,7 @@ public class ECallLocal extends AExpression {
         }
 
         writer.invokeStatic(CLASS_TYPE, method.method);
+
+        checkWriteBranch(writer);
     }
 }

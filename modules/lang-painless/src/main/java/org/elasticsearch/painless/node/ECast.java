@@ -35,15 +35,12 @@ import org.elasticsearch.painless.MethodWriter;
  */
 final class ECast extends AExpression {
 
-    final String type;
-    AExpression child;
-
-    Cast cast = null;
+    private AExpression child;
+    private final Cast cast;
 
     ECast(Location location, AExpression child, Cast cast) {
         super(location);
 
-        this.type = null;
         this.child = Objects.requireNonNull(child);
         this.cast = Objects.requireNonNull(cast);
     }
@@ -63,6 +60,6 @@ final class ECast extends AExpression {
         child.write(writer, globals);
         writer.writeDebugInfo(location);
         writer.writeCast(cast);
-        writer.writeBranch(tru, fals);
+        checkWriteBranch(writer);
     }
 }

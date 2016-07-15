@@ -24,19 +24,35 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
+import java.util.Objects;
+
 /**
  * This is the base class for an expression may store a value in local memory.
  */
-public abstract class AStoreable extends AExpression {
+abstract class AStoreable extends AExpression {
 
-    boolean store = false;
+    /**
+     * Set to true when this node is an lhs-expression and will be storing
+     * a value from an rhs-expression.
+     */
+    boolean write = false;
 
+    /**
+     * Standard constructor with location used for error tracking.
+     */
     AStoreable(Location location) {
         super(location);
+
+        prefix = null;
     }
 
+    /**
+     * This constructor is used by variable/method chains when postfixes are specified.
+     */
     AStoreable(Location location, AExpression prefix) {
-        super(location, prefix);
+        super(location);
+
+        this.prefix = Objects.requireNonNull(prefix);
     }
 
     /**
@@ -47,17 +63,23 @@ public abstract class AStoreable extends AExpression {
     abstract int size();
 
     /**
-     * If this node or a sub-node of this node uses dynamic calls then
-     * actual will be set to this value.  Returns true if actual was updated.
-     * This is used for an optimization during assignment to def type targets.
+     * Returns true if this node can be optimized with rhs actual type to
+     * avoid an unnecessary cast.
      */
-    abstract boolean updateActual(Type actual);
+    abstract boolean isDefOptimized();
 
     /**
-     * Called before a storeable node is loaded or stored used to push load/store
-     * constants onto the stack if necessary.
+     * If this node or a sub-node of this node uses dynamic calls then
+     * actual will be set to this value. This is used for an optimization
+     * during assignment to def type targets.
      */
-    abstract void prestore(MethodWriter writer, Globals globals);
+    abstract void updateActual(Type actual);
+
+    /**
+     * Called before a storeable node is loaded or stored.  Used to load prefixes and
+     * push load/store constants onto the stack if necessary.
+     */
+    abstract void setup(MethodWriter writer, Globals globals);
 
     /**
      * Called to load a storable used for compound assignments.

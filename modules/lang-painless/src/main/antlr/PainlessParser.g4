@@ -144,10 +144,10 @@ primary
     | NEW TYPE arguments                  # newobject
     ;
 
-postfix[boolean c = true, boolean f = true, boolean b = true]
-    : { c }? callinvoke
-    | { f }? fieldaccess
-    | { b }? braceaccess
+postfix[boolean c, boolean f, boolean b]
+    : { $c }? callinvoke
+    | { $f }? fieldaccess
+    | { $b }? braceaccess
     ;
 
 callinvoke

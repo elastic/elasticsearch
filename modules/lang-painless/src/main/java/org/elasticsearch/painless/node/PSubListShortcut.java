@@ -20,29 +20,28 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Sort;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Objects;
 import java.util.Set;
-
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a list load/store shortcut.  (Internal only.)
  */
 final class PSubListShortcut extends AStoreable {
 
-    final Struct struct;
-    AExpression index;
+    private final Struct struct;
+    private AExpression index;
 
-    Method getter;
-    Method setter;
+    private Method getter;
+    private Method setter;
 
     PSubListShortcut(Location location, Struct struct, AExpression index) {
         super(location);
@@ -75,7 +74,7 @@ final class PSubListShortcut extends AStoreable {
             throw createError(new IllegalArgumentException("Shortcut argument types must match."));
         }
 
-        if ((read || store) && (!read || getter != null) && (!store || setter != null)) {
+        if ((read || write) && (!read || getter != null) && (!write || setter != null)) {
             index.expected = Definition.INT_TYPE;
             index.analyze(locals);
             index = index.cast(locals);
@@ -88,8 +87,15 @@ final class PSubListShortcut extends AStoreable {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        prestore(writer, globals);
-        load(writer, globals);
+        index.write(writer, globals);
+
+        writer.writeDebugInfo(location);
+
+        getter.write(writer);
+
+        if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
+            writer.checkCast(getter.rtn.type);
+        }
     }
 
     @Override
@@ -98,12 +104,17 @@ final class PSubListShortcut extends AStoreable {
     }
 
     @Override
-    boolean updateActual(Type actual) {
+    boolean isDefOptimized() {
         return false;
     }
 
     @Override
-    void prestore(MethodWriter writer, Globals globals) {
+    void updateActual(Type actual) {
+        throw new IllegalArgumentException("Illegal tree structure.");
+    }
+
+    @Override
+    void setup(MethodWriter writer, Globals globals) {
         index.write(writer, globals);
     }
 

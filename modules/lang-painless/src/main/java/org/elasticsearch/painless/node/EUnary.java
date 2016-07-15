@@ -40,10 +40,11 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class EUnary extends AExpression {
 
-    final Operation operation;
-    AExpression child;
-    Type promote;
-    boolean originallyExplicit = false; // record whether there was originally an explicit cast
+    private final Operation operation;
+    private AExpression child;
+
+    private Type promote;
+    private boolean originallyExplicit = false; // record whether there was originally an explicit cast
 
     public EUnary(Location location, Operation operation, AExpression child) {
         super(location);
@@ -51,7 +52,7 @@ public final class EUnary extends AExpression {
         this.operation = Objects.requireNonNull(operation);
         this.child = Objects.requireNonNull(child);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         child.extractVariables(variables);
@@ -60,6 +61,7 @@ public final class EUnary extends AExpression {
     @Override
     void analyze(Locals locals) {
         originallyExplicit = explicit;
+
         if (operation == Operation.NOT) {
             analyzeNot(locals);
         } else if (operation == Operation.BWNOT) {
@@ -212,12 +214,14 @@ public final class EUnary extends AExpression {
             Sort sort = promote.sort;
             child.write(writer, globals);
 
-            // def calls adopt the wanted return value. if there was a narrowing cast,
-            // we need to flag that so that its done at runtime.
+            // Def calls adopt the wanted return value. If there was a narrowing cast,
+            // we need to flag that so that it's done at runtime.
             int defFlags = 0;
+
             if (originallyExplicit) {
                 defFlags |= DefBootstrap.OPERATOR_EXPLICIT_CAST;
             }
+
             if (operation == Operation.BWNOT) {
                 if (sort == Sort.DEF) {
                     org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actual.type, child.actual.type);
@@ -244,12 +248,12 @@ public final class EUnary extends AExpression {
                 if (sort == Sort.DEF) {
                     org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actual.type, child.actual.type);
                     writer.invokeDefCall("plus", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
-                } 
+                }
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
 
-            writer.writeBranch(tru, fals);
+            checkWriteBranch(writer);
         }
     }
 }

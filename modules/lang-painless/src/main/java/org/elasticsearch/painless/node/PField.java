@@ -20,14 +20,14 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Field;
+import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
+import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
@@ -40,9 +40,9 @@ import java.util.Set;
  */
 public final class PField extends AStoreable {
 
-    final String value;
+    private final String value;
 
-    AStoreable sub = null;
+    private AStoreable sub = null;
 
     public PField(Location location, AExpression prefix, String value) {
         super(location, prefix);
@@ -106,33 +106,29 @@ public final class PField extends AStoreable {
             throw createError(new IllegalArgumentException("Unknown field [" + value + "] for type [" + prefix.actual.name + "]."));
         }
 
-        sub.store = store;
+        sub.write = write;
         sub.read = read;
         sub.expected = expected;
-
         sub.analyze(locals);
-
         actual = sub.actual;
     }
 
     @Override
     void write(MethodWriter writer, Globals globals) {
         prefix.write(writer, globals);
-
-        if (!store) {
-            sub.write(writer, globals);
-        }
+        sub.write(writer, globals);
+        checkWriteBranch(writer);
     }
 
     @Override
-    boolean updateActual(Type actual) {
-        if (sub.updateActual(actual)) {
-            this.actual = actual;
+    boolean isDefOptimized() {
+        return sub.isDefOptimized();
+    }
 
-            return true;
-        }
-
-        return false;
+    @Override
+    void updateActual(Type actual) {
+        sub.updateActual(actual);
+        this.actual = actual;
     }
 
     @Override
@@ -141,8 +137,9 @@ public final class PField extends AStoreable {
     }
 
     @Override
-    void prestore(MethodWriter writer, Globals globals) {
-        sub.prestore(writer, globals);
+    void setup(MethodWriter writer, Globals globals) {
+        prefix.write(writer, globals);
+        sub.setup(writer, globals);
     }
 
     @Override

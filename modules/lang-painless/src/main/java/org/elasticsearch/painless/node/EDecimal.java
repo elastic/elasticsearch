@@ -33,7 +33,7 @@ import java.util.Set;
  */
 public final class EDecimal extends AExpression {
 
-    final String value;
+    private final String value;
 
     public EDecimal(Location location, String value) {
         super(location);

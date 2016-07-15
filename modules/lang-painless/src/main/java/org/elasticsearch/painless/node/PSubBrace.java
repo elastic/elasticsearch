@@ -34,8 +34,8 @@ import java.util.Set;
  */
 final class PSubBrace extends AStoreable {
 
-    final Type type;
-    AExpression index;
+    private final Type type;
+    private AExpression index;
 
     PSubBrace(Location location, Type type, AExpression index) {
         super(location);
@@ -60,8 +60,8 @@ final class PSubBrace extends AStoreable {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        if (!store) {
-            prestore(writer, globals);
+        if (!write) {
+            setup(writer, globals);
             load(writer, globals);
         }
     }
@@ -72,12 +72,17 @@ final class PSubBrace extends AStoreable {
     }
 
     @Override
-    boolean updateActual(Type actual) {
+    boolean isDefOptimized() {
         return false;
     }
 
     @Override
-    void prestore(MethodWriter writer, Globals globals) {
+    void updateActual(Type actual) {
+        throw new IllegalStateException("Illegal tree structure.");
+    }
+
+    @Override
+    void setup(MethodWriter writer, Globals globals) {
         index.write(writer, globals);
     }
 

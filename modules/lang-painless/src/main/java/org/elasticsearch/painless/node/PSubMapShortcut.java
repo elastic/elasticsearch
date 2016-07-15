@@ -38,11 +38,11 @@ import org.elasticsearch.painless.MethodWriter;
  */
 final class PSubMapShortcut extends AStoreable {
 
-    final Struct struct;
-    AExpression index;
+    private final Struct struct;
+    private AExpression index;
 
-    Method getter;
-    Method setter;
+    private Method getter;
+    private Method setter;
 
     PSubMapShortcut(Location location, Struct struct, AExpression index) {
         super(location);
@@ -74,7 +74,7 @@ final class PSubMapShortcut extends AStoreable {
             throw createError(new IllegalArgumentException("Shortcut argument types must match."));
         }
 
-        if ((read || store) && (!read || getter != null) && (!store || setter != null)) {
+        if ((read || write) && (!read || getter != null) && (!write || setter != null)) {
             index.expected = setter != null ? setter.arguments.get(0) : getter.arguments.get(0);
             index.analyze(locals);
             index = index.cast(locals);
@@ -87,8 +87,15 @@ final class PSubMapShortcut extends AStoreable {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        prestore(writer, globals);
-        load(writer, globals);
+        index.write(writer, globals);
+
+        writer.writeDebugInfo(location);
+
+        getter.write(writer);
+
+        if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
+            writer.checkCast(getter.rtn.type);
+        }
     }
 
     @Override
@@ -97,12 +104,17 @@ final class PSubMapShortcut extends AStoreable {
     }
 
     @Override
-    boolean updateActual(Type actual) {
+    boolean isDefOptimized() {
         return false;
     }
 
     @Override
-    void prestore(MethodWriter writer, Globals globals) {
+    void updateActual(Type actual) {
+        throw new IllegalArgumentException("Illegal tree structure.");
+    }
+
+    @Override
+    void setup(MethodWriter writer, Globals globals) {
         index.write(writer, globals);
     }
 

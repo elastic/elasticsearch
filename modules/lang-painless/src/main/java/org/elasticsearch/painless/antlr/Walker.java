@@ -107,9 +107,11 @@ import org.elasticsearch.painless.antlr.PainlessParser.WhileContext;
 import org.elasticsearch.painless.node.AExpression;
 import org.elasticsearch.painless.node.ANode;
 import org.elasticsearch.painless.node.AStatement;
+import org.elasticsearch.painless.node.EAssignment;
 import org.elasticsearch.painless.node.EBinary;
 import org.elasticsearch.painless.node.EBool;
 import org.elasticsearch.painless.node.EBoolean;
+import org.elasticsearch.painless.node.ECallLocal;
 import org.elasticsearch.painless.node.ECapturingFunctionRef;
 import org.elasticsearch.painless.node.EComp;
 import org.elasticsearch.painless.node.EConditional;
@@ -126,13 +128,11 @@ import org.elasticsearch.painless.node.ENull;
 import org.elasticsearch.painless.node.ENumeric;
 import org.elasticsearch.painless.node.ERegex;
 import org.elasticsearch.painless.node.EStatic;
-import org.elasticsearch.painless.node.EStore;
 import org.elasticsearch.painless.node.EString;
 import org.elasticsearch.painless.node.EUnary;
 import org.elasticsearch.painless.node.EVariable;
 import org.elasticsearch.painless.node.PBrace;
 import org.elasticsearch.painless.node.PCallInvoke;
-import org.elasticsearch.painless.node.ECallLocal;
 import org.elasticsearch.painless.node.PField;
 import org.elasticsearch.painless.node.SBlock;
 import org.elasticsearch.painless.node.SBreak;
@@ -650,7 +650,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        return new EStore(location(ctx), lhs, rhs, false, false, operation);
+        return new EAssignment(location(ctx), lhs, rhs, false, false, operation);
     }
 
     @Override
@@ -667,7 +667,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        return new EStore(location(ctx), expression, null, true, false, operation);
+        return new EAssignment(location(ctx), expression, null, true, false, operation);
     }
 
     @Override
@@ -684,7 +684,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        return new EStore(location(ctx), expression, null, false, true, operation);
+        return new EAssignment(location(ctx), expression, null, false, true, operation);
     }
 
     @Override
@@ -752,7 +752,8 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     @Override
     public ANode visitNumeric(NumericContext ctx) {
         final boolean negate = ((DynamicContext)ctx.parent).postfix().isEmpty() &&
-            ctx.parent.parent instanceof OperatorContext && ((OperatorContext)ctx.parent.parent).SUB() != null;
+            ctx.parent.parent.parent instanceof OperatorContext &&
+            ((OperatorContext)ctx.parent.parent.parent).SUB() != null;
 
         if (ctx.DECIMAL() != null) {
             return new EDecimal(location(ctx), (negate ? "-" : "") + ctx.DECIMAL().getText());

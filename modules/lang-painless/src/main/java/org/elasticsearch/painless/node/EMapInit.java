@@ -33,12 +33,12 @@ import java.util.Set;
 /**
  * Represents a map initialization shortcut.
  */
-public class EMapInit extends AExpression {
-    final List<AExpression> keys;
-    final List<AExpression> values;
+public final class EMapInit extends AExpression {
+    private final List<AExpression> keys;
+    private final List<AExpression> values;
 
-    Method constructor = null;
-    Method method = null;
+    private Method constructor = null;
+    private Method method = null;
 
     public EMapInit(Location location, List<AExpression> keys, List<AExpression> values) {
         super(location);
@@ -108,6 +108,7 @@ public class EMapInit extends AExpression {
     @Override
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
+        checkWriteBranch(null);
 
         writer.newInstance(actual.type);
         writer.dup();

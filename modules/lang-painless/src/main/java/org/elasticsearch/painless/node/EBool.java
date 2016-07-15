@@ -36,9 +36,9 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class EBool extends AExpression {
 
-    final Operation operation;
-    AExpression left;
-    AExpression right;
+    private final Operation operation;
+    private AExpression left;
+    private AExpression right;
 
     public EBool(Location location, Operation operation, AExpression left, AExpression right) {
         super(location);
@@ -47,7 +47,7 @@ public final class EBool extends AExpression {
         this.left = Objects.requireNonNull(left);
         this.right = Objects.requireNonNull(right);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         left.extractVariables(variables);
@@ -79,6 +79,10 @@ public final class EBool extends AExpression {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        if (tru != null && fals != null) {
+            throw new IllegalStateException("Illegal tree structure.");
+        }
+
         if (tru != null || fals != null) {
             if (operation == Operation.AND) {
                 Label localfals = fals == null ? new Label() : fals;

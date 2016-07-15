@@ -34,7 +34,7 @@ import org.elasticsearch.painless.Locals;
  */
 public final class EStatic extends AExpression {
 
-    final String type;
+    private final String type;
 
     public EStatic(Location location, String type) {
         super(location);
@@ -58,6 +58,6 @@ public final class EStatic extends AExpression {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
+        // Do nothing.
     }
 }

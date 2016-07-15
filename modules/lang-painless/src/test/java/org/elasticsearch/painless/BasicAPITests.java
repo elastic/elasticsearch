@@ -34,6 +34,9 @@ public class BasicAPITests extends ScriptTestCase {
     }
 
     public void testSetIterator() {
+        String s = Debugger.toString("Set x = new HashSet(); x.add(2); x.add(3); x.add(-2); Iterator y = x.iterator(); " +
+            "int total = 0; while (y.hasNext()) total += y.next(); return total;");
+
         assertEquals(3, exec("Set x = new HashSet(); x.add(2); x.add(3); x.add(-2); Iterator y = x.iterator(); " +
             "int total = 0; while (y.hasNext()) total += y.next(); return total;"));
         assertEquals("abc", exec("Set x = new HashSet(); x.add(\"a\"); x.add(\"b\"); x.add(\"c\"); " +
@@ -84,6 +87,8 @@ public class BasicAPITests extends ScriptTestCase {
 
     /** Test list method invocation */
     public void testListGet() {
+        String s = Debugger.toString("def x = new ArrayList(); x.add(5); return x.get(0);");
+
         assertEquals(5, exec("def x = new ArrayList(); x.add(5); return x.get(0);"));
         assertEquals(5, exec("def x = new ArrayList(); x.add(5); def index = 0; return x.get(index);"));
     }
@@ -118,7 +123,7 @@ public class BasicAPITests extends ScriptTestCase {
         assertEquals("{}", exec("Map map = new HashMap(); return map.toString();"));
         assertEquals("{}", exec("def map = new HashMap(); return map.toString();"));
     }
-    
+
     public void testPrimitivesHaveMethods() {
         assertEquals(5, exec("int x = 5; return x.intValue();"));
         assertEquals("5", exec("int x = 5; return x.toString();"));

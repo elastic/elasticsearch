@@ -19,19 +19,19 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.AnalyzerCaster;
+import org.elasticsearch.painless.Definition.Cast;
+import org.elasticsearch.painless.Definition.Sort;
+import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Locals;
-import org.objectweb.asm.Label;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.objectweb.asm.Label;
 
 import java.util.Objects;
 
 /**
- * The superclass for all E* (expression) nodes.
+ * The superclass for all E* (expression) and P* (postfix) nodes.
  */
 public abstract class AExpression extends ANode {
 
@@ -42,27 +42,27 @@ public abstract class AExpression extends ANode {
      * chain will want the data from the final postfix to be
      * analyzed.
      */
-    protected AExpression prefix = null;
+    AExpression prefix;
 
     /**
      * Set to false when an expression will not be read from such as
      * a basic assignment.  Note this variable is always set by the parent
      * as input.
      */
-    protected boolean read = true;
+    boolean read = true;
 
     /**
      * Set to true when an expression can be considered a stand alone
      * statement.  Used to prevent extraneous bytecode. This is always
      * set by the node as output.
      */
-    protected boolean statement = false;
+    boolean statement = false;
 
     /**
      * Set to the expected type this node needs to be.  Note this variable
      * is always set by the parent as input and should never be read from.
      */
-    protected Type expected = null;
+    Type expected = null;
 
     /**
      * Set to the actual type this node is.  Note this variable is always
@@ -70,19 +70,19 @@ public abstract class AExpression extends ANode {
      * node itself.  <b>Also, actual can always be read after a cast is
      * called on this node to get the type of the node after the cast.</b>
      */
-    protected Type actual = null;
+    Type actual = null;
 
     /**
      * Set by {@link EExplicit} if a cast made on an expression node should be
      * explicit.
      */
-    protected boolean explicit = false;
+    boolean explicit = false;
 
     /**
      * Set to true if a cast is allowed to boxed/unboxed.  This is used
      * for method arguments because casting may be required.
      */
-    protected boolean internal = false;
+    boolean internal = false;
 
     /**
      * Set to the value of the constant this expression node represents if
@@ -90,53 +90,51 @@ public abstract class AExpression extends ANode {
      * this node will be replaced by an {@link EConstant} during casting
      * if it's not already one.
      */
-    protected Object constant = null;
+    Object constant = null;
 
     /**
      * Set to true by {@link ENull} to represent a null value.
      */
-    protected boolean isNull = false;
+    boolean isNull = false;
 
     /**
      * If an expression represents a branch statement, represents the jump should
      * the expression evaluate to a true value.  It should always be the case that only
      * one of tru and fals are non-null or both are null.  Only used during the writing phase.
      */
-    protected Label tru = null;
+    Label tru = null;
 
     /**
      * If an expression represents a branch statement, represents the jump should
      * the expression evaluate to a false value.  It should always be the case that only
      * one of tru and fals are non-null or both are null.  Only used during the writing phase.
      */
-    protected Label fals = null;
+    Label fals = null;
 
-    protected AExpression(Location location) {
+    /**
+     * Standard constructor with location used for error tracking.
+     */
+    AExpression(Location location) {
         super(location);
+
+        prefix = null;
     }
 
-    protected AExpression(Location location, AExpression prefix) {
+    /**
+     * This constructor is used by variable/method chains when postfixes are specified.
+     */
+    AExpression(Location location, AExpression prefix) {
         super(location);
 
         this.prefix = Objects.requireNonNull(prefix);
     }
 
     /**
-     * Checks for errors and collects data for the writing phase.
-     */
-    abstract void analyze(Locals locals);
-
-    /**
-     * Writes ASM based on the data collected during the analysis phase.
-     */
-    abstract void write(MethodWriter writer, Globals globals);
-
-    /**
      * Inserts {@link ECast} nodes into the tree for implicit casts.  Also replaces
      * nodes with the constant variable set to a non-null value with {@link EConstant}.
      * @return The new child node for the parent node calling this method.
      */
-    protected AExpression cast(Locals locals) {
+    AExpression cast(Locals locals) {
         Cast cast = AnalyzerCaster.getLegalCast(location, actual, expected, explicit, internal);
 
         if (cast == null) {
@@ -231,6 +229,29 @@ public abstract class AExpression extends ANode {
                     return ecast;
                 }
             }
+        }
+    }
+
+    /**
+     * Checks for illegal branch conditions and then writes a branch if writer is specified.
+     */
+    void checkWriteBranch(MethodWriter writer) {
+        // Branches cannot have both a true and false jump.
+        if (tru != null && fals != null) {
+            throw new IllegalStateException("Illegal tree structure.");
+        }
+
+        // Branches can only be written with a boolean on the stack.
+        if (actual.sort != Sort.BOOL && (tru != null || fals != null)) {
+            throw new IllegalStateException("Illegal tree structure.");
+        }
+
+        // Write bytecode for the branch if writer is specified.
+        if (writer != null) {
+            writer.writeBranch(tru, fals);
+        // No branch is expected, but we found one.
+        } else if (tru != null || fals != null) {
+            throw new IllegalStateException("Illegal tree structure.");
         }
     }
 }

@@ -35,8 +35,8 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class ENumeric extends AExpression {
 
-    final String value;
-    int radix;
+    private final String value;
+    private int radix;
 
     public ENumeric(Location location, String value, int radix) {
         super(location);
@@ -46,7 +46,9 @@ public final class ENumeric extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {}
+    void extractVariables(Set<String> variables) {
+        // Do nothing.
+    }
 
     @Override
     void analyze(Locals locals) {

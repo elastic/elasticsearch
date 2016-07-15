@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -34,11 +35,11 @@ import java.util.Set;
  */
 final class PSubCallInvoke extends AExpression {
 
-    final Method method;
-    final boolean box;
-    final List<AExpression> arguments;
+    private final Method method;
+    private final Type box;
+    private final List<AExpression> arguments;
 
-    public PSubCallInvoke(Location location, Method method, boolean box, List<AExpression> arguments) {
+    public PSubCallInvoke(Location location, Method method, Type box, List<AExpression> arguments) {
         super(location);
 
         this.method = Objects.requireNonNull(method);
@@ -70,8 +71,8 @@ final class PSubCallInvoke extends AExpression {
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        if (box) {
-            writer.box(actual.type);
+        if (box != null) {
+            writer.box(box.type);
         }
 
         for (AExpression argument : arguments) {

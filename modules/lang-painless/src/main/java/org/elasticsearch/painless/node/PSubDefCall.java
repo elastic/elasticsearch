@@ -19,11 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Type;
 
@@ -37,11 +37,11 @@ import java.util.Set;
  */
 final class PSubDefCall extends AExpression {
 
-    final String name;
-    final List<AExpression> arguments;
+    private final String name;
+    private final List<AExpression> arguments;
 
-    StringBuilder recipe = null;
-    List<String> pointers = new ArrayList<>();
+    private StringBuilder recipe = null;
+    private List<String> pointers = new ArrayList<>();
 
     PSubDefCall(Location location, String name, List<AExpression> arguments) {
         super(location);

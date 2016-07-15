@@ -22,16 +22,16 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -47,10 +47,10 @@ import static org.elasticsearch.painless.WriterConstants.ITERATOR_TYPE;
  */
 public class SEach extends AStatement {
 
-    final String type;
-    final String name;
-    AExpression expression;
-    final SBlock block;
+    private final String type;
+    private final String name;
+    private AExpression expression;
+    private final SBlock block;
 
     // Members for all cases.
     Variable variable = null;
@@ -73,7 +73,7 @@ public class SEach extends AStatement {
         this.expression = Objects.requireNonNull(expression);
         this.block = block;
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         variables.add(name);

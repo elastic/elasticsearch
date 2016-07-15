@@ -19,18 +19,17 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition.MethodKey;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
-import java.lang.invoke.MethodType;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -40,10 +39,10 @@ import java.util.Set;
  */
 public final class PCallInvoke extends AExpression {
 
-    final String name;
-    final List<AExpression> arguments;
+    private final String name;
+    private final List<AExpression> arguments;
 
-    AExpression sub = null;
+    private AExpression sub = null;
 
     public PCallInvoke(Location location, AExpression prefix, String name, List<AExpression> arguments) {
         super(location, prefix);
@@ -72,13 +71,11 @@ public final class PCallInvoke extends AExpression {
         }
 
         Struct struct = prefix.actual.struct;
-        boolean box = false;
+        Type box = null;
 
-        if (prefix.actual.clazz.isPrimitive()) {
-            Class<?> wrapper = MethodType.methodType(prefix.actual.clazz).wrap().returnType();
-            Type boxed = Definition.getType(wrapper.getSimpleName());
-            struct = boxed.struct;
-            box = true;
+        if (prefix.actual.sort.primitive) {
+            box = Definition.getType(prefix.actual.sort.boxed.getSimpleName());
+            struct = box.struct;
         }
 
         MethodKey methodKey = new MethodKey(name, arguments.size());
@@ -94,9 +91,7 @@ public final class PCallInvoke extends AExpression {
         }
 
         sub.expected = expected;
-
         sub.analyze(locals);
-
         actual = sub.actual;
 
         statement = true;
@@ -104,6 +99,8 @@ public final class PCallInvoke extends AExpression {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        prefix.write(writer, globals);
         sub.write(writer, globals);
+        checkWriteBranch(writer);
     }
 }

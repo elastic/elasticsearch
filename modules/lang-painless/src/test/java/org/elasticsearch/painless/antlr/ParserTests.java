@@ -68,14 +68,7 @@ public class ParserTests extends ScriptTestCase {
     }
 
     public void testIllegalSecondary() {
-        //TODO: Need way more corner case tests.
-        Exception exception = expectThrows(TestException.class, () -> buildAntlrTree("(x = 5).y"));
-        assertTrue(exception.getMessage().contains("no viable alternative"));
-        exception = expectThrows(TestException.class, () -> buildAntlrTree("((x = 5).y = 2).z;"));
-        assertTrue(exception.getMessage().contains("no viable alternative"));
-        exception = expectThrows(TestException.class, () -> buildAntlrTree("(2 + 2).z"));
-        assertTrue(exception.getMessage().contains("no viable alternative"));
-        exception = expectThrows(RuntimeException.class, () -> buildAntlrTree("((Map)x.-x)"));
+        Exception exception = expectThrows(RuntimeException.class, () -> buildAntlrTree("((Map)x.-x)"));
         assertTrue(exception.getMessage().contains("unexpected character"));
     }
 

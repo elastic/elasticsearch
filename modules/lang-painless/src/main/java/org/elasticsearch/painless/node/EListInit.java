@@ -33,11 +33,11 @@ import java.util.Set;
 /**
  * Represents a list initialization shortcut.
  */
-public class EListInit extends AExpression {
-    final List<AExpression> values;
+public final class EListInit extends AExpression {
+    private final List<AExpression> values;
 
-    Method constructor = null;
-    Method method = null;
+    private Method constructor = null;
+    private Method method = null;
 
     public EListInit(Location location, List<AExpression> values) {
         super(location);
@@ -89,6 +89,7 @@ public class EListInit extends AExpression {
     @Override
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
+        checkWriteBranch(null);
 
         writer.newInstance(actual.type);
         writer.dup();

@@ -21,22 +21,21 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 
 import java.util.Objects;
 import java.util.Set;
-
-import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a while loop.
  */
 public final class SWhile extends AStatement {
 
-    AExpression condition;
-    final SBlock block;
+    private AExpression condition;
+    private final SBlock block;
 
     public SWhile(Location location, AExpression condition, SBlock block) {
         super(location);
@@ -44,7 +43,7 @@ public final class SWhile extends AStatement {
         this.condition = Objects.requireNonNull(condition);
         this.block = block;
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         condition.extractVariables(variables);

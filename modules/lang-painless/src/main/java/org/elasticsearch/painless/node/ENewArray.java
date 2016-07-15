@@ -35,9 +35,9 @@ import java.util.Set;
  */
 public final class ENewArray extends AExpression {
 
-    final String type;
-    final List<AExpression> arguments;
-    final boolean initialize;
+    private final String type;
+    private final List<AExpression> arguments;
+    private final boolean initialize;
 
     public ENewArray(Location location, String type, List<AExpression> arguments, boolean initialize) {
         super(location);
@@ -83,6 +83,7 @@ public final class ENewArray extends AExpression {
     @Override
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
+        checkWriteBranch(null);
 
         if (initialize) {
             writer.push(arguments.size());

@@ -37,10 +37,10 @@ import java.util.Set;
  */
 public final class ENewObj extends AExpression {
 
-    final String type;
-    final List<AExpression> arguments;
+    private final String type;
+    private final List<AExpression> arguments;
 
-    Method constructor;
+    private Method constructor;
 
     public ENewObj(Location location, String type, List<AExpression> arguments) {
         super(location);
@@ -97,6 +97,8 @@ public final class ENewObj extends AExpression {
     @Override
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
+        checkWriteBranch(null);
+
         writer.newInstance(actual.type);
 
         if (read) {

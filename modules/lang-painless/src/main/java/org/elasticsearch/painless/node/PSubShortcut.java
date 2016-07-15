@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
@@ -35,10 +34,10 @@ import java.util.Set;
  */
 final class PSubShortcut extends AStoreable {
 
-    final String value;
-    final String type;
-    final Method getter;
-    final Method setter;
+    private final String value;
+    private final String type;
+    private final Method getter;
+    private final Method setter;
 
     PSubShortcut(Location location, String value, String type, Method getter, Method setter) {
         super(location);
@@ -70,7 +69,7 @@ final class PSubShortcut extends AStoreable {
             throw createError(new IllegalArgumentException("Shortcut argument types must match."));
         }
 
-        if ((getter != null || setter != null) && (!read || getter != null) && (!store || setter != null)) {
+        if ((getter != null || setter != null) && (!read || getter != null) && (!write || setter != null)) {
             actual = setter != null ? setter.arguments.get(0) : getter.rtn;
         } else {
             throw createError(new IllegalArgumentException("Illegal shortcut on field [" + value + "] for type [" + type + "]."));
@@ -79,7 +78,13 @@ final class PSubShortcut extends AStoreable {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        load(writer, globals);
+        writer.writeDebugInfo(location);
+
+        getter.write(writer);
+
+        if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
+            writer.checkCast(getter.rtn.type);
+        }
     }
 
     @Override
@@ -88,12 +93,17 @@ final class PSubShortcut extends AStoreable {
     }
 
     @Override
-    boolean updateActual(Type actual) {
+    boolean isDefOptimized() {
         return false;
     }
 
     @Override
-    void prestore(MethodWriter writer, Globals globals) {
+    void updateActual(Type actual) {
+        throw new IllegalArgumentException("Illegal tree structure.");
+    }
+
+    @Override
+    void setup(MethodWriter writer, Globals globals) {
         // Do nothing.
     }
 

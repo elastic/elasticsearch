@@ -19,24 +19,23 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.DefBootstrap;
+import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
-import org.objectweb.asm.Type;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Objects;
 import java.util.Set;
-
-import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents an array load/store or shortcut on a def type.  (Internal only.)
  */
 final class PSubDefArray extends AStoreable {
 
-    AExpression index;
+    private AExpression index;
 
     PSubDefArray(Location location, AExpression index) {
         super(location);
@@ -60,8 +59,13 @@ final class PSubDefArray extends AStoreable {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        prestore(writer, globals);
-        load(writer, globals);
+        index.write(writer, globals);
+
+        writer.writeDebugInfo(location);
+
+        org.objectweb.asm.Type methodType =
+            org.objectweb.asm.Type.getMethodType(actual.type, Definition.DEF_TYPE.type, index.actual.type);
+        writer.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD);
     }
 
     @Override
@@ -70,14 +74,17 @@ final class PSubDefArray extends AStoreable {
     }
 
     @Override
-    boolean updateActual(Definition.Type actual) {
-        this.actual = actual;
-
+    boolean isDefOptimized() {
         return true;
     }
 
     @Override
-    void prestore(MethodWriter writer, Globals globals) {
+    void updateActual(Type actual) {
+        this.actual = actual;
+    }
+
+    @Override
+    void setup(MethodWriter writer, Globals globals) {
         index.write(writer, globals);
     }
 
@@ -85,7 +92,8 @@ final class PSubDefArray extends AStoreable {
     void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        Type methodType = Type.getMethodType(actual.type, Definition.DEF_TYPE.type, index.actual.type);
+        org.objectweb.asm.Type methodType =
+            org.objectweb.asm.Type.getMethodType(actual.type, Definition.DEF_TYPE.type, index.actual.type);
         writer.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD);
     }
 
@@ -93,7 +101,8 @@ final class PSubDefArray extends AStoreable {
     void store(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        Type methodType = Type.getMethodType(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, index.actual.type, actual.type);
+        org.objectweb.asm.Type methodType =
+            org.objectweb.asm.Type.getMethodType(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, index.actual.type, actual.type);
         writer.invokeDefCall("arrayStore", methodType, DefBootstrap.ARRAY_STORE);
     }
 }

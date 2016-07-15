@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
@@ -27,6 +26,7 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
+import java.lang.reflect.Modifier;
 import java.util.Objects;
 import java.util.Set;
 
@@ -35,7 +35,7 @@ import java.util.Set;
  */
 final class PSubField extends AStoreable {
 
-    final Field field;
+    private final Field field;
 
     public PSubField(Location location, Field field) {
         super(location);
@@ -50,7 +50,7 @@ final class PSubField extends AStoreable {
 
     @Override
     void analyze(Locals locals) {
-         if (store && java.lang.reflect.Modifier.isFinal(field.modifiers)) {
+         if (write && Modifier.isFinal(field.modifiers)) {
              throw createError(new IllegalArgumentException(
                  "Cannot write to read-only field [" + field.name + "] for type [" + field.type.name + "]."));
          }
@@ -60,7 +60,13 @@ final class PSubField extends AStoreable {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        load(writer, globals);
+        writer.writeDebugInfo(location);
+
+        if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
+            writer.getStatic(field.owner.type, field.javaName, field.type.type);
+        } else {
+            writer.getField(field.owner.type, field.javaName, field.type.type);
+        }
     }
 
     @Override
@@ -69,12 +75,17 @@ final class PSubField extends AStoreable {
     }
 
     @Override
-    boolean updateActual(Type actual) {
+    boolean isDefOptimized() {
         return false;
     }
 
     @Override
-    void prestore(MethodWriter writer, Globals globals) {
+    void updateActual(Type actual) {
+        throw new IllegalArgumentException("Illegal tree structure.");
+    }
+
+    @Override
+    void setup(MethodWriter writer, Globals globals) {
         // Do nothing.
     }
 

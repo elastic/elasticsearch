@@ -37,9 +37,9 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class EConditional extends AExpression {
 
-    AExpression condition;
-    AExpression left;
-    AExpression right;
+    private AExpression condition;
+    private AExpression left;
+    private AExpression right;
 
     public EConditional(Location location, AExpression condition, AExpression left, AExpression right) {
         super(location);
@@ -48,7 +48,7 @@ public final class EConditional extends AExpression {
         this.left = Objects.requireNonNull(left);
         this.right = Objects.requireNonNull(right);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         condition.extractVariables(variables);

@@ -43,10 +43,11 @@ import static org.elasticsearch.painless.WriterConstants.EQUALS;
  */
 public final class EComp extends AExpression {
 
-    final Operation operation;
-    AExpression left;
-    AExpression right;
-    Type promotedType;
+    private final Operation operation;
+    private AExpression left;
+    private AExpression right;
+
+    private Type promotedType;
 
     public EComp(Location location, Operation operation, AExpression left, AExpression right) {
         super(location);
@@ -55,7 +56,7 @@ public final class EComp extends AExpression {
         this.left = Objects.requireNonNull(left);
         this.right = Objects.requireNonNull(right);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         left.extractVariables(variables);
@@ -448,6 +449,10 @@ public final class EComp extends AExpression {
     @Override
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
+
+        if (tru != null && fals != null) {
+            throw new IllegalStateException("Illegal tree structure.");
+        }
 
         boolean branch = tru != null || fals != null;
 

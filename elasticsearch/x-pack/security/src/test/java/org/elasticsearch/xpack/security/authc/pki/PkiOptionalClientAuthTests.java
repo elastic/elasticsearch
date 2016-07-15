@@ -23,8 +23,8 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.transport.SSLClientAuth;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyHttpServerTransport;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.junit.BeforeClass;
 
 import javax.net.ssl.SSLContext;
@@ -57,8 +57,8 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put(SecurityNettyHttpServerTransport.SSL_SETTING.getKey(), true)
-                .put(SecurityNettyHttpServerTransport.CLIENT_AUTH_SETTING.getKey(), SSLClientAuth.OPTIONAL)
+                .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true)
+                .put(SecurityNetty3HttpServerTransport.CLIENT_AUTH_SETTING.getKey(), SSLClientAuth.OPTIONAL)
                 .put("xpack.security.authc.realms.file.type", "file")
                 .put("xpack.security.authc.realms.file.order", "0")
                 .put("xpack.security.authc.realms.pki1.type", "pki")
@@ -108,7 +108,7 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
                 .put(sslSettingsForStore)
                 .put(Security.USER_SETTING.getKey(), DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
-                .put(SecurityNettyTransport.SSL_SETTING.getKey(), true)
+                .put(SecurityNetty3Transport.SSL_SETTING.getKey(), true)
                 .build();
 
 

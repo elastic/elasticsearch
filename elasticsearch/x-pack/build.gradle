@@ -27,7 +27,7 @@ dependencies {
   testCompile project(':x-plugins:elasticsearch:license:licensor')
 
   // security deps
-  compile project(path: ':modules:transport-netty', configuration: 'runtime')
+  compile project(path: ':modules:transport-netty3', configuration: 'runtime')
   compile 'dk.brics.automaton:automaton:1.11-8'
   compile 'com.unboundid:unboundid-ldapsdk:2.3.8'
   compile 'org.bouncycastle:bcprov-jdk15on:1.54'

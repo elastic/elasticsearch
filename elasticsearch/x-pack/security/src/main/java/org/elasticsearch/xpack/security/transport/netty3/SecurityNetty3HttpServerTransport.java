@@ -3,17 +3,15 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.transport.netty;
+package org.elasticsearch.xpack.security.transport.netty3;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.http.netty.NettyHttpServerTransport;
-import org.elasticsearch.xpack.security.ssl.SSLConfiguration.Global;
+import org.elasticsearch.http.netty3.Netty3HttpServerTransport;
 import org.elasticsearch.xpack.security.ssl.ServerSSLService;
 import org.elasticsearch.xpack.security.transport.SSLClientAuth;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -26,7 +24,6 @@ import org.jboss.netty.handler.ssl.SslHandler;
 
 import javax.net.ssl.SSLEngine;
 
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION;
@@ -37,7 +34,7 @@ import static org.elasticsearch.xpack.security.transport.SSLExceptionHelper.isNo
 /**
  *
  */
-public class SecurityNettyHttpServerTransport extends NettyHttpServerTransport {
+public class SecurityNetty3HttpServerTransport extends Netty3HttpServerTransport {
 
     public static final boolean SSL_DEFAULT = false;
     public static final String CLIENT_AUTH_DEFAULT = SSLClientAuth.NO.name();
@@ -55,8 +52,8 @@ public class SecurityNettyHttpServerTransport extends NettyHttpServerTransport {
     private final Settings sslSettings;
 
     @Inject
-    public SecurityNettyHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, IPFilter ipFilter,
-                                            ServerSSLService sslService, ThreadPool threadPool) {
+    public SecurityNetty3HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, IPFilter ipFilter,
+                                             ServerSSLService sslService, ThreadPool threadPool) {
         super(settings, networkService, bigArrays, threadPool);
         this.ipFilter = ipFilter;
         this.ssl = SSL_SETTING.get(settings);
@@ -109,7 +106,7 @@ public class SecurityNettyHttpServerTransport extends NettyHttpServerTransport {
 
         private final SSLClientAuth clientAuth;
 
-        public HttpSslChannelPipelineFactory(NettyHttpServerTransport transport) {
+        public HttpSslChannelPipelineFactory(Netty3HttpServerTransport transport) {
             super(transport, detailedErrorsEnabled, threadPool.getThreadContext());
             clientAuth = CLIENT_AUTH_SETTING.get(settings);
         }
@@ -124,7 +121,7 @@ public class SecurityNettyHttpServerTransport extends NettyHttpServerTransport {
 
                 pipeline.addFirst("ssl", new SslHandler(engine));
             }
-            pipeline.addFirst("ipfilter", new IPFilterNettyUpstreamHandler(ipFilter, IPFilter.HTTP_PROFILE_NAME));
+            pipeline.addFirst("ipfilter", new IPFilterNetty3UpstreamHandler(ipFilter, IPFilter.HTTP_PROFILE_NAME));
             return pipeline;
         }
     }

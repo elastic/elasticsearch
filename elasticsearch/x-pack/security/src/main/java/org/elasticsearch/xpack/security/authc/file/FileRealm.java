@@ -84,8 +84,8 @@ public class FileRealm extends CachingUsernamePasswordRealm {
         private final ResourceWatcherService watcherService;
 
         @Inject
-        public Factory(Settings settings, Environment env, ResourceWatcherService watcherService, RestController restController) {
-            super(TYPE, restController, true);
+        public Factory(Settings settings, Environment env, ResourceWatcherService watcherService) {
+            super(TYPE, true);
             this.settings = settings;
             this.env = env;
             this.watcherService = watcherService;

@@ -33,8 +33,8 @@ public class ActiveDirectoryRealm extends AbstractLdapRealm {
         private final ClientSSLService clientSSLService;
 
         @Inject
-        public Factory(ResourceWatcherService watcherService, ClientSSLService clientSSLService, RestController restController) {
-            super(ActiveDirectoryRealm.TYPE, restController);
+        public Factory(ResourceWatcherService watcherService, ClientSSLService clientSSLService) {
+            super(ActiveDirectoryRealm.TYPE);
             this.watcherService = watcherService;
             this.clientSSLService = clientSSLService;
         }

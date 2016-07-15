@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
@@ -77,6 +78,10 @@ public class XPackExtensionsService {
         for (Tuple<XPackExtensionInfo, XPackExtension> tuple : extensions) {
             tuple.v2().onModule(module);
         }
+    }
+
+    public List<XPackExtension> getExtensions() {
+        return extensions.stream().map(Tuple::v2).collect(Collectors.toList());
     }
 
     // a "bundle" is a an extension in a single classloader.

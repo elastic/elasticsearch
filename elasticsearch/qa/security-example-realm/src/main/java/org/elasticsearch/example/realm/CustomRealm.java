@@ -17,8 +17,8 @@ public class CustomRealm extends Realm<UsernamePasswordToken> {
 
     public static final String TYPE = "custom";
 
-    static final String USER_HEADER = "User";
-    static final String PW_HEADER = "Password";
+    public static final String USER_HEADER = "User";
+    public static final String PW_HEADER = "Password";
 
     static final String KNOWN_USER = "custom_user";
     static final String KNOWN_PW = "changeme";

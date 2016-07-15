@@ -13,8 +13,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionRequest;
@@ -66,6 +69,8 @@ import org.elasticsearch.xpack.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.AuthenticationModule;
+import org.elasticsearch.xpack.security.authc.InternalAuthenticationService;
+import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.Watcher;
@@ -207,6 +212,21 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
         builder.put(watcher.additionalSettings());
         builder.put(graph.additionalSettings());
         return builder.build();
+    }
+
+    @Override
+    public Collection<String> getRestHeaders() {
+        if (transportClientMode) {
+            return Collections.emptyList();
+        }
+        Set<String> headers = new HashSet<>();
+        headers.add(UsernamePasswordToken.BASIC_AUTH_HEADER);
+        if (InternalAuthenticationService.RUN_AS_ENABLED.get(settings)) {
+            headers.add(InternalAuthenticationService.RUN_AS_USER_HEADER);
+        }
+        headers.addAll(extensionsService.getExtensions().stream()
+            .flatMap(e -> e.getRestHeaders().stream()).collect(Collectors.toList()));
+        return headers;
     }
 
     @Override

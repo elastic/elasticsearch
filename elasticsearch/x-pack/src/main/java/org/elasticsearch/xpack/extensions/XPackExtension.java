@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.extensions;
 
+import java.util.Collection;
+import java.util.Collections;
+
 import org.elasticsearch.xpack.security.authc.AuthenticationModule;
 
 
@@ -26,4 +29,11 @@ public abstract class XPackExtension {
      * Implement this function to register custom extensions in the authentication module.
      */
     public void onModule(AuthenticationModule module) {}
+
+    /**
+     * Returns headers which should be copied from REST requests to internal cluster requests.
+     */
+    public Collection<String> getRestHeaders() {
+        return Collections.emptyList();
+    }
 }

@@ -23,9 +23,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
-import org.elasticsearch.transport.NettyPlugin;
+import org.elasticsearch.transport.Netty3Plugin;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -38,19 +37,19 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put("netty.assert.buglevel", false)
-            .put(NetworkModule.TRANSPORT_TYPE_KEY, randomFrom(NettyPlugin.NETTY_TRANSPORT_NAME,
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, randomFrom(Netty3Plugin.NETTY_TRANSPORT_NAME,
                 MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME))
             .put(NetworkModule.HTTP_ENABLED.getKey(), true).build();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTcpTransportPlugin.class, NettyPlugin.class, BogusPlugin.class);
+        return pluginList(MockTcpTransportPlugin.class, Netty3Plugin.class, BogusPlugin.class);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return pluginList(MockTcpTransportPlugin.class, NettyPlugin.class, BogusPlugin.class);
+        return pluginList(MockTcpTransportPlugin.class, Netty3Plugin.class, BogusPlugin.class);
     }
 
     @Override
@@ -58,7 +57,7 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
         return Settings.builder()
             .put(super.transportClientSettings())
             .put("netty.assert.buglevel", false)
-            .put(NetworkModule.TRANSPORT_TYPE_KEY, randomFrom(NettyPlugin.NETTY_TRANSPORT_NAME,
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, randomFrom(Netty3Plugin.NETTY_TRANSPORT_NAME,
                 MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)).build();
     }
 
@@ -69,7 +68,7 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
 
 
     public static final class BogusPlugin extends Plugin {
-        // see NettyPlugin.... this runs without the permission from the netty module so it will fail since reindex can't set the property
+        // see Netty3Plugin.... this runs without the permission from the netty3 module so it will fail since reindex can't set the property
         // to make it still work we disable that check but need to register the setting first
         private static final Setting<Boolean> ASSERT_NETTY_BUGLEVEL = Setting.boolSetting("netty.assert.buglevel", true,
             Setting.Property.NodeScope);

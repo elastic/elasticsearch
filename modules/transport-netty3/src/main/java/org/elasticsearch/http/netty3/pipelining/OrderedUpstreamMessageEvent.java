@@ -1,3 +1,5 @@
+package org.elasticsearch.http.netty3.pipelining;
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -17,10 +19,29 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.rest-test'
+// this file is from netty-http-pipelining, under apache 2.0 license
+// see github.com/typesafehub/netty-http-pipelining
 
-// TODO: this test works, but it isn't really a rest test...should we have another plugin for "non rest test that just needs N clusters?"
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.UpstreamMessageEvent;
 
-dependencies {
-    testCompile project(path: ':modules:transport-netty3', configuration: 'runtime') // randomly swapped in as a transport
+import java.net.SocketAddress;
+
+/**
+ * Permits upstream message events to be ordered.
+ *
+ * @author Christopher Hunt
+ */
+public class OrderedUpstreamMessageEvent extends UpstreamMessageEvent {
+    final int sequence;
+
+    public OrderedUpstreamMessageEvent(final int sequence, final Channel channel, final Object msg, final SocketAddress remoteAddress) {
+        super(channel, msg, remoteAddress);
+        this.sequence = sequence;
+    }
+
+    public int getSequence() {
+        return sequence;
+    }
+
 }

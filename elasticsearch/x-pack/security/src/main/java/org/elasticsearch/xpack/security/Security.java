@@ -62,7 +62,6 @@ import org.elasticsearch.xpack.security.action.user.TransportPutUserAction;
 import org.elasticsearch.xpack.security.audit.AuditTrailModule;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
-import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.AuthenticationModule;
 import org.elasticsearch.xpack.security.authc.InternalAuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
@@ -95,8 +94,8 @@ import org.elasticsearch.xpack.security.transport.SecurityClientTransportService
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportService;
 import org.elasticsearch.xpack.security.transport.SecurityTransportModule;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyHttpServerTransport;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -142,6 +141,10 @@ public class Security implements ActionPlugin {
         return securityLicenseState;
     }
 
+    public boolean isEnabled() {
+        return enabled;
+    }
+
     public Collection<Module> nodeModules() {
         List<Module> modules = new ArrayList<>();
 
@@ -184,11 +187,6 @@ public class Security implements ActionPlugin {
             return Collections.emptyList();
         }
         List<Class<? extends LifecycleComponent>> list = new ArrayList<>();
-
-        //TODO why only focus on file audit logs? shouldn't we just check if audit trail is enabled in general?
-        if (AuditTrailModule.fileAuditLoggingEnabled(settings) == true) {
-            list.add(LoggingAuditTrail.class);
-        }
         list.add(FileRolesStore.class);
         list.add(Realms.class);
         return list;
@@ -208,7 +206,7 @@ public class Security implements ActionPlugin {
         settingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME);
         settingsBuilder.put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, Security.NAME);
         settingsBuilder.put(NetworkModule.HTTP_TYPE_SETTING.getKey(), Security.NAME);
-        SecurityNettyHttpServerTransport.overrideSettings(settingsBuilder, settings);
+        SecurityNetty3HttpServerTransport.overrideSettings(settingsBuilder, settings);
         addUserSettings(settings, settingsBuilder);
         addTribeSettings(settings, settingsBuilder);
         return settingsBuilder.build();
@@ -224,7 +222,7 @@ public class Security implements ActionPlugin {
         SSLConfiguration.Global.addSettings(settingsList);
 
         // transport settings
-        SecurityNettyTransport.addSettings(settingsList);
+        SecurityNetty3Transport.addSettings(settingsList);
 
         if (transportClientMode) {
             return settingsList;
@@ -249,7 +247,7 @@ public class Security implements ActionPlugin {
         InternalAuthorizationService.addSettings(settingsList);
 
         // HTTP settings
-        SecurityNettyHttpServerTransport.addSettings(settingsList);
+        SecurityNetty3HttpServerTransport.addSettings(settingsList);
 
         // encryption settings
         CryptoService.addSettings(settingsList);
@@ -351,16 +349,16 @@ public class Security implements ActionPlugin {
 
         if (transportClientMode) {
             if (enabled) {
-                module.registerTransport(Security.NAME, SecurityNettyTransport.class);
+                module.registerTransport(Security.NAME, SecurityNetty3Transport.class);
                 module.registerTransportService(Security.NAME, SecurityClientTransportService.class);
             }
             return;
         }
 
         if (enabled) {
-            module.registerTransport(Security.NAME, SecurityNettyTransport.class);
+            module.registerTransport(Security.NAME, SecurityNetty3Transport.class);
             module.registerTransportService(Security.NAME, SecurityServerTransportService.class);
-            module.registerHttpTransport(Security.NAME, SecurityNettyHttpServerTransport.class);
+            module.registerHttpTransport(Security.NAME, SecurityNetty3HttpServerTransport.class);
         }
     }
 

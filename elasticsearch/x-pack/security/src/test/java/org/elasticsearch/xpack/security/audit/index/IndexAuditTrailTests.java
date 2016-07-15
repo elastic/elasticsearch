@@ -5,6 +5,17 @@
  */
 package org.elasticsearch.xpack.security.audit.index;
 
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -15,16 +26,14 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchHit;
@@ -34,9 +43,7 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
@@ -46,7 +53,7 @@ import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.joda.time.DateTime;
@@ -56,18 +63,6 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.InternalTestCluster.clusterName;
@@ -158,7 +153,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         if (useSecurity == false) {
             mockPlugins.add(MockTcpTransportPlugin.class);
         }
-        remoteCluster = new InternalTestCluster("network", randomLong(), createTempDir(), false, numNodes, numNodes, cluster2Name,
+        remoteCluster = new InternalTestCluster(randomLong(), createTempDir(), false, numNodes, numNodes, cluster2Name,
                 cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, mockPlugins,
                 useSecurity ? getClientWrapper() : Function.identity());
         remoteCluster.beforeTest(random(), 0.5);
@@ -178,7 +173,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
                 builder.put("xpack.security.audit.index.client." + entry.getKey(), entry.getValue());
             }
         } else {
-            builder.put("xpack.security.audit.index.client." + SecurityNettyTransport.SSL_SETTING.getKey(), false);
+            builder.put("xpack.security.audit.index.client." + SecurityNetty3Transport.SSL_SETTING.getKey(), false);
         }
         remoteSettings = builder.build();
     }
@@ -268,13 +263,14 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
 
         Settings settings = builder.put(settings(rollover, includes, excludes)).build();
         logger.info("--> settings: [{}]", settings.getAsMap().toString());
-        Transport transport = mock(Transport.class);
-        BoundTransportAddress boundTransportAddress = new BoundTransportAddress(new TransportAddress[]{ remoteHostAddress()},
-                remoteHostAddress());
-        when(transport.boundAddress()).thenReturn(boundTransportAddress);
+        DiscoveryNode localNode = mock(DiscoveryNode.class);
+        when(localNode.getHostAddress()).thenReturn(remoteHostAddress().getAddress());
+        when(localNode.getHostName()).thenReturn(remoteHostAddress().getHost());
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.localNode()).thenReturn(localNode);
         threadPool = new TestThreadPool("index audit trail tests");
         enqueuedMessage = new SetOnce<>();
-        auditor = new IndexAuditTrail(settings, transport, Providers.of(internalClient()), threadPool, mock(ClusterService.class)) {
+        auditor = new IndexAuditTrail(settings, internalClient(), threadPool, clusterService) {
             @Override
             void enqueue(Message message, String type) {
                 enqueuedMessage.set(message);

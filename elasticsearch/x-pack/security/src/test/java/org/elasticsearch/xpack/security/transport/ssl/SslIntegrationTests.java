@@ -25,7 +25,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.xpack.security.ssl.ClientSSLService;
 import org.elasticsearch.xpack.security.ssl.SSLConfiguration.Global;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyHttpServerTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -49,7 +49,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put(SecurityNettyHttpServerTransport.SSL_SETTING.getKey(), true).build();
+                .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true).build();
     }
 
     @Override

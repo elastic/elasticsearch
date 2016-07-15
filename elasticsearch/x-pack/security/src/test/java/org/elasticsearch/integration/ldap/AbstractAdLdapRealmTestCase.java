@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.security.authc.activedirectory.ActiveDirectoryRea
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -166,7 +166,7 @@ public abstract  class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase
         return Settings.builder()
                 .put("xpack.security.ssl.keystore.path", store)
                 .put("xpack.security.ssl.keystore.password", password)
-                .put(SecurityNettyTransport.HOSTNAME_VERIFICATION_SETTING.getKey(), false)
+                .put(SecurityNetty3Transport.HOSTNAME_VERIFICATION_SETTING.getKey(), false)
                 .put("xpack.security.ssl.truststore.path", store)
                 .put("xpack.security.ssl.truststore.password", password).build();
     }

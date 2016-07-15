@@ -109,6 +109,9 @@
                   "properties": {
                     "memory_size_in_bytes": {
                       "type": "long"
+                    },
+                    "evictions": {
+                      "type": "long"
                     }
                   }
                 },
@@ -142,6 +145,38 @@
                     }
                   }
                 },
+                "query_cache": {
+                  "properties": {
+                    "memory_size_in_bytes": {
+                      "type": "long"
+                    },
+                    "evictions": {
+                      "type": "long"
+                    },
+                    "hit_count": {
+                      "type": "long"
+                    },
+                    "miss_count": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "request_cache": {
+                  "properties": {
+                    "memory_size_in_bytes": {
+                      "type": "long"
+                    },
+                    "evictions": {
+                      "type": "long"
+                    },
+                    "hit_count": {
+                      "type": "long"
+                    },
+                    "miss_count": {
+                      "type": "long"
+                    }
+                  }
+                },
                 "search": {
                   "properties": {
                     "query_total": {
@@ -154,6 +189,9 @@
                 },
                 "segments": {
                   "properties": {
+                    "count": {
+                      "type": "integer"
+                    },
                     "memory_in_bytes": {
                       "type": "long"
                     },
@@ -205,6 +243,9 @@
                   "properties": {
                     "memory_size_in_bytes": {
                       "type": "long"
+                    },
+                    "evictions": {
+                      "type": "long"
                     }
                   }
                 },
@@ -238,6 +279,38 @@
                     }
                   }
                 },
+                "query_cache": {
+                  "properties": {
+                    "memory_size_in_bytes": {
+                      "type": "long"
+                    },
+                    "evictions": {
+                      "type": "long"
+                    },
+                    "hit_count": {
+                      "type": "long"
+                    },
+                    "miss_count": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "request_cache": {
+                  "properties": {
+                    "memory_size_in_bytes": {
+                      "type": "long"
+                    },
+                    "evictions": {
+                      "type": "long"
+                    },
+                    "hit_count": {
+                      "type": "long"
+                    },
+                    "miss_count": {
+                      "type": "long"
+                    }
+                  }
+                },
                 "search": {
                   "properties": {
                     "query_total": {
@@ -250,6 +323,9 @@
                 },
                 "segments": {
                   "properties": {
+                    "count": {
+                      "type": "integer"
+                    },
                     "memory_in_bytes": {
                       "type": "long"
                     },
@@ -374,6 +450,16 @@
                     }
                   }
                 },
+                "fielddata" : {
+                  "properties": {
+                    "memory_size_in_bytes": {
+                      "type": "long"
+                    },
+                    "evictions": {
+                      "type": "long"
+                    }
+                  }
+                },
                 "indexing": {
                   "properties": {
                     "index_time_in_millis": {
@@ -383,6 +469,38 @@
                       "type": "long"
                     },
                     "throttle_time_in_millis": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "query_cache": {
+                  "properties": {
+                    "memory_size_in_bytes": {
+                      "type": "long"
+                    },
+                    "evictions": {
+                      "type": "long"
+                    },
+                    "hit_count": {
+                      "type": "long"
+                    },
+                    "miss_count": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "request_cache": {
+                  "properties": {
+                    "memory_size_in_bytes": {
+                      "type": "long"
+                    },
+                    "evictions": {
+                      "type": "long"
+                    },
+                    "hit_count": {
+                      "type": "long"
+                    },
+                    "miss_count": {
                       "type": "long"
                     }
                   }
@@ -400,7 +518,7 @@
                 "segments": {
                   "properties": {
                     "count": {
-                      "type": "long"
+                      "type": "integer"
                     },
                     "memory_in_bytes": {
                       "type": "long"

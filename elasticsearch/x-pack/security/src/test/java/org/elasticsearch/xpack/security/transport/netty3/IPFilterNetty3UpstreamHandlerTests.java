@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.transport.netty;
+package org.elasticsearch.xpack.security.transport.netty3;
 
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.network.InetAddresses;
@@ -41,11 +41,8 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- *
- */
-public class IPFilterNettyUpstreamHandlerTests extends ESTestCase {
-    private IPFilterNettyUpstreamHandler nettyUpstreamHandler;
+public class IPFilterNetty3UpstreamHandlerTests extends ESTestCase {
+    private IPFilterNetty3UpstreamHandler nettyUpstreamHandler;
 
     @Before
     public void init() throws Exception {
@@ -81,9 +78,9 @@ public class IPFilterNettyUpstreamHandlerTests extends ESTestCase {
         }
 
         if (isHttpEnabled) {
-            nettyUpstreamHandler = new IPFilterNettyUpstreamHandler(ipFilter, IPFilter.HTTP_PROFILE_NAME);
+            nettyUpstreamHandler = new IPFilterNetty3UpstreamHandler(ipFilter, IPFilter.HTTP_PROFILE_NAME);
         } else {
-            nettyUpstreamHandler = new IPFilterNettyUpstreamHandler(ipFilter, "default");
+            nettyUpstreamHandler = new IPFilterNetty3UpstreamHandler(ipFilter, "default");
         }
     }
 

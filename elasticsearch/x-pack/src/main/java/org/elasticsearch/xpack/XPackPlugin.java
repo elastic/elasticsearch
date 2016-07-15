@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.notification.email.Account;
 import org.elasticsearch.xpack.notification.email.support.BodyPartSource;
 import org.elasticsearch.xpack.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.rest.action.RestXPackUsageAction;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.AuthenticationModule;
 import org.elasticsearch.xpack.support.clock.Clock;
@@ -181,12 +182,10 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService) {
-
-        if (transportClientMode) {
-            return Collections.emptyList();
-        }
-
         List<Object> components = new ArrayList<>();
+        final InternalClient internalClient = new InternalClient(settings, threadPool, client, security.getCryptoService());
+        components.add(internalClient);
+
         components.addAll(licensing.createComponents(clusterService, getClock(), security.getSecurityLicenseState()));
 
         // watcher http stuff

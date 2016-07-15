@@ -3,14 +3,14 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.transport.netty;
+package org.elasticsearch.xpack.security.transport.netty3;
 
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
-import org.elasticsearch.http.netty.NettyHttpMockUtil;
+import org.elasticsearch.http.netty3.Netty3HttpMockUtil;
 import org.elasticsearch.xpack.security.ssl.SSLConfiguration.Global;
 import org.elasticsearch.xpack.security.ssl.ServerSSLService;
 import org.elasticsearch.xpack.security.transport.SSLClientAuth;
@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
-public class SecurityNettyHttpServerTransportTests extends ESTestCase {
+public class SecurityNetty3HttpServerTransportTests extends ESTestCase {
 
     private ServerSSLService serverSSLService;
 
@@ -47,10 +47,10 @@ public class SecurityNettyHttpServerTransportTests extends ESTestCase {
     }
 
     public void testDefaultClientAuth() throws Exception {
-        Settings settings = Settings.builder().put(SecurityNettyHttpServerTransport.SSL_SETTING.getKey(), true).build();
-        SecurityNettyHttpServerTransport transport = new SecurityNettyHttpServerTransport(settings, mock(NetworkService.class),
+        Settings settings = Settings.builder().put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true).build();
+        SecurityNetty3HttpServerTransport transport = new SecurityNetty3HttpServerTransport(settings, mock(NetworkService.class),
                 mock(BigArrays.class), mock(IPFilter.class), serverSSLService, mock(ThreadPool.class));
-        NettyHttpMockUtil.setOpenChannelsHandlerToMock(transport);
+        Netty3HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory();
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getNeedClientAuth(), is(false));
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getWantClientAuth(), is(false));
@@ -59,11 +59,11 @@ public class SecurityNettyHttpServerTransportTests extends ESTestCase {
     public void testOptionalClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.OPTIONAL.name(), SSLClientAuth.OPTIONAL.name().toLowerCase(Locale.ROOT));
         Settings settings = Settings.builder()
-                .put(SecurityNettyHttpServerTransport.SSL_SETTING.getKey(), true)
-                .put(SecurityNettyHttpServerTransport.CLIENT_AUTH_SETTING.getKey(), value).build();
-        SecurityNettyHttpServerTransport transport = new SecurityNettyHttpServerTransport(settings, mock(NetworkService.class),
+                .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true)
+                .put(SecurityNetty3HttpServerTransport.CLIENT_AUTH_SETTING.getKey(), value).build();
+        SecurityNetty3HttpServerTransport transport = new SecurityNetty3HttpServerTransport(settings, mock(NetworkService.class),
                 mock(BigArrays.class), mock(IPFilter.class), serverSSLService, mock(ThreadPool.class));
-        NettyHttpMockUtil.setOpenChannelsHandlerToMock(transport);
+        Netty3HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory();
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getNeedClientAuth(), is(false));
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getWantClientAuth(), is(true));
@@ -72,11 +72,11 @@ public class SecurityNettyHttpServerTransportTests extends ESTestCase {
     public void testRequiredClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.REQUIRED.name(), SSLClientAuth.REQUIRED.name().toLowerCase(Locale.ROOT), "true", "TRUE");
         Settings settings = Settings.builder()
-                .put(SecurityNettyHttpServerTransport.SSL_SETTING.getKey(), true)
-                .put(SecurityNettyHttpServerTransport.CLIENT_AUTH_SETTING.getKey(), value).build();
-        SecurityNettyHttpServerTransport transport = new SecurityNettyHttpServerTransport(settings, mock(NetworkService.class),
+                .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true)
+                .put(SecurityNetty3HttpServerTransport.CLIENT_AUTH_SETTING.getKey(), value).build();
+        SecurityNetty3HttpServerTransport transport = new SecurityNetty3HttpServerTransport(settings, mock(NetworkService.class),
                 mock(BigArrays.class), mock(IPFilter.class), serverSSLService, mock(ThreadPool.class));
-        NettyHttpMockUtil.setOpenChannelsHandlerToMock(transport);
+        Netty3HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory();
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getNeedClientAuth(), is(true));
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getWantClientAuth(), is(false));
@@ -85,11 +85,11 @@ public class SecurityNettyHttpServerTransportTests extends ESTestCase {
     public void testNoClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.NO.name(), SSLClientAuth.NO.name().toLowerCase(Locale.ROOT), "false", "FALSE");
         Settings settings = Settings.builder()
-                .put(SecurityNettyHttpServerTransport.SSL_SETTING.getKey(), true)
-                .put(SecurityNettyHttpServerTransport.CLIENT_AUTH_SETTING.getKey(), value).build();
-        SecurityNettyHttpServerTransport transport = new SecurityNettyHttpServerTransport(settings, mock(NetworkService.class),
+                .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true)
+                .put(SecurityNetty3HttpServerTransport.CLIENT_AUTH_SETTING.getKey(), value).build();
+        SecurityNetty3HttpServerTransport transport = new SecurityNetty3HttpServerTransport(settings, mock(NetworkService.class),
                 mock(BigArrays.class), mock(IPFilter.class), serverSSLService, mock(ThreadPool.class));
-        NettyHttpMockUtil.setOpenChannelsHandlerToMock(transport);
+        Netty3HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory();
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getNeedClientAuth(), is(false));
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getWantClientAuth(), is(false));
@@ -97,20 +97,20 @@ public class SecurityNettyHttpServerTransportTests extends ESTestCase {
 
     public void testCustomSSLConfiguration() throws Exception {
         Settings settings = Settings.builder()
-                .put(SecurityNettyHttpServerTransport.SSL_SETTING.getKey(), true).build();
-        SecurityNettyHttpServerTransport transport = new SecurityNettyHttpServerTransport(settings, mock(NetworkService.class),
+                .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true).build();
+        SecurityNetty3HttpServerTransport transport = new SecurityNetty3HttpServerTransport(settings, mock(NetworkService.class),
                 mock(BigArrays.class), mock(IPFilter.class), serverSSLService, mock(ThreadPool.class));
-        NettyHttpMockUtil.setOpenChannelsHandlerToMock(transport);
+        Netty3HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory();
         SSLEngine defaultEngine = factory.getPipeline().get(SslHandler.class).getEngine();
 
         settings = Settings.builder()
-                .put(SecurityNettyHttpServerTransport.SSL_SETTING.getKey(), true)
+                .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true)
                 .put("xpack.security.http.ssl.supported_protocols", "TLSv1.2")
                 .build();
-        transport = new SecurityNettyHttpServerTransport(settings, mock(NetworkService.class),
+        transport = new SecurityNetty3HttpServerTransport(settings, mock(NetworkService.class),
                 mock(BigArrays.class), mock(IPFilter.class), serverSSLService, mock(ThreadPool.class));
-        NettyHttpMockUtil.setOpenChannelsHandlerToMock(transport);
+        Netty3HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         factory = transport.configureServerChannelPipelineFactory();
         SSLEngine customEngine = factory.getPipeline().get(SslHandler.class).getEngine();
         assertThat(customEngine.getEnabledProtocols(), arrayContaining("TLSv1.2"));
@@ -119,29 +119,29 @@ public class SecurityNettyHttpServerTransportTests extends ESTestCase {
 
     public void testDisablesCompressionByDefaultForSsl() throws Exception {
         Settings settings = Settings.builder()
-                .put(SecurityNettyHttpServerTransport.SSL_SETTING.getKey(), true).build();
+                .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true).build();
 
         Settings.Builder pluginSettingsBuilder = Settings.builder();
-        SecurityNettyHttpServerTransport.overrideSettings(pluginSettingsBuilder, settings);
+        SecurityNetty3HttpServerTransport.overrideSettings(pluginSettingsBuilder, settings);
         assertThat(HttpTransportSettings.SETTING_HTTP_COMPRESSION.get(pluginSettingsBuilder.build()), is(false));
     }
 
     public void testLeavesCompressionOnIfNotSsl() throws Exception {
         Settings settings = Settings.builder()
-                .put(SecurityNettyHttpServerTransport.SSL_SETTING.getKey(), false).build();
+                .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), false).build();
         Settings.Builder pluginSettingsBuilder = Settings.builder();
-        SecurityNettyHttpServerTransport.overrideSettings(pluginSettingsBuilder, settings);
+        SecurityNetty3HttpServerTransport.overrideSettings(pluginSettingsBuilder, settings);
         assertThat(pluginSettingsBuilder.build().isEmpty(), is(true));
     }
 
     public void testDoesNotChangeExplicitlySetCompression() throws Exception {
         Settings settings = Settings.builder()
-                .put(SecurityNettyHttpServerTransport.SSL_SETTING.getKey(), true)
+                .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true)
                 .put(HttpTransportSettings.SETTING_HTTP_COMPRESSION.getKey(), true)
                 .build();
 
         Settings.Builder pluginSettingsBuilder = Settings.builder();
-        SecurityNettyHttpServerTransport.overrideSettings(pluginSettingsBuilder, settings);
+        SecurityNetty3HttpServerTransport.overrideSettings(pluginSettingsBuilder, settings);
         assertThat(pluginSettingsBuilder.build().isEmpty(), is(true));
     }
 }

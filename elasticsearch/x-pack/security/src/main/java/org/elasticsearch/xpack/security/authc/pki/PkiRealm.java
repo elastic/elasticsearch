@@ -18,8 +18,8 @@ import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.elasticsearch.xpack.security.transport.SSLClientAuth;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyHttpServerTransport;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import javax.net.ssl.TrustManager;
@@ -195,16 +195,16 @@ public class PkiRealm extends Realm<X509AuthenticationToken> {
     static void checkSSLEnabled(RealmConfig config, ESLogger logger) {
         Settings settings = config.globalSettings();
 
-        final boolean httpSsl = SecurityNettyHttpServerTransport.SSL_SETTING.get(settings);
-        final boolean httpClientAuth = SecurityNettyHttpServerTransport.CLIENT_AUTH_SETTING.get(settings).enabled();
+        final boolean httpSsl = SecurityNetty3HttpServerTransport.SSL_SETTING.get(settings);
+        final boolean httpClientAuth = SecurityNetty3HttpServerTransport.CLIENT_AUTH_SETTING.get(settings).enabled();
         // HTTP
         if (httpSsl && httpClientAuth) {
             return;
         }
 
         // Default Transport
-        final boolean ssl = SecurityNettyTransport.SSL_SETTING.get(settings);
-        final SSLClientAuth clientAuth = SecurityNettyTransport.CLIENT_AUTH_SETTING.get(settings);
+        final boolean ssl = SecurityNetty3Transport.SSL_SETTING.get(settings);
+        final SSLClientAuth clientAuth = SecurityNetty3Transport.CLIENT_AUTH_SETTING.get(settings);
         if (ssl && clientAuth.enabled()) {
             return;
         }
@@ -213,8 +213,8 @@ public class PkiRealm extends Realm<X509AuthenticationToken> {
         Map<String, Settings> groupedSettings = settings.getGroups("transport.profiles.");
         for (Map.Entry<String, Settings> entry : groupedSettings.entrySet()) {
             Settings profileSettings = entry.getValue().getByPrefix(Security.settingPrefix());
-            if (SecurityNettyTransport.profileSsl(profileSettings, settings)
-                    && SecurityNettyTransport.CLIENT_AUTH_SETTING.get(profileSettings, settings).enabled()) {
+            if (SecurityNetty3Transport.profileSsl(profileSettings, settings)
+                    && SecurityNetty3Transport.CLIENT_AUTH_SETTING.get(profileSettings, settings).enabled()) {
                 return;
             }
         }

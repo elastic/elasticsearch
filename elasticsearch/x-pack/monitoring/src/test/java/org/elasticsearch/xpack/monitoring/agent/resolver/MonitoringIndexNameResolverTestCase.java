@@ -123,6 +123,8 @@ public abstract class MonitoringIndexNameResolverTestCase<M extends MonitoringDo
     }
 
     @SuppressWarnings("unchecked")
+    // norelease
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/2825;https://github.com/elastic/x-plugins/issues/2826")
     public void testSource() throws IOException {
         MonitoringIndexNameResolver resolver = newResolver();
         BytesReference source = resolver.source(newMonitoringDoc(), randomFrom(XContentType.values()));

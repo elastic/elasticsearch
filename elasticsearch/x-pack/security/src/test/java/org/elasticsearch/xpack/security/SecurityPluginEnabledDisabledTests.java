@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.security;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.integration.LicensingTests;
-import org.elasticsearch.xpack.security.transport.SecurityServerTransportService;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.security.transport.SecurityServerTransportService;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.BeforeClass;
@@ -21,9 +21,6 @@ import org.junit.BeforeClass;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
-/**
- *
- */
 public class SecurityPluginEnabledDisabledTests extends SecurityIntegTestCase {
     private static boolean enabled;
 
@@ -72,7 +69,7 @@ public class SecurityPluginEnabledDisabledTests extends SecurityIntegTestCase {
             assertThat(service, matcher);
         }
         for (Transport transport : internalCluster().getInstances(Transport.class)) {
-            Matcher<Transport> matcher = instanceOf(SecurityNettyTransport.class);
+            Matcher<Transport> matcher = instanceOf(SecurityNetty3Transport.class);
             if (!enabled) {
                 matcher = not(matcher);
             }

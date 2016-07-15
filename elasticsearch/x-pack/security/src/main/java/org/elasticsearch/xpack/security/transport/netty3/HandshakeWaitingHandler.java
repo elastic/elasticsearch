@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.transport.netty;
+package org.elasticsearch.xpack.security.transport.netty3;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.jboss.netty.channel.ChannelFuture;
@@ -27,7 +27,7 @@ import java.util.Queue;
  * itself from the pipeline.
  *
  * NOTE: This class assumes that the transport will not use a closed channel again or attempt to reconnect, which
- * is the way that NettyTransport currently works
+ * is the way that Netty3Transport currently works
  */
 public class HandshakeWaitingHandler extends SimpleChannelHandler {
 

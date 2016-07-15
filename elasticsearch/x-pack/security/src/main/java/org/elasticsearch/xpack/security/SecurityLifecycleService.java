@@ -42,7 +42,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
     @Inject
     public SecurityLifecycleService(Settings settings, ClusterService clusterService, ThreadPool threadPool,
                                     IndexAuditTrail indexAuditTrail, NativeUsersStore nativeUserStore,
-                                    NativeRolesStore nativeRolesStore, Provider<InternalClient> clientProvider) {
+                                    NativeRolesStore nativeRolesStore, InternalClient client) {
         super(settings);
         this.settings = settings;
         this.threadPool = threadPool;
@@ -54,7 +54,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         clusterService.add(this);
         clusterService.add(nativeUserStore);
         clusterService.add(nativeRolesStore);
-        clusterService.add(new SecurityTemplateService(settings, clusterService, clientProvider, threadPool));
+        clusterService.add(new SecurityTemplateService(settings, clusterService, client, threadPool));
         clusterService.addLifecycleListener(new LifecycleListener() {
 
             @Override

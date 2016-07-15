@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.transport.netty;
+package org.elasticsearch.xpack.security.transport.netty3;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.security.ssl.ServerSSLService;
 import org.elasticsearch.xpack.security.transport.SSLClientAuth;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.netty.NettyMockUtil;
+import org.elasticsearch.transport.netty3.Netty3MockUtil;
 import org.jboss.netty.channel.ChannelPipelineFactory;
 import org.jboss.netty.handler.ssl.SslHandler;
 import org.junit.Before;
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
-public class SecurityNettyTransportTests extends ESTestCase {
+public class SecurityNetty3TransportTests extends ESTestCase {
     private ServerSSLService serverSSLService;
     private ClientSSLService clientSSLService;
 
@@ -49,43 +49,43 @@ public class SecurityNettyTransportTests extends ESTestCase {
     }
 
     public void testThatSSLCanBeDisabledByProfile() throws Exception {
-        Settings settings = Settings.builder().put(SecurityNettyTransport.SSL_SETTING.getKey(), true).build();
-        SecurityNettyTransport transport = new SecurityNettyTransport(settings, mock(ThreadPool.class), mock(NetworkService.class),
+        Settings settings = Settings.builder().put(SecurityNetty3Transport.SSL_SETTING.getKey(), true).build();
+        SecurityNetty3Transport transport = new SecurityNetty3Transport(settings, mock(ThreadPool.class), mock(NetworkService.class),
                 mock(BigArrays.class), null, serverSSLService, clientSSLService, mock(NamedWriteableRegistry.class),
                 mock(CircuitBreakerService.class));
-        NettyMockUtil.setOpenChannelsHandlerToMock(transport);
+        Netty3MockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory("client",
                 Settings.builder().put("xpack.security.ssl", false).build());
         assertThat(factory.getPipeline().get(SslHandler.class), nullValue());
     }
 
     public void testThatSSLCanBeEnabledByProfile() throws Exception {
-        Settings settings = Settings.builder().put(SecurityNettyTransport.SSL_SETTING.getKey(), false).build();
-        SecurityNettyTransport transport = new SecurityNettyTransport(settings, mock(ThreadPool.class), mock(NetworkService.class),
+        Settings settings = Settings.builder().put(SecurityNetty3Transport.SSL_SETTING.getKey(), false).build();
+        SecurityNetty3Transport transport = new SecurityNetty3Transport(settings, mock(ThreadPool.class), mock(NetworkService.class),
                 mock(BigArrays.class), null, serverSSLService, clientSSLService, mock(NamedWriteableRegistry.class),
                 mock(CircuitBreakerService.class));
-        NettyMockUtil.setOpenChannelsHandlerToMock(transport);
+        Netty3MockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory("client",
                 Settings.builder().put("xpack.security.ssl", true).build());
         assertThat(factory.getPipeline().get(SslHandler.class), notNullValue());
     }
 
     public void testThatProfileTakesDefaultSSLSetting() throws Exception {
-        Settings settings = Settings.builder().put(SecurityNettyTransport.SSL_SETTING.getKey(), true).build();
-        SecurityNettyTransport transport = new SecurityNettyTransport(settings, mock(ThreadPool.class), mock(NetworkService.class),
+        Settings settings = Settings.builder().put(SecurityNetty3Transport.SSL_SETTING.getKey(), true).build();
+        SecurityNetty3Transport transport = new SecurityNetty3Transport(settings, mock(ThreadPool.class), mock(NetworkService.class),
                 mock(BigArrays.class), null, serverSSLService, clientSSLService, mock(NamedWriteableRegistry.class),
                 mock(CircuitBreakerService.class));
-        NettyMockUtil.setOpenChannelsHandlerToMock(transport);
+        Netty3MockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory("client", Settings.EMPTY);
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine(), notNullValue());
     }
 
     public void testDefaultClientAuth() throws Exception {
-        Settings settings = Settings.builder().put(SecurityNettyTransport.SSL_SETTING.getKey(), true).build();
-        SecurityNettyTransport transport = new SecurityNettyTransport(settings, mock(ThreadPool.class), mock(NetworkService.class),
+        Settings settings = Settings.builder().put(SecurityNetty3Transport.SSL_SETTING.getKey(), true).build();
+        SecurityNetty3Transport transport = new SecurityNetty3Transport(settings, mock(ThreadPool.class), mock(NetworkService.class),
                 mock(BigArrays.class), null, serverSSLService, clientSSLService, mock(NamedWriteableRegistry.class),
                 mock(CircuitBreakerService.class));
-        NettyMockUtil.setOpenChannelsHandlerToMock(transport);
+        Netty3MockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory("client", Settings.EMPTY);
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getNeedClientAuth(), is(true));
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getWantClientAuth(), is(false));
@@ -94,12 +94,12 @@ public class SecurityNettyTransportTests extends ESTestCase {
     public void testRequiredClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.REQUIRED.name(), SSLClientAuth.REQUIRED.name().toLowerCase(Locale.ROOT), "true");
         Settings settings = Settings.builder()
-                .put(SecurityNettyTransport.SSL_SETTING.getKey(), true)
-                .put(SecurityNettyTransport.CLIENT_AUTH_SETTING.getKey(), value).build();
-        SecurityNettyTransport transport = new SecurityNettyTransport(settings, mock(ThreadPool.class), mock(NetworkService.class),
+                .put(SecurityNetty3Transport.SSL_SETTING.getKey(), true)
+                .put(SecurityNetty3Transport.CLIENT_AUTH_SETTING.getKey(), value).build();
+        SecurityNetty3Transport transport = new SecurityNetty3Transport(settings, mock(ThreadPool.class), mock(NetworkService.class),
                 mock(BigArrays.class), null, serverSSLService, clientSSLService, mock(NamedWriteableRegistry.class),
                 mock(CircuitBreakerService.class));
-        NettyMockUtil.setOpenChannelsHandlerToMock(transport);
+        Netty3MockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory("client", Settings.EMPTY);
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getNeedClientAuth(), is(true));
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getWantClientAuth(), is(false));
@@ -108,12 +108,12 @@ public class SecurityNettyTransportTests extends ESTestCase {
     public void testNoClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.NO.name(), "false", "FALSE", SSLClientAuth.NO.name().toLowerCase(Locale.ROOT));
         Settings settings = Settings.builder()
-                .put(SecurityNettyTransport.SSL_SETTING.getKey(), true)
-                .put(SecurityNettyTransport.CLIENT_AUTH_SETTING.getKey(), value).build();
-        SecurityNettyTransport transport = new SecurityNettyTransport(settings, mock(ThreadPool.class), mock(NetworkService.class),
+                .put(SecurityNetty3Transport.SSL_SETTING.getKey(), true)
+                .put(SecurityNetty3Transport.CLIENT_AUTH_SETTING.getKey(), value).build();
+        SecurityNetty3Transport transport = new SecurityNetty3Transport(settings, mock(ThreadPool.class), mock(NetworkService.class),
                 mock(BigArrays.class), null, serverSSLService, clientSSLService, mock(NamedWriteableRegistry.class),
                 mock(CircuitBreakerService.class));
-        NettyMockUtil.setOpenChannelsHandlerToMock(transport);
+        Netty3MockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory("client", Settings.EMPTY);
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getNeedClientAuth(), is(false));
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getWantClientAuth(), is(false));
@@ -122,12 +122,12 @@ public class SecurityNettyTransportTests extends ESTestCase {
     public void testOptionalClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.OPTIONAL.name(), SSLClientAuth.OPTIONAL.name().toLowerCase(Locale.ROOT));
         Settings settings = Settings.builder()
-                .put(SecurityNettyTransport.SSL_SETTING.getKey(), true)
-                .put(SecurityNettyTransport.CLIENT_AUTH_SETTING.getKey(), value).build();
-        SecurityNettyTransport transport = new SecurityNettyTransport(settings, mock(ThreadPool.class), mock(NetworkService.class),
+                .put(SecurityNetty3Transport.SSL_SETTING.getKey(), true)
+                .put(SecurityNetty3Transport.CLIENT_AUTH_SETTING.getKey(), value).build();
+        SecurityNetty3Transport transport = new SecurityNetty3Transport(settings, mock(ThreadPool.class), mock(NetworkService.class),
                 mock(BigArrays.class), null, serverSSLService, clientSSLService, mock(NamedWriteableRegistry.class),
                mock(CircuitBreakerService.class));
-        NettyMockUtil.setOpenChannelsHandlerToMock(transport);
+        Netty3MockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory("client", Settings.EMPTY);
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getNeedClientAuth(), is(false));
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getWantClientAuth(), is(true));
@@ -135,39 +135,39 @@ public class SecurityNettyTransportTests extends ESTestCase {
 
     public void testProfileRequiredClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.REQUIRED.name(), SSLClientAuth.REQUIRED.name().toLowerCase(Locale.ROOT), "true", "TRUE");
-        Settings settings = Settings.builder().put(SecurityNettyTransport.SSL_SETTING.getKey(), true).build();
-        SecurityNettyTransport transport = new SecurityNettyTransport(settings, mock(ThreadPool.class), mock(NetworkService.class),
+        Settings settings = Settings.builder().put(SecurityNetty3Transport.SSL_SETTING.getKey(), true).build();
+        SecurityNetty3Transport transport = new SecurityNetty3Transport(settings, mock(ThreadPool.class), mock(NetworkService.class),
                 mock(BigArrays.class), null, serverSSLService, clientSSLService, mock(NamedWriteableRegistry.class),
                 mock(CircuitBreakerService.class));
-        NettyMockUtil.setOpenChannelsHandlerToMock(transport);
+        Netty3MockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory("client",
-                Settings.builder().put(SecurityNettyTransport.PROFILE_CLIENT_AUTH_SETTING, value).build());
+                Settings.builder().put(SecurityNetty3Transport.PROFILE_CLIENT_AUTH_SETTING, value).build());
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getNeedClientAuth(), is(true));
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getWantClientAuth(), is(false));
     }
 
     public void testProfileNoClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.NO.name(), "false", "FALSE", SSLClientAuth.NO.name().toLowerCase(Locale.ROOT));
-        Settings settings = Settings.builder().put(SecurityNettyTransport.SSL_SETTING.getKey(), true).build();
-        SecurityNettyTransport transport = new SecurityNettyTransport(settings, mock(ThreadPool.class), mock(NetworkService.class),
+        Settings settings = Settings.builder().put(SecurityNetty3Transport.SSL_SETTING.getKey(), true).build();
+        SecurityNetty3Transport transport = new SecurityNetty3Transport(settings, mock(ThreadPool.class), mock(NetworkService.class),
                 mock(BigArrays.class), null, serverSSLService, clientSSLService, mock(NamedWriteableRegistry.class),
                 mock(CircuitBreakerService.class));
-        NettyMockUtil.setOpenChannelsHandlerToMock(transport);
+        Netty3MockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory("client",
-                Settings.builder().put(SecurityNettyTransport.PROFILE_CLIENT_AUTH_SETTING.getKey(), value).build());
+                Settings.builder().put(SecurityNetty3Transport.PROFILE_CLIENT_AUTH_SETTING.getKey(), value).build());
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getNeedClientAuth(), is(false));
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getWantClientAuth(), is(false));
     }
 
     public void testProfileOptionalClientAuth() throws Exception {
         String value = randomFrom(SSLClientAuth.OPTIONAL.name(), SSLClientAuth.OPTIONAL.name().toLowerCase(Locale.ROOT));
-        Settings settings = Settings.builder().put(SecurityNettyTransport.SSL_SETTING.getKey(), true).build();
-        SecurityNettyTransport transport = new SecurityNettyTransport(settings, mock(ThreadPool.class),
+        Settings settings = Settings.builder().put(SecurityNetty3Transport.SSL_SETTING.getKey(), true).build();
+        SecurityNetty3Transport transport = new SecurityNetty3Transport(settings, mock(ThreadPool.class),
                 mock(NetworkService.class), mock(BigArrays.class), null, serverSSLService, clientSSLService,
                 mock(NamedWriteableRegistry.class), mock(CircuitBreakerService.class));
-        NettyMockUtil.setOpenChannelsHandlerToMock(transport);
+        Netty3MockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory("client",
-                Settings.builder().put(SecurityNettyTransport.PROFILE_CLIENT_AUTH_SETTING.getKey(), value).build());
+                Settings.builder().put(SecurityNetty3Transport.PROFILE_CLIENT_AUTH_SETTING.getKey(), value).build());
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getNeedClientAuth(), is(false));
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getWantClientAuth(), is(true));
     }

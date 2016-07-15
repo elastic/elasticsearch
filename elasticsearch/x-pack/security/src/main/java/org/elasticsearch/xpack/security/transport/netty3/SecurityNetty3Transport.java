@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.transport.netty;
+package org.elasticsearch.xpack.security.transport.netty3;
 
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.Inject;
@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.security.ssl.ServerSSLService;
 import org.elasticsearch.xpack.security.transport.SSLClientAuth;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.netty.NettyTransport;
+import org.elasticsearch.transport.netty3.Netty3Transport;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.channel.ChannelPipeline;
@@ -41,10 +41,7 @@ import static org.elasticsearch.xpack.security.Security.settingPrefix;
 import static org.elasticsearch.xpack.security.transport.SSLExceptionHelper.isCloseDuringHandshakeException;
 import static org.elasticsearch.xpack.security.transport.SSLExceptionHelper.isNotSslRecordException;
 
-/**
- *
- */
-public class SecurityNettyTransport extends NettyTransport {
+public class SecurityNetty3Transport extends Netty3Transport {
 
     public static final String CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED.name();
     public static final boolean SSL_DEFAULT = false;
@@ -82,10 +79,10 @@ public class SecurityNettyTransport extends NettyTransport {
     private final boolean ssl;
 
     @Inject
-    public SecurityNettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
-                                @Nullable IPFilter authenticator, @Nullable ServerSSLService serverSSLService,
-                                ClientSSLService clientSSLService, NamedWriteableRegistry namedWriteableRegistry,
-                                CircuitBreakerService circuitBreakerService) {
+    public SecurityNetty3Transport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
+                                   @Nullable IPFilter authenticator, @Nullable ServerSSLService serverSSLService,
+                                   ClientSSLService clientSSLService, NamedWriteableRegistry namedWriteableRegistry,
+                                   CircuitBreakerService circuitBreakerService) {
         super(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
         this.authenticator = authenticator;
         this.ssl = SSL_SETTING.get(settings);
@@ -148,7 +145,7 @@ public class SecurityNettyTransport extends NettyTransport {
 
         private final Settings profileSettings;
 
-        public SslServerChannelPipelineFactory(NettyTransport nettyTransport, String name, Settings settings, Settings profileSettings) {
+        public SslServerChannelPipelineFactory(Netty3Transport nettyTransport, String name, Settings settings, Settings profileSettings) {
             super(nettyTransport, name, settings);
             this.profileSettings = profileSettings;
         }
@@ -172,7 +169,7 @@ public class SecurityNettyTransport extends NettyTransport {
                 pipeline.addFirst("ssl", new SslHandler(serverEngine));
             }
             if (authenticator != null) {
-                pipeline.addFirst("ipfilter", new IPFilterNettyUpstreamHandler(authenticator, name));
+                pipeline.addFirst("ipfilter", new IPFilterNetty3UpstreamHandler(authenticator, name));
             }
             return pipeline;
         }
@@ -180,7 +177,7 @@ public class SecurityNettyTransport extends NettyTransport {
 
     private class SslClientChannelPipelineFactory extends ClientChannelPipelineFactory {
 
-        public SslClientChannelPipelineFactory(NettyTransport transport) {
+        public SslClientChannelPipelineFactory(Netty3Transport transport) {
             super(transport);
         }
 

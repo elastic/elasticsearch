@@ -14,14 +14,14 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.xpack.security.authc.file.FileRealm;
-import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.authc.file.FileRealm;
+import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -31,9 +31,9 @@ import java.nio.file.Path;
 import java.util.Collections;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.test.SecuritySettingsSource.getSSLSettingsForStore;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.createFolder;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
-import static org.elasticsearch.test.SecuritySettingsSource.getSSLSettingsForStore;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 
@@ -66,7 +66,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         if (sslTransportEnabled()) {
             settingsBuilder.put("transport.profiles.client.xpack.security.truststore.path", store) // settings for client truststore
                            .put("transport.profiles.client.xpack.security.truststore.password", "testnode")
-                           .put(SecurityNettyTransport.SSL_SETTING.getKey(), true);
+                           .put(SecurityNetty3Transport.SSL_SETTING.getKey(), true);
         }
 
         return settingsBuilder
@@ -93,12 +93,11 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         // test that starting up a node works
         Settings nodeSettings = Settings.builder()
                 .put(getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode"))
-                .put("node.mode", "network")
                 .put("node.name", "my-test-node")
                 .put("network.host", "localhost")
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("discovery.zen.ping.unicast.hosts", unicastHost)
-                .put(SecurityNettyTransport.SSL_SETTING.getKey(), sslTransportEnabled())
+                .put(SecurityNetty3Transport.SSL_SETTING.getKey(), sslTransportEnabled())
                 .put("xpack.security.audit.enabled", false)
                 .put("path.home", createTempDir())
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
@@ -124,12 +123,11 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put("xpack.security.authc.realms.file.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
                 .put(FileRolesStore.ROLES_FILE_SETTING.getKey(), writeFile(folder, "roles.yml", configRoles()))
                 .put(getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode"))
-                .put("node.mode", "network")
                 .put("node.name", "my-test-node")
                 .put(Security.USER_SETTING.getKey(), "test_user:changeme")
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("discovery.zen.ping.unicast.hosts", "localhost:" + randomClientPort)
-                .put(SecurityNettyTransport.SSL_SETTING.getKey(), sslTransportEnabled())
+                .put(SecurityNetty3Transport.SSL_SETTING.getKey(), sslTransportEnabled())
                 .put("xpack.security.audit.enabled", false)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(CryptoService.FILE_SETTING.getKey(), systemKeyFile)

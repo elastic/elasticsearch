@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.xpack.MockNettyPlugin;
+import org.elasticsearch.xpack.MockNetty3Plugin;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.compare.CompareCondition;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
@@ -54,7 +54,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(MockNettyPlugin.class); // for http
+        plugins.add(MockNetty3Plugin.class); // for http
         return plugins;
     }
 

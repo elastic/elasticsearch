@@ -5,6 +5,11 @@
  */
 package org.elasticsearch.xpack.security.audit.index;
 
+import java.net.InetAddress;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -13,17 +18,14 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail.State;
@@ -33,11 +35,6 @@ import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.junit.After;
 import org.junit.Before;
-
-import java.net.InetAddress;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -49,7 +46,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
     private InternalClient client;
     private TransportClient transportClient;
     private ThreadPool threadPool;
-    private Transport transport;
+    private ClusterService clusterService;
     private IndexAuditTrail auditTrail;
 
     private AtomicBoolean messageEnqueued;
@@ -57,16 +54,17 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
 
     @Before
     public void setup() {
-        transport = mock(Transport.class);
-        when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { LocalTransportAddress.buildUnique() },
-                        LocalTransportAddress.buildUnique()));
+        DiscoveryNode localNode = mock(DiscoveryNode.class);
+        when(localNode.getHostAddress()).thenReturn(LocalTransportAddress.buildUnique().toString());
+        clusterService = mock(ClusterService.class);
+        when(clusterService.localNode()).thenReturn(localNode);
 
         threadPool = new TestThreadPool("index audit trail tests");
-        transportClient = TransportClient.builder().settings(Settings.EMPTY).build();
+        transportClient = TransportClient.builder().settings(Settings.builder().put("transport.type", "local")).build();
         clientCalled = new AtomicBoolean(false);
-        class IClient extends FilterClient implements InternalClient {
+        class IClient extends InternalClient {
            IClient(Client transportClient){
-                super(transportClient);
+                super(Settings.EMPTY, null, transportClient, null);
            }
             @Override
             protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends
@@ -257,7 +255,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
 
     IndexAuditTrail createAuditTrail(String[] excludes) {
         Settings settings = IndexAuditTrailTests.levelSettings(null, excludes);
-        auditTrail = new IndexAuditTrail(settings, transport, Providers.of(client), threadPool, mock(ClusterService.class)) {
+        auditTrail = new IndexAuditTrail(settings, client, threadPool, clusterService) {
             @Override
             void putTemplate(Settings settings) {
                 // make this a no-op so we don't have to stub out unnecessary client activities

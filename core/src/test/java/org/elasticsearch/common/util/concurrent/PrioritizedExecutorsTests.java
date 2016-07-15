@@ -50,7 +50,7 @@ public class PrioritizedExecutorsTests extends ESTestCase {
 
     public void testPriorityQueue() throws Exception {
         PriorityBlockingQueue<Priority> queue = new PriorityBlockingQueue<>();
-        List<Priority> priorities = Priority.values();
+        List<Priority> priorities = new ArrayList<>(Priority.values());
         Collections.shuffle(priorities, random());
 
         for (Priority priority : priorities) {

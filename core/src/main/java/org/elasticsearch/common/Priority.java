@@ -16,28 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.common;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 
-/**
- *
- */
-public final class Priority implements Comparable<Priority> {
+public enum Priority {
+
+    IMMEDIATE((byte) -1),
+    URGENT((byte) 0),
+    HIGH((byte) 1),
+    NORMAL((byte) 2),
+    LOW((byte) 3),
+    LANGUID((byte) 4);
 
     public static Priority readFrom(StreamInput input) throws IOException {
         return fromByte(input.readByte());
     }
 
     public static void writeTo(Priority priority, StreamOutput output) throws IOException {
-        byte b = priority.value;
-        output.writeByte(b);
+        output.writeByte(priority.value);
     }
 
     public static Priority fromByte(byte b) {
@@ -53,90 +54,18 @@ public final class Priority implements Comparable<Priority> {
         }
     }
 
-    public static final Priority IMMEDIATE = new Priority((byte) -1);
-    public static final Priority URGENT = new Priority((byte) 0);
-    public static final Priority HIGH = new Priority((byte) 1);
-    public static final Priority NORMAL = new Priority((byte) 2);
-    public static final Priority LOW = new Priority((byte) 3);
-    public static final Priority LANGUID = new Priority((byte) 4);
-    private static final List<Priority> VALUES =
-            Collections.unmodifiableList(Arrays.asList(IMMEDIATE, URGENT, HIGH, NORMAL, LOW, LANGUID));
-
     private final byte value;
 
-    private Priority(byte value) {
+    Priority(byte value) {
         this.value = value;
     }
 
-    /**
-     * All priorities, sorted from highest priority to lowest priority. The returned list is
-     * unmodifiable.
-     *
-     * @return an unmodifiable list of priorities, sorted from highest priority to lowest priority.
-     */
-    public static List<Priority> values() {
-        return VALUES;
-    }
-
-    @Override
-    public int compareTo(Priority p) {
-        return (this.value < p.value) ? -1 : ((this.value > p.value) ? 1 : 0);
-    }
-
     public boolean after(Priority p) {
-        return value > p.value;
+        return this.compareTo(p) > 0;
     }
 
     public boolean sameOrAfter(Priority p) {
-        return value >= p.value;
+        return this.compareTo(p) >= 0;
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || Priority.class != o.getClass()) return false;
-
-        Priority priority = (Priority) o;
-
-        if (value != priority.value) return false;
-
-        return true;
-    }
-
-    @Override
-    public int hashCode() {
-        return (int) value;
-    }
-
-    @Override
-    public String toString() {
-        switch (value) {
-            case (byte) -1: return "IMMEDIATE";
-            case (byte) 0: return "URGENT";
-            case (byte) 1: return "HIGH";
-            case (byte) 2: return "NORMAL";
-            case (byte) 3: return "LOW";
-            default:
-                return "LANGUID";
-        }
-    }
-
-    public static Priority valueOf(String value) {
-        switch (value) {
-            case "IMMEDIATE":
-                return IMMEDIATE;
-            case "URGENT":
-                return URGENT;
-            case "HIGH":
-                return HIGH;
-            case "NORMAL":
-                return NORMAL;
-            case "LOW":
-                return LOW;
-            case "LANGUID":
-                return LANGUID;
-            default:
-                throw new IllegalArgumentException("no such priority: " + value);
-        }
-    }
 }

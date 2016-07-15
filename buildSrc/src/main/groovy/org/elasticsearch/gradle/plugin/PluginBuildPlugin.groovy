@@ -157,21 +157,21 @@ public class PluginBuildPlugin extends BuildPlugin {
         clientJar.doFirst {
             Path jarFile = project.jar.outputs.files.singleFile.toPath()
             String clientFileName = jarFile.fileName.toString().replace(project.version, "client-${project.version}")
-            Files.move(jarFile, jarFile.resolveSibling(clientFileName), StandardCopyOption.REPLACE_EXISTING)
+            Files.copy(jarFile, jarFile.resolveSibling(clientFileName), StandardCopyOption.REPLACE_EXISTING)
 
             String pomFileName = jarFile.fileName.toString().replace('.jar', '.pom')
             String clientPomFileName = clientFileName.replace('.jar', '.pom')
-            Files.move(jarFile.resolveSibling(pomFileName), jarFile.resolveSibling(clientPomFileName),
+            Files.copy(jarFile.resolveSibling(pomFileName), jarFile.resolveSibling(clientPomFileName),
                     StandardCopyOption.REPLACE_EXISTING)
 
             String sourcesFileName = jarFile.fileName.toString().replace('.jar', '-sources.jar')
             String clientSourcesFileName = clientFileName.replace('.jar', '-sources.jar')
-            Files.move(jarFile.resolveSibling(sourcesFileName), jarFile.resolveSibling(clientSourcesFileName),
+            Files.copy(jarFile.resolveSibling(sourcesFileName), jarFile.resolveSibling(clientSourcesFileName),
                     StandardCopyOption.REPLACE_EXISTING)
 
             String javadocFileName = jarFile.fileName.toString().replace('.jar', '-javadoc.jar')
             String clientJavadocFileName = clientFileName.replace('.jar', '-javadoc.jar')
-            Files.move(jarFile.resolveSibling(javadocFileName), jarFile.resolveSibling(clientJavadocFileName),
+            Files.copy(jarFile.resolveSibling(javadocFileName), jarFile.resolveSibling(clientJavadocFileName),
                     StandardCopyOption.REPLACE_EXISTING)
         }
         project.assemble.dependsOn(clientJar)

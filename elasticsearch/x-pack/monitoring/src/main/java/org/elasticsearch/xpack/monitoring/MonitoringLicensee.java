@@ -6,15 +6,12 @@
 package org.elasticsearch.xpack.monitoring;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.core.License.OperationMode;
 import org.elasticsearch.license.plugin.core.AbstractLicenseeComponent;
 import org.elasticsearch.license.plugin.core.LicenseState;
-import org.elasticsearch.license.plugin.core.Licensee;
-import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 
 /**
  * {@code MonitoringLicensee} determines whether certain features of Monitoring are enabled or disabled.
@@ -25,11 +22,10 @@ import org.elasticsearch.license.plugin.core.LicenseeRegistry;
  * <li>Cleaning up (deleting) older indices.</li>
  * </ul>
  */
-public class MonitoringLicensee extends AbstractLicenseeComponent<MonitoringLicensee> implements Licensee {
+public class MonitoringLicensee extends AbstractLicenseeComponent {
 
-    @Inject
-    public MonitoringLicensee(Settings settings, LicenseeRegistry clientService) {
-        super(settings, Monitoring.NAME, clientService);
+    public MonitoringLicensee(Settings settings) {
+        super(settings, Monitoring.NAME);
     }
 
     /**

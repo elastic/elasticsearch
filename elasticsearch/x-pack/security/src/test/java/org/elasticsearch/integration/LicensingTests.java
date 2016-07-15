@@ -5,6 +5,13 @@
  */
 package org.elasticsearch.integration;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -19,10 +26,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -31,7 +35,7 @@ import org.elasticsearch.license.core.License.OperationMode;
 import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
-import org.elasticsearch.license.plugin.core.LicenseeRegistry;
+import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestStatus;
@@ -40,15 +44,15 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.MockNetty3Plugin;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.graph.GraphLicensee;
+import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
 import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.SecurityLicenseState;
+import org.elasticsearch.xpack.security.SecurityLicensee;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.support.clock.Clock;
+import org.elasticsearch.xpack.watcher.WatcherLicensee;
 import org.junit.After;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -231,7 +235,7 @@ public class LicensingTests extends SecurityIntegTestCase {
     }
 
     public static void disableLicensing(OperationMode operationMode) {
-        for (InternalLicenseeRegistry service : internalCluster().getInstances(InternalLicenseeRegistry.class)) {
+        for (TestLicensesService service : internalCluster().getInstances(TestLicensesService.class)) {
             service.disable(operationMode);
         }
     }
@@ -241,7 +245,7 @@ public class LicensingTests extends SecurityIntegTestCase {
     }
 
     public static void enableLicensing(OperationMode operationMode) {
-        for (InternalLicenseeRegistry service : internalCluster().getInstances(InternalLicenseeRegistry.class)) {
+        for (TestLicensesService service : internalCluster().getInstances(TestLicensesService.class)) {
             service.enable(operationMode);
         }
     }
@@ -250,7 +254,20 @@ public class LicensingTests extends SecurityIntegTestCase {
 
         @Override
         public Collection<Module> nodeModules() {
-            return Collections.<Module>singletonList(new InternalLicenseModule());
+            return Collections.singletonList(b -> b.bind(LicensesService.class).to(TestLicensesService.class));
+        }
+
+        @Override
+        public Collection<Object> createComponents(ClusterService clusterService, Clock clock,
+                                                   SecurityLicenseState securityLicenseState) {
+            SecurityLicensee securityLicensee = new SecurityLicensee(settings, securityLicenseState);
+            WatcherLicensee watcherLicensee = new WatcherLicensee(settings);
+            MonitoringLicensee monitoringLicensee = new MonitoringLicensee(settings);
+            GraphLicensee graphLicensee = new GraphLicensee(settings);
+            TestLicensesService licensesService = new TestLicensesService(settings,
+                Arrays.asList(securityLicensee, watcherLicensee, monitoringLicensee, graphLicensee));
+            return Arrays.asList(securityLicensee, licensesService, watcherLicensee, monitoringLicensee,
+                graphLicensee, securityLicenseState);
         }
 
         public InternalLicensing() {
@@ -266,11 +283,6 @@ public class LicensingTests extends SecurityIntegTestCase {
         public List<Class<? extends RestHandler>> getRestHandlers() {
             return emptyList();
         }
-
-        @Override
-        public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-            return Collections.emptyList();
-        }
     }
 
     public static class InternalXPackPlugin extends XPackPlugin {
@@ -281,27 +293,13 @@ public class LicensingTests extends SecurityIntegTestCase {
         }
     }
 
-    public static class InternalLicenseModule extends AbstractModule {
-        @Override
-        protected void configure() {
-            bind(InternalLicenseeRegistry.class).asEagerSingleton();
-            bind(LicenseeRegistry.class).to(InternalLicenseeRegistry.class);
-        }
-    }
+    public static class TestLicensesService extends LicensesService {
 
-    public static class InternalLicenseeRegistry extends AbstractComponent implements LicenseeRegistry {
+        private final List<Licensee> licensees;
 
-        private final List<Licensee> licensees = new ArrayList<>();
-
-        @Inject
-        public InternalLicenseeRegistry(Settings settings) {
-            super(settings);
-            enable(OperationMode.BASIC);
-        }
-
-        @Override
-        public void register(Licensee licensee) {
-            licensees.add(licensee);
+        public TestLicensesService(Settings settings, List<Licensee> licensees) {
+            super(settings, null, null, Collections.emptyList());
+            this.licensees = licensees;
             enable(OperationMode.BASIC);
         }
 
@@ -316,5 +314,11 @@ public class LicensingTests extends SecurityIntegTestCase {
                 licensee.onChange(new Licensee.Status(operationMode, LicenseState.DISABLED));
             }
         }
+
+        @Override
+        protected void doStart() {}
+
+        @Override
+        protected void doStop() {}
     }
 }

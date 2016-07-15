@@ -5,28 +5,21 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.AbstractLicenseeComponent;
-import org.elasticsearch.license.plugin.core.Licensee;
-import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 
 /**
  *
  */
-public class SecurityLicensee extends AbstractLicenseeComponent<SecurityLicensee> implements Licensee {
+public class SecurityLicensee extends AbstractLicenseeComponent {
 
-    private final boolean isTribeNode;
     private final SecurityLicenseState securityLicenseState;
 
-    @Inject
-    public SecurityLicensee(Settings settings, LicenseeRegistry clientService, SecurityLicenseState securityLicenseState) {
-        super(settings, Security.NAME, clientService);
+    public SecurityLicensee(Settings settings, SecurityLicenseState securityLicenseState) {
+        super(settings, Security.NAME);
         this.securityLicenseState = securityLicenseState;
-        this.isTribeNode = settings.getGroups("tribe", true).isEmpty() == false;
     }
 
     @Override
@@ -95,15 +88,5 @@ public class SecurityLicensee extends AbstractLicenseeComponent<SecurityLicensee
                 }
         }
         return Strings.EMPTY_ARRAY;
-    }
-
-    @Override
-    protected void doStart() throws ElasticsearchException {
-        // we rely on the initial licensee state to be enabled with trial operation mode
-        // to ensure no operation is blocked due to not registering the licensee on a
-        // tribe node
-        if (isTribeNode == false) {
-            super.doStart();
-        }
     }
 }

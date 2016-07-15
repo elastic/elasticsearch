@@ -6,21 +6,18 @@
 package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.core.License.OperationMode;
 import org.elasticsearch.license.plugin.core.AbstractLicenseeComponent;
 import org.elasticsearch.license.plugin.core.LicenseState;
-import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 
-public class WatcherLicensee extends AbstractLicenseeComponent<WatcherLicensee> {
+public class WatcherLicensee extends AbstractLicenseeComponent {
 
     public static final String ID = Watcher.NAME;
 
-    @Inject
-    public WatcherLicensee(Settings settings, LicenseeRegistry clientService) {
-        super(settings, ID, clientService);
+    public WatcherLicensee(Settings settings) {
+        super(settings, ID);
     }
 
     @Override

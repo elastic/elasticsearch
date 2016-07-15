@@ -78,9 +78,7 @@ public class Monitoring implements ActionPlugin {
         if (enabled == false || transportClientMode || tribeNode) {
             return Collections.emptyList();
         }
-        return Arrays.<Class<? extends LifecycleComponent>>asList(MonitoringLicensee.class,
-                AgentService.class,
-                CleanerService.class);
+        return Arrays.<Class<? extends LifecycleComponent>>asList(AgentService.class, CleanerService.class);
     }
 
     @Override

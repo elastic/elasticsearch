@@ -35,10 +35,9 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
 
     @Before
     public void setup() {
-        setInitialState(null);
-        licensesService.start();
         licensee = new TestUtils.AssertingLicensee("LicenseClusterChangeTests", logger);
-        licensesService.register(licensee);
+        setInitialState(null, licensee);
+        licensesService.start();
     }
 
     @After

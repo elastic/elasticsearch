@@ -5,19 +5,19 @@
  */
 package org.elasticsearch.xpack.monitoring.agent.collector.cluster;
 
+import java.util.Collection;
+
 import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.plugin.core.LicensesManagerService;
+import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.agent.collector.AbstractCollector;
 import org.elasticsearch.xpack.monitoring.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
-
-import java.util.Collection;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -133,7 +133,7 @@ public class ClusterStatsCollectorTests extends AbstractCollectorTestCase {
                 internalCluster().getInstance(MonitoringSettings.class, nodeId),
                 internalCluster().getInstance(MonitoringLicensee.class, nodeId),
                 securedClient(nodeId),
-                internalCluster().getInstance(LicensesManagerService.class, nodeId));
+                internalCluster().getInstance(LicensesService.class, nodeId));
     }
 
     private void assertCanCollect(AbstractCollector collector, Class<?>... classes) {

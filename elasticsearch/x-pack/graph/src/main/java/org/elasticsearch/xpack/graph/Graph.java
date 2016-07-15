@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -43,15 +44,12 @@ public class Graph extends Plugin implements ActionPlugin {
     }
 
     public Collection<Module> createGuiceModules() {
-        return Collections.singletonList(new GraphModule(enabled, transportClientMode));
-    }
-
-    @Override
-    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
-        if (enabled == false|| transportClientMode) {
-            return Collections.emptyList();
-        }
-        return Collections.singletonList(GraphLicensee.class);
+        return Collections.singletonList(b -> {
+            XPackPlugin.bindFeatureSet(b, GraphFeatureSet.class);
+            if (transportClientMode) {
+                b.bind(GraphLicensee.class).toProvider(Providers.of(null));
+            }
+        });
     }
 
     @Override

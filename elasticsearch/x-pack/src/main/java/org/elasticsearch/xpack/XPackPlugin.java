@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.plugin.Licensing;
+import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -161,7 +162,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
         ArrayList<Module> modules = new ArrayList<>();
         modules.add(b -> b.bind(Clock.class).toInstance(getClock()));
         modules.addAll(notification.nodeModules());
-        modules.addAll(licensing.nodeModules());
         modules.addAll(security.nodeModules());
         modules.addAll(watcher.nodeModules());
         modules.addAll(monitoring.nodeModules());
@@ -169,6 +169,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
 
         if (transportClientMode == false) {
             modules.add(new TextTemplateModule());
+            // Note: this only exists so LicensesService subclasses can be bound in mock tests
+            modules.addAll(licensing.nodeModules());
         }
         return modules;
     }
@@ -177,30 +179,27 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
     public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
         ArrayList<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         services.addAll(notification.nodeServices());
-        services.addAll(licensing.nodeServices());
         services.addAll(security.nodeServices());
-        services.addAll(watcher.nodeServices());
         services.addAll(monitoring.nodeServices());
-        services.addAll(graph.getGuiceServiceClasses());
         return services;
     }
 
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-            ResourceWatcherService resourceWatcherService) {
+                                               ResourceWatcherService resourceWatcherService) {
         List<Object> components = new ArrayList<>();
-        if (transportClientMode == false) {
-            final InternalClient internalClient = new InternalClient(settings, threadPool, client, security.getCryptoService());
-            components.add(internalClient);
+        final InternalClient internalClient = new InternalClient(settings, threadPool, client, security.getCryptoService());
+        components.add(internalClient);
 
-            // watcher http stuff
-            Map<String, HttpAuthFactory> httpAuthFactories = new HashMap<>();
-            httpAuthFactories.put(BasicAuth.TYPE, new BasicAuthFactory(security.getCryptoService()));
-            // TODO: add more auth types, or remove this indirection
-            HttpAuthRegistry httpAuthRegistry = new HttpAuthRegistry(httpAuthFactories);
-            components.add(new HttpRequestTemplate.Parser(httpAuthRegistry));
-            components.add(new HttpClient(settings, httpAuthRegistry, env));
-        }
+        components.addAll(licensing.createComponents(clusterService, getClock(), security.getSecurityLicenseState()));
+
+        // watcher http stuff
+        Map<String, HttpAuthFactory> httpAuthFactories = new HashMap<>();
+        httpAuthFactories.put(BasicAuth.TYPE, new BasicAuthFactory(security.getCryptoService()));
+        // TODO: add more auth types, or remove this indirection
+        HttpAuthRegistry httpAuthRegistry = new HttpAuthRegistry(httpAuthFactories);
+        components.add(new HttpRequestTemplate.Parser(httpAuthRegistry));
+        components.add(new HttpClient(settings, httpAuthRegistry, env));
 
         return components;
     }
@@ -210,7 +209,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
         Settings.Builder builder = Settings.builder();
         builder.put(security.additionalSettings());
         builder.put(watcher.additionalSettings());
-        builder.put(graph.additionalSettings());
         return builder.build();
     }
 
@@ -260,7 +258,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
         filters.addAll(notification.getSettingsFilter());
         filters.addAll(security.getSettingsFilter());
         filters.addAll(MonitoringSettings.getSettingsFilter());
-        filters.addAll(graph.getSettingsFilter());
         return filters;
     }
 
@@ -293,7 +290,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
         filters.addAll(monitoring.getActionFilters());
         filters.addAll(security.getActionFilters());
         filters.addAll(watcher.getActionFilters());
-        filters.addAll(graph.getActionFilters());
         return filters;
     }
 
@@ -318,7 +314,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
 
     public void onIndexModule(IndexModule module) {
         security.onIndexModule(module);
-        graph.onIndexModule(module);
     }
 
     public static void bindFeatureSet(Binder binder, Class<? extends XPackFeatureSet> featureSet) {

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.license.plugin.core;
 
+import java.util.List;
+
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.TestUtils;
@@ -12,21 +14,20 @@ import org.elasticsearch.license.plugin.TestUtils.AssertingLicensee;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-import java.util.List;
-
 import static org.hamcrest.Matchers.equalTo;
 
 public class LicensesNotificationTests extends AbstractLicenseServiceTestCase {
 
     public void testLicenseNotification() throws Exception {
         final License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(48));
-        setInitialState(license);
-        licensesService.start();
         int nLicensee = randomIntBetween(1, 3);
         AssertingLicensee[] assertingLicensees = new AssertingLicensee[nLicensee];
         for (int i = 0; i < assertingLicensees.length; i++) {
             assertingLicensees[i] = new AssertingLicensee("testLicenseNotification" + i, logger);
-            licensesService.register(assertingLicensees[i]);
+        }
+        setInitialState(license, assertingLicensees);
+        licensesService.start();
+        for (int i = 0; i < assertingLicensees.length; i++) {
             assertLicenseStates(assertingLicensees[i], LicenseState.ENABLED);
         }
         clock.fastForward(TimeValue.timeValueMillis(license.expiryDate() - clock.millis()));

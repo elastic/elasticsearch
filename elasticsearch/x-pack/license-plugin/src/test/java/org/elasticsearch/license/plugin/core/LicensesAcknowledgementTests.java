@@ -27,13 +27,13 @@ import static org.mockito.Mockito.verify;
 public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase {
 
     public void testAcknowledgment() throws Exception {
-        setInitialState(TestUtils.generateSignedLicense("trial", TimeValue.timeValueHours(2)));
-        licensesService.start();
+
         String id = "testAcknowledgment";
         String[] acknowledgeMessages = new String[] {"message"};
         TestUtils.AssertingLicensee licensee = new TestUtils.AssertingLicensee(id, logger);
+        setInitialState(TestUtils.generateSignedLicense("trial", TimeValue.timeValueHours(2)), licensee);
+        licensesService.start();
         licensee.setAcknowledgementMessages(acknowledgeMessages);
-        licensesService.register(licensee);
         // try installing a signed license
         License signedLicense = generateSignedLicense(TimeValue.timeValueHours(10));
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(signedLicense);
@@ -57,8 +57,6 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
     }
 
     public void testAcknowledgementMultipleLicensee() throws Exception {
-        setInitialState(TestUtils.generateSignedLicense("trial", TimeValue.timeValueHours(2)));
-        licensesService.start();
         String id1 = "testAcknowledgementMultipleLicensee_1";
         String[] acknowledgeMessages1 = new String[] {"testAcknowledgementMultipleLicensee_1"};
         String id2 = "testAcknowledgementMultipleLicensee_2";
@@ -67,8 +65,8 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
         licensee1.setAcknowledgementMessages(acknowledgeMessages1);
         TestUtils.AssertingLicensee licensee2 = new TestUtils.AssertingLicensee(id2, logger);
         licensee2.setAcknowledgementMessages(acknowledgeMessages2);
-        licensesService.register(licensee1);
-        licensesService.register(licensee2);
+        setInitialState(TestUtils.generateSignedLicense("trial", TimeValue.timeValueHours(2)), licensee1, licensee2);
+        licensesService.start();
         // try installing a signed license
         License signedLicense = generateSignedLicense(TimeValue.timeValueHours(10));
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(signedLicense);

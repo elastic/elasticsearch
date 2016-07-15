@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
@@ -205,7 +206,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build());
 
         logger.info("--> create an index");
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        client().admin().indices().prepareCreate("test").setWaitForActiveShards(ActiveShardCount.NONE).execute().actionGet();
 
         logger.info("--> closing master node");
         internalCluster().closeNonSharedNodes(false);

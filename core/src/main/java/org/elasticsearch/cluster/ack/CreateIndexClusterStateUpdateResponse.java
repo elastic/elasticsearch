@@ -17,15 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.shrink;
+package org.elasticsearch.cluster.ack;
 
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+/**
+ * A cluster state update response with specific fields for index creation.
+ */
+public class CreateIndexClusterStateUpdateResponse extends ClusterStateUpdateResponse {
 
-public final class ShrinkResponse extends CreateIndexResponse {
-    ShrinkResponse() {
+    private final boolean shardsAcked;
+
+    public CreateIndexClusterStateUpdateResponse(boolean acknowledged, boolean shardsAcked) {
+        super(acknowledged);
+        this.shardsAcked = shardsAcked;
     }
 
-    ShrinkResponse(boolean acknowledged, boolean shardsAcked) {
-        super(acknowledged, shardsAcked);
+    /**
+     * Returns whether the requisite number of shard copies started before the completion of the operation.
+     */
+    public boolean isShardsAcked() {
+        return shardsAcked;
     }
 }

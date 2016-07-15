@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
@@ -351,7 +350,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         for (AllocationStatus allocationStatus : AllocationStatus.values()) {
             BytesStreamOutput out = new BytesStreamOutput();
             allocationStatus.writeTo(out);
-            ByteBufferStreamInput in = new ByteBufferStreamInput(ByteBuffer.wrap(out.bytes().toBytes()));
+            ByteBufferStreamInput in = new ByteBufferStreamInput(ByteBuffer.wrap(out.bytes().toBytesRef().bytes));
             AllocationStatus readStatus = AllocationStatus.readFrom(in);
             assertThat(readStatus, equalTo(allocationStatus));
         }

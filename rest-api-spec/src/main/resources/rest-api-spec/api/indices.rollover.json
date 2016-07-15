@@ -25,6 +25,10 @@
         "master_timeout": {
           "type" : "time",
           "description" : "Specify timeout for connection to master"
+        },
+        "wait_for_active_shards": {
+          "type" : "string",
+          "description" : "Set the number of active shards to wait for on the newly created rollover index before the operation returns."
         }
       }
     },

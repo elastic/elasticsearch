@@ -152,7 +152,7 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
                 Settings sslSettings = settings.getByPrefix(setting("http.ssl."));
                 SSLConfiguration.Global globalConfig = new SSLConfiguration.Global(settings);
                 final ClientSSLService sslService = new ClientSSLService(sslSettings, globalConfig);
-                sslService.setEnvironment(env);
+                sslService.setEnvAndResourceWatcher(env, null);
                 final HttpsURLConnection httpsConn = (HttpsURLConnection) url.openConnection();
                 AccessController.doPrivileged(new PrivilegedAction<Void>() {
                     @Override

@@ -59,7 +59,7 @@ public class OpenLdapTests extends ESTestCase {
         globalSettings = builder.build();
         Environment environment = new Environment(globalSettings);
         clientSSLService = new ClientSSLService(globalSettings, new Global(globalSettings));
-        clientSSLService.setEnvironment(environment);
+        clientSSLService.setEnvAndResourceWatcher(environment, null);
     }
 
     public void testConnect() throws Exception {

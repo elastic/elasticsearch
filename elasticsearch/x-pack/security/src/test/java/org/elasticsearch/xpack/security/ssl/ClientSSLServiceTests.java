@@ -285,7 +285,7 @@ public class ClientSSLServiceTests extends ESTestCase {
 
     private ClientSSLService createClientSSLService(Settings settings) {
         ClientSSLService clientSSLService = new ClientSSLService(settings, new Global(settings));
-        clientSSLService.setEnvironment(env);
+        clientSSLService.setEnvAndResourceWatcher(env, null);
         return clientSSLService;
     }
 }

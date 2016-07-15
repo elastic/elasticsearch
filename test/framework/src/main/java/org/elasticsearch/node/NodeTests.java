@@ -40,7 +40,8 @@ public class NodeTests extends ESTestCase {
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-            .put(Node.NODE_LOCAL_SETTING.getKey(), true)
+            .put("discovery.type", "local")
+            .put("transport.type", "local")
             .put(Node.NODE_DATA_SETTING.getKey(), true);
         if (name != null) {
             settings.put(Node.NODE_NAME_SETTING.getKey(), name);

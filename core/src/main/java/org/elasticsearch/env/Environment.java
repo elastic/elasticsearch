@@ -355,10 +355,10 @@ public class Environment {
         assertEquals(actual.modulesFile(), expected.modulesFile(), "modulesFile");
         assertEquals(actual.logsFile(), expected.logsFile(), "logsFile");
         assertEquals(actual.pidFile(), expected.pidFile(), "pidFile");
-        assertEquals(actual.tmpFile(), expected.pidFile(), "tmpFile");
+        assertEquals(actual.tmpFile(), expected.tmpFile(), "tmpFile");
     }
 
     private static void assertEquals(Object actual, Object expected, String name) {
-        assert Objects.equals(actual, expected) : "actual " + name + " [" + actual + "] is different than [ " + expected + "]";
+        assert Objects.deepEquals(actual, expected) : "actual " + name + " [" + actual + "] is different than [ " + expected + "]";
     }
 }

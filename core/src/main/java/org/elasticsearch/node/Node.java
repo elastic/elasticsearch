@@ -231,11 +231,13 @@ public class Node implements Closeable {
                 throw new IllegalStateException("Failed to created node environment", ex);
             }
 
-            tmpSettings = addNodeNameIfNeeded(tmpSettings, nodeEnvironment.nodeId());
-            final String nodeName = NODE_NAME_SETTING.get(tmpSettings);
-            ESLogger logger = Loggers.getLogger(Node.class, nodeName);
-            logger.info("node name set to [{}]", nodeName);
-
+            final boolean hadPredefinedNodeName = NODE_NAME_SETTING.exists(tmpSettings);
+                tmpSettings = addNodeNameIfNeeded(tmpSettings, nodeEnvironment.nodeId());
+            ESLogger logger = Loggers.getLogger(Node.class, tmpSettings);
+            if (hadPredefinedNodeName == false) {
+                logger.info("node name set to [{}] by default. set the [{}] settings to change it",
+                    NODE_NAME_SETTING.get(tmpSettings), NODE_NAME_SETTING.getKey());
+            }
 
             final String displayVersion = Version.CURRENT + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();

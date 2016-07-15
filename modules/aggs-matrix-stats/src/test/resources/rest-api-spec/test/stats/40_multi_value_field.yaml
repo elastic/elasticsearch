@@ -119,6 +119,10 @@ setup:
     indices.refresh:
       index: [test, unmapped]
 
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
 ---
 "Unmapped":
 

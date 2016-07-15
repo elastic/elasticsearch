@@ -28,7 +28,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * The superclass for all other nodes.
+ * The superclass for all nodes.
  */
 public abstract class ANode {
 

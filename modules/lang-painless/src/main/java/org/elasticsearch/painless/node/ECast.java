@@ -30,8 +30,7 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
- * Represents an implicit cast in most cases, though it will replace
- * explicit casts in the tree for simplicity.  (Internal only.)
+ * Represents a cast that is inserted into the tree replacing other casts.  (Internal only.)
  */
 final class ECast extends AExpression {
 

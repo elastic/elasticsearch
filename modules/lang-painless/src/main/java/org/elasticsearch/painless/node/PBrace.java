@@ -32,7 +32,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Represents an array load/store or defers to possible shortcuts.
+ * Represents an array load/store and defers to a child subnode.
  */
 public final class PBrace extends AStoreable {
 

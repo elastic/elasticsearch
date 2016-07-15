@@ -27,7 +27,7 @@ import org.elasticsearch.painless.MethodWriter;
 import java.util.Objects;
 
 /**
- * This is the base class for an expression may store a value in local memory.
+ * The super class for an expression that can store a value in local memory.
  */
 abstract class AStoreable extends AExpression {
 

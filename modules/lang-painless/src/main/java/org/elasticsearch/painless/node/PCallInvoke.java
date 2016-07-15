@@ -24,7 +24,6 @@ import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -35,7 +34,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Represents a method call or defers to a def call.
+ * Represents a method call and defers to a child subnode.
  */
 public final class PCallInvoke extends AExpression {
 

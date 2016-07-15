@@ -31,7 +31,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Represents a method call or defers to a def call.
+ * Represents a method call.
  */
 final class PSubCallInvoke extends AExpression {
 

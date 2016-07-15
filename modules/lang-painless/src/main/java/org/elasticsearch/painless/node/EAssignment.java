@@ -35,7 +35,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Represents the entirety of a variable/method chain for read/write operations.
+ * Represents an assignment with the lhs and rhs as child nodes.
  */
 public final class EAssignment extends AExpression {
 

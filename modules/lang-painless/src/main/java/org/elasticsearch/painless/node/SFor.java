@@ -149,7 +149,7 @@ public final class SFor extends AStatement {
         Label end = new Label();
 
         if (initializer instanceof SDeclBlock) {
-            ((SDeclBlock)initializer).write(writer, globals);
+            initializer.write(writer, globals);
         } else if (initializer instanceof AExpression) {
             AExpression initializer = (AExpression)this.initializer;
 
@@ -178,6 +178,7 @@ public final class SFor extends AStatement {
             if (loopCounter != null) {
                 writer.writeLoopCounter(loopCounter.getSlot(), statementCount, location);
             }
+
             block.write(writer, globals);
         } else {
             if (loopCounter != null) {

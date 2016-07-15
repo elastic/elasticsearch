@@ -30,8 +30,8 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
- * Represents a constant.  Note this replaces any other expression
- * node with a constant value set during a cast.  (Internal only.)
+ * Represents a constant inserted into the tree replacing
+ * other constants during constant folding.  (Internal only.)
  */
 final class EConstant extends AExpression {
 

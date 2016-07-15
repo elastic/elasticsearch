@@ -36,7 +36,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Represents a field load/store or defers to a possible shortcuts.
+ * Represents a field load/store and defers to a child subnode.
  */
 public final class PField extends AStoreable {
 

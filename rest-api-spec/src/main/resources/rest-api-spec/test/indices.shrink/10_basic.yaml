@@ -6,6 +6,7 @@
   - do:
       indices.create:
         index: source
+        wait_for_active_shards: 1
         body:
           settings:
             number_of_replicas: "0"
@@ -54,6 +55,7 @@
       indices.shrink:
         index: "source"
         target: "target"
+        wait_for_active_shards: 1
         body:
           settings:
             index.number_of_replicas: 0

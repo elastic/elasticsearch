@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -29,10 +30,10 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -54,11 +55,11 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         });
 
         logger.info("--> creating 'test' index");
-        prepareCreate("test").setSettings(Settings.builder()
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "1m")
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 5)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)).get();
-        ensureGreen("test");
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1))
+                .setWaitForActiveShards(ActiveShardCount.ALL).get());
 
         logger.info("--> stopping a random node");
         assertTrue(internalCluster().stopRandomDataNode());
@@ -89,6 +90,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                 .setSettings(Settings.builder()
                         .put("index.number_of_shards", 5)
                         .put("index.number_of_replicas", 1))
+                .setWaitForActiveShards(ActiveShardCount.ALL)  // wait on all shards
                 .get();
 
         client().admin().indices().prepareCreate("only-baz")
@@ -96,6 +98,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                         .put("index.routing.allocation.include.bar", "baz")
                         .put("index.number_of_shards", 5)
                         .put("index.number_of_replicas", 1))
+                .setWaitForActiveShards(ActiveShardCount.ALL)
                 .get();
 
         client().admin().indices().prepareCreate("only-foo")
@@ -104,9 +107,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 1))
                 .get();
-
-        ensureGreen("anywhere", "only-baz");
-        ensureYellow("only-foo");
 
         ClusterAllocationExplainResponse resp = client().admin().cluster().prepareAllocationExplain()
                 .setIndex("only-foo")

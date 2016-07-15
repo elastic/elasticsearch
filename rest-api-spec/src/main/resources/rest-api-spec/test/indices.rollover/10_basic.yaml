@@ -4,6 +4,7 @@
   - do:
       indices.create:
         index: logs-1
+        wait_for_active_shards: 1
         body:
           aliases:
             logs_index: {}
@@ -30,11 +31,12 @@
 
   # perform alias rollover
   - do:
-      indices.rollover:
-        alias: "logs_search"
-        body:
-          conditions:
-            max_docs: 1
+    indices.rollover:
+      alias: "logs_search"
+      wait_for_active_shards: 1
+      body:
+        conditions:
+          max_docs: 1
 
   - match: { old_index: logs-1 }
   - match: { new_index: logs-2 }

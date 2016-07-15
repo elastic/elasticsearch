@@ -5,13 +5,6 @@
  */
 package org.elasticsearch.xpack.security.ssl;
 
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.unit.TimeValue;
-
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 import java.util.Arrays;
@@ -20,6 +13,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
+
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 
 import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.support.OptionalSettings.createInt;
@@ -181,7 +179,6 @@ public abstract class SSLConfiguration {
          *
          * @param settings the global settings to build the SSL configuration from
          */
-        @Inject
         public Global(Settings settings) {
             this.keyConfig = createGlobalKeyConfig(settings);
             this.trustConfig = createGlobalTrustConfig(settings, keyConfig);

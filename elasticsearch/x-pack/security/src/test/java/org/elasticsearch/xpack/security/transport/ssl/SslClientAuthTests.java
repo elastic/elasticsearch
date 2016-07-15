@@ -72,7 +72,7 @@ public class SslClientAuthTests extends SecurityIntegTestCase {
         Settings settings = Settings.builder()
                 .put(getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient"))
                 .build();
-        ClientSSLService sslService = new ClientSSLService(settings, new Global(settings));
+        ClientSSLService sslService = new ClientSSLService(settings, null, new Global(settings), null);
         SSLConnectionSocketFactory socketFactory = new SSLConnectionSocketFactory(
                 sslService.sslContext(),
                 NoopHostnameVerifier.INSTANCE);

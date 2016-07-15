@@ -36,6 +36,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.action.SecurityActionModule;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
@@ -87,8 +88,9 @@ import org.elasticsearch.xpack.security.rest.action.user.RestChangePasswordActio
 import org.elasticsearch.xpack.security.rest.action.user.RestDeleteUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestGetUsersAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
+import org.elasticsearch.xpack.security.ssl.ClientSSLService;
 import org.elasticsearch.xpack.security.ssl.SSLConfiguration;
-import org.elasticsearch.xpack.security.ssl.SSLModule;
+import org.elasticsearch.xpack.security.ssl.ServerSSLService;
 import org.elasticsearch.xpack.security.support.OptionalSettings;
 import org.elasticsearch.xpack.security.transport.SecurityClientTransportService;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportService;
@@ -115,6 +117,7 @@ public class Security implements ActionPlugin {
     public static final Setting<Optional<String>> USER_SETTING = OptionalSettings.createString(setting("user"), Property.NodeScope);
 
     private final Settings settings;
+    private final Environment env;
     private final boolean enabled;
     private final boolean transportClientMode;
     private final SecurityLicenseState securityLicenseState;
@@ -122,6 +125,7 @@ public class Security implements ActionPlugin {
 
     public Security(Settings settings, Environment env) throws IOException {
         this.settings = settings;
+        this.env = env;
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
         this.enabled = XPackPlugin.featureEnabled(settings, NAME, true);
         if (enabled && transportClientMode == false) {
@@ -154,7 +158,13 @@ public class Security implements ActionPlugin {
             }
             modules.add(new SecurityModule(settings));
             modules.add(new SecurityTransportModule(settings));
-            modules.add(new SSLModule(settings));
+            modules.add(b -> {
+                // for transport client we still must inject these ssl classes with guice
+                b.bind(ServerSSLService.class).toProvider(Providers.<ServerSSLService>of(null));
+                b.bind(ClientSSLService.class).toInstance(
+                    new ClientSSLService(settings, null, new SSLConfiguration.Global(settings), null));
+            });
+
             return modules;
         }
 
@@ -178,7 +188,6 @@ public class Security implements ActionPlugin {
         modules.add(new SecurityRestModule(settings));
         modules.add(new SecurityActionModule(settings));
         modules.add(new SecurityTransportModule(settings));
-        modules.add(new SSLModule(settings));
         return modules;
     }
 
@@ -190,6 +199,18 @@ public class Security implements ActionPlugin {
         list.add(FileRolesStore.class);
         list.add(Realms.class);
         return list;
+    }
+
+    public Collection<Object> createComponents(ResourceWatcherService resourceWatcherService) {
+        if (enabled == false) {
+            return Collections.emptyList();
+        }
+
+        final SSLConfiguration.Global globalSslConfig = new SSLConfiguration.Global(settings);
+        final ClientSSLService clientSSLService = new ClientSSLService(settings, env, globalSslConfig, resourceWatcherService);
+        final ServerSSLService serverSSLService = new ServerSSLService(settings, env, globalSslConfig, resourceWatcherService);
+
+        return Arrays.asList(clientSSLService, serverSSLService);
     }
 
     public Settings additionalSettings() {

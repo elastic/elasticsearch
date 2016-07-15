@@ -42,9 +42,9 @@ public abstract class AbstractSSLService extends AbstractComponent {
     private final ConcurrentHashMap<SSLConfiguration, SSLContext> sslContexts = new ConcurrentHashMap<>();
     private final SSLContextCacheLoader cacheLoader = new SSLContextCacheLoader();
 
-    protected SSLConfiguration globalSSLConfiguration;
-    protected Environment env;
-    protected ResourceWatcherService resourceWatcherService;
+    protected final SSLConfiguration globalSSLConfiguration;
+    protected final Environment env;
+    protected final ResourceWatcherService resourceWatcherService;
 
     public AbstractSSLService(Settings settings, Environment environment, Global globalSSLConfiguration,
                               ResourceWatcherService resourceWatcherService) {

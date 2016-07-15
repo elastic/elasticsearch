@@ -15,13 +15,11 @@ import org.elasticsearch.license.plugin.core.AbstractLicenseeComponent;
  */
 public class SecurityLicensee extends AbstractLicenseeComponent {
 
-    private final boolean isTribeNode;
     private final SecurityLicenseState securityLicenseState;
 
     public SecurityLicensee(Settings settings, SecurityLicenseState securityLicenseState) {
         super(settings, Security.NAME);
         this.securityLicenseState = securityLicenseState;
-        this.isTribeNode = settings.getGroups("tribe", true).isEmpty() == false;
     }
 
     @Override

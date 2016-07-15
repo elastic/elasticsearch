@@ -20,10 +20,10 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -104,7 +104,7 @@ public class RoundTripTests extends ESTestCase {
         request.setAbortOnVersionConflict(random().nextBoolean());
         request.setRefresh(rarely());
         request.setTimeout(TimeValue.parseTimeValue(randomTimeValue(), null, "test"));
-        request.setConsistency(randomFrom(WriteConsistencyLevel.values()));
+        request.setWaitForActiveShards(ActiveShardCount.from(randomIntBetween(0, 10)));
         request.setScript(random().nextBoolean() ? null : randomScript());
         request.setRequestsPerSecond(between(0, Integer.MAX_VALUE));
     }
@@ -116,7 +116,7 @@ public class RoundTripTests extends ESTestCase {
         assertEquals(request.isAbortOnVersionConflict(), tripped.isAbortOnVersionConflict());
         assertEquals(request.isRefresh(), tripped.isRefresh());
         assertEquals(request.getTimeout(), tripped.getTimeout());
-        assertEquals(request.getConsistency(), tripped.getConsistency());
+        assertEquals(request.getWaitForActiveShards(), tripped.getWaitForActiveShards());
         assertEquals(request.getScript(), tripped.getScript());
         assertEquals(request.getRetryBackoffInitialTime(), tripped.getRetryBackoffInitialTime());
         assertEquals(request.getMaxRetries(), tripped.getMaxRetries());
@@ -234,7 +234,7 @@ public class RoundTripTests extends ESTestCase {
             assertEquals(expectedFailure.getReason().getClass(), actualFailure.getReason().getClass());
             assertEquals(expectedFailure.getReason().getMessage(), actualFailure.getReason().getMessage());
         }
-        
+
     }
 
     private void assertTaskStatusEquals(BulkByScrollTask.Status expected, BulkByScrollTask.Status actual) {

@@ -20,12 +20,14 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -33,6 +35,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -251,34 +254,20 @@ public class ReplicationOperationTests extends ESTestCase {
         assertThat(request.processedOnReplicas, equalTo(expectedReplicas));
     }
 
-    public void testWriteConsistency() throws Exception {
+    public void testWaitForActiveShards() throws Exception {
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
         final int assignedReplicas = randomInt(2);
         final int unassignedReplicas = randomInt(2);
         final int totalShards = 1 + assignedReplicas + unassignedReplicas;
-        final boolean passesWriteConsistency;
-        Request request = new Request(shardId).consistencyLevel(randomFrom(WriteConsistencyLevel.values()));
-        switch (request.consistencyLevel()) {
-            case ONE:
-                passesWriteConsistency = true;
-                break;
-            case DEFAULT:
-            case QUORUM:
-                if (totalShards <= 2) {
-                    passesWriteConsistency = true; // primary is enough
-                } else {
-                    passesWriteConsistency = assignedReplicas + 1 >= (totalShards / 2) + 1;
-                }
-                // we have to reset default (as the transport replication action will do)
-                request.consistencyLevel(WriteConsistencyLevel.QUORUM);
-                break;
-            case ALL:
-                passesWriteConsistency = unassignedReplicas == 0;
-                break;
-            default:
-                throw new RuntimeException("unknown consistency level [" + request.consistencyLevel() + "]");
-        }
+        final IndexMetaData indexMetaData = IndexMetaData.builder(index)
+                                                .settings(Settings.builder().put("index.version.created", Version.CURRENT.id))
+                                                .numberOfReplicas(assignedReplicas + unassignedReplicas)
+                                                .numberOfShards(randomIntBetween(1, 5))
+                                                .build();
+        Request request = new Request(shardId).waitForActiveShards(ActiveShardCount.from(randomIntBetween(0, totalShards)));
+        final boolean passesActiveShardCheck = request.waitForActiveShards().resolve(indexMetaData) <= assignedReplicas + 1;
+
         ShardRoutingState[] replicaStates = new ShardRoutingState[assignedReplicas + unassignedReplicas];
         for (int i = 0; i < assignedReplicas; i++) {
             replicaStates[i] = randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING);
@@ -288,10 +277,10 @@ public class ReplicationOperationTests extends ESTestCase {
         }
 
         final ClusterState state = state(index, true, ShardRoutingState.STARTED, replicaStates);
-        logger.debug("using consistency level of [{}], assigned shards [{}], total shards [{}]." +
+        logger.debug("using active shard count of [{}], assigned shards [{}], total shards [{}]." +
                 " expecting op to [{}]. using state: \n{}",
-            request.consistencyLevel(), 1 + assignedReplicas, 1 + assignedReplicas + unassignedReplicas,
-            passesWriteConsistency ? "succeed" : "retry",
+            request.waitForActiveShards(), 1 + assignedReplicas, 1 + assignedReplicas + unassignedReplicas,
+            passesActiveShardCheck ? "succeed" : "retry",
             state.prettyPrint());
         final long primaryTerm = state.metaData().index(index).primaryTerm(shardId.id());
         final IndexShardRoutingTable shardRoutingTable = state.routingTable().index(index).shard(shardId.id());
@@ -301,15 +290,15 @@ public class ReplicationOperationTests extends ESTestCase {
             new TestPrimary(primaryShard, primaryTerm),
             listener, randomBoolean(), true, new TestReplicaProxy(), () -> state, logger, "test");
 
-        if (passesWriteConsistency) {
-            assertThat(op.checkWriteConsistency(), nullValue());
+        if (passesActiveShardCheck) {
+            assertThat(op.checkActiveShardCount(), nullValue());
             op.execute();
-            assertTrue("operations should have been performed, consistency level is met",
+            assertTrue("operations should have been performed, active shard count is met",
                 request.processedOnPrimary.get());
         } else {
-            assertThat(op.checkWriteConsistency(), notNullValue());
+            assertThat(op.checkActiveShardCount(), notNullValue());
             op.execute();
-            assertFalse("operations should not have been perform, consistency level is *NOT* met",
+            assertFalse("operations should not have been perform, active shard count is *NOT* met",
                 request.processedOnPrimary.get());
             assertListenerThrows("should throw exception to trigger retry", listener, UnavailableShardsException.class);
         }
@@ -462,9 +451,9 @@ public class ReplicationOperationTests extends ESTestCase {
         }
 
         public TestReplicationOperation(Request request, Primary<Request, Request, TestPrimary.Result> primary,
-                ActionListener<TestPrimary.Result> listener, boolean executeOnReplicas, boolean checkWriteConsistency,
+                ActionListener<TestPrimary.Result> listener, boolean executeOnReplicas, boolean checkActiveShardCount,
                 Replicas<Request> replicas, Supplier<ClusterState> clusterStateSupplier, ESLogger logger, String opType) {
-            super(request, primary, listener, executeOnReplicas, checkWriteConsistency, replicas, clusterStateSupplier, logger, opType);
+            super(request, primary, listener, executeOnReplicas, checkActiveShardCount, replicas, clusterStateSupplier, logger, opType);
         }
     }
 

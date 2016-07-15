@@ -766,7 +766,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        protected boolean checkWriteConsistency() {
+        protected boolean checkActiveShardCount() {
             return false;
         }
 

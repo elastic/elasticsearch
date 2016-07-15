@@ -23,8 +23,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
@@ -49,6 +49,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -90,7 +91,7 @@ public abstract class TransportReplicationAction<
     protected final ClusterService clusterService;
     protected final IndicesService indicesService;
     private final ShardStateAction shardStateAction;
-    private final WriteConsistencyLevel defaultWriteConsistencyLevel;
+    private final ActiveShardCount defaultWaitForActiveShards;
     private final TransportRequestOptions transportOptions;
     private final String executor;
 
@@ -122,7 +123,7 @@ public abstract class TransportReplicationAction<
 
         this.transportOptions = transportOptions();
 
-        this.defaultWriteConsistencyLevel = WriteConsistencyLevel.fromString(settings.get("action.write_consistency", "quorum"));
+        this.defaultWaitForActiveShards = IndexSettings.WAIT_FOR_ACTIVE_SHARDS_SETTING.get(settings);
 
         this.replicasProxy = new ReplicasProxy();
     }
@@ -165,9 +166,9 @@ public abstract class TransportReplicationAction<
     protected abstract ReplicaResult shardOperationOnReplica(ReplicaRequest shardRequest);
 
     /**
-     * True if write consistency should be checked for an implementation
+     * True if the active shard count should be checked before proceeding with the replication action.
      */
-    protected boolean checkWriteConsistency() {
+    protected boolean checkActiveShardCount() {
         return true;
     }
 
@@ -353,7 +354,7 @@ public abstract class TransportReplicationAction<
             Request request, ActionListener<PrimaryResult> listener,
             PrimaryShardReference primaryShardReference, boolean executeOnReplicas) {
             return new ReplicationOperation<>(request, primaryShardReference, listener,
-                executeOnReplicas, checkWriteConsistency(), replicasProxy, clusterService::state, logger, actionName
+                executeOnReplicas, checkActiveShardCount(), replicasProxy, clusterService::state, logger, actionName
             );
         }
     }
@@ -566,8 +567,8 @@ public abstract class TransportReplicationAction<
             }
 
             // resolve all derived request fields, so we can route and apply it
-            if (request.consistencyLevel() == WriteConsistencyLevel.DEFAULT) {
-                request.consistencyLevel(defaultWriteConsistencyLevel);
+            if (request.waitForActiveShards() == ActiveShardCount.DEFAULT) {
+                request.waitForActiveShards(defaultWaitForActiveShards);
             }
             resolveRequest(state.metaData(), indexMetaData, request);
             assert request.shardId() != null : "request shardId must be set in resolveRequest";

@@ -22,9 +22,9 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -60,7 +60,10 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     protected TimeValue timeout = DEFAULT_TIMEOUT;
     protected String index;
 
-    private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
+    /**
+     * The number of shard copies that must be active before proceeding with the replication action.
+     */
+    private ActiveShardCount activeShardCount = ActiveShardCount.DEFAULT;
 
     private long routedBasedOnClusterVersion = 0;
 
@@ -116,8 +119,8 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
-    public WriteConsistencyLevel consistencyLevel() {
-        return this.consistencyLevel;
+    public ActiveShardCount waitForActiveShards() {
+        return this.activeShardCount;
     }
 
     /**
@@ -130,11 +133,16 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     }
 
     /**
-     * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
+     * Sets the number of shard copies that must be active before proceeding with the replication
+     * operation. Defaults to {@link ActiveShardCount#DEFAULT}, which requires one shard copy
+     * (the primary) to be active. Set this value to {@link ActiveShardCount#ALL} to
+     * wait for all shards (primary and all replicas) to be active. Otherwise, use
+     * {@link ActiveShardCount#from(int)} to set this value to any non-negative integer, up to the
+     * total number of shard copies (number of replicas + 1).
      */
     @SuppressWarnings("unchecked")
-    public final Request consistencyLevel(WriteConsistencyLevel consistencyLevel) {
-        this.consistencyLevel = consistencyLevel;
+    public final Request waitForActiveShards(ActiveShardCount activeShardCount) {
+        this.activeShardCount = activeShardCount;
         return (Request) this;
     }
 
@@ -179,7 +187,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         } else {
             shardId = null;
         }
-        consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
+        activeShardCount = ActiveShardCount.readFrom(in);
         timeout = new TimeValue(in);
         index = in.readString();
         routedBasedOnClusterVersion = in.readVLong();
@@ -195,7 +203,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         } else {
             out.writeBoolean(false);
         }
-        out.writeByte(consistencyLevel.id());
+        activeShardCount.writeTo(out);
         timeout.writeTo(out);
         out.writeString(index);
         out.writeVLong(routedBasedOnClusterVersion);

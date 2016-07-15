@@ -155,7 +155,7 @@ public final class ActiveShardCount implements Writeable {
             return false;
         }
         for (final IntObjectCursor<IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards()) {
-            if (enoughShardsActive(shardRouting.value, indexMetaData) == false) {
+            if (enoughShardsActive(shardRouting.value, indexMetaData).isEnoughShardsActive() == false) {
                 // not enough active shard copies yet
                 return false;
             }
@@ -167,12 +167,10 @@ public final class ActiveShardCount implements Writeable {
      * Returns true iff the active shard count in the shard routing table is enough
      * to meet the required shard count represented by this instance.
      */
-    public boolean enoughShardsActive(final IndexShardRoutingTable shardRoutingTable, final IndexMetaData indexMetaData) {
-        if (shardRoutingTable.activeShards().size() < resolve(indexMetaData)) {
-            // not enough active shard copies yet
-            return false;
-        }
-        return true;
+    public EvalResult enoughShardsActive(final IndexShardRoutingTable shardRoutingTable, final IndexMetaData indexMetaData) {
+        final int totalActive = shardRoutingTable.activeShards().size();
+        final int totalRequired = resolve(indexMetaData);
+        return new EvalResult(shardRoutingTable.activeShards().size() >= resolve(indexMetaData), totalActive, totalRequired);
     }
 
     @Override
@@ -194,18 +192,41 @@ public final class ActiveShardCount implements Writeable {
 
     @Override
     public String toString() {
-        final String valStr;
         switch (value) {
             case ALL_ACTIVE_SHARDS:
-                valStr = "ALL";
-                break;
+                return "ALL";
             case ACTIVE_SHARD_COUNT_DEFAULT:
-                valStr = "DEFAULT";
-                break;
+                return "DEFAULT";
             default:
-                valStr = Integer.toString(value);
+                return Integer.toString(value);
         }
-        return "ActiveShardCount[" + valStr + "]";
+    }
+
+    /**
+     * The result of the evaluation of the active shard copy count against a shard routing table.
+     */
+    public static final class EvalResult {
+        private final boolean enoughShardsActive;
+        private final int totalActive;
+        private final int totalRequired;
+
+        private EvalResult(boolean enoughShardsActive, int totalActive, int totalRequired) {
+            this.enoughShardsActive = enoughShardsActive;
+            this.totalActive = totalActive;
+            this.totalRequired = totalRequired;
+        }
+
+        public boolean isEnoughShardsActive() {
+            return enoughShardsActive;
+        }
+
+        public int getTotalActive() {
+            return totalActive;
+        }
+
+        public int getTotalRequired() {
+            return totalRequired;
+        }
     }
 
 }

@@ -22,10 +22,9 @@
         }
       },
       "params": {
-        "consistency": {
-          "type" : "enum",
-          "options" : ["one", "quorum", "all"],
-          "description" : "Explicit write consistency setting for the operation"
+        "wait_for_active_shards": {
+          "type" : "string",
+          "description" : "Explicit active shard count required for the operation"
         },
         "op_type": {
           "type" : "enum",

@@ -71,7 +71,7 @@ public class TransportShardRefreshAction
     }
 
     @Override
-    protected boolean checkWriteConsistency() {
+    protected boolean checkActiveShardCount() {
         return false;
     }
 

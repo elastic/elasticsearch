@@ -690,7 +690,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12621")
     public void testChaosSnapshot() throws Exception {
         final List<String> indices = new CopyOnWriteArrayList<>();
-        Settings settings = Settings.builder().put("action.write_consistency", "one").build();
+        Settings settings = Settings.builder().put(IndexSettings.WAIT_FOR_ACTIVE_SHARDS_SETTING.getKey(), "1").build();
         int initialNodes = between(1, 3);
         logger.info("--> start {} nodes", initialNodes);
         for (int i = 0; i < initialNodes; i++) {

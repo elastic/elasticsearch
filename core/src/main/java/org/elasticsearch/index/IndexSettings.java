@@ -20,6 +20,7 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.logging.ESLogger;
@@ -127,6 +128,16 @@ public final class IndexSettings {
      */
     public static final Setting<Integer> MAX_SLICES_PER_SCROLL = Setting.intSetting("index.max_slices_per_scroll",
         1024, 1, Property.Dynamic, Property.IndexScope);
+
+    /**
+     * The number of active shard copies required for a write operation.
+     */
+    public static final Setting<ActiveShardCount> WAIT_FOR_ACTIVE_SHARDS_SETTING =
+        new Setting<>("index.write.wait_for_active_shards",
+                      "1",
+                      ActiveShardCount::parseString,
+                      Setting.Property.Dynamic,
+                      Setting.Property.IndexScope);
 
     private final Index index;
     private final Version version;

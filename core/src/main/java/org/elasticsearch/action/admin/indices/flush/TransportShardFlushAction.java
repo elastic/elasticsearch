@@ -70,7 +70,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
     }
 
     @Override
-    protected boolean checkWriteConsistency() {
+    protected boolean checkActiveShardCount() {
         return false;
     }
 

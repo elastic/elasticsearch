@@ -177,10 +177,9 @@
           "default": "1m",
           "description" : "Time each individual bulk request should wait for shards that are unavailable."
         },
-        "consistency": {
-          "type" : "enum",
-          "options" : ["one", "quorum", "all"],
-          "description" : "Explicit write consistency setting for the operation"
+        "wait_for_active_shards": {
+          "type" : "string",
+          "description" : "Explicit active shard count required for the operation"
         },
         "scroll_size": {
           "type": "integer",

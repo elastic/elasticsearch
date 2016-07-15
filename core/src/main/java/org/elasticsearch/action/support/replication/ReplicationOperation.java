@@ -22,9 +22,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -68,7 +69,7 @@ public class ReplicationOperation<
     private final AtomicInteger pendingShards = new AtomicInteger();
     private final AtomicInteger successfulShards = new AtomicInteger();
     private final boolean executeOnReplicas;
-    private final boolean checkWriteConsistency;
+    private final boolean checkActiveShardCount;
     private final Primary<Request, ReplicaRequest, PrimaryResultT> primary;
     private final Replicas<ReplicaRequest> replicasProxy;
     private final AtomicBoolean finished = new AtomicBoolean();
@@ -80,10 +81,10 @@ public class ReplicationOperation<
 
     public ReplicationOperation(Request request, Primary<Request, ReplicaRequest, PrimaryResultT> primary,
                                 ActionListener<PrimaryResultT> listener,
-                                boolean executeOnReplicas, boolean checkWriteConsistency,
+                                boolean executeOnReplicas, boolean checkActiveShardCount,
                                 Replicas<ReplicaRequest> replicas,
                                 Supplier<ClusterState> clusterStateSupplier, ESLogger logger, String opType) {
-        this.checkWriteConsistency = checkWriteConsistency;
+        this.checkActiveShardCount = checkActiveShardCount;
         this.executeOnReplicas = executeOnReplicas;
         this.replicasProxy = replicas;
         this.primary = primary;
@@ -95,12 +96,12 @@ public class ReplicationOperation<
     }
 
     public void execute() throws Exception {
-        final String writeConsistencyFailure = checkWriteConsistency ? checkWriteConsistency() : null;
+        final String activeShardCountFailure = checkActiveShardCount ? checkActiveShardCount() : null;
         final ShardRouting primaryRouting = primary.routingEntry();
         final ShardId primaryId = primaryRouting.shardId();
-        if (writeConsistencyFailure != null) {
+        if (activeShardCountFailure != null) {
             finishAsFailed(new UnavailableShardsException(primaryId,
-                "{} Timeout: [{}], request: [{}]", writeConsistencyFailure, request.timeout(), request));
+                "{} Timeout: [{}], request: [{}]", activeShardCountFailure, request.timeout(), request));
             return;
         }
 
@@ -190,46 +191,35 @@ public class ReplicationOperation<
     }
 
     /**
-     * checks whether we can perform a write based on the write consistency setting
-     * returns **null* if OK to proceed, or a string describing the reason to stop
+     * Checks whether we can perform a write based on the required active shard count setting.
+     * Returns **null* if OK to proceed, or a string describing the reason to stop
      */
-    String checkWriteConsistency() {
-        assert request.consistencyLevel() != WriteConsistencyLevel.DEFAULT : "consistency level should be set";
+    String checkActiveShardCount() {
         final ShardId shardId = primary.routingEntry().shardId();
+        final String indexName = shardId.getIndexName();
         final ClusterState state = clusterStateSupplier.get();
-        final WriteConsistencyLevel consistencyLevel = request.consistencyLevel();
-        final int sizeActive;
-        final int requiredNumber;
-        IndexRoutingTable indexRoutingTable = state.getRoutingTable().index(shardId.getIndexName());
-        if (indexRoutingTable != null) {
-            IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId.getId());
-            if (shardRoutingTable != null) {
-                sizeActive = shardRoutingTable.activeShards().size();
-                if (consistencyLevel == WriteConsistencyLevel.QUORUM && shardRoutingTable.getSize() > 2) {
-                    // only for more than 2 in the number of shardIt it makes sense, otherwise its 1 shard with 1 replica,
-                    // quorum is 1 (which is what it is initialized to)
-                    requiredNumber = (shardRoutingTable.getSize() / 2) + 1;
-                } else if (consistencyLevel == WriteConsistencyLevel.ALL) {
-                    requiredNumber = shardRoutingTable.getSize();
-                } else {
-                    requiredNumber = 1;
-                }
-            } else {
-                sizeActive = 0;
-                requiredNumber = 1;
-            }
-        } else {
-            sizeActive = 0;
-            requiredNumber = 1;
+        final ActiveShardCount waitForActiveShards = request.waitForActiveShards();
+        IndexRoutingTable indexRoutingTable = state.getRoutingTable().index(indexName);
+        if (indexRoutingTable == null) {
+            logger.trace("[{}] index not found in the routing table", shardId);
+            return "Index " + indexName + " not found in the routing table";
         }
+        IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId.getId());
+        if (shardRoutingTable == null) {
+            logger.trace("[{}] shard not found in the routing table", shardId);
+            return "Shard " + shardId + " not found in the routing table";
+        }
+        IndexMetaData indexMetaData = state.getMetaData().index(indexName);
+        assert indexMetaData != null;
+        ActiveShardCount.EvalResult result = waitForActiveShards.enoughShardsActive(shardRoutingTable, indexMetaData);
 
-        if (sizeActive < requiredNumber) {
-            logger.trace("[{}] not enough active copies to meet write consistency of [{}] (have {}, needed {}), scheduling a retry." +
-                " op [{}], request [{}]", shardId, consistencyLevel, sizeActive, requiredNumber, opType, request);
-            return "Not enough active copies to meet write consistency of [" + consistencyLevel + "] (have " + sizeActive + ", needed "
-                + requiredNumber + ").";
-        } else {
+        if (result.isEnoughShardsActive()) {
             return null;
+        } else {
+            logger.trace("[{}] not enough active copies to meet shard count of [{}] (have {}, needed {}), scheduling a retry. op [{}], " +
+                         "request [{}]", shardId, waitForActiveShards, result.getTotalActive(), result.getTotalRequired(), opType, request);
+            return "Not enough active copies to meet shard count of [" + waitForActiveShards + "] (have " + result.getTotalActive() +
+                       ", needed " + result.getTotalRequired() + ").";
         }
     }
 

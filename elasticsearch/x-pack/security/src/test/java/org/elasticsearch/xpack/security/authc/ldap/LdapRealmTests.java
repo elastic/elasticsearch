@@ -164,7 +164,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .put(HOSTNAME_VERIFICATION_SETTING, false)
                 .build();
         RealmConfig config = new RealmConfig("test-ldap-realm", settings, globalSettings);
-        SessionFactory sessionFactory = LdapRealm.Factory.sessionFactory(config, null);
+        SessionFactory sessionFactory = LdapRealm.sessionFactory(config, null);
         assertThat(sessionFactory, is(instanceOf(LdapSessionFactory.class)));
     }
 
@@ -180,7 +180,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .put(HOSTNAME_VERIFICATION_SETTING, false)
                 .build();
         RealmConfig config = new RealmConfig("test-ldap-realm-user-search", settings, globalSettings);
-        SessionFactory sessionFactory = LdapRealm.Factory.sessionFactory(config, null);
+        SessionFactory sessionFactory = LdapRealm.sessionFactory(config, null);
         try {
             assertThat(sessionFactory, is(instanceOf(LdapUserSearchSessionFactory.class)));
         } finally {
@@ -199,7 +199,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .build();
         RealmConfig config = new RealmConfig("test-ldap-realm-user-search", settings, globalSettings);
         try {
-            LdapRealm.Factory.sessionFactory(config, null);
+            LdapRealm.sessionFactory(config, null);
             fail("an exception should have been thrown because both user template and user search settings were specified");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("settings were found for both user search and user template"));

@@ -142,7 +142,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     }
 
     public void testAuthenticateContract() throws Exception {
-        Realm<UsernamePasswordToken> realm = new FailingAuthenticationRealm(Settings.EMPTY, globalSettings);
+        Realm realm = new FailingAuthenticationRealm(Settings.EMPTY, globalSettings);
         User user = realm.authenticate(new UsernamePasswordToken("user", SecuredStringTests.build("pass")));
         assertThat(user , nullValue());
 
@@ -152,7 +152,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     }
 
     public void testLookupContract() throws Exception {
-        Realm<UsernamePasswordToken> realm = new FailingAuthenticationRealm(Settings.EMPTY, globalSettings);
+        Realm realm = new FailingAuthenticationRealm(Settings.EMPTY, globalSettings);
         User user = realm.lookupUser("user");
         assertThat(user , nullValue());
 

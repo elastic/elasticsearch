@@ -38,7 +38,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class PkiRealm extends Realm<X509AuthenticationToken> {
+public class PkiRealm extends Realm {
 
     public static final String PKI_CERT_HEADER_NAME = "__SECURITY_CLIENT_CERTIFICATE";
     public static final String TYPE = "pki";
@@ -51,7 +51,13 @@ public class PkiRealm extends Realm<X509AuthenticationToken> {
     private final Pattern principalPattern;
     private final DnRoleMapper roleMapper;
 
-    public PkiRealm(RealmConfig config, DnRoleMapper roleMapper) {
+
+    public PkiRealm(RealmConfig config, ResourceWatcherService watcherService) {
+        this(config, new DnRoleMapper(TYPE, config, watcherService, null));
+    }
+
+    // pkg private for testing
+    PkiRealm(RealmConfig config, DnRoleMapper roleMapper) {
         super(TYPE, config);
         this.trustManagers = trustManagers(config.settings(), config.env());
         this.principalPattern = Pattern.compile(config.settings().get("username_pattern", DEFAULT_USERNAME_PATTERN),
@@ -71,7 +77,8 @@ public class PkiRealm extends Realm<X509AuthenticationToken> {
     }
 
     @Override
-    public User authenticate(X509AuthenticationToken token) {
+    public User authenticate(AuthenticationToken authToken) {
+        X509AuthenticationToken token = (X509AuthenticationToken)authToken;
         if (!isCertificateChainTrusted(trustManagers, token, logger)) {
             return null;
         }
@@ -221,27 +228,5 @@ public class PkiRealm extends Realm<X509AuthenticationToken> {
 
         logger.error("PKI realm [{}] is enabled but cannot be used as neither HTTP or Transport have both SSL and client authentication " +
                 "enabled", config.name());
-    }
-
-    public static class Factory extends Realm.Factory<PkiRealm> {
-
-        private final ResourceWatcherService watcherService;
-
-        @Inject
-        public Factory(ResourceWatcherService watcherService) {
-            super(TYPE, false);
-            this.watcherService = watcherService;
-        }
-
-        @Override
-        public PkiRealm create(RealmConfig config) {
-            DnRoleMapper roleMapper = new DnRoleMapper(TYPE, config, watcherService, null);
-            return new PkiRealm(config, roleMapper);
-        }
-
-        @Override
-        public PkiRealm createDefault(String name) {
-            return null;
-        }
     }
 }

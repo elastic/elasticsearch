@@ -5,19 +5,14 @@
  */
 package org.elasticsearch.xpack.security.authc.file;
 
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.rest.RestController;
+import java.util.Map;
+
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.authc.support.RefreshListener;
-import org.elasticsearch.xpack.security.authc.support.UsernamePasswordRealm;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.watcher.ResourceWatcherService;
-
-import java.util.Map;
 
 /**
  *
@@ -29,7 +24,12 @@ public class FileRealm extends CachingUsernamePasswordRealm {
     final FileUserPasswdStore userPasswdStore;
     final FileUserRolesStore userRolesStore;
 
-    public FileRealm(RealmConfig config, FileUserPasswdStore userPasswdStore, FileUserRolesStore userRolesStore) {
+    public FileRealm(RealmConfig config, ResourceWatcherService watcherService) {
+        this(config, new FileUserPasswdStore(config, watcherService), new FileUserRolesStore(config, watcherService));
+    }
+
+    // pkg private for testing
+    FileRealm(RealmConfig config, FileUserPasswdStore userPasswdStore, FileUserRolesStore userRolesStore) {
         super(TYPE, config);
         Listener listener = new Listener();
         this.userPasswdStore = userPasswdStore;
@@ -74,33 +74,6 @@ public class FileRealm extends CachingUsernamePasswordRealm {
         @Override
         public void onRefresh() {
             expireAll();
-        }
-    }
-
-    public static class Factory extends UsernamePasswordRealm.Factory<FileRealm> {
-
-        private final Settings settings;
-        private final Environment env;
-        private final ResourceWatcherService watcherService;
-
-        @Inject
-        public Factory(Settings settings, Environment env, ResourceWatcherService watcherService) {
-            super(TYPE, true);
-            this.settings = settings;
-            this.env = env;
-            this.watcherService = watcherService;
-        }
-
-        @Override
-        public FileRealm create(RealmConfig config) {
-            return new FileRealm(config, new FileUserPasswdStore(config, watcherService),
-                    new FileUserRolesStore(config, watcherService));
-        }
-
-        @Override
-        public FileRealm createDefault(String name) {
-            RealmConfig config = new RealmConfig(name, Settings.EMPTY, settings, env);
-            return create(config);
         }
     }
 }

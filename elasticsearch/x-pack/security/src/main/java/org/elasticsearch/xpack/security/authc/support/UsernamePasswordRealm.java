@@ -33,9 +33,8 @@ public abstract class UsernamePasswordRealm extends Realm<UsernamePasswordToken>
 
     public abstract static class Factory<R extends UsernamePasswordRealm> extends Realm.Factory<R> {
 
-        protected Factory(String type, RestController restController, boolean internal) {
+        protected Factory(String type, boolean internal) {
             super(type, internal);
-            restController.registerRelevantHeaders(UsernamePasswordToken.BASIC_AUTH_HEADER);
         }
     }
 

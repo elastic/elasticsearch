@@ -13,9 +13,8 @@ import org.elasticsearch.xpack.security.authc.RealmConfig;
 public class CustomRealmFactory extends Realm.Factory<CustomRealm> {
 
     @Inject
-    public CustomRealmFactory(RestController controller) {
+    public CustomRealmFactory() {
         super(CustomRealm.TYPE, false);
-        controller.registerRelevantHeaders(CustomRealm.USER_HEADER, CustomRealm.PW_HEADER);
     }
 
     @Override

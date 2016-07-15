@@ -54,7 +54,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
 
     @Inject
     public InternalAuthenticationService(Settings settings, Realms realms, AuditTrail auditTrail, CryptoService cryptoService,
-                                         AuthenticationFailureHandler failureHandler, ThreadPool threadPool, RestController controller) {
+                                         AuthenticationFailureHandler failureHandler, ThreadPool threadPool) {
         super(settings);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.realms = realms;
@@ -64,9 +64,6 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         this.threadContext = threadPool.getThreadContext();
         this.signUserHeader = SIGN_USER_HEADER.get(settings);
         this.runAsEnabled = RUN_AS_ENABLED.get(settings);
-        if (runAsEnabled) {
-            controller.registerRelevantHeaders(RUN_AS_USER_HEADER);
-        }
     }
 
     @Override

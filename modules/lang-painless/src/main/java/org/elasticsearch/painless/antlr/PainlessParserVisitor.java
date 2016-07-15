@@ -375,6 +375,12 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitPostfix(PainlessParser.PostfixContext ctx);
   /**
+   * Visit a parse tree produced by {@link PainlessParser#postdot}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPostdot(PainlessParser.PostdotContext ctx);
+  /**
    * Visit a parse tree produced by {@link PainlessParser#callinvoke}.
    * @param ctx the parse tree
    * @return the visitor result

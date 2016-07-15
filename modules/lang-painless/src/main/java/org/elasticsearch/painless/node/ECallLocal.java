@@ -51,8 +51,6 @@ public final class ECallLocal extends AExpression {
 
     @Override
     void extractVariables(Set<String> variables) {
-        prefix.extractVariables(variables);
-
         for (AExpression argument : arguments) {
             argument.extractVariables(variables);
         }

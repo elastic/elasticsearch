@@ -104,6 +104,7 @@ final class PSubDefCall extends AExpression {
                     parameterTypes.add(capture);
                 }
             }
+
             argument.write(writer, globals);
         }
 

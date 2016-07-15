@@ -124,9 +124,9 @@ unary
     ;
 
 chain
-    : primary postfix[true, true, true]*                             # dynamic
-    | decltype postfix[true, true, false] postfix[true, true, true]* # static
-    | arrayinitializer                                               # newarray
+    : primary postfix*          # dynamic
+    | decltype postdot postfix* # static
+    | arrayinitializer          # newarray
     ;
 
 primary
@@ -144,10 +144,15 @@ primary
     | NEW TYPE arguments                  # newobject
     ;
 
-postfix[boolean c, boolean f, boolean b]
-    : { $c }? callinvoke
-    | { $f }? fieldaccess
-    | { $b }? braceaccess
+postfix
+    : callinvoke
+    | fieldaccess
+    | braceaccess
+    ;
+
+postdot
+    : callinvoke
+    | fieldaccess
     ;
 
 callinvoke
@@ -163,10 +168,8 @@ braceaccess
     ;
 
 arrayinitializer
-    : NEW TYPE LBRACE expression RBRACE ( LBRACE expression? RBRACE )*
-        ( postfix[true, true, false] postfix[true, true, true]* )?                          # newstandardarray
-    | NEW TYPE LBRACE RBRACE LBRACK ( expression ( COMMA expression )* )? SEMICOLON? RBRACK
-        postfix[true, true, true]*                                                          # newinitializedarray
+    : NEW TYPE ( LBRACE expression RBRACE )+ ( postdot postfix* )?                                   # newstandardarray
+    | NEW TYPE LBRACE RBRACE LBRACK ( expression ( COMMA expression )* )? SEMICOLON? RBRACK postfix* # newinitializedarray
     ;
 
 listinitializer

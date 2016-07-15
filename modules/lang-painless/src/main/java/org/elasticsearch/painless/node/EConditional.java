@@ -93,6 +93,10 @@ public final class EConditional extends AExpression {
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
+        if (tru != null && fals != null) {
+            throw new IllegalStateException("Illegal tree structure.");
+        }
+
         Label localfals = new Label();
         Label end = new Label();
 

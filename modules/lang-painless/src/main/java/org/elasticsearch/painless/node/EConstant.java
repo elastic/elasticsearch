@@ -73,9 +73,11 @@ final class EConstant extends AExpression {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        checkWriteBranch(null);
-
         Sort sort = actual.sort;
+
+        if (sort != Sort.BOOL) {
+            checkWriteBranch(null);
+        }
 
         switch (sort) {
             case STRING: writer.push((String)constant);  break;

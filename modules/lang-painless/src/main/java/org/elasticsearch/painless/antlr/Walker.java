@@ -86,6 +86,7 @@ import org.elasticsearch.painless.antlr.PainlessParser.NumericContext;
 import org.elasticsearch.painless.antlr.PainlessParser.OperatorContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ParametersContext;
 import org.elasticsearch.painless.antlr.PainlessParser.PostContext;
+import org.elasticsearch.painless.antlr.PainlessParser.PostdotContext;
 import org.elasticsearch.painless.antlr.PainlessParser.PostfixContext;
 import org.elasticsearch.painless.antlr.PainlessParser.PreContext;
 import org.elasticsearch.painless.antlr.PainlessParser.PrecedenceContext;
@@ -705,7 +706,10 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         } else if (ctx.ADD() != null) {
             operation = Operation.ADD;
         } else if (ctx.SUB() != null) {
-            if (expression instanceof EDecimal || expression instanceof ENumeric) {
+            if (ctx.unary() instanceof ReadContext && ((ReadContext)ctx.unary()).chain() instanceof DynamicContext &&
+                ((DynamicContext)((ReadContext)ctx.unary()).chain()).primary() instanceof NumericContext &&
+                ((DynamicContext)((ReadContext)ctx.unary()).chain()).postfix().isEmpty()) {
+
                 return expression;
             }
 
@@ -729,14 +733,14 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     public ANode visitDynamic(DynamicContext ctx) {
         AExpression primary = (AExpression)visit(ctx.primary());
 
-        return buildPostfixChain(primary, ctx.postfix());
+        return buildPostfixChain(primary, null, ctx.postfix());
     }
 
     @Override
     public ANode visitStatic(StaticContext ctx) {
         String type = ctx.decltype().getText();
 
-        return buildPostfixChain(new EStatic(location(ctx), type), ctx.postfix());
+        return buildPostfixChain(new EStatic(location(ctx), type), ctx.postdot(), ctx.postfix());
     }
 
     @Override
@@ -834,8 +838,12 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         return new ENewObj(location(ctx), type, arguments);
     }
 
-    private AExpression buildPostfixChain(AExpression primary, List<PostfixContext> postfixes) {
+    private AExpression buildPostfixChain(AExpression primary, PostdotContext postdot, List<PostfixContext> postfixes) {
         AExpression prefix = primary;
+
+        if (postdot != null) {
+            prefix = visitPostdot(postdot, prefix);
+        }
 
         for (PostfixContext postfix : postfixes) {
             prefix = visitPostfix(postfix, prefix);
@@ -856,6 +864,21 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             return visitFieldaccess(ctx.fieldaccess(), prefix);
         } else if (ctx.braceaccess() != null) {
             return visitBraceaccess(ctx.braceaccess(), prefix);
+        } else {
+            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+        }
+    }
+
+    @Override
+    public ANode visitPostdot(PostdotContext ctx) {
+        throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+    }
+
+    public AExpression visitPostdot(PostdotContext ctx, AExpression prefix) {
+        if (ctx.callinvoke() != null) {
+            return visitCallinvoke(ctx.callinvoke(), prefix);
+        } else if (ctx.fieldaccess() != null) {
+            return visitFieldaccess(ctx.fieldaccess(), prefix);
         } else {
             throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
         }
@@ -912,7 +935,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             expressions.add((AExpression)visit(expression));
         }
 
-        return buildPostfixChain(new ENewArray(location(ctx), type, expressions, false), ctx.postfix());
+        return buildPostfixChain(new ENewArray(location(ctx), type, expressions, false), ctx.postdot(), ctx.postfix());
     }
 
     @Override
@@ -924,7 +947,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             expressions.add((AExpression)visit(expression));
         }
 
-        return buildPostfixChain(new ENewArray(location(ctx), type, expressions, true), ctx.postfix());
+        return buildPostfixChain(new ENewArray(location(ctx), type, expressions, true), null, ctx.postfix());
     }
 
     @Override

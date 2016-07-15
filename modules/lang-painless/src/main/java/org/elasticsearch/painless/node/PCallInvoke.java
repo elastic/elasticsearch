@@ -71,18 +71,16 @@ public final class PCallInvoke extends AExpression {
         }
 
         Struct struct = prefix.actual.struct;
-        Type box = null;
 
         if (prefix.actual.sort.primitive) {
-            box = Definition.getType(prefix.actual.sort.boxed.getSimpleName());
-            struct = box.struct;
+            struct = Definition.getType(prefix.actual.sort.boxed.getSimpleName()).struct;
         }
 
         MethodKey methodKey = new MethodKey(name, arguments.size());
         Method method = prefix instanceof EStatic ? struct.staticMethods.get(methodKey) : struct.methods.get(methodKey);
 
         if (method != null) {
-            sub = new PSubCallInvoke(location, method, box, arguments);
+            sub = new PSubCallInvoke(location, method, prefix.actual, arguments);
         } else if (prefix.actual.sort == Sort.DEF) {
             sub = new PSubDefCall(location, name, arguments);
         } else {

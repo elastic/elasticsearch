@@ -71,7 +71,7 @@ final class PSubCallInvoke extends AExpression {
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        if (box != null) {
+        if (box.sort.primitive) {
             writer.box(box.type);
         }
 

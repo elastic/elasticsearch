@@ -37,7 +37,7 @@ import java.util.Set;
 /**
  * Represents a for-each loop for arrays.
  */
-public class SSubEachArray extends AStatement {
+final class SSubEachArray extends AStatement {
     private final Variable variable;
     private AExpression expression;
     private final SBlock block;

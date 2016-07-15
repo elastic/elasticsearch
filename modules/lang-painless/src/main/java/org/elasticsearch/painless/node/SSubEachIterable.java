@@ -45,7 +45,7 @@ import static org.elasticsearch.painless.WriterConstants.ITERATOR_TYPE;
 /**
  * Represents a for-each loop for iterables.
  */
-public class SSubEachIterable extends AStatement {
+final class SSubEachIterable extends AStatement {
 
     private AExpression expression;
     private final SBlock block;

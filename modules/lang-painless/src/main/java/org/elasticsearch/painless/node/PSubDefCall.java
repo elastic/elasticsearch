@@ -52,9 +52,7 @@ final class PSubDefCall extends AExpression {
 
     @Override
     void extractVariables(Set<String> variables) {
-        for (AExpression argument : arguments) {
-            argument.extractVariables(variables);
-        }
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
     @Override

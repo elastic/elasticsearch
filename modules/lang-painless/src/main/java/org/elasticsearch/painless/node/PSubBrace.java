@@ -78,7 +78,7 @@ final class PSubBrace extends AStoreable {
 
     @Override
     void updateActual(Type actual) {
-        throw new IllegalStateException("Illegal tree structure.");
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
     @Override

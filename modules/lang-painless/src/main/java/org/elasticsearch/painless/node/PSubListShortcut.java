@@ -52,7 +52,7 @@ final class PSubListShortcut extends AStoreable {
 
     @Override
     void extractVariables(Set<String> variables) {
-        throw new IllegalStateException("Illegal tree structure.");
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
     @Override

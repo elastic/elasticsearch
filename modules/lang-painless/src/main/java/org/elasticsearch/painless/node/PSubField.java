@@ -45,7 +45,7 @@ final class PSubField extends AStoreable {
 
     @Override
     void extractVariables(Set<String> variables) {
-        // Do nothing.
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
     @Override

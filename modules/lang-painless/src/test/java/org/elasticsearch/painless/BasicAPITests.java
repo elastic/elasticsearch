@@ -70,7 +70,7 @@ public class BasicAPITests extends ScriptTestCase {
         ctx.put("_source", _source);
         params.put("ctx", ctx);
 
-        assertEquals("testvalue", exec("ctx._source['load'].5 = ctx._source['load'].remove('load5')", params));
+        assertEquals("testvalue", exec("ctx._source['load'].5 = ctx._source['load'].remove('load5')", params, true));
     }
 
     /** Test loads and stores with a list */

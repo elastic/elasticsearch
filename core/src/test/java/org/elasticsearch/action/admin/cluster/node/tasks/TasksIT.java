@@ -99,6 +99,11 @@ public class TasksIT extends ESIntegTestCase {
     private Map<Tuple<String, String>, RecordingTaskManagerListener> listeners = new HashMap<>();
 
     @Override
+    protected boolean addMockTransportService() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(MockTransportService.TestPlugin.class, TestTaskPlugin.class);
     }

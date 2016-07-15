@@ -121,7 +121,7 @@ public class Script implements ToXContent, Writeable {
         }
         doWriteTo(out);
     }
-    
+
     protected void doWriteTo(StreamOutput out) throws IOException {};
 
     /**
@@ -253,7 +253,7 @@ public class Script implements ToXContent, Writeable {
         }
 
         @Override
-        protected String parseInlineScript(XContentParser parser) throws IOException {
+        public String parseInlineScript(XContentParser parser) throws IOException {
             return parser.text();
         }
     }

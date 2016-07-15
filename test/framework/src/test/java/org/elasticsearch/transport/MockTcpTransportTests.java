@@ -30,7 +30,7 @@ public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {
     @Override
     protected MockTransportService build(Settings settings, Version version) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-        Transport transport = new MockTcpTransport("mock", settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
+        Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(), namedWriteableRegistry,   new NetworkService(settings), version);
         MockTransportService mockTransportService = new MockTransportService(Settings.EMPTY, transport, threadPool);
         mockTransportService.start();

@@ -33,6 +33,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingNumericDocValues;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -47,7 +48,8 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, GeoGridAggregationBuilder> {
-    public static final String NAME = InternalGeoHashGrid.TYPE.name();
+    public static final String NAME = "geohash_grid";
+    private static final Type TYPE = new Type(NAME);
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private int precision = GeoHashGridParser.DEFAULT_PRECISION;
@@ -55,14 +57,14 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     private int shardSize = -1;
 
     public GeoGridAggregationBuilder(String name) {
-        super(name, InternalGeoHashGrid.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        super(name, TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
     }
 
     /**
      * Read from a stream.
      */
     public GeoGridAggregationBuilder(StreamInput in) throws IOException {
-        super(in, InternalGeoHashGrid.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        super(in, TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
         precision = in.readVInt();
         requiredSize = in.readVInt();
         shardSize = in.readVInt();

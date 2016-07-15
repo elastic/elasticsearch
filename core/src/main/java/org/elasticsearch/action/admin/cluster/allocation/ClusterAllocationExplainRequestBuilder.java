@@ -53,6 +53,18 @@ public class ClusterAllocationExplainRequestBuilder
         return this;
     }
 
+    /** Whether to include "YES" decider decisions in the response instead of only "NO" decisions */
+    public ClusterAllocationExplainRequestBuilder setIncludeYesDecisions(boolean includeYesDecisions) {
+        request.includeYesDecisions(includeYesDecisions);
+        return this;
+    }
+
+    /** Whether to include information about the gathered disk information of nodes in the cluster */
+    public ClusterAllocationExplainRequestBuilder setIncludeDiskInfo(boolean includeDiskInfo) {
+        request.includeDiskInfo(includeDiskInfo);
+        return this;
+    }
+
     /**
      * Signal that the first unassigned shard should be used
      */

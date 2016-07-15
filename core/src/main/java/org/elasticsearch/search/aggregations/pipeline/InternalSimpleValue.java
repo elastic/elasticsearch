@@ -51,7 +51,7 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
 
     private double value;
 
-    protected InternalSimpleValue() {
+    protected InternalSimpleValue() { // NORELEASE remove and make value final if possible
     } // for serialization
 
     public InternalSimpleValue(String name, double value, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
@@ -59,6 +59,27 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
         super(name, pipelineAggregators, metaData);
         this.format = formatter;
         this.value = value;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public InternalSimpleValue(StreamInput in) throws IOException {
+        super(in);
+        format = in.readNamedWriteable(DocValueFormat.class);
+        value = in.readDouble();
+    }
+
+    @Override
+    protected void doReadFrom(StreamInput in) throws IOException {
+        format = in.readNamedWriteable(DocValueFormat.class);
+        value = in.readDouble();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(format);
+        out.writeDouble(value);
     }
 
     @Override
@@ -78,18 +99,6 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
     @Override
     public InternalMax doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         throw new UnsupportedOperationException("Not supported");
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        format = in.readNamedWriteable(DocValueFormat.class);
-        value = in.readDouble();
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(format);
-        out.writeDouble(value);
     }
 
     @Override

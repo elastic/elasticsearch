@@ -394,10 +394,23 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 indexOutput.close();
             }
             final String temporaryFileName = getTempNameForFile(name);
-            assert Arrays.asList(store.directory().listAll()).contains(temporaryFileName);
+            assert assertTempFileExists(temporaryFileName);
             store.directory().sync(Collections.singleton(temporaryFileName));
             IndexOutput remove = removeOpenIndexOutputs(name);
             assert remove == null || remove == indexOutput; // remove maybe null if we got finished
         }
+    }
+
+    private boolean assertTempFileExists(String temporaryFileName) throws IOException {
+        try {
+            assert Arrays.asList(store.directory().listAll()).contains(temporaryFileName) :
+                "expected: [" + temporaryFileName + "] in " + Arrays.toString(store.directory().listAll());
+        } catch (AssertionError error) {
+            if (finished.get() == false) {
+                // if we got canceled stuff might not be here anymore..
+                throw error;
+            }
+        }
+        return true;
     }
 }

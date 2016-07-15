@@ -183,10 +183,19 @@ shard it finds by sending an empty body, such as:
 $ curl -XGET 'http://localhost:9200/_cluster/allocation/explain'
 --------------------------------------------------
 
-And if you would like to include all decisions that were factored into the final
+If you would like to include all decisions that were factored into the final
 decision, the `include_yes_decisions` parameter will return all decisions:
 
 [source,js]
 --------------------------------------------------
 $ curl -XGET 'http://localhost:9200/_cluster/allocation/explain?include_yes_decisions=true'
+--------------------------------------------------
+
+Additionally, you can return information gathered by the cluster info service
+about disk usage and shard sizes by setting the `include_disk_info` parameter to
+`true`:
+
+[source,js]
+--------------------------------------------------
+$ curl -XGET 'http://localhost:9200/_cluster/allocation/explain?include_disk_info=true'
 --------------------------------------------------

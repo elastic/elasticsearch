@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
@@ -45,7 +46,8 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<ParentChild, ChildrenAggregationBuilder> {
-    public static final String NAME = InternalChildren.TYPE.name();
+    public static final String NAME = "children";
+    private static final Type TYPE = new Type(NAME);
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private String parentType;
@@ -60,7 +62,7 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<P
      *            the type of children documents
      */
     public ChildrenAggregationBuilder(String name, String childType) {
-        super(name, InternalChildren.TYPE, ValuesSourceType.BYTES, ValueType.STRING);
+        super(name, TYPE, ValuesSourceType.BYTES, ValueType.STRING);
         if (childType == null) {
             throw new IllegalArgumentException("[childType] must not be null: [" + name + "]");
         }
@@ -71,7 +73,7 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<P
      * Read from a stream.
      */
     public ChildrenAggregationBuilder(StreamInput in) throws IOException {
-        super(in, InternalChildren.TYPE, ValuesSourceType.BYTES, ValueType.STRING);
+        super(in, TYPE, ValuesSourceType.BYTES, ValueType.STRING);
         childType = in.readString();
     }
 

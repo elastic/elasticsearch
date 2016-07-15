@@ -923,7 +923,6 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
                 .endObject().endObject()
                 .endObject())
             .get());
-        ensureYellow();
     }
 
     private void createIndexAndMapping(CompletionMappingBuilder completionMappingBuilder) throws IOException {
@@ -1067,7 +1066,6 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
                 .endObject()
                 .endObject().endObject()
                 .endObject()).get());
-        ensureYellow();
         // can cause stack overflow without the default max_input_length
         String longString = replaceReservedChars(randomRealisticUnicodeOfLength(randomIntBetween(5000, 10000)), (char) 0x01);
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
@@ -1088,7 +1086,6 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
             .endObject()
             .endObject().endObject()
             .endObject()).get());
-        ensureYellow();
         // can cause stack overflow without the default max_input_length
         String string = "foo" + (char) 0x00 + "bar";
         try {
@@ -1111,7 +1108,6 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
             .endObject()
             .endObject().endObject()
             .endObject()).get());
-        ensureYellow();
         String string = "foo bar";
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
             .startObject()

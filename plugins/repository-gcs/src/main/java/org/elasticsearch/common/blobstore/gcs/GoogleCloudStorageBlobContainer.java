@@ -85,16 +85,6 @@ public class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void deleteBlobsByPrefix(String prefix) throws IOException {
-        blobStore.deleteBlobsByPrefix(buildKey(prefix));
-    }
-
-    @Override
-    public void deleteBlobs(Collection<String> blobNames) throws IOException {
-        blobStore.deleteBlobs(buildKeys(blobNames));
-    }
-
-    @Override
     public void move(String sourceBlobName, String targetBlobName) throws IOException {
         blobStore.moveBlob(buildKey(sourceBlobName), buildKey(targetBlobName));
     }
@@ -102,13 +92,5 @@ public class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     protected String buildKey(String blobName) {
         assert blobName != null;
         return path + blobName;
-    }
-
-    protected Set<String> buildKeys(Collection<String> blobNames) {
-        Set<String> keys = new HashSet<>();
-        if (blobNames != null) {
-            keys.addAll(blobNames.stream().map(this::buildKey).collect(Collectors.toList()));
-        }
-        return keys;
     }
 }

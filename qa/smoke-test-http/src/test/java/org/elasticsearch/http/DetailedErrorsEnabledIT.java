@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * Tests that by default the error_trace parameter can be used to show stacktraces
  */
-public class DetailedErrorsEnabledIT extends ESIntegTestCase {
+public class DetailedErrorsEnabledIT extends HttpSmokeTestCase {
 
     public void testThatErrorTraceWorksByDefault() throws Exception {
         try {

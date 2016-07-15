@@ -24,7 +24,6 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -49,7 +48,7 @@ public final class TrackingResultProcessor implements Processor {
             processorResultList.add(new SimulateProcessorResult(actualProcessor.getTag(), new IngestDocument(ingestDocument)));
         } catch (Exception e) {
             if (ignoreFailure) {
-                processorResultList.add(new SimulateProcessorResult(actualProcessor.getTag(), new IngestDocument(ingestDocument)));
+                processorResultList.add(new SimulateProcessorResult(actualProcessor.getTag(), new IngestDocument(ingestDocument), e));
             } else {
                 processorResultList.add(new SimulateProcessorResult(actualProcessor.getTag(), e));
             }

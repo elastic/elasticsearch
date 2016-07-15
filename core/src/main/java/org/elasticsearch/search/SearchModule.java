@@ -382,10 +382,8 @@ public class SearchModule extends AbstractModule {
      * Register an aggregation.
      */
     public void registerAggregation(AggregationSpec spec) {
-        if (false == transportClient) {
-            namedWriteableRegistry.register(AggregationBuilder.class, spec.aggregationName.getPreferredName(), spec.builderReader);
-            aggregationParserRegistry.register(spec.aggregationParser, spec.aggregationName);
-        }
+        namedWriteableRegistry.register(AggregationBuilder.class, spec.aggregationName.getPreferredName(), spec.builderReader);
+        aggregationParserRegistry.register(spec.aggregationParser, spec.aggregationName);
         for (Map.Entry<String, Writeable.Reader<? extends InternalAggregation>> t : spec.resultReaders.entrySet()) {
             String writeableName = t.getKey();
             Writeable.Reader<? extends InternalAggregation> internalReader = t.getValue();
@@ -414,7 +412,7 @@ public class SearchModule extends AbstractModule {
         }
 
         /**
-         * Add a reader for the shard level results of the aggregation with {@linkplain aggregationName}'s
+         * Add a reader for the shard level results of the aggregation with {@linkplain #aggregationName}'s
          * {@link ParseField#getPreferredName()} as the {@link NamedWriteable#getWriteableName()}.
          */
         public AggregationSpec addResultReader(Writeable.Reader<? extends InternalAggregation> resultReader) {
@@ -430,19 +428,12 @@ public class SearchModule extends AbstractModule {
         }
     }
 
-    public void registerAggregation(Writeable.Reader<? extends AggregationBuilder> builderReader, Aggregator.Parser aggregationParser,
-            ParseField aggregationName) {
-        // NORELEASE remove me in favor of the above method
-        namedWriteableRegistry.register(AggregationBuilder.class, aggregationName.getPreferredName(), builderReader);
-        aggregationParserRegistry.register(aggregationParser, aggregationName);
-    }
-
     /**
      * Register a pipeline aggregation.
      *
      * @param reader reads the aggregation builder from a stream
      * @param internalReader reads the {@link PipelineAggregator} from a stream
-     * @param internalReader reads the {@link InternalAggregation} that represents a bucket in this aggregation from a stream
+     * @param bucketReader reads the {@link InternalAggregation} that represents a bucket in this aggregation from a stream
      * @param aggregationParser reads the aggregation builder from XContent
      * @param aggregationName names by which the aggregation may be parsed. The first name is special because it is the name that the reader
      *        is registered under.
@@ -451,9 +442,9 @@ public class SearchModule extends AbstractModule {
             Writeable.Reader<? extends PipelineAggregator> internalReader, Writeable.Reader<? extends InternalAggregation> bucketReader,
             PipelineAggregator.Parser aggregationParser, ParseField aggregationName) {
         if (false == transportClient) {
-            namedWriteableRegistry.register(PipelineAggregationBuilder.class, aggregationName.getPreferredName(), reader);
             pipelineAggregationParserRegistry.register(aggregationParser, aggregationName);
         }
+        namedWriteableRegistry.register(PipelineAggregationBuilder.class, aggregationName.getPreferredName(), reader);
         namedWriteableRegistry.register(PipelineAggregator.class, aggregationName.getPreferredName(), internalReader);
         namedWriteableRegistry.register(InternalAggregation.class, aggregationName.getPreferredName(), bucketReader);
     }
@@ -476,9 +467,9 @@ public class SearchModule extends AbstractModule {
             bind(IndicesQueriesRegistry.class).toInstance(queryParserRegistry);
             bind(Suggesters.class).toInstance(getSuggesters());
             configureSearch();
-            configureShapes();
             bind(AggregatorParsers.class).toInstance(aggregatorParsers);
         }
+        configureShapes();
     }
 
     private void registerBuiltinAggregations() {
@@ -518,45 +509,52 @@ public class SearchModule extends AbstractModule {
         registerAggregation(new AggregationSpec(SamplerAggregationBuilder::new, SamplerAggregationBuilder::parse,
                 SamplerAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalSampler.NAME, InternalSampler::new)
                         .addResultReader(UnmappedSampler.NAME, UnmappedSampler::new));
-        registerAggregation(DiversifiedAggregationBuilder::new, new DiversifiedSamplerParser(),
-                DiversifiedAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(new AggregationSpec(DiversifiedAggregationBuilder::new, new DiversifiedSamplerParser(),
+                DiversifiedAggregationBuilder.AGGREGATION_NAME_FIELD));
         registerAggregation(
                 new AggregationSpec(TermsAggregationBuilder::new, new TermsParser(), TermsAggregationBuilder.AGGREGATION_NAME_FIELD)
                     .addResultReader(StringTerms.NAME, StringTerms::new)
                     .addResultReader(UnmappedTerms.NAME, UnmappedTerms::new)
                     .addResultReader(LongTerms.NAME, LongTerms::new)
                     .addResultReader(DoubleTerms.NAME, DoubleTerms::new));
-        registerAggregation(SignificantTermsAggregationBuilder::new,
+        registerAggregation(new AggregationSpec(SignificantTermsAggregationBuilder::new,
                 new SignificantTermsParser(significanceHeuristicParserRegistry, queryParserRegistry),
-                SignificantTermsAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(
-                new AggregationSpec(RangeAggregationBuilder::new, new RangeParser(), RangeAggregationBuilder.AGGREGATION_NAME_FIELD)
-                        .addResultReader(InternalRange::new));
+                SignificantTermsAggregationBuilder.AGGREGATION_NAME_FIELD)
+                    .addResultReader(SignificantStringTerms.NAME, SignificantStringTerms::new)
+                    .addResultReader(SignificantLongTerms.NAME, SignificantLongTerms::new)
+                    .addResultReader(UnmappedSignificantTerms.NAME, UnmappedSignificantTerms::new));
+        registerAggregation(new AggregationSpec(RangeAggregationBuilder::new, new RangeParser(),
+                RangeAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalRange::new));
         registerAggregation(new AggregationSpec(DateRangeAggregationBuilder::new, new DateRangeParser(),
                 DateRangeAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalDateRange::new));
-        registerAggregation(IpRangeAggregationBuilder::new, new IpRangeParser(), IpRangeAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(HistogramAggregationBuilder::new, new HistogramParser(), HistogramAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(DateHistogramAggregationBuilder::new, new DateHistogramParser(),
-                DateHistogramAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(
+                new AggregationSpec(IpRangeAggregationBuilder::new, new IpRangeParser(), IpRangeAggregationBuilder.AGGREGATION_NAME_FIELD)
+                        .addResultReader(InternalBinaryRange::new));
+        registerAggregation(new AggregationSpec(HistogramAggregationBuilder::new, new HistogramParser(),
+                HistogramAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalHistogram::new));
+        registerAggregation(new AggregationSpec(DateHistogramAggregationBuilder::new, new DateHistogramParser(),
+                DateHistogramAggregationBuilder.AGGREGATION_NAME_FIELD));
         registerAggregation(new AggregationSpec(GeoDistanceAggregationBuilder::new, new GeoDistanceParser(),
                 GeoDistanceAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalGeoDistance::new));
-        registerAggregation(GeoGridAggregationBuilder::new, new GeoHashGridParser(), GeoGridAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(NestedAggregationBuilder::new, NestedAggregationBuilder::parse,
-                NestedAggregationBuilder.AGGREGATION_FIELD_NAME);
-        registerAggregation(ReverseNestedAggregationBuilder::new, ReverseNestedAggregationBuilder::parse,
-                ReverseNestedAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(TopHitsAggregationBuilder::new, TopHitsAggregationBuilder::parse,
-                TopHitsAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(GeoBoundsAggregationBuilder::new, new GeoBoundsParser(), GeoBoundsAggregationBuilder.AGGREGATION_NAME_FIED);
+        registerAggregation(new AggregationSpec(GeoGridAggregationBuilder::new, new GeoHashGridParser(),
+                GeoGridAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalGeoHashGrid::new));
+        registerAggregation(new AggregationSpec(NestedAggregationBuilder::new, NestedAggregationBuilder::parse,
+                NestedAggregationBuilder.AGGREGATION_FIELD_NAME).addResultReader(InternalNested::new));
+        registerAggregation(new AggregationSpec(ReverseNestedAggregationBuilder::new, ReverseNestedAggregationBuilder::parse,
+                ReverseNestedAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalReverseNested::new));
+        registerAggregation(new AggregationSpec(TopHitsAggregationBuilder::new, TopHitsAggregationBuilder::parse,
+                TopHitsAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalTopHits::new));
+        registerAggregation(new AggregationSpec(GeoBoundsAggregationBuilder::new, new GeoBoundsParser(),
+                GeoBoundsAggregationBuilder.AGGREGATION_NAME_FIED).addResultReader(InternalGeoBounds::new));
         registerAggregation(new AggregationSpec(GeoCentroidAggregationBuilder::new, new GeoCentroidParser(),
                 GeoCentroidAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalGeoCentroid::new));
         registerAggregation(new AggregationSpec(ScriptedMetricAggregationBuilder::new, ScriptedMetricAggregationBuilder::parse,
                 ScriptedMetricAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalScriptedMetric::new));
-        registerAggregation(ChildrenAggregationBuilder::new, ChildrenAggregationBuilder::parse,
-                ChildrenAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(new AggregationSpec(ChildrenAggregationBuilder::new, ChildrenAggregationBuilder::parse,
+                ChildrenAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalChildren::new));
 
-        registerPipelineAggregation(DerivativePipelineAggregationBuilder::new, DerivativePipelineAggregationBuilder::parse,
-                DerivativePipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerPipelineAggregation(DerivativePipelineAggregationBuilder::new, DerivativePipelineAggregator::new, InternalDerivative::new,
+                DerivativePipelineAggregationBuilder::parse, DerivativePipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerPipelineAggregation(MaxBucketPipelineAggregationBuilder::new, MaxBucketPipelineAggregationBuilder.PARSER,
                 MaxBucketPipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerPipelineAggregation(MinBucketPipelineAggregationBuilder::new, MinBucketPipelineAggregationBuilder.PARSER,
@@ -817,22 +815,7 @@ public class SearchModule extends AbstractModule {
     }
 
     static {
-        // buckets
-        SignificantStringTerms.registerStreams();
-        SignificantLongTerms.registerStreams();
-        UnmappedSignificantTerms.registerStreams();
-        InternalGeoHashGrid.registerStreams();
-        InternalBinaryRange.registerStream();
-        InternalHistogram.registerStream();
-        InternalNested.registerStream();
-        InternalReverseNested.registerStream();
-        InternalTopHits.registerStreams();
-        InternalGeoBounds.registerStream();
-        InternalChildren.registerStream();
-
         // Pipeline Aggregations
-        DerivativePipelineAggregator.registerStreams();
-        InternalDerivative.registerStreams();
         InternalSimpleValue.registerStreams();
         InternalBucketMetricValue.registerStreams();
         MaxBucketPipelineAggregator.registerStreams();

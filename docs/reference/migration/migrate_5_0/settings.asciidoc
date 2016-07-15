@@ -28,6 +28,9 @@ The `name` setting has been removed and is replaced by `node.name`. Usage of
 
 The `node.add_id_to_custom_path` was renamed to `add_lock_id_to_custom_path`.
 
+The settings `node.mode` and `node.local` are removed. Local mode should be configured via
+`discovery.type: local` and `transport.type:local`. In order to disable _http_ please use `http.enabled: false`
+
 ==== Node attribute settings
 
 Node level attributes used for allocation filtering, forced awareness or other node identification / grouping
@@ -65,6 +68,10 @@ The `_non_loopback_` value for settings like `network.host` would arbitrarily
 pick the first interface not marked as loopback. Instead, specify by address
 scope (e.g. `_local_,_site_` for all loopback and private network addresses)
 or by explicit interface names, hostnames, or addresses.
+
+The `netty.epollBugWorkaround` settings is removed. This settings allow people to enable
+a netty work around for https://github.com/netty/netty/issues/327[a high CPU usage issue] with early JVM versions. 
+This bug was http://bugs.java.com/view_bug.do?bug_id=6403933[fixed in Java 7]. Since Elasticsearch 5.0 requires Java 8 the settings is removed. Note that if the workaround needs to be reintroduced you can still set the `org.jboss.netty.epollBugWorkaround` system property to control Netty directly.
 
 ==== Forbid changing of thread pool types
 
@@ -228,6 +235,11 @@ Instead, use `-Ename.of.setting=value.of.setting`.
 Elasticsearch could previously be configured on the command line by
 setting settings via `--name.of.setting value.of.setting`. This feature
 has been removed. Instead, use `-Ename.of.setting=value.of.setting`.
+
+==== Remove support for .properties config files
+
+The Elasticsearch configuration and logging configuration can no longer be stored in the Java
+properties file format (line-delimited key=value pairs with a `.properties` extension).
 
 ==== Discovery Settings
 

@@ -91,7 +91,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
-        ensureYellow(INDEX);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
         assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
     }
@@ -123,7 +122,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
-        ensureYellow(INDEX);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).regex("sugg.*es");
         assertSuggestions("foo", prefix, "sugg9estion", "sugg8estion", "sugg7estion", "sugg6estion", "sugg5estion");
     }
@@ -155,7 +153,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
-        ensureYellow(INDEX);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg", Fuzziness.ONE);
         assertSuggestions("foo", prefix, "sugxgestion9", "sugxgestion8", "sugxgestion7", "sugxgestion6", "sugxgestion5");
     }
@@ -180,7 +177,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     ));
         }
         indexRandom(true, indexRequestBuilders);
-        ensureYellow(INDEX);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
                 .contexts(Collections.singletonMap("cat", Collections.singletonList(CategoryQueryContext.builder().setCategory("cat0").build())));
 
@@ -207,7 +203,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     ));
         }
         indexRandom(true, indexRequestBuilders);
-        ensureYellow(INDEX);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
                 .contexts(Collections.singletonMap("cat",
                         Arrays.asList(CategoryQueryContext.builder().setCategory("cat0").setBoost(3).build(),
@@ -237,7 +232,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
-        ensureYellow(INDEX);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
 
         assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
@@ -265,7 +259,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
-        ensureYellow(INDEX);
 
         // filter only on context cat
         CompletionSuggestionBuilder catFilterSuggest = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
@@ -310,7 +303,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
-        ensureYellow(INDEX);
 
         // boost only on context cat
         CompletionSuggestionBuilder catBoostSuggest = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
@@ -370,7 +362,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
-        ensureYellow(INDEX);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
         assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
     }
@@ -400,7 +391,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
-        ensureYellow(INDEX);
 
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
         assertSuggestions("foo", prefix, "suggestion0", "suggestion1", "suggestion2", "suggestion3", "suggestion4");
@@ -427,7 +417,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
-        ensureYellow(INDEX);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
         assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
     }
@@ -454,7 +443,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
-        ensureYellow(INDEX);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
         assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
 
@@ -487,7 +475,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
-        ensureYellow(INDEX);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
         assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
 
@@ -523,7 +510,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
-        ensureYellow(INDEX);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
                 .contexts(Collections.singletonMap("geo", Collections.singletonList(GeoQueryContext.builder().setGeoPoint(new GeoPoint(52.2263, 4.543)).build())));
         assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
@@ -561,7 +547,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
-        ensureYellow(INDEX);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
         assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
 
@@ -599,7 +584,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         mapping.endObject();
 
         assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
-        ensureYellow();
 
         XContentBuilder source1 = jsonBuilder()
                 .startObject()
@@ -686,6 +670,5 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put(indexSettings()).put(settings))
                 .addMapping(TYPE, mapping)
                 .get());
-        ensureYellow();
     }
 }

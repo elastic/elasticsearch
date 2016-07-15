@@ -27,6 +27,7 @@ import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
@@ -71,6 +72,9 @@ public class CustomFieldQuery extends FieldQuery {
         } else if (sourceQuery instanceof BlendedTermQuery) {
             final BlendedTermQuery blendedTermQuery = (BlendedTermQuery) sourceQuery;
             flatten(blendedTermQuery.rewrite(reader), reader, flatQueries, boost);
+        } else if (sourceQuery instanceof ToParentBlockJoinQuery) {
+            ToParentBlockJoinQuery blockJoinQuery = (ToParentBlockJoinQuery) sourceQuery;
+            flatten(blockJoinQuery.getChildQuery(), reader, flatQueries, boost);
         } else {
             super.flatten(sourceQuery, reader, flatQueries, boost);
         }

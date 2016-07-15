@@ -21,14 +21,11 @@ package org.elasticsearch.http;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.jboss.netty.handler.codec.http.HttpHeaders;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
@@ -41,7 +38,7 @@ import static org.hamcrest.Matchers.nullValue;
  * Test CORS where the allow origin value is a regular expression.
  */
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
-public class CorsRegexIT extends ESIntegTestCase {
+public class CorsRegexIT extends HttpSmokeTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -105,7 +102,7 @@ public class CorsRegexIT extends ESIntegTestCase {
         String corsValue = "http://localhost:9200";
         try (Response response = getRestClient().performRequest("OPTIONS", "/",
                 new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue),
-                new BasicHeader(HttpHeaders.Names.ACCESS_CONTROL_REQUEST_METHOD, "GET"));) {
+                new BasicHeader("Access-Control-Request-Method", "GET"));) {
             assertResponseWithOriginheader(response, corsValue);
             assertNotNull(response.getHeader("Access-Control-Allow-Methods"));
         }
@@ -115,7 +112,7 @@ public class CorsRegexIT extends ESIntegTestCase {
         try {
             getRestClient().performRequest("OPTIONS", "/", new BasicHeader("User-Agent", "Mozilla Bar"),
                     new BasicHeader("Origin", "http://evil-host:9200"),
-                    new BasicHeader(HttpHeaders.Names.ACCESS_CONTROL_REQUEST_METHOD, "GET"));
+                    new BasicHeader("Access-Control-Request-Method", "GET"));
             fail("request should have failed");
         } catch(ResponseException e) {
             Response response = e.getResponse();

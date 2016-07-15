@@ -231,14 +231,12 @@
                {
                   "foreach": {
                      "field": "values",
-                     "processors": [
-                        {
+                     "processor": {
                           "append": {
                              "field": "values_flat",
                              "value": "{{_value.key}}_{{_value.value}}"
                           }
-                       }
-                     ]
+                    }
                   }
                }
             ]

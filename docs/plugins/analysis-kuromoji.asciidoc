@@ -172,8 +172,6 @@ PUT kuromoji_sample
   }
 }
 
-GET _cluster/health?wait_for_status=yellow
-
 POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=東京スカイツリー
 --------------------------------------------------
 // CONSOLE
@@ -225,8 +223,6 @@ PUT kuromoji_sample
     }
   }
 }
-
-GET _cluster/health?wait_for_status=yellow
 
 POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=飲み
 --------------------------------------------------
@@ -285,8 +281,6 @@ PUT kuromoji_sample
     }
   }
 }
-
-GET _cluster/health?wait_for_status=yellow
 
 POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=寿司がおいしいね
 
@@ -360,8 +354,6 @@ PUT kuromoji_sample
     }
 }
 
-GET _cluster/health?wait_for_status=yellow
-
 POST kuromoji_sample/_analyze?analyzer=katakana_analyzer&text=寿司 <1>
 
 POST kuromoji_sample/_analyze?analyzer=romaji_analyzer&text=寿司 <2>
@@ -413,8 +405,6 @@ PUT kuromoji_sample
   }
 }
 
-GET _cluster/health?wait_for_status=yellow
-
 POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=コピー <1>
 
 POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=サーバー <2>
@@ -464,8 +454,6 @@ PUT kuromoji_sample
   }
 }
 
-GET _cluster/health?wait_for_status=yellow
-
 POST kuromoji_sample/_analyze?analyzer=analyzer_with_ja_stop&text=ストップは消える
 --------------------------------------------------
 // CONSOLE
@@ -511,8 +499,6 @@ PUT kuromoji_sample
     }
   }
 }
-
-GET _cluster/health?wait_for_status=yellow
 
 POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=一〇〇〇
 

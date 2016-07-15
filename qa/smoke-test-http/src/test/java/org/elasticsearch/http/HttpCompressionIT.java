@@ -33,7 +33,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.io.IOException;
 import java.util.Collections;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 1)
 public class HttpCompressionIT extends ESIntegTestCase {
     private static final String GZIP_ENCODING = "gzip";
 
@@ -44,6 +43,10 @@ public class HttpCompressionIT extends ESIntegTestCase {
         "   }\n" +
         "}", RestClient.JSON_CONTENT_TYPE);
 
+    @Override
+    protected boolean ignoreExternalCluster() {
+        return false;
+    }
 
     public void testCompressesResponseIfRequested() throws Exception {
         ensureGreen();

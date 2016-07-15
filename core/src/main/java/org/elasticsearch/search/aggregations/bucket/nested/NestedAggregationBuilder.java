@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
@@ -35,7 +36,8 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedAggregationBuilder> {
-    public static final String NAME = InternalNested.TYPE.name();
+    public static final String NAME = "nested";
+    private static final Type TYPE = new Type(NAME);
     public static final ParseField AGGREGATION_FIELD_NAME = new ParseField(NAME);
 
     private final String path;
@@ -48,7 +50,7 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
      *            match the path to a nested object in the mappings.
      */
     public NestedAggregationBuilder(String name, String path) {
-        super(name, InternalNested.TYPE);
+        super(name, TYPE);
         if (path == null) {
             throw new IllegalArgumentException("[path] must not be null: [" + name + "]");
         }
@@ -59,7 +61,7 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
      * Read from a stream.
      */
     public NestedAggregationBuilder(StreamInput in) throws IOException {
-        super(in, InternalNested.TYPE);
+        super(in, TYPE);
         path = in.readString();
     }
 

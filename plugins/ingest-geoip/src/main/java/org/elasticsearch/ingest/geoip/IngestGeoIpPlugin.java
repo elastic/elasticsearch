@@ -35,25 +35,20 @@ import java.util.zip.GZIPInputStream;
 
 import com.maxmind.geoip2.DatabaseReader;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.TemplateService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptService;
 
 public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable {
 
     private Map<String, DatabaseReader> databaseReaders;
 
     @Override
-    public Map<String, Processor.Factory> getProcessors(
-        Environment env, ScriptService scriptService, TemplateService templateService) {
+    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         if (databaseReaders != null) {
             throw new IllegalStateException("called onModule twice for geoip plugin!!");
         }
-        Path geoIpConfigDirectory = env.configFile().resolve("ingest-geoip");
+        Path geoIpConfigDirectory = parameters.env.configFile().resolve("ingest-geoip");
         try {
             databaseReaders = loadDatabaseReaders(geoIpConfigDirectory);
         } catch (IOException e) {

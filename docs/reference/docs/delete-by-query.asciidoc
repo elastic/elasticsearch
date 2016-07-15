@@ -101,7 +101,7 @@ POST twitter,blog/tweet,post/_delete_by_query
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT twitter\nPUT blog\nGET _cluster\/health?wait_for_status=yellow\n/]
+// TEST[s/^/PUT twitter\nPUT blog\n/]
 
 If you provide `routing` then the routing is copied to the scroll query,
 limiting the process to the shards that match that routing value:

@@ -99,7 +99,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
         Settings settings = Settings.builder()
                 .put(getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient"))
                 .build();
-        ClientSSLService service = new ClientSSLService(settings, new Global(settings));
+        ClientSSLService service = new ClientSSLService(settings, null, new Global(settings), null);
 
         CredentialsProvider provider = new BasicCredentialsProvider();
         provider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(nodeClientUsername(),

@@ -12,13 +12,9 @@ import org.elasticsearch.xpack.security.ssl.SSLConfiguration.Global;
 
 public class ClientSSLService extends AbstractSSLService {
 
-    public ClientSSLService(Settings settings, Global globalSSLConfiguration) {
-        super(settings, null, globalSSLConfiguration, null);
-    }
-
-    public void setEnvAndResourceWatcher(Environment environment, ResourceWatcherService resourceWatcherService) {
-        this.env = environment;
-        this.resourceWatcherService = resourceWatcherService;
+    public ClientSSLService(Settings settings, Environment env, Global globalSSLConfiguration,
+                            ResourceWatcherService resourceWatcherService) {
+        super(settings, env, globalSSLConfiguration, resourceWatcherService);
     }
 
     @Override

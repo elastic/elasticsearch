@@ -59,7 +59,7 @@ public class ClientSSLServiceTests extends ESTestCase {
                     .put("xpack.security.ssl.truststore.path", testclientStore)
                     .put("xpack.security.ssl.truststore.password", "testclient")
                     .build();
-            ClientSSLService clientSSLService = new ClientSSLService(settings, new Global(settings));
+            ClientSSLService clientSSLService = new ClientSSLService(settings, null, new Global(settings), null);
             clientSSLService.createSSLEngine();
             fail("expected an exception");
         } catch (ElasticsearchException e) {
@@ -284,8 +284,7 @@ public class ClientSSLServiceTests extends ESTestCase {
     }
 
     private ClientSSLService createClientSSLService(Settings settings) {
-        ClientSSLService clientSSLService = new ClientSSLService(settings, new Global(settings));
-        clientSSLService.setEnvAndResourceWatcher(env, null);
+        ClientSSLService clientSSLService = new ClientSSLService(settings, env, new Global(settings), null);
         return clientSSLService;
     }
 }

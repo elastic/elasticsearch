@@ -159,9 +159,10 @@ public class Security implements ActionPlugin {
             modules.add(new SecurityModule(settings));
             modules.add(new SecurityTransportModule(settings));
             modules.add(b -> {
-                // for transport client we still must construct these ssl classes with guice
+                // for transport client we still must inject these ssl classes with guice
                 b.bind(ServerSSLService.class).toProvider(Providers.<ServerSSLService>of(null));
-                b.bind(ClientSSLService.class).toInstance(new ClientSSLService(settings, new SSLConfiguration.Global(settings)));
+                b.bind(ClientSSLService.class).toInstance(
+                    new ClientSSLService(settings, null, new SSLConfiguration.Global(settings), null));
             });
 
             return modules;
@@ -206,10 +207,7 @@ public class Security implements ActionPlugin {
         }
 
         final SSLConfiguration.Global globalSslConfig = new SSLConfiguration.Global(settings);
-        // client ssl still has an injected ctor b/c it is used by transport client, and
-        // there environmet and resource watcher do not exist, so we must set them after construction
-        final ClientSSLService clientSSLService = new ClientSSLService(settings, globalSslConfig);
-        clientSSLService.setEnvAndResourceWatcher(env, resourceWatcherService);
+        final ClientSSLService clientSSLService = new ClientSSLService(settings, env, globalSslConfig, resourceWatcherService);
         final ServerSSLService serverSSLService = new ServerSSLService(settings, env, globalSslConfig, resourceWatcherService);
 
         return Arrays.asList(clientSSLService, serverSSLService);

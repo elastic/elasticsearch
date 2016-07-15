@@ -56,12 +56,12 @@ public class PriorityTests extends ESTestCase {
             Priority priority = Priority.readFrom(out.bytes().streamInput());
             assertSame(p, priority);
         }
-        assertSame(Priority.IMMEDIATE, Priority.fromByte((byte) -1));
-        assertSame(Priority.HIGH, Priority.fromByte((byte) 1));
-        assertSame(Priority.LANGUID, Priority.fromByte((byte) 4));
-        assertSame(Priority.LOW, Priority.fromByte((byte) 3));
-        assertSame(Priority.NORMAL, Priority.fromByte((byte) 2));
-        assertSame(Priority.URGENT,Priority.fromByte((byte) 0));
+        assertSame(Priority.IMMEDIATE, Priority.fromByte((byte) 0));
+        assertSame(Priority.HIGH, Priority.fromByte((byte) 2));
+        assertSame(Priority.LANGUID, Priority.fromByte((byte) 5));
+        assertSame(Priority.LOW, Priority.fromByte((byte) 4));
+        assertSame(Priority.NORMAL, Priority.fromByte((byte) 3));
+        assertSame(Priority.URGENT,Priority.fromByte((byte) 1));
         assertEquals(6, Priority.values().length);
     }
 

@@ -26,12 +26,12 @@ import java.io.IOException;
 
 public enum Priority {
 
-    IMMEDIATE((byte) -1),
-    URGENT((byte) 0),
-    HIGH((byte) 1),
-    NORMAL((byte) 2),
-    LOW((byte) 3),
-    LANGUID((byte) 4);
+    IMMEDIATE((byte) 0),
+    URGENT((byte) 1),
+    HIGH((byte) 2),
+    NORMAL((byte) 3),
+    LOW((byte) 4),
+    LANGUID((byte) 5);
 
     public static Priority readFrom(StreamInput input) throws IOException {
         return fromByte(input.readByte());
@@ -43,12 +43,12 @@ public enum Priority {
 
     public static Priority fromByte(byte b) {
         switch (b) {
-            case -1: return IMMEDIATE;
-            case 0: return URGENT;
-            case 1: return HIGH;
-            case 2: return NORMAL;
-            case 3: return LOW;
-            case 4: return LANGUID;
+            case 0: return IMMEDIATE;
+            case 1: return URGENT;
+            case 2: return HIGH;
+            case 3: return NORMAL;
+            case 4: return LOW;
+            case 5: return LANGUID;
             default:
                 throw new IllegalArgumentException("can't find priority for [" + b + "]");
         }

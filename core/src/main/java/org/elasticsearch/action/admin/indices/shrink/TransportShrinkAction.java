@@ -29,7 +29,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -40,7 +39,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -93,22 +91,8 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
                         IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
                         return shard == null ? null : shard.getPrimary().getDocs();
                     }, indexNameExpressionResolver);
-                createIndexService.createIndex(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
-                    @Override
-                    public void onResponse(ClusterStateUpdateResponse response) {
-                        listener.onResponse(new ShrinkResponse(response.isAcknowledged()));
-                    }
-
-                    @Override
-                    public void onFailure(Exception t) {
-                        if (t instanceof IndexAlreadyExistsException) {
-                            logger.trace("[{}] failed to create shrink index", t, updateRequest.index());
-                        } else {
-                            logger.debug("[{}] failed to create shrink index", t, updateRequest.index());
-                        }
-                        listener.onFailure(t);
-                    }
-                });
+                createIndexService.createIndex(updateRequest, ActionListener.wrap(response ->
+                    listener.onResponse(new ShrinkResponse(response.isAcknowledged(), response.isShardsAcked())), listener::onFailure));
             }
 
             @Override
@@ -162,6 +146,7 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
             .settings(targetIndex.settings())
             .aliases(targetIndex.aliases())
             .customs(targetIndex.customs())
+            .waitForActiveShards(targetIndex.waitForActiveShards())
             .shrinkFrom(metaData.getIndex());
     }
 

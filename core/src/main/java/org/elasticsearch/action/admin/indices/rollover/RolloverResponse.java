@@ -39,22 +39,28 @@ public final class RolloverResponse extends ActionResponse implements ToXContent
     private static final String DRY_RUN = "dry_run";
     private static final String ROLLED_OVER = "rolled_over";
     private static final String CONDITIONS = "conditions";
+    private static final String ACKNOWLEDGED = "acknowledged";
+    private static final String SHARDS_ACKED = "shards_acknowledged";
 
     private String oldIndex;
     private String newIndex;
     private Set<Map.Entry<String, Boolean>> conditionStatus;
     private boolean dryRun;
     private boolean rolledOver;
+    private boolean acknowledged;
+    private boolean shardsAcked;
 
     RolloverResponse() {
     }
 
     RolloverResponse(String oldIndex, String newIndex, Set<Condition.Result> conditionResults,
-                     boolean dryRun, boolean rolledOver) {
+                     boolean dryRun, boolean rolledOver, boolean acknowledged, boolean shardsAcked) {
         this.oldIndex = oldIndex;
         this.newIndex = newIndex;
         this.dryRun = dryRun;
         this.rolledOver = rolledOver;
+        this.acknowledged = acknowledged;
+        this.shardsAcked = shardsAcked;
         this.conditionStatus = conditionResults.stream()
             .map(result -> new AbstractMap.SimpleEntry<>(result.condition.toString(), result.matched))
             .collect(Collectors.toSet());
@@ -89,10 +95,29 @@ public final class RolloverResponse extends ActionResponse implements ToXContent
     }
 
     /**
-     * Returns if the rollover was not simulated and the conditions were met
+     * Returns true if the rollover was not simulated and the conditions were met
      */
     public boolean isRolledOver() {
         return rolledOver;
+    }
+
+    /**
+     * Returns true if the creation of the new rollover index and switching of the
+     * alias to the newly created index was successful, and returns false otherwise.
+     * If {@link #isDryRun()} is true, then this will also return false. If this
+     * returns false, then {@link #isShardsAcked()} will also return false.
+     */
+    public boolean isAcknowledged() {
+        return acknowledged;
+    }
+
+    /**
+     * Returns true if the requisite number of shards were started in the newly
+     * created rollover index before returning.  If {@link #isAcknowledged()} is
+     * false, then this will also return false.
+     */
+    public boolean isShardsAcked() {
+        return shardsAcked;
     }
 
     @Override
@@ -110,6 +135,8 @@ public final class RolloverResponse extends ActionResponse implements ToXContent
         conditionStatus = conditions;
         dryRun = in.readBoolean();
         rolledOver = in.readBoolean();
+        acknowledged = in.readBoolean();
+        shardsAcked = in.readBoolean();
     }
 
     @Override
@@ -124,6 +151,8 @@ public final class RolloverResponse extends ActionResponse implements ToXContent
         }
         out.writeBoolean(dryRun);
         out.writeBoolean(rolledOver);
+        out.writeBoolean(acknowledged);
+        out.writeBoolean(shardsAcked);
     }
 
     @Override
@@ -132,6 +161,8 @@ public final class RolloverResponse extends ActionResponse implements ToXContent
         builder.field(NEW_INDEX, newIndex);
         builder.field(ROLLED_OVER, rolledOver);
         builder.field(DRY_RUN, dryRun);
+        builder.field(ACKNOWLEDGED, acknowledged);
+        builder.field(SHARDS_ACKED, shardsAcked);
         builder.startObject(CONDITIONS);
         for (Map.Entry<String, Boolean> entry : conditionStatus) {
             builder.field(entry.getKey(), entry.getValue());

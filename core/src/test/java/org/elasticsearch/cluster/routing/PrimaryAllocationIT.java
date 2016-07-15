@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
@@ -108,7 +109,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         logger.info("--> check that old primary shard does not get promoted to primary again");
         // kick reroute and wait for all shard states to be fetched
         client(master).admin().cluster().prepareReroute().get();
-        assertBusy(new Runnable() { 
+        assertBusy(new Runnable() {
             @Override
             public void run() {
                 assertThat(internalCluster().getInstance(GatewayAllocator.class, master).getNumberOfInFlightFetch(), equalTo(0));
@@ -157,7 +158,8 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         createStaleReplicaScenario();
 
         logger.info("--> explicitly promote old primary shard");
-        ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> storeStatuses = client().admin().indices().prepareShardStores("test").get().getStoreStatuses().get("test");
+        final String idxName = "test";
+        ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> storeStatuses = client().admin().indices().prepareShardStores(idxName).get().getStoreStatuses().get(idxName);
         ClusterRerouteRequestBuilder rerouteBuilder = client().admin().cluster().prepareReroute();
         for (IntObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> shardStoreStatuses : storeStatuses) {
             int shardId = shardStoreStatuses.key;
@@ -165,22 +167,30 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             logger.info("--> adding allocation command for shard {}", shardId);
             // force allocation based on node id
             if (useStaleReplica) {
-                rerouteBuilder.add(new AllocateStalePrimaryAllocationCommand("test", shardId, storeStatus.getNode().getId(), true));
+                rerouteBuilder.add(new AllocateStalePrimaryAllocationCommand(idxName, shardId, storeStatus.getNode().getId(), true));
             } else {
-                rerouteBuilder.add(new AllocateEmptyPrimaryAllocationCommand("test", shardId, storeStatus.getNode().getId(), true));
+                rerouteBuilder.add(new AllocateEmptyPrimaryAllocationCommand(idxName, shardId, storeStatus.getNode().getId(), true));
             }
         }
         rerouteBuilder.get();
 
         logger.info("--> check that the stale primary shard gets allocated and that documents are available");
-        ensureYellow("test");
+        ensureYellow(idxName);
 
-        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(matchAllQuery()).get(), useStaleReplica ? 1L : 0L);
+        if (useStaleReplica == false) {
+            // When invoking AllocateEmptyPrimaryAllocationCommand, due to the UnassignedInfo.Reason being changed to INDEX_CREATION,
+            // its possible that the shard has not completed initialization, even though the cluster health is yellow, so the
+            // search can throw an "all shards failed" exception.  We will wait until the shard initialization has completed before
+            // verifying the search hit count.
+            assertBusy(() -> assertTrue(clusterService().state().routingTable().index(idxName).allPrimaryShardsActive()));
+
+        }
+        assertHitCount(client().prepareSearch(idxName).setSize(0).setQuery(matchAllQuery()).get(), useStaleReplica ? 1L : 0L);
     }
 
     public void testForcePrimaryShardIfAllocationDecidersSayNoAfterIndexCreation() throws ExecutionException, InterruptedException {
         String node = internalCluster().startNode();
-        client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
+        client().admin().indices().prepareCreate("test").setWaitForActiveShards(ActiveShardCount.NONE).setSettings(Settings.builder()
             .put("index.routing.allocation.exclude._name", node)
             .put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get();
 

@@ -20,10 +20,12 @@
 package org.elasticsearch.action;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
@@ -335,7 +337,8 @@ public class ActionModule extends AbstractModule {
         actionFilters = setupActionFilters(actionPlugins, ingestEnabled);
         autoCreateIndex = transportClient ? null : new AutoCreateIndex(settings, resolver);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
-        restController = new RestController(settings);
+        Set<String> headers = actionPlugins.stream().flatMap(p -> p.getRestHeaders().stream()).collect(Collectors.toSet());
+        restController = new RestController(settings, headers);
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {

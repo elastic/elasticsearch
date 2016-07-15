@@ -18,11 +18,16 @@
  */
 package org.elasticsearch.gradle.test
 
+import java.nio.file.Files
+import java.nio.file.Paths
+
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import org.elasticsearch.gradle.BuildPlugin
 import org.gradle.api.Task
+import org.gradle.api.file.FileCollection
 import org.gradle.api.internal.tasks.options.Option
 import org.gradle.api.plugins.JavaBasePlugin
+import org.gradle.api.tasks.Exec
 import org.gradle.api.tasks.Input
 import org.gradle.util.ConfigureUtil
 
@@ -37,6 +42,8 @@ public class RestIntegTestTask extends RandomizedTestingTask {
     /** Flag indicating whether the rest tests in the rest spec should be run. */
     @Input
     boolean includePackaged = false
+
+    String restTestExecutable = System.getProperty('rest.test.executable')
 
     public RestIntegTestTask() {
         description = 'Runs rest tests against an elasticsearch cluster.'
@@ -68,6 +75,34 @@ public class RestIntegTestTask extends RandomizedTestingTask {
             // that sets up the test cluster and passes this transport uri instead of http uri. Until then, we pass
             // both as separate sysprops
             systemProperty('tests.cluster', "${-> node.transportUri()}")
+
+            if (restTestExecutable != null) {
+                Exec integTestExternal = project.tasks.create('integTestExternal', Exec.class)
+                integTestExternal.workingDir = Paths.get('').toAbsolutePath().toFile()
+                integTestExternal.executable = restTestExecutable
+                String args = System.getProperty('rest.test.executable.args')
+                if (args != null) {
+                    integTestExternal.args = args.tokenize(' ')
+                }
+                FileCollection restTestOutput = project.sourceSets.test.output.filter {
+                    Files.exists(it.toPath().resolve('rest-api-spec').resolve('test'))
+                }
+                integTestExternal.environment = [
+                    'TEST_ES_SERVER': "${-> node.httpUri()}",
+                    'TEST_ES_YAML_DIR': "${-> restTestOutput.asPath}/rest-api-spec/test",
+                ]
+                dependsOn integTestExternal
+                // NOCOMMIT failure prevents us from shutting down Elasticsearch - probably need to copy all the finalizedBy
+            }
+        }
+    }
+
+    @Override
+    void executeTests() {
+        if (restTestExecutable == null) {
+            super.executeTests()
+        } else {
+            logger.info("Executed ${project.tasks.integTestExternal.executable} instead of running junit")
         }
     }
 

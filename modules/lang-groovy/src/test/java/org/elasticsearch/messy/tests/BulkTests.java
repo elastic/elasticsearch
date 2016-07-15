@@ -621,7 +621,6 @@ public class BulkTests extends ESIntegTestCase {
     // issue 6410
     public void testThatMissingIndexDoesNotAbortFullBulkRequest() throws Exception{
         createIndex("bulkindex1", "bulkindex2");
-        ensureYellow();
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest("bulkindex1", "index1_type", "1").source("text", "hallo1"))
                    .add(new IndexRequest("bulkindex2", "index2_type", "1").source("text", "hallo2"))
@@ -644,7 +643,6 @@ public class BulkTests extends ESIntegTestCase {
     // issue 9821
     public void testFailedRequestsOnClosedIndex() throws Exception {
         createIndex("bulkindex1");
-        ensureYellow();
 
         client().prepareIndex("bulkindex1", "index1_type", "1").setSource("text", "test").get();
         assertAcked(client().admin().indices().prepareClose("bulkindex1"));

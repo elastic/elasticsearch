@@ -115,7 +115,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         mappings.endObject();
         assertAcked(prepareCreate("test")
                 .addMapping("type", mappings));
-        ensureYellow();
         client().prepareIndex("test", "type", "1")
                 .setSource(jsonBuilder().startObject().field("text", "text").endObject())
                 .get();
@@ -151,7 +150,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         mappings.endObject();
         assertAcked(prepareCreate("test")
                 .addMapping("type", mappings));
-        ensureYellow();
         client().prepareIndex("test", "type", "1")
                 .setSource(jsonBuilder().startObject().field("unstored_text", "text").field("text", "text").endObject())
                 .get();
@@ -170,7 +168,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     public void testHighTermFrequencyDoc() throws IOException {
         assertAcked(prepareCreate("test")
                 .addMapping("test", "name", "type=text,term_vector=with_positions_offsets,store=" + randomBoolean()));
-        ensureYellow();
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < 6000; i++) {
             builder.append("abc").append(" ");
@@ -229,7 +226,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         .putArray("analysis.analyzer.autocomplete.filter", "lowercase", "wordDelimiter")
                         .put("analysis.analyzer.search_autocomplete.tokenizer", "whitespace")
                         .putArray("analysis.analyzer.search_autocomplete.filter", "lowercase", "wordDelimiter")));
-        ensureYellow();
         client().prepareIndex("test", "test", "1")
             .setSource("name", "ARCOTEL Hotels Deutschland").get();
         refresh();
@@ -332,7 +328,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .addMapping("type1",
                         "no_long_term", "type=text,term_vector=with_positions_offsets",
                         "long_term", "type=text,term_vector=with_positions_offsets"));
-        ensureYellow();
 
         client().prepareIndex("test", "type1", "1")
                 .setSource("no_long_term", "This is a test where foo is highlighed and should be highlighted",
@@ -367,7 +362,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         .startObject("title").field("type", "text").field("store", false).field("term_vector", "no").endObject()
                         .startObject("attachments").startObject("properties").startObject("body").field("type", "text").field("store", false).field("term_vector", "no").endObject().endObject().endObject()
                         .endObject().endObject().endObject()));
-        ensureYellow();
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < indexRequestBuilders.length; i++) {
@@ -406,7 +400,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         .startObject("title").field("type", "text").field("store", false).field("term_vector", "with_positions_offsets").endObject()
                         .startObject("attachments").startObject("properties").startObject("body").field("type", "text").field("store", false).field("term_vector", "with_positions_offsets").endObject().endObject().endObject()
                         .endObject().endObject().endObject()));
-        ensureYellow();
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < indexRequestBuilders.length; i++) {
@@ -445,7 +438,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         .startObject("title").field("type", "text").field("store", false).field("index_options", "offsets").endObject()
                         .startObject("attachments").startObject("properties").startObject("body").field("type", "text").field("store", false).field("index_options", "offsets").endObject().endObject().endObject()
                         .endObject().endObject().endObject()));
-        ensureYellow();
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < indexRequestBuilders.length; i++) {
@@ -492,7 +484,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     public void testHighlightIssue1994() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", "title", "type=text,store=false", "titleTV", "type=text,store=false,term_vector=with_positions_offsets"));
-        ensureYellow();
 
         indexRandom(false, client().prepareIndex("test", "type1", "1")
                 .setSource("title", new String[]{"This is a test on the highlighting bug present in elasticsearch", "The bug is bugging us"},
@@ -1006,7 +997,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     public void testSameContent() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", "title", "type=text,store=true,term_vector=with_positions_offsets"));
-        ensureYellow();
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < 5; i++) {
@@ -1028,7 +1018,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     public void testFastVectorHighlighterOffsetParameter() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", "title", "type=text,store=true,term_vector=with_positions_offsets").get());
-        ensureYellow();
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < 5; i++) {
@@ -1051,7 +1040,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     public void testEscapeHtml() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", "title", "type=text,store=true"));
-        ensureYellow();
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < indexRequestBuilders.length; i++) {
@@ -1073,7 +1061,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     public void testEscapeHtmlVector() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", "title", "type=text,store=true,term_vector=with_positions_offsets"));
-        ensureYellow();
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < 5; i++) {
@@ -2098,7 +2085,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     public void testPostingsHighlighterEscapeHtml() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", "title", "type=text," + randomStoreField() + "index_options=offsets"));
-        ensureYellow();
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
         for (int i = 0; i < 5; i++) {
@@ -2578,7 +2564,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         mappings.endObject();
         assertAcked(prepareCreate("test")
             .addMapping("type", mappings));
-        ensureYellow();
 
         client().prepareIndex("test", "type", "1")
             .setSource(jsonBuilder().startObject().field("text", "Arbitrary text field which will should not cause a failure").endObject())
@@ -2610,7 +2595,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         mappings.endObject();
         assertAcked(prepareCreate("test")
             .addMapping("type", mappings));
-        ensureYellow();
 
         client().prepareIndex("test", "type", "1")
             .setSource(jsonBuilder().startObject().field("keyword_field", "some text").endObject())
@@ -2639,7 +2623,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
             .addMapping("type", mappings)
         .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_2)));
-        ensureYellow();
 
         client().prepareIndex("test", "type", "1")
             .setSource(jsonBuilder().startObject().field("string_field", "some text").endObject())

@@ -1132,7 +1132,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         final List<String> allMasterEligibleNodes = masterNodes.get();
         ensureStableCluster(3);
         assertAcked(prepareCreate("test"));
-        ensureYellow();
 
         final String masterNode1 = internalCluster().getMasterName();
         NetworkPartition networkPartition = new NetworkUnresponsivePartition(masterNode1, dataNode.get(), random());

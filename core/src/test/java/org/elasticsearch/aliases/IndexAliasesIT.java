@@ -951,8 +951,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
         createIndex("index1");
         createIndex("index2");
 
-        ensureYellow();
-
         assertAcked(admin().indices().prepareAliases().addAlias("index1", "alias1").addAlias("index2", "alias2"));
 
         GetAliasesResponse response = admin().indices().prepareGetAliases().get();

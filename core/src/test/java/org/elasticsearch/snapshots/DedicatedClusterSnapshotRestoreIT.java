@@ -170,7 +170,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         internalCluster().startNode();
         Client client = client();
         createIndex("test-idx");
-        ensureYellow();
         logger.info("--> add custom persistent metadata");
         updateClusterState(new ClusterStateUpdater() {
             @Override
@@ -887,8 +886,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     private void createTestIndex(String name) {
         assertAcked(prepareCreate(name, 0, Settings.builder().put("number_of_shards", between(1, 6))
                 .put("number_of_replicas", between(1, 6))));
-
-        ensureYellow(name);
 
         logger.info("--> indexing some data into {}", name);
         for (int i = 0; i < between(10, 500); i++) {

@@ -155,7 +155,6 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
             backwardsCluster().startNewNode();
         }
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings())));
-        ensureYellow();
         assertAllShardsOnNodes("test", backwardsCluster().backwardsNodePattern());
         int numDocs = randomIntBetween(100, 150);
         ArrayList<String> ids = new ArrayList<>();
@@ -271,7 +270,6 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
      */
     public void testIndexUpgradeSingleNode() throws Exception {
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings())));
-        ensureYellow();
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
@@ -403,7 +401,6 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
         for (; ; ) {
             indexName = "test_"+indexId++;
             createIndex(indexName);
-            ensureYellow();
             indexRandom(true,
                     client().prepareIndex(indexName, "type1", "1").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x1", "x_1").field("field1", "value1_1").field("field2", "value2_1").endObject()),
                     client().prepareIndex(indexName, "type1", "2").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x2", "x_2").field("field1", "value1_2").endObject()),
@@ -490,7 +487,6 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
     public void testIndexGetAndDelete() throws ExecutionException, InterruptedException {
         createIndexWithAlias();
-        ensureYellow("test");
 
         int numDocs = iterations(10, 50);
         for (int i = 0; i < numDocs; i++) {
@@ -526,7 +522,6 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
     public void testUpdate() {
         createIndexWithAlias();
-        ensureYellow("test");
 
         UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setUpsert("field1", "value1").setDoc("field2", "value2");
@@ -557,7 +552,6 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
     public void testAnalyze() {
         createIndexWithAlias();
         assertAcked(client().admin().indices().preparePutMapping("test").setType("test").setSource("field", "type=text,analyzer=keyword"));
-        ensureYellow("test");
         AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("this is a test").setIndex(indexOrAlias()).setField("field").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(1));
         assertThat(analyzeResponse.getTokens().get(0).getTerm(), equalTo("this is a test"));
@@ -565,7 +559,6 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
     public void testExplain() {
         createIndexWithAlias();
-        ensureYellow("test");
 
         client().prepareIndex(indexOrAlias(), "test", "1").setSource("field", "value1").get();
         refresh();
@@ -582,7 +575,6 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
     public void testGetTermVector() throws IOException {
         createIndexWithAlias();
         assertAcked(client().admin().indices().preparePutMapping("test").setType("type1").setSource("field", "type=text,term_vector=with_positions_offsets_payloads").get());
-        ensureYellow("test");
 
         client().prepareIndex(indexOrAlias(), "type1", "1")
                 .setSource("field", "the quick brown fox jumps over the lazy dog").get();
@@ -598,7 +590,6 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
     public void testIndicesStats() {
         createIndex("test");
-        ensureYellow("test");
 
         IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats().all().get();
         assertThat(indicesStatsResponse.getIndices().size(), equalTo(1));
@@ -607,7 +598,6 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
     public void testMultiGet() throws ExecutionException, InterruptedException {
         createIndexWithAlias();
-        ensureYellow("test");
 
         int numDocs = iterations(10, 50);
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
@@ -639,7 +629,6 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
     public void testScroll() throws ExecutionException, InterruptedException {
         createIndex("test");
-        ensureYellow("test");
 
         int numDocs = iterations(10, 100);
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];

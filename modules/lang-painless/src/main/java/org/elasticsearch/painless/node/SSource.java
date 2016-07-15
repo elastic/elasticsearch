@@ -31,7 +31,6 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.SimpleChecksAdapter;
 import org.elasticsearch.painless.WriterConstants;
-import org.elasticsearch.painless.node.SFunction.Reserved;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
@@ -60,14 +59,66 @@ import static org.elasticsearch.painless.WriterConstants.MAP_TYPE;
  */
 public final class SSource extends AStatement {
 
-    final String name;
-    final String source;
-    final Printer debugStream;
-    final CompilerSettings settings;
-    final MainMethodReserved reserved;
-    final List<SFunction> functions;
-    final Globals globals;
-    final List<AStatement> statements;
+    /**
+     * Tracks reserved variables.  Must be given to any source of input
+     * prior to beginning the analysis phase so that reserved variables
+     * are known ahead of time to assign appropriate slots without
+     * being wasteful.
+     */
+    public interface Reserved {
+        void markReserved(String name);
+        boolean isReserved(String name);
+
+        void setMaxLoopCounter(int max);
+        int getMaxLoopCounter();
+    }
+
+    public static final class MainMethodReserved implements Reserved {
+        private boolean score = false;
+        private boolean ctx = false;
+        private int maxLoopCounter = 0;
+
+        @Override
+        public void markReserved(String name) {
+            if (Locals.SCORE.equals(name)) {
+                score = true;
+            } else if (Locals.CTX.equals(name)) {
+                ctx = true;
+            }
+        }
+
+        @Override
+        public boolean isReserved(String name) {
+            return Locals.KEYWORDS.contains(name);
+        }
+
+        public boolean usesScore() {
+            return score;
+        }
+
+        public boolean usesCtx() {
+            return ctx;
+        }
+
+        @Override
+        public void setMaxLoopCounter(int max) {
+            maxLoopCounter = max;
+        }
+
+        @Override
+        public int getMaxLoopCounter() {
+            return maxLoopCounter;
+        }
+    }
+
+    private final CompilerSettings settings;
+    private final String name;
+    private final String source;
+    private final Printer debugStream;
+    private final MainMethodReserved reserved;
+    private final List<SFunction> functions;
+    private final Globals globals;
+    private final List<AStatement> statements;
 
     private Locals mainMethod;
     private byte[] bytes;
@@ -280,44 +331,5 @@ public final class SSource extends AStatement {
 
     public byte[] getBytes() {
         return bytes;
-    }
-
-
-    public static final class MainMethodReserved implements Reserved {
-        private boolean score = false;
-        private boolean ctx = false;
-        private int maxLoopCounter = 0;
-
-        @Override
-        public void markReserved(String name) {
-            if (Locals.SCORE.equals(name)) {
-                score = true;
-            } else if (Locals.CTX.equals(name)) {
-                ctx = true;
-            }
-        }
-
-        @Override
-        public boolean isReserved(String name) {
-            return Locals.KEYWORDS.contains(name);
-        }
-
-        public boolean usesScore() {
-            return score;
-        }
-
-        public boolean usesCtx() {
-            return ctx;
-        }
-
-        @Override
-        public void setMaxLoopCounter(int max) {
-            maxLoopCounter = max;
-        }
-
-        @Override
-        public int getMaxLoopCounter() {
-            return maxLoopCounter;
-        }
     }
 }

@@ -109,6 +109,7 @@ public final class PField extends AStoreable {
         sub.write = write;
         sub.read = read;
         sub.expected = expected;
+        sub.explicit = explicit;
         sub.analyze(locals);
         actual = sub.actual;
     }

@@ -89,6 +89,7 @@ public final class PCallInvoke extends AExpression {
         }
 
         sub.expected = expected;
+        sub.explicit = explicit;
         sub.analyze(locals);
         actual = sub.actual;
 

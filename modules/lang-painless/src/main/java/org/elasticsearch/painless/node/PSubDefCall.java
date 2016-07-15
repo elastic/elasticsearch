@@ -81,7 +81,7 @@ final class PSubDefCall extends AExpression {
             arguments.set(argument, expression.cast(locals));
         }
 
-        actual = expected == null ? Definition.DEF_TYPE : expected;
+        actual = expected == null || explicit ? Definition.DEF_TYPE : expected;
     }
 
     @Override

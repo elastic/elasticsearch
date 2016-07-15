@@ -50,7 +50,7 @@ final class PSubDefField extends AStoreable {
 
     @Override
     void analyze(Locals locals) {
-        actual = expected == null ? Definition.DEF_TYPE : expected;
+        actual = expected == null || explicit ? Definition.DEF_TYPE : expected;
     }
 
     @Override

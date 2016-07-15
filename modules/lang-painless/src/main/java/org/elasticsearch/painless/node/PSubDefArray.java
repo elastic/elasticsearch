@@ -54,7 +54,7 @@ final class PSubDefArray extends AStoreable {
         index.expected = index.actual;
         index = index.cast(locals);
 
-        actual = expected == null ? Definition.DEF_TYPE : expected;
+        actual = expected == null || explicit ? Definition.DEF_TYPE : expected;
     }
 
     @Override

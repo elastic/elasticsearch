@@ -409,7 +409,6 @@ public class EquivalenceIT extends ESIntegTestCase {
         createIndex("idx");
         final int value = randomIntBetween(0, 10);
         indexRandom(true, client().prepareIndex("idx", "type").setSource("f", value));
-        ensureYellow("idx"); // only one document let's make sure all shards have an active primary
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(filter("filter", QueryBuilders.matchAllQuery())
                 .subAggregation(range("range")

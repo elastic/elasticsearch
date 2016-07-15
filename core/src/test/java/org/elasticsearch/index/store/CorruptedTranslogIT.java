@@ -80,7 +80,6 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
                 .put("index.refresh_interval", "-1")
                 .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true) // never flush - always recover from translog
         ));
-        ensureYellow();
 
         // Index some documents
         int numDocs = scaledRandomIntBetween(100, 1000);

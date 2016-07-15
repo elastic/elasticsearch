@@ -77,9 +77,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                     .field("required", true).endObject().endObject().endObject())
                 .execute().actionGet();
 
-        logger.info("--> waiting for yellow status");
-        ensureYellow();
-
         logger.info("--> verify meta _routing required exists");
         MappingMetaData mappingMd = client().admin().cluster().prepareState().execute().actionGet().getState().metaData()
             .index("test").mapping("type1");
@@ -233,9 +230,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> create an index");
         client().admin().indices().prepareCreate("test").execute().actionGet();
-
-        logger.info("--> waiting for test index to be created");
-        ensureYellow();
 
         client().prepareIndex("test", "type1").setSource("field1", "value1").setTimeout("100ms").execute().actionGet();
     }

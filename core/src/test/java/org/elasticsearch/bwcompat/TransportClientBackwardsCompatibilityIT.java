@@ -49,7 +49,6 @@ public class TransportClientBackwardsCompatibilityIT extends ESBackcompatTestCas
             client.addTransportAddress(transportAddress);
 
             assertAcked(client.admin().indices().prepareCreate("test"));
-            ensureYellow("test");
 
             int numDocs = iterations(10, 100);
             IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];

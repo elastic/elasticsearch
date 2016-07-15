@@ -52,7 +52,6 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
                         "name", "arbitrary content", "other_name", "foo", "other_other_name", "bar"),
                 client().prepareIndex("test", "test", "2").setSource(
                         "other_name", "foo", "other_other_name", "bar"));
-        ensureYellow();
     }
 
     public void testThatCustomHighlightersAreSupported() throws IOException {

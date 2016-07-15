@@ -836,7 +836,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         createIndex("test-idx-1", "test-idx-2");
-        ensureYellow();
         logger.info("--> indexing some data");
         indexRandom(true,
                 client().prepareIndex("test-idx-1", "doc").setSource("foo", "bar"),
@@ -874,7 +873,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         createIndex("test-idx-1", "test-idx-2");
-        ensureYellow();
         logger.info("--> indexing some data");
         indexRandom(true,
                 client().prepareIndex("test-idx-1", "doc").setSource("foo", "bar"),
@@ -908,7 +906,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         createIndex("test-idx-1", "test-idx-2");
-        ensureYellow();
         logger.info("--> indexing some data");
         indexRandom(true,
                 client().prepareIndex("test-idx-1", "doc").setSource("foo", "bar"),
@@ -2176,7 +2173,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
-        ensureYellow();
         logger.info("--> indexing some data");
         indexRandom(true,
                 client().prepareIndex("test-idx-1", "doc").setSource("foo", "bar"),

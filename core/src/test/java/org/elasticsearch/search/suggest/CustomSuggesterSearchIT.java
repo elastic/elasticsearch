@@ -72,7 +72,6 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
                 .field("name", "arbitrary content")
                 .endObject())
                 .setRefreshPolicy(IMMEDIATE).get();
-        ensureYellow();
 
         String randomText = randomAsciiOfLength(10);
         String randomField = randomAsciiOfLength(10);

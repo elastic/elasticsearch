@@ -423,7 +423,6 @@ public class IndexLookupTests extends ESIntegTestCase {
                         .put("index.analysis.filter.delimited_int.encoding", "int")
                         .put("index.analysis.filter.delimited_int.type", "delimited_payload_filter")
                         .put("index.number_of_shards", 1)));
-        ensureYellow();
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("float_payload_field", "a|1 b|2 a|3 b "), client()
                 .prepareIndex("test", "type1", "2").setSource("string_payload_field", "a|a b|b a|a b "),
                 client().prepareIndex("test", "type1", "3").setSource("float_payload_field", "a|4 b|5 a|6 b "),

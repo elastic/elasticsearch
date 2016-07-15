@@ -37,7 +37,6 @@ public class TransportSearchIT extends ESIntegTestCase {
                     .setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numPrimaries1));
             assertAcked(prepareCreate("test2")
                     .setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numPrimaries2));
-            ensureYellow("test1", "test2");
 
             // no exception
             client().prepareSearch("test1").get();

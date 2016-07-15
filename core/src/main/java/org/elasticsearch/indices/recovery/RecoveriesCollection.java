@@ -30,6 +30,7 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -66,6 +67,35 @@ public class RecoveriesCollection {
         threadPool.schedule(activityTimeout, ThreadPool.Names.GENERIC,
                 new RecoveryMonitor(status.recoveryId(), status.lastAccessTime(), activityTimeout));
         return status.recoveryId();
+    }
+
+
+    /**
+     * Resets the recovery and performs a recovery restart on the currently recovering index shard
+     *
+     * @see IndexShard#performRecoveryRestart()
+     */
+    public void resetRecovery(long id, ShardId shardId) throws IOException {
+        try (RecoveryRef ref = getRecoverySafe(id, shardId)) {
+            final RecoveryTarget copy = new RecoveryTarget(ref.status);
+            // instead of adding complicated state to RecoveryTarget we just flip the
+            // target instance when we reset a recovery, that way we have only one cleanup
+            // path on the RecoveryTarget and are always within the bounds of ref-counting
+            // which is important since we verify files are on disk etc. after we have written them etc.
+            boolean success = false;
+            try {
+                if (onGoingRecoveries.replace(ref.status.recoveryId(), ref.status, copy) == false) {
+                    throw new IllegalStateException("failed to reset recovery");
+                }
+                ref.status.close();
+                copy.indexShard().performRecoveryRestart();
+                success = true;
+            } finally {
+                if (success == false) {
+                    copy.cancel("reset failed");
+                }
+            }
+        }
     }
 
     /**

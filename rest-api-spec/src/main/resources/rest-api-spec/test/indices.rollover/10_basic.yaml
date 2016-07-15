@@ -51,10 +51,6 @@
 
   - is_true: ''
 
-  - do:
-      cluster.health:
-        wait_for_status: yellow
-
   # index into new index
   - do:
       index:

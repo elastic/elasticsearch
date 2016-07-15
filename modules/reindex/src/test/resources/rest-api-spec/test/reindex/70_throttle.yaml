@@ -10,9 +10,6 @@
             number_of_shards: "1"
             number_of_replicas: "0"
   - do:
-      cluster.health:
-          wait_for_status: yellow
-  - do:
       index:
         index:   source
         type:    foo
@@ -62,9 +59,6 @@
             number_of_shards: "1"
             number_of_replicas: "0"
   - do:
-      cluster.health:
-          wait_for_status: yellow
-  - do:
       index:
         index:   source
         type:    foo
@@ -113,9 +107,6 @@
           settings:
             number_of_shards: "1"
             number_of_replicas: "0"
-  - do:
-      cluster.health:
-          wait_for_status: yellow
   - do:
       index:
         index:   source
@@ -171,9 +162,6 @@
           settings:
             number_of_shards: "1"
             number_of_replicas: "0"
-  - do:
-      cluster.health:
-          wait_for_status: yellow
   - do:
       index:
         index:   source

@@ -2,7 +2,7 @@
 == Cluster Health
 
 The cluster health API allows to get a very simple status on the health
-of the cluster. For example, on a single node cluster with a single index
+of the cluster. For example, on a quiet single node cluster with a single index
 with 5 shards and one replica, this:
 
 [source,js]
@@ -33,6 +33,9 @@ Returns this:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/testcluster/docs_integTest/]
+// TESTRESPONSE[s/"number_of_pending_tasks" : 0,/"number_of_pending_tasks" : $body.number_of_pending_tasks,/]
+// TESTRESPONSE[s/"task_max_waiting_in_queue_millis": 0/"task_max_waiting_in_queue_millis": $body.task_max_waiting_in_queue_millis/]
+
 
 The API can also be executed against one or more indices to get just the
 specified indices health:

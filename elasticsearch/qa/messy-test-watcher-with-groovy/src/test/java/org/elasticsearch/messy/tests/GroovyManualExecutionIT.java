@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.xpack.watcher.execution.ManualExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.ManualExecutionTests.ExecutionRunner;
 import org.elasticsearch.xpack.watcher.history.WatchRecord;
-import org.elasticsearch.xpack.watcher.support.Script;
+import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchRequest;
@@ -65,7 +65,7 @@ public class GroovyManualExecutionIT extends AbstractWatcherIntegrationTestCase 
         WatchSourceBuilder watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
                 .input(simpleInput("foo", "bar"))
-                .condition(new ScriptCondition((new Script.Builder.Inline("sleep 100; return true")).build()))
+                .condition(new ScriptCondition((new WatcherScript.Builder.Inline("sleep 100; return true")).build()))
                 .addAction("log", loggingAction("foobar"));
 
         Watch watch = watchParser().parse("_id", false, watchBuilder.buildAsBytes(XContentType.JSON));
@@ -80,7 +80,7 @@ public class GroovyManualExecutionIT extends AbstractWatcherIntegrationTestCase 
         WatchSourceBuilder watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
                 .input(simpleInput("foo", "bar"))
-                .condition(new ScriptCondition((new Script.Builder.Inline("sleep 10000; return true")).build()))
+                .condition(new ScriptCondition((new WatcherScript.Builder.Inline("sleep 10000; return true")).build()))
                 .defaultThrottlePeriod(new TimeValue(1, TimeUnit.HOURS))
                 .addAction("log", loggingAction("foobar"));
 

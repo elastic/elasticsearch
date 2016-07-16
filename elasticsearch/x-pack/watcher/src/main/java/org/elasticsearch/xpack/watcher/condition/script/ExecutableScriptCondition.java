@@ -8,11 +8,14 @@ package org.elasticsearch.xpack.watcher.condition.script;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
+import org.elasticsearch.xpack.watcher.support.WatcherScript;
 
+import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.watcher.support.Exceptions.invalidScript;
@@ -22,14 +25,16 @@ import static org.elasticsearch.xpack.watcher.support.Exceptions.invalidScript;
  */
 public class ExecutableScriptCondition extends ExecutableCondition<ScriptCondition, ScriptCondition.Result> {
 
-    private final ScriptServiceProxy scriptService;
+    private final ScriptService scriptService;
     private final CompiledScript compiledScript;
 
-    public ExecutableScriptCondition(ScriptCondition condition, ESLogger logger, ScriptServiceProxy scriptService) {
+    public ExecutableScriptCondition(ScriptCondition condition, ESLogger logger, ScriptService scriptService) {
         super(condition, logger);
         this.scriptService = scriptService;
         try {
-            compiledScript = scriptService.compile(condition.script);
+            Script script = new Script(condition.script.script(), condition.script.type(),
+                                       condition.script.lang(), condition.script.params());
+            compiledScript = scriptService.compile(script, WatcherScript.CTX, Collections.emptyMap());
         } catch (Exception e) {
             throw invalidScript("failed to compile script [{}] with lang [{}] of type [{}]", e, condition.script.script(),
                     condition.script.lang(), condition.script.type(), e);

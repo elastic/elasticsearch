@@ -8,11 +8,7 @@ package org.elasticsearch.xpack.watcher.test;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -20,7 +16,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptContextRegistry;
@@ -31,7 +26,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpMethod;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
@@ -56,6 +50,7 @@ import org.elasticsearch.xpack.watcher.execution.Wid;
 import org.elasticsearch.xpack.watcher.input.search.ExecutableSearchInput;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
+import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
@@ -71,11 +66,9 @@ import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
-import org.mockito.Mockito;
 
 import javax.mail.internet.AddressException;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -245,19 +238,19 @@ public final class WatcherTestUtils {
                 new WatchStatus(now, statuses));
     }
 
-    public static ScriptServiceProxy getScriptServiceProxy(ThreadPool tp) throws Exception {
+    public static ScriptService createScriptService(ThreadPool tp) throws Exception {
         Settings settings = Settings.builder()
                 .put("script.inline", "true")
                 .put("script.indexed", "true")
                 .put("path.home", createTempDir())
                 .build();
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.singletonList(ScriptServiceProxy.INSTANCE));
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.singletonList(WatcherScript.CTX_PLUGIN));
 
         ScriptEngineRegistry scriptEngineRegistry =
                 new ScriptEngineRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        return  ScriptServiceProxy.of(new ScriptService(settings, new Environment(settings),
-                new ResourceWatcherService(settings, tp), scriptEngineRegistry, scriptContextRegistry, scriptSettings));
+        return new ScriptService(settings, new Environment(settings), new ResourceWatcherService(settings, tp),
+            scriptEngineRegistry, scriptContextRegistry, scriptSettings);
     }
 
     public static SearchType getRandomSupportedSearchType() {

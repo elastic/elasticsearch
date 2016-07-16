@@ -6,37 +6,31 @@
 package org.elasticsearch.smoketest;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
-import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.common.text.DefaultTextTemplateEngine;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -50,7 +44,7 @@ public class WatcherTemplateTests extends ESTestCase {
         Settings setting = Settings.builder().put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING, true).build();
         Environment environment = Mockito.mock(Environment.class);
         ResourceWatcherService resourceWatcherService = Mockito.mock(ResourceWatcherService.class);
-        ScriptContextRegistry registry = new ScriptContextRegistry(Collections.singletonList(ScriptServiceProxy.INSTANCE));
+        ScriptContextRegistry registry = new ScriptContextRegistry(Collections.singletonList(WatcherScript.CTX_PLUGIN));
 
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(
                 Collections.singleton(new MustacheScriptEngineService(setting))
@@ -58,7 +52,7 @@ public class WatcherTemplateTests extends ESTestCase {
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, registry);
         ScriptService scriptService = new ScriptService(setting, environment, resourceWatcherService, scriptEngineRegistry,
                 registry, scriptSettings);
-        engine = new DefaultTextTemplateEngine(Settings.EMPTY, ScriptServiceProxy.of(scriptService));
+        engine = new DefaultTextTemplateEngine(Settings.EMPTY, scriptService);
     }
 
     public void testEscaping() throws Exception {

@@ -31,27 +31,75 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Locale;
 
 /**
  * A base class for the response of a write operation that involves a single doc
  */
 public abstract class DocWriteResponse extends ReplicationResponse implements WriteResponse, StatusToXContent {
 
+    public enum Operation {
+        CREATE(0),
+        INDEX(1),
+        DELETE(2),
+        NOOP(3);
+
+        private final byte op;
+        private final String lowercase;
+
+        Operation(int op) {
+            this.op = (byte) op;
+            this.lowercase = this.toString().toLowerCase(Locale.ENGLISH);
+        }
+
+        public byte getOp() {
+            return op;
+        }
+
+        public String getLowercase(){
+            return lowercase;
+        }
+
+        public static final Operation formOperation(byte opcode) {
+            switch(opcode) {
+                case 0:
+                    return CREATE;
+                case 1:
+                    return INDEX;
+                case 2:
+                    return DELETE;
+                case 3:
+                    return NOOP;
+                default:
+                    throw new IllegalArgumentException("Unknown operation code: " + opcode);
+            }
+        }
+    }
+
     private ShardId shardId;
     private String id;
     private String type;
     private long version;
     private boolean forcedRefresh;
+    protected Operation operation;
 
-    public DocWriteResponse(ShardId shardId, String type, String id, long version) {
+    public DocWriteResponse(ShardId shardId, String type, String id, long version, Operation operation) {
         this.shardId = shardId;
         this.type = type;
         this.id = id;
         this.version = version;
+        this.operation = operation;
     }
 
     // needed for deserialization
     protected DocWriteResponse() {
+    }
+
+    /**
+     * The change that occurred to the document.
+     */
+    public Operation getOperation() {
+        return operation;
     }
 
     /**
@@ -118,6 +166,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         id = in.readString();
         version = in.readZLong();
         forcedRefresh = in.readBoolean();
+        operation = Operation.formOperation(in.readByte());
     }
 
     @Override
@@ -128,6 +177,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         out.writeString(id);
         out.writeZLong(version);
         out.writeBoolean(forcedRefresh);
+        out.writeByte(getOperation().getOp());
     }
 
     static final class Fields {
@@ -135,6 +185,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         static final String _TYPE = "_type";
         static final String _ID = "_id";
         static final String _VERSION = "_version";
+        static final String _OPERATION = "_operation";
     }
 
     @Override
@@ -144,6 +195,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             .field(Fields._TYPE, type)
             .field(Fields._ID, id)
             .field(Fields._VERSION, version)
+            .field(Fields._OPERATION, getOperation().getLowercase())
             .field("forced_refresh", forcedRefresh);
         shardInfo.toXContent(builder, params);
         return builder;

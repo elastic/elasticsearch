@@ -36,42 +36,43 @@ import java.io.IOException;
  */
 public class IndexResponse extends DocWriteResponse {
 
-    private boolean created;
-
     public IndexResponse() {
 
     }
 
+    @Override
+    public Operation getOperation() {
+        return isCreated() ? Operation.CREATE : Operation.INDEX;
+    }
+
     public IndexResponse(ShardId shardId, String type, String id, long version, boolean created) {
-        super(shardId, type, id, version);
-        this.created = created;
+        super(shardId, type, id, version, toOperation(created));
+    }
+
+    public static Operation toOperation(boolean created) {
+        return created ? Operation.CREATE : Operation.INDEX;
     }
 
     /**
      * Returns true if the document was created, false if updated.
      */
     public boolean isCreated() {
-        return this.created;
+        return this.operation == Operation.CREATE;
     }
 
     @Override
     public RestStatus status() {
-        if (created) {
-            return RestStatus.CREATED;
-        }
-        return super.status();
+        return isCreated() ? RestStatus.CREATED : super.status();
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        created = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(created);
     }
 
     @Override
@@ -82,7 +83,8 @@ public class IndexResponse extends DocWriteResponse {
         builder.append(",type=").append(getType());
         builder.append(",id=").append(getId());
         builder.append(",version=").append(getVersion());
-        builder.append(",created=").append(created);
+        builder.append(",created=").append(isCreated());
+        builder.append(",operation=").append(getOperation().getLowercase());
         builder.append(",shards=").append(getShardInfo());
         return builder.append("]").toString();
     }

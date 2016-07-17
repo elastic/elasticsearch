@@ -36,43 +36,38 @@ import java.io.IOException;
  */
 public class DeleteResponse extends DocWriteResponse {
 
-    private boolean found;
-
     public DeleteResponse() {
 
     }
 
     public DeleteResponse(ShardId shardId, String type, String id, long version, boolean found) {
-        super(shardId, type, id, version);
-        this.found = found;
+        super(shardId, type, id, version, toOperation(found));
     }
 
+    public static Operation toOperation(boolean found) {
+        return found ? Operation.DELETE: Operation.NOOP;
+    }
 
     /**
      * Returns <tt>true</tt> if a doc was found to delete.
      */
     public boolean isFound() {
-        return found;
+        return operation == Operation.DELETE;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        found = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(found);
     }
 
     @Override
     public RestStatus status() {
-        if (found == false) {
-            return RestStatus.NOT_FOUND;
-        }
-        return super.status();
+        return isFound() ? super.status() : RestStatus.NOT_FOUND;
     }
 
     static final class Fields {
@@ -94,7 +89,8 @@ public class DeleteResponse extends DocWriteResponse {
         builder.append(",type=").append(getType());
         builder.append(",id=").append(getId());
         builder.append(",version=").append(getVersion());
-        builder.append(",found=").append(found);
+        builder.append(",found=").append(isFound());
+        builder.append(",operation=").append(getOperation().getLowercase());
         builder.append(",shards=").append(getShardInfo());
         return builder.append("]").toString();
     }

@@ -1,5 +1,5 @@
 ---
-"Noop":
+"Update operation field":
 
   - do:
       update:
@@ -8,23 +8,10 @@
           id:               1
           body:
             doc:            { foo: bar }
-            doc_as_upsert:  1
+            doc_as_upsert:  true
 
-  - match: { _version: 1  }
-  - match: { _noop: false }
-
-  - do:
-      update:
-          index:            test_1
-          type:             test
-          id:               1
-          body:
-            doc:            { foo: bar }
-            doc_as_upsert:  1
-            detect_noop:    true
-
-  - match: { _version: 1    }
-  - match: { _noop:    true }
+  - match: { _version:   1      }
+  - match: { _operation: create }
 
   - do:
       update:
@@ -33,11 +20,23 @@
           id:               1
           body:
             doc:            { foo: bar }
-            doc_as_upsert:  1
+            doc_as_upsert:  true
+
+  - match: { _version:   1    }
+  - match: { _operation: noop }
+
+  - do:
+      update:
+          index:            test_1
+          type:             test
+          id:               1
+          body:
+            doc:            { foo: bar }
+            doc_as_upsert:  true
             detect_noop:    false
 
-  - match: { _version: 2     }
-  - match: { _noop:    false }
+  - match: { _version:   2     }
+  - match: { _operation: index }
 
   - do:
       update:
@@ -46,8 +45,8 @@
           id:               1
           body:
             doc:            { foo: baz }
-            doc_as_upsert:  1
+            doc_as_upsert:  true
             detect_noop:    true
 
-  - match: { _version: 3     }
-  - match: { _noop:    false }
+  - match: { _version:   3     }
+  - match: { _operation: index }

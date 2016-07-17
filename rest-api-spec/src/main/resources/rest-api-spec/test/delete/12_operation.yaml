@@ -1,0 +1,26 @@
+---
+"Delete operation field":
+
+ - do:
+      index:
+          index:   test_1
+          type:    test
+          id:      1
+          body:    { foo: bar }
+
+ - do:
+      delete:
+          index:   test_1
+          type:    test
+          id:      1
+
+ - match: { _operation: delete }
+
+ - do:
+      catch: missing
+      delete:
+          index:   test_1
+          type:    test
+          id:      1
+
+ - match: { _operation: noop }

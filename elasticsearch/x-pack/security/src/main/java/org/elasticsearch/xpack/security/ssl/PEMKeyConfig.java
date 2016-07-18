@@ -19,6 +19,7 @@ import java.nio.file.Path;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 class PEMKeyConfig extends KeyConfig {
@@ -48,9 +49,13 @@ class PEMKeyConfig extends KeyConfig {
     }
 
     PrivateKey readPrivateKey(Path keyPath) throws Exception {
+        char[] password = keyPassword == null ? null : keyPassword.toCharArray();
         try (Reader reader = Files.newBufferedReader(keyPath, StandardCharsets.UTF_8)) {
-            char[] password = keyPassword == null ? null : keyPassword.toCharArray();
-            return CertUtils.readPrivateKey(reader, password);
+            return CertUtils.readPrivateKey(reader, () -> password);
+        } finally {
+            if (password != null) {
+                Arrays.fill(password, (char) 0);
+            }
         }
     }
 

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap.support;
 
+import com.unboundid.ldap.sdk.LDAPException;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
@@ -88,7 +89,7 @@ public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm {
         }
     }
 
-    private User createUser(String principal, LdapSession session) {
+    private User createUser(String principal, LdapSession session) throws LDAPException {
         List<String> groupDNs = session.groups();
         Set<String> roles = roleMapper.resolveRoles(session.userDn(), groupDNs);
         return new User(principal, roles.toArray(new String[roles.size()]));

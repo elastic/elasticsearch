@@ -55,11 +55,10 @@ public class CertUtilsTests extends ESTestCase {
     }
 
     public void testGenerateKeyPair() throws Exception {
-        KeyPair keyPair = CertUtils.generateKeyPair();
+        KeyPair keyPair = CertUtils.generateKeyPair(randomFrom(1024, 2048));
         assertThat(keyPair.getPrivate().getAlgorithm(), is("RSA"));
         assertThat(keyPair.getPublic().getAlgorithm(), is("RSA"));
     }
-
 
     public void testReadKeysCorrectly() throws Exception {
         // read in keystore version
@@ -77,7 +76,7 @@ public class CertUtilsTests extends ESTestCase {
         try (Reader reader =
                      Files.newBufferedReader(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"),
                              StandardCharsets.UTF_8)) {
-            privateKey = CertUtils.readPrivateKey(reader, "testnode".toCharArray());
+            privateKey = CertUtils.readPrivateKey(reader, "testnode"::toCharArray);
         }
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));

@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.MockNetty3Plugin;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.graph.GraphLicensee;
 import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
+import org.elasticsearch.xpack.XPackTransportClient;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.SecurityLicenseState;
 import org.elasticsearch.xpack.security.SecurityLicensee;
@@ -208,7 +209,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         builder.remove(ThreadContext.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER);
 
         // basic has no auth
-        try (TransportClient client = TransportClient.builder().settings(builder).addPlugin(XPackPlugin.class).build()) {
+        try (TransportClient client = new XPackTransportClient(builder.build())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             assertGreenClusterState(client);
         }
@@ -217,7 +218,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         OperationMode mode = randomFrom(OperationMode.GOLD, OperationMode.TRIAL, OperationMode.PLATINUM, OperationMode.STANDARD);
         enableLicensing(mode);
 
-        try (TransportClient client = TransportClient.builder().settings(builder).addPlugin(XPackPlugin.class).build()) {
+        try (TransportClient client = new XPackTransportClient(builder.build())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             client.admin().cluster().prepareHealth().get();
             fail("should not have been able to connect to a node!");

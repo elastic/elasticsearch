@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
+import com.unboundid.ldap.sdk.LDAPException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -25,6 +26,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
@@ -67,7 +69,7 @@ public class OpenLdapTests extends ESTestCase {
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         RealmConfig config = new RealmConfig("oldap-test", buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase,
                 LdapSearchScope.ONE_LEVEL), globalSettings);
-        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService).init();
+        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService);
 
         String[] users = new String[] { "blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor" };
         for (String user : users) {
@@ -84,7 +86,7 @@ public class OpenLdapTests extends ESTestCase {
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         RealmConfig config = new RealmConfig("oldap-test", buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase,
                 LdapSearchScope.BASE), globalSettings);
-        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService).init();
+        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService);
 
         String[] users = new String[] { "blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor" };
         for (String user : users) {
@@ -111,7 +113,7 @@ public class OpenLdapTests extends ESTestCase {
         settings.put("load_balance.type", loadBalanceType);
 
         RealmConfig config = new RealmConfig("oldap-test", settings.build(), globalSettings);
-        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService).init();
+        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService);
         LdapRealm realm = new LdapRealm(config, sessionFactory, mock(DnRoleMapper.class));
 
         Map<String, Object> stats = realm.usageStats();
@@ -133,32 +135,29 @@ public class OpenLdapTests extends ESTestCase {
                 .put("group_search.user_attribute", "uid")
                 .build();
         RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings);
-        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService).init();
+        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService);
 
         try (LdapSession ldap = sessionFactory.session("selvig", SecuredStringTests.build(PASSWORD))){
             assertThat(ldap.groups(), hasItem(containsString("Geniuses")));
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-shield/issues/499")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/2849")
     public void testTcpTimeout() throws Exception {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         Settings settings = Settings.builder()
-                .put(buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
+                .put(buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
+                .put("group_search.filter", "(objectClass=*)")
                 .put(SessionFactory.HOSTNAME_VERIFICATION_SETTING, false)
                 .put(SessionFactory.TIMEOUT_TCP_READ_SETTING, "1ms") //1 millisecond
                 .build();
         RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings);
-        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService).init();
+        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService);
 
-        try (LdapSession ldap = sessionFactory.session("thor", SecuredStringTests.build(PASSWORD))) {
-            // In certain cases we may have a successful bind, but a search should take longer and cause a timeout
-            ldap.groups();
-            fail("The TCP connection should timeout before getting groups back");
-        } catch (ElasticsearchException e) {
-            assertThat(e.getCause().getMessage(), containsString("A client-side timeout was encountered while waiting"));
-        }
+        LDAPException expected = expectThrows(LDAPException.class,
+                () -> sessionFactory.session("thor", SecuredStringTests.build(PASSWORD)).groups());
+        assertThat(expected.getMessage(), containsString("A client-side timeout was encountered while waiting"));
     }
 
     public void testStandardLdapConnectionHostnameVerification() throws Exception {
@@ -171,14 +170,11 @@ public class OpenLdapTests extends ESTestCase {
                 .build();
 
         RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings);
-        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService).init();
+        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService);
 
         String user = "blackwidow";
-        try (LdapSession ldap = sessionFactory.session(user, SecuredStringTests.build(PASSWORD))) {
-            fail("OpenLDAP certificate does not contain the correct hostname/ip so hostname verification should fail on open");
-        } catch (IOException e) {
-            assertThat(e.getMessage(), containsString("failed to connect to any LDAP servers"));
-        }
+        LDAPException expected = expectThrows(LDAPException.class, () -> sessionFactory.session(user, SecuredStringTests.build(PASSWORD)));
+        assertThat(expected.getMessage(), anyOf(containsString("Hostname verification failed"), containsString("peer not authenticated")));
     }
 
     Settings buildLdapSettings(String ldapUrl, String userTemplate, String groupSearchBase, LdapSearchScope scope) {

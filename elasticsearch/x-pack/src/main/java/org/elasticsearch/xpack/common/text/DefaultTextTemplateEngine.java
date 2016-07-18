@@ -12,8 +12,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.xpack.watcher.support.WatcherScript;
 
 import java.util.Collections;
@@ -80,11 +80,11 @@ public class DefaultTextTemplateEngine extends AbstractComponent implements Text
         return null;
     }
 
-    private Template convert(TextTemplate textTemplate, Map<String, Object> model) {
+    private Script convert(TextTemplate textTemplate, Map<String, Object> model) {
         Map<String, Object> mergedModel = new HashMap<>();
         mergedModel.putAll(textTemplate.getParams());
         mergedModel.putAll(model);
-        return new Template(textTemplate.getTemplate(), textTemplate.getType(), "mustache", textTemplate.getContentType(), mergedModel);
+        return new Script(textTemplate.getTemplate(), textTemplate.getType(), "mustache", mergedModel, textTemplate.getContentType());
     }
 
     private Map<String, String> compileParams(XContentType contentType) {

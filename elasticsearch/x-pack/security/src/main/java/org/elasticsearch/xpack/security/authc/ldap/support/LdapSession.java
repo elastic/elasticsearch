@@ -5,12 +5,15 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap.support;
 
+import com.unboundid.ldap.sdk.Attribute;
 import com.unboundid.ldap.sdk.LDAPConnection;
+import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.Closeable;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -23,6 +26,7 @@ public class LdapSession implements Closeable {
     protected final String userDn;
     protected final GroupsResolver groupsResolver;
     protected final TimeValue timeout;
+    protected final Collection<Attribute> attributes;
 
     /**
      * This object is intended to be constructed by the LdapConnectionFactory
@@ -32,12 +36,14 @@ public class LdapSession implements Closeable {
      * outside of and be reused across all connections. We can't keep a static logger in this class
      * since we want the logger to be contextual (i.e. aware of the settings and its environment).
      */
-    public LdapSession(ESLogger logger, LDAPInterface connection, String userDn, GroupsResolver groupsResolver, TimeValue timeout) {
+    public LdapSession(ESLogger logger, LDAPInterface connection, String userDn, GroupsResolver groupsResolver, TimeValue timeout,
+                       Collection<Attribute> attributes) {
         this.logger = logger;
         this.ldap = connection;
         this.userDn = userDn;
         this.groupsResolver = groupsResolver;
         this.timeout = timeout;
+        this.attributes = attributes;
     }
 
     /**
@@ -61,13 +67,15 @@ public class LdapSession implements Closeable {
     /**
      * @return List of fully distinguished group names
      */
-    public List<String> groups() {
-        return groupsResolver.resolve(ldap, userDn, timeout, logger);
+    public List<String> groups() throws LDAPException {
+        return groupsResolver.resolve(ldap, userDn, timeout, logger, attributes);
     }
 
     public interface GroupsResolver {
 
-        List<String> resolve(LDAPInterface ldapConnection, String userDn, TimeValue timeout, ESLogger logger);
+        List<String> resolve(LDAPInterface ldapConnection, String userDn, TimeValue timeout, ESLogger logger,
+                             Collection<Attribute> attributes) throws LDAPException;
 
+        String[] attributes();
     }
 }

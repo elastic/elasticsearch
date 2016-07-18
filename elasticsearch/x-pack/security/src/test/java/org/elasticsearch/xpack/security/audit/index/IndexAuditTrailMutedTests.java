@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -26,6 +25,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail.State;
@@ -60,7 +60,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         when(clusterService.localNode()).thenReturn(localNode);
 
         threadPool = new TestThreadPool("index audit trail tests");
-        transportClient = TransportClient.builder().settings(Settings.builder().put("transport.type", "local")).build();
+        transportClient = new MockTransportClient(Settings.EMPTY);
         clientCalled = new AtomicBoolean(false);
         class IClient extends InternalClient {
            IClient(Client transportClient){

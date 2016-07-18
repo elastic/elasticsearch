@@ -12,6 +12,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 
+import java.util.Map;
+
 /**
  * Builder for requests to add a role to the administrative index
  */
@@ -33,6 +35,7 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
         request.cluster(descriptor.getClusterPrivileges());
         request.addIndex(descriptor.getIndicesPrivileges());
         request.runAs(descriptor.getRunAs());
+        request.metadata(descriptor.getMetadata());
         return this;
     }
 
@@ -54,6 +57,11 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
     public PutRoleRequestBuilder addIndices(String[] indices, String[] privileges,
             @Nullable String[] fields, @Nullable BytesReference query) {
         request.addIndex(indices, privileges, fields, query);
+        return this;
+    }
+
+    public PutRoleRequestBuilder metadata(Map<String, Object> metadata) {
+        request.metadata(metadata);
         return this;
     }
 }

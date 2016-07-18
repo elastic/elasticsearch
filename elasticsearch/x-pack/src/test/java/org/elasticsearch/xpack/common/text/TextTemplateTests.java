@@ -16,7 +16,7 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.Template;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.junit.Before;
@@ -60,9 +60,8 @@ public class TextTemplateTests extends ESTestCase {
         ScriptType type = randomFrom(ScriptType.values());
 
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(service.compile(new Template(templateText, type, lang, null, merged), WatcherScript.CTX,
-            Collections.singletonMap("content_type", "text/plain")))
-                .thenReturn(compiledScript);
+        when(service.compile(new Script(templateText, type, lang, merged), WatcherScript.CTX,
+            Collections.singletonMap("content_type", "text/plain"))).thenReturn(compiledScript);
         when(service.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 
@@ -77,10 +76,8 @@ public class TextTemplateTests extends ESTestCase {
         ScriptType scriptType = randomFrom(ScriptType.values());
 
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(service.compile(new Template(templateText, scriptType, lang, null, model),
-            WatcherScript.CTX,
-                    Collections.singletonMap("content_type", "text/plain")))
-                .thenReturn(compiledScript);
+        when(service.compile(new Script(templateText, scriptType, lang, model), WatcherScript.CTX,
+            Collections.singletonMap("content_type", "text/plain"))).thenReturn(compiledScript);
         when(service.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 
@@ -93,10 +90,8 @@ public class TextTemplateTests extends ESTestCase {
         Map<String, Object> model = singletonMap("key", "model_val");
 
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(service.compile(new Template(templateText, ScriptType.INLINE, lang, null, model),
-            WatcherScript.CTX,
-                    Collections.singletonMap("content_type", "text/plain")))
-                .thenReturn(compiledScript);
+        when(service.compile(new Script(templateText, ScriptType.INLINE, lang, model), WatcherScript.CTX,
+            Collections.singletonMap("content_type", "text/plain"))).thenReturn(compiledScript);
         when(service.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 

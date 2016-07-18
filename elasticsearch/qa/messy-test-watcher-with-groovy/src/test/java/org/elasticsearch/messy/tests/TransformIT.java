@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.groovy.GroovyPlugin;
-import org.elasticsearch.xpack.watcher.support.Script;
+import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
@@ -72,10 +72,10 @@ public class TransformIT extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testScriptTransform() throws Exception {
-        final Script script;
+        final WatcherScript script;
         if (randomBoolean()) {
             logger.info("testing script transform with an inline script");
-            script = Script.inline("return [key3 : ctx.payload.key1 + ctx.payload.key2]").lang("groovy").build();
+            script = WatcherScript.inline("return [key3 : ctx.payload.key1 + ctx.payload.key2]").lang("groovy").build();
         } else if (randomBoolean()) {
             logger.info("testing script transform with an indexed script");
             client().admin().cluster().preparePutStoredScript()
@@ -83,10 +83,10 @@ public class TransformIT extends AbstractWatcherIntegrationTestCase {
                     .setScriptLang("groovy")
                     .setSource(new BytesArray("{\"script\" : \"return [key3 : ctx.payload.key1 + ctx.payload.key2]\"}"))
                     .get();
-            script = Script.indexed("_id").lang("groovy").build();
+            script = WatcherScript.indexed("_id").lang("groovy").build();
         } else {
             logger.info("testing script transform with a file script");
-            script = Script.file("my-script").lang("groovy").build();
+            script = WatcherScript.file("my-script").lang("groovy").build();
         }
 
         // put a watch that has watch level transform:
@@ -182,8 +182,8 @@ public class TransformIT extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testChainTransform() throws Exception {
-        final Script script1 = Script.inline("return [key3 : ctx.payload.key1 + ctx.payload.key2]").lang("groovy").build();
-        final Script script2 = Script.inline("return [key4 : ctx.payload.key3 + 10]").lang("groovy").build();
+        final WatcherScript script1 = WatcherScript.inline("return [key3 : ctx.payload.key1 + ctx.payload.key2]").lang("groovy").build();
+        final WatcherScript script2 = WatcherScript.inline("return [key4 : ctx.payload.key3 + 10]").lang("groovy").build();
         // put a watch that has watch level transform:
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id1")
                 .setSource(watchBuilder()

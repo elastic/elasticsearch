@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.watcher.condition.compare.CompareCondition;
 import org.elasticsearch.xpack.watcher.condition.compare.array.ArrayCompareCondition;
 import org.elasticsearch.xpack.watcher.condition.never.NeverCondition;
 import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
-import org.elasticsearch.xpack.watcher.support.Script;
+import org.elasticsearch.xpack.watcher.support.WatcherScript;
 
 /**
  *
@@ -29,14 +29,14 @@ public final class ConditionBuilders {
     }
 
     public static ScriptCondition.Builder scriptCondition(String script) {
-        return scriptCondition(Script.inline(script));
+        return scriptCondition(WatcherScript.inline(script));
     }
 
-    public static ScriptCondition.Builder scriptCondition(Script.Builder script) {
+    public static ScriptCondition.Builder scriptCondition(WatcherScript.Builder script) {
         return scriptCondition(script.build());
     }
 
-    public static ScriptCondition.Builder scriptCondition(Script script) {
+    public static ScriptCondition.Builder scriptCondition(WatcherScript script) {
         return ScriptCondition.builder(script);
     }
 

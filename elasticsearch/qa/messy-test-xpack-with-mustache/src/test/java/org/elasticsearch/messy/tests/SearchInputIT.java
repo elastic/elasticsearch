@@ -28,7 +28,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
@@ -41,7 +40,7 @@ import org.elasticsearch.xpack.watcher.input.search.SearchInput;
 import org.elasticsearch.xpack.watcher.input.search.SearchInputFactory;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
-import org.elasticsearch.xpack.watcher.support.Script;
+import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
@@ -190,7 +189,7 @@ public class SearchInputIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
-        Script template = Script.inline(TEMPLATE_QUERY).lang("mustache").params(params).build();
+        WatcherScript template = WatcherScript.inline(TEMPLATE_QUERY).lang("mustache").params(params).build();
 
         SearchRequest request = client().prepareSearch()
                 .setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
@@ -224,7 +223,7 @@ public class SearchInputIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
-        Script template = Script.indexed("test-template").lang("mustache").params(params).build();
+        WatcherScript template = WatcherScript.indexed("test-template").lang("mustache").params(params).build();
 
         jsonBuilder().value(TextTemplate.indexed("test-template").params(params).build()).bytes();
         SearchRequest request = client().prepareSearch().setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
@@ -252,7 +251,7 @@ public class SearchInputIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
-        Script template = Script.file("test_disk_template").lang("mustache").params(params).build();
+        WatcherScript template = WatcherScript.file("test_disk_template").lang("mustache").params(params).build();
         SearchRequest request = client().prepareSearch().setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
                 .setIndices("test-search-index").request();
 
@@ -347,7 +346,8 @@ public class SearchInputIT extends ESIntegTestCase {
                 timeValueSeconds(5));
     }
 
-    private SearchInput.Result executeSearchInput(SearchRequest request, Script template, WatchExecutionContext ctx) throws IOException {
+    private SearchInput.Result executeSearchInput(SearchRequest request, WatcherScript template,
+                                                  WatchExecutionContext ctx) throws IOException {
         createIndex("test-search-index");
         ensureGreen("test-search-index");
         SearchInput.Builder siBuilder = SearchInput.builder(new WatcherSearchTemplateRequest(request, template));
@@ -362,15 +362,15 @@ public class SearchInputIT extends ESIntegTestCase {
     protected WatcherSearchTemplateService watcherSearchTemplateService() {
         String master = internalCluster().getMasterName();
         return new WatcherSearchTemplateService(internalCluster().clusterService(master).getSettings(),
-                ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class, master)),
+                internalCluster().getInstance(ScriptService.class, master),
                 internalCluster().getInstance(IndicesQueriesRegistry.class, master),
                 internalCluster().getInstance(AggregatorParsers.class, master),
                 internalCluster().getInstance(Suggesters.class, master)
         );
     }
 
-    protected ScriptServiceProxy scriptService() {
-        return ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class));
+    protected ScriptService scriptService() {
+        return internalCluster().getInstance(ScriptService.class);
     }
 
     private XContentSource toXContentSource(SearchInput.Result result) throws IOException {
@@ -387,7 +387,7 @@ public class SearchInputIT extends ESIntegTestCase {
 
         @Override
         public ScriptContext.Plugin getCustomScriptContexts() {
-            return ScriptServiceProxy.INSTANCE;
+            return WatcherScript.CTX_PLUGIN;
         }
     }
 }

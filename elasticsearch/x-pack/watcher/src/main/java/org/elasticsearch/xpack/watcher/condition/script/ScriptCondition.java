@@ -9,7 +9,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.condition.Condition;
-import org.elasticsearch.xpack.watcher.support.Script;
+import org.elasticsearch.xpack.watcher.support.WatcherScript;
 
 import java.io.IOException;
 
@@ -20,9 +20,9 @@ public class ScriptCondition implements Condition {
 
     public static final String TYPE = "script";
 
-    final Script script;
+    final WatcherScript script;
 
-    public ScriptCondition(Script script) {
+    public ScriptCondition(WatcherScript script) {
         this.script = script;
     }
 
@@ -31,7 +31,7 @@ public class ScriptCondition implements Condition {
         return TYPE;
     }
 
-    public Script getScript() {
+    public WatcherScript getScript() {
         return script;
     }
 
@@ -57,7 +57,7 @@ public class ScriptCondition implements Condition {
 
     public static ScriptCondition parse(String watchId, XContentParser parser) throws IOException {
         try {
-            Script script = Script.parse(parser);
+            WatcherScript script = WatcherScript.parse(parser);
             return new ScriptCondition(script);
         } catch (ElasticsearchParseException pe) {
             throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. failed to parse script", pe, TYPE,
@@ -65,7 +65,7 @@ public class ScriptCondition implements Condition {
         }
     }
 
-    public static Builder builder(Script script) {
+    public static Builder builder(WatcherScript script) {
         return new Builder(script);
     }
 
@@ -86,9 +86,9 @@ public class ScriptCondition implements Condition {
 
     public static class Builder implements Condition.Builder<ScriptCondition> {
 
-        private final Script script;
+        private final WatcherScript script;
 
-        private Builder(Script script) {
+        private Builder(WatcherScript script) {
             this.script = script;
         }
 

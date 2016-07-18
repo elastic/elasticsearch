@@ -13,14 +13,14 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.GeneralScriptException;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.watcher.support.Script;
+import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.support.Variables;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.watcher.transform.Transform;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.junit.After;
@@ -35,7 +35,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.EMPTY_PAYLOAD;
-import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.getScriptServiceProxy;
+import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.createScriptService;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.simplePayload;
 import static org.hamcrest.Matchers.containsString;
@@ -63,12 +63,12 @@ public class ScriptTransformTests extends ESTestCase {
     }
 
     public void testExecute_MapValue() throws Exception {
-        ScriptServiceProxy service = mock(ScriptServiceProxy.class);
+        ScriptService service = mock(ScriptService.class);
         ScriptType type = randomFrom(ScriptType.values());
         Map<String, Object> params = Collections.emptyMap();
-        Script script = scriptBuilder(type, "_script").lang("_lang").params(params).build();
+        WatcherScript script = scriptBuilder(type, "_script").lang("_lang").params(params).build();
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(service.compile(script)).thenReturn(compiledScript);
+        when(service.compile(script.toScript(), WatcherScript.CTX, Collections.emptyMap())).thenReturn(compiledScript);
         ExecutableScriptTransform transform = new ExecutableScriptTransform(new ScriptTransform(script), logger, service);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
@@ -91,12 +91,12 @@ public class ScriptTransformTests extends ESTestCase {
     }
 
     public void testExecuteMapValueFailure() throws Exception {
-        ScriptServiceProxy service = mock(ScriptServiceProxy.class);
+        ScriptService service = mock(ScriptService.class);
         ScriptType type = randomFrom(ScriptType.values());
         Map<String, Object> params = Collections.emptyMap();
-        Script script = scriptBuilder(type, "_script").lang("_lang").params(params).build();
+        WatcherScript script = scriptBuilder(type, "_script").lang("_lang").params(params).build();
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(service.compile(script)).thenReturn(compiledScript);
+        when(service.compile(script.toScript(), WatcherScript.CTX, Collections.emptyMap())).thenReturn(compiledScript);
         ExecutableScriptTransform transform = new ExecutableScriptTransform(new ScriptTransform(script), logger, service);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
@@ -117,13 +117,12 @@ public class ScriptTransformTests extends ESTestCase {
     }
 
     public void testExecuteNonMapValue() throws Exception {
-        ScriptServiceProxy service = mock(ScriptServiceProxy.class);
-
+        ScriptService service = mock(ScriptService.class);
         ScriptType type = randomFrom(ScriptType.values());
         Map<String, Object> params = Collections.emptyMap();
-        Script script = scriptBuilder(type, "_script").lang("_lang").params(params).build();
+        WatcherScript script = scriptBuilder(type, "_script").lang("_lang").params(params).build();
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(service.compile(script)).thenReturn(compiledScript);
+        when(service.compile(script.toScript(), WatcherScript.CTX, Collections.emptyMap())).thenReturn(compiledScript);
         ExecutableScriptTransform transform = new ExecutableScriptTransform(new ScriptTransform(script), logger, service);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
@@ -145,7 +144,7 @@ public class ScriptTransformTests extends ESTestCase {
     }
 
     public void testParser() throws Exception {
-        ScriptServiceProxy service = mock(ScriptServiceProxy.class);
+        ScriptService service = mock(ScriptService.class);
         ScriptType type = randomFrom(ScriptType.values());
         XContentBuilder builder = jsonBuilder().startObject();
         builder.field(scriptTypeField(type), "_script");
@@ -156,22 +155,22 @@ public class ScriptTransformTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
         ExecutableScriptTransform transform = new ScriptTransformFactory(Settings.EMPTY, service).parseExecutable("_id", parser);
-        Script script = scriptBuilder(type, "_script").lang("_lang").params(singletonMap("key", "value")).build();
+        WatcherScript script = scriptBuilder(type, "_script").lang("_lang").params(singletonMap("key", "value")).build();
         assertThat(transform.transform().getScript(), equalTo(script));
     }
 
     public void testParserString() throws Exception {
-        ScriptServiceProxy service = mock(ScriptServiceProxy.class);
+        ScriptService service = mock(ScriptService.class);
         XContentBuilder builder = jsonBuilder().value("_script");
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
         ExecutableScriptTransform transform = new ScriptTransformFactory(Settings.EMPTY, service).parseExecutable("_id", parser);
-        assertThat(transform.transform().getScript(), equalTo(Script.defaultType("_script").build()));
+        assertThat(transform.transform().getScript(), equalTo(WatcherScript.defaultType("_script").build()));
     }
 
     public void testScriptConditionParserBadScript() throws Exception {
-        ScriptTransformFactory transformFactory = new ScriptTransformFactory(Settings.builder().build(), getScriptServiceProxy(tp));
+        ScriptTransformFactory transformFactory = new ScriptTransformFactory(Settings.builder().build(), createScriptService(tp));
         ScriptType scriptType = randomFrom(ScriptType.values());
         String script;
         switch (scriptType) {
@@ -203,7 +202,7 @@ public class ScriptTransformTests extends ESTestCase {
     }
 
     public void testScriptConditionParserBadLang() throws Exception {
-        ScriptTransformFactory transformFactory = new ScriptTransformFactory(Settings.builder().build(), getScriptServiceProxy(tp));
+        ScriptTransformFactory transformFactory = new ScriptTransformFactory(Settings.builder().build(), createScriptService(tp));
         ScriptType scriptType = randomFrom(ScriptType.values());
         String script = "return true";
         XContentBuilder builder = jsonBuilder().startObject()
@@ -224,11 +223,11 @@ public class ScriptTransformTests extends ESTestCase {
         }
     }
 
-    static Script.Builder scriptBuilder(ScriptType type, String script) {
+    static WatcherScript.Builder scriptBuilder(ScriptType type, String script) {
         switch (type) {
-            case INLINE:    return Script.inline(script);
-            case FILE:      return Script.file(script);
-            case STORED:   return Script.indexed(script);
+            case INLINE:    return WatcherScript.inline(script);
+            case FILE:      return WatcherScript.file(script);
+            case STORED:   return WatcherScript.indexed(script);
             default:
                 throw illegalArgument("unsupported script type [{}]", type);
         }

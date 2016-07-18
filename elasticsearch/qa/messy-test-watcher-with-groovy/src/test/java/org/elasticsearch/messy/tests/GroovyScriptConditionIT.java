@@ -8,6 +8,7 @@ package org.elasticsearch.messy.tests;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -16,8 +17,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.watcher.condition.script.ExecutableScriptCondition;
 import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.watcher.support.Script;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
+import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.junit.AfterClass;
@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.messy.tests.MessyTestUtils.getScriptServiceProxy;
+import static org.elasticsearch.messy.tests.MessyTestUtils.createScriptService;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
 
 public class GroovyScriptConditionIT extends AbstractWatcherIntegrationTestCase {
@@ -46,7 +46,7 @@ public class GroovyScriptConditionIT extends AbstractWatcherIntegrationTestCase 
     }
 
     private static ThreadPool THREAD_POOL;
-    private ScriptServiceProxy scriptService;
+    private ScriptService scriptService;
 
     @BeforeClass
     public static void startThreadPool() {
@@ -55,7 +55,7 @@ public class GroovyScriptConditionIT extends AbstractWatcherIntegrationTestCase 
 
     @Before
     public void init() throws Exception {
-        scriptService = getScriptServiceProxy(THREAD_POOL);
+        scriptService = createScriptService(THREAD_POOL);
     }
 
     @AfterClass
@@ -83,7 +83,7 @@ public class GroovyScriptConditionIT extends AbstractWatcherIntegrationTestCase 
         SearchResponse unmetResponse = builder.get();
 
         ExecutableScriptCondition condition =
-                new ExecutableScriptCondition(new ScriptCondition(Script.inline(
+                new ExecutableScriptCondition(new ScriptCondition(WatcherScript.inline(
                         String.join(
                                 " ",
                                 "if (ctx.payload.hits.total < 1) return false;",

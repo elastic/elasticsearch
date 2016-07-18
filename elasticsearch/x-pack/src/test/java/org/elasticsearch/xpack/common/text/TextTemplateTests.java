@@ -14,10 +14,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
+import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -37,16 +38,16 @@ import static org.mockito.Mockito.when;
 
 public class TextTemplateTests extends ESTestCase {
 
-    private ScriptServiceProxy proxy;
+    private ScriptService service;
     private TextTemplateEngine engine;
     private ExecutableScript script;
     private final String lang = "mustache";
 
     @Before
     public void init() throws Exception {
-        proxy = mock(ScriptServiceProxy.class);
+        service = mock(ScriptService.class);
         script = mock(ExecutableScript.class);
-        engine = new DefaultTextTemplateEngine(Settings.EMPTY, proxy);
+        engine = new DefaultTextTemplateEngine(Settings.EMPTY, service);
     }
 
     public void testRender() throws Exception {
@@ -59,9 +60,9 @@ public class TextTemplateTests extends ESTestCase {
         ScriptType type = randomFrom(ScriptType.values());
 
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(proxy.compile(new Script(templateText, type, lang, merged), Collections.singletonMap("content_type", "text/plain")))
-                .thenReturn(compiledScript);
-        when(proxy.executable(compiledScript, model)).thenReturn(script);
+        when(service.compile(new Script(templateText, type, lang, merged), WatcherScript.CTX,
+            Collections.singletonMap("content_type", "text/plain"))).thenReturn(compiledScript);
+        when(service.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 
         TextTemplate template = templateBuilder(type, templateText).params(params).build();
@@ -75,10 +76,9 @@ public class TextTemplateTests extends ESTestCase {
         ScriptType scriptType = randomFrom(ScriptType.values());
 
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(proxy.compile(new Script(templateText, scriptType, lang, model),
-                    Collections.singletonMap("content_type", "text/plain")))
-                .thenReturn(compiledScript);
-        when(proxy.executable(compiledScript, model)).thenReturn(script);
+        when(service.compile(new Script(templateText, scriptType, lang, model), WatcherScript.CTX,
+            Collections.singletonMap("content_type", "text/plain"))).thenReturn(compiledScript);
+        when(service.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 
         TextTemplate template = templateBuilder(scriptType, templateText).params(params).build();
@@ -90,10 +90,9 @@ public class TextTemplateTests extends ESTestCase {
         Map<String, Object> model = singletonMap("key", "model_val");
 
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(proxy.compile(new Script(templateText, ScriptType.INLINE, lang, model),
-                    Collections.singletonMap("content_type", "text/plain")))
-                .thenReturn(compiledScript);
-        when(proxy.executable(compiledScript, model)).thenReturn(script);
+        when(service.compile(new Script(templateText, ScriptType.INLINE, lang, model), WatcherScript.CTX,
+            Collections.singletonMap("content_type", "text/plain"))).thenReturn(compiledScript);
+        when(service.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 
         TextTemplate template = new TextTemplate(templateText);

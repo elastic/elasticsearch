@@ -34,7 +34,7 @@ integTest {
      'search/80_date_math_index_names/Missing index with catch'].join(',')
 
   cluster {
-    plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
+    plugin ':x-plugins:elasticsearch:x-pack'
     setting 'xpack.watcher.enabled', 'false'
     setting 'xpack.monitoring.enabled', 'false'
     setupCommand 'setupDummyUser',

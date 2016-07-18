@@ -15,7 +15,7 @@ integTest {
   dependsOn copyGraphRestTests
 
   cluster {
-    plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
+    plugin ':x-plugins:elasticsearch:x-pack'
     extraConfigFile 'x-pack/roles.yml', 'roles.yml'
     setupCommand 'setupTestAdminUser',
                  'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'superuser'

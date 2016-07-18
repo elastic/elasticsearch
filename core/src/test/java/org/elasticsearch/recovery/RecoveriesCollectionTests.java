@@ -64,7 +64,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
     };
 
     public void testLastAccessTimeUpdate() throws Exception {
-        try (ReplicationGroup shards = createGroup(1)) {
+        try (ReplicationGroup shards = createGroup(0)) {
             final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool);
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
             try (RecoveriesCollection.RecoveryRef status = collection.getRecovery(recoveryId)) {
@@ -81,7 +81,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
     }
 
     public void testRecoveryTimeout() throws Exception {
-        try (ReplicationGroup shards = createGroup(1)) {
+        try (ReplicationGroup shards = createGroup(0)) {
             final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool);
             final AtomicBoolean failed = new AtomicBoolean();
             final CountDownLatch latch = new CountDownLatch(1);
@@ -109,7 +109,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
     }
 
     public void testRecoveryCancellation() throws Exception {
-        try (ReplicationGroup shards = createGroup(1)) {
+        try (ReplicationGroup shards = createGroup(0)) {
             final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool);
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
             final long recoveryId2 = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
@@ -125,7 +125,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
     }
 
     public void testResetRecovery() throws Exception {
-        try (ReplicationGroup shards = createGroup(1)) {
+        try (ReplicationGroup shards = createGroup(0)) {
             shards.startAll();
             int numDocs = randomIntBetween(1, 15);
             shards.indexDocs(numDocs);
@@ -135,6 +135,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
             try (RecoveriesCollection.RecoveryRef recovery = collection.getRecovery(recoveryId)) {
                 final int currentAsTarget = shard.recoveryStats().currentAsTarget();
                 final int referencesToStore = recovery.status().store().refCount();
+                String tempFileName = recovery.status().getTempNameForFile("foobar");
                 collection.resetRecovery(recoveryId, recovery.status().shardId());
                 try (RecoveriesCollection.RecoveryRef resetRecovery = collection.getRecovery(recoveryId)) {
                     assertNotSame(recovery.status(), resetRecovery);
@@ -146,6 +147,8 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
                     recovery.close();
                     expectThrows(ElasticsearchException.class, () -> recovery.status().store());
                     assertEquals(referencesToStore, resetRecovery.status().store().refCount());
+                    String resetTempFileName = resetRecovery.status().getTempNameForFile("foobar");
+                    assertNotEquals(tempFileName, resetTempFileName);
                 }
                 assertEquals(currentAsTarget, shard.recoveryStats().currentAsTarget());
             }

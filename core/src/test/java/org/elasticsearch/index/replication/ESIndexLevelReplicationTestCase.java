@@ -202,7 +202,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
     }
 
     protected DiscoveryNode getDiscoveryNode(String id) {
-        return new DiscoveryNode(id, id, LocalTransportAddress.buildUnique(), Collections.emptyMap(),
+        return new DiscoveryNode(id, id, new LocalTransportAddress(id), Collections.emptyMap(),
             Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT);
     }
 
@@ -231,7 +231,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
     }
 
 
-    public class ReplicationGroup implements AutoCloseable, Iterable<IndexShard> {
+    protected class ReplicationGroup implements AutoCloseable, Iterable<IndexShard> {
         private final IndexShard primary;
         private final List<IndexShard> replicas;
         private final IndexMetaData indexMetaData;

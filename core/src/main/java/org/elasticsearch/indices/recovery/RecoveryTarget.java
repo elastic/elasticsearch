@@ -29,6 +29,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -85,7 +86,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     private final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
 
-    public RecoveryTarget(RecoveryTarget copyFrom) { // copy constructor
+    private RecoveryTarget(RecoveryTarget copyFrom) { // copy constructor
         this(copyFrom.indexShard(), copyFrom.sourceNode(), copyFrom.listener, copyFrom.cancellableThreads, copyFrom.recoveryId());
     }
 
@@ -103,7 +104,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.indexShard = indexShard;
         this.sourceNode = sourceNode;
         this.shardId = indexShard.shardId();
-        this.tempFilePrefix = RECOVERY_PREFIX + indexShard.recoveryState().getTimer().startTime() + ".";
+        this.tempFilePrefix = RECOVERY_PREFIX + UUIDs.base64UUID() + ".";
         this.store = indexShard.store();
         // make sure the store is not released until we are done.
         store.incRef();
@@ -160,11 +161,19 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         store.renameTempFilesSafe(tempFileNames);
     }
 
-    public void close() {
+    /**
+     * Closes the current recovery target and returns a
+     * clone to reset the ongoing recovery
+     */
+    RecoveryTarget resetRecovery() throws IOException {
+        ensureRefCount();
+        RecoveryTarget copy = new RecoveryTarget(this);
         if (finished.compareAndSet(false, true)) {
             // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
             decRef();
         }
+        indexShard.performRecoveryRestart();
+        return copy;
     }
 
     /**

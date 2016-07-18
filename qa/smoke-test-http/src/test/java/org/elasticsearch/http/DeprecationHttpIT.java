@@ -20,16 +20,15 @@ package org.elasticsearch.http;
 
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
-
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -103,7 +102,7 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
 
         // trigger all index deprecations
         Response response = getRestClient().performRequest("GET", "/" + commaSeparatedIndices + "/_search",
-                Collections.emptyMap(), new StringEntity(body, RestClient.JSON_CONTENT_TYPE));
+                Collections.emptyMap(), new StringEntity(body, ContentType.APPLICATION_JSON));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
 
         final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
@@ -201,7 +200,7 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
 
         builder.endArray().endObject();
 
-        return new StringEntity(builder.string(), RestClient.JSON_CONTENT_TYPE);
+        return new StringEntity(builder.string(), ContentType.APPLICATION_JSON);
     }
 
 }

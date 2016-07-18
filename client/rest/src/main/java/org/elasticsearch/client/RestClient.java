@@ -20,7 +20,6 @@ package org.elasticsearch.client;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.http.Consts;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -37,7 +36,6 @@ import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.methods.HttpTrace;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.entity.ContentType;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
@@ -79,7 +77,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class RestClient implements Closeable {
 
     private static final Log logger = LogFactory.getLog(RestClient.class);
-    public static ContentType JSON_CONTENT_TYPE = ContentType.create("application/json", Consts.UTF_8);
 
     private final CloseableHttpAsyncClient client;
     //we don't rely on default headers supported by HttpAsyncClient as those cannot be replaced

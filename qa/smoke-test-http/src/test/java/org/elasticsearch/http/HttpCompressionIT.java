@@ -19,6 +19,7 @@
 package org.elasticsearch.http;
 
 import org.apache.http.HttpHeaders;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
@@ -35,7 +36,7 @@ public class HttpCompressionIT extends ESIntegTestCase {
         "      \"first name\": \"Steve\",\n" +
         "      \"last name\": \"Jobs\"\n" +
         "   }\n" +
-        "}", RestClient.JSON_CONTENT_TYPE);
+        "}", ContentType.APPLICATION_JSON);
 
     @Override
     protected boolean ignoreExternalCluster() {

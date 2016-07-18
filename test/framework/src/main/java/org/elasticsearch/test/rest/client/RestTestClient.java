@@ -22,6 +22,7 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
@@ -135,7 +136,7 @@ public class RestTestClient implements Closeable {
             String path = "/"+ Objects.requireNonNull(queryStringParams.remove("path"), "Path must be set to use raw request");
             HttpEntity entity = null;
             if (body != null && body.length() > 0) {
-                entity = new StringEntity(body, RestClient.JSON_CONTENT_TYPE);
+                entity = new StringEntity(body, ContentType.APPLICATION_JSON);
             }
             // And everything else is a url parameter!
             try {
@@ -204,7 +205,7 @@ public class RestTestClient implements Closeable {
                 requestMethod = "GET";
             } else {
                 requestMethod = RandomizedTest.randomFrom(supportedMethods);
-                requestBody = new StringEntity(body, RestClient.JSON_CONTENT_TYPE);
+                requestBody = new StringEntity(body, ContentType.APPLICATION_JSON);
             }
         } else {
             if (restApi.isBodyRequired()) {

@@ -24,10 +24,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregator;
 
 import java.io.IOException;
@@ -37,29 +35,10 @@ import java.util.List;
 import java.util.Map;
 
 public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
-
-    public static final Type TYPE = new Type("percentiles_bucket");
     public final ParseField PERCENTS_FIELD = new ParseField("percents");
 
-    public static final PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
-        @Override
-        public PercentilesBucketPipelineAggregator readResult(StreamInput in) throws IOException {
-            PercentilesBucketPipelineAggregator result = new PercentilesBucketPipelineAggregator();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        PipelineAggregatorStreams.registerStream(STREAM, TYPE.stream());
-        InternalPercentilesBucket.registerStreams();
-    }
-
-    private double[] percents;
+    private final double[] percents;
     private List<Double> data;
-
-    private PercentilesBucketPipelineAggregator() {
-    }
 
     protected PercentilesBucketPipelineAggregator(String name, double[] percents, String[] bucketsPaths, GapPolicy gapPolicy,
                                                   DocValueFormat formatter, Map<String, Object> metaData) {
@@ -67,9 +46,22 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
         this.percents = percents;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public PercentilesBucketPipelineAggregator(StreamInput in) throws IOException {
+        super(in);
+        percents = in.readDoubleArray();
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    public void innerWriteTo(StreamOutput out) throws IOException {
+        out.writeDoubleArray(percents);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return PercentilesBucketPipelineAggregationBuilder.NAME;
     }
 
     @Override
@@ -105,15 +97,4 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
 
         return new InternalPercentilesBucket(name(), percents, percentiles, format, pipelineAggregators, metadata);
     }
-
-    @Override
-    public void innerReadFrom(StreamInput in) throws IOException {
-        percents = in.readDoubleArray();
-    }
-
-    @Override
-    public void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeDoubleArray(percents);
-    }
-
 }

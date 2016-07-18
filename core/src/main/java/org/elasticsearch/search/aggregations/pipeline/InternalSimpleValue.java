@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
@@ -33,26 +32,8 @@ import java.util.List;
 import java.util.Map;
 
 public class InternalSimpleValue extends InternalNumericMetricsAggregation.SingleValue implements SimpleValue {
-
-    public static final Type TYPE = new Type("simple_value");
-
-    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalSimpleValue readResult(StreamInput in) throws IOException {
-            InternalSimpleValue result = new InternalSimpleValue();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-    private double value;
-
-    protected InternalSimpleValue() { // NORELEASE remove and make value final if possible
-    } // for serialization
+    public static final String NAME = "simple_value";
+    private final double value;
 
     public InternalSimpleValue(String name, double value, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
@@ -71,15 +52,14 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
     }
 
     @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        format = in.readNamedWriteable(DocValueFormat.class);
-        value = in.readDouble();
-    }
-
-    @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
         out.writeDouble(value);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 
     @Override
@@ -89,11 +69,6 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
 
     public double getValue() {
         return value;
-    }
-
-    @Override
-    public Type type() {
-        return TYPE;
     }
 
     @Override

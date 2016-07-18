@@ -34,11 +34,11 @@ import java.util.List;
 import java.util.Map;
 
 public class AvgBucketPipelineAggregationBuilder extends BucketMetricsPipelineAggregationBuilder<AvgBucketPipelineAggregationBuilder> {
-    public static final String NAME = AvgBucketPipelineAggregator.TYPE.name();
+    public static final String NAME = "avg_bucket";
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public AvgBucketPipelineAggregationBuilder(String name, String bucketsPath) {
-        super(name, AvgBucketPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
+        super(name, NAME, new String[] { bucketsPath });
     }
 
     /**

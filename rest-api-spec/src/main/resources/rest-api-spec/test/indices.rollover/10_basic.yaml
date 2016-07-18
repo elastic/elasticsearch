@@ -31,12 +31,12 @@
 
   # perform alias rollover
   - do:
-    indices.rollover:
-      alias: "logs_search"
-      wait_for_active_shards: 1
-      body:
-        conditions:
-          max_docs: 1
+      indices.rollover:
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_docs: 1
 
   - match: { old_index: logs-1 }
   - match: { new_index: logs-2 }

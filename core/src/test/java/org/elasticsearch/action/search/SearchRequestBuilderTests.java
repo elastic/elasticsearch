@@ -20,13 +20,12 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.MockTransportClient;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -41,9 +40,8 @@ public class SearchRequestBuilderTests extends ESTestCase {
         //that is why we create it but we don't add any transport address to it
         Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, "local")
                 .build();
-        client = TransportClient.builder().settings(settings).build();
+        client = new MockTransportClient(settings);
     }
 
     @AfterClass

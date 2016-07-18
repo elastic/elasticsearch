@@ -16,11 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.transport;
 
-apply plugin: 'elasticsearch.rest-test'
+import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
 
-// TODO: this test works, but it isn't really a rest test...should we have another plugin for "non rest test that just needs N clusters?"
+import java.util.Arrays;
+import java.util.Collection;
 
-dependencies {
-    testCompile project(path: ':client:transport', configuration: 'runtime') // randomly swapped in as a transport
+@SuppressWarnings({"unchecked","varargs"})
+public class MockTransportClient extends TransportClient {
+    private static final Settings DEFAULT_SETTINGS = Settings.builder().put("transport.type.default", "local").build();
+
+
+    public MockTransportClient(Settings settings, Class<? extends Plugin>... plugins) {
+        super(settings, DEFAULT_SETTINGS, Arrays.asList(plugins));
+    }
+
+    public MockTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins) {
+        super(settings, DEFAULT_SETTINGS, plugins);
+    }
 }

@@ -281,7 +281,7 @@ def generate_index(client, version, index_name):
           'norms' : False
         },
         'string_with_norms_enabled': {
-          'type': 'text',
+          'type': 'keyword',
           'index': 'not_analyzed',
           'norms': True,
           'eager_global_ordinals' : True

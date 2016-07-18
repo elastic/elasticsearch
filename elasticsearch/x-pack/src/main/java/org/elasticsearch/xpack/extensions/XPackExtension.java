@@ -7,8 +7,12 @@ package org.elasticsearch.xpack.extensions;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 
+import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authc.AuthenticationModule;
+import org.elasticsearch.xpack.security.authc.Realm;
 
 
 /**
@@ -35,5 +39,17 @@ public abstract class XPackExtension {
      */
     public Collection<String> getRestHeaders() {
         return Collections.emptyList();
+    }
+
+
+    /**
+     * Returns authentication realm implementations added by this extension.
+     *
+     * The key of the returned {@link Map} is the type name of the realm, and the value
+     * is a {@link org.elasticsearch.xpack.security.authc.Realm.Factory} which will construct
+     * that realm for use in authentication when that realm type is configured.
+     */
+    public Map<String, Realm.Factory> getRealms() {
+        return Collections.emptyMap();
     }
 }

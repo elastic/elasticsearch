@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -36,8 +37,10 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.security.action.SecurityActionModule;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheAction;
@@ -63,11 +66,20 @@ import org.elasticsearch.xpack.security.action.user.TransportPutUserAction;
 import org.elasticsearch.xpack.security.audit.AuditTrailModule;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
+import org.elasticsearch.xpack.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authc.AuthenticationModule;
+import org.elasticsearch.xpack.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authc.InternalAuthenticationService;
+import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.Realms;
+import org.elasticsearch.xpack.security.authc.activedirectory.ActiveDirectoryRealm;
+import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.file.FileRealm;
+import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
+import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.authz.AuthorizationModule;
@@ -197,11 +209,11 @@ public class Security implements ActionPlugin {
         }
         List<Class<? extends LifecycleComponent>> list = new ArrayList<>();
         list.add(FileRolesStore.class);
-        list.add(Realms.class);
         return list;
     }
 
-    public Collection<Object> createComponents(ResourceWatcherService resourceWatcherService) {
+    public Collection<Object> createComponents(InternalClient client, ThreadPool threadPool,
+                                               ResourceWatcherService resourceWatcherService, List<XPackExtension> extensions) {
         if (enabled == false) {
             return Collections.emptyList();
         }
@@ -210,7 +222,27 @@ public class Security implements ActionPlugin {
         final ClientSSLService clientSSLService = new ClientSSLService(settings, env, globalSslConfig, resourceWatcherService);
         final ServerSSLService serverSSLService = new ServerSSLService(settings, env, globalSslConfig, resourceWatcherService);
 
-        return Arrays.asList(clientSSLService, serverSSLService);
+        // realms construction
+        final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(env, settings, nativeUsersStore);
+        Map<String, Realm.Factory> realmFactories = new HashMap<>();
+        realmFactories.put(FileRealm.TYPE, config -> new FileRealm(config, resourceWatcherService));
+        realmFactories.put(NativeRealm.TYPE, config -> new NativeRealm(config, nativeUsersStore));
+        realmFactories.put(ActiveDirectoryRealm.TYPE,
+            config -> new ActiveDirectoryRealm(config, resourceWatcherService, clientSSLService));
+        realmFactories.put(LdapRealm.TYPE, config -> new LdapRealm(config, resourceWatcherService, clientSSLService));
+        realmFactories.put(PkiRealm.TYPE, config -> new PkiRealm(config, resourceWatcherService));
+        for (XPackExtension extension : extensions) {
+            Map<String, Realm.Factory> newRealms = extension.getRealms();
+            for (Map.Entry<String, Realm.Factory> entry : newRealms.entrySet()) {
+                if (realmFactories.put(entry.getKey(), entry.getValue()) != null) {
+                    throw new IllegalArgumentException("Realm type [" + entry.getKey() + "] is already registered");
+                }
+            }
+        }
+        final Realms realms = new Realms(settings, env, realmFactories, securityLicenseState, reservedRealm);
+
+        return Arrays.asList(clientSSLService, serverSSLService, nativeUsersStore, realms);
     }
 
     public Settings additionalSettings() {

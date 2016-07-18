@@ -33,9 +33,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- *
- */
 public class RealmsTests extends ESTestCase {
     private Map<String, Realm.Factory> factories;
     private SecurityLicenseState securityLicenseState;
@@ -44,11 +41,11 @@ public class RealmsTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         factories = new HashMap<>();
-        factories.put(FileRealm.TYPE, new DummyRealm.Factory(FileRealm.TYPE, true));
-        factories.put(NativeRealm.TYPE, new DummyRealm.Factory(NativeRealm.TYPE, true));
+        factories.put(FileRealm.TYPE, config -> new DummyRealm(FileRealm.TYPE, config));
+        factories.put(NativeRealm.TYPE, config -> new DummyRealm(NativeRealm.TYPE, config));
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
-            DummyRealm.Factory factory = new DummyRealm.Factory("type_" + i, rarely());
-            factories.put("type_" + i, factory);
+            String name = "type_" + i;
+            factories.put(name, config -> new DummyRealm(name, config));
         }
         securityLicenseState = mock(SecurityLicenseState.class);
         reservedRealm = mock(ReservedRealm.class);
@@ -195,7 +192,7 @@ public class RealmsTests extends ESTestCase {
     }
 
     public void testUnlicensedWithInternalRealms() throws Exception {
-        factories.put(LdapRealm.TYPE, new DummyRealm.Factory(LdapRealm.TYPE, false));
+        factories.put(LdapRealm.TYPE, config -> new DummyRealm(LdapRealm.TYPE, config));
         assertThat(factories.get("type_0"), notNullValue());
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir())
@@ -252,7 +249,7 @@ public class RealmsTests extends ESTestCase {
     }
 
     public void testUnlicensedWithNativeRealms() throws Exception {
-        factories.put(LdapRealm.TYPE, new DummyRealm.Factory(LdapRealm.TYPE, false));
+        factories.put(LdapRealm.TYPE, config -> new DummyRealm(LdapRealm.TYPE, config));
         final String type = randomFrom(FileRealm.TYPE, NativeRealm.TYPE);
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir())
@@ -384,27 +381,6 @@ public class RealmsTests extends ESTestCase {
         @Override
         public boolean userLookupSupported() {
             return false;
-        }
-
-        static class Factory extends Realm.Factory<DummyRealm> {
-
-            public Factory(String type, boolean internal) {
-                super(type, internal);
-            }
-
-            @Override
-            public DummyRealm create(RealmConfig config) {
-                return new DummyRealm(type(), config);
-            }
-
-            @Override
-            public DummyRealm createDefault(String name) {
-                if (type().equals(NativeRealm.TYPE) || type().equals(FileRealm.TYPE)) {
-                    return new DummyRealm(type(), new RealmConfig(name, Settings.EMPTY,
-                            Settings.builder().put("path.home", createTempDir()).build()));
-                }
-                return null;
-            }
         }
     }
 }

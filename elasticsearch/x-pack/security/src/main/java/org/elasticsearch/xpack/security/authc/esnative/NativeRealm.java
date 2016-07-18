@@ -5,19 +5,12 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.xpack.security.authc.Realm;
+import java.util.List;
+
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
-
-import java.util.List;
+import org.elasticsearch.xpack.security.user.User;
 
 /**
  * User/password realm that is backed by an Elasticsearch index
@@ -56,32 +49,6 @@ public class NativeRealm extends CachingUsernamePasswordRealm {
             for (String username : usernames) {
                 expire(username);
             }
-        }
-    }
-
-    public static class Factory extends Realm.Factory<NativeRealm> {
-
-        private final Settings settings;
-        private final Environment env;
-        private final NativeUsersStore userStore;
-
-        @Inject
-        public Factory(Settings settings, Environment env, NativeUsersStore userStore) {
-            super(TYPE, true);
-            this.settings = settings;
-            this.env = env;
-            this.userStore = userStore;
-        }
-
-        @Override
-        public NativeRealm create(RealmConfig config) {
-            return new NativeRealm(config, userStore);
-        }
-
-        @Override
-        public NativeRealm createDefault(String name) {
-            RealmConfig config = new RealmConfig(name, Settings.EMPTY, settings, env);
-            return create(config);
         }
     }
 }

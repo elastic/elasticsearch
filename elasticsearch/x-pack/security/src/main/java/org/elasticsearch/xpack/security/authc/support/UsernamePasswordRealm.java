@@ -16,7 +16,7 @@ import java.util.Locale;
 /**
  *
  */
-public abstract class UsernamePasswordRealm extends Realm<UsernamePasswordToken> {
+public abstract class UsernamePasswordRealm extends Realm {
 
     public UsernamePasswordRealm(String type, RealmConfig config) {
         super(type, config);
@@ -29,13 +29,6 @@ public abstract class UsernamePasswordRealm extends Realm<UsernamePasswordToken>
 
     public boolean supports(AuthenticationToken token) {
         return token instanceof UsernamePasswordToken;
-    }
-
-    public abstract static class Factory<R extends UsernamePasswordRealm> extends Realm.Factory<R> {
-
-        protected Factory(String type, boolean internal) {
-            super(type, internal);
-        }
     }
 
     public enum UserbaseSize {

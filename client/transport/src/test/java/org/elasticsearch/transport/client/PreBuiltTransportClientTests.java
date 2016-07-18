@@ -34,7 +34,7 @@ import java.util.Arrays;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
-public class TransportBuilderClientTests extends RandomizedTest {
+public class PreBuiltTransportClientTests extends RandomizedTest {
 
     @Test
     public void testPluginInstalled() {

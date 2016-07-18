@@ -178,8 +178,7 @@ def generate_index(client, version, index_name):
 
   mappings = {}
   warmers = {}
-  if not version.startswith('2.') and not version.startswith('5.'):
-    # TODO: we need better "before/onOr/after" logic in python
+  if parse_version(version) < parse_version('2.0.0-alpha1'):
     warmers['warmer1'] = {
       'source': {
         'query': {
@@ -306,11 +305,17 @@ def generate_index(client, version, index_name):
   run_basic_asserts(client, index_name, 'doc', num_docs)
 
 def snapshot_index(client, version, repo_dir):
+  persistent = {
+    'cluster.routing.allocation.exclude.version_attr': version
+  }
+  if parse_version(version) < parse_version('5.0.0-alpha1'):
+    # Same as ES default (30 seconds), but missing the units to make sure they are inserted on upgrade:
+    persistent['discovery.zen.publish_timeout'] = '30000'
+    # Same as ES default (512 KB), but missing the units to make sure they are inserted on upgrade:
+    persistent['indices.recovery.file_chunk_size'] = '524288'
   # Add bogus persistent settings to make sure they can be restored
   client.cluster.put_settings(body={
-    'persistent': {
-      'cluster.routing.allocation.exclude.version_attr': version
-    }
+    'persistent': persistent
   })
   client.indices.put_template(name='template_' + version.lower(), order=0, body={
     "template": "te*",
@@ -435,7 +440,25 @@ def shutdown_node(node):
   logging.info('Shutting down node with pid %d', node.pid)
   node.terminate()
   node.wait()
-    
+
+def parse_version(version):
+  import re
+  splitted = re.split('[.-]', version)
+  if len(splitted) == 3:
+    splitted = splitted + ['GA']
+  splitted = [s.lower() for s in splitted]
+  assert len(splitted) == 4;
+  print (splitted)
+  return splitted
+
+assert parse_version('5.0.0-alpha1') == parse_version('5.0.0-alpha1')
+assert parse_version('5.0.0-alpha1') < parse_version('5.0.0-alpha2')
+assert parse_version('5.0.0-alpha1') < parse_version('5.0.0-beta1')
+assert parse_version('5.0.0-beta1') < parse_version('5.0.0')
+assert parse_version('1.2.3') < parse_version('2.1.0')
+assert parse_version('1.2.3') < parse_version('1.2.4')
+assert parse_version('1.1.0') < parse_version('1.2.0')
+
 def main():
   logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s', level=logging.INFO,
                       datefmt='%Y-%m-%d %I:%M:%S %p')
@@ -450,3 +473,4 @@ if __name__ == '__main__':
     main()
   except KeyboardInterrupt:
     print('Caught keyboard interrupt, exiting...')
+

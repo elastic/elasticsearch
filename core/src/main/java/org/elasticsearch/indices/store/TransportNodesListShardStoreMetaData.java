@@ -151,7 +151,9 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
                 return new StoreFilesMetaData(shardId, Store.MetadataSnapshot.EMPTY);
             }
             // note that this may fail if it can't get access to the shard lock. Since we check above there is an active shard, this means:
-            // 1) a shard is being constructed, which means the master will not use a copy of this replcia
+            // 1) a shard is being constructed, which means the master will not use a copy of this replica
+            // 2) A shard is shutting down and has not cleared it's content within lock timeout. In this case the master may not
+            //    reuse local resources.
             return new StoreFilesMetaData(shardId, Store.readMetadataSnapshot(shardPath.resolveIndex(), shardId,
                 nodeEnv::shardLock, logger));
         } finally {

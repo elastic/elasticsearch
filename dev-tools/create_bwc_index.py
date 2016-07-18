@@ -31,7 +31,6 @@ DEFAULT_HTTP_TCP_PORT = 9200
 if sys.version_info[0] < 3:
   print('%s must use python 3.x (for the ES python client)' % sys.argv[0])
 
-from datetime import datetime
 try:
   from elasticsearch import Elasticsearch
   from elasticsearch.exceptions import ConnectionError
@@ -178,9 +177,16 @@ def generate_index(client, version, index_name):
   logging.info('Create single shard test index')
 
   mappings = {}
-  if not version.startswith('2.'):
+  warmers = {}
+  if not version.startswith('2.') and not version.startswith('5.'):
     # TODO: we need better "before/onOr/after" logic in python
-
+    warmers['warmer1'] = {
+      'source': {
+        'query': {
+          'match_all': {}
+        }
+      }
+    }
     # backcompat test for legacy type level analyzer settings, see #8874
     mappings['analyzer_type1'] = {
       'analyzer': 'standard',
@@ -219,15 +225,9 @@ def generate_index(client, version, index_name):
       }
     }
     mappings['meta_fields'] = {
-      '_id': {
-        'path': 'myid'
-      },
       '_routing': {
-        'path': 'myrouting'
+        'required': 'false'
       },
-      '_boost': {
-        'null_value': 2.0
-      }     
     }
     mappings['custom_formats'] = {
       'properties': {
@@ -250,13 +250,13 @@ def generate_index(client, version, index_name):
   mappings['norms'] = {
     'properties': {
       'string_with_norms_disabled': {
-        'type': 'string',
+        'type': 'text',
         'norms': {
           'enabled': False
         }
       },
       'string_with_norms_enabled': {
-        'type': 'string',
+        'type': 'text',
         'index': 'not_analyzed',
         'norms': {
           'enabled': True,
@@ -269,7 +269,7 @@ def generate_index(client, version, index_name):
   mappings['doc'] = {
     'properties': {
       'string': {
-        'type': 'string',
+        'type': 'text',
         'boost': 4
       }
     }
@@ -284,21 +284,14 @@ def generate_index(client, version, index_name):
     settings['gc_deletes'] = '60000',
     # Same as ES default (5 GB), but missing the units to make sure they are inserted on upgrade:
     settings['merge.policy.max_merged_segment'] = '5368709120'
-    
-  warmers = {}
-  warmers['warmer1'] = {
-    'source': {
-      'query': {
-        'match_all': {}
-      }
-    }
+  body = {
+    'settings': settings,
+    'mappings': mappings,
   }
 
-  client.indices.create(index=index_name, body={
-      'settings': settings,
-      'mappings': mappings,
-      'warmers': warmers
-  })
+  if warmers:
+    body['warmers'] = warmers
+  client.indices.create(index=index_name, body=body)
   health = client.cluster.health(wait_for_status='green', wait_for_relocating_shards=0)
   assert health['timed_out'] == False, 'cluster health timed out %s' % health
 
@@ -316,11 +309,7 @@ def snapshot_index(client, version, repo_dir):
   # Add bogus persistent settings to make sure they can be restored
   client.cluster.put_settings(body={
     'persistent': {
-      'cluster.routing.allocation.exclude.version_attr': version,
-      # Same as ES default (30 seconds), but missing the units to make sure they are inserted on upgrade:
-      'discovery.zen.publish_timeout': '30000',
-      # Same as ES default (512 KB), but missing the units to make sure they are inserted on upgrade:
-      'indices.recovery.file_chunk_size': '524288',
+      'cluster.routing.allocation.exclude.version_attr': version
     }
   })
   client.indices.put_template(name='template_' + version.lower(), order=0, body={

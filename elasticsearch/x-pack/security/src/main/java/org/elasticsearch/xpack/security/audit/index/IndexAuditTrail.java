@@ -169,9 +169,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         return NAME;
     }
 
-    @Inject
-    public IndexAuditTrail(Settings settings, InternalClient client, ThreadPool threadPool,
-                           ClusterService clusterService) {
+    public IndexAuditTrail(Settings settings, InternalClient client, ThreadPool threadPool, ClusterService clusterService) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;

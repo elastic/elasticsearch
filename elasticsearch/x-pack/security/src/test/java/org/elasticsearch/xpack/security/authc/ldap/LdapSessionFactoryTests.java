@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.security.authc.support.SecuredStringTests;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.anyOf;
@@ -66,6 +65,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
     }
 
     @Network
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/2849")
     public void testConnectTimeout() {
         // Local sockets connect too fast...
         String ldapUrl = "ldap://54.200.235.244:389";

@@ -14,9 +14,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsRes
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.ssl.ClientSSLService;
-import org.elasticsearch.xpack.security.support.Exceptions;
 
-import java.io.IOException;
 import java.text.MessageFormat;
 import java.util.Locale;
 

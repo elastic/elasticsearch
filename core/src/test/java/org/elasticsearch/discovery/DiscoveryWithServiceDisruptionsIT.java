@@ -442,7 +442,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      */
     @TestLogging("_root:DEBUG,action.index:TRACE,action.get:TRACE,discovery:TRACE,cluster.service:TRACE,"
             + "indices.recovery:TRACE,indices.cluster:TRACE")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/19416")
     public void testAckedIndexing() throws Exception {
 
         final int seconds = !(TEST_NIGHTLY && rarely()) ? 1 : 5;

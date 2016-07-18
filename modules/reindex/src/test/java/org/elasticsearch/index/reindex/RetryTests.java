@@ -36,7 +36,7 @@ import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.NettyPlugin;
+import org.elasticsearch.transport.Netty3Plugin;
 import org.junit.After;
 import org.junit.Before;
 
@@ -62,11 +62,11 @@ public class RetryTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(ReindexPlugin.class, NettyPlugin.class, BogusPlugin.class); // we need netty here to http communication
+        return pluginList(ReindexPlugin.class, Netty3Plugin.class, BogusPlugin.class); // we need netty here to http communication
     }
 
     public static final class BogusPlugin extends Plugin {
-        // se NettyPlugin.... this runs without the permission from the netty module so it will fail since reindex can't set the property
+        // se Netty3Plugin.... this runs without the permission from the netty3 module so it will fail since reindex can't set the property
         // to make it still work we disable that check but need to register the setting first
         private static final Setting<Boolean> ASSERT_NETTY_BUGLEVEL = Setting.boolSetting("netty.assert.buglevel", true,
             Setting.Property.NodeScope);

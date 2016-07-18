@@ -36,6 +36,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.node.Node;
@@ -76,11 +77,9 @@ public class TribeIT extends ESIntegTestCase {
     @Before
     public  void setupSecondCluster() throws Exception {
         if (cluster2 == null) {
-            final Tuple<String, NodeConfigurationSource> configSource = getNodeConfigSource();
-            final String nodeMode = configSource.v1();
-            final NodeConfigurationSource nodeConfigurationSource = configSource.v2();
-            cluster2 = new InternalTestCluster(nodeMode, randomLong(), createTempDir(), true, 2, 2,
-                UUIDs.randomBase64UUID(random()), nodeConfigurationSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, getMockPlugins(),
+            final  NodeConfigurationSource configSource = getNodeConfigSource();
+            cluster2 = new InternalTestCluster(randomLong(), createTempDir(), true, 2, 2,
+                UUIDs.randomBase64UUID(random()), configSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, getMockPlugins(),
                 Function.identity());
             cluster2.beforeTest(random(), 0.1);
             cluster2.ensureAtLeastNumDataNodes(2);
@@ -131,9 +130,16 @@ public class TribeIT extends ESIntegTestCase {
         Settings merged = Settings.builder()
                 .put("tribe.t1.cluster.name", internalCluster().getClusterName())
                 .put("tribe.t2.cluster.name", cluster2.getClusterName())
+                .put("tribe.t1.transport.type", "local")
+                .put("tribe.t2.transport.type", "local")
+                .put("tribe.t1.discovery.type", "local")
+                .put("tribe.t2.discovery.type", "local")
+                .put("transport.type", "local")
+                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local")
                 .put("tribe.blocks.write", false)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(settings)
+
                 .put(tribe1Defaults.build())
                 .put(tribe2Defaults.build())
                 .put(internalCluster().getDefaultSettings())

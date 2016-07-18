@@ -55,7 +55,6 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
                         .endObject()
                         .endObject()
                         .endObject()).get());
-        ensureYellow();
 
         client().prepareIndex("test", "type1", "1").setSource("test", 5, "body", "foo").get();
         client().prepareIndex("test", "type1", "2").setSource("test", 17, "body", "foo").get();

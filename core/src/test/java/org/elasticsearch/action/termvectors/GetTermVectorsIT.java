@@ -69,8 +69,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .endObject().endObject();
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("type1", mapping));
 
-        ensureYellow();
-
         client().prepareIndex("test", "type1", "666").setSource("field", "foo bar").execute().actionGet();
         refresh();
         for (int i = 0; i < 20; i++) {
@@ -94,8 +92,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .endObject()
                 .endObject().endObject();
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("type1", mapping));
-
-        ensureYellow();
 
         // when indexing a field that simply has a question mark, the term vectors will be null
         client().prepareIndex("test", "type1", "0").setSource("existingfield", "?").execute().actionGet();
@@ -121,8 +117,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .endObject()
                 .endObject().endObject();
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("type1", mapping));
-
-        ensureYellow();
 
         // when indexing a field that simply has a question mark, the term vectors will be null
         client().prepareIndex("test", "type1", "0").setSource("anotherexistingfield", 1).execute().actionGet();
@@ -151,8 +145,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                         "field3", "type=text,index=false,term_vector=yes", // no tvs
                         "field4", "type=keyword", // yes tvs
                         "field5", "type=text,index=true")); // yes tvs
-
-        ensureYellow();
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         for (int i = 0; i < 6; i++) {
@@ -198,7 +190,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                         .put(indexSettings())
                         .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
-        ensureYellow();
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("field", "the quick brown fox jumps over the lazy dog")
@@ -284,7 +275,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .setSettings(Settings.builder()
                         .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
-        ensureYellow();
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("field", "the quick brown fox jumps over the lazy dog")
@@ -430,7 +420,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                         .put("index.analysis.filter.my_delimited_payload_filter.delimiter", delimiter)
                         .put("index.analysis.filter.my_delimited_payload_filter.encoding", encodingString)
                         .put("index.analysis.filter.my_delimited_payload_filter.type", "delimited_payload_filter")));
-        ensureYellow();
 
         client().prepareIndex("test", "type1", Integer.toString(1))
                 .setSource(jsonBuilder().startObject().field("field", queryString).endObject()).execute().actionGet();
@@ -1068,7 +1057,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
                 .addMapping("type1", "tags", "type=text"));
-        ensureYellow();
 
         int numTerms = scaledRandomIntBetween(10, 50);
         logger.info("Indexing one document with tags of increasing length ...");
@@ -1106,7 +1094,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
                 .addMapping("type1", "tags", "type=text"));
-        ensureYellow();
 
         logger.info("Indexing one document with tags of increasing frequencies ...");
         int numTerms = scaledRandomIntBetween(10, 50);
@@ -1147,7 +1134,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
                 .addMapping("type1", "tags", "type=text"));
-        ensureYellow();
 
         int numDocs = scaledRandomIntBetween(10, 50); // as many terms as there are docs
         logger.info("Indexing {} documents with tags of increasing dfs ...", numDocs);

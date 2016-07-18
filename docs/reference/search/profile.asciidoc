@@ -40,14 +40,14 @@ This will yield the following result:
       "failed": 0
    },
    "hits": {
-      "total": 1,
-      "max_score": 1,
+      "total": 3,
+      "max_score": 1.078072,
       "hits": [ ... ] <1>
    },
    "profile": {
      "shards": [
         {
-           "id": "[htuC6YnSSSmKFq5UBt0YMA][test][0]",
+           "id": "[2aE02wS1R8q_QFnYu6vDVQ][test][1]",
            "searches": [
               {
                  "query": [
@@ -56,12 +56,18 @@ This will yield the following result:
                        "description": "message:search message:test",
                        "time": "15.52889800ms",
                        "breakdown": {
-                          "score": 0,
-                          "next_doc": 24495,
+                          "score": 6352,
+                          "score_count": 1,
+                          "build_scorer": 1800776,
+                          "build_scorer_count": 1,
                           "match": 0,
-                          "create_weight": 8488388,
-                          "build_scorer": 7016015,
-                          "advance": 0
+                          "match_count": 0,
+                          "create_weight": 667400,
+                          "create_weight_count": 1,
+                          "next_doc": 10563,
+                          "next_doc_count": 2,
+                          "advance": 0,
+                          "advance_count": 0
                        },
                        "children": [
                           {
@@ -70,11 +76,17 @@ This will yield the following result:
                              "time": "4.938855000ms",
                              "breakdown": {
                                 "score": 0,
-                                "next_doc": 18332,
+                                "score_count": 0,
+                                "build_scorer": 3230,
+                                "build_scorer_count": 1,
                                 "match": 0,
-                                "create_weight": 2945570,
-                                "build_scorer": 1974953,
-                                "advance": 0
+                                "match_count": 0,
+                                "create_weight": 415612,
+                                "create_weight_count": 1,
+                                "next_doc": 0,
+                                "next_doc_count": 0,
+                                "advance": 0,
+                                "advance_count": 0
                              }
                           },
                           {
@@ -82,30 +94,36 @@ This will yield the following result:
                              "description": "message:test",
                              "time": "0.5016660000ms",
                              "breakdown": {
-                                "score": 0,
-                                "next_doc": 0,
+                                "score": 5014,
+                                "score_count": 1,
+                                "build_scorer": 1689333,
+                                "build_scorer_count": 1,
                                 "match": 0,
-                                "create_weight": 170534,
-                                "build_scorer": 331132,
-                                "advance": 0
+                                "match_count": 0,
+                                "create_weight": 166587,
+                                "create_weight_count": 1,
+                                "next_doc": 5542,
+                                "next_doc_count": 2,
+                                "advance": 0,
+                                "advance_count": 0
                              }
                           }
                        ]
                     }
                  ],
-                 "rewrite_time": 185002,
+                 "rewrite_time": 870954,
                  "collector": [
                     {
                        "name": "SimpleTopScoreDocCollector",
                        "reason": "search_top_hits",
-                       "time": "2.206529000ms"
+                       "time": "0.009783000000ms"
                     }
                  ]
               }
            ]
         }
      ]
-  }
+   }
 }
 --------------------------------------------------
 <1> Search results are returned, but were omitted here for brevity
@@ -121,11 +139,11 @@ First, the overall structure of the profile response is as follows:
    "profile": {
         "shards": [
            {
-              "id": "[htuC6YnSSSmKFq5UBt0YMA][test][0]",  <1>
+              "id": "[2aE02wS1R8q_QFnYu6vDVQ][test][1]",  <1>
               "searches": [
                  {
                     "query": [...],             <2>
-                    "rewrite_time": 185002,     <3>
+                    "rewrite_time": 870954,     <3>
                     "collector": [...]          <4>
                  }
               ],
@@ -227,13 +245,18 @@ The `"breakdown"` component lists detailed timing statistics about low-level Luc
 [source,js]
 --------------------------------------------------
 "breakdown": {
-  "score": 0,
-  "next_doc": 24495,
-  "match": 0,
-  "create_weight": 8488388,
-  "build_scorer": 7016015,
-  "advance": 0
-
+    "score": 5014,
+    "score_count": 1,
+    "build_scorer": 1689333,
+    "build_scorer_count": 1,
+    "match": 0,
+    "match_count": 0,
+    "create_weight": 166587,
+    "create_weight_count": 1,
+    "next_doc": 5542,
+    "next_doc_count": 2,
+    "advance": 0,
+    "advance_count": 0
 }
 --------------------------------------------------
 
@@ -305,6 +328,10 @@ The meaning of the stats are as follows:
 
     This records the time taken to score a particular document via it's Scorer
 
+`*_count`::
+    Records the number of invocations of the particular method.  For example, `"next_doc_count": 2,`
+    means the `nextDoc()` method was called on two different documents.  This can be used to help judge
+    how selective queries are, by comparing counts between different query components.
 
 ==== `collectors` Section
 
@@ -473,11 +500,17 @@ And the response:
                            "time": "0.4094560000ms",
                            "breakdown": {
                               "score": 0,
+                              "score_count": 1,
                               "next_doc": 0,
+                              "next_doc_count": 2,
                               "match": 0,
+                              "match_count": 0,
                               "create_weight": 31584,
+                              "create_weight_count": 1,
                               "build_scorer": 377872,
+                              "build_scorer_count": 1,
                               "advance": 0
+                              "advance_count": 0
                            }
                         },
                         {
@@ -486,11 +519,17 @@ And the response:
                            "time": "0.3037020000ms",
                            "breakdown": {
                               "score": 0,
+                              "score_count": 1,
                               "next_doc": 5936,
+                              "next_doc_count": 2,
                               "match": 0,
+                              "match_count": 0,
                               "create_weight": 185215,
+                              "create_weight_count": 1,
                               "build_scorer": 112551,
+                              "build_scorer_count": 1,
                               "advance": 0
+                              "advance_count": 0
                            }
                         }
                      ],
@@ -530,11 +569,17 @@ And the response:
                            "time": "0.04829300000ms",
                            "breakdown": {
                               "score": 0,
+                              "score_count": 1,
                               "next_doc": 3672,
+                              "next_doc_count": 2,
                               "match": 0,
+                              "match_count": 0,
                               "create_weight": 6311,
+                              "create_weight_count": 1,
                               "build_scorer": 38310,
+                              "build_scorer_count": 1,
                               "advance": 0
+                              "advance_count": 0
                            }
                         }
                      ],
@@ -627,9 +672,13 @@ Which yields the following aggregation profile output
     "time": "4280.456978ms",
     "breakdown": {
       "reduce": 0,
+      "reduce_count": 0,
       "build_aggregation": 49765,
+      "build_aggregation_count": 300,
       "initialise": 52785,
-      "collect": 3155490036
+      "initialize_count": 300,
+      "collect": 3155490036,
+      "collect_count": 1800
     },
     "children": [
       {
@@ -638,9 +687,13 @@ Which yields the following aggregation profile output
         "time": "1124.864392ms",
         "breakdown": {
           "reduce": 0,
+          "reduce_count": 0,
           "build_aggregation": 1394,
+          "build_aggregation_count": 150,
           "initialise": 2883,
-          "collect": 1124860115
+          "initialize_count": 150,
+          "collect": 1124860115,
+          "collect_count": 900
         }
       }
     ]
@@ -666,9 +719,13 @@ The `"breakdown"` component lists detailed timing statistics about low-level Luc
 --------------------------------------------------
 "breakdown": {
   "reduce": 0,
+  "reduce_count": 0,
   "build_aggregation": 49765,
+  "build_aggregation_count": 300,
   "initialise": 52785,
-  "collect": 3155490036
+  "initialize_count": 300,
+  "collect": 3155490036,
+  "collect_count": 1800
 }
 --------------------------------------------------
 
@@ -698,6 +755,10 @@ The meaning of the stats are as follows:
 `reduce`::
 
     This is not currently used and will always report `0`. Currently aggregation profiling only times the shard level parts of the aggregation execution. Timing of the reduce phase will be added later.
+
+`*_count`::
+    Records the number of invocations of the particular method.  For example, `"collect_count": 2,`
+    means the `collect()` method was called on two different documents.
 
 === Profiling Considerations
 

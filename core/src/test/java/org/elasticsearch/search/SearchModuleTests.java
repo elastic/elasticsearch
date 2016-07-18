@@ -225,7 +225,6 @@ public class SearchModuleTests extends ModuleTestCase {
             "span_or",
             "span_term",
             "span_within",
-            "template",
             "term",
             "terms",
             "type",

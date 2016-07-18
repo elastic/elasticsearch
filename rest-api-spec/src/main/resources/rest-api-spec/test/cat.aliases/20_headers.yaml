@@ -1,7 +1,7 @@
 ---
 "Simple alias with yaml body through Accept header":
   - skip:
-      features: headers
+      features: ["headers", "yaml"]
 
   - do:
         indices.create:

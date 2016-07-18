@@ -19,6 +19,10 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.script.ScriptService;
+
 import java.util.Map;
 
 /**
@@ -59,5 +63,42 @@ public interface Processor {
          */
         Processor create(Map<String, Processor.Factory> processorFactories, String tag,
                          Map<String, Object> config) throws Exception;
+    }
+
+    /**
+     * Infrastructure class that holds services that can be used by processor factories to create processor instances
+     * and that gets passed around to all {@link org.elasticsearch.plugins.IngestPlugin}s.
+     */
+    class Parameters {
+
+        /**
+         * Useful to provide access to the node's environment like config directory to processor factories.
+         */
+        public final Environment env;
+
+        /**
+         * Provides processors script support.
+         */
+        public final ScriptService scriptService;
+
+        /**
+         * Provides template support to pipeline settings.
+         */
+        public final TemplateService templateService;
+
+        /**
+         * Allows processors to read headers set by {@link org.elasticsearch.action.support.ActionFilter}
+         * instances that have run prior to in ingest.
+         */
+        public final ThreadContext threadContext;
+
+        public Parameters(Environment env, ScriptService scriptService, TemplateService templateService,
+                          ThreadContext threadContext) {
+            this.env = env;
+            this.scriptService = scriptService;
+            this.templateService = templateService;
+            this.threadContext = threadContext;
+        }
+
     }
 }

@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -37,24 +38,23 @@ import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import java.io.IOException;
 import java.util.Map;
 
-/**
- */
 public class MatrixStatsAggregationBuilder
     extends MultiValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, MatrixStatsAggregationBuilder> {
-    public static final String NAME = InternalMatrixStats.TYPE.name();
+    public static final String NAME = "matrix_stats";
+    public static final Type TYPE = new Type(NAME);
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private MultiValueMode multiValueMode = MultiValueMode.AVG;
 
     public MatrixStatsAggregationBuilder(String name) {
-        super(name, InternalMatrixStats.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name, TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     /**
      * Read from a stream.
      */
     public MatrixStatsAggregationBuilder(StreamInput in) throws IOException {
-        super(in, InternalMatrixStats.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in, TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     @Override

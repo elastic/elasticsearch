@@ -442,6 +442,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      */
     @TestLogging("_root:DEBUG,action.index:TRACE,action.get:TRACE,discovery:TRACE,cluster.service:TRACE,"
             + "indices.recovery:TRACE,indices.cluster:TRACE")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/19416")
     public void testAckedIndexing() throws Exception {
 
         final int seconds = !(TEST_NIGHTLY && rarely()) ? 1 : 5;
@@ -1132,7 +1133,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         final List<String> allMasterEligibleNodes = masterNodes.get();
         ensureStableCluster(3);
         assertAcked(prepareCreate("test"));
-        ensureYellow();
 
         final String masterNode1 = internalCluster().getMasterName();
         NetworkPartition networkPartition = new NetworkUnresponsivePartition(masterNode1, dataNode.get(), random());

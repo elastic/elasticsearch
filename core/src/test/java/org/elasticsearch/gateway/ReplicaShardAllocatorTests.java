@@ -299,7 +299,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                                         .addShard(primaryShard)
                                         .addShard(ShardRouting.newUnassigned(shardId, null, false,
                                             new UnassignedInfo(reason, null, null, failedAllocations, System.nanoTime(),
-                                                System.currentTimeMillis(), delayed)))
+                                                System.currentTimeMillis(), delayed, UnassignedInfo.AllocationStatus.NO_ATTEMPT)))
                                         .build())
                 )
                 .build();

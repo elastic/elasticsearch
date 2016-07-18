@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
@@ -289,7 +290,7 @@ public class CreateIndexIT extends ESIntegTestCase {
     public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable",
             "none")).get();
-        client().admin().indices().prepareCreate("test").setSettings(indexSettings()).get();
+        client().admin().indices().prepareCreate("test").setWaitForActiveShards(ActiveShardCount.NONE).setSettings(indexSettings()).get();
         internalCluster().fullRestart();
         ensureGreen("test");
     }

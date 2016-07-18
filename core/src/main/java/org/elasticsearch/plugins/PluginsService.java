@@ -173,16 +173,8 @@ public class PluginsService extends AbstractComponent {
 
         // we don't log jars in lib/ we really shouldn't log modules,
         // but for now: just be transparent so we can debug any potential issues
-        Set<String> moduleNames = new HashSet<>();
-        Set<String> jvmPluginNames = new HashSet<>();
-        for (PluginInfo moduleInfo : info.getModuleInfos()) {
-            moduleNames.add(moduleInfo.getName());
-        }
-        for (PluginInfo pluginInfo : info.getPluginInfos()) {
-            jvmPluginNames.add(pluginInfo.getName());
-        }
-
-        logger.info("modules {}, plugins {}", moduleNames, jvmPluginNames);
+        logPluginInfo(info.getModuleInfos(), "module", logger);
+        logPluginInfo(info.getPluginInfos(), "plugin", logger);
 
         Map<Plugin, List<OnModuleReference>> onModuleReferences = new HashMap<>();
         for (Tuple<PluginInfo, Plugin> pluginEntry : plugins) {
@@ -217,6 +209,17 @@ public class PluginsService extends AbstractComponent {
             }
         }
         this.onModuleReferences = Collections.unmodifiableMap(onModuleReferences);
+    }
+
+    private static void logPluginInfo(final List<PluginInfo> pluginInfos, final String type, final ESLogger logger) {
+        assert pluginInfos != null;
+        if (pluginInfos.isEmpty()) {
+            logger.info("no " + type + "s loaded");
+        } else {
+            for (final String name : pluginInfos.stream().map(PluginInfo::getName).sorted().collect(Collectors.toList())) {
+                logger.info("loaded " + type + " [" + name + "]");
+            }
+        }
     }
 
     private List<Tuple<PluginInfo, Plugin>> plugins() {

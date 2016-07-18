@@ -54,7 +54,6 @@ public class UpdateByNativeScriptIT extends ESIntegTestCase {
 
     public void testThatUpdateUsingNativeScriptWorks() throws Exception {
         createIndex("test");
-        ensureYellow();
 
         index("test", "type", "1", "text", "value");
 

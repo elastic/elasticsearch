@@ -59,7 +59,6 @@ public class IndexActionIT extends ESIntegTestCase {
                 builders.add(client().prepareIndex("test", "type").setSource("field", "value"));
             }
             indexRandom(true, builders);
-            ensureYellow("test");
             logger.info("verifying indexed content");
             int numOfChecks = randomIntBetween(8, 12);
             for (int j = 0; j < numOfChecks; j++) {

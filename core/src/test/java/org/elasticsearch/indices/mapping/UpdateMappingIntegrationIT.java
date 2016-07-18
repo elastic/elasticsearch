@@ -255,10 +255,6 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     public void testUpdateMappingConcurrently() throws Throwable {
         createIndex("test1", "test2");
 
-        // This is important. The test assumes all nodes are aware of all indices. Due to initializing shard throttling
-        // not all shards are allocated with the initial create index. Wait for it..
-        ensureYellow();
-
         final AtomicReference<Exception> threadException = new AtomicReference<>();
         final AtomicBoolean stop = new AtomicBoolean(false);
         Thread[] threads = new Thread[3];

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.http;
 
+import java.util.Collections;
 import java.util.Map;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -59,7 +60,7 @@ public class HttpServerTests extends ESTestCase {
         inFlightRequestsBreaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
 
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
-        RestController restController = new RestController(settings);
+        RestController restController = new RestController(settings, Collections.emptySet());
         restController.registerHandler(RestRequest.Method.GET, "/",
             (request, channel, client) -> channel.sendResponse(
                 new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));

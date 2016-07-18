@@ -179,8 +179,6 @@ PUT my_index
   }
 }
 
-GET _cluster/health?wait_for_status=yellow
-
 POST my_index/_analyze
 {
   "analyzer": "my_english_analyzer",
@@ -278,4 +276,3 @@ The above example produces the following terms:
 ---------------------------
 [ 2, quick, brown, foxes, jumpe, d, over, lazy, dog's, bone ]
 ---------------------------
-

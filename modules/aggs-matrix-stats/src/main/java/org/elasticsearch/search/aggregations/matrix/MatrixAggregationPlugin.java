@@ -21,17 +21,14 @@ package org.elasticsearch.search.aggregations.matrix;
 
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.SearchModule.AggregationSpec;
 import org.elasticsearch.search.aggregations.matrix.stats.InternalMatrixStats;
 import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsParser;
 
-import java.io.IOException;
-
 public class MatrixAggregationPlugin extends Plugin {
-
     public void onModule(SearchModule searchModule) {
-        InternalMatrixStats.registerStreams();
-        searchModule.registerAggregation(MatrixStatsAggregationBuilder::new, new MatrixStatsParser(),
-            MatrixStatsAggregationBuilder.AGGREGATION_NAME_FIELD);
+        searchModule.registerAggregation(new AggregationSpec(MatrixStatsAggregationBuilder::new, new MatrixStatsParser(),
+            MatrixStatsAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalMatrixStats::new));
     }
 }

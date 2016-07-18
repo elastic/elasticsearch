@@ -20,14 +20,9 @@
 package org.elasticsearch.ingest.useragent;
 
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.TemplateService;
-import org.elasticsearch.node.NodeModule;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -48,16 +43,15 @@ public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
     static final String DEFAULT_PARSER_NAME = "_default_";
 
     @Override
-    public Map<String, Processor.Factory> getProcessors(
-        Environment env, ScriptService scriptService, TemplateService templateService) {
-        Path userAgentConfigDirectory = env.configFile().resolve("ingest-user-agent");
+    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+        Path userAgentConfigDirectory = parameters.env.configFile().resolve("ingest-user-agent");
 
         if (Files.exists(userAgentConfigDirectory) == false && Files.isDirectory(userAgentConfigDirectory)) {
             throw new IllegalStateException(
                 "the user agent directory [" + userAgentConfigDirectory + "] containing the regex file doesn't exist");
         }
 
-        long cacheSize = CACHE_SIZE_SETTING.get(env.settings());
+        long cacheSize = CACHE_SIZE_SETTING.get(parameters.env.settings());
         Map<String, UserAgentParser> userAgentParsers;
         try {
             userAgentParsers = createUserAgentParsers(userAgentConfigDirectory, new UserAgentCache(cacheSize));

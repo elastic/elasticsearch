@@ -612,13 +612,12 @@ public class ClusterServiceTests extends ESTestCase {
         BlockingTask block = new BlockingTask(Priority.IMMEDIATE);
         clusterService.submitStateUpdateTask("test", block);
         int taskCount = randomIntBetween(5, 20);
-        Priority[] priorities = Priority.values();
 
         // will hold all the tasks in the order in which they were executed
         List<PrioritizedTask> tasks = new ArrayList<>(taskCount);
         CountDownLatch latch = new CountDownLatch(taskCount);
         for (int i = 0; i < taskCount; i++) {
-            Priority priority = priorities[randomIntBetween(0, priorities.length - 1)];
+            Priority priority = randomFrom(Priority.values());
             clusterService.submitStateUpdateTask("test", new PrioritizedTask(priority, latch, tasks));
         }
 

@@ -59,7 +59,6 @@ public class BasicAnalysisBackwardCompatibilityIT extends ESBackcompatTestCase {
         assertAcked(prepareCreate("test")
                 .addMapping("type", (Object[])fields)
                 .setSettings(indexSettings()));
-        ensureYellow();
         InputOutput[] inout = new InputOutput[numFields];
         for (int i = 0; i < numFields; i++) {
             String input;

@@ -17,10 +17,6 @@ setup:
                           "store" : true
                           "term_vector": "with_positions_offsets"
 
-    - do:
-        cluster.health:
-          wait_for_status: yellow
-
 ---
 # Encoded content with https://www.base64encode.org/
 #<html xmlns="http://www.w3.org/1999/xhtml">

@@ -28,16 +28,17 @@ import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.support.RestUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -55,13 +56,15 @@ public class RestController extends AbstractLifecycleComponent {
 
     private final RestHandlerFilter handlerFilter = new RestHandlerFilter();
 
-    private Set<String> relevantHeaders = emptySet();
+    /** Rest headers that are copied to internal requests made during a rest request. */
+    private final Set<String> headersToCopy;
 
     // non volatile since the assumption is that pre processors are registered on startup
     private RestFilter[] filters = new RestFilter[0];
 
-    public RestController(Settings settings) {
+    public RestController(Settings settings, Set<String> headersToCopy) {
         super(settings);
+        this.headersToCopy = headersToCopy;
     }
 
     @Override
@@ -77,28 +80,6 @@ public class RestController extends AbstractLifecycleComponent {
         for (RestFilter filter : filters) {
             filter.close();
         }
-    }
-
-    /**
-     * Controls which REST headers get copied over from a {@link org.elasticsearch.rest.RestRequest} to
-     * its corresponding {@link org.elasticsearch.transport.TransportRequest}(s).
-     *
-     * By default no headers get copied but it is possible to extend this behaviour via plugins by calling this method.
-     */
-    public synchronized void registerRelevantHeaders(String... headers) {
-        Set<String> newRelevantHeaders = new HashSet<>(relevantHeaders.size() + headers.length);
-        newRelevantHeaders.addAll(relevantHeaders);
-        Collections.addAll(newRelevantHeaders, headers);
-        relevantHeaders = unmodifiableSet(newRelevantHeaders);
-    }
-
-    /**
-     * Returns the REST headers that get copied over from a {@link org.elasticsearch.rest.RestRequest} to
-     * its corresponding {@link org.elasticsearch.transport.TransportRequest}(s).
-     * By default no headers get copied but it is possible to extend this behaviour via plugins by calling {@link #registerRelevantHeaders(String...)}.
-     */
-    public Set<String> relevantHeaders() {
-        return relevantHeaders;
     }
 
     /**
@@ -126,6 +107,42 @@ public class RestController extends AbstractLifecycleComponent {
         assert (handler instanceof DeprecationRestHandler) == false;
 
         registerHandler(method, path, new DeprecationRestHandler(handler, deprecationMessage, logger));
+    }
+
+    /**
+     * Registers a REST handler to be executed when the provided {@code method} and {@code path} match the request, or when provided
+     * with {@code deprecatedMethod} and {@code deprecatedPath}. Expected usage:
+     * <pre><code>
+     * // remove deprecation in next major release
+     * controller.registerWithDeprecatedHandler(POST, "/_forcemerge", this,
+     *                                          POST, "/_optimize", deprecationLogger);
+     * controller.registerWithDeprecatedHandler(POST, "/{index}/_forcemerge", this,
+     *                                          POST, "/{index}/_optimize", deprecationLogger);
+     * </code></pre>
+     * <p>
+     * The registered REST handler ({@code method} with {@code path}) is a normal REST handler that is not deprecated and it is
+     * replacing the deprecated REST handler ({@code deprecatedMethod} with {@code deprecatedPath}) that is using the <em>same</em>
+     * {@code handler}.
+     * <p>
+     * Deprecated REST handlers without a direct replacement should be deprecated directly using {@link #registerAsDeprecatedHandler}
+     * and a specific message.
+     *
+     * @param method GET, POST, etc.
+     * @param path Path to handle (e.g., "/_forcemerge")
+     * @param handler The handler to actually execute
+     * @param deprecatedMethod GET, POST, etc.
+     * @param deprecatedPath <em>Deprecated</em> path to handle (e.g., "/_optimize")
+     * @param logger The existing deprecation logger to use
+     */
+    public void registerWithDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler,
+                                              RestRequest.Method deprecatedMethod, String deprecatedPath,
+                                              DeprecationLogger logger) {
+        // e.g., [POST /_optimize] is deprecated! Use [POST /_forcemerge] instead.
+        final String deprecationMessage =
+            "[" + deprecatedMethod.name() + " " + deprecatedPath + "] is deprecated! Use [" + method.name() + " " + path + "] instead.";
+
+        registerHandler(method, path, handler);
+        registerAsDeprecatedHandler(deprecatedMethod, deprecatedPath, handler, deprecationMessage, logger);
     }
 
     /**
@@ -177,7 +194,7 @@ public class RestController extends AbstractLifecycleComponent {
             return;
         }
         try (ThreadContext.StoredContext t = threadContext.stashContext()) {
-            for (String key : relevantHeaders) {
+            for (String key : headersToCopy) {
                 String httpHeader = request.header(key);
                 if (httpHeader != null) {
                     threadContext.putHeader(key, httpHeader);

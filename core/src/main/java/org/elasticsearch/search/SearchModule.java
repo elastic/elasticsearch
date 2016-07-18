@@ -75,7 +75,6 @@ import org.elasticsearch.index.query.SpanNotQueryBuilder;
 import org.elasticsearch.index.query.SpanOrQueryBuilder;
 import org.elasticsearch.index.query.SpanTermQueryBuilder;
 import org.elasticsearch.index.query.SpanWithinQueryBuilder;
-import org.elasticsearch.index.query.TemplateQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.TypeQueryBuilder;
@@ -382,10 +381,8 @@ public class SearchModule extends AbstractModule {
      * Register an aggregation.
      */
     public void registerAggregation(AggregationSpec spec) {
-        if (false == transportClient) {
-            namedWriteableRegistry.register(AggregationBuilder.class, spec.aggregationName.getPreferredName(), spec.builderReader);
-            aggregationParserRegistry.register(spec.aggregationParser, spec.aggregationName);
-        }
+        namedWriteableRegistry.register(AggregationBuilder.class, spec.aggregationName.getPreferredName(), spec.builderReader);
+        aggregationParserRegistry.register(spec.aggregationParser, spec.aggregationName);
         for (Map.Entry<String, Writeable.Reader<? extends InternalAggregation>> t : spec.resultReaders.entrySet()) {
             String writeableName = t.getKey();
             Writeable.Reader<? extends InternalAggregation> internalReader = t.getValue();
@@ -414,7 +411,7 @@ public class SearchModule extends AbstractModule {
         }
 
         /**
-         * Add a reader for the shard level results of the aggregation with {@linkplain aggregationName}'s
+         * Add a reader for the shard level results of the aggregation with {@linkplain #aggregationName}'s
          * {@link ParseField#getPreferredName()} as the {@link NamedWriteable#getWriteableName()}.
          */
         public AggregationSpec addResultReader(Writeable.Reader<? extends InternalAggregation> resultReader) {
@@ -428,13 +425,6 @@ public class SearchModule extends AbstractModule {
             resultReaders.put(writeableName, resultReader);
             return this;
         }
-    }
-
-    public void registerAggregation(Writeable.Reader<? extends AggregationBuilder> builderReader, Aggregator.Parser aggregationParser,
-            ParseField aggregationName) {
-        // NORELEASE remove me in favor of the above method
-        namedWriteableRegistry.register(AggregationBuilder.class, aggregationName.getPreferredName(), builderReader);
-        aggregationParserRegistry.register(aggregationParser, aggregationName);
     }
 
     /**
@@ -451,9 +441,9 @@ public class SearchModule extends AbstractModule {
             Writeable.Reader<? extends PipelineAggregator> internalReader, Writeable.Reader<? extends InternalAggregation> bucketReader,
             PipelineAggregator.Parser aggregationParser, ParseField aggregationName) {
         if (false == transportClient) {
-            namedWriteableRegistry.register(PipelineAggregationBuilder.class, aggregationName.getPreferredName(), reader);
             pipelineAggregationParserRegistry.register(aggregationParser, aggregationName);
         }
+        namedWriteableRegistry.register(PipelineAggregationBuilder.class, aggregationName.getPreferredName(), reader);
         namedWriteableRegistry.register(PipelineAggregator.class, aggregationName.getPreferredName(), internalReader);
         namedWriteableRegistry.register(InternalAggregation.class, aggregationName.getPreferredName(), bucketReader);
     }
@@ -476,9 +466,9 @@ public class SearchModule extends AbstractModule {
             bind(IndicesQueriesRegistry.class).toInstance(queryParserRegistry);
             bind(Suggesters.class).toInstance(getSuggesters());
             configureSearch();
-            configureShapes();
             bind(AggregatorParsers.class).toInstance(aggregatorParsers);
         }
+        configureShapes();
     }
 
     private void registerBuiltinAggregations() {
@@ -518,8 +508,8 @@ public class SearchModule extends AbstractModule {
         registerAggregation(new AggregationSpec(SamplerAggregationBuilder::new, SamplerAggregationBuilder::parse,
                 SamplerAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalSampler.NAME, InternalSampler::new)
                         .addResultReader(UnmappedSampler.NAME, UnmappedSampler::new));
-        registerAggregation(DiversifiedAggregationBuilder::new, new DiversifiedSamplerParser(),
-                DiversifiedAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(new AggregationSpec(DiversifiedAggregationBuilder::new, new DiversifiedSamplerParser(),
+                DiversifiedAggregationBuilder.AGGREGATION_NAME_FIELD));
         registerAggregation(
                 new AggregationSpec(TermsAggregationBuilder::new, new TermsParser(), TermsAggregationBuilder.AGGREGATION_NAME_FIELD)
                     .addResultReader(StringTerms.NAME, StringTerms::new)
@@ -541,8 +531,8 @@ public class SearchModule extends AbstractModule {
                         .addResultReader(InternalBinaryRange::new));
         registerAggregation(new AggregationSpec(HistogramAggregationBuilder::new, new HistogramParser(),
                 HistogramAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalHistogram::new));
-        registerAggregation(DateHistogramAggregationBuilder::new, new DateHistogramParser(),
-                DateHistogramAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(new AggregationSpec(DateHistogramAggregationBuilder::new, new DateHistogramParser(),
+                DateHistogramAggregationBuilder.AGGREGATION_NAME_FIELD));
         registerAggregation(new AggregationSpec(GeoDistanceAggregationBuilder::new, new GeoDistanceParser(),
                 GeoDistanceAggregationBuilder.AGGREGATION_NAME_FIELD).addResultReader(InternalGeoDistance::new));
         registerAggregation(new AggregationSpec(GeoGridAggregationBuilder::new, new GeoHashGridParser(),
@@ -804,7 +794,6 @@ public class SearchModule extends AbstractModule {
         registerQuery(FunctionScoreQueryBuilder::new, c -> FunctionScoreQueryBuilder.fromXContent(scoreFunctionParserRegistry, c),
                 FunctionScoreQueryBuilder.QUERY_NAME_FIELD);
         registerQuery(SimpleQueryStringBuilder::new, SimpleQueryStringBuilder::fromXContent, SimpleQueryStringBuilder.QUERY_NAME_FIELD);
-        registerQuery(TemplateQueryBuilder::new, TemplateQueryBuilder::fromXContent, TemplateQueryBuilder.QUERY_NAME_FIELD);
         registerQuery(TypeQueryBuilder::new, TypeQueryBuilder::fromXContent, TypeQueryBuilder.QUERY_NAME_FIELD);
         registerQuery(ScriptQueryBuilder::new, ScriptQueryBuilder::fromXContent, ScriptQueryBuilder.QUERY_NAME_FIELD);
         registerQuery(GeoDistanceQueryBuilder::new, GeoDistanceQueryBuilder::fromXContent, GeoDistanceQueryBuilder.QUERY_NAME_FIELD);

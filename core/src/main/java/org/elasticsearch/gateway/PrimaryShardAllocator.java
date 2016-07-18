@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -106,7 +107,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
             if (shardState.hasData() == false) {
                 logger.trace("{}: ignoring allocation, still fetching shard started state", shard);
                 allocation.setHasPendingAsyncFetch();
-                unassignedIterator.removeAndIgnore();
+                changed |= unassignedIterator.removeAndIgnore(AllocationStatus.FETCHING_SHARD_DATA);
                 continue;
             }
 
@@ -147,7 +148,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                     logger.debug("[{}][{}]: missing local data, recover from any node", shard.index(), shard.id());
                 } else {
                     // we can't really allocate, so ignore it and continue
-                    unassignedIterator.removeAndIgnore();
+                    changed |= unassignedIterator.removeAndIgnore(AllocationStatus.NO_VALID_SHARD_COPY);
                     logger.debug("[{}][{}]: not allocating, number_of_allocated_shards_found [{}]", shard.index(), shard.id(), nodeShardsResult.allocationsFound);
                 }
                 continue;
@@ -167,7 +168,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
             } else {
                 // we are throttling this, but we have enough to allocate to this node, ignore it for now
                 logger.debug("[{}][{}]: throttling allocation [{}] to [{}] on primary allocation", shard.index(), shard.id(), shard, nodesToAllocate.throttleNodeShards);
-                unassignedIterator.removeAndIgnore();
+                changed |= unassignedIterator.removeAndIgnore(AllocationStatus.DECIDERS_THROTTLED);
             }
         }
         return changed;
@@ -384,7 +385,8 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
         final List<NodeGatewayStartedShards> throttleNodeShards;
         final List<NodeGatewayStartedShards> noNodeShards;
 
-        public NodesToAllocate(List<NodeGatewayStartedShards> yesNodeShards, List<NodeGatewayStartedShards> throttleNodeShards,
+        public NodesToAllocate(List<NodeGatewayStartedShards> yesNodeShards,
+                               List<NodeGatewayStartedShards> throttleNodeShards,
                                List<NodeGatewayStartedShards> noNodeShards) {
             this.yesNodeShards = yesNodeShards;
             this.throttleNodeShards = throttleNodeShards;

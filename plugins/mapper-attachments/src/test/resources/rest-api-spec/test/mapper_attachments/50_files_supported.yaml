@@ -20,9 +20,6 @@ setup:
                         content_type:
                           store: true
                         
-    - do:
-        cluster.health:
-          wait_for_status: yellow
 ---
 "Test mapper attachment processor with .doc file":
 

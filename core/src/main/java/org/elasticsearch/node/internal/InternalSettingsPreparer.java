@@ -106,7 +106,7 @@ public class InternalSettingsPreparer {
                     try {
                         output.loadFromPath(path);
                     } catch (IOException e) {
-                        throw new SettingsException("Failed to settings from " + path.toString(), e);
+                        throw new SettingsException("Failed to load settings from " + path.toString(), e);
                     }
                 }
                 settingsFileFound = true;

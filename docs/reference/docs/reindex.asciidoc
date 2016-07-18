@@ -178,7 +178,7 @@ POST _reindex
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT twitter\nPUT blog\nGET _cluster\/health?wait_for_status=yellow\n/]
+// TEST[s/^/PUT twitter\nPUT blog\n/]
 
 It's also possible to limit the number of processed documents by setting
 `size`. This will only copy a single document from `twitter` to
@@ -320,7 +320,7 @@ POST _reindex
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT source\nGET _cluster\/health?wait_for_status=yellow\n/]
+// TEST[s/^/PUT source\n/]
 
 By default `_reindex` uses scroll batches of 1000. You can change the
 batch size with the `size` field in the `source` element:
@@ -340,7 +340,7 @@ POST _reindex
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT source\nGET _cluster\/health?wait_for_status=yellow\n/]
+// TEST[s/^/PUT source\n/]
 
 Reindex can also use the <<ingest>> feature by specifying a
 `pipeline` like this:
@@ -359,7 +359,7 @@ POST _reindex
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT source\nGET _cluster\/health?wait_for_status=yellow\n/]
+// TEST[s/^/PUT source\n/]
 
 [float]
 === Reindex from Remote
@@ -390,7 +390,7 @@ POST _reindex
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:host]
-// TEST[s/^/PUT source\nGET _cluster\/health?wait_for_status=yellow\n/]
+// TEST[s/^/PUT source\n/]
 // TEST[s/otherhost:9200",/\${host}"/]
 // TEST[s/"username": "user",//]
 // TEST[s/"password": "pass"//]

@@ -54,8 +54,9 @@ public class NetworkModule extends AbstractModule {
     public static final String TRANSPORT_SERVICE_TYPE_KEY = "transport.service.type";
     public static final String HTTP_TYPE_KEY = "http.type";
     public static final String LOCAL_TRANSPORT = "local";
-    public static final String NETTY_TRANSPORT = "netty";
 
+    public static final Setting<String> TRANSPORT_DEFAULT_TYPE_SETTING = Setting.simpleString("transport.type.default", Property.NodeScope);
+    public static final Setting<String> HTTP_DEFAULT_TYPE_SETTING = Setting.simpleString("http.type.default", Property.NodeScope);
     public static final Setting<String> HTTP_TYPE_SETTING = Setting.simpleString(HTTP_TYPE_KEY, Property.NodeScope);
     public static final Setting<Boolean> HTTP_ENABLED = Setting.boolSetting("http.enabled", true, Property.NodeScope);
     public static final Setting<String> TRANSPORT_SERVICE_TYPE_SETTING =
@@ -85,7 +86,7 @@ public class NetworkModule extends AbstractModule {
         this.settings = settings;
         this.transportClient = transportClient;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        registerTransportService(NETTY_TRANSPORT, TransportService.class);
+        registerTransportService("default", TransportService.class);
         registerTransport(LOCAL_TRANSPORT, LocalTransport.class);
         registerTaskStatus(ReplicationTask.Status.NAME, ReplicationTask.Status::new);
         registerTaskStatus(RawTaskStatus.NAME, RawTaskStatus::new);
@@ -146,16 +147,13 @@ public class NetworkModule extends AbstractModule {
     protected void configure() {
         bind(NetworkService.class).toInstance(networkService);
         bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
-
-        boolean nettyRegistered = transportTypes.getExtension(NETTY_TRANSPORT) != null;
-        transportServiceTypes.bindType(binder(), settings, TRANSPORT_SERVICE_TYPE_KEY, NETTY_TRANSPORT);
-        String defaultTransport = DiscoveryNode.isLocalNode(settings) || nettyRegistered == false ? LOCAL_TRANSPORT : NETTY_TRANSPORT;
-        transportTypes.bindType(binder(), settings, TRANSPORT_TYPE_KEY, defaultTransport);
+        transportServiceTypes.bindType(binder(), settings, TRANSPORT_SERVICE_TYPE_KEY, "default");
+        transportTypes.bindType(binder(), settings, TRANSPORT_TYPE_KEY, TRANSPORT_DEFAULT_TYPE_SETTING.get(settings));
 
         if (transportClient == false) {
             if (HTTP_ENABLED.get(settings)) {
                 bind(HttpServer.class).asEagerSingleton();
-                httpTransportTypes.bindType(binder(), settings, HTTP_TYPE_SETTING.getKey(), NETTY_TRANSPORT);
+                httpTransportTypes.bindType(binder(), settings, HTTP_TYPE_SETTING.getKey(), HTTP_DEFAULT_TYPE_SETTING.get(settings));
             } else {
                 bind(HttpServer.class).toProvider(Providers.of(null));
             }

@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xpack.watcher.support.WatcherScript;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -68,8 +69,8 @@ public class SleepScriptEngine implements ScriptEngineService {
     public void close() throws IOException {
     }
 
-    public static org.elasticsearch.xpack.watcher.support.Script sleepScript(long millis) {
-        return new org.elasticsearch.xpack.watcher.support.Script.Builder.Inline("")
+    public static WatcherScript sleepScript(long millis) {
+        return new WatcherScript.Builder.Inline("")
                 .lang("sleep")
                 .params(Collections.singletonMap("millis", millis)).build();
     }

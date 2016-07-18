@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackTransportClient;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -233,10 +233,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
                 .put(SecurityNetty3Transport.SSL_SETTING.getKey(), false)
                 .build();
 
-        return TransportClient.builder()
-                .settings(settings)
-                .addPlugin(XPackPlugin.class)
-                .build()
+        return new XPackTransportClient(settings)
                 .addTransportAddress(publishAddress);
     }
 }

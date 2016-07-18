@@ -5,9 +5,13 @@
  */
 package org.elasticsearch.xpack.security.ssl;
 
+import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.asn1.x509.AuthorityKeyIdentifier;
+import org.bouncycastle.asn1.x509.BasicConstraints;
 import org.bouncycastle.asn1.x509.Extension;
+import org.bouncycastle.asn1.x509.ExtensionsGenerator;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.asn1.x509.Time;
@@ -24,6 +28,8 @@ import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
 import org.bouncycastle.openssl.jcajce.JcePEMDecryptorProviderBuilder;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+import org.bouncycastle.pkcs.PKCS10CertificationRequest;
+import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
@@ -40,6 +46,7 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
+import javax.security.auth.x500.X500Principal;
 import java.io.ByteArrayInputStream;
 import java.io.Reader;
 import java.math.BigInteger;
@@ -60,6 +67,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.Supplier;
 
 class CertUtils {
 
@@ -155,7 +163,7 @@ class CertUtils {
         }
     }
 
-    static PrivateKey readPrivateKey(Reader reader, char[] keyPassword) throws Exception {
+    static PrivateKey readPrivateKey(Reader reader, Supplier<char[]> passwordSupplier) throws Exception {
         try (PEMParser parser = new PEMParser(reader)) {
             Object parsed;
             List<Object> list = new ArrayList<>(1);
@@ -173,6 +181,7 @@ class CertUtils {
             PrivateKeyInfo privateKeyInfo;
             Object parsedObject = list.get(0);
             if (parsedObject instanceof PEMEncryptedKeyPair) {
+                char[] keyPassword = passwordSupplier.get();
                 if (keyPassword == null) {
                     throw new IllegalArgumentException("cannot read encrypted key without a password");
                 }
@@ -195,28 +204,63 @@ class CertUtils {
         }
     }
 
-    static X509Certificate generateSignedCertificate(boolean resolveHostname, String nodeName, Set<InetAddress> addresses, KeyPair keyPair,
-                                                     Certificate caCert, PrivateKey caPrivKey) throws Exception {
+    static X509Certificate generateCACertificate(X500Principal x500Principal, KeyPair keyPair) throws Exception {
+        return generateSignedCertificate(x500Principal, null, keyPair, null, null, true);
+    }
+
+    static X509Certificate generateSignedCertificate(X500Principal principal, GeneralNames subjectAltNames, KeyPair keyPair,
+                                                     X509Certificate caCert, PrivateKey caPrivKey) throws Exception {
+        return generateSignedCertificate(principal, subjectAltNames, keyPair, caCert, caPrivKey, false);
+    }
+
+    private static X509Certificate generateSignedCertificate(X500Principal principal, GeneralNames subjectAltNames, KeyPair keyPair,
+                                                     X509Certificate caCert, PrivateKey caPrivKey, boolean ca) throws Exception {
         final DateTime notBefore = new DateTime(DateTimeZone.UTC);
         final DateTime notAfter = notBefore.plusYears(1);
-        final BigInteger serial = getSerial();
-
-        X509Certificate x509CACert = (X509Certificate) caCert;
-        X500Name subject = new X500Name("CN=" + nodeName);
-        JcaX509v3CertificateBuilder builder =
-                new JcaX509v3CertificateBuilder(X500Name.getInstance(x509CACert.getIssuerX500Principal().getEncoded()), serial,
-                        new Time(notBefore.toDate(), Locale.ROOT), new Time(notAfter.toDate(), Locale.ROOT), subject, keyPair.getPublic());
-
+        final BigInteger serial = CertUtils.getSerial();
         JcaX509ExtensionUtils extUtils = new JcaX509ExtensionUtils();
-        builder.addExtension(Extension.subjectKeyIdentifier, false, extUtils.createSubjectKeyIdentifier(keyPair.getPublic()));
-        builder.addExtension(Extension.authorityKeyIdentifier, false, extUtils.createAuthorityKeyIdentifier(x509CACert));
-        if (addresses.isEmpty() == false) {
-            builder.addExtension(Extension.subjectAlternativeName, false, getSubjectAlternativeNames(resolveHostname, addresses));
+
+        X500Name subject = X500Name.getInstance(principal.getEncoded());
+        final X500Name issuer;
+        final AuthorityKeyIdentifier authorityKeyIdentifier;
+        if (caCert != null) {
+            if (caCert.getBasicConstraints() < 0) {
+                throw new IllegalArgumentException("ca certificate is not a CA!");
+            }
+            issuer = X500Name.getInstance(caCert.getIssuerX500Principal().getEncoded());
+            authorityKeyIdentifier = extUtils.createAuthorityKeyIdentifier(caCert);
+        } else {
+            issuer = subject;
+            authorityKeyIdentifier =
+                    extUtils.createAuthorityKeyIdentifier(keyPair.getPublic(), new X500Principal(issuer.toString()), serial);
         }
 
-        ContentSigner signer = new JcaContentSignerBuilder("SHA256withRSA").build(caPrivKey);
+        JcaX509v3CertificateBuilder builder =
+                new JcaX509v3CertificateBuilder(issuer, serial,
+                        new Time(notBefore.toDate(), Locale.ROOT), new Time(notAfter.toDate(), Locale.ROOT), subject, keyPair.getPublic());
+
+        builder.addExtension(Extension.subjectKeyIdentifier, false, extUtils.createSubjectKeyIdentifier(keyPair.getPublic()));
+        builder.addExtension(Extension.authorityKeyIdentifier, false, authorityKeyIdentifier);
+        if (subjectAltNames != null) {
+            builder.addExtension(Extension.subjectAlternativeName, false, subjectAltNames);
+        }
+        builder.addExtension(Extension.basicConstraints, ca, new BasicConstraints(ca));
+
+        PrivateKey signingKey = caPrivKey != null ? caPrivKey : keyPair.getPrivate();
+        ContentSigner signer = new JcaContentSignerBuilder("SHA256withRSA").build(signingKey);
         X509CertificateHolder certificateHolder = builder.build(signer);
         return new JcaX509CertificateConverter().getCertificate(certificateHolder);
+    }
+
+    static PKCS10CertificationRequest generateCSR(KeyPair keyPair, X500Principal principal, GeneralNames sanList) throws Exception {
+        JcaPKCS10CertificationRequestBuilder builder = new JcaPKCS10CertificationRequestBuilder(principal, keyPair.getPublic());
+        if (sanList != null) {
+            ExtensionsGenerator extGen = new ExtensionsGenerator();
+            extGen.addExtension(Extension.subjectAlternativeName, false, sanList);
+            builder.addAttribute(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest, extGen.generate());
+        }
+
+        return builder.build(new JcaContentSignerBuilder("SHA256withRSA").setProvider(CertUtils.BC_PROV).build(keyPair.getPrivate()));
     }
 
     static BigInteger getSerial() {
@@ -226,10 +270,10 @@ class CertUtils {
         return serial;
     }
 
-    static KeyPair generateKeyPair() throws Exception {
+    static KeyPair generateKeyPair(int keysize) throws Exception {
         // generate a private key
         KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-        keyPairGenerator.initialize(2048);
+        keyPairGenerator.initialize(keysize);
         return keyPairGenerator.generateKeyPair();
     }
 

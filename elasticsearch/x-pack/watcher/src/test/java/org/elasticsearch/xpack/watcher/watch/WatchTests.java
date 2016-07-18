@@ -16,8 +16,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpMethod;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
@@ -78,7 +78,7 @@ import org.elasticsearch.xpack.watcher.input.search.SearchInputFactory;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInputFactory;
-import org.elasticsearch.xpack.watcher.support.Script;
+import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
@@ -141,7 +141,7 @@ import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Mockito.mock;
 
 public class WatchTests extends ESTestCase {
-    private ScriptServiceProxy scriptService;
+    private ScriptService scriptService;
     private WatcherClientProxy client;
     private HttpClient httpClient;
     private EmailService emailService;
@@ -155,7 +155,7 @@ public class WatchTests extends ESTestCase {
 
     @Before
     public void init() throws Exception {
-        scriptService = mock(ScriptServiceProxy.class);
+        scriptService = mock(ScriptService.class);
         client = mock(WatcherClientProxy.class);
         httpClient = mock(HttpClient.class);
         emailService = mock(EmailService.class);
@@ -363,7 +363,7 @@ public class WatchTests extends ESTestCase {
         String type = randomFrom(ScriptCondition.TYPE, AlwaysCondition.TYPE, CompareCondition.TYPE, ArrayCompareCondition.TYPE);
         switch (type) {
             case ScriptCondition.TYPE:
-                return new ExecutableScriptCondition(new ScriptCondition(Script.inline("_script").build()), logger, scriptService);
+                return new ExecutableScriptCondition(new ScriptCondition(WatcherScript.inline("_script").build()), logger, scriptService);
             case CompareCondition.TYPE:
                 return new ExecutableCompareCondition(new CompareCondition("_path", randomFrom(Op.values()), randomFrom(5, "3")), logger,
                         SystemClock.INSTANCE);
@@ -400,7 +400,7 @@ public class WatchTests extends ESTestCase {
         DateTimeZone timeZone = randomBoolean() ? DateTimeZone.UTC : null;
         switch (type) {
             case ScriptTransform.TYPE:
-                return new ExecutableScriptTransform(new ScriptTransform(Script.inline("_script").build()), logger, scriptService);
+                return new ExecutableScriptTransform(new ScriptTransform(WatcherScript.inline("_script").build()), logger, scriptService);
             case SearchTransform.TYPE:
                 SearchTransform transform = new SearchTransform(
                         new WatcherSearchTemplateRequest(matchAllRequest(DEFAULT_INDICES_OPTIONS), null), timeout, timeZone);
@@ -408,14 +408,15 @@ public class WatchTests extends ESTestCase {
             default: // chain
                 SearchTransform searchTransform = new SearchTransform(
                         new WatcherSearchTemplateRequest(matchAllRequest(DEFAULT_INDICES_OPTIONS), null), timeout, timeZone);
-                ScriptTransform scriptTransform = new ScriptTransform(Script.inline("_script").build());
+                ScriptTransform scriptTransform = new ScriptTransform(WatcherScript.inline("_script").build());
 
                 ChainTransform chainTransform = new ChainTransform(Arrays.asList(searchTransform, scriptTransform));
                 return new ExecutableChainTransform(chainTransform, logger, Arrays.<ExecutableTransform>asList(
                         new ExecutableSearchTransform(new SearchTransform(
                                 new WatcherSearchTemplateRequest(matchAllRequest(DEFAULT_INDICES_OPTIONS), null), timeout, timeZone),
                                 logger, client, searchTemplateService, null),
-                        new ExecutableScriptTransform(new ScriptTransform(Script.inline("_script").build()), logger, scriptService)));
+                        new ExecutableScriptTransform(new ScriptTransform(WatcherScript.inline("_script").build()),
+                            logger, scriptService)));
         }
     }
 

@@ -125,15 +125,17 @@ public class HandshakeWaitingHandlerTests extends ESTestCase {
             }
 
             if (failureCause.get() != null) {
+                logger.info("run [{}] produced a failure", i);
                 assertThat(failureCause.get(), anyOf(instanceOf(SSLException.class), instanceOf(AssertionError.class)));
                 break;
+            } else {
+                logger.warn("run [{}] did not produce a failure", i);
             }
         }
 
         assertThat("Expected this test to fail with an SSLException or AssertionError", failureCause.get(), notNullValue());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-shield/issues/533")
     public void testWriteBeforeHandshakePassesWithHandshakeWaitingHandler() throws Exception {
         clientBootstrap.setPipelineFactory(new ChannelPipelineFactory() {
 
@@ -161,14 +163,15 @@ public class HandshakeWaitingHandlerTests extends ESTestCase {
                 // Wait for pending writes to prevent IOExceptions
                 Channel channel = handshakeFuture.getChannel();
                 HandshakeWaitingHandler handler = channel.getPipeline().get(HandshakeWaitingHandler.class);
-                while (handler != null && handler.hasPendingWrites()) {
-                    Thread.sleep(10);
+                if (handler != null) {
+                    boolean noMoreWrites = awaitBusy(() -> handler.hasPendingWrites() == false);
+                    assertTrue(noMoreWrites);
                 }
-
                 channel.close();
             }
 
             assertNotFailed();
+            logger.info("run [{}] succeeded", i);
         }
     }
 

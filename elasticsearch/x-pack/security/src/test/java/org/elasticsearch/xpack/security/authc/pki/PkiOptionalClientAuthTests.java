@@ -18,7 +18,7 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackTransportClient;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
@@ -112,7 +112,7 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
                 .build();
 
 
-        try (TransportClient client = TransportClient.builder().settings(settings).addPlugin(XPackPlugin.class).build()) {
+        try (TransportClient client = new XPackTransportClient(settings)) {
             client.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), port));
             assertGreenClusterState(client);
         }

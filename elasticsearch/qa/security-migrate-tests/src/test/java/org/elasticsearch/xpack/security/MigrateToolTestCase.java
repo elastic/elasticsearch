@@ -14,10 +14,8 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackTransportClient;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -26,10 +24,8 @@ import org.junit.BeforeClass;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
-import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -81,10 +77,7 @@ public abstract class MigrateToolTestCase extends LuceneTestCase {
                 .put(Security.USER_SETTING.getKey(), "transport_user:changeme")
                 .build();
 
-        TransportClient.Builder transportClientBuilder = TransportClient.builder()
-                .addPlugin(XPackPlugin.class)
-                .settings(clientSettings);
-        TransportClient client = transportClientBuilder.build().addTransportAddresses(transportAddresses);
+        TransportClient client = new XPackTransportClient(clientSettings).addTransportAddresses(transportAddresses);
 
         logger.info("--> Elasticsearch Java TransportClient started");
 

@@ -36,7 +36,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.plugin.Licensing;
-import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -49,7 +48,6 @@ import org.elasticsearch.xpack.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.action.XPackInfoAction;
 import org.elasticsearch.xpack.action.XPackUsageAction;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthFactory;
@@ -75,6 +73,7 @@ import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.Watcher;
+import org.elasticsearch.xpack.watcher.support.WatcherScript;
 
 public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
 
@@ -231,7 +230,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
 
     @Override
     public ScriptContext.Plugin getCustomScriptContexts() {
-        return ScriptServiceProxy.INSTANCE;
+        return WatcherScript.CTX_PLUGIN;
     }
 
     @Override

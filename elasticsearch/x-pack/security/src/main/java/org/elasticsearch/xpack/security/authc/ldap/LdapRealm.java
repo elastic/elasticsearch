@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.security.authc.ldap;
 
 import java.util.Map;
 
+import com.unboundid.ldap.sdk.LDAPException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
@@ -14,6 +16,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.AbstractLdapRealm;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.elasticsearch.xpack.security.ssl.ClientSSLService;
+
 
 /**
  * Authenticates username/password tokens against ldap, locates groups and maps them to roles.
@@ -33,15 +36,19 @@ public class LdapRealm extends AbstractLdapRealm {
 
     static SessionFactory sessionFactory(RealmConfig config, ClientSSLService clientSSLService) {
         Settings searchSettings = userSearchSettings(config);
-        if (!searchSettings.names().isEmpty()) {
-            if (config.settings().getAsArray(LdapSessionFactory.USER_DN_TEMPLATES_SETTING).length > 0) {
-                throw new IllegalArgumentException("settings were found for both user search and user template modes of operation. " +
-                    "Please remove the settings for the mode you do not wish to use. For more details refer to the ldap " +
-                    "authentication section of the X-Pack guide.");
+        try {
+            if (!searchSettings.names().isEmpty()) {
+                if (config.settings().getAsArray(LdapSessionFactory.USER_DN_TEMPLATES_SETTING).length > 0) {
+                    throw new IllegalArgumentException("settings were found for both user search and user template modes of operation. " +
+                        "Please remove the settings for the mode you do not wish to use. For more details refer to the ldap " +
+                        "authentication section of the X-Pack guide.");
+                }
+                return new LdapUserSearchSessionFactory(config, clientSSLService);
             }
-            return new LdapUserSearchSessionFactory(config, clientSSLService).init();
+            return new LdapSessionFactory(config, clientSSLService);
+        } catch (LDAPException e) {
+            throw new ElasticsearchException("failed to create realm [{}/{}]", e, LdapRealm.TYPE, config.name());
         }
-        return new LdapSessionFactory(config, clientSSLService).init();
     }
 
     static Settings userSearchSettings(RealmConfig config) {

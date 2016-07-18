@@ -82,7 +82,8 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
         if (securityIndexRouting == null) {
             if (event.localNodeMaster()) {
                 ClusterState state = event.state();
-                // TODO for the future need to add some checking in the event the template needs to be updated...
+                // norelease we need to add some checking in the event the template needs to be updated and also the mappings need to be
+                // updated on index too!
                 IndexTemplateMetaData templateMeta = state.metaData().templates().get(SECURITY_TEMPLATE_NAME);
                 final boolean createTemplate = (templateMeta == null);
 

@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * Tests for the ESNativeUsersStore and ESNativeRolesStore
+ * Tests for the NativeUsersStore and NativeRolesStore
  */
 public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
@@ -144,12 +144,14 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         SecurityClient c = securityClient();
         final List<RoleDescriptor> existingRoles = Arrays.asList(c.prepareGetRoles().get().roles());
         final int existing = existingRoles.size();
+        final Map<String, Object> metadata = Collections.singletonMap("key", (Object) randomAsciiOfLengthBetween(1, 10));
         logger.error("--> creating role");
         c.preparePutRole("test_role")
                 .cluster("all", "none")
                 .runAs("root", "nobody")
                 .addIndices(new String[]{"index"}, new String[]{"read"},
                         new String[]{"body", "title"}, new BytesArray("{\"query\": {\"match_all\": {}}}"))
+                .metadata(metadata)
                 .get();
         logger.error("--> waiting for .security index");
         ensureGreen(SecurityTemplateService.SECURITY_INDEX_NAME);
@@ -158,6 +160,8 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertTrue("role should exist", resp.hasRoles());
         RoleDescriptor testRole = resp.roles()[0];
         assertNotNull(testRole);
+        assertThat(testRole.getMetadata().size(), is(1));
+        assertThat(testRole.getMetadata().get("key"), is(metadata.get("key")));
 
         c.preparePutRole("test_role2")
                 .cluster("all", "none")

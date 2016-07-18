@@ -20,7 +20,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.Suggesters;
-import org.elasticsearch.xpack.watcher.support.Script;
+import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.support.SearchRequestEquivalence;
 
 import java.io.IOException;
@@ -36,9 +36,9 @@ import java.util.Objects;
 public class WatcherSearchTemplateRequest implements ToXContent {
 
     private final SearchRequest request;
-    @Nullable private final Script template;
+    @Nullable private final WatcherScript template;
 
-    public WatcherSearchTemplateRequest(SearchRequest searchRequest, @Nullable Script template) {
+    public WatcherSearchTemplateRequest(SearchRequest searchRequest, @Nullable WatcherScript template) {
         this.request = Objects.requireNonNull(searchRequest);
         this.template = template;
     }
@@ -51,7 +51,7 @@ public class WatcherSearchTemplateRequest implements ToXContent {
         return request;
     }
 
-    public Script getTemplate() {
+    public WatcherScript getTemplate() {
         return template;
     }
 
@@ -105,7 +105,7 @@ public class WatcherSearchTemplateRequest implements ToXContent {
             throws IOException {
         IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
         SearchRequest searchRequest = new SearchRequest();
-        Script template = null;
+        WatcherScript template = null;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -190,7 +190,7 @@ public class WatcherSearchTemplateRequest implements ToXContent {
                     indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandOpen, expandClosed,
                             DEFAULT_INDICES_OPTIONS);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, TEMPLATE_FIELD)) {
-                    template = Script.parse(parser);
+                    template = WatcherScript.parse(parser);
                 } else {
                     throw new ElasticsearchParseException("could not read search request. unexpected object field [" +
                             currentFieldName + "]");

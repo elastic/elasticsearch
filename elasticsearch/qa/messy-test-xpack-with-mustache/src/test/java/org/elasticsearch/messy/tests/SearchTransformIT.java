@@ -32,7 +32,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
 import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
@@ -40,7 +39,7 @@ import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
-import org.elasticsearch.xpack.watcher.support.Script;
+import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
@@ -348,7 +347,7 @@ public class SearchTransformIT extends ESIntegTestCase {
         }
         if (templateName != null) {
             assertThat(executable.transform().getRequest().getTemplate(),
-                    equalTo(Script.file("template1").build()));
+                    equalTo(WatcherScript.file("template1").build()));
         }
         SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery());
         assertThat(executable.transform().getRequest().getRequest().source(), equalTo(source));
@@ -381,7 +380,7 @@ public class SearchTransformIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
-        Script template = Script.inline(templateQuery).lang("mustache").params(params).build();
+        WatcherScript template = WatcherScript.inline(templateQuery).lang("mustache").params(params).build();
         SearchRequest request = client().prepareSearch().setSearchType(ExecutableSearchTransform.DEFAULT_SEARCH_TYPE)
                 .setIndices("test-search-index").request();
 
@@ -415,7 +414,7 @@ public class SearchTransformIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
-        Script template = Script.indexed("test-script").lang("mustache").params(params).build();
+        WatcherScript template = WatcherScript.indexed("test-script").lang("mustache").params(params).build();
 
         SearchRequest request = client()
                 .prepareSearch()
@@ -441,7 +440,7 @@ public class SearchTransformIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
-        Script template = Script.file("test_disk_template").lang("mustache").params(params).build();
+        WatcherScript template = WatcherScript.file("test_disk_template").lang("mustache").params(params).build();
         SearchRequest request = client().prepareSearch().setSearchType(ExecutableSearchTransform.DEFAULT_SEARCH_TYPE)
                 .setIndices("test-search-index").request();
 
@@ -504,7 +503,7 @@ public class SearchTransformIT extends ESIntegTestCase {
                 timeValueSeconds(5));
     }
 
-    private SearchTransform.Result executeSearchTransform(SearchRequest request, Script template, WatchExecutionContext ctx)
+    private SearchTransform.Result executeSearchTransform(SearchRequest request, WatcherScript template, WatchExecutionContext ctx)
             throws IOException {
         createIndex("test-search-index");
         ensureGreen("test-search-index");
@@ -519,15 +518,15 @@ public class SearchTransformIT extends ESIntegTestCase {
     protected WatcherSearchTemplateService watcherSearchTemplateService() {
         String master = internalCluster().getMasterName();
         return new WatcherSearchTemplateService(internalCluster().clusterService(master).getSettings(),
-                ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class, master)),
+                internalCluster().getInstance(ScriptService.class, master),
                 internalCluster().getInstance(IndicesQueriesRegistry.class, master),
                 internalCluster().getInstance(AggregatorParsers.class, master),
                 internalCluster().getInstance(Suggesters.class, master)
         );
     }
 
-    protected ScriptServiceProxy scriptService() {
-        return ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class));
+    protected ScriptService scriptService() {
+        return internalCluster().getInstance(ScriptService.class);
     }
 
     private static Map<String, Object> doc(String date, String value) {
@@ -551,7 +550,7 @@ public class SearchTransformIT extends ESIntegTestCase {
 
         @Override
         public ScriptContext.Plugin getCustomScriptContexts() {
-            return ScriptServiceProxy.INSTANCE;
+            return WatcherScript.CTX_PLUGIN;
         }
     }
 }

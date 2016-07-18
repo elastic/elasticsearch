@@ -20,7 +20,7 @@ public class ActiveDirectoryRealm extends AbstractLdapRealm {
     public static final String TYPE = "active_directory";
 
     public ActiveDirectoryRealm(RealmConfig config, ResourceWatcherService watcherService, ClientSSLService clientSSLService) {
-        this(config, new ActiveDirectorySessionFactory(config, clientSSLService).init(),
+        this(config, new ActiveDirectorySessionFactory(config, clientSSLService),
              new DnRoleMapper(TYPE, config, watcherService, null));
     }
 

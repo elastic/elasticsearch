@@ -7,14 +7,13 @@ package org.elasticsearch.messy.tests;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.Template;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustachePlugin;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
+import org.elasticsearch.script.mustache.TemplateQueryBuilder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
@@ -25,7 +24,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.script.ScriptService.ScriptType.INLINE;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -109,7 +107,7 @@ public class SecurityCachePermissionIT extends SecurityIntegTestCase {
 
         //Template template = new Template(source, INLINE, MustacheScriptEngineService.NAME, null, singletonMap("name", "token"));
         SearchResponse response = client().prepareSearch("data").setTypes("a")
-                .setQuery(QueryBuilders.templateQuery(source, singletonMap("name", "token")))
+                .setQuery(new TemplateQueryBuilder(source, ScriptService.ScriptType.INLINE, singletonMap("name", "token")))
                 .execute().actionGet();
         assertThat(response.isTimedOut(), is(false));
         assertThat(response.getHits().hits().length, is(1));
@@ -119,7 +117,7 @@ public class SecurityCachePermissionIT extends SecurityIntegTestCase {
                 .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(READ_ONE_IDX_USER,
                         new SecuredString("changeme".toCharArray()))))
                     .prepareSearch("data").setTypes("a")
-                    .setQuery(QueryBuilders.templateQuery(source, singletonMap("name", "token")))
+                    .setQuery(new TemplateQueryBuilder(source, ScriptService.ScriptType.INLINE, singletonMap("name", "token")))
                     .execute().actionGet());
         assertThat(e.toString(), containsString("ElasticsearchSecurityException[action"));
         assertThat(e.toString(), containsString("unauthorized"));

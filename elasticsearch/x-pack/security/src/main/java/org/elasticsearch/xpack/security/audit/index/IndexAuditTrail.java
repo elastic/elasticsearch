@@ -28,7 +28,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -56,9 +55,8 @@ import org.elasticsearch.xpack.security.authz.privilege.SystemPrivilege;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportMessage;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackTransportClient;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -737,12 +735,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                     + REMOTE_CLIENT_SETTINGS.getKey() + ".hosts]");
         }
         final Settings theClientSetting = clientSettings.filter((s) -> s.startsWith("hosts") == false); // hosts is not a valid setting
-        final TransportClient transportClient = TransportClient.builder()
-                .settings(Settings.builder()
+        final TransportClient transportClient = new XPackTransportClient(Settings.builder()
                         .put("node.name", DEFAULT_CLIENT_NAME + "-" + Node.NODE_NAME_SETTING.get(settings))
-                        .put(theClientSetting))
-                .addPlugin(XPackPlugin.class)
-                .build();
+                        .put(theClientSetting).build());
         for (Tuple<String, Integer> pair : hostPortPairs) {
             try {
                 transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName(pair.v1()), pair.v2()));

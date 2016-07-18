@@ -9,12 +9,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.unboundid.ldap.sdk.LDAPException;
+import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.RefreshListener;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.security.user.User;
 
 /**
  * Supporting class for LDAP realms
@@ -86,7 +87,7 @@ public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm {
         }
     }
 
-    private User createUser(String principal, LdapSession session) {
+    private User createUser(String principal, LdapSession session) throws LDAPException {
         List<String> groupDNs = session.groups();
         Set<String> roles = roleMapper.resolveRoles(session.userDn(), groupDNs);
         return new User(principal, roles.toArray(new String[roles.size()]));

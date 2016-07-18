@@ -15,10 +15,6 @@
 package org.elasticsearch.examples.nativescript.plugin;
 
 import org.elasticsearch.examples.nativescript.script.IsPrimeSearchScript;
-import org.elasticsearch.examples.nativescript.script.LanguageModelScoreScript;
-import org.elasticsearch.examples.nativescript.script.CosineSimilarityScoreScript;
-import org.elasticsearch.examples.nativescript.script.PhraseScoreScript;
-import org.elasticsearch.examples.nativescript.script.TFIDFScoreScript;
 import org.elasticsearch.examples.nativescript.script.PopularityScoreScriptFactory;
 import org.elasticsearch.examples.nativescript.script.RandomSortScriptFactory;
 import org.elasticsearch.examples.nativescript.script.stockaggs.CombineScriptFactory;
@@ -40,9 +36,7 @@ public class NativeScriptExamplesPlugin extends Plugin implements ScriptPlugin {
 
     @Override
     public List<NativeScriptFactory> getNativeScripts() {
-        return Arrays.asList(new IsPrimeSearchScript.Factory(), new RandomSortScriptFactory(),
-            new PopularityScoreScriptFactory(), new TFIDFScoreScript.Factory(), new CosineSimilarityScoreScript.Factory(),
-            new PhraseScoreScript.Factory(), new LanguageModelScoreScript.Factory(),
+        return Arrays.asList(new IsPrimeSearchScript.Factory(), new RandomSortScriptFactory(), new PopularityScoreScriptFactory(),
             // Scripted Metric Aggregations Scripts
             new InitScriptFactory(), new MapScriptFactory(), new CombineScriptFactory(), new ReduceScriptFactory());
     }

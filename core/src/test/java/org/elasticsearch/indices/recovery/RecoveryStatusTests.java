@@ -36,8 +36,6 @@ import java.util.regex.Pattern;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
-/**
- */
 public class RecoveryStatusTests extends ESSingleNodeTestCase {
 
     public void testRenameTempFiles() throws IOException {
@@ -73,7 +71,7 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
         Set<String> strings = Sets.newHashSet(status.store().directory().listAll());
         String expectedFile = null;
         for (String file : strings) {
-            if (Pattern.compile("recovery[.]\\d+[.]foo[.]bar").matcher(file).matches()) {
+            if (Pattern.compile("recovery[.][\\w-]+[.]foo[.]bar").matcher(file).matches()) {
                 expectedFile = file;
                 break;
             }

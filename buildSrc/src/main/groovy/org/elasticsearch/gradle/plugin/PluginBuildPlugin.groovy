@@ -32,6 +32,8 @@ import org.gradle.api.tasks.bundling.Zip
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.util.regex.Matcher
+import java.util.regex.Pattern
 
 /**
  * Encapsulates build configuration for an Elasticsearch plugin.
@@ -177,6 +179,21 @@ public class PluginBuildPlugin extends BuildPlugin {
         project.assemble.dependsOn(clientJar)
     }
 
+    static final Pattern GIT_PATTERN = Pattern.compile(/git@([^:]+):([^\.]+)\.git/)
+
+    /** Find the reponame. */
+    protected static String urlFromOrigin(String origin) {
+        if (origin.startsWith('https')) {
+            return origin
+        }
+        Matcher matcher = GIT_PATTERN.matcher(origin)
+        if (matcher.matches()) {
+            return "https://${matcher.group(1)}/${matcher.group(2)}"
+        } else {
+            return origin // best effort, the url doesnt really matter, it is just required by maven central
+        }
+    }
+
     /** Adds nebula publishing task to generate a pom file for the plugin. */
     protected static void addJarPomGeneration(Project project) {
         project.plugins.apply(MavenPublishPlugin.class)
@@ -189,6 +206,7 @@ public class PluginBuildPlugin extends BuildPlugin {
                         Node root = xml.asNode()
                         root.appendNode('name', project.pluginProperties.extension.name)
                         root.appendNode('description', project.pluginProperties.extension.description)
+                        root.appendNode('url', urlFromOrigin(project.scminfo.origin))
                         Node scmNode = root.appendNode('scm')
                         scmNode.appendNode('url', project.scminfo.origin)
                     }
@@ -210,6 +228,7 @@ public class PluginBuildPlugin extends BuildPlugin {
                         Node root = xml.asNode()
                         root.appendNode('name', project.pluginProperties.extension.name)
                         root.appendNode('description', project.pluginProperties.extension.description)
+                        root.appendNode('url', urlFromOrigin(project.scminfo.origin))
                         Node scmNode = root.appendNode('scm')
                         scmNode.appendNode('url', project.scminfo.origin)
                     }

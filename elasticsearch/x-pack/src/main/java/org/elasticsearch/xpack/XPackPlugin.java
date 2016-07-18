@@ -192,7 +192,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin {
 
         components.addAll(licensing.createComponents(clusterService, getClock(), env, resourceWatcherService,
                                                      security.getSecurityLicenseState()));
-        components.addAll(security.createComponents(internalClient, threadPool, resourceWatcherService, extensionsService.getExtensions()));
+        components.addAll(security.createComponents(internalClient, threadPool, clusterService, resourceWatcherService,
+                                                    extensionsService.getExtensions()));
 
         // watcher http stuff
         Map<String, HttpAuthFactory> httpAuthFactories = new HashMap<>();

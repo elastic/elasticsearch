@@ -11,14 +11,19 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -63,12 +68,12 @@ import org.elasticsearch.xpack.security.action.user.TransportChangePasswordActio
 import org.elasticsearch.xpack.security.action.user.TransportDeleteUserAction;
 import org.elasticsearch.xpack.security.action.user.TransportGetUsersAction;
 import org.elasticsearch.xpack.security.action.user.TransportPutUserAction;
-import org.elasticsearch.xpack.security.audit.AuditTrailModule;
+import org.elasticsearch.xpack.security.audit.AuditTrail;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
-import org.elasticsearch.xpack.security.authc.AuthenticationFailureHandler;
+import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.AuthenticationModule;
-import org.elasticsearch.xpack.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authc.InternalAuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.Realms;
@@ -128,6 +133,14 @@ public class Security implements ActionPlugin {
     public static final String DLS_FLS_FEATURE = "security.dls_fls";
     public static final Setting<Optional<String>> USER_SETTING = OptionalSettings.createString(setting("user"), Property.NodeScope);
 
+    public static final Setting<Boolean> AUDIT_ENABLED_SETTING =
+        Setting.boolSetting(featureEnabledSetting("audit"), false, Property.NodeScope);
+    public static final Setting<List<String>> AUDIT_OUTPUTS_SETTING =
+        Setting.listSetting(setting("audit.outputs"),
+            s -> s.getAsMap().containsKey(setting("audit.outputs")) ?
+                Collections.emptyList() : Collections.singletonList(LoggingAuditTrail.NAME),
+            Function.identity(), Property.NodeScope);
+
     private final Settings settings;
     private final Environment env;
     private final boolean enabled;
@@ -182,10 +195,17 @@ public class Security implements ActionPlugin {
 
         modules.add(new AuthenticationModule(settings));
         modules.add(new AuthorizationModule(settings));
+        if (enabled == false || auditingEnabled(settings) == false) {
+            modules.add(b -> {
+                b.bind(AuditTrailService.class).toProvider(Providers.of(null));
+                b.bind(AuditTrail.class).toInstance(AuditTrail.NOOP);
+            });
+        }
         if (enabled == false) {
-            modules.add(b -> b.bind(CryptoService.class).toProvider(Providers.of(null)));
+            modules.add(b -> {
+                b.bind(CryptoService.class).toProvider(Providers.of(null));
+            });
             modules.add(new SecurityModule(settings));
-            modules.add(new AuditTrailModule(settings));
             modules.add(new SecurityTransportModule(settings));
             return modules;
         }
@@ -193,10 +213,17 @@ public class Security implements ActionPlugin {
         // we can't load that at construction time since the license plugin might not have been loaded at that point
         // which might not be the case during Plugin class instantiation. Once nodeModules are pulled
         // everything should have been loaded
-
-        modules.add(b -> b.bind(CryptoService.class).toInstance(cryptoService));
+        modules.add(b -> {
+            b.bind(CryptoService.class).toInstance(cryptoService);
+            if (auditingEnabled(settings)) {
+                b.bind(AuditTrail.class).to(AuditTrailService.class); // interface used by some actions...
+            }
+            if (indexAuditLoggingEnabled(settings) == false) {
+                // TODO: remove this once we can construct SecurityLifecycleService without guice
+                b.bind(IndexAuditTrail.class).toProvider(Providers.of(null));
+            }
+        });
         modules.add(new SecurityModule(settings));
-        modules.add(new AuditTrailModule(settings));
         modules.add(new SecurityRestModule(settings));
         modules.add(new SecurityActionModule(settings));
         modules.add(new SecurityTransportModule(settings));
@@ -212,15 +239,18 @@ public class Security implements ActionPlugin {
         return list;
     }
 
-    public Collection<Object> createComponents(InternalClient client, ThreadPool threadPool,
+    public Collection<Object> createComponents(InternalClient client, ThreadPool threadPool, ClusterService clusterService,
                                                ResourceWatcherService resourceWatcherService, List<XPackExtension> extensions) {
         if (enabled == false) {
             return Collections.emptyList();
         }
+        List<Object> components = new ArrayList<>();
 
         final SSLConfiguration.Global globalSslConfig = new SSLConfiguration.Global(settings);
         final ClientSSLService clientSSLService = new ClientSSLService(settings, env, globalSslConfig, resourceWatcherService);
         final ServerSSLService serverSSLService = new ServerSSLService(settings, env, globalSslConfig, resourceWatcherService);
+        components.add(clientSSLService);
+        components.add(serverSSLService);
 
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, threadPool);
@@ -241,8 +271,35 @@ public class Security implements ActionPlugin {
             }
         }
         final Realms realms = new Realms(settings, env, realmFactories, securityLicenseState, reservedRealm);
+        components.add(nativeUsersStore);
+        components.add(realms);
 
-        return Arrays.asList(clientSSLService, serverSSLService, nativeUsersStore, realms);
+        // audit trails construction
+        if (AUDIT_ENABLED_SETTING.get(settings)) {
+            List<String> outputs = AUDIT_OUTPUTS_SETTING.get(settings);
+            if (outputs.isEmpty()) {
+                throw new IllegalArgumentException("Audit logging is enabled but there are zero output types in "
+                    + AUDIT_ENABLED_SETTING.getKey());
+            }
+            Set<AuditTrail> auditTrails = new LinkedHashSet<>();
+            for (String output : outputs) {
+                switch (output) {
+                    case LoggingAuditTrail.NAME:
+                        auditTrails.add(new LoggingAuditTrail(settings, clusterService, threadPool));
+                        break;
+                    case IndexAuditTrail.NAME:
+                        IndexAuditTrail indexAuditTrail = new IndexAuditTrail(settings, client, threadPool, clusterService);
+                        auditTrails.add(indexAuditTrail);
+                        components.add(indexAuditTrail); // SecurityLifecycleService needs this....
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unknown audit trail output [" + output + "]");
+                }
+            }
+            components.add(new AuditTrailService(settings, auditTrails.stream().collect(Collectors.toList()), securityLicenseState));
+        }
+
+        return components;
     }
 
     public Settings additionalSettings() {
@@ -288,7 +345,10 @@ public class Security implements ActionPlugin {
         IPFilter.addSettings(settingsList);
 
         // audit settings
-        AuditTrailModule.addSettings(settingsList);
+        settingsList.add(AUDIT_ENABLED_SETTING);
+        settingsList.add(AUDIT_OUTPUTS_SETTING);
+        LoggingAuditTrail.registerSettings(settingsList);
+        IndexAuditTrail.registerSettings(settingsList);
 
         // authentication settings
         FileRolesStore.addSettings(settingsList);
@@ -515,13 +575,29 @@ public class Security implements ActionPlugin {
         return XPackPlugin.featureEnabledSetting("security." + feature);
     }
 
+    public static boolean auditingEnabled(Settings settings) {
+        return AUDIT_ENABLED_SETTING.get(settings);
+    }
+
+    public static boolean indexAuditLoggingEnabled(Settings settings) {
+        if (auditingEnabled(settings)) {
+            List<String> outputs = AUDIT_OUTPUTS_SETTING.get(settings);
+            for (String output : outputs) {
+                if (output.equals(IndexAuditTrail.NAME)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     static void validateAutoCreateIndex(Settings settings) {
         String value = settings.get("action.auto_create_index");
         if (value == null) {
             return;
         }
 
-        final boolean indexAuditingEnabled = AuditTrailModule.indexAuditLoggingEnabled(settings);
+        final boolean indexAuditingEnabled = Security.indexAuditLoggingEnabled(settings);
         final String auditIndex = indexAuditingEnabled ? "," + IndexAuditTrail.INDEX_NAME_PREFIX + "*" : "";
         String errorMessage = LoggerMessageFormat.format("the [action.auto_create_index] setting value [{}] is too" +
                 " restrictive. disable [action.auto_create_index] or set it to " +

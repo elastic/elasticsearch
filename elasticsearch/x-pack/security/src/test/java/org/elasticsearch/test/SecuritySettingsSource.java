@@ -18,7 +18,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.audit.AuditTrailModule;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
@@ -129,7 +128,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
                 //TODO: for now isolate security tests from watcher & monitoring (randomize this later)
                 .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false)
                 .put(XPackPlugin.featureEnabledSetting(Monitoring.NAME), false)
-                .put(AuditTrailModule.ENABLED_SETTING.getKey(), randomBoolean())
+                .put(Security.AUDIT_ENABLED_SETTING.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.HOST_ADDRESS_SETTING.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.HOST_NAME_SETTING.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.NODE_NAME_SETTING.getKey(), randomBoolean())

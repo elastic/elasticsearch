@@ -17,10 +17,12 @@ import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
 
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
-import static java.util.Collections.unmodifiableSet;
+import static java.util.Collections.unmodifiableList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -30,7 +32,7 @@ import static org.mockito.Mockito.when;
  *
  */
 public class AuditTrailServiceTests extends ESTestCase {
-    private Set<AuditTrail> auditTrails;
+    private List<AuditTrail> auditTrails;
     private AuditTrailService service;
 
     private AuthenticationToken token;
@@ -41,11 +43,11 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     @Before
     public void init() throws Exception {
-        Set<AuditTrail> auditTrailsBuilder = new HashSet<>();
+        List<AuditTrail> auditTrailsBuilder = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 4); i++) {
             auditTrailsBuilder.add(mock(AuditTrail.class));
         }
-        auditTrails = unmodifiableSet(auditTrailsBuilder);
+        auditTrails = unmodifiableList(auditTrailsBuilder);
         securityLicenseState = mock(SecurityLicenseState.class);
         service = new AuditTrailService(Settings.EMPTY, auditTrails, securityLicenseState);
         auditingEnabled = randomBoolean();

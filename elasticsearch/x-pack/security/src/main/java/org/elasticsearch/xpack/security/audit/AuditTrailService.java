@@ -5,20 +5,23 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
+import java.net.InetAddress;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.SecurityLicenseState;
-import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
-import org.elasticsearch.transport.TransportMessage;
-
-import java.net.InetAddress;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import org.elasticsearch.xpack.security.user.User;
 
 /**
  *
@@ -26,18 +29,22 @@ import java.util.Set;
 public class AuditTrailService extends AbstractComponent implements AuditTrail {
 
     private final SecurityLicenseState securityLicenseState;
-    final AuditTrail[] auditTrails;
+    final List<AuditTrail> auditTrails;
 
     @Override
     public String name() {
         return "service";
     }
 
-    @Inject
-    public AuditTrailService(Settings settings, Set<AuditTrail> auditTrails, SecurityLicenseState licenseState) {
+    public AuditTrailService(Settings settings, List<AuditTrail> auditTrails, SecurityLicenseState licenseState) {
         super(settings);
-        this.auditTrails = auditTrails.toArray(new AuditTrail[auditTrails.size()]);
+        this.auditTrails = Collections.unmodifiableList(auditTrails);
         this.securityLicenseState = licenseState;
+    }
+
+    /** Returns the audit trail implementations that this service delegates to. */
+    public List<AuditTrail> getAuditTrails() {
+        return auditTrails;
     }
 
     @Override
@@ -202,8 +209,8 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
 
     public Map<String, Object> usageStats() {
         Map<String, Object> map = new HashMap<>(2);
-        map.put("enabled", AuditTrailModule.ENABLED_SETTING.get(settings));
-        map.put("outputs", AuditTrailModule.OUTPUTS_SETTING.get(settings));
+        map.put("enabled", Security.AUDIT_ENABLED_SETTING.get(settings));
+        map.put("outputs", Security.AUDIT_OUTPUTS_SETTING.get(settings));
         return map;
     }
 }

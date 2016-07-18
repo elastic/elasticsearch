@@ -14,7 +14,7 @@ project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
 
 integTest {
   cluster {
-    plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
+    plugin ':x-plugins:elasticsearch:x-pack'
     setupCommand 'setupDummyUser',
                  'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
     setupCommand 'setupTransportClientUser',

@@ -102,5 +102,3 @@ include::scripting/expression.asciidoc[]
 
 include::scripting/native.asciidoc[]
 
-include::scripting/advanced-scripting.asciidoc[]
-

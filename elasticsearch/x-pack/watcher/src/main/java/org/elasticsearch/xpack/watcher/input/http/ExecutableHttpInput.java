@@ -11,14 +11,14 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.watcher.input.ExecutableInput;
-import org.elasticsearch.xpack.watcher.support.Variables;
-import org.elasticsearch.xpack.watcher.support.XContentFilterKeysUtils;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpRequest;
 import org.elasticsearch.xpack.common.http.HttpResponse;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.watcher.input.ExecutableInput;
+import org.elasticsearch.xpack.watcher.support.Variables;
+import org.elasticsearch.xpack.watcher.support.XContentFilterKeysUtils;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.util.HashMap;
@@ -59,42 +59,35 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
             return new HttpInput.Result(request, -1, payload);
         }
 
-        XContentType contentType = response.xContentType();
-        if (input.getExpectedResponseXContentType() != null) {
-            if (contentType != input.getExpectedResponseXContentType().contentType()) {
-                logger.warn("[{}] [{}] input expected content type [{}] but read [{}] from headers", type(), ctx.id(),
-                        input.getExpectedResponseXContentType(), contentType);
-            }
-            if (contentType == null) {
-                contentType = input.getExpectedResponseXContentType().contentType();
-            }
+        final XContentType contentType;
+        XContentType responseContentType = response.xContentType();
+        if (input.getExpectedResponseXContentType() == null) {
+            //Attempt to auto detect content type, if not set in response
+            contentType = responseContentType != null ? responseContentType : XContentFactory.xContentType(response.body());
         } else {
-            //Attempt to auto detect content type
-            if (contentType == null) {
-                contentType = XContentFactory.xContentType(response.body());
-            }
-        }
-
-        XContentParser parser = null;
-        if (contentType != null) {
-            try {
-                parser = contentType.xContent().createParser(response.body());
-            } catch (Exception e) {
-                throw new ElasticsearchParseException("could not parse response body [{}] it does not appear to be [{}]", type(), ctx.id(),
-                        response.body().utf8ToString(), contentType.shortName());
+            contentType = input.getExpectedResponseXContentType().contentType();
+            if (responseContentType != contentType) {
+                logger.warn("[{}] [{}] input expected content type [{}] but read [{}] from headers, using expected one", type(), ctx.id(),
+                        input.getExpectedResponseXContentType(), responseContentType);
             }
         }
 
         final Map<String, Object> payloadMap = new HashMap<>();
-        if (input.getExtractKeys() != null) {
-            payloadMap.putAll(XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser));
-        } else {
-            if (parser != null) {
-                payloadMap.putAll(parser.mapOrdered());
-            } else {
-                payloadMap.put("_value", response.body().utf8ToString());
+        if (contentType != null) {
+            try (XContentParser parser = contentType.xContent().createParser(response.body())) {
+                if (input.getExtractKeys() != null) {
+                    payloadMap.putAll(XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser));
+                } else {
+                    payloadMap.putAll(parser.mapOrdered());
+                }
+            } catch (Exception e) {
+                throw new ElasticsearchParseException("could not parse response body [{}] it does not appear to be [{}]", type(), ctx.id(),
+                        response.body().utf8ToString(), contentType.shortName());
             }
+        } else {
+            payloadMap.put("_value", response.body().utf8ToString());
         }
+
         if (headers.size() > 0) {
             payloadMap.put("_headers", headers);
         }

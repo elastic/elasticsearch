@@ -245,29 +245,57 @@ def generate_index(client, version, index_name):
         'auto_boost': True
       }
     }
-
-  mappings['norms'] = {
-    'properties': {
-      'string_with_norms_disabled': {
-        'type': 'text',
-        'norms' : False
-      },
-      'string_with_norms_enabled': {
-        'type': 'text',
-        'index': 'not_analyzed',
-        'norms': True
+  if parse_version(version) < parse_version("5.0.0-alpha1"):
+    mappings['norms'] = {
+      'properties': {
+        'string_with_norms_disabled': {
+          'type': 'string',
+          'norms' : {
+            'enabled' : False
+          }
+        },
+        'string_with_norms_enabled': {
+          'type': 'string',
+          'index': 'not_analyzed',
+          'norms': {
+            'enabled' : True,
+            'loading': 'eager'
+          }
+        }
       }
     }
-  }
 
-  mappings['doc'] = {
-    'properties': {
-      'string': {
-        'type': 'text',
-        'boost': 4
+    mappings['doc'] = {
+      'properties': {
+        'string': {
+          'type': 'string',
+          'boost': 4
+        }
       }
     }
-  }
+  else: # current version of the norms mapping
+    mappings['norms'] = {
+      'properties': {
+        'string_with_norms_disabled': {
+          'type': 'text',
+          'norms' : False
+        },
+        'string_with_norms_enabled': {
+          'type': 'text',
+          'index': 'not_analyzed',
+          'norms': True,
+          'eager_global_ordinals' : True
+        }
+      }
+    }
+    mappings['doc'] = {
+      'properties': {
+        'string': {
+          'type': 'text',
+          'boost': 4
+        }
+      }
+    }
 
   settings = {
     'number_of_shards': 1,

@@ -33,7 +33,8 @@ import java.util.Collections;
 
 /**
  * A builder to create an instance of {@link TransportClient}
- * This class installs the {@link Netty3Plugin} as a default
+ * This class pre-installs the {@link Netty3Plugin}, {@link ReindexPlugin}, {@link PercolatorPlugin}, and {@link MustachePlugin}
+ * for the client. These plugins are all elasticsearch core modules required.
  */
 @SuppressWarnings({"unchecked","varargs"})
 public class PreBuiltTransportClient extends TransportClient {

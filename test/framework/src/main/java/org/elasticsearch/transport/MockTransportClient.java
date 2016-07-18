@@ -25,6 +25,7 @@ import org.elasticsearch.plugins.Plugin;
 import java.util.Arrays;
 import java.util.Collection;
 
+@SuppressWarnings({"unchecked","varargs"})
 public class MockTransportClient extends TransportClient {
     private static final Settings DEFAULT_SETTINGS = Settings.builder().put("transport.type.default", "local").build();
 

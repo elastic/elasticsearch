@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
@@ -39,7 +40,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
 
     @Inject
     public SecurityLifecycleService(Settings settings, ClusterService clusterService, ThreadPool threadPool,
-                                    IndexAuditTrail indexAuditTrail, NativeUsersStore nativeUserStore,
+                                    @Nullable IndexAuditTrail indexAuditTrail, NativeUsersStore nativeUserStore,
                                     NativeRolesStore nativeRolesStore, InternalClient client) {
         super(settings);
         this.settings = settings;
@@ -144,19 +145,23 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         } catch (Exception e) {
             logger.error("failed to stop native roles module", e);
         }
-        try {
-            indexAuditTrail.stop();
-        } catch (Exception e) {
-            logger.error("failed to stop audit trail module", e);
+        if (indexAuditTrail != null) {
+            try {
+                indexAuditTrail.stop();
+            } catch (Exception e) {
+                logger.error("failed to stop audit trail module", e);
+            }
         }
     }
 
     public void close() {
         // There is no .close() method for the roles module
-        try {
-            indexAuditTrail.close();
-        } catch (Exception e) {
-            logger.error("failed to close audit trail module", e);
+        if (indexAuditTrail != null) {
+            try {
+                indexAuditTrail.close();
+            } catch (Exception e) {
+                logger.error("failed to close audit trail module", e);
+            }
         }
     }
 }

@@ -114,10 +114,10 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
     @After
     public void stopRemoteCluster() throws Exception {
         if (remoteCluster != null) {
-            Iterable<IndexAuditTrail> auditTrails = internalCluster().getInstances(IndexAuditTrail.class);
+            /*Iterable<IndexAuditTrail> auditTrails = internalCluster().getInstances(IndexAuditTrail.class);
             for (IndexAuditTrail auditTrail : auditTrails) {
                 auditTrail.close();
-            }
+            }*/
 
             try {
                 remoteCluster.wipe(Collections.<String>emptySet());
@@ -128,12 +128,12 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
         }
 
         // stop the index audit trail so that the shards aren't locked causing the test to fail
-        if (outputs.contains("index")) {
+        /*if (outputs.contains("index")) {
             Iterable<IndexAuditTrail> auditTrails = internalCluster().getInstances(IndexAuditTrail.class);
             for (IndexAuditTrail auditTrail : auditTrails) {
                 auditTrail.close();
             }
-        }
+        }*/
     }
 
     public void testThatRemoteAuditInstancesAreStarted() throws Exception {

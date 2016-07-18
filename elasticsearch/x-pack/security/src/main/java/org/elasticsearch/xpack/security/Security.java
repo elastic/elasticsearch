@@ -217,7 +217,8 @@ public class Security implements ActionPlugin {
             b.bind(CryptoService.class).toInstance(cryptoService);
             if (auditingEnabled(settings)) {
                 b.bind(AuditTrail.class).to(AuditTrailService.class); // interface used by some actions...
-            } else {
+            }
+            if (indexAuditLoggingEnabled(settings) == false) {
                 // TODO: remove this once we can construct SecurityLifecycleService without guice
                 b.bind(IndexAuditTrail.class).toProvider(Providers.of(null));
             }
@@ -287,7 +288,9 @@ public class Security implements ActionPlugin {
                         auditTrails.add(new LoggingAuditTrail(settings, clusterService, threadPool));
                         break;
                     case IndexAuditTrail.NAME:
-                        auditTrails.add(new IndexAuditTrail(settings, client, threadPool, clusterService));
+                        IndexAuditTrail indexAuditTrail = new IndexAuditTrail(settings, client, threadPool, clusterService);
+                        auditTrails.add(indexAuditTrail);
+                        components.add(indexAuditTrail); // SecurityLifecycleService needs this....
                         break;
                     default:
                         throw new IllegalArgumentException("Unknown audit trail output [" + output + "]");

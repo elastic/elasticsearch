@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackTransportClient;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.ssl.ClientSSLService;
 import org.elasticsearch.xpack.security.ssl.SSLConfiguration.Global;
@@ -101,7 +101,7 @@ public class SslClientAuthTests extends SecurityIntegTestCase {
                 .put(Security.USER_SETTING.getKey(),
                         transportClientUsername() + ":" + new String(transportClientPassword().internalChars()))
                 .build();
-        try (TransportClient client = TransportClient.builder().settings(settings).addPlugin(XPackPlugin.class).build()) {
+        try (TransportClient client = new XPackTransportClient(settings)) {
             Transport transport = internalCluster().getDataNodeInstance(Transport.class);
             TransportAddress transportAddress = transport.boundAddress().publishAddress();
             client.addTransportAddress(transportAddress);

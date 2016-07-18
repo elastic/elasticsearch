@@ -13,8 +13,8 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.XPackTransportClient;
 
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
@@ -99,7 +99,7 @@ public class SslHostnameVerificationTests extends SecurityIntegTestCase {
                 .put(SecurityNetty3Transport.HOSTNAME_VERIFICATION_SETTING.getKey(), true)
                 .build();
 
-        try (TransportClient client = TransportClient.builder().addPlugin(XPackPlugin.class).settings(settings).build()) {
+        try (TransportClient client = new XPackTransportClient(settings)) {
             client.addTransportAddress(new InetSocketTransportAddress(inetSocketAddress.getAddress(), inetSocketAddress.getPort()));
             client.admin().cluster().prepareHealth().get();
             fail("Expected a NoNodeAvailableException due to hostname verification failures");

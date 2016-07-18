@@ -644,8 +644,11 @@ public class SearchModule extends AbstractModule {
                 BucketScriptPipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerPipelineAggregation(BucketSelectorPipelineAggregationBuilder::new, BucketSelectorPipelineAggregationBuilder::parse,
                 BucketSelectorPipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerPipelineAggregation(SerialDiffPipelineAggregationBuilder::new, SerialDiffPipelineAggregationBuilder::parse,
-                SerialDiffPipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerPipelineAggregation(new PipelineAggregationSpec(
+                SerialDiffPipelineAggregationBuilder::new,
+                SerialDiffPipelineAggregationBuilder::parse,
+                SerialDiffPipelineAggregationBuilder.AGGREGATION_NAME_FIELD)
+                    .addResultReader(SerialDiffPipelineAggregator::new));
     }
 
     protected void configureSearch() {
@@ -889,6 +892,5 @@ public class SearchModule extends AbstractModule {
         CumulativeSumPipelineAggregator.registerStreams();
         BucketScriptPipelineAggregator.registerStreams();
         BucketSelectorPipelineAggregator.registerStreams();
-        SerialDiffPipelineAggregator.registerStreams();
     }
 }

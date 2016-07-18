@@ -155,1209 +155,1492 @@ public class AmazonEC2Mock implements AmazonEC2 {
     }
 
     // Not implemented methods in Mock
+    @Override
+    public void setEndpoint(String endpoint) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public void setRegion(com.amazonaws.regions.Region region) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public AcceptVpcPeeringConnectionResult acceptVpcPeeringConnection(
+            AcceptVpcPeeringConnectionRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public AcceptVpcPeeringConnectionResult acceptVpcPeeringConnection() {
+        return acceptVpcPeeringConnection(new AcceptVpcPeeringConnectionRequest());
+    }
+
+    @Override
+    public AllocateAddressResult allocateAddress(AllocateAddressRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public AllocateAddressResult allocateAddress() {
+        return allocateAddress(new AllocateAddressRequest());
+    }
+
+    @Override
+    public AllocateHostsResult allocateHosts(AllocateHostsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public AssignPrivateIpAddressesResult assignPrivateIpAddresses(
+            AssignPrivateIpAddressesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public AssociateAddressResult associateAddress(
+            AssociateAddressRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public AssociateDhcpOptionsResult associateDhcpOptions(
+            AssociateDhcpOptionsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public AssociateRouteTableResult associateRouteTable(
+            AssociateRouteTableRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public AttachClassicLinkVpcResult attachClassicLinkVpc(
+            AttachClassicLinkVpcRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public AttachInternetGatewayResult attachInternetGateway(
+            AttachInternetGatewayRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public AttachNetworkInterfaceResult attachNetworkInterface(
+            AttachNetworkInterfaceRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public AttachVolumeResult attachVolume(AttachVolumeRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public AttachVpnGatewayResult attachVpnGateway(
+            AttachVpnGatewayRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public AuthorizeSecurityGroupEgressResult authorizeSecurityGroupEgress(
+            AuthorizeSecurityGroupEgressRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public AuthorizeSecurityGroupIngressResult authorizeSecurityGroupIngress(
+            AuthorizeSecurityGroupIngressRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public BundleInstanceResult bundleInstance(BundleInstanceRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CancelBundleTaskResult cancelBundleTask(
+            CancelBundleTaskRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CancelConversionTaskResult cancelConversionTask(
+            CancelConversionTaskRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CancelExportTaskResult cancelExportTask(
+            CancelExportTaskRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CancelImportTaskResult cancelImportTask(
+            CancelImportTaskRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CancelImportTaskResult cancelImportTask() {
+        return cancelImportTask(new CancelImportTaskRequest());
+    }
+
+    @Override
+    public CancelReservedInstancesListingResult cancelReservedInstancesListing(
+            CancelReservedInstancesListingRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CancelSpotFleetRequestsResult cancelSpotFleetRequests(
+            CancelSpotFleetRequestsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
+    }
 
     @Override
-    public void setEndpoint(String endpoint) throws IllegalArgumentException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CancelSpotInstanceRequestsResult cancelSpotInstanceRequests(
+            CancelSpotInstanceRequestsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void setRegion(Region region) throws IllegalArgumentException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public ConfirmProductInstanceResult confirmProductInstance(
+            ConfirmProductInstanceRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void rebootInstances(RebootInstancesRequest rebootInstancesRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CopyImageResult copyImage(CopyImageRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeReservedInstancesResult describeReservedInstances(DescribeReservedInstancesRequest describeReservedInstancesRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CopySnapshotResult copySnapshot(CopySnapshotRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateFlowLogsResult createFlowLogs(CreateFlowLogsRequest createFlowLogsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateCustomerGatewayResult createCustomerGateway(
+            CreateCustomerGatewayRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeAvailabilityZonesResult describeAvailabilityZones(DescribeAvailabilityZonesRequest describeAvailabilityZonesRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateDhcpOptionsResult createDhcpOptions(
+            CreateDhcpOptionsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public RestoreAddressToClassicResult restoreAddressToClassic(RestoreAddressToClassicRequest restoreAddressToClassicRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateFlowLogsResult createFlowLogs(CreateFlowLogsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DetachVolumeResult detachVolume(DetachVolumeRequest detachVolumeRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateImageResult createImage(CreateImageRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void deleteKeyPair(DeleteKeyPairRequest deleteKeyPairRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateInstanceExportTaskResult createInstanceExportTask(
+            CreateInstanceExportTaskRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public UnmonitorInstancesResult unmonitorInstances(UnmonitorInstancesRequest unmonitorInstancesRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateInternetGatewayResult createInternetGateway(
+            CreateInternetGatewayRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public AttachVpnGatewayResult attachVpnGateway(AttachVpnGatewayRequest attachVpnGatewayRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateInternetGatewayResult createInternetGateway() {
+        return createInternetGateway(new CreateInternetGatewayRequest());
     }
 
     @Override
-    public CreateImageResult createImage(CreateImageRequest createImageRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateKeyPairResult createKeyPair(CreateKeyPairRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void deleteSecurityGroup(DeleteSecurityGroupRequest deleteSecurityGroupRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateNatGatewayResult createNatGateway(
+            CreateNatGatewayRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateInstanceExportTaskResult createInstanceExportTask(CreateInstanceExportTaskRequest createInstanceExportTaskRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateNetworkAclResult createNetworkAcl(
+            CreateNetworkAclRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void authorizeSecurityGroupEgress(AuthorizeSecurityGroupEgressRequest authorizeSecurityGroupEgressRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateNetworkAclEntryResult createNetworkAclEntry(
+            CreateNetworkAclEntryRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void associateDhcpOptions(AssociateDhcpOptionsRequest associateDhcpOptionsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateNetworkInterfaceResult createNetworkInterface(
+            CreateNetworkInterfaceRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public GetPasswordDataResult getPasswordData(GetPasswordDataRequest getPasswordDataRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreatePlacementGroupResult createPlacementGroup(
+            CreatePlacementGroupRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public StopInstancesResult stopInstances(StopInstancesRequest stopInstancesRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateReservedInstancesListingResult createReservedInstancesListing(
+            CreateReservedInstancesListingRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public ImportKeyPairResult importKeyPair(ImportKeyPairRequest importKeyPairRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateRouteResult createRoute(CreateRouteRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void deleteNetworkInterface(DeleteNetworkInterfaceRequest deleteNetworkInterfaceRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateRouteTableResult createRouteTable(
+            CreateRouteTableRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void modifyVpcAttribute(ModifyVpcAttributeRequest modifyVpcAttributeRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateSecurityGroupResult createSecurityGroup(
+            CreateSecurityGroupRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeSpotFleetInstancesResult describeSpotFleetInstances(DescribeSpotFleetInstancesRequest describeSpotFleetInstancesRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateSnapshotResult createSnapshot(CreateSnapshotRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateSecurityGroupResult createSecurityGroup(CreateSecurityGroupRequest createSecurityGroupRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateSpotDatafeedSubscriptionResult createSpotDatafeedSubscription(
+            CreateSpotDatafeedSubscriptionRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeSpotPriceHistoryResult describeSpotPriceHistory(DescribeSpotPriceHistoryRequest describeSpotPriceHistoryRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateSubnetResult createSubnet(CreateSubnetRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeNetworkInterfacesResult describeNetworkInterfaces(DescribeNetworkInterfacesRequest describeNetworkInterfacesRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateTagsResult createTags(CreateTagsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeRegionsResult describeRegions(DescribeRegionsRequest describeRegionsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateVolumeResult createVolume(CreateVolumeRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateDhcpOptionsResult createDhcpOptions(CreateDhcpOptionsRequest createDhcpOptionsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateVpcResult createVpc(CreateVpcRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateReservedInstancesListingResult createReservedInstancesListing(CreateReservedInstancesListingRequest createReservedInstancesListingRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateVpcEndpointResult createVpcEndpoint(
+            CreateVpcEndpointRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DeleteVpcEndpointsResult deleteVpcEndpoints(DeleteVpcEndpointsRequest deleteVpcEndpointsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateVpcPeeringConnectionResult createVpcPeeringConnection(
+            CreateVpcPeeringConnectionRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void resetSnapshotAttribute(ResetSnapshotAttributeRequest resetSnapshotAttributeRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateVpcPeeringConnectionResult createVpcPeeringConnection() {
+        return createVpcPeeringConnection(new CreateVpcPeeringConnectionRequest());
     }
 
     @Override
-    public void deleteRoute(DeleteRouteRequest deleteRouteRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateVpnConnectionResult createVpnConnection(
+            CreateVpnConnectionRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeInternetGatewaysResult describeInternetGateways(DescribeInternetGatewaysRequest describeInternetGatewaysRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateVpnConnectionRouteResult createVpnConnectionRoute(
+            CreateVpnConnectionRouteRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public ImportVolumeResult importVolume(ImportVolumeRequest importVolumeRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public CreateVpnGatewayResult createVpnGateway(
+            CreateVpnGatewayRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeSecurityGroupsResult describeSecurityGroups(DescribeSecurityGroupsRequest describeSecurityGroupsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteCustomerGatewayResult deleteCustomerGateway(
+            DeleteCustomerGatewayRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public RejectVpcPeeringConnectionResult rejectVpcPeeringConnection(RejectVpcPeeringConnectionRequest rejectVpcPeeringConnectionRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteDhcpOptionsResult deleteDhcpOptions(
+            DeleteDhcpOptionsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DeleteFlowLogsResult deleteFlowLogs(DeleteFlowLogsRequest deleteFlowLogsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteFlowLogsResult deleteFlowLogs(DeleteFlowLogsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void detachVpnGateway(DetachVpnGatewayRequest detachVpnGatewayRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteInternetGatewayResult deleteInternetGateway(
+            DeleteInternetGatewayRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void deregisterImage(DeregisterImageRequest deregisterImageRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteKeyPairResult deleteKeyPair(DeleteKeyPairRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeSpotDatafeedSubscriptionResult describeSpotDatafeedSubscription(DescribeSpotDatafeedSubscriptionRequest describeSpotDatafeedSubscriptionRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteNatGatewayResult deleteNatGateway(
+            DeleteNatGatewayRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void deleteTags(DeleteTagsRequest deleteTagsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteNetworkAclResult deleteNetworkAcl(
+            DeleteNetworkAclRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void deleteSubnet(DeleteSubnetRequest deleteSubnetRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteNetworkAclEntryResult deleteNetworkAclEntry(
+            DeleteNetworkAclEntryRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeAccountAttributesResult describeAccountAttributes(DescribeAccountAttributesRequest describeAccountAttributesRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteNetworkInterfaceResult deleteNetworkInterface(
+            DeleteNetworkInterfaceRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public AttachClassicLinkVpcResult attachClassicLinkVpc(AttachClassicLinkVpcRequest attachClassicLinkVpcRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeletePlacementGroupResult deletePlacementGroup(
+            DeletePlacementGroupRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateVpnGatewayResult createVpnGateway(CreateVpnGatewayRequest createVpnGatewayRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteRouteResult deleteRoute(DeleteRouteRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void enableVolumeIO(EnableVolumeIORequest enableVolumeIORequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteRouteTableResult deleteRouteTable(
+            DeleteRouteTableRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public MoveAddressToVpcResult moveAddressToVpc(MoveAddressToVpcRequest moveAddressToVpcRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteSecurityGroupResult deleteSecurityGroup(
+            DeleteSecurityGroupRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void deleteVpnGateway(DeleteVpnGatewayRequest deleteVpnGatewayRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteSnapshotResult deleteSnapshot(DeleteSnapshotRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public AttachVolumeResult attachVolume(AttachVolumeRequest attachVolumeRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteSpotDatafeedSubscriptionResult deleteSpotDatafeedSubscription(
+            DeleteSpotDatafeedSubscriptionRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVolumeStatusResult describeVolumeStatus(DescribeVolumeStatusRequest describeVolumeStatusRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteSpotDatafeedSubscriptionResult deleteSpotDatafeedSubscription() {
+        return deleteSpotDatafeedSubscription(new DeleteSpotDatafeedSubscriptionRequest());
     }
 
     @Override
-    public DescribeImportSnapshotTasksResult describeImportSnapshotTasks(DescribeImportSnapshotTasksRequest describeImportSnapshotTasksRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteSubnetResult deleteSubnet(DeleteSubnetRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVpnConnectionsResult describeVpnConnections(DescribeVpnConnectionsRequest describeVpnConnectionsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteTagsResult deleteTags(DeleteTagsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void resetImageAttribute(ResetImageAttributeRequest resetImageAttributeRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteVolumeResult deleteVolume(DeleteVolumeRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void enableVgwRoutePropagation(EnableVgwRoutePropagationRequest enableVgwRoutePropagationRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteVpcResult deleteVpc(DeleteVpcRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateSnapshotResult createSnapshot(CreateSnapshotRequest createSnapshotRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteVpcEndpointsResult deleteVpcEndpoints(
+            DeleteVpcEndpointsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void deleteVolume(DeleteVolumeRequest deleteVolumeRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteVpcPeeringConnectionResult deleteVpcPeeringConnection(
+            DeleteVpcPeeringConnectionRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateNetworkInterfaceResult createNetworkInterface(CreateNetworkInterfaceRequest createNetworkInterfaceRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteVpnConnectionResult deleteVpnConnection(
+            DeleteVpnConnectionRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public ModifyReservedInstancesResult modifyReservedInstances(ModifyReservedInstancesRequest modifyReservedInstancesRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteVpnConnectionRouteResult deleteVpnConnectionRoute(
+            DeleteVpnConnectionRouteRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CancelSpotFleetRequestsResult cancelSpotFleetRequests(CancelSpotFleetRequestsRequest cancelSpotFleetRequestsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeleteVpnGatewayResult deleteVpnGateway(
+            DeleteVpnGatewayRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void unassignPrivateIpAddresses(UnassignPrivateIpAddressesRequest unassignPrivateIpAddressesRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DeregisterImageResult deregisterImage(DeregisterImageRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVpcsResult describeVpcs(DescribeVpcsRequest describeVpcsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeAccountAttributesResult describeAccountAttributes(
+            DescribeAccountAttributesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void cancelConversionTask(CancelConversionTaskRequest cancelConversionTaskRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeAccountAttributesResult describeAccountAttributes() {
+        return describeAccountAttributes(new DescribeAccountAttributesRequest());
     }
 
     @Override
-    public AssociateAddressResult associateAddress(AssociateAddressRequest associateAddressRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeAddressesResult describeAddresses(
+            DescribeAddressesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void deleteCustomerGateway(DeleteCustomerGatewayRequest deleteCustomerGatewayRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeAddressesResult describeAddresses() {
+        return describeAddresses(new DescribeAddressesRequest());
     }
 
     @Override
-    public void createNetworkAclEntry(CreateNetworkAclEntryRequest createNetworkAclEntryRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeAvailabilityZonesResult describeAvailabilityZones(
+            DescribeAvailabilityZonesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public AcceptVpcPeeringConnectionResult acceptVpcPeeringConnection(AcceptVpcPeeringConnectionRequest acceptVpcPeeringConnectionRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeAvailabilityZonesResult describeAvailabilityZones() {
+        return describeAvailabilityZones(new DescribeAvailabilityZonesRequest());
     }
 
     @Override
-    public DescribeExportTasksResult describeExportTasks(DescribeExportTasksRequest describeExportTasksRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeBundleTasksResult describeBundleTasks(
+            DescribeBundleTasksRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void detachInternetGateway(DetachInternetGatewayRequest detachInternetGatewayRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeBundleTasksResult describeBundleTasks() {
+        return describeBundleTasks(new DescribeBundleTasksRequest());
     }
 
     @Override
-    public CreateVpcPeeringConnectionResult createVpcPeeringConnection(CreateVpcPeeringConnectionRequest createVpcPeeringConnectionRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeClassicLinkInstancesResult describeClassicLinkInstances(
+            DescribeClassicLinkInstancesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateRouteTableResult createRouteTable(CreateRouteTableRequest createRouteTableRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeClassicLinkInstancesResult describeClassicLinkInstances() {
+        return describeClassicLinkInstances(new DescribeClassicLinkInstancesRequest());
     }
 
     @Override
-    public CancelImportTaskResult cancelImportTask(CancelImportTaskRequest cancelImportTaskRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeConversionTasksResult describeConversionTasks(
+            DescribeConversionTasksRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVolumesResult describeVolumes(DescribeVolumesRequest describeVolumesRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeConversionTasksResult describeConversionTasks() {
+        return describeConversionTasks(new DescribeConversionTasksRequest());
     }
 
     @Override
-    public DescribeReservedInstancesListingsResult describeReservedInstancesListings(DescribeReservedInstancesListingsRequest describeReservedInstancesListingsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeCustomerGatewaysResult describeCustomerGateways(
+            DescribeCustomerGatewaysRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void reportInstanceStatus(ReportInstanceStatusRequest reportInstanceStatusRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeCustomerGatewaysResult describeCustomerGateways() {
+        return describeCustomerGateways(new DescribeCustomerGatewaysRequest());
     }
 
     @Override
-    public DescribeRouteTablesResult describeRouteTables(DescribeRouteTablesRequest describeRouteTablesRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeDhcpOptionsResult describeDhcpOptions(
+            DescribeDhcpOptionsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeDhcpOptionsResult describeDhcpOptions(DescribeDhcpOptionsRequest describeDhcpOptionsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeDhcpOptionsResult describeDhcpOptions() {
+        return describeDhcpOptions(new DescribeDhcpOptionsRequest());
     }
 
     @Override
-    public MonitorInstancesResult monitorInstances(MonitorInstancesRequest monitorInstancesRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeExportTasksResult describeExportTasks(
+            DescribeExportTasksRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribePrefixListsResult describePrefixLists(DescribePrefixListsRequest describePrefixListsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeExportTasksResult describeExportTasks() {
+        return describeExportTasks(new DescribeExportTasksRequest());
     }
 
     @Override
-    public RequestSpotFleetResult requestSpotFleet(RequestSpotFleetRequest requestSpotFleetRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeFlowLogsResult describeFlowLogs(
+            DescribeFlowLogsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeImportImageTasksResult describeImportImageTasks(DescribeImportImageTasksRequest describeImportImageTasksRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeFlowLogsResult describeFlowLogs() {
+        return describeFlowLogs(new DescribeFlowLogsRequest());
     }
 
     @Override
-    public DescribeNetworkAclsResult describeNetworkAcls(DescribeNetworkAclsRequest describeNetworkAclsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeHostsResult describeHosts(DescribeHostsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeBundleTasksResult describeBundleTasks(DescribeBundleTasksRequest describeBundleTasksRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeHostsResult describeHosts() {
+        return describeHosts(new DescribeHostsRequest());
     }
 
     @Override
-    public ImportInstanceResult importInstance(ImportInstanceRequest importInstanceRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeIdFormatResult describeIdFormat(
+            DescribeIdFormatRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void revokeSecurityGroupIngress(RevokeSecurityGroupIngressRequest revokeSecurityGroupIngressRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeIdFormatResult describeIdFormat() {
+        return describeIdFormat(new DescribeIdFormatRequest());
     }
 
     @Override
-    public DeleteVpcPeeringConnectionResult deleteVpcPeeringConnection(DeleteVpcPeeringConnectionRequest deleteVpcPeeringConnectionRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeIdentityIdFormatResult describeIdentityIdFormat(
+            DescribeIdentityIdFormatRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public GetConsoleOutputResult getConsoleOutput(GetConsoleOutputRequest getConsoleOutputRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeImageAttributeResult describeImageAttribute(
+            DescribeImageAttributeRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateInternetGatewayResult createInternetGateway(CreateInternetGatewayRequest createInternetGatewayRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeImagesResult describeImages(DescribeImagesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void deleteVpnConnectionRoute(DeleteVpnConnectionRouteRequest deleteVpnConnectionRouteRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeImagesResult describeImages() {
+        return describeImages(new DescribeImagesRequest());
     }
 
     @Override
-    public void detachNetworkInterface(DetachNetworkInterfaceRequest detachNetworkInterfaceRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeImportImageTasksResult describeImportImageTasks(
+            DescribeImportImageTasksRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void modifyImageAttribute(ModifyImageAttributeRequest modifyImageAttributeRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeImportImageTasksResult describeImportImageTasks() {
+        return describeImportImageTasks(new DescribeImportImageTasksRequest());
     }
 
     @Override
-    public CreateCustomerGatewayResult createCustomerGateway(CreateCustomerGatewayRequest createCustomerGatewayRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeImportSnapshotTasksResult describeImportSnapshotTasks(
+            DescribeImportSnapshotTasksRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateSpotDatafeedSubscriptionResult createSpotDatafeedSubscription(CreateSpotDatafeedSubscriptionRequest createSpotDatafeedSubscriptionRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeImportSnapshotTasksResult describeImportSnapshotTasks() {
+        return describeImportSnapshotTasks(new DescribeImportSnapshotTasksRequest());
     }
 
     @Override
-    public void attachInternetGateway(AttachInternetGatewayRequest attachInternetGatewayRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeInstanceAttributeResult describeInstanceAttribute(
+            DescribeInstanceAttributeRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void deleteVpnConnection(DeleteVpnConnectionRequest deleteVpnConnectionRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeInstanceStatusResult describeInstanceStatus(
+            DescribeInstanceStatusRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeMovingAddressesResult describeMovingAddresses(DescribeMovingAddressesRequest describeMovingAddressesRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeInstanceStatusResult describeInstanceStatus() {
+        return describeInstanceStatus(new DescribeInstanceStatusRequest());
     }
 
     @Override
-    public DescribeConversionTasksResult describeConversionTasks(DescribeConversionTasksRequest describeConversionTasksRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeInstancesResult describeInstances() {
+        return describeInstances(new DescribeInstancesRequest());
     }
 
     @Override
-    public CreateVpnConnectionResult createVpnConnection(CreateVpnConnectionRequest createVpnConnectionRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeInternetGatewaysResult describeInternetGateways(
+            DescribeInternetGatewaysRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public ImportImageResult importImage(ImportImageRequest importImageRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeInternetGatewaysResult describeInternetGateways() {
+        return describeInternetGateways(new DescribeInternetGatewaysRequest());
     }
 
     @Override
-    public DisableVpcClassicLinkResult disableVpcClassicLink(DisableVpcClassicLinkRequest disableVpcClassicLinkRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeKeyPairsResult describeKeyPairs(
+            DescribeKeyPairsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeInstanceAttributeResult describeInstanceAttribute(DescribeInstanceAttributeRequest describeInstanceAttributeRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeKeyPairsResult describeKeyPairs() {
+        return describeKeyPairs(new DescribeKeyPairsRequest());
     }
 
     @Override
-    public DescribeFlowLogsResult describeFlowLogs(DescribeFlowLogsRequest describeFlowLogsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeMovingAddressesResult describeMovingAddresses(
+            DescribeMovingAddressesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVpcPeeringConnectionsResult describeVpcPeeringConnections(DescribeVpcPeeringConnectionsRequest describeVpcPeeringConnectionsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeMovingAddressesResult describeMovingAddresses() {
+        return describeMovingAddresses(new DescribeMovingAddressesRequest());
     }
 
     @Override
-    public DescribePlacementGroupsResult describePlacementGroups(DescribePlacementGroupsRequest describePlacementGroupsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeNatGatewaysResult describeNatGateways(
+            DescribeNatGatewaysRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public RunInstancesResult runInstances(RunInstancesRequest runInstancesRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeNetworkAclsResult describeNetworkAcls(
+            DescribeNetworkAclsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeSubnetsResult describeSubnets(DescribeSubnetsRequest describeSubnetsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeNetworkAclsResult describeNetworkAcls() {
+        return describeNetworkAcls(new DescribeNetworkAclsRequest());
     }
 
     @Override
-    public AssociateRouteTableResult associateRouteTable(AssociateRouteTableRequest associateRouteTableRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeNetworkInterfaceAttributeResult describeNetworkInterfaceAttribute(
+            DescribeNetworkInterfaceAttributeRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void modifyVolumeAttribute(ModifyVolumeAttributeRequest modifyVolumeAttributeRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeNetworkInterfacesResult describeNetworkInterfaces(
+            DescribeNetworkInterfacesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void deleteNetworkAcl(DeleteNetworkAclRequest deleteNetworkAclRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeNetworkInterfacesResult describeNetworkInterfaces() {
+        return describeNetworkInterfaces(new DescribeNetworkInterfacesRequest());
     }
 
     @Override
-    public DescribeImagesResult describeImages(DescribeImagesRequest describeImagesRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribePlacementGroupsResult describePlacementGroups(
+            DescribePlacementGroupsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public StartInstancesResult startInstances(StartInstancesRequest startInstancesRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribePlacementGroupsResult describePlacementGroups() {
+        return describePlacementGroups(new DescribePlacementGroupsRequest());
     }
 
     @Override
-    public void modifyInstanceAttribute(ModifyInstanceAttributeRequest modifyInstanceAttributeRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribePrefixListsResult describePrefixLists(
+            DescribePrefixListsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CancelReservedInstancesListingResult cancelReservedInstancesListing(CancelReservedInstancesListingRequest cancelReservedInstancesListingRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribePrefixListsResult describePrefixLists() {
+        return describePrefixLists(new DescribePrefixListsRequest());
     }
 
     @Override
-    public void deleteDhcpOptions(DeleteDhcpOptionsRequest deleteDhcpOptionsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeRegionsResult describeRegions(DescribeRegionsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void authorizeSecurityGroupIngress(AuthorizeSecurityGroupIngressRequest authorizeSecurityGroupIngressRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeRegionsResult describeRegions() {
+        return describeRegions(new DescribeRegionsRequest());
     }
 
     @Override
-    public DescribeSpotInstanceRequestsResult describeSpotInstanceRequests(DescribeSpotInstanceRequestsRequest describeSpotInstanceRequestsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeReservedInstancesResult describeReservedInstances(
+            DescribeReservedInstancesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateVpcResult createVpc(CreateVpcRequest createVpcRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeReservedInstancesResult describeReservedInstances() {
+        return describeReservedInstances(new DescribeReservedInstancesRequest());
     }
 
     @Override
-    public DescribeCustomerGatewaysResult describeCustomerGateways(DescribeCustomerGatewaysRequest describeCustomerGatewaysRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeReservedInstancesListingsResult describeReservedInstancesListings(
+            DescribeReservedInstancesListingsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void cancelExportTask(CancelExportTaskRequest cancelExportTaskRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeReservedInstancesListingsResult describeReservedInstancesListings() {
+        return describeReservedInstancesListings(new DescribeReservedInstancesListingsRequest());
     }
 
     @Override
-    public CreateRouteResult createRoute(CreateRouteRequest createRouteRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeReservedInstancesModificationsResult describeReservedInstancesModifications(
+            DescribeReservedInstancesModificationsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateVpcEndpointResult createVpcEndpoint(CreateVpcEndpointRequest createVpcEndpointRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeReservedInstancesModificationsResult describeReservedInstancesModifications() {
+        return describeReservedInstancesModifications(new DescribeReservedInstancesModificationsRequest());
     }
 
     @Override
-    public CopyImageResult copyImage(CopyImageRequest copyImageRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeReservedInstancesOfferingsResult describeReservedInstancesOfferings(
+            DescribeReservedInstancesOfferingsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVpcClassicLinkResult describeVpcClassicLink(DescribeVpcClassicLinkRequest describeVpcClassicLinkRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeReservedInstancesOfferingsResult describeReservedInstancesOfferings() {
+        return describeReservedInstancesOfferings(new DescribeReservedInstancesOfferingsRequest());
     }
 
     @Override
-    public void modifyNetworkInterfaceAttribute(ModifyNetworkInterfaceAttributeRequest modifyNetworkInterfaceAttributeRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeRouteTablesResult describeRouteTables(
+            DescribeRouteTablesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void deleteRouteTable(DeleteRouteTableRequest deleteRouteTableRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeRouteTablesResult describeRouteTables() {
+        return describeRouteTables(new DescribeRouteTablesRequest());
     }
 
     @Override
-    public DescribeNetworkInterfaceAttributeResult describeNetworkInterfaceAttribute(DescribeNetworkInterfaceAttributeRequest describeNetworkInterfaceAttributeRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeScheduledInstanceAvailabilityResult describeScheduledInstanceAvailability(
+            DescribeScheduledInstanceAvailabilityRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeClassicLinkInstancesResult describeClassicLinkInstances(DescribeClassicLinkInstancesRequest describeClassicLinkInstancesRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeScheduledInstancesResult describeScheduledInstances(
+            DescribeScheduledInstancesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public RequestSpotInstancesResult requestSpotInstances(RequestSpotInstancesRequest requestSpotInstancesRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeSecurityGroupReferencesResult describeSecurityGroupReferences(
+            DescribeSecurityGroupReferencesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void createTags(CreateTagsRequest createTagsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeSecurityGroupsResult describeSecurityGroups(
+            DescribeSecurityGroupsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVolumeAttributeResult describeVolumeAttribute(DescribeVolumeAttributeRequest describeVolumeAttributeRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeSecurityGroupsResult describeSecurityGroups() {
+        return describeSecurityGroups(new DescribeSecurityGroupsRequest());
     }
 
     @Override
-    public AttachNetworkInterfaceResult attachNetworkInterface(AttachNetworkInterfaceRequest attachNetworkInterfaceRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeSnapshotAttributeResult describeSnapshotAttribute(
+            DescribeSnapshotAttributeRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void replaceRoute(ReplaceRouteRequest replaceRouteRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeSnapshotsResult describeSnapshots(
+            DescribeSnapshotsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeTagsResult describeTags(DescribeTagsRequest describeTagsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeSnapshotsResult describeSnapshots() {
+        return describeSnapshots(new DescribeSnapshotsRequest());
     }
 
     @Override
-    public CancelBundleTaskResult cancelBundleTask(CancelBundleTaskRequest cancelBundleTaskRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeSpotDatafeedSubscriptionResult describeSpotDatafeedSubscription(
+            DescribeSpotDatafeedSubscriptionRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void disableVgwRoutePropagation(DisableVgwRoutePropagationRequest disableVgwRoutePropagationRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeSpotDatafeedSubscriptionResult describeSpotDatafeedSubscription() {
+        return describeSpotDatafeedSubscription(new DescribeSpotDatafeedSubscriptionRequest());
     }
 
     @Override
-    public ImportSnapshotResult importSnapshot(ImportSnapshotRequest importSnapshotRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeSpotFleetInstancesResult describeSpotFleetInstances(
+            DescribeSpotFleetInstancesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CancelSpotInstanceRequestsResult cancelSpotInstanceRequests(CancelSpotInstanceRequestsRequest cancelSpotInstanceRequestsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeSpotFleetRequestHistoryResult describeSpotFleetRequestHistory(
+            DescribeSpotFleetRequestHistoryRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeSpotFleetRequestsResult describeSpotFleetRequests(DescribeSpotFleetRequestsRequest describeSpotFleetRequestsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeSpotFleetRequestsResult describeSpotFleetRequests(
+            DescribeSpotFleetRequestsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public PurchaseReservedInstancesOfferingResult purchaseReservedInstancesOffering(PurchaseReservedInstancesOfferingRequest purchaseReservedInstancesOfferingRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeSpotFleetRequestsResult describeSpotFleetRequests() {
+        return describeSpotFleetRequests(new DescribeSpotFleetRequestsRequest());
     }
 
     @Override
-    public void modifySnapshotAttribute(ModifySnapshotAttributeRequest modifySnapshotAttributeRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeSpotInstanceRequestsResult describeSpotInstanceRequests(
+            DescribeSpotInstanceRequestsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeReservedInstancesModificationsResult describeReservedInstancesModifications(DescribeReservedInstancesModificationsRequest describeReservedInstancesModificationsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeSpotInstanceRequestsResult describeSpotInstanceRequests() {
+        return describeSpotInstanceRequests(new DescribeSpotInstanceRequestsRequest());
     }
 
     @Override
-    public TerminateInstancesResult terminateInstances(TerminateInstancesRequest terminateInstancesRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeSpotPriceHistoryResult describeSpotPriceHistory(
+            DescribeSpotPriceHistoryRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public ModifyVpcEndpointResult modifyVpcEndpoint(ModifyVpcEndpointRequest modifyVpcEndpointRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeSpotPriceHistoryResult describeSpotPriceHistory() {
+        return describeSpotPriceHistory(new DescribeSpotPriceHistoryRequest());
     }
 
     @Override
-    public void deleteSpotDatafeedSubscription(DeleteSpotDatafeedSubscriptionRequest deleteSpotDatafeedSubscriptionRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeStaleSecurityGroupsResult describeStaleSecurityGroups(
+            DescribeStaleSecurityGroupsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void deleteInternetGateway(DeleteInternetGatewayRequest deleteInternetGatewayRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeSubnetsResult describeSubnets(DescribeSubnetsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeSnapshotAttributeResult describeSnapshotAttribute(DescribeSnapshotAttributeRequest describeSnapshotAttributeRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeSubnetsResult describeSubnets() {
+        return describeSubnets(new DescribeSubnetsRequest());
     }
 
     @Override
-    public ReplaceRouteTableAssociationResult replaceRouteTableAssociation(ReplaceRouteTableAssociationRequest replaceRouteTableAssociationRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeTagsResult describeTags(DescribeTagsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeAddressesResult describeAddresses(DescribeAddressesRequest describeAddressesRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeTagsResult describeTags() {
+        return describeTags(new DescribeTagsRequest());
     }
 
     @Override
-    public DescribeImageAttributeResult describeImageAttribute(DescribeImageAttributeRequest describeImageAttributeRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeVolumeAttributeResult describeVolumeAttribute(
+            DescribeVolumeAttributeRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeKeyPairsResult describeKeyPairs(DescribeKeyPairsRequest describeKeyPairsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeVolumeStatusResult describeVolumeStatus(
+            DescribeVolumeStatusRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public ConfirmProductInstanceResult confirmProductInstance(ConfirmProductInstanceRequest confirmProductInstanceRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeVolumeStatusResult describeVolumeStatus() {
+        return describeVolumeStatus(new DescribeVolumeStatusRequest());
     }
 
     @Override
-    public void disassociateRouteTable(DisassociateRouteTableRequest disassociateRouteTableRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeVolumesResult describeVolumes(DescribeVolumesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVpcAttributeResult describeVpcAttribute(DescribeVpcAttributeRequest describeVpcAttributeRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeVolumesResult describeVolumes() {
+        return describeVolumes(new DescribeVolumesRequest());
     }
 
     @Override
-    public void revokeSecurityGroupEgress(RevokeSecurityGroupEgressRequest revokeSecurityGroupEgressRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeVpcAttributeResult describeVpcAttribute(
+            DescribeVpcAttributeRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void deleteNetworkAclEntry(DeleteNetworkAclEntryRequest deleteNetworkAclEntryRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeVpcClassicLinkResult describeVpcClassicLink(
+            DescribeVpcClassicLinkRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateVolumeResult createVolume(CreateVolumeRequest createVolumeRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeVpcClassicLinkResult describeVpcClassicLink() {
+        return describeVpcClassicLink(new DescribeVpcClassicLinkRequest());
     }
 
     @Override
-    public DescribeInstanceStatusResult describeInstanceStatus(DescribeInstanceStatusRequest describeInstanceStatusRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeVpcClassicLinkDnsSupportResult describeVpcClassicLinkDnsSupport(
+            DescribeVpcClassicLinkDnsSupportRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVpnGatewaysResult describeVpnGateways(DescribeVpnGatewaysRequest describeVpnGatewaysRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeVpcEndpointServicesResult describeVpcEndpointServices(
+            DescribeVpcEndpointServicesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateSubnetResult createSubnet(CreateSubnetRequest createSubnetRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeVpcEndpointServicesResult describeVpcEndpointServices() {
+        return describeVpcEndpointServices(new DescribeVpcEndpointServicesRequest());
     }
 
     @Override
-    public DescribeReservedInstancesOfferingsResult describeReservedInstancesOfferings(DescribeReservedInstancesOfferingsRequest describeReservedInstancesOfferingsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeVpcEndpointsResult describeVpcEndpoints(
+            DescribeVpcEndpointsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void assignPrivateIpAddresses(AssignPrivateIpAddressesRequest assignPrivateIpAddressesRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeVpcEndpointsResult describeVpcEndpoints() {
+        return describeVpcEndpoints(new DescribeVpcEndpointsRequest());
     }
 
     @Override
-    public DescribeSpotFleetRequestHistoryResult describeSpotFleetRequestHistory(DescribeSpotFleetRequestHistoryRequest describeSpotFleetRequestHistoryRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeVpcPeeringConnectionsResult describeVpcPeeringConnections(
+            DescribeVpcPeeringConnectionsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void deleteSnapshot(DeleteSnapshotRequest deleteSnapshotRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeVpcPeeringConnectionsResult describeVpcPeeringConnections() {
+        return describeVpcPeeringConnections(new DescribeVpcPeeringConnectionsRequest());
     }
 
     @Override
-    public ReplaceNetworkAclAssociationResult replaceNetworkAclAssociation(ReplaceNetworkAclAssociationRequest replaceNetworkAclAssociationRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeVpcsResult describeVpcs(DescribeVpcsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void disassociateAddress(DisassociateAddressRequest disassociateAddressRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeVpcsResult describeVpcs() {
+        return describeVpcs(new DescribeVpcsRequest());
     }
 
     @Override
-    public void createPlacementGroup(CreatePlacementGroupRequest createPlacementGroupRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeVpnConnectionsResult describeVpnConnections(
+            DescribeVpnConnectionsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public BundleInstanceResult bundleInstance(BundleInstanceRequest bundleInstanceRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DescribeVpnConnectionsResult describeVpnConnections() {
+        return describeVpnConnections(new DescribeVpnConnectionsRequest());
     }
 
     @Override
-    public void deletePlacementGroup(DeletePlacementGroupRequest deletePlacementGroupRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeVpnGatewaysResult describeVpnGateways(
+            DescribeVpnGatewaysRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void modifySubnetAttribute(ModifySubnetAttributeRequest modifySubnetAttributeRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DescribeVpnGatewaysResult describeVpnGateways() {
+        return describeVpnGateways(new DescribeVpnGatewaysRequest());
     }
 
     @Override
-    public void deleteVpc(DeleteVpcRequest deleteVpcRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DetachClassicLinkVpcResult detachClassicLinkVpc(
+            DetachClassicLinkVpcRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CopySnapshotResult copySnapshot(CopySnapshotRequest copySnapshotRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DetachInternetGatewayResult detachInternetGateway(
+            DetachInternetGatewayRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVpcEndpointServicesResult describeVpcEndpointServices(DescribeVpcEndpointServicesRequest describeVpcEndpointServicesRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DetachNetworkInterfaceResult detachNetworkInterface(
+            DetachNetworkInterfaceRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public AllocateAddressResult allocateAddress(AllocateAddressRequest allocateAddressRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DetachVolumeResult detachVolume(DetachVolumeRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void releaseAddress(ReleaseAddressRequest releaseAddressRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DetachVpnGatewayResult detachVpnGateway(
+            DetachVpnGatewayRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void resetInstanceAttribute(ResetInstanceAttributeRequest resetInstanceAttributeRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DisableVgwRoutePropagationResult disableVgwRoutePropagation(
+            DisableVgwRoutePropagationRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateKeyPairResult createKeyPair(CreateKeyPairRequest createKeyPairRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DisableVpcClassicLinkResult disableVpcClassicLink(
+            DisableVpcClassicLinkRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void replaceNetworkAclEntry(ReplaceNetworkAclEntryRequest replaceNetworkAclEntryRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public DisableVpcClassicLinkDnsSupportResult disableVpcClassicLinkDnsSupport(
+            DisableVpcClassicLinkDnsSupportRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeSnapshotsResult describeSnapshots(DescribeSnapshotsRequest describeSnapshotsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DisassociateAddressResult disassociateAddress(
+            DisassociateAddressRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateNetworkAclResult createNetworkAcl(CreateNetworkAclRequest createNetworkAclRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public DisassociateRouteTableResult disassociateRouteTable(
+            DisassociateRouteTableRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public RegisterImageResult registerImage(RegisterImageRequest registerImageRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public EnableVgwRoutePropagationResult enableVgwRoutePropagation(
+            EnableVgwRoutePropagationRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void resetNetworkInterfaceAttribute(ResetNetworkInterfaceAttributeRequest resetNetworkInterfaceAttributeRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public EnableVolumeIOResult enableVolumeIO(EnableVolumeIORequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public EnableVpcClassicLinkResult enableVpcClassicLink(EnableVpcClassicLinkRequest enableVpcClassicLinkRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public EnableVpcClassicLinkResult enableVpcClassicLink(
+            EnableVpcClassicLinkRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void createVpnConnectionRoute(CreateVpnConnectionRouteRequest createVpnConnectionRouteRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public EnableVpcClassicLinkDnsSupportResult enableVpcClassicLinkDnsSupport(
+            EnableVpcClassicLinkDnsSupportRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVpcEndpointsResult describeVpcEndpoints(DescribeVpcEndpointsRequest describeVpcEndpointsRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public GetConsoleOutputResult getConsoleOutput(
+            GetConsoleOutputRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DetachClassicLinkVpcResult detachClassicLinkVpc(DetachClassicLinkVpcRequest detachClassicLinkVpcRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public GetConsoleScreenshotResult getConsoleScreenshot(
+            GetConsoleScreenshotRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeReservedInstancesResult describeReservedInstances() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public GetPasswordDataResult getPasswordData(GetPasswordDataRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeAvailabilityZonesResult describeAvailabilityZones() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ImportImageResult importImage(ImportImageRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeSpotPriceHistoryResult describeSpotPriceHistory() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ImportImageResult importImage() {
+        return importImage(new ImportImageRequest());
     }
 
     @Override
-    public DescribeNetworkInterfacesResult describeNetworkInterfaces() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ImportInstanceResult importInstance(ImportInstanceRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeRegionsResult describeRegions() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ImportKeyPairResult importKeyPair(ImportKeyPairRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeInternetGatewaysResult describeInternetGateways() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ImportSnapshotResult importSnapshot(ImportSnapshotRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeSecurityGroupsResult describeSecurityGroups() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ImportSnapshotResult importSnapshot() {
+        return importSnapshot(new ImportSnapshotRequest());
     }
 
     @Override
-    public DescribeSpotDatafeedSubscriptionResult describeSpotDatafeedSubscription() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ImportVolumeResult importVolume(ImportVolumeRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeAccountAttributesResult describeAccountAttributes() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ModifyHostsResult modifyHosts(ModifyHostsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVolumeStatusResult describeVolumeStatus() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ModifyIdFormatResult modifyIdFormat(ModifyIdFormatRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeImportSnapshotTasksResult describeImportSnapshotTasks() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ModifyIdentityIdFormatResult modifyIdentityIdFormat(
+            ModifyIdentityIdFormatRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVpnConnectionsResult describeVpnConnections() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ModifyImageAttributeResult modifyImageAttribute(
+            ModifyImageAttributeRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVpcsResult describeVpcs() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ModifyInstanceAttributeResult modifyInstanceAttribute(
+            ModifyInstanceAttributeRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public AcceptVpcPeeringConnectionResult acceptVpcPeeringConnection() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ModifyInstancePlacementResult modifyInstancePlacement(
+            ModifyInstancePlacementRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeExportTasksResult describeExportTasks() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ModifyNetworkInterfaceAttributeResult modifyNetworkInterfaceAttribute(
+            ModifyNetworkInterfaceAttributeRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateVpcPeeringConnectionResult createVpcPeeringConnection() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ModifyReservedInstancesResult modifyReservedInstances(
+            ModifyReservedInstancesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CancelImportTaskResult cancelImportTask() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ModifySnapshotAttributeResult modifySnapshotAttribute(
+            ModifySnapshotAttributeRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVolumesResult describeVolumes() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ModifySpotFleetRequestResult modifySpotFleetRequest(
+            ModifySpotFleetRequestRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeReservedInstancesListingsResult describeReservedInstancesListings() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ModifySubnetAttributeResult modifySubnetAttribute(
+            ModifySubnetAttributeRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeRouteTablesResult describeRouteTables() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ModifyVolumeAttributeResult modifyVolumeAttribute(
+            ModifyVolumeAttributeRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeDhcpOptionsResult describeDhcpOptions() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ModifyVpcAttributeResult modifyVpcAttribute(
+            ModifyVpcAttributeRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribePrefixListsResult describePrefixLists() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ModifyVpcEndpointResult modifyVpcEndpoint(
+            ModifyVpcEndpointRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeImportImageTasksResult describeImportImageTasks() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ModifyVpcPeeringConnectionOptionsResult modifyVpcPeeringConnectionOptions(
+            ModifyVpcPeeringConnectionOptionsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeNetworkAclsResult describeNetworkAcls() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public MonitorInstancesResult monitorInstances(
+            MonitorInstancesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeBundleTasksResult describeBundleTasks() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public MoveAddressToVpcResult moveAddressToVpc(
+            MoveAddressToVpcRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void revokeSecurityGroupIngress() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public PurchaseReservedInstancesOfferingResult purchaseReservedInstancesOffering(
+            PurchaseReservedInstancesOfferingRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateInternetGatewayResult createInternetGateway() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public PurchaseScheduledInstancesResult purchaseScheduledInstances(
+            PurchaseScheduledInstancesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeMovingAddressesResult describeMovingAddresses() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public RebootInstancesResult rebootInstances(RebootInstancesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeConversionTasksResult describeConversionTasks() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public RegisterImageResult registerImage(RegisterImageRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public ImportImageResult importImage() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public RejectVpcPeeringConnectionResult rejectVpcPeeringConnection(
+            RejectVpcPeeringConnectionRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeFlowLogsResult describeFlowLogs() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ReleaseAddressResult releaseAddress(ReleaseAddressRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVpcPeeringConnectionsResult describeVpcPeeringConnections() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ReleaseHostsResult releaseHosts(ReleaseHostsRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribePlacementGroupsResult describePlacementGroups() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ReplaceNetworkAclAssociationResult replaceNetworkAclAssociation(
+            ReplaceNetworkAclAssociationRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeSubnetsResult describeSubnets() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ReplaceNetworkAclEntryResult replaceNetworkAclEntry(
+            ReplaceNetworkAclEntryRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeInstancesResult describeInstances() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ReplaceRouteResult replaceRoute(ReplaceRouteRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeImagesResult describeImages() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ReplaceRouteTableAssociationResult replaceRouteTableAssociation(
+            ReplaceRouteTableAssociationRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeSpotInstanceRequestsResult describeSpotInstanceRequests() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ReportInstanceStatusResult reportInstanceStatus(
+            ReportInstanceStatusRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeCustomerGatewaysResult describeCustomerGateways() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public RequestSpotFleetResult requestSpotFleet(
+            RequestSpotFleetRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVpcClassicLinkResult describeVpcClassicLink() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public RequestSpotInstancesResult requestSpotInstances(
+            RequestSpotInstancesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeClassicLinkInstancesResult describeClassicLinkInstances() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ResetImageAttributeResult resetImageAttribute(
+            ResetImageAttributeRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeTagsResult describeTags() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ResetInstanceAttributeResult resetInstanceAttribute(
+            ResetInstanceAttributeRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public ImportSnapshotResult importSnapshot() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ResetNetworkInterfaceAttributeResult resetNetworkInterfaceAttribute(
+            ResetNetworkInterfaceAttributeRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeSpotFleetRequestsResult describeSpotFleetRequests() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public ResetSnapshotAttributeResult resetSnapshotAttribute(
+            ResetSnapshotAttributeRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeReservedInstancesModificationsResult describeReservedInstancesModifications() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public RestoreAddressToClassicResult restoreAddressToClassic(
+            RestoreAddressToClassicRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public void deleteSpotDatafeedSubscription() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock");
+    public RevokeSecurityGroupEgressResult revokeSecurityGroupEgress(
+            RevokeSecurityGroupEgressRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeAddressesResult describeAddresses() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public RevokeSecurityGroupIngressResult revokeSecurityGroupIngress(
+            RevokeSecurityGroupIngressRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeKeyPairsResult describeKeyPairs() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public RevokeSecurityGroupIngressResult revokeSecurityGroupIngress() {
+        return revokeSecurityGroupIngress(new RevokeSecurityGroupIngressRequest());
     }
 
     @Override
-    public DescribeInstanceStatusResult describeInstanceStatus() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public RunInstancesResult runInstances(RunInstancesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVpnGatewaysResult describeVpnGateways() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public RunScheduledInstancesResult runScheduledInstances(
+            RunScheduledInstancesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeReservedInstancesOfferingsResult describeReservedInstancesOfferings() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public StartInstancesResult startInstances(StartInstancesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVpcEndpointServicesResult describeVpcEndpointServices() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public StopInstancesResult stopInstances(StopInstancesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public AllocateAddressResult allocateAddress() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public TerminateInstancesResult terminateInstances(
+            TerminateInstancesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeSnapshotsResult describeSnapshots() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public UnassignPrivateIpAddressesResult unassignPrivateIpAddresses(
+            UnassignPrivateIpAddressesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVpcEndpointsResult describeVpcEndpoints() throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public UnmonitorInstancesResult unmonitorInstances(
+            UnmonitorInstancesRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public <X extends AmazonWebServiceRequest> DryRunResult<X> dryRun(DryRunSupportedRequest<X> request) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public <X extends AmazonWebServiceRequest> DryRunResult<X> dryRun(
+            DryRunSupportedRequest<X> request) throws AmazonServiceException,
+            AmazonClientException {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public void shutdown() {
-        throw new UnsupportedOperationException("Not supported in mock");
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public ResponseMetadata getCachedResponseMetadata(AmazonWebServiceRequest request) {
-        throw new UnsupportedOperationException("Not supported in mock"); 
-    }
-
-    @Override
-    public ModifySpotFleetRequestResult modifySpotFleetRequest(ModifySpotFleetRequestRequest modifySpotFleetRequestRequest) throws AmazonServiceException, AmazonClientException {
-        throw new UnsupportedOperationException("Not supported in mock"); 
+    public com.amazonaws.ResponseMetadata getCachedResponseMetadata(
+            com.amazonaws.AmazonWebServiceRequest request) {
+        throw new java.lang.UnsupportedOperationException("Not supported in mock");
     }
 }

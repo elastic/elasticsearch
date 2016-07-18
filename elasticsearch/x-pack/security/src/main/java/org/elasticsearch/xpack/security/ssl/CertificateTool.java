@@ -189,8 +189,8 @@ public class CertificateTool extends SettingCommand {
         while (done == false) {
             String name = terminal.readText("Enter instance name: ");
             if (name.isEmpty() == false) {
-                String ipAddresses = terminal.readText("Enter IP Addresses for instance? []: ");
-                String dnsNames = terminal.readText("Enter DNS names for instance? []: ");
+                String ipAddresses = terminal.readText("Enter IP Addresses for instance (comma-separated if more than one) []: ");
+                String dnsNames = terminal.readText("Enter DNS names for instance (comma-separated if more than one) []: ");
                 List<String> ipList = Arrays.asList(Strings.splitStringByCommaToArray(ipAddresses));
                 List<String> dnsList = Arrays.asList(Strings.splitStringByCommaToArray(dnsNames));
 

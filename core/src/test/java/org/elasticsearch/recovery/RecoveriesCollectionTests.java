@@ -156,7 +156,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
                 }, false);
             }
             shards.assertAllEqual(numDocs);
-            assertNull("recovery is dones", collection.getRecovery(recoveryId));
+            assertNull("recovery is done", collection.getRecovery(recoveryId));
         }
     }
 

@@ -250,17 +250,12 @@ def generate_index(client, version, index_name):
     'properties': {
       'string_with_norms_disabled': {
         'type': 'text',
-        'norms': {
-          'enabled': False
-        }
+        'norms' : False
       },
       'string_with_norms_enabled': {
         'type': 'text',
         'index': 'not_analyzed',
-        'norms': {
-          'enabled': True,
-          'loading': 'eager'
-        }
+        'norms': True
       }
     }
   }
@@ -448,7 +443,6 @@ def parse_version(version):
     splitted = splitted + ['GA']
   splitted = [s.lower() for s in splitted]
   assert len(splitted) == 4;
-  print (splitted)
   return splitted
 
 assert parse_version('5.0.0-alpha1') == parse_version('5.0.0-alpha1')

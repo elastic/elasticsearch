@@ -73,8 +73,8 @@ public class PluginBuildPlugin extends BuildPlugin {
                 project.integTest.clusterConfig.module(project)
                 project.tasks.run.clusterConfig.module(project)
             } else {
-                project.integTest.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
-                project.tasks.run.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
+                project.integTest.clusterConfig.plugin(project.path)
+                project.tasks.run.clusterConfig.plugin(project.path)
                 addZipPomGeneration(project)
             }
 
@@ -85,6 +85,7 @@ public class PluginBuildPlugin extends BuildPlugin {
         }
         createIntegTestTask(project)
         createBundleTask(project)
+        project.configurations.getByName('default').extendsFrom(project.configurations.getByName('runtime'))
         project.tasks.create('run', RunTask) // allow running ES with this plugin in the foreground of a build
     }
 
@@ -143,13 +144,9 @@ public class PluginBuildPlugin extends BuildPlugin {
         }
         project.assemble.dependsOn(bundle)
 
-        // remove jar from the archives (things that will be published), and set it to the zip
-        project.configurations.archives.artifacts.removeAll { it.archiveTask.is project.jar }
-        project.artifacts.add('archives', bundle)
-
-        // also make the zip the default artifact (used when depending on this project)
-        project.configurations.getByName('default').extendsFrom = []
-        project.artifacts.add('default', bundle)
+        // also make the zip available as a configuration (used when depending on this project)
+        project.configurations.create('zip')
+        project.artifacts.add('zip', bundle)
     }
 
     /** Adds a task to move jar and associated files to a "-client" name. */

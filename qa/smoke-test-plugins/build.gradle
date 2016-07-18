@@ -25,8 +25,7 @@ ext.pluginsCount = 0
 project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
   integTest {
     cluster {
-      // need to get a non-decorated project object, so must re-lookup the project by path
-      plugin subproj.name, project(subproj.path)
+      plugin subproj.path
     }
   }
   pluginsCount += 1

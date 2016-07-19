@@ -132,7 +132,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -219,9 +218,9 @@ public class Node implements Closeable {
 
             tmpSettings = TribeService.processSettings(tmpSettings);
 
-            // create the node environment as soon as possible, to recovery the node id and enable logging
+            // create the node environment as soon as possible, to recover the node id and enable logging
             try {
-                nodeEnvironment = new NodeEnvironment(tmpSettings,environment);
+                nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
                 resourcesToClose.add(nodeEnvironment);
             } catch (IOException ex) {
                 throw new IllegalStateException("Failed to created node environment", ex);
@@ -361,8 +360,7 @@ public class Node implements Closeable {
             resourcesToClose.addAll(pluginLifecycleComponents);
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
 
-            client.intialize(injector.getInstance(new Key<Map<GenericAction, TransportAction>>() {
-            }));
+            client.intialize(injector.getInstance(new Key<Map<GenericAction, TransportAction>>() {}));
 
             logger.info("initialized");
 

@@ -341,7 +341,7 @@ public class Environment {
     }
 
     /**
-     * assserts that the two environments are equivalent for all things the environment cares about (i.e., all but the setting
+     * asserts that the two environments are equivalent for all things the environment cares about (i.e., all but the setting
      * object which may contain different setting)
      */
     public static void assertEquivalent(Environment actual, Environment expected) {

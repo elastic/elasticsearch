@@ -266,6 +266,7 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeVInt(2);
         out.writeLong(-3);
         out.writeVLong(4);
+        out.writeOptionalLong(11234234L);
         out.writeFloat(1.1f);
         out.writeDouble(2.2);
         int[] intArray = {1, 2, 3};
@@ -299,8 +300,9 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(in.readShort(), equalTo((short)-1));
         assertThat(in.readInt(), equalTo(-1));
         assertThat(in.readVInt(), equalTo(2));
-        assertThat(in.readLong(), equalTo((long)-3));
-        assertThat(in.readVLong(), equalTo((long)4));
+        assertThat(in.readLong(), equalTo(-3L));
+        assertThat(in.readVLong(), equalTo(4L));
+        assertThat(in.readOptionalLong(), equalTo(11234234L));
         assertThat((double)in.readFloat(), closeTo(1.1, 0.0001));
         assertThat(in.readDouble(), closeTo(2.2, 0.0001));
         assertThat(in.readGenericValue(), equalTo((Object) intArray));

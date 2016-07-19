@@ -120,6 +120,7 @@ public abstract class StreamInput extends InputStream {
      * only if you must differentiate null from empty. Use {@link StreamInput#readBytesReference()} and
      * {@link StreamOutput#writeBytesReference(BytesReference)} if you do not.
      */
+    @Nullable
     public BytesReference readOptionalBytesReference() throws IOException {
         int length = readVInt() - 1;
         if (length < 0) {
@@ -276,6 +277,14 @@ public abstract class StreamInput extends InputStream {
     }
 
     @Nullable
+    public Long readOptionalLong() throws IOException {
+        if (readBoolean()) {
+            return readLong();
+        }
+        return null;
+    }
+
+    @Nullable
     public Text readOptionalText() throws IOException {
         int length = readInt();
         if (length == -1) {
@@ -355,6 +364,7 @@ public abstract class StreamInput extends InputStream {
         return Double.longBitsToDouble(readLong());
     }
 
+    @Nullable
     public final Double readOptionalDouble() throws IOException {
         if (readBoolean()) {
             return readDouble();
@@ -402,6 +412,7 @@ public abstract class StreamInput extends InputStream {
         return ret;
     }
 
+    @Nullable
     public String[] readOptionalStringArray() throws IOException {
         if (readBoolean()) {
             return readStringArray();
@@ -635,6 +646,7 @@ public abstract class StreamInput extends InputStream {
     /**
      * Serializes a potential null value.
      */
+    @Nullable
     public <T extends Streamable> T readOptionalStreamable(Supplier<T> supplier) throws IOException {
         if (readBoolean()) {
             T streamable = supplier.get();
@@ -645,6 +657,7 @@ public abstract class StreamInput extends InputStream {
         }
     }
 
+    @Nullable
     public <T extends Writeable> T readOptionalWriteable(Writeable.Reader<T> reader) throws IOException {
         if (readBoolean()) {
             T t = reader.read(this);
@@ -769,6 +782,7 @@ public abstract class StreamInput extends InputStream {
     /**
      * Reads an optional {@link NamedWriteable}.
      */
+    @Nullable
     public <C extends NamedWriteable> C readOptionalNamedWriteable(Class<C> categoryClass) throws IOException {
         if (readBoolean()) {
             return readNamedWriteable(categoryClass);

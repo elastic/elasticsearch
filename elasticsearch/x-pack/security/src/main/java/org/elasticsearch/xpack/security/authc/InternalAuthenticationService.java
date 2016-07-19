@@ -82,17 +82,6 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         authentication.writeToContextIfMissing(threadContext, cryptoService, signUserHeader);
     }
 
-    @Override
-    public Authentication getCurrentAuthentication() {
-        try {
-            Authentication authentication = Authentication.readFromContext(threadContext, cryptoService, signUserHeader);
-            return authentication == null ? null : authentication;
-        } catch (IOException e) {
-            logger.error("failed to read authentication", e);
-            return null;
-        }
-    }
-
     Authenticator createAuthenticator(RestRequest request) {
         return new Authenticator(request);
     }

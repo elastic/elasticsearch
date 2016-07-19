@@ -248,6 +248,8 @@ public class Security implements ActionPlugin, IngestPlugin {
             return Collections.emptyList();
         }
         List<Object> components = new ArrayList<>();
+        final SecurityContext securityContext = new SecurityContext(settings, threadPool, cryptoService);
+        components.add(securityContext);
 
         final SSLConfiguration.Global globalSslConfig = new SSLConfiguration.Global(settings);
         final ClientSSLService clientSSLService = new ClientSSLService(settings, env, globalSslConfig, resourceWatcherService);

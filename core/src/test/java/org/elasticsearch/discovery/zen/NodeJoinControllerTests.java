@@ -606,16 +606,16 @@ public class NodeJoinControllerTests extends ESTestCase {
             final DiscoveryNode primaryNode = randomBoolean() ? masterNode : otherNode;
             final DiscoveryNode replicaNode = primaryNode.equals(masterNode) ? otherNode : masterNode;
             final boolean primaryStarted = randomBoolean();
-            indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, primaryNode.getId(), null, null, true,
+            indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, primaryNode.getId(), null, true,
                 primaryStarted ? ShardRoutingState.STARTED : ShardRoutingState.INITIALIZING,
                 primaryStarted ? null : new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "getting there")));
             if (primaryStarted) {
                 boolean replicaStared = randomBoolean();
-                indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, replicaNode.getId(), null, null, false,
+                indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, replicaNode.getId(), null, false,
                     replicaStared ? ShardRoutingState.STARTED : ShardRoutingState.INITIALIZING,
                     replicaStared ? null : new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "getting there")));
             } else {
-                indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, null, null, null, false,
+                indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, null, null, false,
                     ShardRoutingState.UNASSIGNED, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "life sucks")));
             }
             indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());

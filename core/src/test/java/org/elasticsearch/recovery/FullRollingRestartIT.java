@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -151,7 +152,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
         for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
-            assertTrue("relocated from: " + recoveryState.getSourceNode() + " to: " + recoveryState.getTargetNode() + "\n" + state.prettyPrint(), recoveryState.getType() != RecoveryState.Type.PRIMARY_RELOCATION);
+            assertTrue("relocated from: " + recoveryState.getSourceNode() + " to: " + recoveryState.getTargetNode() + "\n" + state.prettyPrint(), recoveryState.getRecoverySource().getType() != RecoverySource.Type.PEER || recoveryState.getPrimary() == false);
         }
         internalCluster().restartRandomDataNode();
         ensureGreen();
@@ -159,7 +160,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
 
         recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
         for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
-           assertTrue("relocated from: " + recoveryState.getSourceNode() + " to: " + recoveryState.getTargetNode()+ "-- \nbefore: \n" + state.prettyPrint() + "\nafter: \n" + afterState.prettyPrint(), recoveryState.getType() != RecoveryState.Type.PRIMARY_RELOCATION);
+           assertTrue("relocated from: " + recoveryState.getSourceNode() + " to: " + recoveryState.getTargetNode()+ "-- \nbefore: \n" + state.prettyPrint() + "\nafter: \n" + afterState.prettyPrint(), recoveryState.getRecoverySource().getType() != RecoverySource.Type.PEER || recoveryState.getPrimary() == false);
         }
     }
 }

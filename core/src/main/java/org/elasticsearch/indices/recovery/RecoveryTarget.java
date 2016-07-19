@@ -74,7 +74,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final DiscoveryNode sourceNode;
     private final String tempFilePrefix;
     private final Store store;
-    private final RecoveryTargetService.RecoveryListener listener;
+    private final PeerRecoveryTargetService.RecoveryListener listener;
     private final Callback<Long> ensureClusterStateVersionCallback;
 
     private final AtomicBoolean finished = new AtomicBoolean();
@@ -92,7 +92,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             copyFrom.ensureClusterStateVersionCallback);
     }
 
-    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryTargetService.RecoveryListener listener,
+    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener,
                           Callback<Long> ensureClusterStateVersionCallback) {
         this(indexShard, sourceNode, listener, new CancellableThreads(), idGenerator.incrementAndGet(), ensureClusterStateVersionCallback);
     }
@@ -106,7 +106,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      *                                          version. Necessary for primary relocation so that new primary knows about all other ongoing
      *                                          replica recoveries when replicating documents (see {@link RecoverySourceHandler}).
      */
-    private RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryTargetService.RecoveryListener listener,
+    private RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener,
                            CancellableThreads cancellableThreads, long recoveryId, Callback<Long> ensureClusterStateVersionCallback) {
         super("recovery_status");
         this.cancellableThreads = cancellableThreads;

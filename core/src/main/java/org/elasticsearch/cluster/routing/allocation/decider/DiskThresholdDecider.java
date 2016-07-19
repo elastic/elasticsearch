@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -120,14 +121,14 @@ public class DiskThresholdDecider extends AllocationDecider {
             logger.trace("node [{}] has {}% used disk", node.nodeId(), usedDiskPercentage);
         }
 
-        // a flag for whether the primary shard has been previously allocated
-        IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
-        boolean primaryHasBeenAllocated = shardRouting.primary() && shardRouting.allocatedPostIndexCreate(indexMetaData);
+        // flag that determines whether the low threshold checks below can be skipped. We use this for a primary shard that is freshly
+        // allocated and empty.
+        boolean skipLowTresholdChecks = shardRouting.primary() &&
+            shardRouting.active() == false && shardRouting.recoverySource().getType() == RecoverySource.Type.EMPTY_STORE;
 
         // checks for exact byte comparisons
         if (freeBytes < diskThresholdSettings.getFreeBytesThresholdLow().bytes()) {
-            // If the shard is a replica or has a primary that has already been allocated before, check the low threshold
-            if (!shardRouting.primary() || (shardRouting.primary() && primaryHasBeenAllocated)) {
+            if (skipLowTresholdChecks == false) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("less than the required {} free bytes threshold ({} bytes free) on node {}, preventing allocation",
                             diskThresholdSettings.getFreeBytesThresholdLow(), freeBytes, node.nodeId());
@@ -162,8 +163,8 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         // checks for percentage comparisons
         if (freeDiskPercentage < diskThresholdSettings.getFreeDiskThresholdLow()) {
-            // If the shard is a replica or has a primary that has already been allocated before, check the low threshold
-            if (!shardRouting.primary() || (shardRouting.primary() && primaryHasBeenAllocated)) {
+            // If the shard is a replica or is a non-empty primary, check the low threshold
+            if (skipLowTresholdChecks == false) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("more than the allowed {} used disk threshold ({} used) on node [{}], preventing allocation",
                             Strings.format1Decimals(usedDiskThresholdLow, "%"),
@@ -378,12 +379,13 @@ public class DiskThresholdDecider extends AllocationDecider {
     public static long getExpectedShardSize(ShardRouting shard, RoutingAllocation allocation, long defaultValue) {
         final IndexMetaData metaData = allocation.metaData().getIndexSafe(shard.index());
         final ClusterInfo info = allocation.clusterInfo();
-        if (metaData.getMergeSourceIndex() != null && shard.allocatedPostIndexCreate(metaData) == false) {
+        if (metaData.getMergeSourceIndex() != null && shard.active() == false &&
+            shard.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
             // in the shrink index case we sum up the source index shards since we basically make a copy of the shard in
             // the worst case
             long targetShardSize = 0;
             final Index mergeSourceIndex = metaData.getMergeSourceIndex();
-            final IndexMetaData sourceIndexMeta = allocation.metaData().getIndexSafe(metaData.getMergeSourceIndex());
+            final IndexMetaData sourceIndexMeta = allocation.metaData().getIndexSafe(mergeSourceIndex);
             final Set<ShardId> shardIds = IndexMetaData.selectShrinkShards(shard.id(), sourceIndexMeta, metaData.getNumberOfShards());
             for (IndexShardRoutingTable shardRoutingTable : allocation.routingTable().index(mergeSourceIndex.getName())) {
                 if (shardIds.contains(shardRoutingTable.shardId())) {

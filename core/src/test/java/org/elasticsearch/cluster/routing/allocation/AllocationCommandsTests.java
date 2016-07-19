@@ -53,6 +53,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 
+import java.util.Collections;
+
 import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -126,7 +128,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         logger.info("--> building initial routing table");
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder(index).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder(index).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1)
+                    .putInSyncAllocationIds(0, Collections.singleton("asdf")).putInSyncAllocationIds(1, Collections.singleton("qwertz")))
                 .build();
         // shard routing is added as "from recovery" instead of "new index creation" so that we can test below that allocating an empty
         // primary with accept_data_loss flag set to false fails

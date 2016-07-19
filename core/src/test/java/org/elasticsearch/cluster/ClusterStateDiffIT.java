@@ -245,7 +245,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                     unassignedInfo = new UnassignedInfo(randomReason(), randomAsciiOfLength(10));
                 }
                 indexShard.addShard(
-                        TestShardRouting.newShardRouting(index, i, randomFrom(nodeIds), null, null, j == 0,
+                        TestShardRouting.newShardRouting(index, i, randomFrom(nodeIds), null, j == 0,
                                 ShardRoutingState.fromValue((byte) randomIntBetween(2, 3)), unassignedInfo));
             }
             builder.addIndexShard(indexShard.build());

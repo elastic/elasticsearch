@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
+
 /**
  * A helper class that allows access to package private APIs for testing.
  */
@@ -44,17 +46,17 @@ public class ShardRoutingHelper {
         return routing.initialize(nodeId, null, expectedSize);
     }
 
-    public static ShardRouting reinit(ShardRouting routing) {
-        return routing.reinitializeShard();
+    public static ShardRouting reinitPrimary(ShardRouting routing) {
+        return routing.reinitializePrimaryShard();
     }
 
-    public static ShardRouting reinit(ShardRouting routing, UnassignedInfo.Reason reason) {
-        return routing.reinitializeShard().updateUnassignedInfo(new UnassignedInfo(reason, "test_reinit"));
+    public static ShardRouting reinitPrimary(ShardRouting routing, UnassignedInfo.Reason reason, RecoverySource recoverySource) {
+        return routing.reinitializePrimaryShard().updateUnassigned(new UnassignedInfo(reason, "test_reinit"), recoverySource);
     }
 
-    public static ShardRouting initWithSameId(ShardRouting copy) {
-        return new ShardRouting(copy.shardId(), copy.currentNodeId(), copy.relocatingNodeId(), copy.restoreSource(),
-            copy.primary(), ShardRoutingState.INITIALIZING, new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null),
+    public static ShardRouting initWithSameId(ShardRouting copy, RecoverySource recoverySource) {
+        return new ShardRouting(copy.shardId(), copy.currentNodeId(), copy.relocatingNodeId(),
+            copy.primary(), ShardRoutingState.INITIALIZING, recoverySource, new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null),
             copy.allocationId(), copy.getExpectedShardSize());
     }
 
@@ -62,8 +64,8 @@ public class ShardRoutingHelper {
         return routing.moveToUnassigned(info);
     }
 
-    public static ShardRouting newWithRestoreSource(ShardRouting routing, RestoreSource restoreSource) {
-        return new ShardRouting(routing.shardId(), routing.currentNodeId(), routing.relocatingNodeId(), restoreSource,
-            routing.primary(), routing.state(), routing.unassignedInfo(), routing.allocationId(), routing.getExpectedShardSize());
+    public static ShardRouting newWithRestoreSource(ShardRouting routing, SnapshotRecoverySource recoverySource) {
+        return new ShardRouting(routing.shardId(), routing.currentNodeId(), routing.relocatingNodeId(), routing.primary(), routing.state(),
+            recoverySource, routing.unassignedInfo(), routing.allocationId(), routing.getExpectedShardSize());
     }
 }

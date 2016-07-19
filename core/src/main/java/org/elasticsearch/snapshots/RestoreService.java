@@ -41,7 +41,7 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RestoreSource;
+import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -109,13 +109,13 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
  * First {@link #restoreSnapshot(RestoreRequest, org.elasticsearch.action.ActionListener)}
  * method reads information about snapshot and metadata from repository. In update cluster state task it checks restore
  * preconditions, restores global state if needed, creates {@link RestoreInProgress} record with list of shards that needs
- * to be restored and adds this shard to the routing table using {@link org.elasticsearch.cluster.routing.RoutingTable.Builder#addAsRestore(IndexMetaData, RestoreSource)}
+ * to be restored and adds this shard to the routing table using {@link RoutingTable.Builder#addAsRestore(IndexMetaData, SnapshotRecoverySource)}
  * method.
  * <p>
  * Individual shards are getting restored as part of normal recovery process in
  * {@link IndexShard#restoreFromRepository(Repository)} )}
  * method, which detects that shard should be restored from snapshot rather than recovered from gateway by looking
- * at the {@link org.elasticsearch.cluster.routing.ShardRouting#restoreSource()} property.
+ * at the {@link ShardRouting#recoverySource()} property.
  * <p>
  * At the end of the successful restore process {@code IndexShardSnapshotAndRestoreService} calls {@link #indexShardRestoreCompleted(Snapshot, ShardId)},
  * which updates {@link RestoreInProgress} in cluster state or removes it when all shards are completed. In case of
@@ -241,7 +241,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                         for (Map.Entry<String, String> indexEntry : renamedIndices.entrySet()) {
                             String index = indexEntry.getValue();
                             boolean partial = checkPartial(index);
-                            RestoreSource restoreSource = new RestoreSource(snapshot, snapshotInfo.version(), index);
+                            SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(snapshot, snapshotInfo.version(), index);
                             String renamedIndexName = indexEntry.getKey();
                             IndexMetaData snapshotIndexMetaData = metaData.index(index);
                             snapshotIndexMetaData = updateIndexSettings(snapshotIndexMetaData, request.indexSettings, request.ignoreIndexSettings);
@@ -273,7 +273,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                 if (partial) {
                                     populateIgnoredShards(index, ignoreShards);
                                 }
-                                rtBuilder.addAsNewRestore(updatedIndexMetaData, restoreSource, ignoreShards);
+                                rtBuilder.addAsNewRestore(updatedIndexMetaData, recoverySource, ignoreShards);
                                 blocks.addBlocks(updatedIndexMetaData);
                                 mdBuilder.put(updatedIndexMetaData, true);
                                 renamedIndex = updatedIndexMetaData.getIndex();
@@ -298,7 +298,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                 }
                                 indexMdBuilder.settings(Settings.builder().put(snapshotIndexMetaData.getSettings()).put(IndexMetaData.SETTING_INDEX_UUID, currentIndexMetaData.getIndexUUID()));
                                 IndexMetaData updatedIndexMetaData = indexMdBuilder.index(renamedIndexName).build();
-                                rtBuilder.addAsRestore(updatedIndexMetaData, restoreSource);
+                                rtBuilder.addAsRestore(updatedIndexMetaData, recoverySource);
                                 blocks.updateBlocks(updatedIndexMetaData);
                                 mdBuilder.put(updatedIndexMetaData, true);
                                 renamedIndex = updatedIndexMetaData.getIndex();

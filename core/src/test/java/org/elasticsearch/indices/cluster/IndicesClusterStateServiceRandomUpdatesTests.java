@@ -45,7 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.recovery.RecoveryTargetService;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -340,7 +340,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final ClusterService clusterService = mock(ClusterService.class);
         final RepositoriesService repositoriesService = new RepositoriesService(Settings.EMPTY, clusterService,
             transportService, null);
-        final RecoveryTargetService recoveryTargetService = new RecoveryTargetService(Settings.EMPTY, threadPool,
+        final PeerRecoveryTargetService recoveryTargetService = new PeerRecoveryTargetService(Settings.EMPTY, threadPool,
             transportService, null, clusterService);
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);
         return new IndicesClusterStateService(Settings.EMPTY, indicesService, clusterService,

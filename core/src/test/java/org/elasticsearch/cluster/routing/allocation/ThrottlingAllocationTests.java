@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RestoreSource;
+import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -330,10 +330,10 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
             case 1: routingTableBuilder.addAsFromCloseToOpen(indexMetaData); break;
             case 2: routingTableBuilder.addAsFromDangling(indexMetaData); break;
             case 3: routingTableBuilder.addAsNewRestore(indexMetaData,
-                new RestoreSource(new Snapshot("repo", new SnapshotId("snap", "randomId")), Version.CURRENT,
+                new SnapshotRecoverySource(new Snapshot("repo", new SnapshotId("snap", "randomId")), Version.CURRENT,
                 indexMetaData.getIndex().getName()), new IntHashSet()); break;
             case 4: routingTableBuilder.addAsRestore(indexMetaData,
-                new RestoreSource(new Snapshot("repo", new SnapshotId("snap", "randomId")), Version.CURRENT,
+                new SnapshotRecoverySource(new Snapshot("repo", new SnapshotId("snap", "randomId")), Version.CURRENT,
                 indexMetaData.getIndex().getName())); break;
             case 5: routingTableBuilder.addAsNew(indexMetaData); break;
             default: throw new IndexOutOfBoundsException();

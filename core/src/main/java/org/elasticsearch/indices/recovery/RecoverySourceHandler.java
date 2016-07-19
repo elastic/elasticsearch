@@ -30,6 +30,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -386,7 +387,7 @@ public class RecoverySourceHandler {
         logger.trace("[{}][{}] finalizing recovery to {}", indexName, shardId, request.targetNode());
         cancellableThreads.execute(recoveryTarget::finalizeRecovery);
 
-        if (isPrimaryRelocation()) {
+        if (request.isPrimaryRelocation()) {
             // in case of primary relocation we have to ensure that the cluster state on the primary relocation target has all
             // replica shards that have recovered or are still recovering from the current primary, otherwise replication actions
             // will not be send to these replicas. To accomplish this, first block new recoveries, then take version of latest cluster
@@ -408,10 +409,6 @@ public class RecoverySourceHandler {
         stopWatch.stop();
         logger.trace("[{}][{}] finalizing recovery to {}: took [{}]",
                 indexName, shardId, request.targetNode(), stopWatch.totalTime());
-    }
-
-    protected boolean isPrimaryRelocation() {
-        return request.recoveryType() == RecoveryState.Type.PRIMARY_RELOCATION;
     }
 
     /**

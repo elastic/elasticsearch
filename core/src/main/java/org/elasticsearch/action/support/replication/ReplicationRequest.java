@@ -63,7 +63,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     /**
      * The number of shard copies that must be active before proceeding with the replication action.
      */
-    private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
+    protected ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
     private long routedBasedOnClusterVersion = 0;
 

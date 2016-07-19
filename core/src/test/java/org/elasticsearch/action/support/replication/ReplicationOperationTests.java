@@ -136,7 +136,7 @@ public class ReplicationOperationTests extends ESTestCase {
         Request request = new Request(shardId);
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
         final TestReplicationOperation op = new TestReplicationOperation(request,
-            new TestPrimary(primaryShard, primaryTerm), listener, false, false,
+            new TestPrimary(primaryShard, primaryTerm), listener, false,
             new TestReplicaProxy(), () -> state, logger, "test");
         op.execute();
         assertThat("request was not processed on primary", request.processedOnPrimary.get(), equalTo(true));
@@ -281,7 +281,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final ShardRouting primaryShard = shardRoutingTable.primaryShard();
         final TestReplicationOperation op = new TestReplicationOperation(request,
             new TestPrimary(primaryShard, primaryTerm),
-            listener, randomBoolean(), true, new TestReplicaProxy(), () -> state, logger, "test");
+            listener, randomBoolean(), new TestReplicaProxy(), () -> state, logger, "test");
 
         if (passesActiveShardCheck) {
             assertThat(op.checkActiveShardCount(), nullValue());
@@ -329,6 +329,7 @@ public class ReplicationOperationTests extends ESTestCase {
             this();
             this.shardId = shardId;
             this.index = shardId.getIndexName();
+            this.waitForActiveShards = ActiveShardCount.NONE;
             // keep things simple
         }
 
@@ -440,13 +441,13 @@ public class ReplicationOperationTests extends ESTestCase {
     class TestReplicationOperation extends ReplicationOperation<Request, Request, TestPrimary.Result> {
         public TestReplicationOperation(Request request, Primary<Request, Request, TestPrimary.Result> primary,
                 ActionListener<TestPrimary.Result> listener, Replicas<Request> replicas, Supplier<ClusterState> clusterStateSupplier) {
-            this(request, primary, listener, true, false, replicas, clusterStateSupplier, ReplicationOperationTests.this.logger, "test");
+            this(request, primary, listener, true, replicas, clusterStateSupplier, ReplicationOperationTests.this.logger, "test");
         }
 
         public TestReplicationOperation(Request request, Primary<Request, Request, TestPrimary.Result> primary,
-                ActionListener<TestPrimary.Result> listener, boolean executeOnReplicas, boolean checkActiveShardCount,
+                ActionListener<TestPrimary.Result> listener, boolean executeOnReplicas,
                 Replicas<Request> replicas, Supplier<ClusterState> clusterStateSupplier, ESLogger logger, String opType) {
-            super(request, primary, listener, executeOnReplicas, checkActiveShardCount, replicas, clusterStateSupplier, logger, opType);
+            super(request, primary, listener, executeOnReplicas, replicas, clusterStateSupplier, logger, opType);
         }
     }
 

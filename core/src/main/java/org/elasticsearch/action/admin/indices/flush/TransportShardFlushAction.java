@@ -70,11 +70,6 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
     }
 
     @Override
-    protected boolean checkActiveShardCount() {
-        return false;
-    }
-
-    @Override
     protected ClusterBlockLevel globalBlockLevel() {
         return ClusterBlockLevel.METADATA_WRITE;
     }

@@ -68,7 +68,6 @@ public class ReplicationOperation<
     private final AtomicInteger pendingShards = new AtomicInteger();
     private final AtomicInteger successfulShards = new AtomicInteger();
     private final boolean executeOnReplicas;
-    private final boolean checkActiveShardCount;
     private final Primary<Request, ReplicaRequest, PrimaryResultT> primary;
     private final Replicas<ReplicaRequest> replicasProxy;
     private final AtomicBoolean finished = new AtomicBoolean();
@@ -80,10 +79,8 @@ public class ReplicationOperation<
 
     public ReplicationOperation(Request request, Primary<Request, ReplicaRequest, PrimaryResultT> primary,
                                 ActionListener<PrimaryResultT> listener,
-                                boolean executeOnReplicas, boolean checkActiveShardCount,
-                                Replicas<ReplicaRequest> replicas,
+                                boolean executeOnReplicas, Replicas<ReplicaRequest> replicas,
                                 Supplier<ClusterState> clusterStateSupplier, ESLogger logger, String opType) {
-        this.checkActiveShardCount = checkActiveShardCount;
         this.executeOnReplicas = executeOnReplicas;
         this.replicasProxy = replicas;
         this.primary = primary;
@@ -95,7 +92,7 @@ public class ReplicationOperation<
     }
 
     public void execute() throws Exception {
-        final String activeShardCountFailure = checkActiveShardCount ? checkActiveShardCount() : null;
+        final String activeShardCountFailure = checkActiveShardCount();
         final ShardRouting primaryRouting = primary.routingEntry();
         final ShardId primaryId = primaryRouting.shardId();
         if (activeShardCountFailure != null) {

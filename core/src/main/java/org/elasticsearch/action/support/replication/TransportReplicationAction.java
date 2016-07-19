@@ -166,13 +166,6 @@ public abstract class TransportReplicationAction<
     protected abstract ReplicaResult shardOperationOnReplica(ReplicaRequest shardRequest);
 
     /**
-     * True if the active shard count should be checked before proceeding with the replication action.
-     */
-    protected boolean checkActiveShardCount() {
-        return true;
-    }
-
-    /**
      * Cluster level block to check before request execution
      */
     protected ClusterBlockLevel globalBlockLevel() {
@@ -354,7 +347,7 @@ public abstract class TransportReplicationAction<
             Request request, ActionListener<PrimaryResult> listener,
             PrimaryShardReference primaryShardReference, boolean executeOnReplicas) {
             return new ReplicationOperation<>(request, primaryShardReference, listener,
-                executeOnReplicas, checkActiveShardCount(), replicasProxy, clusterService::state, logger, actionName
+                executeOnReplicas, replicasProxy, clusterService::state, logger, actionName
             );
         }
     }

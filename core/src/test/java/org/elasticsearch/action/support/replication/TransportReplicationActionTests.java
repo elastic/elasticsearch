@@ -22,6 +22,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
@@ -719,6 +720,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             this();
             this.shardId = shardId;
             this.index = shardId.getIndexName();
+            this.waitForActiveShards = ActiveShardCount.NONE;
             // keep things simple
         }
 
@@ -766,11 +768,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        protected boolean checkActiveShardCount() {
-            return false;
-        }
-
-        @Override
         protected boolean resolveIndex() {
             return false;
         }
@@ -815,7 +812,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
     class NoopReplicationOperation extends ReplicationOperation<Request, Request, Action.PrimaryResult> {
         public NoopReplicationOperation(Request request, ActionListener<Action.PrimaryResult> listener) {
-            super(request, null, listener, true, true, null, null, TransportReplicationActionTests.this.logger, "noop");
+            super(request, null, listener, true, null, null, TransportReplicationActionTests.this.logger, "noop");
         }
 
         @Override

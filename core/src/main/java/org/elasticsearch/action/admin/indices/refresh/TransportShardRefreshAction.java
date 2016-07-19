@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.refresh;
 
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
@@ -35,17 +36,24 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.function.Supplier;
+
 public class TransportShardRefreshAction
         extends TransportReplicationAction<BasicReplicationRequest, BasicReplicationRequest, ReplicationResponse> {
 
     public static final String NAME = RefreshAction.NAME + "[s]";
+    private static final Supplier<BasicReplicationRequest> requestSupplier = () -> {
+        BasicReplicationRequest req = new BasicReplicationRequest();
+        req.waitForActiveShards(ActiveShardCount.NONE);
+        return req;
+    };
 
     @Inject
     public TransportShardRefreshAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                        IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-                indexNameExpressionResolver, BasicReplicationRequest::new, BasicReplicationRequest::new, ThreadPool.Names.REFRESH);
+                indexNameExpressionResolver, requestSupplier, requestSupplier, ThreadPool.Names.REFRESH);
     }
 
     @Override
@@ -68,11 +76,6 @@ public class TransportShardRefreshAction
         indexShard.refresh("api");
         logger.trace("{} refresh request executed on replica", indexShard.shardId());
         return new ReplicaResult();
-    }
-
-    @Override
-    protected boolean checkActiveShardCount() {
-        return false;
     }
 
     @Override

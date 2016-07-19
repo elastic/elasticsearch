@@ -237,10 +237,9 @@ public final class ShardRouting implements Writeable, ToXContent {
             return true;
         }
 
-        // unassigned info is only cleared when a shard moves to started, so
-        // for unassigned and initializing (we checked for active() before),
-        // we can safely assume it is there
-        if (unassignedInfo.getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
+        // initializing replica might not have unassignedInfo
+        assert unassignedInfo != null || (primary == false && state == ShardRoutingState.INITIALIZING);
+        if (unassignedInfo != null && unassignedInfo.getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
             return false;
         }
 

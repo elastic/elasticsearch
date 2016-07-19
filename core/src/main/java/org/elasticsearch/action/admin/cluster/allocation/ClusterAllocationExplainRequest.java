@@ -175,6 +175,7 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
         this.shard = in.readOptionalVInt();
         this.primary = in.readOptionalBoolean();
         this.includeYesDecisions = in.readBoolean();
+        this.includeDiskInfo = in.readBoolean();
     }
 
     @Override
@@ -184,5 +185,6 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
         out.writeOptionalVInt(shard);
         out.writeOptionalBoolean(primary);
         out.writeBoolean(includeYesDecisions);
+        out.writeBoolean(includeDiskInfo);
     }
 }

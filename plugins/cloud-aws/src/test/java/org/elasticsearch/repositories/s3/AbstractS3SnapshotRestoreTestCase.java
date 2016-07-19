@@ -208,7 +208,7 @@ abstract public class AbstractS3SnapshotRestoreTestCase extends AbstractAwsTestC
             bucket.get("region", settings.get("repositories.s3.region")),
             bucket.get("access_key", settings.get("cloud.aws.access_key")),
             bucket.get("secret_key", settings.get("cloud.aws.secret_key")),
-            null, randomBoolean());
+            null, randomBoolean(), null);
 
         String bucketName = bucket.get("bucket");
         logger.info("--> verify encryption for bucket [{}], prefix [{}]", bucketName, basePath);
@@ -473,7 +473,7 @@ abstract public class AbstractS3SnapshotRestoreTestCase extends AbstractAwsTestC
             // as described in README
             assertThat("Your settings in elasticsearch.yml are incorrects. Check README file.", bucketName, notNullValue());
             AmazonS3 client = internalCluster().getInstance(AwsS3Service.class).client(endpoint, protocol, region, accessKey, secretKey,
-                null, randomBoolean());
+                null, randomBoolean(), null);
             try {
                 ObjectListing prevListing = null;
                 //From http://docs.amazonwebservices.com/AmazonS3/latest/dev/DeletingMultipleObjectsUsingJava.html

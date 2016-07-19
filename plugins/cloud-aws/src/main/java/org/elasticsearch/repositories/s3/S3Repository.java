@@ -121,19 +121,20 @@ public class S3Repository extends BlobStoreRepository {
         boolean useThrottleRetries = repositorySettings.settings().getAsBoolean("use_throttle_retries", settings.getAsBoolean(REPOSITORY_S3.USE_THROTTLE_RETRIES, ClientConfiguration.DEFAULT_THROTTLE_RETRIES));
         this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", settings.getAsBytesSize(REPOSITORY_S3.CHUNK_SIZE, new ByteSizeValue(100, ByteSizeUnit.MB)));
         this.compress = repositorySettings.settings().getAsBoolean("compress", settings.getAsBoolean(REPOSITORY_S3.COMPRESS, false));
+        Boolean pathStyleAccess = repositorySettings.settings().getAsBoolean("path_style_access", settings.getAsBoolean(REPOSITORY_S3.PATH_STYLE_ACCESS, null));
 
         // Parse and validate the user's S3 Storage Class setting
         String storageClass = repositorySettings.settings().get("storage_class", settings.get(REPOSITORY_S3.STORAGE_CLASS, null));
         String cannedACL = repositorySettings.settings().get("canned_acl", settings.get(REPOSITORY_S3.CANNED_ACL, null));
 
         logger.debug("using bucket [{}], region [{}], endpoint [{}], protocol [{}], chunk_size [{}], server_side_encryption [{}], " +
-                "buffer_size [{}], max_retries [{}], use_throttle_retries [{}], cannedACL [{}], storageClass [{}]",
+                "buffer_size [{}], max_retries [{}], use_throttle_retries [{}], cannedACL [{}], storageClass [{}], path_style_access [{}]",
             bucket, region, endpoint, protocol, chunkSize, serverSideEncryption, bufferSize, maxRetries, useThrottleRetries, cannedACL,
-            storageClass);
+            storageClass, pathStyleAccess);
 
         blobStore = new S3BlobStore(settings, s3Service.client(endpoint, protocol, region, repositorySettings.settings().get("access_key"),
-            repositorySettings.settings().get("secret_key"), maxRetries, useThrottleRetries), bucket, region, serverSideEncryption,
-            bufferSize, maxRetries, cannedACL, storageClass);
+            repositorySettings.settings().get("secret_key"), maxRetries, useThrottleRetries, pathStyleAccess),
+            bucket, region, serverSideEncryption, bufferSize, maxRetries, cannedACL, storageClass);
 
         String basePath = repositorySettings.settings().get("base_path", settings.get(REPOSITORY_S3.BASE_PATH));
         if (Strings.hasLength(basePath)) {

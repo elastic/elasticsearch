@@ -57,8 +57,9 @@ public interface AwsS3Service extends LifecycleComponent<AwsS3Service> {
         public static final String STORAGE_CLASS = "repositories.s3.storage_class";
         public static final String CANNED_ACL = "repositories.s3.canned_acl";
         public static final String BASE_PATH = "repositories.s3.base_path";
+        public static final String PATH_STYLE_ACCESS = "repositories.s3.path_style_access";
     }
 
     AmazonS3 client(String endpoint, String protocol, String region, String account, String key, Integer maxRetries,
-                    boolean useThrottleRetries);
+                    boolean useThrottleRetries, Boolean pathStyleAccess);
 }

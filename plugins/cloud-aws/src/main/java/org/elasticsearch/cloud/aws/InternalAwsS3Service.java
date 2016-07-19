@@ -26,6 +26,7 @@ import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.S3ClientOptions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.aws.AwsService.CLOUD_AWS;
 import org.elasticsearch.common.collect.Tuple;
@@ -54,7 +55,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
 
     @Override
     public synchronized AmazonS3 client(String endpoint, String protocol, String region, String account, String key, Integer maxRetries,
-                                        boolean useThrottleRetries) {
+                                        boolean useThrottleRetries, Boolean pathStyleAccess) {
         if (region != null && endpoint == null) {
             endpoint = getEndpoint(region);
             logger.debug("using s3 region [{}], with endpoint [{}]", region, endpoint);
@@ -66,12 +67,12 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
             key = settings.get(CLOUD_S3.SECRET, settings.get(CLOUD_AWS.SECRET));
         }
 
-        return getClient(endpoint, protocol, account, key, maxRetries, useThrottleRetries);
+        return getClient(endpoint, protocol, account, key, maxRetries, useThrottleRetries, pathStyleAccess);
     }
 
 
     private synchronized AmazonS3 getClient(String endpoint, String protocol, String account, String key, Integer maxRetries,
-                                            boolean useThrottleRetries) {
+                                            boolean useThrottleRetries, Boolean pathStyleAccess) {
         Tuple<String, String> clientDescriptor = new Tuple<String, String>(endpoint, account);
         AmazonS3Client client = clients.get(clientDescriptor);
         if (client != null) {
@@ -147,6 +148,11 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
         if (endpoint != null) {
             client.setEndpoint(endpoint);
         }
+
+        if (pathStyleAccess != null) {
+            client.setS3ClientOptions(new S3ClientOptions().withPathStyleAccess(pathStyleAccess));
+        }
+
         clients.put(clientDescriptor, client);
         return client;
     }

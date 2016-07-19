@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
@@ -80,7 +81,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
 
     @Inject
     public InternalAuthorizationService(Settings settings, RolesStore rolesStore, ClusterService clusterService,
-                                        AuditTrail auditTrail, AuthenticationFailureHandler authcFailureHandler,
+                                        AuditTrailService auditTrail, AuthenticationFailureHandler authcFailureHandler,
                                         ThreadPool threadPool, IndexNameExpressionResolver nameExpressionResolver) {
         super(settings);
         this.rolesStore = rolesStore;

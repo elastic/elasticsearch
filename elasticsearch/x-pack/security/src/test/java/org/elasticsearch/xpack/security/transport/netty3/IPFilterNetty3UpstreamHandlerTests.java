@@ -15,6 +15,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.SecurityLicenseState;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
@@ -34,6 +35,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 
 
@@ -67,7 +69,8 @@ public class IPFilterNetty3UpstreamHandlerTests extends ESTestCase {
                 TransportSettings.TRANSPORT_PROFILES_SETTING)));
         SecurityLicenseState licenseState = mock(SecurityLicenseState.class);
         when(licenseState.ipFilteringEnabled()).thenReturn(true);
-        IPFilter ipFilter = new IPFilter(settings, AuditTrail.NOOP, clusterSettings, licenseState);
+        AuditTrailService auditTrailService = new AuditTrailService(settings, Collections.emptyList(), licenseState);
+        IPFilter ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
         if (isHttpEnabled) {
             HttpServerTransport httpTransport = mock(HttpServerTransport.class);

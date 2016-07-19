@@ -5,6 +5,10 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -12,33 +16,28 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
-import org.elasticsearch.xpack.security.authc.InternalAuthenticationService.Authenticator;
-import org.elasticsearch.xpack.security.SecurityLicenseState.EnabledRealmType;
-import org.elasticsearch.xpack.security.user.AnonymousUser;
-import org.elasticsearch.xpack.security.user.SystemUser;
-import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.xpack.security.audit.AuditTrail;
-import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
-import org.elasticsearch.xpack.security.SecurityLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.xpack.security.SecurityLicenseState;
+import org.elasticsearch.xpack.security.SecurityLicenseState.EnabledRealmType;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.security.authc.InternalAuthenticationService.Authenticator;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
+import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
+import org.elasticsearch.xpack.security.user.AnonymousUser;
+import org.elasticsearch.xpack.security.user.SystemUser;
+import org.elasticsearch.xpack.security.user.User;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-
-import static org.elasticsearch.xpack.security.support.Exceptions.authenticationError;
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
+import static org.elasticsearch.xpack.security.support.Exceptions.authenticationError;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -68,7 +67,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
     Realms realms;
     Realm firstRealm;
     Realm secondRealm;
-    AuditTrail auditTrail;
+    AuditTrailService auditTrail;
     AuthenticationToken token;
     CryptoService cryptoService;
     ThreadPool threadPool;
@@ -105,7 +104,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         realms.start();
         cryptoService = mock(CryptoService.class);
 
-        auditTrail = mock(AuditTrail.class);
+        auditTrail = mock(AuditTrailService.class);
         threadPool = mock(ThreadPool.class);
         threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);

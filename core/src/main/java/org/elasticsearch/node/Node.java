@@ -157,7 +157,7 @@ public class Node implements Closeable {
     *
     */
     public static final Setting<Boolean> NODE_LOCAL_STORAGE_SETTING = Setting.boolSetting("node.local_storage", true, Property.NodeScope);
-    public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", "_unset_", Property.NodeScope);
+    public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", Property.NodeScope);
     public static final Setting<Settings> NODE_ATTRIBUTES = Setting.groupSetting("node.attr.", Property.NodeScope);
     public static final Setting<String> BREAKER_TYPE_KEY = new Setting<>("indices.breaker.type", "hierarchy", (s) -> {
         switch (s) {
@@ -230,7 +230,7 @@ public class Node implements Closeable {
                 tmpSettings = addNodeNameIfNeeded(tmpSettings, nodeEnvironment.nodeId());
             ESLogger logger = Loggers.getLogger(Node.class, tmpSettings);
             if (hadPredefinedNodeName == false) {
-                logger.info("node name set to [{}] by default. set the [{}] settings to change it",
+                logger.info("node name [{}] derived from node ID; set [{}] to override",
                     NODE_NAME_SETTING.get(tmpSettings), NODE_NAME_SETTING.getKey());
             }
 

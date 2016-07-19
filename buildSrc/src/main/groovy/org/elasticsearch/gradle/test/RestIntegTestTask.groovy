@@ -92,7 +92,9 @@ public class RestIntegTestTask extends RandomizedTestingTask {
                     'TEST_ES_YAML_DIR': "${-> restTestOutput.asPath}/rest-api-spec/test",
                 ]
                 dependsOn integTestExternal
-                // NOCOMMIT failure prevents us from shutting down Elasticsearch - probably need to copy all the finalizedBy
+                for (Task finalizer : finalizedBy.getDependencies(this)) {
+                    integTestExternal.finalizedBy(finalizer)
+                }
             }
         }
     }

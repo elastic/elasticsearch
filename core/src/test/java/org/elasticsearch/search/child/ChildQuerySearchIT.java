@@ -587,20 +587,20 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
                 .setQuery(hasChildQuery("child", termQuery("c_field", "1")).scoreType("max"))
                 .get();
         assertHitCount(searchResponse, 1l);
-        assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), equalTo("Score based on join value p1"));
+        assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), equalTo("A match, join value p1"));
 
         searchResponse = client().prepareSearch("test")
                 .setExplain(true)
                 .setQuery(hasParentQuery("parent", termQuery("p_field", "1")).scoreType("score"))
                 .get();
         assertHitCount(searchResponse, 1l);
-        assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), equalTo("Score based on join value p1"));
+        assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), equalTo("A match, join value p1"));
 
         ExplainResponse explainResponse = client().prepareExplain("test", "parent", parentId)
                 .setQuery(hasChildQuery("child", termQuery("c_field", "1")).scoreType("max"))
                 .get();
         assertThat(explainResponse.isExists(), equalTo(true));
-        assertThat(explainResponse.getExplanation().getDetails()[0].getDescription(), equalTo("Score based on join value p1"));
+        assertThat(explainResponse.getExplanation().getDetails()[0].getDescription(), equalTo("A match, join value p1"));
     }
 
     List<IndexRequestBuilder> createDocBuilders() {

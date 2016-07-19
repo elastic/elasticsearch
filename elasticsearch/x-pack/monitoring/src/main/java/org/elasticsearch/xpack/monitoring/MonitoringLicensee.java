@@ -6,15 +6,11 @@
 package org.elasticsearch.xpack.monitoring;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.core.License.OperationMode;
 import org.elasticsearch.license.plugin.core.AbstractLicenseeComponent;
 import org.elasticsearch.license.plugin.core.LicenseState;
-import org.elasticsearch.license.plugin.core.Licensee;
-import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 
 /**
  * {@code MonitoringLicensee} determines whether certain features of Monitoring are enabled or disabled.
@@ -25,11 +21,10 @@ import org.elasticsearch.license.plugin.core.LicenseeRegistry;
  * <li>Cleaning up (deleting) older indices.</li>
  * </ul>
  */
-public class MonitoringLicensee extends AbstractLicenseeComponent<MonitoringLicensee> implements Licensee {
+public class MonitoringLicensee extends AbstractLicenseeComponent {
 
-    @Inject
-    public MonitoringLicensee(Settings settings, LicenseeRegistry clientService) {
-        super(settings, Monitoring.NAME, clientService);
+    public MonitoringLicensee(Settings settings) {
+        super(settings, Monitoring.NAME);
     }
 
     /**
@@ -47,27 +42,25 @@ public class MonitoringLicensee extends AbstractLicenseeComponent<MonitoringLice
     }
 
     @Override
-    public String[] acknowledgmentMessages(License currentLicense, License newLicense) {
-        switch (newLicense.operationMode()) {
+    public String[] acknowledgmentMessages(OperationMode currentMode, OperationMode newMode) {
+        switch (newMode) {
             case BASIC:
-                if (currentLicense != null) {
-                    switch (currentLicense.operationMode()) {
-                        case TRIAL:
-                        case STANDARD:
-                        case GOLD:
-                        case PLATINUM:
-                            return new String[] {
-                                LoggerMessageFormat.format(
-                                        "Multi-cluster support is disabled for clusters with [{}] license. If you are\n" +
-                                        "running multiple clusters, users won't be able to access the clusters with\n" +
-                                        "[{}] licenses from within a single X-Pack Kibana instance. You will have to deploy a\n" +
-                                        "separate and dedicated X-pack Kibana instance for each [{}] cluster you wish to monitor.",
-                                        newLicense.type(), newLicense.type(), newLicense.type()),
-                                LoggerMessageFormat.format(
-                                        "Automatic index cleanup is locked to {} days for clusters with [{}] license.",
-                                        MonitoringSettings.HISTORY_DURATION.getDefault(Settings.EMPTY).days(), newLicense.type())
-                            };
-                    }
+                switch (currentMode) {
+                    case TRIAL:
+                    case STANDARD:
+                    case GOLD:
+                    case PLATINUM:
+                        return new String[] {
+                            LoggerMessageFormat.format(
+                                    "Multi-cluster support is disabled for clusters with [{}] license. If you are\n" +
+                                    "running multiple clusters, users won't be able to access the clusters with\n" +
+                                    "[{}] licenses from within a single X-Pack Kibana instance. You will have to deploy a\n" +
+                                    "separate and dedicated X-pack Kibana instance for each [{}] cluster you wish to monitor.",
+                                    newMode, newMode, newMode),
+                            LoggerMessageFormat.format(
+                                    "Automatic index cleanup is locked to {} days for clusters with [{}] license.",
+                                    MonitoringSettings.HISTORY_DURATION.getDefault(Settings.EMPTY).days(), newMode)
+                        };
                 }
                 break;
         }

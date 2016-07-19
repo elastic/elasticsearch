@@ -6,9 +6,6 @@
 package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.block.ClusterBlock;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.joda.DateMathParser;
@@ -29,10 +26,8 @@ import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.junit.Assert;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -92,8 +87,11 @@ public class TestUtils {
     }
 
     public static License generateSignedLicense(String type, long issueDate, TimeValue expiryDuration) throws Exception {
+        return generateSignedLicense(type, randomIntBetween(License.VERSION_START, License.VERSION_CURRENT), issueDate, expiryDuration);
+    }
+
+    public static License generateSignedLicense(String type, int version, long issueDate, TimeValue expiryDuration) throws Exception {
         long issue = (issueDate != -1L) ? issueDate : System.currentTimeMillis() - TimeValue.timeValueHours(2).getMillis();
-        int version = randomIntBetween(License.VERSION_START, License.VERSION_CURRENT);
         final String licenseType;
         if (version < License.VERSION_NO_FEATURE_TYPE) {
             licenseType = randomFrom("subscription", "internal", "development");
@@ -117,17 +115,26 @@ public class TestUtils {
         return signer.sign(builder.build());
     }
 
-    public static License generateExpiredLicense() throws Exception {
-        return generateExpiredLicense(System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(1, 10)).getMillis());
+    public static License generateExpiredLicense(long expiryDate) throws Exception {
+        return generateExpiredLicense(randomFrom("basic", "silver", "dev", "gold", "platinum"), expiryDate);
     }
 
-    public static License generateExpiredLicense(long expiryDate) throws Exception {
+    public static License generateExpiredLicense() throws Exception {
+        return generateExpiredLicense(randomFrom("basic", "silver", "dev", "gold", "platinum"));
+    }
+
+    public static License generateExpiredLicense(String type) throws Exception {
+        return generateExpiredLicense(type,
+                System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(1, 10)).getMillis());
+    }
+
+    public static License generateExpiredLicense(String type, long expiryDate) throws Exception {
         final License.Builder builder = License.builder()
                 .uid(UUID.randomUUID().toString())
                 .version(License.VERSION_CURRENT)
                 .expiryDate(expiryDate)
                 .issueDate(expiryDate - TimeValue.timeValueMinutes(10).getMillis())
-                .type(randomFrom("basic", "silver", "dev", "gold", "platinum"))
+                .type(type)
                 .issuedTo("customer")
                 .issuer("elasticsearch")
                 .maxNodes(5);
@@ -139,23 +146,9 @@ public class TestUtils {
         return PathUtils.get(TestUtils.class.getResource(resource).toURI());
     }
 
-    public static void awaitNoBlock(final Client client) throws InterruptedException {
-        boolean success = awaitBusy(() -> {
-            Set<ClusterBlock> clusterBlocks = client.admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                    .getState().blocks().global(ClusterBlockLevel.METADATA_WRITE);
-            return clusterBlocks.isEmpty();
-        });
-        assertThat("awaiting no block for too long", success, equalTo(true));
-    }
-
-    public static void awaitNoPendingTasks(final Client client) throws InterruptedException {
-        boolean success = awaitBusy(() -> client.admin().cluster().preparePendingClusterTasks().get().getPendingTasks().isEmpty());
-        assertThat("awaiting no pending tasks for too long", success, equalTo(true));
-    }
-
     public static void registerAndAckSignedLicenses(final LicensesService licensesService, License license,
                                                     final LicensesStatus expectedStatus) {
-        PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(license);
+        PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(license).acknowledge(true);
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<LicensesStatus> status = new AtomicReference<>();
         licensesService.registerLicense(putLicenseRequest, new ActionListener<PutLicenseResponse>() {
@@ -183,7 +176,7 @@ public class TestUtils {
         public final String id;
         public final List<Licensee.Status> statuses = new CopyOnWriteArrayList<>();
         public final AtomicInteger expirationMessagesCalled = new AtomicInteger(0);
-        public final List<Tuple<License, License>> acknowledgementRequested = new CopyOnWriteArrayList<>();
+        public final List<Tuple<License.OperationMode, License.OperationMode>> acknowledgementRequested = new CopyOnWriteArrayList<>();
 
         private String[] acknowledgmentMessages = new String[0];
 
@@ -207,8 +200,8 @@ public class TestUtils {
         }
 
         @Override
-        public String[] acknowledgmentMessages(License currentLicense, License newLicense) {
-            acknowledgementRequested.add(new Tuple<>(currentLicense, newLicense));
+        public String[] acknowledgmentMessages(License.OperationMode currentMode, License.OperationMode newMode) {
+            acknowledgementRequested.add(new Tuple<>(currentMode, newMode));
             return acknowledgmentMessages;
         }
 

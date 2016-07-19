@@ -20,12 +20,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackTransportClient;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.ssl.ClientSSLService;
 import org.elasticsearch.xpack.security.ssl.SSLConfiguration.Global;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyHttpServerTransport;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 
 import javax.net.ssl.SSLHandshakeException;
 import java.nio.file.Files;
@@ -44,9 +44,9 @@ public class SslClientAuthTests extends SecurityIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 // invert the require auth settings
-                .put(SecurityNettyTransport.SSL_SETTING.getKey(), true)
-                .put(SecurityNettyHttpServerTransport.SSL_SETTING.getKey(), true)
-                .put(SecurityNettyHttpServerTransport.CLIENT_AUTH_SETTING.getKey(), true)
+                .put(SecurityNetty3Transport.SSL_SETTING.getKey(), true)
+                .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true)
+                .put(SecurityNetty3HttpServerTransport.CLIENT_AUTH_SETTING.getKey(), true)
                 .put("transport.profiles.default.xpack.security.ssl.client.auth", false)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
@@ -73,7 +73,7 @@ public class SslClientAuthTests extends SecurityIntegTestCase {
         Settings settings = Settings.builder()
                 .put(getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient"))
                 .build();
-        ClientSSLService sslService = new ClientSSLService(settings, new Global(settings));
+        ClientSSLService sslService = new ClientSSLService(settings, null, new Global(settings), null);
         SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(sslService.sslContext(), NoopHostnameVerifier.INSTANCE);
         try (RestClient restClient = createRestClient(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy), "https")) {
             Response response = restClient.performRequest("GET", "/",
@@ -92,14 +92,14 @@ public class SslClientAuthTests extends SecurityIntegTestCase {
         }
 
         Settings settings = Settings.builder()
-                .put(SecurityNettyTransport.SSL_SETTING.getKey(), true)
+                .put(SecurityNetty3Transport.SSL_SETTING.getKey(), true)
                 .put("xpack.security.ssl.keystore.path", store)
                 .put("xpack.security.ssl.keystore.password", "testclient-client-profile")
                 .put("cluster.name", internalCluster().getClusterName())
                 .put(Security.USER_SETTING.getKey(),
                         transportClientUsername() + ":" + new String(transportClientPassword().internalChars()))
                 .build();
-        try (TransportClient client = TransportClient.builder().settings(settings).addPlugin(XPackPlugin.class).build()) {
+        try (TransportClient client = new XPackTransportClient(settings)) {
             Transport transport = internalCluster().getDataNodeInstance(Transport.class);
             TransportAddress transportAddress = transport.boundAddress().publishAddress();
             client.addTransportAddress(transportAddress);

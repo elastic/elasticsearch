@@ -147,7 +147,7 @@ processTestResources.dependsOn(
 ext.pluginsCount = 1 // we install xpack explicitly
 project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each { subproj ->
   // need to get a non-decorated project object, so must re-lookup the project by path
-  integTest.cluster.plugin(subproj.name, project(subproj.path))
+  integTest.cluster.plugin(subproj.path)
   pluginsCount += 1
 }
 
@@ -166,7 +166,7 @@ integTest {
     setting 'xpack.security.ssl.keystore.path', nodeKeystore.name
     setting 'xpack.security.ssl.keystore.password', 'keypass'
 
-    plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
+    plugin ':x-plugins:elasticsearch:x-pack'
 
     // copy keystores into config/
     extraConfigFile nodeKeystore.name, nodeKeystore

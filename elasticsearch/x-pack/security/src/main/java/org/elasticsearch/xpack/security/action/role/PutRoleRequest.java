@@ -8,18 +8,19 @@ package org.elasticsearch.xpack.security.action.role;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.security.support.MetadataUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -33,6 +34,7 @@ public class PutRoleRequest extends ActionRequest<PutRoleRequest> implements Wri
     private List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
     private String[] runAs = Strings.EMPTY_ARRAY;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
+    private Map<String, Object> metadata;
     
     public PutRoleRequest() {
     }
@@ -42,6 +44,10 @@ public class PutRoleRequest extends ActionRequest<PutRoleRequest> implements Wri
         ActionRequestValidationException validationException = null;
         if (name == null) {
             validationException = addValidationError("role name is missing", validationException);
+        }
+        if (metadata != null && MetadataUtils.containsReservedMetadata(metadata)) {
+            validationException =
+                    addValidationError("metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]", validationException);
         }
         return validationException;
     }
@@ -86,6 +92,10 @@ public class PutRoleRequest extends ActionRequest<PutRoleRequest> implements Wri
         return refreshPolicy;
     }
 
+    public void metadata(Map<String, Object> metadata) {
+        this.metadata = metadata;
+    }
+
     public String name() {
         return name;
     }
@@ -102,6 +112,10 @@ public class PutRoleRequest extends ActionRequest<PutRoleRequest> implements Wri
         return runAs;
     }
 
+    public Map<String, Object> metadata() {
+        return metadata;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -114,6 +128,7 @@ public class PutRoleRequest extends ActionRequest<PutRoleRequest> implements Wri
         }
         runAs = in.readStringArray();
         refreshPolicy = RefreshPolicy.readFrom(in);
+        metadata = in.readMap();
     }
 
     @Override
@@ -127,12 +142,14 @@ public class PutRoleRequest extends ActionRequest<PutRoleRequest> implements Wri
         }
         out.writeStringArray(runAs);
         refreshPolicy.writeTo(out);
+        out.writeMap(metadata);
     }
 
     RoleDescriptor roleDescriptor() {
         return new RoleDescriptor(name,
                 clusterPrivileges,
                 indicesPrivileges.toArray(new RoleDescriptor.IndicesPrivileges[indicesPrivileges.size()]),
-                runAs);
+                runAs,
+                metadata);
     }
 }

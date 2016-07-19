@@ -35,7 +35,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     private final NativeUsersStore nativeUsersStore;
 
-    @Inject
     public ReservedRealm(Environment env, Settings settings, NativeUsersStore nativeUsersStore) {
         super(TYPE, new RealmConfig(TYPE, Settings.EMPTY, settings, env));
         this.nativeUsersStore = nativeUsersStore;

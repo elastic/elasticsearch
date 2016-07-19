@@ -5,6 +5,10 @@
  */
 package org.elasticsearch.license.plugin.core;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.common.unit.TimeValue;
@@ -12,10 +16,6 @@ import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.TestUtils;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
 import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.elasticsearch.license.plugin.TestUtils.generateSignedLicense;
 import static org.hamcrest.Matchers.equalTo;
@@ -27,13 +27,13 @@ import static org.mockito.Mockito.verify;
 public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase {
 
     public void testAcknowledgment() throws Exception {
-        setInitialState(TestUtils.generateSignedLicense("trial", TimeValue.timeValueHours(2)));
-        licensesService.start();
+
         String id = "testAcknowledgment";
         String[] acknowledgeMessages = new String[] {"message"};
         TestUtils.AssertingLicensee licensee = new TestUtils.AssertingLicensee(id, logger);
+        setInitialState(TestUtils.generateSignedLicense("trial", TimeValue.timeValueHours(2)), licensee);
+        licensesService.start();
         licensee.setAcknowledgementMessages(acknowledgeMessages);
-        licensesService.register(licensee);
         // try installing a signed license
         License signedLicense = generateSignedLicense(TimeValue.timeValueHours(10));
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(signedLicense);
@@ -41,7 +41,7 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
         licensesService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(false, LicensesStatus.VALID,
                 Collections.singletonMap(id, acknowledgeMessages)));
         assertThat(licensee.acknowledgementRequested.size(), equalTo(1));
-        assertThat(licensee.acknowledgementRequested.get(0).v2(), equalTo(signedLicense));
+        assertThat(licensee.acknowledgementRequested.get(0).v2(), equalTo(signedLicense.operationMode()));
         assertThat(licensesService.getLicense(), not(signedLicense));
 
         // try installing a signed license with acknowledgement
@@ -52,13 +52,10 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
                 Collections.<String, String[]>emptyMap()));
         verify(clusterService, times(1)).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
         assertThat(licensee.acknowledgementRequested.size(), equalTo(1));
-        assertThat(licensee.acknowledgementRequested.get(0).v2(), equalTo(signedLicense));
-        licensesService.stop();
+        assertThat(licensee.acknowledgementRequested.get(0).v2(), equalTo(signedLicense.operationMode()));
     }
 
     public void testAcknowledgementMultipleLicensee() throws Exception {
-        setInitialState(TestUtils.generateSignedLicense("trial", TimeValue.timeValueHours(2)));
-        licensesService.start();
         String id1 = "testAcknowledgementMultipleLicensee_1";
         String[] acknowledgeMessages1 = new String[] {"testAcknowledgementMultipleLicensee_1"};
         String id2 = "testAcknowledgementMultipleLicensee_2";
@@ -67,8 +64,8 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
         licensee1.setAcknowledgementMessages(acknowledgeMessages1);
         TestUtils.AssertingLicensee licensee2 = new TestUtils.AssertingLicensee(id2, logger);
         licensee2.setAcknowledgementMessages(acknowledgeMessages2);
-        licensesService.register(licensee1);
-        licensesService.register(licensee2);
+        setInitialState(TestUtils.generateSignedLicense("trial", TimeValue.timeValueHours(2)), licensee1, licensee2);
+        licensesService.start();
         // try installing a signed license
         License signedLicense = generateSignedLicense(TimeValue.timeValueHours(10));
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(signedLicense);
@@ -80,9 +77,9 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
                 expectedMessages));
         verify(clusterService, times(0)).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
         assertThat(licensee2.acknowledgementRequested.size(), equalTo(1));
-        assertThat(licensee2.acknowledgementRequested.get(0).v2(), equalTo(signedLicense));
+        assertThat(licensee2.acknowledgementRequested.get(0).v2(), equalTo(signedLicense.operationMode()));
         assertThat(licensee1.acknowledgementRequested.size(), equalTo(1));
-        assertThat(licensee1.acknowledgementRequested.get(0).v2(), equalTo(signedLicense));
+        assertThat(licensee1.acknowledgementRequested.get(0).v2(), equalTo(signedLicense.operationMode()));
         assertThat(licensesService.getLicense(), not(signedLicense));
 
         // try installing a signed license with acknowledgement
@@ -93,7 +90,6 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
         licensesService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(true, LicensesStatus.VALID,
                 Collections.<String, String[]>emptyMap()));
         verify(clusterService, times(1)).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
-        licensesService.stop();
     }
 
     private static class AssertingLicensesUpdateResponse implements ActionListener<PutLicenseResponse> {

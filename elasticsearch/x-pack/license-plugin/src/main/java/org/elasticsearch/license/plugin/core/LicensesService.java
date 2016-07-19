@@ -15,29 +15,24 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.core.LicenseVerifier;
+import org.elasticsearch.license.core.OperationModeFileWatcher;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequest;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
 import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.EmptyTransportResponseHandler;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.support.clock.Clock;
 
@@ -48,22 +43,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 /**
  * Service responsible for managing {@link LicensesMetaData}
  * Interfaces through which this is exposed are:
- * - LicensesManagerService - responsible for managing signed and one-time-trial licenses
  * - LicensesClientService - responsible for listener registration of consumer plugin(s)
- * <p>
- * Registration Scheme:
- * <p>
- * A consumer plugin is registered with {@link LicenseeRegistry#register(Licensee)}
- * This method can be called at any time during the life-cycle of the consumer plugin.
- * If the listener can not be registered immediately, it is queued up and registered on the first clusterChanged event with
- * no {@link org.elasticsearch.gateway.GatewayService#STATE_NOT_RECOVERED_BLOCK} block
- * Upon successful registration, the listeners are notified appropriately using the notification scheme
  * <p>
  * Notification Scheme:
  * <p>
@@ -71,19 +57,17 @@ import java.util.concurrent.atomic.AtomicReference;
  * When a new license is notified as enabled to the registered listener, a notification is scheduled at the time of license expiry.
  * Registered listeners are notified using {@link #onUpdate(LicensesMetaData)}
  */
-public class LicensesService extends AbstractLifecycleComponent implements ClusterStateListener, LicensesManagerService,
-        LicenseeRegistry, SchedulerEngine.Listener {
+public class LicensesService extends AbstractLifecycleComponent implements ClusterStateListener, SchedulerEngine.Listener {
 
-    public static final String REGISTER_TRIAL_LICENSE_ACTION_NAME = "internal:plugin/license/cluster/register_trial_license";
+    // pkg private for tests
+    static final TimeValue TRIAL_LICENSE_DURATION = TimeValue.timeValueHours(30 * 24);
 
     private final ClusterService clusterService;
-
-    private final TransportService transportService;
 
     /**
      * Currently active consumers to notify to
      */
-    private final List<InternalLicensee> registeredLicensees = new CopyOnWriteArrayList<>();
+    private final List<InternalLicensee> registeredLicensees;
 
     /**
      * Currently active license
@@ -93,45 +77,38 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
     private final Clock clock;
 
     /**
+     * File watcher for operation mode changes
+     */
+    private final OperationModeFileWatcher operationModeFileWatcher;
+
+    /**
      * Callbacks to notify relative to license expiry
      */
     private List<ExpirationCallback> expirationCallbacks = new ArrayList<>();
-
-    /**
-     * Duration of generated trial license
-     */
-    private TimeValue trialLicenseDuration = TimeValue.timeValueHours(30 * 24);
 
     /**
      * Max number of nodes licensed by generated trial license
      */
     private int trialLicenseMaxNodes = 1000;
 
-    /**
-     * Duration of grace period after a license has expired
-     */
-    public static final TimeValue GRACE_PERIOD_DURATION = days(7);
-
-    private static final String LICENSE_JOB = "licenseJob";
+    public static final String LICENSE_JOB = "licenseJob";
 
     private static final FormatDateTimeFormatter DATE_FORMATTER = Joda.forPattern("EEEE, MMMMM dd, yyyy", Locale.ROOT);
 
     private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, " +
             "please read the following messages and update the license again, this time with the \"acknowledge=true\" parameter:";
 
-    @Inject
-    public LicensesService(Settings settings, ClusterService clusterService, TransportService transportService, Clock clock) {
+    public LicensesService(Settings settings, ClusterService clusterService, Clock clock, Environment env,
+                           ResourceWatcherService resourceWatcherService, List<Licensee> registeredLicensees) {
         super(settings);
         this.clusterService = clusterService;
-        this.transportService = transportService;
-        if (DiscoveryNode.isMasterNode(settings)) {
-            transportService.registerRequestHandler(REGISTER_TRIAL_LICENSE_ACTION_NAME, TransportRequest.Empty::new,
-                    ThreadPool.Names.SAME, new RegisterTrialLicenseRequestHandler());
-        }
-        populateExpirationCallbacks();
         this.clock = clock;
         this.scheduler = new SchedulerEngine(clock);
+        this.registeredLicensees = registeredLicensees.stream().map(InternalLicensee::new).collect(Collectors.toList());
+        this.operationModeFileWatcher = new OperationModeFileWatcher(resourceWatcherService,
+                XPackPlugin.resolveConfigFile(env, "license_mode"), logger, () -> notifyLicensees(getLicense()));
         this.scheduler.register(this);
+        populateExpirationCallbacks();
     }
 
     private void populateExpirationCallbacks() {
@@ -256,7 +233,8 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
                                         "override the current license?"});
                     }
                     for (InternalLicensee licensee : registeredLicensees) {
-                        String[] listenerAcknowledgeMessages = licensee.acknowledgmentMessages(currentLicense, newLicense);
+                        String[] listenerAcknowledgeMessages = licensee.acknowledgmentMessages(
+                                currentLicense.operationMode(), newLicense.operationMode());
                         if (listenerAcknowledgeMessages.length > 0) {
                             acknowledgeMessages.put(licensee.id(), listenerAcknowledgeMessages);
                         }
@@ -332,17 +310,14 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
                 });
     }
 
-    @Override
-    public LicenseState licenseState() {
-        if (registeredLicensees.size() > 0) {
-            return registeredLicensees.get(0).currentLicenseState;
-        } else {
-            final License license = getLicense(clusterService.state().metaData().custom(LicensesMetaData.TYPE));
-            return getLicenseState(license, clock.millis());
+    public Licensee.Status licenseeStatus() {
+        final License license = getLicense();
+        if (license == null) {
+            return Licensee.Status.MISSING;
         }
+        return new Licensee.Status(license.operationMode(), LicenseState.resolve(license, clock.millis()));
     }
 
-    @Override
     public License getLicense() {
         final License license = getLicense(clusterService.state().metaData().custom(LicensesMetaData.TYPE));
         return license == LicensesMetaData.LICENSE_TOMBSTONE ? null : license;
@@ -354,7 +329,7 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
      * has no signed/trial license
      */
     private void registerTrialLicense() {
-        clusterService.submitStateUpdateTask("generate trial license for [" + trialLicenseDuration + "]", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("generate trial license for [" + TRIAL_LICENSE_DURATION + "]", new ClusterStateUpdateTask() {
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 LicensesMetaData licensesMetaData = newState.metaData().custom(LicensesMetaData.TYPE);
@@ -376,7 +351,7 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
                             .issuedTo(clusterService.getClusterName().value())
                             .maxNodes(trialLicenseMaxNodes)
                             .issueDate(issueDate)
-                            .expiryDate(issueDate + trialLicenseDuration.getMillis());
+                            .expiryDate(issueDate + TRIAL_LICENSE_DURATION.getMillis());
                     License trialLicense = TrialLicense.create(specBuilder);
                     mdBuilder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(trialLicense));
                     return ClusterState.builder(currentState).metaData(mdBuilder).build();
@@ -396,6 +371,7 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
     protected void doStart() throws ElasticsearchException {
         clusterService.add(this);
         scheduler.start(Collections.emptyList());
+        registeredLicensees.forEach(x -> initLicensee(x.licensee));
     }
 
     @Override
@@ -404,14 +380,12 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
         scheduler.stop();
         // clear all handlers
         registeredLicensees.clear();
-
         // clear current license
         currentLicense.set(null);
     }
 
     @Override
     protected void doClose() throws ElasticsearchException {
-        transportService.removeHandler(REGISTER_TRIAL_LICENSE_ACTION_NAME);
     }
 
     /**
@@ -440,9 +414,10 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
             }
             // auto-generate license if no licenses ever existed
             // this will trigger a subsequent cluster changed event
-            if (prevLicensesMetaData == null
-                    && (currentLicensesMetaData == null || currentLicensesMetaData.getLicense() == null)) {
-                requestTrialLicense(currentClusterState);
+            if (currentClusterState.getNodes().isLocalNodeElectedMaster() &&
+                prevLicensesMetaData == null &&
+                (currentLicensesMetaData == null || currentLicensesMetaData.getLicense() == null)) {
+                registerTrialLicense();
             }
         } else if (logger.isDebugEnabled()) {
             logger.debug("skipped license notifications reason: [{}]", GatewayService.STATE_NOT_RECOVERED_BLOCK);
@@ -458,43 +433,20 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
         }
         if (license != null) {
             logger.debug("notifying [{}] listeners", registeredLicensees.size());
-            switch (getLicenseState(license, clock.millis())) {
+            final LicenseState licenseState = LicenseState.resolve(license, clock.millis());
+            Licensee.Status status = new Licensee.Status(license.operationMode(), licenseState);
+            for (InternalLicensee licensee : registeredLicensees) {
+                licensee.onChange(status);
+            }
+            switch (status.getLicenseState()) {
                 case ENABLED:
-                    for (InternalLicensee licensee : registeredLicensees) {
-                        licensee.onChange(license, LicenseState.ENABLED);
-                    }
-                    logger.debug("license [{}] - valid", license.uid());
-                    break;
+                    logger.debug("license [{}] - valid", license.uid()); break;
                 case GRACE_PERIOD:
-                    for (InternalLicensee licensee : registeredLicensees) {
-                        licensee.onChange(license, LicenseState.GRACE_PERIOD);
-                    }
-                    logger.warn("license [{}] - grace", license.uid());
-                    break;
+                    logger.warn("license [{}] - grace", license.uid()); break;
                 case DISABLED:
-                    for (InternalLicensee licensee : registeredLicensees) {
-                        licensee.onChange(license, LicenseState.DISABLED);
-                    }
-                    logger.warn("license [{}] - expired", license.uid());
-                    break;
+                    logger.warn("license [{}] - expired", license.uid()); break;
             }
         }
-    }
-
-    static LicenseState getLicenseState(final License license, long time) {
-        if (license == null) {
-            return LicenseState.DISABLED;
-        }
-        if (license.issueDate() > time) {
-            return LicenseState.DISABLED;
-        }
-        if (license.expiryDate() > time) {
-            return LicenseState.ENABLED;
-        }
-        if ((license.expiryDate() + GRACE_PERIOD_DURATION.getMillis()) > time) {
-            return LicenseState.GRACE_PERIOD;
-        }
-        return LicenseState.DISABLED;
     }
 
     /**
@@ -508,50 +460,41 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
         // license can be null if the trial license is yet to be auto-generated
         // in this case, it is a no-op
         if (license != null) {
-            notifyLicensees(license);
-            if (license.equals(currentLicense.get()) == false) {
+            final License previousLicense = currentLicense.get();
+            if (license.equals(previousLicense) == false) {
                 currentLicense.set(license);
+                license.setOperationModeFileWatcher(operationModeFileWatcher);
                 scheduler.add(new SchedulerEngine.Job(LICENSE_JOB, new LicenseSchedule(license)));
                 for (ExpirationCallback expirationCallback : expirationCallbacks) {
                     scheduler.add(new SchedulerEngine.Job(expirationCallback.getId(),
                             (startTime, now) ->
                                     expirationCallback.nextScheduledTimeForExpiry(license.expiryDate(), startTime, now)));
                 }
+                if (previousLicense != null) {
+                    // remove operationModeFileWatcher to gc the old license object
+                    previousLicense.removeOperationModeFileWatcher();
+                }
             }
+            notifyLicensees(license);
         }
     }
 
-    @Override
-    public void register(Licensee licensee) {
-        for (final InternalLicensee existingLicensee : registeredLicensees) {
-            if (existingLicensee.id().equals(licensee.id())) {
-                throw new IllegalStateException("listener: [" + licensee.id() + "] has been already registered");
-            }
-        }
-        logger.debug("registering licensee [{}]", licensee.id());
-        registeredLicensees.add(new InternalLicensee(licensee));
+    private void initLicensee(Licensee licensee) {
+        logger.debug("initializing licensee [{}]", licensee.id());
         final ClusterState clusterState = clusterService.state();
         if (clusterService.lifecycleState() == Lifecycle.State.STARTED
                 && clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false
                 && clusterState.nodes().getMasterNode() != null) {
             final LicensesMetaData currentMetaData = clusterState.metaData().custom(LicensesMetaData.TYPE);
-            if (currentMetaData == null || currentMetaData.getLicense() == null) {
+            if (clusterState.getNodes().isLocalNodeElectedMaster() &&
+                (currentMetaData == null || currentMetaData.getLicense() == null)) {
                 // triggers a cluster changed event
                 // eventually notifying the current licensee
-                requestTrialLicense(clusterState);
-            } else if (lifecycleState() == Lifecycle.State.STARTED) {
+                registerTrialLicense();
+            } else {
                 notifyLicensees(currentMetaData.getLicense());
             }
         }
-    }
-
-    private void requestTrialLicense(final ClusterState currentState) {
-        DiscoveryNode masterNode = currentState.nodes().getMasterNode();
-        if (masterNode == null) {
-            throw new IllegalStateException("master not available when registering auto-generated license");
-        }
-        transportService.sendRequest(masterNode,
-                REGISTER_TRIAL_LICENSE_ACTION_NAME, TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME);
     }
 
     License getLicense(final LicensesMetaData metaData) {
@@ -559,7 +502,7 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
             License license = metaData.getLicense();
             if (license == LicensesMetaData.LICENSE_TOMBSTONE) {
                 return license;
-            } else {
+            } else if (license != null) {
                 boolean autoGeneratedLicense = License.isAutoGeneratedLicense(license.signature());
                 if ((autoGeneratedLicense && TrialLicense.verify(license))
                         || (!autoGeneratedLicense && LicenseVerifier.verifyLicense(license))) {
@@ -574,9 +517,9 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
      * Stores acknowledgement, expiration and license notification callbacks
      * for a registered listener
      */
-    private class InternalLicensee {
-        volatile License currentLicense = null;
-        volatile LicenseState currentLicenseState = LicenseState.DISABLED;
+    private final class InternalLicensee {
+        volatile Licensee.Status currentStatus = Licensee.Status.MISSING;
+
         private final Licensee licensee;
 
         private InternalLicensee(Licensee licensee) {
@@ -585,7 +528,7 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
 
         @Override
         public String toString() {
-            return "(listener: " + licensee.id() + ", state: " + currentLicenseState.name() + ")";
+            return "(listener: " + licensee.id() + ", state: " + currentStatus + ")";
         }
 
         public String id() {
@@ -596,43 +539,21 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
             return licensee.expirationMessages();
         }
 
-        public String[] acknowledgmentMessages(License currentLicense, License newLicense) {
-            return licensee.acknowledgmentMessages(currentLicense, newLicense);
+        public String[] acknowledgmentMessages(License.OperationMode currentMode, License.OperationMode newMode) {
+            return licensee.acknowledgmentMessages(currentMode, newMode);
         }
 
-        public void onChange(License license, LicenseState state) {
-            synchronized (this) {
-                if (currentLicense == null // not yet initialized
-                        || !currentLicense.equals(license)  // current license has changed
-                        || currentLicenseState != state) { // same license but state has changed
-                    logger.debug("licensee [{}] notified", licensee.id());
-                    licensee.onChange(new Licensee.Status(license.operationMode(), state));
-                    currentLicense = license;
-                    currentLicenseState = state;
-                }
+        public synchronized void onChange(final Licensee.Status status) {
+            if (currentStatus == null // not yet initialized
+                    || !currentStatus.equals(status)) {  // current license has changed
+                logger.debug("licensee [{}] notified", licensee.id());
+                licensee.onChange(status);
+                currentStatus = status;
             }
         }
 
         public void onRemove() {
-            synchronized (this) {
-                if (currentLicense != null || currentLicenseState != LicenseState.DISABLED) {
-                    currentLicense = null;
-                    currentLicenseState = LicenseState.DISABLED;
-                    licensee.onChange(Licensee.Status.MISSING);
-                }
-            }
-        }
-    }
-
-    /**
-     * Request handler for trial license generation to master
-     */
-    private class RegisterTrialLicenseRequestHandler implements TransportRequestHandler<TransportRequest.Empty> {
-
-        @Override
-        public void messageReceived(TransportRequest.Empty empty, TransportChannel channel) throws Exception {
-            registerTrialLicense();
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            onChange(Licensee.Status.MISSING);
         }
     }
 }

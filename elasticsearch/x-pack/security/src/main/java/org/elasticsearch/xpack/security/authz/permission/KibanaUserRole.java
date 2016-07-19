@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authz.permission;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.Privilege.Name;
+import org.elasticsearch.xpack.security.support.MetadataUtils;
 
 public class KibanaUserRole extends Role {
 
@@ -16,7 +17,8 @@ public class KibanaUserRole extends Role {
             RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*").privileges("manage", "read", "index", "delete").build() };
 
     public static final String NAME = "kibana_user";
-    public static final RoleDescriptor DESCRIPTOR = new RoleDescriptor(NAME, CLUSTER_PRIVILEGES, INDICES_PRIVILEGES, null);
+    public static final RoleDescriptor DESCRIPTOR =
+            new RoleDescriptor(NAME, CLUSTER_PRIVILEGES, INDICES_PRIVILEGES, null, MetadataUtils.DEFAULT_RESERVED_METADATA);
     public static final KibanaUserRole INSTANCE = new KibanaUserRole();
 
     private KibanaUserRole() {

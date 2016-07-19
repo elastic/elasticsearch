@@ -9,8 +9,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.watcher.condition.ConditionFactory;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
 
 import java.io.IOException;
 
@@ -19,10 +19,10 @@ import java.io.IOException;
  */
 public class ScriptConditionFactory extends ConditionFactory<ScriptCondition, ScriptCondition.Result, ExecutableScriptCondition> {
 
-    private final ScriptServiceProxy scriptService;
+    private final ScriptService scriptService;
 
     @Inject
-    public ScriptConditionFactory(Settings settings, ScriptServiceProxy service) {
+    public ScriptConditionFactory(Settings settings, ScriptService service) {
         super(Loggers.getLogger(ExecutableScriptCondition.class, settings));
         scriptService = service;
     }

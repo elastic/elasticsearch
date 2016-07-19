@@ -16,6 +16,7 @@ import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
+import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.merge.MergeStats;
@@ -86,6 +87,7 @@ public class IndexStatsResolverTests extends MonitoringIndexNameResolverTestCase
         CommonStats stats = new CommonStats();
         stats.fieldData = new FieldDataStats();
         stats.queryCache = new QueryCacheStats();
+        stats.requestCache = new RequestCacheStats();
         stats.docs = new DocsStats();
         stats.store = new StoreStats();
         stats.indexing = new IndexingStats();

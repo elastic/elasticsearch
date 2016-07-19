@@ -22,12 +22,15 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.security.support.Validation;
+import org.elasticsearch.xpack.security.support.MetadataUtils;
 import org.elasticsearch.xpack.common.xcontent.XContentUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A holder for a Role that contains user-readable information about the Role
@@ -39,16 +42,26 @@ public class RoleDescriptor implements ToXContent {
     private final String[] clusterPrivileges;
     private final IndicesPrivileges[] indicesPrivileges;
     private final String[] runAs;
+    private final Map<String, Object> metadata;
 
     public RoleDescriptor(String name,
                           @Nullable String[] clusterPrivileges,
                           @Nullable IndicesPrivileges[] indicesPrivileges,
                           @Nullable String[] runAs) {
+        this(name, clusterPrivileges, indicesPrivileges, runAs, null);
+    }
+
+    public RoleDescriptor(String name,
+                          @Nullable String[] clusterPrivileges,
+                          @Nullable IndicesPrivileges[] indicesPrivileges,
+                          @Nullable String[] runAs,
+                          @Nullable Map<String, Object> metadata) {
 
         this.name = name;
         this.clusterPrivileges = clusterPrivileges != null ? clusterPrivileges : Strings.EMPTY_ARRAY;
         this.indicesPrivileges = indicesPrivileges != null ? indicesPrivileges : IndicesPrivileges.NONE;
         this.runAs = runAs != null ? runAs : Strings.EMPTY_ARRAY;
+        this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
     }
 
     public String getName() {
@@ -67,6 +80,10 @@ public class RoleDescriptor implements ToXContent {
         return this.runAs;
     }
 
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder("Role[");
@@ -77,6 +94,8 @@ public class RoleDescriptor implements ToXContent {
             sb.append(group.toString()).append(",");
         }
         sb.append("], runAs=[").append(Strings.arrayToCommaDelimitedString(runAs));
+        sb.append("], metadata=[");
+        MetadataUtils.writeValue(sb, metadata);
         sb.append("]]");
         return sb.toString();
     }
@@ -91,6 +110,7 @@ public class RoleDescriptor implements ToXContent {
         if (!name.equals(that.name)) return false;
         if (!Arrays.equals(clusterPrivileges, that.clusterPrivileges)) return false;
         if (!Arrays.equals(indicesPrivileges, that.indicesPrivileges)) return false;
+        if (!metadata.equals(that.getMetadata())) return false;
         return Arrays.equals(runAs, that.runAs);
     }
 
@@ -100,16 +120,18 @@ public class RoleDescriptor implements ToXContent {
         result = 31 * result + Arrays.hashCode(clusterPrivileges);
         result = 31 * result + Arrays.hashCode(indicesPrivileges);
         result = 31 * result + Arrays.hashCode(runAs);
+        result = 31 * result + metadata.hashCode();
         return result;
     }
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("cluster", (Object[]) clusterPrivileges);
-        builder.field("indices", (Object[]) indicesPrivileges);
+        builder.field(Fields.CLUSTER.getPreferredName(), (Object[]) clusterPrivileges);
+        builder.field(Fields.INDICES.getPreferredName(), (Object[]) indicesPrivileges);
         if (runAs != null) {
-            builder.field("run_as", runAs);
+            builder.field(Fields.RUN_AS.getPreferredName(), runAs);
         }
+        builder.field(Fields.METADATA.getPreferredName(), metadata);
         return builder.endObject();
     }
 
@@ -122,7 +144,8 @@ public class RoleDescriptor implements ToXContent {
             indicesPrivileges[i] = IndicesPrivileges.createFrom(in);
         }
         String[] runAs = in.readStringArray();
-        return new RoleDescriptor(name, clusterPrivileges, indicesPrivileges, runAs);
+        Map<String, Object> metadata = in.readMap();
+        return new RoleDescriptor(name, clusterPrivileges, indicesPrivileges, runAs, metadata);
     }
 
     public static void writeTo(RoleDescriptor descriptor, StreamOutput out) throws IOException {
@@ -133,6 +156,7 @@ public class RoleDescriptor implements ToXContent {
             group.writeTo(out);
         }
         out.writeStringArray(descriptor.runAs);
+        out.writeMap(descriptor.metadata);
     }
 
     public static RoleDescriptor parse(String name, BytesReference source) throws IOException {
@@ -160,6 +184,7 @@ public class RoleDescriptor implements ToXContent {
         IndicesPrivileges[] indicesPrivileges = null;
         String[] clusterPrivileges = null;
         String[] runAsUsers = null;
+        Map<String, Object> metadata = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -169,11 +194,17 @@ public class RoleDescriptor implements ToXContent {
                 runAsUsers = readStringArray(name, parser, true);
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.CLUSTER)) {
                 clusterPrivileges = readStringArray(name, parser, true);
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.METADATA)) {
+                if (token != XContentParser.Token.START_OBJECT) {
+                    throw new ElasticsearchParseException(
+                            "expected field [{}] to be of type object, but found [{}] instead", currentFieldName, token);
+                }
+                metadata = parser.map();
             } else {
                 throw new ElasticsearchParseException("failed to parse role [{}]. unexpected field [{}]", name, currentFieldName);
             }
         }
-        return new RoleDescriptor(name, clusterPrivileges, indicesPrivileges, runAsUsers);
+        return new RoleDescriptor(name, clusterPrivileges, indicesPrivileges, runAsUsers, metadata);
     }
 
     private static String[] readStringArray(String roleName, XContentParser parser, boolean allowNull) throws IOException {
@@ -355,9 +386,7 @@ public class RoleDescriptor implements ToXContent {
             this.indices = in.readStringArray();
             this.fields = in.readOptionalStringArray();
             this.privileges = in.readStringArray();
-            if (in.readBoolean()) {
-                this.query = new BytesArray(in.readByteArray());
-            }
+            this.query = in.readOptionalBytesReference();
         }
 
         @Override
@@ -365,12 +394,7 @@ public class RoleDescriptor implements ToXContent {
             out.writeStringArray(indices);
             out.writeOptionalStringArray(fields);
             out.writeStringArray(privileges);
-            if (query != null) {
-                out.writeBoolean(true);
-                out.writeByteArray(BytesReference.toBytes(query));
-            } else {
-                out.writeBoolean(false);
-            }
+            out.writeOptionalBytesReference(query);
         }
 
         public static class Builder {
@@ -424,5 +448,6 @@ public class RoleDescriptor implements ToXContent {
         ParseField QUERY = new ParseField("query");
         ParseField PRIVILEGES = new ParseField("privileges");
         ParseField FIELDS = new ParseField("fields");
+        ParseField METADATA = new ParseField("metadata");
     }
 }

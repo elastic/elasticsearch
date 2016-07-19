@@ -39,17 +39,8 @@ public abstract class AbstractLicenseeTestCase extends ESTestCase {
      * @param licensee The licensee to test
      */
     public static void assertEmptyAck(OperationMode fromMode, OperationMode toMode, Licensee licensee) {
-        License fromLicense = mock(License.class);
-        when(fromLicense.operationMode()).thenReturn(fromMode);
-        License toLicense = mock(License.class);
-        when(toLicense.operationMode()).thenReturn(toMode);
-
-        if (randomBoolean()) {
-            fromLicense = null;
-        }
-
         // test it
-        String[] messages = licensee.acknowledgmentMessages(fromLicense, toLicense);
+        String[] messages = licensee.acknowledgmentMessages(fromMode, toMode);
 
         assertThat(fromToMessage(fromMode, toMode), messages.length, equalTo(0));
     }
@@ -77,12 +68,7 @@ public abstract class AbstractLicenseeTestCase extends ESTestCase {
      * @param licensee The licensee to test
      */
     public static String[] ackLicenseChange(OperationMode fromMode, OperationMode toMode, Licensee licensee) {
-        License fromLicense = mock(License.class);
-        when(fromLicense.operationMode()).thenReturn(fromMode);
-        License toLicense = mock(License.class);
-        when(toLicense.operationMode()).thenReturn(toMode);
-
-        return licensee.acknowledgmentMessages(fromLicense, toLicense);
+        return licensee.acknowledgmentMessages(fromMode, toMode);
     }
 
     /**
@@ -169,35 +155,18 @@ public abstract class AbstractLicenseeTestCase extends ESTestCase {
         return String.format(Locale.ROOT, "From [%s] to [%s]", fromMode, toMode);
     }
 
-    public static class SimpleLicenseeRegistry extends AbstractComponent implements LicenseeRegistry {
-        private final List<Licensee> licensees = new ArrayList<>();
-        private OperationMode operationMode;
+    private OperationMode operationMode;
 
-        public SimpleLicenseeRegistry() {
-            super(Settings.EMPTY);
-        }
+    public void setOperationMode(Licensee licensee, OperationMode operationMode) {
+        this.operationMode = operationMode;
+        enable(licensee);
+    }
 
-        @Override
-        public void register(Licensee licensee) {
-            licensees.add(licensee);
-            enable();
-        }
+    public void disable(Licensee licensee) {
+        licensee.onChange(new Licensee.Status(operationMode, LicenseState.DISABLED));
+    }
 
-        public void enable() {
-            for (Licensee licensee : licensees) {
-                licensee.onChange(new Licensee.Status(operationMode, randomEnabledOrGracePeriodState()));
-            }
-        }
-
-        public void disable() {
-            for (Licensee licensee : licensees) {
-                licensee.onChange(new Licensee.Status(operationMode, LicenseState.DISABLED));
-            }
-        }
-
-        public void setOperationMode(License.OperationMode operationMode) {
-            this.operationMode = operationMode;
-            enable();
-        }
+    public void enable(Licensee licensee) {
+        licensee.onChange(new Licensee.Status(operationMode, randomEnabledOrGracePeriodState()));
     }
 }

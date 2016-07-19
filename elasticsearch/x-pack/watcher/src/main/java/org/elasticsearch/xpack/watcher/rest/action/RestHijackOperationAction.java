@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -19,29 +18,34 @@ import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 import org.elasticsearch.xpack.watcher.watch.WatchStore;
 
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
+
 /**
   */
 public class RestHijackOperationAction extends WatcherRestHandler {
-    private static String ALLOW_DIRECT_ACCESS_TO_WATCH_INDEX_SETTING = "xpack.watcher.index.rest.direct_access";
 
+    private static final String ALLOW_DIRECT_ACCESS_TO_WATCH_INDEX_SETTING = "xpack.watcher.index.rest.direct_access";
 
     @Inject
     public RestHijackOperationAction(Settings settings, RestController controller) {
         super(settings);
         if (!settings.getAsBoolean(ALLOW_DIRECT_ACCESS_TO_WATCH_INDEX_SETTING, false)) {
             WatcherRestHandler unsupportedHandler = new UnsupportedHandler(settings);
-            controller.registerHandler(RestRequest.Method.POST, WatchStore.INDEX + "/watch", this);
-            controller.registerHandler(RestRequest.Method.POST, WatchStore.INDEX + "/watch/{id}", this);
-            controller.registerHandler(RestRequest.Method.PUT, WatchStore.INDEX + "/watch/{id}", this);
-            controller.registerHandler(RestRequest.Method.POST, WatchStore.INDEX + "/watch/{id}/_update", this);
-            controller.registerHandler(RestRequest.Method.DELETE, WatchStore.INDEX + "/watch/_query", this);
-            controller.registerHandler(RestRequest.Method.DELETE, WatchStore.INDEX + "/watch/{id}", this);
-            controller.registerHandler(RestRequest.Method.GET, WatchStore.INDEX + "/watch/{id}", this);
-            controller.registerHandler(RestRequest.Method.POST, WatchStore.INDEX + "/watch/_bulk", unsupportedHandler);
-            controller.registerHandler(RestRequest.Method.POST, WatchStore.INDEX + "/_bulk", unsupportedHandler);
-            controller.registerHandler(RestRequest.Method.PUT, WatchStore.INDEX + "/watch/_bulk", unsupportedHandler);
-            controller.registerHandler(RestRequest.Method.PUT, WatchStore.INDEX + "/_bulk", unsupportedHandler);
-            controller.registerHandler(RestRequest.Method.DELETE, WatchStore.INDEX, unsupportedHandler);
+            controller.registerHandler(POST, WatchStore.INDEX + "/watch", this);
+            controller.registerHandler(POST, WatchStore.INDEX + "/watch/{id}", this);
+            controller.registerHandler(PUT, WatchStore.INDEX + "/watch/{id}", this);
+            controller.registerHandler(POST, WatchStore.INDEX + "/watch/{id}/_update", this);
+            controller.registerHandler(DELETE, WatchStore.INDEX + "/watch/_query", this);
+            controller.registerHandler(DELETE, WatchStore.INDEX + "/watch/{id}", this);
+            controller.registerHandler(GET, WatchStore.INDEX + "/watch/{id}", this);
+            controller.registerHandler(POST, WatchStore.INDEX + "/watch/_bulk", unsupportedHandler);
+            controller.registerHandler(POST, WatchStore.INDEX + "/_bulk", unsupportedHandler);
+            controller.registerHandler(PUT, WatchStore.INDEX + "/watch/_bulk", unsupportedHandler);
+            controller.registerHandler(PUT, WatchStore.INDEX + "/_bulk", unsupportedHandler);
+            controller.registerHandler(DELETE, WatchStore.INDEX, unsupportedHandler);
         }
     }
 
@@ -73,4 +77,5 @@ public class RestHijackOperationAction extends WatcherRestHandler {
             channel.sendResponse(new BytesRestResponse(RestStatus.BAD_REQUEST, jsonBuilder));
         }
     }
+
 }

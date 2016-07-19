@@ -10,6 +10,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -20,11 +21,10 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.watcher.condition.script.ExecutableScriptCondition;
 import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.watcher.support.Script;
+import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.junit.After;
@@ -40,7 +40,7 @@ import static org.mockito.Mockito.when;
  */
 public class ScriptConditionSearchIT extends AbstractWatcherIntegrationTestCase {
     private ThreadPool tp = null;
-    private ScriptServiceProxy scriptService;
+    private ScriptService scriptService;
 
     @Override
     protected List<Class<? extends Plugin>> pluginTypes() {
@@ -52,7 +52,7 @@ public class ScriptConditionSearchIT extends AbstractWatcherIntegrationTestCase 
     @Before
     public void init() throws Exception {
         tp = new TestThreadPool(ThreadPool.Names.SAME);
-        scriptService = MessyTestUtils.getScriptServiceProxy(tp);
+        scriptService = MessyTestUtils.createScriptService(tp);
     }
 
     @After
@@ -73,7 +73,7 @@ public class ScriptConditionSearchIT extends AbstractWatcherIntegrationTestCase 
                 .get();
 
         ExecutableScriptCondition condition = new ExecutableScriptCondition(
-                new ScriptCondition(Script.inline("ctx.payload.aggregations.rate.buckets[0]?.doc_count >= 5").build()),
+                new ScriptCondition(WatcherScript.inline("ctx.payload.aggregations.rate.buckets[0]?.doc_count >= 5").build()),
                 logger, scriptService);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
@@ -92,7 +92,7 @@ public class ScriptConditionSearchIT extends AbstractWatcherIntegrationTestCase 
 
     public void testExecuteAccessHits() throws Exception {
         ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(
-                Script.inline("ctx.payload.hits?.hits[0]?._score == 1.0").build()), logger, scriptService);
+                WatcherScript.inline("ctx.payload.hits?.hits[0]?._score == 1.0").build()), logger, scriptService);
         InternalSearchHit hit = new InternalSearchHit(0, "1", new Text("type"), null);
         hit.score(1f);
         hit.shard(new SearchShardTarget("a", new Index("a", "testUUID"), 0));

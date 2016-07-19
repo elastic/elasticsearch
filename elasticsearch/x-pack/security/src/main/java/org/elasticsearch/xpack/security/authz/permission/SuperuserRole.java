@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.GeneralPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.Privilege.Name;
+import org.elasticsearch.xpack.security.support.MetadataUtils;
 
 /**
  *
@@ -19,7 +20,8 @@ public class SuperuserRole extends Role {
     public static final RoleDescriptor DESCRIPTOR = new RoleDescriptor(NAME, new String[] { "all" },
             new RoleDescriptor.IndicesPrivileges[] {
                     RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build()},
-            new String[] { "*" });
+            new String[] { "*" },
+            MetadataUtils.DEFAULT_RESERVED_METADATA);
     public static final SuperuserRole INSTANCE = new SuperuserRole();
 
     private SuperuserRole() {

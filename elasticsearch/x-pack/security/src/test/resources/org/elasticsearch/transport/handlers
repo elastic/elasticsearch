@@ -99,6 +99,7 @@ internal:index/shard/recovery/file_chunk
 internal:index/shard/recovery/filesInfo
 internal:index/shard/recovery/finalize
 internal:index/shard/recovery/prepare_translog
+internal:index/shard/recovery/wait_clusterstate
 internal:index/shard/recovery/start_recovery
 internal:index/shard/recovery/translog_ops
 internal:indices/admin/upgrade
@@ -106,5 +107,4 @@ internal:indices/flush/synced/in_flight
 internal:indices/flush/synced/pre
 internal:indices/flush/synced/sync
 internal:admin/repository/verify
-internal:plugin/license/cluster/register_trial_license
 internal:transport/handshake

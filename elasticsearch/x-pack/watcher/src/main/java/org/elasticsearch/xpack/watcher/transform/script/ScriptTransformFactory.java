@@ -9,7 +9,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.watcher.transform.TransformFactory;
 
 import java.io.IOException;
@@ -19,10 +19,10 @@ import java.io.IOException;
  */
 public class ScriptTransformFactory extends TransformFactory<ScriptTransform, ScriptTransform.Result, ExecutableScriptTransform> {
 
-    private final ScriptServiceProxy scriptService;
+    private final ScriptService scriptService;
 
     @Inject
-    public ScriptTransformFactory(Settings settings, ScriptServiceProxy scriptService) {
+    public ScriptTransformFactory(Settings settings, ScriptService scriptService) {
         super(Loggers.getLogger(ExecutableScriptTransform.class, settings));
         this.scriptService = scriptService;
     }

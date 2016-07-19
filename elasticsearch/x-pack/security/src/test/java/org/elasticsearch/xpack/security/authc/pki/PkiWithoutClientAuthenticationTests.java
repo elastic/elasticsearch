@@ -19,8 +19,8 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.transport.SSLClientAuth;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyHttpServerTransport;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
@@ -60,9 +60,9 @@ public class PkiWithoutClientAuthenticationTests extends SecurityIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put(SecurityNettyTransport.CLIENT_AUTH_SETTING.getKey(), false)
-                .put(SecurityNettyHttpServerTransport.SSL_SETTING.getKey(), true)
-                .put(SecurityNettyHttpServerTransport.CLIENT_AUTH_SETTING.getKey(),
+                .put(SecurityNetty3Transport.CLIENT_AUTH_SETTING.getKey(), false)
+                .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true)
+                .put(SecurityNetty3HttpServerTransport.CLIENT_AUTH_SETTING.getKey(),
                         randomFrom(SSLClientAuth.NO.name(), false, "false", "FALSE", SSLClientAuth.NO.name().toLowerCase(Locale.ROOT)))
                 .put("xpack.security.authc.realms.pki1.type", "pki")
                 .put("xpack.security.authc.realms.pki1.order", "0")

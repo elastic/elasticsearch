@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.security.audit.logfile;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
@@ -44,7 +47,7 @@ import static org.elasticsearch.xpack.security.Security.setting;
 /**
  *
  */
-public class LoggingAuditTrail extends AbstractLifecycleComponent implements AuditTrail {
+public class LoggingAuditTrail extends AbstractComponent implements AuditTrail {
 
     public static final String NAME = "logfile";
     public static final Setting<Boolean> HOST_ADDRESS_SETTING =
@@ -55,7 +58,7 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent implements Aud
             Setting.boolSetting(setting("audit.logfile.prefix.emit_node_name"), true, Property.NodeScope);
 
     private final ESLogger logger;
-    private final Transport transport;
+    private final ClusterService clusterService;
     private final ThreadContext threadContext;
 
     private String prefix;
@@ -65,44 +68,22 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent implements Aud
         return NAME;
     }
 
-    @Inject
-    public LoggingAuditTrail(Settings settings, Transport transport, ThreadPool threadPool) {
-        this(settings, transport, Loggers.getLogger(LoggingAuditTrail.class), threadPool.getThreadContext());
+    public LoggingAuditTrail(Settings settings, ClusterService clusterService, ThreadPool threadPool) {
+        this(settings, clusterService, Loggers.getLogger(LoggingAuditTrail.class), threadPool.getThreadContext());
     }
 
-    LoggingAuditTrail(Settings settings, Transport transport, ESLogger logger, ThreadContext threadContext) {
-        this("", settings, transport, logger, threadContext);
-    }
-
-    LoggingAuditTrail(String prefix, Settings settings, Transport transport, ESLogger logger, ThreadContext threadContext) {
+    LoggingAuditTrail(Settings settings, ClusterService clusterService, ESLogger logger, ThreadContext threadContext) {
         super(settings);
         this.logger = logger;
-        this.prefix = prefix;
-        this.transport = transport;
+        this.clusterService = clusterService;
         this.threadContext = threadContext;
     }
 
-
-    @Override
-    protected void doStart() {
-        if (transport.lifecycleState() == Lifecycle.State.STARTED) {
-            prefix = resolvePrefix(settings, transport);
-        } else {
-            transport.addLifecycleListener(new LifecycleListener() {
-                @Override
-                public void afterStart() {
-                    prefix = resolvePrefix(settings, transport);
-                }
-            });
+    private String getPrefix() {
+        if (prefix == null) {
+            prefix = resolvePrefix(settings, clusterService.localNode());
         }
-    }
-
-    @Override
-    protected void doStop() {
-    }
-
-    @Override
-    protected void doClose() {
+        return prefix;
     }
 
     @Override
@@ -110,19 +91,20 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent implements Aud
         String indices = indicesString(message);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [anonymous_access_denied]\t{}, action=[{}], indices=[{}], request=[{}]", prefix,
-                        originAttributes(message, transport, threadContext), action, indices, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [anonymous_access_denied]\t{}, action=[{}], indices=[{}], request=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), action, indices,
+                        message.getClass().getSimpleName());
             } else {
-                logger.warn("{}[transport] [anonymous_access_denied]\t{}, action=[{}], indices=[{}]", prefix, originAttributes(message,
-                        transport, threadContext), action, indices);
+                logger.warn("{}[transport] [anonymous_access_denied]\t{}, action=[{}], indices=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [anonymous_access_denied]\t{}, action=[{}], request=[{}]", prefix, originAttributes(message,
-                        transport, threadContext), action, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [anonymous_access_denied]\t{}, action=[{}], request=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), action, message.getClass().getSimpleName());
             } else {
-                logger.warn("{}[transport] [anonymous_access_denied]\t{}, action=[{}]", prefix, originAttributes(message, transport,
-                        threadContext), action);
+                logger.warn("{}[transport] [anonymous_access_denied]\t{}, action=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), action);
             }
         }
     }
@@ -130,10 +112,10 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent implements Aud
     @Override
     public void anonymousAccessDenied(RestRequest request) {
         if (logger.isDebugEnabled()) {
-            logger.debug("{}[rest] [anonymous_access_denied]\t{}, uri=[{}], request_body=[{}]", prefix, hostAttributes(request), request
-                    .uri(), restRequestContent(request));
+            logger.debug("{}[rest] [anonymous_access_denied]\t{}, uri=[{}], request_body=[{}]", getPrefix(),
+                hostAttributes(request), request.uri(), restRequestContent(request));
         } else {
-            logger.warn("{}[rest] [anonymous_access_denied]\t{}, uri=[{}]", prefix, hostAttributes(request), request.uri());
+            logger.warn("{}[rest] [anonymous_access_denied]\t{}, uri=[{}]", getPrefix(), hostAttributes(request), request.uri());
         }
     }
 
@@ -143,19 +125,20 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent implements Aud
         if (indices != null) {
             if (logger.isDebugEnabled()) {
                 logger.debug("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}], indices=[{}], request=[{}]",
-                        prefix, originAttributes(message, transport, threadContext), token.principal(), action, indices, message.getClass
-                                ().getSimpleName());
+                        getPrefix(), originAttributes(message, clusterService.localNode(), threadContext), token.principal(),
+                                                 action, indices, message.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}], indices=[{}]", prefix,
-                        originAttributes(message, transport, threadContext), token.principal(), action, indices);
+                logger.error("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}], indices=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), token.principal(), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}], request=[{}]", prefix,
-                        originAttributes(message, transport, threadContext), token.principal(), action, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}], request=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), token.principal(), action,
+                        message.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}]", prefix, originAttributes(message,
-                        transport, threadContext), token.principal(), action);
+                logger.error("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), token.principal(), action);
             }
         }
     }
@@ -163,10 +146,10 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent implements Aud
     @Override
     public void authenticationFailed(RestRequest request) {
         if (logger.isDebugEnabled()) {
-            logger.debug("{}[rest] [authentication_failed]\t{}, uri=[{}], request_body=[{}]", prefix, hostAttributes(request), request
-                    .uri(), restRequestContent(request));
+            logger.debug("{}[rest] [authentication_failed]\t{}, uri=[{}], request_body=[{}]", getPrefix(), hostAttributes(request),
+                request.uri(), restRequestContent(request));
         } else {
-            logger.error("{}[rest] [authentication_failed]\t{}, uri=[{}]", prefix, hostAttributes(request), request.uri());
+            logger.error("{}[rest] [authentication_failed]\t{}, uri=[{}]", getPrefix(), hostAttributes(request), request.uri());
         }
     }
 
@@ -175,19 +158,20 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent implements Aud
         String indices = indicesString(message);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [authentication_failed]\t{}, action=[{}], indices=[{}], request=[{}]", prefix,
-                        originAttributes(message, transport, threadContext), action, indices, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [authentication_failed]\t{}, action=[{}], indices=[{}], request=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), action, indices,
+                        message.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [authentication_failed]\t{}, action=[{}], indices=[{}]", prefix, originAttributes(message,
-                        transport, threadContext), action, indices);
+                logger.error("{}[transport] [authentication_failed]\t{}, action=[{}], indices=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [authentication_failed]\t{}, action=[{}], request=[{}]", prefix, originAttributes(message,
-                        transport, threadContext), action, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [authentication_failed]\t{}, action=[{}], request=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), action, message.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [authentication_failed]\t{}, action=[{}]", prefix, originAttributes(message, transport,
-                        threadContext), action);
+                logger.error("{}[transport] [authentication_failed]\t{}, action=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), action);
             }
         }
     }
@@ -195,11 +179,11 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent implements Aud
     @Override
     public void authenticationFailed(AuthenticationToken token, RestRequest request) {
         if (logger.isDebugEnabled()) {
-            logger.debug("{}[rest] [authentication_failed]\t{}, principal=[{}], uri=[{}], request_body=[{}]", prefix, hostAttributes
-                    (request), token.principal(), request.uri(), restRequestContent(request));
+            logger.debug("{}[rest] [authentication_failed]\t{}, principal=[{}], uri=[{}], request_body=[{}]", getPrefix(),
+                hostAttributes(request), token.principal(), request.uri(), restRequestContent(request));
         } else {
-            logger.error("{}[rest] [authentication_failed]\t{}, principal=[{}], uri=[{}]", prefix, hostAttributes(request), token
-                    .principal(), request.uri());
+            logger.error("{}[rest] [authentication_failed]\t{}, principal=[{}], uri=[{}]", getPrefix(), hostAttributes(request),
+                token.principal(), request.uri());
         }
     }
 
@@ -209,12 +193,12 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent implements Aud
             String indices = indicesString(message);
             if (indices != null) {
                 logger.trace("{}[transport] [authentication_failed]\trealm=[{}], {}, principal=[{}], action=[{}], indices=[{}], " +
-                        "request=[{}]", prefix, realm, originAttributes(message, transport, threadContext), token.principal(), action,
-                        indices, message.getClass().getSimpleName());
+                    "request=[{}]", getPrefix(), realm, originAttributes(message, clusterService.localNode(), threadContext),
+                    token.principal(), action, indices, message.getClass().getSimpleName());
             } else {
-                logger.trace("{}[transport] [authentication_failed]\trealm=[{}], {}, principal=[{}], action=[{}], request=[{}]", prefix,
-                        realm, originAttributes(message, transport, threadContext), token.principal(), action, message.getClass()
-                                .getSimpleName());
+                logger.trace("{}[transport] [authentication_failed]\trealm=[{}], {}, principal=[{}], action=[{}], request=[{}]",
+                    getPrefix(), realm, originAttributes(message, clusterService.localNode(), threadContext), token.principal(),
+                    action, message.getClass().getSimpleName());
             }
         }
     }
@@ -222,8 +206,8 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent implements Aud
     @Override
     public void authenticationFailed(String realm, AuthenticationToken token, RestRequest request) {
         if (logger.isTraceEnabled()) {
-            logger.trace("{}[rest] [authentication_failed]\trealm=[{}], {}, principal=[{}], uri=[{}], request_body=[{}]", prefix, realm,
-                    hostAttributes(request), token.principal(), request.uri(), restRequestContent(request));
+            logger.trace("{}[rest] [authentication_failed]\trealm=[{}], {}, principal=[{}], uri=[{}], request_body=[{}]", getPrefix(),
+                realm, hostAttributes(request), token.principal(), request.uri(), restRequestContent(request));
         }
     }
 
@@ -235,12 +219,12 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent implements Aud
         if ((SystemUser.is(user) && SystemPrivilege.INSTANCE.predicate().test(action)) || XPackUser.is(user)) {
             if (logger.isTraceEnabled()) {
                 if (indices != null) {
-                    logger.trace("{}[transport] [access_granted]\t{}, {}, action=[{}], indices=[{}], request=[{}]", prefix,
-                            originAttributes(message, transport, threadContext), principal(user), action, indices,
+                    logger.trace("{}[transport] [access_granted]\t{}, {}, action=[{}], indices=[{}], request=[{}]", getPrefix(),
+                        originAttributes(message, clusterService.localNode(), threadContext), principal(user), action, indices,
                             message.getClass().getSimpleName());
                 } else {
-                    logger.trace("{}[transport] [access_granted]\t{}, {}, action=[{}], request=[{}]", prefix,
-                            originAttributes(message, transport, threadContext), principal(user), action,
+                    logger.trace("{}[transport] [access_granted]\t{}, {}, action=[{}], request=[{}]", getPrefix(),
+                        originAttributes(message, clusterService.localNode(), threadContext), principal(user), action,
                             message.getClass().getSimpleName());
                 }
             }
@@ -249,20 +233,21 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent implements Aud
 
         if (indices != null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [access_granted]\t{}, {}, action=[{}], indices=[{}], request=[{}]", prefix,
-                        originAttributes(message, transport, threadContext), principal(user), action, indices,
+                logger.debug("{}[transport] [access_granted]\t{}, {}, action=[{}], indices=[{}], request=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), principal(user), action, indices,
                         message.getClass().getSimpleName());
             } else {
-                logger.info("{}[transport] [access_granted]\t{}, {}, action=[{}], indices=[{}]", prefix,
-                        originAttributes(message, transport, threadContext), principal(user), action, indices);
+                logger.info("{}[transport] [access_granted]\t{}, {}, action=[{}], indices=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), principal(user), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [access_granted]\t{}, {}, action=[{}], request=[{}]", prefix,
-                        originAttributes(message, transport, threadContext), principal(user), action, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [access_granted]\t{}, {}, action=[{}], request=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), principal(user), action,
+                        message.getClass().getSimpleName());
             } else {
-                logger.info("{}[transport] [access_granted]\t{}, {}, action=[{}]", prefix,
-                        originAttributes(message, transport, threadContext), principal(user), action);
+                logger.info("{}[transport] [access_granted]\t{}, {}, action=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), principal(user), action);
             }
         }
     }
@@ -272,20 +257,21 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent implements Aud
         String indices = indicesString(message);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [access_denied]\t{}, {}, action=[{}], indices=[{}], request=[{}]", prefix,
-                        originAttributes(message, transport, threadContext), principal(user), action, indices,
+                logger.debug("{}[transport] [access_denied]\t{}, {}, action=[{}], indices=[{}], request=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), principal(user), action, indices,
                         message.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [access_denied]\t{}, {}, action=[{}], indices=[{}]", prefix,
-                        originAttributes(message, transport, threadContext), principal(user), action, indices);
+                logger.error("{}[transport] [access_denied]\t{}, {}, action=[{}], indices=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), principal(user), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [access_denied]\t{}, {}, action=[{}], request=[{}]", prefix,
-                        originAttributes(message, transport, threadContext), principal(user), action, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [access_denied]\t{}, {}, action=[{}], request=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), principal(user), action,
+                        message.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [access_denied]\t{}, {}, action=[{}]", prefix,
-                        originAttributes(message, transport, threadContext), principal(user), action);
+                logger.error("{}[transport] [access_denied]\t{}, {}, action=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), principal(user), action);
             }
         }
     }
@@ -293,10 +279,10 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent implements Aud
     @Override
     public void tamperedRequest(RestRequest request) {
         if (logger.isDebugEnabled()) {
-            logger.debug("{}[rest] [tampered_request]\t{}, uri=[{}], request_body=[{}]", prefix, hostAttributes(request), request.uri(),
-                    restRequestContent(request));
+            logger.debug("{}[rest] [tampered_request]\t{}, uri=[{}], request_body=[{}]", getPrefix(), hostAttributes(request),
+                request.uri(), restRequestContent(request));
         } else {
-            logger.error("{}[rest] [tampered_request]\t{}, uri=[{}]", prefix, hostAttributes(request), request.uri());
+            logger.error("{}[rest] [tampered_request]\t{}, uri=[{}]", getPrefix(), hostAttributes(request), request.uri());
         }
     }
 
@@ -305,19 +291,21 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent implements Aud
         String indices = indicesString(message);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [tampered_request]\t{}, action=[{}], indices=[{}], request=[{}]", prefix,
-                        originAttributes(message, transport, threadContext), action, indices, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [tampered_request]\t{}, action=[{}], indices=[{}], request=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), action, indices,
+                        message.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [tampered_request]\t{}, action=[{}], indices=[{}]", prefix,
-                        originAttributes(message, transport, threadContext), action, indices);
+                logger.error("{}[transport] [tampered_request]\t{}, action=[{}], indices=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [tampered_request]\t{}, action=[{}], request=[{}]", prefix,
-                        originAttributes(message, transport, threadContext), action, message.getClass().getSimpleName());
+                logger.debug("{}[transport] [tampered_request]\t{}, action=[{}], request=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), action,
+                        message.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [tampered_request]\t{}, action=[{}]", prefix,
-                        originAttributes(message, transport, threadContext), action);
+                logger.error("{}[transport] [tampered_request]\t{}, action=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), action);
             }
         }
     }
@@ -327,20 +315,21 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent implements Aud
         String indices = indicesString(request);
         if (indices != null) {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [tampered_request]\t{}, {}, action=[{}], indices=[{}], request=[{}]", prefix,
-                        originAttributes(request, transport, threadContext), principal(user), action, indices,
+                logger.debug("{}[transport] [tampered_request]\t{}, {}, action=[{}], indices=[{}], request=[{}]", getPrefix(),
+                    originAttributes(request, clusterService.localNode(), threadContext), principal(user), action, indices,
                         request.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [tampered_request]\t{}, {}, action=[{}], indices=[{}]", prefix,
-                        originAttributes(request, transport, threadContext), principal(user), action, indices);
+                logger.error("{}[transport] [tampered_request]\t{}, {}, action=[{}], indices=[{}]", getPrefix(),
+                    originAttributes(request, clusterService.localNode(), threadContext), principal(user), action, indices);
             }
         } else {
             if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [tampered_request]\t{}, {}, action=[{}], request=[{}]", prefix,
-                        originAttributes(request, transport, threadContext), principal(user), action, request.getClass().getSimpleName());
+                logger.debug("{}[transport] [tampered_request]\t{}, {}, action=[{}], request=[{}]", getPrefix(),
+                    originAttributes(request, clusterService.localNode(), threadContext), principal(user), action,
+                        request.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [tampered_request]\t{}, {}, action=[{}]", prefix,
-                        originAttributes(request, transport, threadContext), principal(user), action);
+                logger.error("{}[transport] [tampered_request]\t{}, {}, action=[{}]", getPrefix(),
+                    originAttributes(request, clusterService.localNode(), threadContext), principal(user), action);
             }
         }
     }
@@ -348,48 +337,50 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent implements Aud
     @Override
     public void connectionGranted(InetAddress inetAddress, String profile, SecurityIpFilterRule rule) {
         if (logger.isTraceEnabled()) {
-            logger.trace("{}[ip_filter] [connection_granted]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", prefix,
+            logger.trace("{}[ip_filter] [connection_granted]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", getPrefix(),
                     NetworkAddress.format(inetAddress), profile, rule);
         }
     }
 
     @Override
     public void connectionDenied(InetAddress inetAddress, String profile, SecurityIpFilterRule rule) {
-        logger.error("{}[ip_filter] [connection_denied]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", prefix,
+        logger.error("{}[ip_filter] [connection_denied]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", getPrefix(),
                 NetworkAddress.format(inetAddress), profile, rule);
     }
 
     @Override
     public void runAsGranted(User user, String action, TransportMessage message) {
         if (logger.isDebugEnabled()) {
-            logger.debug("{}[transport] [run_as_granted]\t{}, principal=[{}], run_as_principal=[{}], action=[{}], request=[{}]", prefix,
-                    originAttributes(message, transport, threadContext), user.principal(), user.runAs().principal(), action,
-                    message.getClass().getSimpleName());
+            logger.debug("{}[transport] [run_as_granted]\t{}, principal=[{}], run_as_principal=[{}], action=[{}], request=[{}]",
+                getPrefix(), originAttributes(message, clusterService.localNode(), threadContext), user.principal(),
+                    user.runAs().principal(), action, message.getClass().getSimpleName());
         } else {
-            logger.info("{}[transport] [run_as_granted]\t{}, principal=[{}], run_as_principal=[{}], action=[{}]", prefix,
-                    originAttributes(message, transport, threadContext), user.principal(), user.runAs().principal(), action);
+            logger.info("{}[transport] [run_as_granted]\t{}, principal=[{}], run_as_principal=[{}], action=[{}]", getPrefix(),
+                originAttributes(message, clusterService.localNode(), threadContext), user.principal(),
+                    user.runAs().principal(), action);
         }
     }
 
     @Override
     public void runAsDenied(User user, String action, TransportMessage message) {
         if (logger.isDebugEnabled()) {
-            logger.debug("{}[transport] [run_as_denied]\t{}, principal=[{}], run_as_principal=[{}], action=[{}], request=[{}]", prefix,
-                    originAttributes(message, transport, threadContext), user.principal(), user.runAs().principal(), action,
-                    message.getClass().getSimpleName());
+            logger.debug("{}[transport] [run_as_denied]\t{}, principal=[{}], run_as_principal=[{}], action=[{}], request=[{}]",
+                getPrefix(), originAttributes(message, clusterService.localNode(), threadContext), user.principal(),
+                    user.runAs().principal(), action, message.getClass().getSimpleName());
         } else {
-            logger.info("{}[transport] [run_as_denied]\t{}, principal=[{}], run_as_principal=[{}], action=[{}]", prefix,
-                    originAttributes(message, transport, threadContext), user.principal(), user.runAs().principal(), action);
+            logger.info("{}[transport] [run_as_denied]\t{}, principal=[{}], run_as_principal=[{}], action=[{}]", getPrefix(),
+                originAttributes(message, clusterService.localNode(), threadContext), user.principal(),
+                    user.runAs().principal(), action);
         }
     }
 
     @Override
     public void runAsDenied(User user, RestRequest request) {
         if (logger.isDebugEnabled()) {
-            logger.debug("{}[rest] [run_as_denied]\t{}, principal=[{}], uri=[{}], request_body=[{}]", prefix,
+            logger.debug("{}[rest] [run_as_denied]\t{}, principal=[{}], uri=[{}], request_body=[{}]", getPrefix(),
                     hostAttributes(request), user.principal(), request.uri(), restRequestContent(request));
         } else {
-            logger.info("{}[transport] [run_as_denied]\t{}, principal=[{}], uri=[{}]", prefix,
+            logger.info("{}[transport] [run_as_denied]\t{}, principal=[{}], uri=[{}]", getPrefix(),
                     hostAttributes(request), user.principal(), request.uri());
         }
     }
@@ -405,7 +396,7 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent implements Aud
         return "origin_address=[" + formattedAddress + "]";
     }
 
-    static String originAttributes(TransportMessage message, Transport transport, ThreadContext threadContext) {
+    static String originAttributes(TransportMessage message, DiscoveryNode localNode, ThreadContext threadContext) {
         StringBuilder builder = new StringBuilder();
 
         // first checking if the message originated in a rest call
@@ -433,21 +424,21 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent implements Aud
 
         // the call was originated locally on this node
         return builder.append("origin_type=[local_node], origin_address=[")
-                .append(transport.boundAddress().publishAddress().getAddress())
+                .append(localNode.getHostAddress())
                 .append("]")
                 .toString();
     }
 
-    static String resolvePrefix(Settings settings, Transport transport) {
+    static String resolvePrefix(Settings settings, DiscoveryNode localNode) {
         StringBuilder builder = new StringBuilder();
         if (HOST_ADDRESS_SETTING.get(settings)) {
-            String address = transport.boundAddress().publishAddress().getAddress();
+            String address = localNode.getHostAddress();
             if (address != null) {
                 builder.append("[").append(address).append("] ");
             }
         }
         if (HOST_NAME_SETTING.get(settings)) {
-            String hostName = transport.boundAddress().publishAddress().getHost();
+            String hostName = localNode.getHostName();
             if (hostName != null) {
                 builder.append("[").append(hostName).append("] ");
             }

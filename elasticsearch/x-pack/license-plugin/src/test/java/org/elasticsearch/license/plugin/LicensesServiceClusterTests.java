@@ -5,36 +5,27 @@
  */
 package org.elasticsearch.license.plugin;
 
-import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.plugin.action.delete.DeleteLicenseAction;
-import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequestBuilder;
-import org.elasticsearch.license.plugin.action.delete.DeleteLicenseResponse;
-import org.elasticsearch.license.plugin.action.get.GetLicenseAction;
-import org.elasticsearch.license.plugin.action.get.GetLicenseRequestBuilder;
-import org.elasticsearch.license.plugin.action.get.GetLicenseResponse;
-import org.elasticsearch.license.plugin.action.put.PutLicenseAction;
-import org.elasticsearch.license.plugin.action.put.PutLicenseRequestBuilder;
-import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
 import org.elasticsearch.license.plugin.core.LicenseState;
-import org.elasticsearch.license.plugin.core.LicensesMetaData;
 import org.elasticsearch.license.plugin.core.LicensesService;
-import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.xpack.MockNetty3Plugin;
 import org.elasticsearch.xpack.XPackPlugin;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 
 import static org.elasticsearch.license.plugin.TestUtils.generateSignedLicense;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.not;
-import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0, transportClientRatio = 0)
@@ -54,12 +45,13 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("node.data", true)
+                .put("resource.reload.interval.high", "500ms") // for license mode file watcher
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(XPackPlugin.class);
+        return Arrays.asList(XPackPlugin.class, MockNetty3Plugin.class);
     }
 
     @Override
@@ -78,37 +70,54 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
         ensureGreen();
 
         logger.info("--> put signed license");
-        License license = generateAndPutLicenses();
-        getAndCheckLicense(license);
+        LicensingClient licensingClient = new LicensingClient(client());
+        License license = generateSignedLicense(TimeValue.timeValueMinutes(1));
+        putLicense(license);
+        assertThat(licensingClient.prepareGetLicense().get().license(), equalTo(license));
+        assertOperationMode(license.operationMode());
+
         logger.info("--> restart all nodes");
         internalCluster().fullRestart();
         ensureYellow();
-
+        licensingClient = new LicensingClient(client());
         logger.info("--> get and check signed license");
-        getAndCheckLicense(license);
-
+        assertThat(licensingClient.prepareGetLicense().get().license(), equalTo(license));
         logger.info("--> remove licenses");
-        removeLicense();
-        assertNoLicense();
+        licensingClient.prepareDeleteLicense().get();
+        assertOperationMode(License.OperationMode.MISSING);
+
         logger.info("--> restart all nodes");
         internalCluster().fullRestart();
+        licensingClient = new LicensingClient(client());
         ensureYellow();
-        assertNoLicense();
+        assertThat(licensingClient.prepareGetLicense().get().license(), nullValue());
+        assertOperationMode(License.OperationMode.MISSING);
+
 
         wipeAllLicenses();
     }
 
+    public void testCloudInternalLicense() throws Exception {
+        wipeAllLicenses();
 
-    private void assertLicenseState(LicenseState state) throws InterruptedException {
-        boolean success = awaitBusy(() -> {
-            for (LicensesService service : internalCluster().getDataNodeInstances(LicensesService.class)) {
-                if (service.licenseState() == state) {
-                    return true;
-                }
-            }
-            return false;
-        });
-        assertTrue(success);
+        int numNodes = randomIntBetween(1, 5);
+        logger.info("--> starting {} node(s)", numNodes);
+        for (int i = 0; i < numNodes; i++) {
+            internalCluster().startNode();
+        }
+        ensureGreen();
+
+        logger.info("--> put signed license");
+        LicensingClient licensingClient = new LicensingClient(client());
+        License license = generateSignedLicense("cloud_internal", License.VERSION_CURRENT, System.currentTimeMillis(),
+                TimeValue.timeValueMinutes(1));
+        putLicense(license);
+        assertThat(licensingClient.prepareGetLicense().get().license(), equalTo(license));
+        assertOperationMode(License.OperationMode.PLATINUM);
+        writeCloudInternalMode("gold");
+        assertOperationMode(License.OperationMode.GOLD);
+        writeCloudInternalMode("basic");
+        assertOperationMode(License.OperationMode.BASIC);
     }
 
     public void testClusterRestartWhileEnabled() throws Exception {
@@ -142,7 +151,7 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
         internalCluster().startNode();
         ensureGreen();
         assertLicenseState(LicenseState.ENABLED);
-        putLicense(TestUtils.generateExpiredLicense(System.currentTimeMillis() - LicensesService.GRACE_PERIOD_DURATION.getMillis()));
+        putLicense(TestUtils.generateExpiredLicense(System.currentTimeMillis() - LicenseState.GRACE_PERIOD_DURATION.getMillis()));
         assertLicenseState(LicenseState.DISABLED);
         logger.info("--> restart node");
         internalCluster().fullRestart();
@@ -159,43 +168,36 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
         assertLicenseState(LicenseState.ENABLED);
     }
 
-    private void removeLicense() throws Exception {
-        ClusterAdminClient cluster = internalCluster().client().admin().cluster();
-        ensureGreen();
-        License putLicenses = generateSignedLicense(TimeValue.timeValueMinutes(1));
-        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(cluster, PutLicenseAction.INSTANCE);
-        putLicenseRequestBuilder.setLicense(putLicenses);
-        DeleteLicenseResponse response = new DeleteLicenseRequestBuilder(cluster, DeleteLicenseAction.INSTANCE).get();
-        assertThat(response.isAcknowledged(), equalTo(true));
+    private void assertLicenseState(LicenseState state) throws InterruptedException {
+        boolean success = awaitBusy(() -> {
+            for (LicensesService service : internalCluster().getDataNodeInstances(LicensesService.class)) {
+                if (service.licenseeStatus().getLicenseState() == state) {
+                    return true;
+                }
+            }
+            return false;
+        });
+        assertTrue(success);
     }
 
-    private License generateAndPutLicenses() throws Exception {
-        ClusterAdminClient cluster = internalCluster().client().admin().cluster();
-        ensureGreen();
-        License putLicenses = generateSignedLicense(TimeValue.timeValueMinutes(1));
-        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(cluster, PutLicenseAction.INSTANCE);
-        putLicenseRequestBuilder.setLicense(putLicenses);
-        final PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
-        assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
-        assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
-        return putLicenses;
+    private void assertOperationMode(License.OperationMode operationMode) throws InterruptedException {
+        boolean success = awaitBusy(() -> {
+            for (LicensesService service : internalCluster().getDataNodeInstances(LicensesService.class)) {
+                if (service.licenseeStatus().getMode() == operationMode) {
+                    return true;
+                }
+            }
+            return false;
+        });
+        assertTrue(success);
     }
 
-    private void assertNoLicense() {
-        ClusterAdminClient cluster = internalCluster().client().admin().cluster();
-        final GetLicenseResponse response = new GetLicenseRequestBuilder(cluster, GetLicenseAction.INSTANCE).get();
-        assertThat(response.license(), nullValue());
-        LicensesMetaData licensesMetaData = clusterService().state().metaData().custom(LicensesMetaData.TYPE);
-        assertThat(licensesMetaData, notNullValue());
-        assertThat(licensesMetaData.getLicense(), equalTo(LicensesMetaData.LICENSE_TOMBSTONE));
+    private void writeCloudInternalMode(String mode) throws Exception {
+        for (Environment environment : internalCluster().getDataOrMasterNodeInstances(Environment.class)) {
+            Path licenseModePath = XPackPlugin.resolveConfigFile(environment, "license_mode");
+            Files.createDirectories(licenseModePath.getParent());
+            Files.write(licenseModePath, mode.getBytes(StandardCharsets.UTF_8));
+        }
     }
 
-    private void getAndCheckLicense(License license) {
-        ClusterAdminClient cluster = internalCluster().client().admin().cluster();
-        final GetLicenseResponse response = new GetLicenseRequestBuilder(cluster, GetLicenseAction.INSTANCE).get();
-        assertThat(response.license(), equalTo(license));
-        LicensesMetaData licensesMetaData = clusterService().state().metaData().custom(LicensesMetaData.TYPE);
-        assertThat(licensesMetaData, notNullValue());
-        assertThat(licensesMetaData.getLicense(), not(LicensesMetaData.LICENSE_TOMBSTONE));
-    }
 }

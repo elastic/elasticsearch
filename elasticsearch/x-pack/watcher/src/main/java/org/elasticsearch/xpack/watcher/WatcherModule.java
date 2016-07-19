@@ -25,16 +25,13 @@ public class WatcherModule extends AbstractModule {
     @Override
     protected void configure() {
         if (transportClientMode) {
-            bind(WatcherLicensee.class).toProvider(Providers.of(null));
             return;
         }
 
         if (enabled == false) {
-            bind(WatcherLicensee.class).toProvider(Providers.of(null));
             // watcher service must be null, so that the watcher feature set can be instantiated even if watcher is not enabled
             bind(WatcherService.class).toProvider(Providers.of(null));
         } else {
-            bind(WatcherLicensee.class).asEagerSingleton();
             bind(WatcherLifeCycleService.class).asEagerSingleton();
             bind(WatcherIndexTemplateRegistry.class).asEagerSingleton();
         }

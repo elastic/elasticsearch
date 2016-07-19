@@ -6,21 +6,17 @@
 package org.elasticsearch.xpack.graph;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.core.License.OperationMode;
 import org.elasticsearch.license.plugin.core.AbstractLicenseeComponent;
 import org.elasticsearch.license.plugin.core.LicenseState;
-import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 
-public class GraphLicensee extends AbstractLicenseeComponent<GraphLicensee> {
+public class GraphLicensee extends AbstractLicenseeComponent {
 
     public static final String ID = Graph.NAME;
 
-    @Inject
-    public GraphLicensee(Settings settings, LicenseeRegistry clientService) {
-        super(settings, ID, clientService);
+    public GraphLicensee(Settings settings) {
+        super(settings, ID);
     }
 
     @Override
@@ -31,17 +27,15 @@ public class GraphLicensee extends AbstractLicenseeComponent<GraphLicensee> {
     }
 
     @Override
-    public String[] acknowledgmentMessages(License currentLicense, License newLicense) {
-        switch (newLicense.operationMode()) {
+    public String[] acknowledgmentMessages(OperationMode currentMode, OperationMode newMode) {
+        switch (newMode) {
             case BASIC:
             case STANDARD:
             case GOLD:
-                if (currentLicense != null) {
-                    switch (currentLicense.operationMode()) {
-                        case TRIAL:
-                        case PLATINUM:
-                            return new String[] { "Graph will be disabled" };
-                    }
+                switch (currentMode) {
+                    case TRIAL:
+                    case PLATINUM:
+                        return new String[] { "Graph will be disabled" };
                 }
                 break;
         }

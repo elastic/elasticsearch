@@ -1,7 +1,7 @@
 {
   "xpack.watcher.stop": {
     "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-service.html",
-    "methods": [ "PUT" ],
+    "methods": [ "POST" ],
     "url": {
       "path": "/_xpack/watcher/_stop",
       "paths": [ "/_xpack/watcher/_stop" ],

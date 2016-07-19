@@ -255,7 +255,6 @@ public class HttpRequestTemplate implements ToXContent {
 
         private final HttpAuthRegistry httpAuthRegistry;
 
-        @Inject
         public Parser(HttpAuthRegistry httpAuthRegistry) {
             this.httpAuthRegistry = httpAuthRegistry;
         }

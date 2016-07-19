@@ -14,12 +14,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.support.MetadataUtils;
 
 
 import java.io.IOException;
-import java.lang.reflect.Array;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
@@ -27,8 +26,6 @@ import java.util.Map;
  * An authenticated user
  */
 public class User implements ToXContent {
-
-    static final String RESERVED_PREFIX = "_";
 
     private final String username;
     private final String[] roles;
@@ -53,7 +50,7 @@ public class User implements ToXContent {
         this.fullName = fullName;
         this.email = email;
         this.runAs = null;
-        verifyNoReservedMetadata(this.username, this.metadata);
+        verifyNoReservedMetadata(this.metadata);
     }
 
     public User(String username, String[] roles, String fullName, String email, Map<String, Object> metadata, User runAs) {
@@ -67,7 +64,7 @@ public class User implements ToXContent {
             throw new ElasticsearchSecurityException("invalid run_as user");
         }
         this.runAs = runAs;
-        verifyNoReservedMetadata(this.username, this.metadata);
+        verifyNoReservedMetadata(this.metadata);
     }
 
     /**
@@ -125,7 +122,7 @@ public class User implements ToXContent {
         sb.append(",fullName=").append(fullName);
         sb.append(",email=").append(email);
         sb.append(",metadata=");
-        append(sb, metadata);
+        MetadataUtils.writeValue(sb, metadata);
         if (runAs != null) {
             sb.append(",runAs=[").append(runAs.toString()).append("]");
         }
@@ -172,16 +169,12 @@ public class User implements ToXContent {
         return builder.endObject();
     }
 
-    void verifyNoReservedMetadata(String principal, Map<String, Object> metadata) {
+    void verifyNoReservedMetadata(Map<String, Object> metadata) {
         if (this instanceof ReservedUser) {
             return;
         }
 
-        for (String key : metadata.keySet()) {
-            if (key.startsWith(RESERVED_PREFIX)) {
-                throw new IllegalArgumentException("invalid user metadata. [" + key + "] is a reserved for internal uses");
-            }
-        }
+        MetadataUtils.verifyNoReservedMetadata(metadata);
     }
 
     public static User readFrom(StreamInput input) throws IOException {
@@ -245,49 +238,10 @@ public class User implements ToXContent {
         }
     }
 
-    public static void append(StringBuilder sb, Object object) {
-        if (object == null) {
-            sb.append((Object) null);
-        }
-        if (object instanceof Map) {
-            sb.append("{");
-            for (Map.Entry<String, Object> entry : ((Map<String, Object>)object).entrySet()) {
-                sb.append(entry.getKey()).append("=");
-                append(sb, entry.getValue());
-            }
-            sb.append("}");
-
-        } else if (object instanceof Collection) {
-            sb.append("[");
-            boolean first = true;
-            for (Object item : (Collection) object) {
-                if (!first) {
-                    sb.append(",");
-                }
-                append(sb, item);
-                first = false;
-            }
-            sb.append("]");
-        } else if (object.getClass().isArray()) {
-            sb.append("[");
-            for (int i = 0; i < Array.getLength(object); i++) {
-                if (i != 0) {
-                    sb.append(",");
-                }
-                append(sb, Array.get(object, i));
-            }
-            sb.append("]");
-        } else {
-            sb.append(object);
-        }
-    }
-
     abstract static class ReservedUser extends User {
 
-        private static final String RESERVED_KEY = User.RESERVED_PREFIX + "reserved";
-
         ReservedUser(String username, String... roles) {
-            super(username, roles, null, null, Collections.singletonMap(RESERVED_KEY, true));
+            super(username, roles, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA);
         }
     }
 

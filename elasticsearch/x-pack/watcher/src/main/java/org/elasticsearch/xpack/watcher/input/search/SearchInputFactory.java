@@ -13,9 +13,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.input.InputFactory;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
@@ -39,12 +39,12 @@ public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Re
 
     @Inject
     public SearchInputFactory(Settings settings, InternalClient client, IndicesQueriesRegistry queryRegistry,
-                              AggregatorParsers aggParsers, Suggesters suggesters, ScriptServiceProxy scriptService) {
+                              AggregatorParsers aggParsers, Suggesters suggesters, ScriptService scriptService) {
         this(settings, new WatcherClientProxy(settings, client), queryRegistry, aggParsers, suggesters, scriptService);
     }
 
     public SearchInputFactory(Settings settings, WatcherClientProxy client, IndicesQueriesRegistry queryRegistry,
-                              AggregatorParsers aggParsers, Suggesters suggesters, ScriptServiceProxy scriptService) {
+                              AggregatorParsers aggParsers, Suggesters suggesters, ScriptService scriptService) {
         super(Loggers.getLogger(ExecutableSimpleInput.class, settings));
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.client = client;

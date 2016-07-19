@@ -31,7 +31,8 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
                 .put("scope", LdapSearchScope.SUB_TREE)
                 .build();
         ActiveDirectoryGroupsResolver resolver = new ActiveDirectoryGroupsResolver(settings, "DC=ad,DC=test,DC=elasticsearch,DC=com");
-        List<String> groups = resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
+        List<String> groups = resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE,
+                null);
         assertThat(groups, containsInAnyOrder(
                 containsString("Avengers"),
                 containsString("SHIELD"),
@@ -48,7 +49,8 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
                 .put("base_dn", "CN=Builtin, DC=ad, DC=test, DC=elasticsearch,DC=com")
                 .build();
         ActiveDirectoryGroupsResolver resolver = new ActiveDirectoryGroupsResolver(settings, "DC=ad,DC=test,DC=elasticsearch,DC=com");
-        List<String> groups = resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
+        List<String> groups = resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE,
+                null);
         assertThat(groups, hasItem(containsString("Users")));
     }
 
@@ -58,7 +60,8 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
                 .put("base_dn", "CN=Users, CN=Builtin, DC=ad, DC=test, DC=elasticsearch, DC=com")
                 .build();
         ActiveDirectoryGroupsResolver resolver = new ActiveDirectoryGroupsResolver(settings, "DC=ad,DC=test,DC=elasticsearch,DC=com");
-        List<String> groups = resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
+        List<String> groups = resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE,
+                null);
         assertThat(groups, hasItem(containsString("CN=Users,CN=Builtin")));
     }
 
@@ -69,8 +72,9 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
                     "S-1-5-32-545", //Default Users group
                     "S-1-5-21-3510024162-210737641-214529065-513" //Default Domain Users group
             };
-            Filter query = ActiveDirectoryGroupsResolver.buildGroupQuery(ldapConnection,
-                    "CN=Jarvis, CN=Users, DC=ad, DC=test, DC=elasticsearch, DC=com", TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
+            final String dn = "CN=Jarvis, CN=Users, DC=ad, DC=test, DC=elasticsearch, DC=com";
+            Filter query =
+                    ActiveDirectoryGroupsResolver.buildGroupQuery(ldapConnection, dn, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
             assertValidSidQuery(query, expectedSids);
         }
 
@@ -80,8 +84,9 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
                     "S-1-5-32-545", //Default Users group
                     "S-1-5-21-3510024162-210737641-214529065-513",   //Default Domain Users group
                     "S-1-5-21-3510024162-210737641-214529065-1117"}; //Gods group
-            Filter query = ActiveDirectoryGroupsResolver.buildGroupQuery(ldapConnection,
-                    "CN=Odin, CN=Users, DC=ad, DC=test, DC=elasticsearch, DC=com", TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
+            final String dn = "CN=Odin, CN=Users, DC=ad, DC=test, DC=elasticsearch, DC=com";
+            Filter query =
+                    ActiveDirectoryGroupsResolver.buildGroupQuery(ldapConnection, dn, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
             assertValidSidQuery(query, expectedSids);
         }
 
@@ -95,9 +100,10 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
                     "S-1-5-21-3510024162-210737641-214529065-1108", //Geniuses
                     "S-1-5-21-3510024162-210737641-214529065-1106", //SHIELD
                     "S-1-5-21-3510024162-210737641-214529065-1105"};//Avengers
-            Filter query = ActiveDirectoryGroupsResolver.buildGroupQuery(ldapConnection,
-                    "CN=Bruce Banner, CN=Users, DC=ad, DC=test, DC=elasticsearch, DC=com", TimeValue.timeValueSeconds(10),
-                    NoOpLogger.INSTANCE);
+
+            final String dn = BRUCE_BANNER_DN;
+            Filter query =
+                    ActiveDirectoryGroupsResolver.buildGroupQuery(ldapConnection, dn, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
             assertValidSidQuery(query, expectedSids);
         }
     }

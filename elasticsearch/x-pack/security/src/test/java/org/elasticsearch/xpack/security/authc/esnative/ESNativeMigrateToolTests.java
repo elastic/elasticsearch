@@ -16,9 +16,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
-import org.elasticsearch.xpack.security.authc.esnative.ESNativeRealmMigrateTool;
 import org.elasticsearch.xpack.security.client.SecurityClient;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyHttpServerTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
 import org.junit.BeforeClass;
 
 import java.util.HashSet;
@@ -45,7 +44,7 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         Settings s = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put(SecurityNettyHttpServerTransport.SSL_SETTING.getKey(), useSSL)
+                .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), useSSL)
                 .build();
         return s;
     }

@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.watcher.license;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.AbstractLicenseeTestCase;
+import org.elasticsearch.license.plugin.core.LicenseState;
+import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.xpack.watcher.WatcherLicensee;
 
 import static org.elasticsearch.license.core.License.OperationMode.BASIC;
@@ -19,7 +21,6 @@ import static org.hamcrest.Matchers.is;
 
 public class LicenseTests extends AbstractLicenseeTestCase {
 
-    private final SimpleLicenseeRegistry licenseeRegistry = new SimpleLicenseeRegistry();
     private WatcherLicensee watcherLicensee;
 
     public void testPlatinumGoldTrialLicenseCanDoEverything() throws Exception {
@@ -34,14 +35,14 @@ public class LicenseTests extends AbstractLicenseeTestCase {
 
     public void testNoLicenseDisablesWatcher() {
         initLicense(BASIC, STANDARD);
-        licenseeRegistry.disable();
+        disable(watcherLicensee);
 
         assertWatcherActionsNotAllowed(watcherLicensee);
     }
 
     public void testExpiredPlatinumGoldTrialLicenseDisablesWatcher() throws Exception {
         initLicense(TRIAL, GOLD, PLATINUM);
-        licenseeRegistry.disable();
+        disable(watcherLicensee);
 
         assertWatcherActionsNotAllowed(watcherLicensee);
     }
@@ -50,7 +51,7 @@ public class LicenseTests extends AbstractLicenseeTestCase {
         initLicense(BASIC, STANDARD);
         assertWatcherActionsNotAllowed(watcherLicensee);
 
-        licenseeRegistry.setOperationMode(randomFrom(TRIAL, GOLD, PLATINUM));
+        setOperationMode(watcherLicensee, randomFrom(TRIAL, GOLD, PLATINUM));
         assertWatcherActionsAllowed(watcherLicensee);
     }
 
@@ -58,17 +59,17 @@ public class LicenseTests extends AbstractLicenseeTestCase {
         initLicense(TRIAL, GOLD, PLATINUM);
         assertWatcherActionsAllowed(watcherLicensee);
 
-        licenseeRegistry.setOperationMode(randomFrom(BASIC, STANDARD));
+        setOperationMode(watcherLicensee, randomFrom(BASIC, STANDARD));
         assertWatcherActionsNotAllowed(watcherLicensee);
     }
 
     public void testUpgradingExpiredLicenseWorks() {
         initLicense(TRIAL, GOLD, PLATINUM);
-        licenseeRegistry.disable();
+        disable(watcherLicensee);
 
         assertWatcherActionsNotAllowed(watcherLicensee);
 
-        licenseeRegistry.setOperationMode(randomFrom(TRIAL, GOLD, PLATINUM));
+        setOperationMode(watcherLicensee, randomFrom(TRIAL, GOLD, PLATINUM));
         assertWatcherActionsAllowed(watcherLicensee);
     }
 
@@ -87,8 +88,7 @@ public class LicenseTests extends AbstractLicenseeTestCase {
     }
 
     private void initLicense(License.OperationMode ... allowedLicenses) {
-        licenseeRegistry.setOperationMode(randomFrom(allowedLicenses));
-        watcherLicensee = new WatcherLicensee(Settings.EMPTY, licenseeRegistry);
-        licenseeRegistry.register(watcherLicensee);
+        watcherLicensee = new WatcherLicensee(Settings.EMPTY);
+        setOperationMode(watcherLicensee, randomFrom(allowedLicenses));
     }
 }

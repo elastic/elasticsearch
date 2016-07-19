@@ -20,10 +20,10 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.SecuredStringTests;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackTransportClient;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -229,13 +229,10 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         Settings settings = Settings.builder()
                 .put(extraSettings)
                 .put("cluster.name", clusterName)
-                .put(SecurityNettyTransport.SSL_SETTING.getKey(), false)
+                .put(SecurityNetty3Transport.SSL_SETTING.getKey(), false)
                 .build();
 
-        return TransportClient.builder()
-                .settings(settings)
-                .addPlugin(XPackPlugin.class)
-                .build()
+        return new XPackTransportClient(settings)
                 .addTransportAddress(publishAddress);
     }
 }

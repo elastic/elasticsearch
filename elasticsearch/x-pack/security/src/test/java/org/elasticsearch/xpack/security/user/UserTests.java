@@ -7,10 +7,9 @@ package org.elasticsearch.xpack.security.user;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.xpack.security.support.MetadataUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.XPackClient;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -127,7 +126,7 @@ public class UserTests extends ESTestCase {
 
     public void testReservedMetadata() throws Exception {
         Map<String, Object> validMetadata = Collections.singletonMap("foo", "bar");
-        Map<String, Object> invalidMetadata = Collections.singletonMap(User.RESERVED_PREFIX + "foo", "bar");
+        Map<String, Object> invalidMetadata = Collections.singletonMap(MetadataUtils.RESERVED_PREFIX + "foo", "bar");
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
                 new User("john", Strings.EMPTY_ARRAY, "John Doe", "john@doe.com", invalidMetadata));

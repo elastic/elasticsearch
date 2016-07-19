@@ -13,6 +13,7 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -115,6 +116,6 @@ public class SecurityTransportClientIT extends ESIntegTestCase {
                 .put("cluster.name", clusterName)
                 .build();
 
-        return TransportClient.builder().settings(settings).addPlugin(XPackPlugin.class).build().addTransportAddress(publishAddress);
+        return new MockTransportClient(settings, XPackPlugin.class).addTransportAddress(publishAddress);
     }
 }

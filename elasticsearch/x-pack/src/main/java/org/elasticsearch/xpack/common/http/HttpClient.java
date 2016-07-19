@@ -79,7 +79,6 @@ public class HttpClient extends AbstractLifecycleComponent {
     private SSLSocketFactory sslSocketFactory;
     private HttpProxy proxy = HttpProxy.NO_PROXY;
 
-    @Inject
     public HttpClient(Settings settings, HttpAuthRegistry httpAuthRegistry, Environment env) {
         super(settings);
         this.httpAuthRegistry = httpAuthRegistry;

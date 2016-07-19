@@ -21,4 +21,8 @@ grant {
   permission java.security.SecurityPermission "createPolicy.JavaPolicy";
   permission java.security.SecurityPermission "getPolicy";
   permission java.security.SecurityPermission "setPolicy";
+
+  // Netty SelectorUtil wants to change this, because of https://bugs.openjdk.java.net/browse/JDK-6427854
+  // the bug says it only happened rarely, and that its fixed, but apparently it still happens rarely!
+  permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
 };

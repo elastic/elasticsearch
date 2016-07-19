@@ -82,20 +82,23 @@ public class XPackInfoResponse extends ActionResponse {
 
         private final String uid;
         private final String type;
+        private final String mode;
         private final long expiryDate;
         private final License.Status status;
 
         public LicenseInfo(License license) {
-            this(license.uid(), license.type(), license.status(), license.expiryDate());
+            this(license.uid(), license.type(), license.operationMode().name().toLowerCase(Locale.ROOT),
+                    license.status(), license.expiryDate());
         }
 
         public LicenseInfo(StreamInput in) throws IOException {
-            this(in.readString(), in.readString(), License.Status.readFrom(in), in.readLong());
+            this(in.readString(), in.readString(), in.readString(), License.Status.readFrom(in), in.readLong());
         }
 
-        public LicenseInfo(String uid, String type, License.Status status, long expiryDate) {
+        public LicenseInfo(String uid, String type, String mode, License.Status status, long expiryDate) {
             this.uid = uid;
             this.type = type;
+            this.mode = mode;
             this.status = status;
             this.expiryDate = expiryDate;
         }
@@ -106,6 +109,10 @@ public class XPackInfoResponse extends ActionResponse {
 
         public String getType() {
             return type;
+        }
+
+        public String getMode() {
+            return mode;
         }
 
         public long getExpiryDate() {
@@ -121,7 +128,7 @@ public class XPackInfoResponse extends ActionResponse {
             return builder.startObject()
                     .field("uid", uid)
                     .field("type", type)
-                    .field("mode", License.OperationMode.resolve(type).name().toLowerCase(Locale.ROOT))
+                    .field("mode", mode)
                     .field("status", status.label())
                     .dateValueField("expiry_date_in_millis", "expiry_date", expiryDate)
                     .endObject();
@@ -130,6 +137,7 @@ public class XPackInfoResponse extends ActionResponse {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(uid);
             out.writeString(type);
+            out.writeString(mode);
             status.writeTo(out);
             out.writeLong(expiryDate);
         }

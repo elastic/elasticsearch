@@ -5,28 +5,21 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.AbstractLicenseeComponent;
-import org.elasticsearch.license.plugin.core.Licensee;
-import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 
 /**
  *
  */
-public class SecurityLicensee extends AbstractLicenseeComponent<SecurityLicensee> implements Licensee {
+public class SecurityLicensee extends AbstractLicenseeComponent {
 
-    private final boolean isTribeNode;
     private final SecurityLicenseState securityLicenseState;
 
-    @Inject
-    public SecurityLicensee(Settings settings, LicenseeRegistry clientService, SecurityLicenseState securityLicenseState) {
-        super(settings, Security.NAME, clientService);
+    public SecurityLicensee(Settings settings, SecurityLicenseState securityLicenseState) {
+        super(settings, Security.NAME);
         this.securityLicenseState = securityLicenseState;
-        this.isTribeNode = settings.getGroups("tribe", true).isEmpty() == false;
     }
 
     @Override
@@ -44,66 +37,50 @@ public class SecurityLicensee extends AbstractLicenseeComponent<SecurityLicensee
     }
 
     @Override
-    public String[] acknowledgmentMessages(License currentLicense, License newLicense) {
-        switch (newLicense.operationMode()) {
+    public String[] acknowledgmentMessages(License.OperationMode currentMode, License.OperationMode newMode) {
+        switch (newMode) {
             case BASIC:
-                if (currentLicense != null) {
-                    switch (currentLicense.operationMode()) {
-                        case TRIAL:
-                        case STANDARD:
-                        case GOLD:
-                        case PLATINUM:
-                            return new String[] {
-                                "The following X-Pack security functionality will be disabled: authentication, authorization, " +
-                                "ip filtering, and auditing. Please restart your node after applying the license.",
-                                "Field and document level access control will be disabled.",
-                                "Custom realms will be ignored."
-                            };
-                    }
+                switch (currentMode) {
+                    case TRIAL:
+                    case STANDARD:
+                    case GOLD:
+                    case PLATINUM:
+                        return new String[] {
+                            "The following X-Pack security functionality will be disabled: authentication, authorization, " +
+                            "ip filtering, and auditing. Please restart your node after applying the license.",
+                            "Field and document level access control will be disabled.",
+                            "Custom realms will be ignored."
+                        };
                 }
                 break;
             case GOLD:
-                if (currentLicense != null) {
-                    switch (currentLicense.operationMode()) {
-                        case BASIC:
-                        case STANDARD:
-                        // ^^ though technically it was already disabled, it's not bad to remind them
-                        case TRIAL:
-                        case PLATINUM:
-                            return new String[] {
-                                "Field and document level access control will be disabled.",
-                                "Custom realms will be ignored."
-                            };
-                    }
+                switch (currentMode) {
+                    case BASIC:
+                    case STANDARD:
+                    // ^^ though technically it was already disabled, it's not bad to remind them
+                    case TRIAL:
+                    case PLATINUM:
+                        return new String[] {
+                            "Field and document level access control will be disabled.",
+                            "Custom realms will be ignored."
+                        };
                 }
                 break;
             case STANDARD:
-                if (currentLicense != null) {
-                    switch (currentLicense.operationMode()) {
-                        case BASIC:
-                        // ^^ though technically it was already disabled, it's not bad to remind them
-                        case GOLD:
-                        case PLATINUM:
-                        case TRIAL:
-                            return new String[] {
-                                    "Authentication will be limited to the native realms.",
-                                    "IP filtering and auditing will be disabled.",
-                                    "Field and document level access control will be disabled.",
-                                    "Custom realms will be ignored."
-                            };
-                    }
+                switch (currentMode) {
+                    case BASIC:
+                    // ^^ though technically it was already disabled, it's not bad to remind them
+                    case GOLD:
+                    case PLATINUM:
+                    case TRIAL:
+                        return new String[] {
+                                "Authentication will be limited to the native realms.",
+                                "IP filtering and auditing will be disabled.",
+                                "Field and document level access control will be disabled.",
+                                "Custom realms will be ignored."
+                        };
                 }
         }
         return Strings.EMPTY_ARRAY;
-    }
-
-    @Override
-    protected void doStart() throws ElasticsearchException {
-        // we rely on the initial licensee state to be enabled with trial operation mode
-        // to ensure no operation is blocked due to not registering the licensee on a
-        // tribe node
-        if (isTribeNode == false) {
-            super.doStart();
-        }
     }
 }

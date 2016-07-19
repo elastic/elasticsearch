@@ -10,6 +10,8 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.security.authc.Authentication;
+import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.support.Exceptions;
 import org.elasticsearch.xpack.security.user.User;
@@ -63,11 +65,12 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
      * against a hash also stored in the cache.  Otherwise the subclass authenticates the user via
      * doAuthenticate
      *
-     * @param token The authentication token
+     * @param authToken The authentication token
      * @return an authenticated user with roles
      */
     @Override
-    public final User authenticate(final UsernamePasswordToken token) {
+    public final User authenticate(AuthenticationToken authToken) {
+        UsernamePasswordToken token = (UsernamePasswordToken)authToken;
         if (cache == null) {
             return doAuthenticate(token);
         }

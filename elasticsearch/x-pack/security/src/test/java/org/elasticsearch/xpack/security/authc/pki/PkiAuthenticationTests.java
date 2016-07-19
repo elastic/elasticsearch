@@ -21,11 +21,11 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.transport.SSLClientAuth;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyHttpServerTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackTransportClient;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -56,8 +56,8 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
 
-                .put(SecurityNettyHttpServerTransport.SSL_SETTING.getKey(), true)
-                .put(SecurityNettyHttpServerTransport.CLIENT_AUTH_SETTING.getKey(), sslClientAuth)
+                .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true)
+                .put(SecurityNetty3HttpServerTransport.CLIENT_AUTH_SETTING.getKey(), sslClientAuth)
                 .put("xpack.security.authc.realms.file.type", FileRealm.TYPE)
                 .put("xpack.security.authc.realms.file.order", "0")
                 .put("xpack.security.authc.realms.pki1.type", PkiRealm.TYPE)
@@ -155,7 +155,7 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
                 .put("cluster.name", internalCluster().getClusterName());
         builder.remove(Security.USER_SETTING.getKey());
         builder.remove("request.headers.Authorization");
-        return TransportClient.builder().settings(builder).addPlugin(XPackPlugin.class).build();
+        return new XPackTransportClient(builder.build());
     }
 
     private String getNodeUrl() {

@@ -1,0 +1,11 @@
+instances:
+  - name: "node1"
+    ip:
+      - "127.0.0.1"
+    dns: "localhost"
+  - name: "node2"
+    ip: "::1"
+  - name: "node3"
+  - name: "CN=different value"
+    dns:
+      - "node4.mydomain.com"

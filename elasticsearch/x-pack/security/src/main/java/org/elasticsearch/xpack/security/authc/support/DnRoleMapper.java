@@ -137,9 +137,7 @@ public class DnRoleMapper {
             if (dnToRoles.isEmpty()) {
                 logger.warn("no mappings found in role mappings file [{}] for realm [{}/{}]", path.toAbsolutePath(), realmType, realmName);
             }
-
             return unmodifiableMap(dnToRoles);
-
         } catch (IOException e) {
             throw new ElasticsearchException("could not read realm [" + realmType + "/" + realmName + "] role mappings file [" +
                     path.toAbsolutePath() + "]", e);

@@ -13,12 +13,12 @@ import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 
-public class CustomRealm extends Realm<UsernamePasswordToken> {
+public class CustomRealm extends Realm {
 
     public static final String TYPE = "custom";
 
-    static final String USER_HEADER = "User";
-    static final String PW_HEADER = "Password";
+    public static final String USER_HEADER = "User";
+    public static final String PW_HEADER = "Password";
 
     static final String KNOWN_USER = "custom_user";
     static final String KNOWN_PW = "changeme";
@@ -46,7 +46,8 @@ public class CustomRealm extends Realm<UsernamePasswordToken> {
     }
 
     @Override
-    public User authenticate(UsernamePasswordToken token) {
+    public User authenticate(AuthenticationToken authToken) {
+        UsernamePasswordToken token = (UsernamePasswordToken)authToken;
         final String actualUser = token.principal();
         if (KNOWN_USER.equals(actualUser) && SecuredString.constantTimeEquals(token.credentials(), KNOWN_PW)) {
             return new User(actualUser, ROLES);

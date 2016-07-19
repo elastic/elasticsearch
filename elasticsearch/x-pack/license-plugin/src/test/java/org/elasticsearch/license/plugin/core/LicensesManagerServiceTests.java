@@ -5,26 +5,26 @@
  */
 package org.elasticsearch.license.plugin.core;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.graph.Graph;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.TestUtils;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequest;
-import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.graph.Graph;
+import org.elasticsearch.xpack.monitoring.Monitoring;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.watcher.Watcher;
-
-import java.util.Collection;
-import java.util.Collections;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.license.plugin.TestUtils.generateSignedLicense;
 import static org.hamcrest.Matchers.equalTo;
@@ -116,9 +116,6 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
         LicensesService licensesService = getInstanceFromNode(LicensesService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
 
-        // generate a trial license for one feature
-        licensesService.register(new TestUtils.AssertingLicensee("", logger));
-
         // generate signed licenses
         License license = generateSignedLicense(TimeValue.timeValueHours(1));
         TestUtils.registerAndAckSignedLicenses(licensesService, license, LicensesStatus.VALID);
@@ -129,53 +126,6 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
         removeAndAckSignedLicenses(licensesService);
         licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
         assertThat(licensesMetaData.getLicense(), equalTo(LicensesMetaData.LICENSE_TOMBSTONE));
-    }
-
-    public void testRemoveLicensesAndLicenseeNotification() throws Exception {
-        LicensesService licensesService = getInstanceFromNode(LicensesService.class);
-        licensesService.start();
-        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-
-        // generate a trial license for one feature
-        TestUtils.AssertingLicensee licensee = new TestUtils.AssertingLicensee("", logger);
-        licensesService.register(licensee);
-
-        // we should get a trial license to begin with
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat(licensee.statuses, hasSize(1));
-                assertThat(licensee.statuses.get(0).getMode(), is(License.OperationMode.TRIAL));
-                assertThat(licensee.statuses.get(0).getLicenseState(), is(LicenseState.ENABLED));
-            }
-        });
-
-
-        // generate signed licenses
-        License license = generateSignedLicense("gold", TimeValue.timeValueHours(1));
-        TestUtils.registerAndAckSignedLicenses(licensesService, license, LicensesStatus.VALID);
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat(licensee.statuses, hasSize(2));
-                assertThat(licensee.statuses.get(1).getMode(), not(License.OperationMode.TRIAL));
-                assertThat(licensee.statuses.get(1).getLicenseState(), is(LicenseState.ENABLED));
-            }
-        });
-
-        // remove signed licenses
-        removeAndAckSignedLicenses(licensesService);
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat(licensee.statuses, hasSize(3));
-            }
-        });
-        LicensesMetaData licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-        assertThat(licensesMetaData.getLicense(), is(LicensesMetaData.LICENSE_TOMBSTONE));
-        assertThat(licensee.statuses, hasSize(3));
-        assertThat(licensee.statuses.get(2).getLicenseState(), is(LicenseState.DISABLED));
-        assertThat(licensee.statuses.get(2).getMode(), is(License.OperationMode.MISSING));
     }
 
     private void removeAndAckSignedLicenses(final LicensesService licensesService) {

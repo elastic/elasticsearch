@@ -8,11 +8,11 @@ package org.elasticsearch.license.plugin;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseAction;
 import org.elasticsearch.license.plugin.action.delete.TransportDeleteLicenseAction;
 import org.elasticsearch.license.plugin.action.get.GetLicenseAction;
@@ -26,6 +26,13 @@ import org.elasticsearch.license.plugin.rest.RestGetLicenseAction;
 import org.elasticsearch.license.plugin.rest.RestPutLicenseAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.graph.GraphLicensee;
+import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
+import org.elasticsearch.xpack.security.SecurityLicenseState;
+import org.elasticsearch.xpack.security.SecurityLicensee;
+import org.elasticsearch.xpack.support.clock.Clock;
+import org.elasticsearch.xpack.watcher.WatcherLicensee;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -40,17 +47,22 @@ import static org.elasticsearch.xpack.XPackPlugin.transportClientMode;
 public class Licensing implements ActionPlugin {
 
     public static final String NAME = "license";
-    private final boolean isTransportClient;
+    protected final Settings settings;
+    protected final boolean isTransportClient;
     private final boolean isTribeNode;
 
     static {
         MetaData.registerPrototype(LicensesMetaData.TYPE, LicensesMetaData.PROTO);
     }
 
-    @Inject
     public Licensing(Settings settings) {
+        this.settings = settings;
         isTransportClient = transportClientMode(settings);
         isTribeNode = isTribeNode(settings);
+    }
+
+    public Collection<Module> nodeModules() {
+        return Collections.emptyList();
     }
 
     @Override
@@ -73,18 +85,18 @@ public class Licensing implements ActionPlugin {
                 RestDeleteLicenseAction.class);
     }
 
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-        if (isTransportClient == false && isTribeNode == false) {
-            return Collections.<Class<? extends LifecycleComponent>>singletonList(LicensesService.class);
-        }
-        return Collections.emptyList();
-    }
+    public Collection<Object> createComponents(ClusterService clusterService, Clock clock, Environment environment,
+                                               ResourceWatcherService resourceWatcherService,
+                                               SecurityLicenseState securityLicenseState) {
+        SecurityLicensee securityLicensee = new SecurityLicensee(settings, securityLicenseState);
+        WatcherLicensee watcherLicensee = new WatcherLicensee(settings);
+        MonitoringLicensee monitoringLicensee = new MonitoringLicensee(settings);
+        GraphLicensee graphLicensee = new GraphLicensee(settings);
+        LicensesService licensesService = new LicensesService(settings, clusterService, clock,
+                environment, resourceWatcherService,
+                Arrays.asList(securityLicensee, watcherLicensee, monitoringLicensee, graphLicensee));
 
-    public Collection<Module> nodeModules() {
-        if (isTransportClient == false && isTribeNode == false) {
-            return Collections.<Module>singletonList(new LicensingModule());
-        }
-        return Collections.emptyList();
+        return Arrays.asList(licensesService, securityLicenseState, securityLicensee, watcherLicensee, monitoringLicensee, graphLicensee);
     }
 
     public List<Setting<?>> getSettings() {

@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.compare.CompareCondition;
-import org.elasticsearch.xpack.watcher.support.Script;
+import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -259,7 +259,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(jsonBuilder().startObject().field("template").value(searchSourceBuilder).endObject().bytes())
                 .get());
 
-        Script template = Script.indexed("my-template").lang("mustache").build();
+        WatcherScript template = WatcherScript.indexed("my-template").lang("mustache").build();
         SearchRequest searchRequest = newInputSearchRequest("events");
         testConditionSearch(searchRequest, template);
     }
@@ -368,7 +368,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         }
     }
 
-    private void testConditionSearch(SearchRequest request, Script template) throws Exception {
+    private void testConditionSearch(SearchRequest request, WatcherScript template) throws Exception {
         // reset, so we don't miss event docs when we filter over the _timestamp field.
         timeWarp().clock().setTime(SystemClock.INSTANCE.nowUTC());
 

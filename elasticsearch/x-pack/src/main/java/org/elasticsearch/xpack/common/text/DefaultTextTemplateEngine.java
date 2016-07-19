@@ -12,8 +12,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.Template;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.xpack.watcher.support.WatcherScript;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -21,10 +22,10 @@ import java.util.Map;
 
 public class DefaultTextTemplateEngine extends AbstractComponent implements TextTemplateEngine {
 
-    private final ScriptServiceProxy service;
+    private final ScriptService service;
 
     @Inject
-    public DefaultTextTemplateEngine(Settings settings, ScriptServiceProxy service) {
+    public DefaultTextTemplateEngine(Settings settings, ScriptService service) {
         super(settings);
         this.service = service;
     }
@@ -39,7 +40,7 @@ public class DefaultTextTemplateEngine extends AbstractComponent implements Text
         Map<String, String> compileParams = compileParams(contentType);
         template = trimContentType(template);
 
-        CompiledScript compiledScript = service.compile(convert(template, model), compileParams);
+        CompiledScript compiledScript = service.compile(convert(template, model), WatcherScript.CTX, compileParams);
         ExecutableScript executable = service.executable(compiledScript, model);
         Object result = executable.run();
         if (result instanceof BytesReference) {
@@ -79,11 +80,11 @@ public class DefaultTextTemplateEngine extends AbstractComponent implements Text
         return null;
     }
 
-    private Template convert(TextTemplate textTemplate, Map<String, Object> model) {
+    private Script convert(TextTemplate textTemplate, Map<String, Object> model) {
         Map<String, Object> mergedModel = new HashMap<>();
         mergedModel.putAll(textTemplate.getParams());
         mergedModel.putAll(model);
-        return new Template(textTemplate.getTemplate(), textTemplate.getType(), "mustache", textTemplate.getContentType(), mergedModel);
+        return new Script(textTemplate.getTemplate(), textTemplate.getType(), "mustache", mergedModel, textTemplate.getContentType());
     }
 
     private Map<String, String> compileParams(XContentType contentType) {

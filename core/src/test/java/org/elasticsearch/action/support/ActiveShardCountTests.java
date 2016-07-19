@@ -68,6 +68,14 @@ public class ActiveShardCountTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> ActiveShardCount.parseString(randomIntBetween(-10, -3) + ""));
     }
 
+    public void testValidate() {
+        assertTrue(ActiveShardCount.parseString("all").validate(randomIntBetween(0, 10)));
+        final int numReplicas = randomIntBetween(0, 10);
+        assertTrue(ActiveShardCount.from(randomIntBetween(0, numReplicas + 1)).validate(numReplicas));
+        // invalid values shouldn't validate
+        assertFalse(ActiveShardCount.from(numReplicas + randomIntBetween(2, 10)).validate(numReplicas));
+    }
+
     private void doWriteRead(ActiveShardCount activeShardCount) throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
         activeShardCount.writeTo(out);

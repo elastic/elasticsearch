@@ -85,6 +85,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithActivePrimary;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -676,6 +677,42 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertPhase(task, "finished");
         // operation should have finished and counter decreased because no outstanding replica requests
         assertIndexShardCounter(0);
+    }
+
+    /**
+     * This test ensures that replication operations adhere to the {@link IndexMetaData#SETTING_WAIT_FOR_ACTIVE_SHARDS} setting
+     * when the request is using the default value for waitForActiveShards.
+     */
+    public void testChangeWaitForActiveShardsSetting() throws Exception {
+        final String indexName = "test";
+        final ShardId shardId = new ShardId(indexName, "_na_", 0);
+
+        // test wait_for_active_shards index setting used when the default is set on the request
+        int numReplicas = randomIntBetween(0, 5);
+        int idxSettingWaitForActiveShards = randomIntBetween(0, numReplicas + 1);
+        ClusterState state = changeWaitForActiveShardsSetting(indexName,
+            stateWithActivePrimary(indexName, randomBoolean(), numReplicas),
+            idxSettingWaitForActiveShards);
+        setState(clusterService, state);
+        Request request = new Request(shardId).waitForActiveShards(ActiveShardCount.DEFAULT); // set to default so index settings are used
+        action.resolveRequest(state.metaData(), state.metaData().index(indexName), request);
+        assertEquals(ActiveShardCount.from(idxSettingWaitForActiveShards), request.waitForActiveShards());
+
+        // test wait_for_active_shards when default not set on the request (request value should be honored over index setting)
+        int requestWaitForActiveShards = randomIntBetween(0, numReplicas + 1);
+        request = new Request(shardId).waitForActiveShards(ActiveShardCount.from(requestWaitForActiveShards));
+        action.resolveRequest(state.metaData(), state.metaData().index(indexName), request);
+        assertEquals(ActiveShardCount.from(requestWaitForActiveShards), request.waitForActiveShards());
+    }
+
+    private ClusterState changeWaitForActiveShardsSetting(String indexName, ClusterState state, int waitForActiveShards) {
+        IndexMetaData indexMetaData = state.metaData().index(indexName);
+        Settings indexSettings = Settings.builder().put(indexMetaData.getSettings())
+                                     .put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), Integer.toString(waitForActiveShards))
+                                     .build();
+        MetaData.Builder metaDataBuilder = MetaData.builder(state.metaData())
+                                               .put(IndexMetaData.builder(indexMetaData).settings(indexSettings).build(), true);
+        return ClusterState.builder(state).metaData(metaDataBuilder).build();
     }
 
     private void assertIndexShardCounter(int expected) {

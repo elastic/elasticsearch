@@ -121,6 +121,15 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     }
 
     /**
+     * A shortcut for {@link #setWaitForActiveShards(ActiveShardCount)} where the numerical
+     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
+     * to get the ActiveShardCount.
+     */
+    public BulkRequestBuilder setWaitForActiveShards(final int waitForActiveShards) {
+        return setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
+    }
+
+    /**
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
     public final BulkRequestBuilder setTimeout(TimeValue timeout) {

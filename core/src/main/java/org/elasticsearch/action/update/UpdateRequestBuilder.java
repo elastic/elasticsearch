@@ -132,6 +132,15 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     }
 
     /**
+     * A shortcut for {@link #setWaitForActiveShards(ActiveShardCount)} where the numerical
+     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
+     * to get the ActiveShardCount.
+     */
+    public UpdateRequestBuilder setWaitForActiveShards(final int waitForActiveShards) {
+        return setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
+    }
+
+    /**
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequestBuilder setDoc(IndexRequest indexRequest) {

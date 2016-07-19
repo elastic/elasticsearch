@@ -68,4 +68,14 @@ public abstract class ReplicationRequestBuilder<Request extends ReplicationReque
         request.waitForActiveShards(waitForActiveShards);
         return (RequestBuilder) this;
     }
+
+    /**
+     * A shortcut for {@link #setWaitForActiveShards(ActiveShardCount)} where the numerical
+     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
+     * to get the ActiveShardCount.
+     */
+    @SuppressWarnings("unchecked")
+    public RequestBuilder setWaitForActiveShards(final int waitForActiveShards) {
+        return setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
+    }
 }

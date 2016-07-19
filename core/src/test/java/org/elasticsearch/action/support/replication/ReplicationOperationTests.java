@@ -258,7 +258,8 @@ public class ReplicationOperationTests extends ESTestCase {
         final int unassignedReplicas = randomInt(2);
         final int totalShards = 1 + assignedReplicas + unassignedReplicas;
         final int activeShardCount = randomIntBetween(0, totalShards);
-        Request request = new Request(shardId).waitForActiveShards(ActiveShardCount.from(activeShardCount));
+        Request request = new Request(shardId).waitForActiveShards(
+            activeShardCount == totalShards ? ActiveShardCount.ALL : ActiveShardCount.from(activeShardCount));
         final boolean passesActiveShardCheck = activeShardCount <= assignedReplicas + 1;
 
         ShardRoutingState[] replicaStates = new ShardRoutingState[assignedReplicas + unassignedReplicas];

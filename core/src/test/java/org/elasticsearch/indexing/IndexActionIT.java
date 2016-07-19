@@ -226,4 +226,5 @@ public class IndexActionIT extends ESIntegTestCase {
                     e.getMessage().contains("Invalid index name [..], must not be \'.\' or '..'"), equalTo(true));
         }
     }
+
 }

@@ -30,6 +30,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS;
+
 /**
  * A class whose instances represent a value for counting the number
  * of active shard copies for a given shard in an index.
@@ -67,6 +69,7 @@ public final class ActiveShardCount implements Writeable {
      * Validates that the instance is valid for the given number of replicas in an index.
      */
     public boolean validate(final int numberOfReplicas) {
+        assert numberOfReplicas >= 0;
         return value <= numberOfReplicas + 1;
     }
 
@@ -81,6 +84,7 @@ public final class ActiveShardCount implements Writeable {
             case 0:
                 return NONE;
             default:
+                assert value > 1;
                 return new ActiveShardCount(value);
         }
     }
@@ -138,8 +142,12 @@ public final class ActiveShardCount implements Writeable {
             // all primary shards aren't active yet
             return false;
         }
+        ActiveShardCount waitForActiveShards = this;
+        if (waitForActiveShards == ActiveShardCount.DEFAULT) {
+            waitForActiveShards = SETTING_WAIT_FOR_ACTIVE_SHARDS.get(indexMetaData.getSettings());
+        }
         for (final IntObjectCursor<IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards()) {
-            if (enoughShardsActive(shardRouting.value) == false) {
+            if (waitForActiveShards.enoughShardsActive(shardRouting.value) == false) {
                 // not enough active shard copies yet
                 return false;
             }

@@ -49,7 +49,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -91,7 +90,6 @@ public abstract class TransportReplicationAction<
     protected final ClusterService clusterService;
     protected final IndicesService indicesService;
     private final ShardStateAction shardStateAction;
-    private final ActiveShardCount defaultWaitForActiveShards;
     private final TransportRequestOptions transportOptions;
     private final String executor;
 
@@ -123,8 +121,6 @@ public abstract class TransportReplicationAction<
 
         this.transportOptions = transportOptions();
 
-        this.defaultWaitForActiveShards = IndexSettings.WAIT_FOR_ACTIVE_SHARDS_SETTING.get(settings);
-
         this.replicasProxy = new ReplicasProxy();
     }
 
@@ -150,6 +146,11 @@ public abstract class TransportReplicationAction<
      * @param request       the request to resolve
      */
     protected void resolveRequest(MetaData metaData, IndexMetaData indexMetaData, Request request) {
+        if (request.waitForActiveShards() == ActiveShardCount.DEFAULT) {
+            // if the wait for active shard count has not been set in the request,
+            // resolve it from the index settings
+            request.waitForActiveShards(indexMetaData.getWaitForActiveShards());
+        }
     }
 
     /**
@@ -560,11 +561,9 @@ public abstract class TransportReplicationAction<
             }
 
             // resolve all derived request fields, so we can route and apply it
-            if (request.waitForActiveShards() == ActiveShardCount.DEFAULT) {
-                request.waitForActiveShards(defaultWaitForActiveShards);
-            }
             resolveRequest(state.metaData(), indexMetaData, request);
             assert request.shardId() != null : "request shardId must be set in resolveRequest";
+            assert request.waitForActiveShards() != ActiveShardCount.DEFAULT : "request waitForActiveShards must be set in resolveRequest";
 
             final ShardRouting primary = primary(state);
             if (retryIfUnavailable(state, primary)) {

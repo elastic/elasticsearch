@@ -441,6 +441,15 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         return this;
     }
 
+    /**
+     * A shortcut for {@link #waitForActiveShards(ActiveShardCount)} where the numerical
+     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
+     * to get the ActiveShardCount.
+     */
+    public BulkRequest waitForActiveShards(final int waitForActiveShards) {
+        return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
+    }
+
     public ActiveShardCount waitForActiveShards() {
         return this.waitForActiveShards;
     }

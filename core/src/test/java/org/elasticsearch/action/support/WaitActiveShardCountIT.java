@@ -45,15 +45,14 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
 
         // indexing, by default, will work (waiting for one shard copy only)
         client().prepareIndex("test", "type1", "1").setSource(source("1", "test")).execute().actionGet();
-        ActiveShardCount activeShardCount = ActiveShardCount.from(2); // wait for two active shard copies
         try {
             client().prepareIndex("test", "type1", "1").setSource(source("1", "test"))
-                    .setWaitForActiveShards(activeShardCount)
+                    .setWaitForActiveShards(2) // wait for 2 active shard copies
                     .setTimeout(timeValueMillis(100)).execute().actionGet();
             fail("can't index, does not enough active shard copies");
         } catch (UnavailableShardsException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-            assertThat(e.getMessage(), equalTo("[test][0] Not enough active copies to meet shard count of [" + activeShardCount + "] (have 1, needed 2). Timeout: [100ms], request: [index {[test][type1][1], source[{ \"type1\" : { \"id\" : \"1\", \"name\" : \"test\" } }]}]"));
+            assertThat(e.getMessage(), equalTo("[test][0] Not enough active copies to meet shard count of [2] (have 1, needed 2). Timeout: [100ms], request: [index {[test][type1][1], source[{ \"type1\" : { \"id\" : \"1\", \"name\" : \"test\" } }]}]"));
             // but really, all is well
         }
 
@@ -72,7 +71,7 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
 
         // this should work, since we now have two
         client().prepareIndex("test", "type1", "1").setSource(source("1", "test"))
-                .setWaitForActiveShards(activeShardCount)
+                .setWaitForActiveShards(2)
                 .setTimeout(timeValueSeconds(1)).execute().actionGet();
 
         try {

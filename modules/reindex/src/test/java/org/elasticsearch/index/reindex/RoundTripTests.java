@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -104,7 +103,7 @@ public class RoundTripTests extends ESTestCase {
         request.setAbortOnVersionConflict(random().nextBoolean());
         request.setRefresh(rarely());
         request.setTimeout(TimeValue.parseTimeValue(randomTimeValue(), null, "test"));
-        request.setWaitForActiveShards(ActiveShardCount.from(randomIntBetween(0, 10)));
+        request.setWaitForActiveShards(randomIntBetween(0, 10));
         request.setScript(random().nextBoolean() ? null : randomScript());
         request.setRequestsPerSecond(between(0, Integer.MAX_VALUE));
     }

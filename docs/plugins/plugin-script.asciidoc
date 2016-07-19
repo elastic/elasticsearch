@@ -165,18 +165,18 @@ sudo bin/elasticsearch-plugin install analysis-icu --timeout 0
 
 To install a plugin via a proxy, you can pass the proxy details in with the
 Java settings `proxyHost` and `proxyPort`. On Unix based systems, these
-options can be set on the command line:
+options can be set on the command line for both http and https:
 
 [source,shell]
 -----------------------------------
-sudo ES_JAVA_OPTS="-DproxyHost=host_name -DproxyPort=port_number" bin/elasticsearch-plugin install mobz/elasticsearch-head
+sudo ES_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number" bin/elasticsearch-plugin install mobz/elasticsearch-head
 -----------------------------------
 
 On Windows, they need to be added to the `ES_JAVA_OPTS` environment variable:
 
 [source,shell]
 -----------------------------------
-set ES_JAVA_OPTS="-DproxyHost=host_name -DproxyPort=port_number"
+set ES_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number"
 bin/elasticsearch-plugin install analysis-icu
 -----------------------------------
 

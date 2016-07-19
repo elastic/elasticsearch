@@ -1,0 +1,185 @@
+[[discovery-azure-arm]]
+=== Azure ARM Discovery Plugin
+
+The Azure ARM Discovery plugin uses the Azure ARM API for unicast discovery.
+
+[[discovery-azure-arm-install]]
+[float]
+==== Installation
+
+This plugin can be installed using the plugin manager:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/elasticsearch-plugin install discovery-azure-arm
+----------------------------------------------------------------
+
+The plugin must be installed on every node in the cluster, and each node must
+be restarted after installation.
+
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/discovery-azure-arm/discovery-azure-arm-{version}.zip.
+
+[[discovery-azure-arm-remove]]
+[float]
+==== Removal
+
+The plugin can be removed with the following command:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/elasticsearch-plugin remove discovery-azure-arm
+----------------------------------------------------------------
+
+The node must be stopped before removing the plugin.
+
+[[discovery-azure-arm-usage]]
+==== Usage
+
+Azure VM discovery allows to use the azure ARM APIs to perform automatic discovery of other nodes.
+Here is a simple sample configuration:
+
+[source,yaml]
+----
+cloud:
+    azure-arm:
+        client_id: FILL_WITH_YOUR_CLIENT_ID
+        secret: FILL_WITH_YOUR_SECRET
+        tenant_id: FILL_WITH_YOUR_TENANT
+        subscription_id: FILL_WITH_YOUR_SUBSCRIPTION_ID
+
+discovery.zen.hosts_provider: azure-arm
+----
+
+See <<discovery-azure-arm-credentials>> and <<discovery-azure-arm-discovery-settings>> for more
+details about this configuration.
+
+[IMPORTANT]
+.Binding the network host
+==============================================
+
+It's important to define `network.host` as by default it's bound to `localhost`.
+
+You can use {ref}/modules-network.html[core network host settings]. For example `_en0_`.
+
+==============================================
+
+[[discovery-azure-arm-credentials]]
+==== Azure ARM Credentials
+
+TODO: Martijn, can you explain here how to create and get this information from Azure Management Portal?
+
+The following are a list of settings that can be set to allow Azure ARM plugin to access Azure platform APIs
+in order to be able to fetch the list of nodes which can potentially be declared to the node which is starting:
+
+`cloud.azure-arm.client_id`::
+
+    TODO Explain here
+
+`cloud.azure-arm.secret`::
+
+    TODO Explain here
+
+`cloud.azure-arm.tenant_id`::
+
+    TODO Explain here
+
+`cloud.azure-arm.subscription_id`::
+
+    TODO Explain here
+
+
+[[discovery-azure-arm-discovery-settings]]
+==== Azure ARM Discovery Settings
+
+The following are a list of settings that can further control the discovery:
+
+`discovery.azure-arm.host.type`::
+
+    Either `public_ip` or `private_ip` (default). Azure discovery will use the
+    one you set to ping other nodes.
+
+`discovery.azure-arm.host.name`::
+
+    You can filter virtual machines you would like to connect to by entering a name here. It can be a wildcard
+    like `azure-esnode-*`.
+
+`discovery.azure-arm.host.group_name`::
+
+    You can filter virtual machines you would like to connect to by entering the group name they belongs to.
+    It can be a wildcard. For example `azure-preprod-*` will match any machine belonging to any group which names
+    starts with `azure-preprod-`.
+
+`discovery.azure-arm.region`::
+
+    The region name. For example: `westeurope` or `eastus`. Note that `region` is not mandatory but it's highly
+    recommended to set it to avoid having nodes joining across multiple regions.
+
+`discovery.azure-arm.refresh_interval`::
+
+    The Azure ARM plugin can cache the list of nodes for a given period you can set with this setting. It will avoid
+    calling the Azure API too often. Values can be a negative time value like `-1s` for infinite caching, a zero
+    value `0s` for no cache (default) or any positive value like `10s` to define the duration of the cache.
+
+
+For example. Let say you have the following nodes running on azure platform:
+
+
+
+.Azure platform example
+|===
+|Name |Group Name |Region |Private IP
+
+|`azure-esnode-master-1`
+|`azure-preprod`
+|`westeurope`
+|`10.0.0.1`
+
+|`azure-esnode-master-2`
+|`azure-preprod`
+|`westeurope`
+|`10.0.0.2`
+
+|`azure-esnode-master-3`
+|`azure-preprod`
+|`westeurope`
+|`10.0.0.3`
+
+|`azure-esnode-data-1`
+|`azure-preprod`
+|`westeurope`
+|`10.0.0.4`
+
+|`azure-esnode-data-1`
+|`azure-preprod`
+|`westeurope`
+|`10.0.0.5`
+
+|`azure-esnode-master-6`
+|`azure-prod`
+|`westeurope`
+|`10.0.0.6`
+
+|`azure-esnode-master-1`
+|`azure-preprod`
+|`eastus`
+|`10.0.0.7`
+|===
+
+
+Using the following settings:
+
+[source,yaml]
+----
+discovery:
+    zen.hosts_provider: azure-arm
+    azure-arm:
+        host:
+            type: private_ip
+            name: azure-esnode-master-*
+            group_name: azure-preprod
+            region: westeurope
+        refresh_interval: 10s
+----
+
+Will declare the following list of unicast hosts: `10.0.0.1`, `10.0.0.2` and `10.0.0.3`.

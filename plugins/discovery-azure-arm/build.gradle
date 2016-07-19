@@ -1,0 +1,147 @@
+import oracle.jrockit.jfr.parser.EventData
+import org.elasticsearch.gradle.LoggedExec
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+esplugin {
+  description 'The Azure ARM Discovery plugin allows to use Azure Resources Management API for the unicast discovery mechanism'
+  classname 'org.elasticsearch.plugin.discovery.azure.arm.AzureArmDiscoveryPlugin'
+}
+
+versions << [
+  'azure': '1.0.0-beta4.1',
+  'adal4j': '1.1.2',
+  'okhttp3': '3.3.1',
+  'retrofit': '2.0.2'
+]
+
+dependencies {
+  compile "com.microsoft.azure:azure:${versions.azure}"
+  compile "com.microsoft.azure:azure-mgmt-compute:${versions.azure}"
+  compile "com.microsoft.azure:azure-mgmt-storage:${versions.azure}"
+  compile "com.microsoft.azure:azure-mgmt-resources:${versions.azure}"
+  compile "com.microsoft.azure:azure-mgmt-network:${versions.azure}"
+  compile "com.microsoft.azure:azure-mgmt-keyvault:${versions.azure}"
+  compile "com.microsoft.azure:azure-mgmt-graph-rbac:${versions.azure}"
+  compile "com.microsoft.azure:azure-mgmt-batch:${versions.azure}"
+  compile "com.microsoft.azure:azure-mgmt-trafficmanager:${versions.azure}"
+  compile "com.microsoft.azure:azure-mgmt-appservice:${versions.azure}"
+  compile "com.microsoft.azure:azure-mgmt-sql:${versions.azure}"
+  compile "com.microsoft.azure:azure-mgmt-redis:${versions.azure}"
+  compile "com.microsoft.azure:azure-mgmt-dns:${versions.azure}"
+  compile "com.microsoft.azure:azure-mgmt-cdn:${versions.azure}"
+  compile "com.microsoft.azure:azure-client-authentication:${versions.azure}"
+  compile "com.microsoft.azure:azure-client-runtime:${versions.azure}"
+  compile "com.microsoft.rest:client-runtime:${versions.azure}"
+  compile "com.squareup.okhttp3:okhttp:${versions.okhttp3}"
+  compile "com.squareup.okhttp3:logging-interceptor:${versions.okhttp3}"
+  compile "com.squareup.okhttp3:okhttp-urlconnection:${versions.okhttp3}"
+  compile "com.microsoft.azure:adal4j:${versions.adal4j}"
+  compile "com.squareup.retrofit2:retrofit:${versions.retrofit}"
+  compile "com.squareup.retrofit2:adapter-rxjava:${versions.retrofit}"
+  compile "io.reactivex:rxjava:1.1.8"
+  compile "com.squareup.okio:okio:1.8.0"
+  compile "com.fasterxml.jackson.core:jackson-databind:2.7.2"
+  compile "com.fasterxml.jackson.datatype:jackson-datatype-joda:2.7.2"
+  compile "com.fasterxml.jackson.core:jackson-annotations:2.7.0"
+  compile "com.nimbusds:nimbus-jose-jwt:3.1.2"
+  compile "com.nimbusds:oauth2-oidc-sdk:4.5"
+  compile "org.slf4j:slf4j-api:1.7.5"
+  compile "net.minidev:json-smart:1.1.1"
+  compile "org.apache.commons:commons-lang3:3.3.1"
+  compile "javax.mail:mail:1.4.7"
+  compile "com.google.code.gson:gson:2.2.4"
+  compile "com.google.guava:guava:18.0"
+  compile "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  compile 'com.microsoft.azure:api-annotations:0.0.1'
+}
+
+dependencyLicenses {
+  mapping from: /adal4j.*/, to: 'azure'
+  mapping from: /azure-.*/, to: 'azure'
+  mapping from: /client-runtime.*/, to: 'azure'
+  mapping from: /api-annotations.*/, to: 'azure'
+  mapping from: /okhttp-.*/, to: 'okhttp'
+  mapping from: /logging-interceptor.*/, to: 'okhttp'
+  mapping from: /adapter-rxjava.*/, to: 'retrofit'
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /nimbus-jose-jwt.*/, to: 'nimbus'
+  mapping from: /oauth2-oidc-sdk.*/, to: 'nimbus'
+}
+
+thirdPartyAudit.excludes = [
+  // Classes are missing
+  'android.os.Build$VERSION',
+  'android.os.Handler',
+  'android.os.Looper',
+  'android.util.Log',
+  'com.nimbusds.langtag.LangTag',
+  'com.nimbusds.langtag.LangTagException',
+  'com.nimbusds.langtag.LangTagUtils',
+  'javax.servlet.http.HttpServletRequest',
+  'javax.servlet.http.HttpServletResponse',
+  'org.apache.commons.codec.binary.Base64',
+  'org.bouncycastle.asn1.sec.SECNamedCurves',
+  'org.bouncycastle.asn1.sec.SECObjectIdentifiers',
+  'org.bouncycastle.asn1.x9.X9ECParameters',
+  'org.bouncycastle.crypto.Digest',
+  'org.bouncycastle.crypto.InvalidCipherTextException',
+  'org.bouncycastle.crypto.Wrapper',
+  'org.bouncycastle.crypto.digests.SHA256Digest',
+  'org.bouncycastle.crypto.digests.SHA384Digest',
+  'org.bouncycastle.crypto.digests.SHA512Digest',
+  'org.bouncycastle.crypto.engines.AESEngine',
+  'org.bouncycastle.crypto.engines.AESWrapEngine',
+  'org.bouncycastle.crypto.modes.GCMBlockCipher',
+  'org.bouncycastle.crypto.params.AEADParameters',
+  'org.bouncycastle.crypto.params.ECDomainParameters',
+  'org.bouncycastle.crypto.params.ECPrivateKeyParameters',
+  'org.bouncycastle.crypto.params.ECPublicKeyParameters',
+  'org.bouncycastle.crypto.params.KeyParameter',
+  'org.bouncycastle.crypto.signers.ECDSASigner',
+  'org.bouncycastle.jce.ECNamedCurveTable',
+  'org.bouncycastle.jce.provider.BouncyCastleProvider',
+  'org.bouncycastle.jce.spec.ECNamedCurveParameterSpec',
+  'org.bouncycastle.jce.spec.ECNamedCurveSpec',
+  'org.bouncycastle.math.ec.ECCurve',
+  'org.slf4j.ext.EventData',
+
+  // sun.misc.Unsafe usage
+  'com.google.common.cache.Striped64$1',
+  'com.google.common.cache.Striped64',
+  'com.google.common.cache.Striped64$Cell',
+  'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+  'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+  'rx.internal.util.unsafe.BaseLinkedQueueConsumerNodeRef',
+  'rx.internal.util.unsafe.BaseLinkedQueueProducerNodeRef',
+  'rx.internal.util.unsafe.ConcurrentCircularArrayQueue',
+  'rx.internal.util.unsafe.ConcurrentSequencedCircularArrayQueue',
+  'rx.internal.util.unsafe.MpmcArrayQueueConsumerField',
+  'rx.internal.util.unsafe.MpmcArrayQueueProducerField',
+  'rx.internal.util.unsafe.MpscLinkedQueue',
+  'rx.internal.util.unsafe.SpmcArrayQueueConsumerField',
+  'rx.internal.util.unsafe.SpmcArrayQueueProducerField',
+  'rx.internal.util.unsafe.MpscLinkedQueue',
+  'rx.internal.util.unsafe.SpmcArrayQueueConsumerField',
+  'rx.internal.util.unsafe.SpmcArrayQueueProducerField',
+  'rx.internal.util.unsafe.SpscArrayQueue',
+  'rx.internal.util.unsafe.SpscUnboundedArrayQueue',
+  'rx.internal.util.unsafe.UnsafeAccess'
+]

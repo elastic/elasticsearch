@@ -13,6 +13,10 @@ The core discovery plugins are:
 
 The EC2 discovery plugin uses the https://github.com/aws/aws-sdk-java[AWS API] for unicast discovery.
 
+<<discovery-azure-arm>>::
+
+The Azure ARM discovery plugin uses the Azure ARM API for unicast discovery.
+
 <<discovery-azure-classic,Azure Classic discovery>>::
 
 The Azure Classic discovery plugin uses the Azure Classic API for unicast discovery.
@@ -34,6 +38,8 @@ A number of discovery plugins have been contributed by our community:
 * https://github.com/fabric8io/elasticsearch-cloud-kubernetes[Kubernetes Discovery Plugin] (by Jimmi Dyson, http://fabric8.io[fabric8])
 
 include::discovery-ec2.asciidoc[]
+
+include::discovery-azure-arm.asciidoc[]
 
 include::discovery-azure-classic.asciidoc[]
 

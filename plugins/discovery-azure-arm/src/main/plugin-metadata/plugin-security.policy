@@ -1,0 +1,40 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+grant {
+  permission java.net.NetPermission "getProxySelector";
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.security.ssl";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.com.microsoft.azure.management.resources.implementation";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.com.microsoft.azure.management.storage.implementation";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.com.microsoft.azure.management.compute.implementation";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.com.microsoft.azure.management.network.implementation";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.com.microsoft.azure.management.keyvault.implementation";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.com.microsoft.azure.management.graphrbac.implementation";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.com.microsoft.azure.management.batch.implementation";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.com.microsoft.azure.management.trafficmanager.implementation";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.com.microsoft.azure.management.appservice.implementation";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.com.microsoft.azure.management.sql.implementation";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.com.microsoft.azure.management.redis.implementation";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.com.microsoft.azure.management.dns.implementation";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.com.microsoft.azure.management.cdn.implementation";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  permission java.util.PropertyPermission "*", "read,write";
+
+};

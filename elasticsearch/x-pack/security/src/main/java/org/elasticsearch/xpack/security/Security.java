@@ -198,15 +198,11 @@ public class Security implements ActionPlugin, IngestPlugin {
 
         modules.add(new AuthenticationModule(settings));
         modules.add(new AuthorizationModule(settings));
-        if (enabled == false || auditingEnabled(settings) == false) {
-            modules.add(b -> {
-                b.bind(AuditTrailService.class).toProvider(Providers.of(null));
-                b.bind(AuditTrail.class).toInstance(AuditTrail.NOOP);
-            });
-        }
         if (enabled == false) {
             modules.add(b -> {
                 b.bind(CryptoService.class).toProvider(Providers.of(null));
+                b.bind(AuditTrailService.class)
+                    .toInstance(new AuditTrailService(settings, Collections.emptyList(), securityLicenseState));
             });
             modules.add(new SecurityModule(settings));
             modules.add(new SecurityTransportModule(settings));
@@ -280,13 +276,14 @@ public class Security implements ActionPlugin, IngestPlugin {
         components.add(realms);
 
         // audit trails construction
+        Set<AuditTrail> auditTrails = new LinkedHashSet<>();
         if (AUDIT_ENABLED_SETTING.get(settings)) {
             List<String> outputs = AUDIT_OUTPUTS_SETTING.get(settings);
             if (outputs.isEmpty()) {
                 throw new IllegalArgumentException("Audit logging is enabled but there are zero output types in "
                     + AUDIT_ENABLED_SETTING.getKey());
             }
-            Set<AuditTrail> auditTrails = new LinkedHashSet<>();
+
             for (String output : outputs) {
                 switch (output) {
                     case LoggingAuditTrail.NAME:
@@ -301,8 +298,8 @@ public class Security implements ActionPlugin, IngestPlugin {
                         throw new IllegalArgumentException("Unknown audit trail output [" + output + "]");
                 }
             }
-            components.add(new AuditTrailService(settings, auditTrails.stream().collect(Collectors.toList()), securityLicenseState));
         }
+        components.add(new AuditTrailService(settings, auditTrails.stream().collect(Collectors.toList()), securityLicenseState));
 
         return components;
     }

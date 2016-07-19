@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
@@ -97,9 +98,8 @@ public class AppendProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("value", "value1");
         String processorTag = randomAsciiOfLength(10);
-        ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, processorTag, config));
-        assertThat(exception.getMessage(), equalTo("Exception was thrown when processing field [field]"));
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, config));
+        assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: could not compile script"));
         assertThat(exception.getHeader("processor_tag").get(0), equalTo(processorTag));
-        assertThat(exception.getCause().getMessage(), equalTo("could not compile script"));
     }
 }

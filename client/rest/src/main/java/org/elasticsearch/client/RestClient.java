@@ -172,9 +172,34 @@ public final class RestClient implements Closeable {
      */
     public Response performRequest(String method, String endpoint, Map<String, String> params,
                                    HttpEntity entity, Header... headers) throws Exception {
-        HttpAsyncResponseConsumer<HttpResponse> consumer = HttpAsyncMethods.createConsumer();
+        HttpAsyncResponseConsumer<HttpResponse> responseConsumer = new HeapBufferedAsyncResponseConsumer();
+        return performRequest(method, endpoint, params, entity, responseConsumer, headers);
+    }
+
+    /**
+     * Sends a request to the elasticsearch cluster that the current client points to. Blocks until the request is completed and returns
+     * its response of fails by throwing an exception. Selects a host out of the provided ones in a round-robin fashion. Failing hosts
+     * are marked dead and retried after a certain amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times
+     * they previously failed (the more failures, the later they will be retried). In case of failures all of the alive nodes (or dead
+     * nodes that deserve a retry) are retried until one responds or none of them does, in which case an {@link IOException} will be thrown.
+     *
+     * @param method the http method
+     * @param endpoint the path of the request (without host and port)
+     * @param params the query_string parameters
+     * @param entity the body of the request, null if not applicable
+     * @param responseConsumer the {@link HttpAsyncResponseConsumer} callback. Controls how the response
+     * body gets streamed from a non-blocking HTTP connection on the client side.
+     * @param headers the optional request headers
+     * @return the response returned by elasticsearch
+     * @throws IOException in case of a problem or the connection was aborted
+     * @throws ClientProtocolException in case of an http protocol error
+     * @throws ResponseException in case elasticsearch responded with a status code that indicated an error
+     */
+    public Response performRequest(String method, String endpoint, Map<String, String> params,
+                                   HttpEntity entity, HttpAsyncResponseConsumer<HttpResponse> responseConsumer,
+                                   Header... headers) throws Exception {
         SyncResponseListener listener = new SyncResponseListener();
-        performRequest(method, endpoint, params, entity, consumer, listener, headers);
+        performRequest(method, endpoint, params, entity, responseConsumer, listener, headers);
         return listener.get();
     }
 
@@ -225,7 +250,7 @@ public final class RestClient implements Closeable {
      */
     public void performRequest(String method, String endpoint, Map<String, String> params,
                                HttpEntity entity, ResponseListener responseListener, Header... headers) {
-        HttpAsyncResponseConsumer<HttpResponse> responseConsumer = HttpAsyncMethods.createConsumer();
+        HttpAsyncResponseConsumer<HttpResponse> responseConsumer = new HeapBufferedAsyncResponseConsumer();
         performRequest(method, endpoint, params, entity, responseConsumer, responseListener, headers);
     }
 
@@ -241,7 +266,8 @@ public final class RestClient implements Closeable {
      * @param endpoint the path of the request (without host and port)
      * @param params the query_string parameters
      * @param entity the body of the request, null if not applicable
-     * @param responseConsumer the {@link HttpAsyncResponseConsumer} callback
+     * @param responseConsumer the {@link HttpAsyncResponseConsumer} callback. Controls how the response
+     * body gets streamed from a non-blocking HTTP connection on the client side.
      * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
      * @param headers the optional request headers
      */

@@ -24,6 +24,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.BaseDirectoryWrapper;
@@ -35,15 +36,20 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardRelocatedException;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
@@ -55,9 +61,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RecoverySourceHandlerTests extends ESTestCase {
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build());
@@ -73,8 +85,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
             null, RecoveryState.Type.STORE, randomLong());
         Store store = newStore(createTempDir());
-        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, recoverySettings.getChunkSize().bytesAsInt(),
-                logger);
+        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, () -> 0L, e -> () -> {},
+            recoverySettings.getChunkSize().bytesAsInt(), logger);
         Directory dir = store.directory();
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig());
         int numDocs = randomIntBetween(10, 100);
@@ -125,7 +137,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
-        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, recoverySettings.getChunkSize().bytesAsInt(), logger) {
+        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, () -> 0L, e -> () -> {},
+            recoverySettings.getChunkSize().bytesAsInt(), logger) {
             @Override
             protected void failEngine(IOException cause) {
                 assertFalse(failedEngine.get());
@@ -188,7 +201,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
-        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, recoverySettings.getChunkSize().bytesAsInt(), logger) {
+        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, () -> 0L, e -> () -> {},
+            recoverySettings.getChunkSize().bytesAsInt(), logger) {
             @Override
             protected void failEngine(IOException cause) {
                 assertFalse(failedEngine.get());
@@ -235,6 +249,99 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         }
         assertFalse(failedEngine.get());
         IOUtils.close(store, targetStore);
+    }
+
+    public void testThrowExceptionOnPrimaryRelocatedBeforePhase1Completed() throws IOException {
+        final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
+        StartRecoveryRequest request = new StartRecoveryRequest(shardId,
+            new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
+            new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
+            null, RecoveryState.Type.REPLICA, randomLong());
+        IndexShard shard = mock(IndexShard.class);
+        Translog.View translogView = mock(Translog.View.class);
+        when(shard.acquireTranslogView()).thenReturn(translogView);
+        when(shard.state()).thenReturn(IndexShardState.RELOCATED);
+        AtomicBoolean phase1Called = new AtomicBoolean();
+        AtomicBoolean phase2Called = new AtomicBoolean();
+        RecoverySourceHandler handler = new RecoverySourceHandler(shard, null, request, () -> 0L, e -> () -> {},
+            recoverySettings.getChunkSize().bytesAsInt(), logger) {
+
+            @Override
+            public void phase1(final IndexCommit snapshot, final Translog.View translogView) {
+                phase1Called.set(true);
+            }
+
+            @Override
+            public void phase2(Translog.Snapshot snapshot) {
+                phase2Called.set(true);
+            }
+        };
+        expectThrows(IndexShardRelocatedException.class, () -> handler.recoverToTarget());
+        assertTrue(phase1Called.get());
+        assertFalse(phase2Called.get());
+    }
+
+    public void testWaitForClusterStateOnPrimaryRelocation() throws IOException, InterruptedException {
+        final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
+        StartRecoveryRequest request = new StartRecoveryRequest(shardId,
+            new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
+            new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
+            null, RecoveryState.Type.PRIMARY_RELOCATION, randomLong());
+        AtomicBoolean phase1Called = new AtomicBoolean();
+        AtomicBoolean phase2Called = new AtomicBoolean();
+        AtomicBoolean ensureClusterStateVersionCalled = new AtomicBoolean();
+        AtomicBoolean recoveriesDelayed = new AtomicBoolean();
+        AtomicBoolean relocated = new AtomicBoolean();
+
+        IndexShard shard = mock(IndexShard.class);
+        Translog.View translogView = mock(Translog.View.class);
+        when(shard.acquireTranslogView()).thenReturn(translogView);
+        when(shard.state()).then(i -> relocated.get() ? IndexShardState.RELOCATED : IndexShardState.STARTED);
+        doAnswer(i -> {
+            relocated.set(true);
+            assertTrue(recoveriesDelayed.get());
+            return null;
+        }).when(shard).relocated(any(String.class));
+
+        RecoveryTargetHandler targetHandler = mock(RecoveryTargetHandler.class);
+
+        final Supplier<Long> currentClusterStateVersionSupplier = () -> {
+            assertFalse(ensureClusterStateVersionCalled.get());
+            assertTrue(recoveriesDelayed.get());
+            ensureClusterStateVersionCalled.set(true);
+            return 0L;
+        };
+        final Function<String, Releasable> delayNewRecoveries = s -> {
+            assertTrue(phase1Called.get());
+            assertTrue(phase2Called.get());
+
+            assertFalse(recoveriesDelayed.get());
+            recoveriesDelayed.set(true);
+            return () -> {
+                assertTrue(recoveriesDelayed.get());
+                recoveriesDelayed.set(false);
+            };
+        };
+
+        RecoverySourceHandler handler = new RecoverySourceHandler(shard, targetHandler, request, currentClusterStateVersionSupplier,
+            delayNewRecoveries, recoverySettings.getChunkSize().bytesAsInt(), logger) {
+
+            @Override
+            public void phase1(final IndexCommit snapshot, final Translog.View translogView) {
+                phase1Called.set(true);
+            }
+
+            @Override
+            public void phase2(Translog.Snapshot snapshot) {
+                phase2Called.set(true);
+            }
+        };
+        handler.recoverToTarget();
+        assertTrue(ensureClusterStateVersionCalled.get());
+        assertTrue(phase1Called.get());
+        assertTrue(phase2Called.get());
+        assertTrue(relocated.get());
+        assertFalse(recoveriesDelayed.get());
     }
 
     private Store newStore(Path path) throws IOException {

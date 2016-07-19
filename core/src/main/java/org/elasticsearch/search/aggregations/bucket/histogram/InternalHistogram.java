@@ -411,9 +411,9 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         if (bounds != null) {
             B firstBucket = iter.hasNext() ? list.get(iter.nextIndex()) : null;
             if (firstBucket == null) {
-                if (bounds.min != null && bounds.max != null) {
-                    long key = bounds.min;
-                    long max = bounds.max;
+                if (bounds.getMin() != null && bounds.getMax() != null) {
+                    long key = bounds.getMin();
+                    long max = bounds.getMax();
                     while (key <= max) {
                         iter.add(getFactory().createBucket(key, 0,
                                 reducedEmptySubAggs,
@@ -422,8 +422,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                     }
                 }
             } else {
-                if (bounds.min != null) {
-                    long key = bounds.min;
+                if (bounds.getMin() != null) {
+                    long key = bounds.getMin();
                     if (key < firstBucket.key) {
                         while (key < firstBucket.key) {
                             iter.add(getFactory().createBucket(key, 0,
@@ -454,9 +454,9 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         }
 
         // finally, adding the empty buckets *after* the actual data (based on the extended_bounds.max requested by the user)
-        if (bounds != null && lastBucket != null && bounds.max != null && bounds.max > lastBucket.key) {
+        if (bounds != null && lastBucket != null && bounds.getMax() != null && bounds.getMax() > lastBucket.key) {
             long key = emptyBucketInfo.rounding.nextRoundingValue(lastBucket.key);
-            long max = bounds.max;
+            long max = bounds.getMax();
             while (key <= max) {
                 iter.add(getFactory().createBucket(key, 0,
                         reducedEmptySubAggs, keyed,

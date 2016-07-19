@@ -143,15 +143,6 @@ public abstract class SearchContext implements Releasable {
         return nowInMillisImpl();
     }
 
-    public final Callable<Long> nowCallable() {
-        return new Callable<Long>() {
-            @Override
-            public Long call() throws Exception {
-                return nowInMillis();
-            }
-        };
-    };
-
     public final boolean nowInMillisUsed() {
         return nowInMillisUsed;
     }

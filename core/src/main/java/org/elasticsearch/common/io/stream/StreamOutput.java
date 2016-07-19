@@ -237,6 +237,15 @@ public abstract class StreamOutput extends OutputStream {
         writeByte((byte) (value & 0x7F));
     }
 
+    public void writeOptionalLong(@Nullable Long l) throws IOException {
+        if (l == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeLong(l);
+        }
+    }
+
     public void writeOptionalString(@Nullable String str) throws IOException {
         if (str == null) {
             writeBoolean(false);
@@ -314,7 +323,7 @@ public abstract class StreamOutput extends OutputStream {
         writeLong(Double.doubleToLongBits(v));
     }
 
-    public void writeOptionalDouble(Double v) throws IOException {
+    public void writeOptionalDouble(@Nullable Double v) throws IOException {
         if (v == null) {
             writeBoolean(false);
         } else {
@@ -798,7 +807,7 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Write an optional {@linkplain DateTimeZone} to the stream.
      */
-    public void writeOptionalTimeZone(DateTimeZone timeZone) throws IOException {
+    public void writeOptionalTimeZone(@Nullable DateTimeZone timeZone) throws IOException {
         if (timeZone == null) {
             writeBoolean(false);
         } else {

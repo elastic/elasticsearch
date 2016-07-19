@@ -19,12 +19,7 @@
 
 package org.elasticsearch.cloud.azure.management;
 
-import com.microsoft.azure.management.compute.models.VirtualMachine;
-import com.microsoft.azure.management.network.models.Subnet;
 import com.microsoft.windowsazure.Configuration;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  *

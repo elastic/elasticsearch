@@ -22,26 +22,16 @@ package org.elasticsearch.cloud.azure.management;
 import com.microsoft.aad.adal4j.AuthenticationResult;
 import com.microsoft.azure.management.compute.ComputeManagementClient;
 import com.microsoft.azure.management.compute.ComputeManagementService;
-import com.microsoft.azure.management.compute.models.VirtualMachine;
-import com.microsoft.azure.management.network.NetworkResourceProviderClient;
-import com.microsoft.azure.management.network.NetworkResourceProviderService;
-import com.microsoft.azure.management.network.models.Subnet;
 import com.microsoft.azure.utility.AuthHelper;
 import com.microsoft.windowsazure.Configuration;
-import com.microsoft.windowsazure.exception.ServiceException;
 import com.microsoft.windowsazure.management.configuration.ManagementConfiguration;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cloud.azure.AzureServiceDisableException;
-import org.elasticsearch.cloud.azure.AzureServiceRemoteException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.azure.AzureDiscovery;
 
 import java.io.IOException;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.elasticsearch.cloud.azure.management.AzureComputeService.Management.*;
 

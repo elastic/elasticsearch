@@ -20,68 +20,60 @@
 package org.elasticsearch.discovery.azure;
 
 import org.elasticsearch.cloud.azure.AbstractAzureComputeServiceTestCase;
-import org.elasticsearch.cloud.azure.AzureComputeServiceSimpleMock;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Discovery;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
+import org.elasticsearch.cloud.azure.AzureComputeServiceTwoNodesMock;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
-
-import java.io.IOException;
 
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST,
         numDataNodes = 0,
-        transportClientRatio = 0,
+        transportClientRatio = 0.0,
         numClientNodes = 0)
-public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
+public class AzureTwoStartedNodesTests extends AbstractAzureComputeServiceTestCase {
 
-
-    public AzureSimpleTests() {
-        super(AzureComputeServiceSimpleMock.TestPlugin.class);
+    public AzureTwoStartedNodesTests() {
+        super(AzureComputeServiceTwoNodesMock.TestPlugin.class);
     }
 
-
     @Test
-    public void one_node_should_run_using_private_ip() {
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11533")
+    public void two_nodes_should_run_using_private_ip() {
         Settings.Builder settings = Settings.settingsBuilder()
-        .put(Management.RESOURCE_GROUP_NAME, "elasticsearch-production")
+                .put(Management.RESOURCE_GROUP_NAME, "crate-production")
                 .put(Discovery.HOST_TYPE, "private_ip");
 
-        logger.info("--> start one node");
+        logger.info("--> start first node");
         internalCluster().startNode(settings);
         assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
 
-        // We expect having 1 node as part of the cluster, let's test that
-        checkNumberOfNodes(1);
+        logger.info("--> start another node");
+        internalCluster().startNode(settings);
+        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
+
+        // We expect having 2 nodes as part of the cluster, let's test that
+        checkNumberOfNodes(2);
     }
 
     @Test
-    public void one_node_should_run_using_public_ip() {
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11533")
+    public void two_nodes_should_run_using_public_ip() {
         Settings.Builder settings = Settings.settingsBuilder()
-                .put(Management.RESOURCE_GROUP_NAME, "elasticsearch-production")
+                .put(Management.RESOURCE_GROUP_NAME, "crate-production")
                 .put(Discovery.HOST_TYPE, "public_ip");
-        logger.info("--> start one node");
+
+        logger.info("--> start first node");
         internalCluster().startNode(settings);
         assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
 
-        // We expect having 1 node as part of the cluster, let's test that
-        checkNumberOfNodes(1);
-    }
-
-    @Test
-    public void one_node_should_run_using_wrong_settings() throws IOException {
-        Settings.Builder settings = Settings.settingsBuilder()
-                .put(Management.RESOURCE_GROUP_NAME, "elasticsearch-production")
-                .put(Discovery.HOST_TYPE, "does_not_exist")
-                .put(Discovery.DISCOVERY_METHOD, "does_not_exist");
-        logger.info("--> start one node");
+        logger.info("--> start another node");
         internalCluster().startNode(settings);
         assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
 
-        // We expect having 1 node as part of the cluster, let's test that
-        checkNumberOfNodes(1);
+        // We expect having 2 nodes as part of the cluster, let's test that
+        checkNumberOfNodes(2);
     }
-
 }

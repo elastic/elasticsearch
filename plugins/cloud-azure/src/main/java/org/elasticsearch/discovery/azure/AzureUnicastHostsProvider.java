@@ -22,7 +22,6 @@ package org.elasticsearch.discovery.azure;
 import com.microsoft.azure.management.network.*;
 import com.microsoft.azure.management.network.models.*;
 
-import com.microsoft.windowsazure.exception.ServiceException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.azure.management.AzureComputeService;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Discovery;
@@ -30,7 +29,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -104,7 +102,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
             tmpHostType = HostType.PRIVATE_IP;
         }
         this.hostType = tmpHostType;
-        this.discoveryMethod = settings.get(Discovery.DISCOVERY_METHOD, AzureDiscovery.VNET);
+        this.discoveryMethod = Discovery.DISCOVERY_METHOD.equals(AzureDiscovery.SUBNET) ? AzureDiscovery.SUBNET : AzureDiscovery.VNET;
     }
 
     /**
@@ -140,13 +138,16 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
 
         // In other case, it should be the right deployment so we can add it to the list of instances
         String rgName = settings.get(AzureComputeService.Management.RESOURCE_GROUP_NAME);
+        if (azureComputeService.getConfiguration() == null) {
+            return cachedDiscoNodes;
+        }
         NetworkResourceProviderClient networkResourceProviderClient =
                 NetworkResourceProviderService.create(azureComputeService.getConfiguration());
 
         try {
             final HashMap<String, String> networkNameOfCurrentHost = retrieveNetInfo(rgName, NetworkAddress.format(ipAddress), networkResourceProviderClient);
 
-            if(networkNameOfCurrentHost.size() == 0 ){
+            if (networkNameOfCurrentHost.size() == 0) {
                 logger.error("Could not find vnet or subnet of current host");
                 return cachedDiscoNodes;
             }
@@ -154,17 +155,13 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
             List<String> ipAddresses = listIPAddresses(networkResourceProviderClient, rgName, networkNameOfCurrentHost.get(AzureDiscovery.VNET),
                     networkNameOfCurrentHost.get(AzureDiscovery.SUBNET), discoveryMethod, hostType, logger);
             for (String networkAddress : ipAddresses) {
-                try {
-                    // we only limit to 1 port per address, makes no sense to ping 100 ports
+                    // limit to 1 port per address
                     TransportAddress[] addresses = transportService.addressesFromString(networkAddress, 1);
                     for (TransportAddress address : addresses) {
                         logger.trace("adding {}, transport_address {}", networkAddress, address);
                         cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + networkAddress, address,
                                 version.minimumCompatibilityVersion()));
                     }
-                } catch (Exception e) {
-                    logger.warn("can not convert [{}] to transport address. skipping. [{}]", networkAddress, e.getMessage());
-                }
             }
         } catch (UnknownHostException e) {
             logger.error("Error occurred in getting hostname");
@@ -230,8 +227,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
 
             for (ResourceId resourceId : ipConfigurations) {
                 String[] nicURI = resourceId.getId().split("/");
-                NetworkInterface nic = networkResourceProviderClient.getNetworkInterfacesOperations().get(rgName, nicURI[
-                        nicURI.length - 3]).getNetworkInterface();
+                NetworkInterface nic = networkResourceProviderClient.getNetworkInterfacesOperations().get(rgName, nicURI[nicURI.length - 3]).getNetworkInterface();
                 ArrayList<NetworkInterfaceIpConfiguration> ips = nic.getIpConfigurations();
 
                 // find public ip address
@@ -250,20 +246,18 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                             }
                             break;
                         case PUBLIC_IP:
-                            String[] pipID = ipConfiguration.getPublicIpAddress().getId().split("/");
-                            PublicIpAddress pip = networkResourceProviderClient.getPublicIpAddressesOperations()
-                                    .get(rgName, pipID[pipID.length - 1]).getPublicIpAddress();
+                            if (ipConfiguration.getPublicIpAddress() != null) {
+                                String[] pipID = ipConfiguration.getPublicIpAddress().getId().split("/");
+                                PublicIpAddress pip = networkResourceProviderClient.getPublicIpAddressesOperations()
+                                        .get(rgName, pipID[pipID.length - 1]).getPublicIpAddress();
 
-                            networkAddress = NetworkAddress.formatAddress(InetAddress.getByName(pip.getIpAddress()));
+                                networkAddress = NetworkAddress.formatAddress(InetAddress.getByName(pip.getIpAddress()));
+                            }
 
                             if (networkAddress == null) {
                                 logger.trace("no public ip provided. ignoring [{}]...", nic.getName());
                             }
                             break;
-                        default:
-                            // This could never happen!
-                            logger.warn("undefined host_type [{}]. Please check your settings.", hostType);
-                            return ipList;
                     }
 
                     if (networkAddress == null) {
@@ -277,7 +271,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                 }
             }
         } catch (Exception e) {
-           logger.error(e.getMessage());
+            logger.error(e.getMessage());
         }
         return ipList;
     }

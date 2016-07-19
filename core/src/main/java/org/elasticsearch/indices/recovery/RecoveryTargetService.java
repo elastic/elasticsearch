@@ -150,7 +150,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
 
     private void retryRecovery(final RecoveryTarget recoveryTarget, TimeValue retryAfter, final StartRecoveryRequest currentRequest) {
         try {
-            recoveryTarget.resetRecovery();
+            onGoingRecoveries.resetRecovery(recoveryTarget.recoveryId(), recoveryTarget.shardId());
         } catch (Exception e) {
             onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(), new RecoveryFailedException(currentRequest, e), true);
         }

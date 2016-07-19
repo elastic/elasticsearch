@@ -1322,9 +1322,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     public void deleteQuiet(String... files) {
+        ensureOpen();
+        StoreDirectory directory = this.directory;
         for (String file : files) {
             try {
-                directory().deleteFile(file);
+               directory.deleteFile("Store.deleteQuiet", file);
             } catch (Exception ex) {
                 // ignore :(
             }

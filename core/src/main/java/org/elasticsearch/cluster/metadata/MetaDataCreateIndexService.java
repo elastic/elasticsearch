@@ -347,7 +347,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 .setRoutingNumShards(routingNumShards);
                             // Set up everything, now locally create the index to see that things are ok, and apply
                             final IndexMetaData tmpImd = tmpImdBuilder.settings(actualIndexSettings).build();
-                            if (request.waitForActiveShards().resolve(tmpImd) > tmpImd.getNumberOfReplicas() + 1) {
+                            if (request.waitForActiveShards().validate(tmpImd.getNumberOfReplicas()) == false) {
                                 throw new IllegalArgumentException("invalid wait_for_active_shards[" + request.waitForActiveShards() +
                                                                    "]: cannot be greater than number of shard copies [" +
                                                                    (tmpImd.getNumberOfReplicas() + 1) + "]");

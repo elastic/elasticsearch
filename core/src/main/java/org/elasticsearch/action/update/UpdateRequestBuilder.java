@@ -126,8 +126,8 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets the number of shard copies that must be active before proceeding with the write.
      * See {@link ReplicationRequest#waitForActiveShards(ActiveShardCount)} for details.
      */
-    public UpdateRequestBuilder setWaitForActiveShards(ActiveShardCount activeShardCount) {
-        request.waitForActiveShards(activeShardCount);
+    public UpdateRequestBuilder setWaitForActiveShards(ActiveShardCount waitForActiveShards) {
+        request.waitForActiveShards(waitForActiveShards);
         return this;
     }
 

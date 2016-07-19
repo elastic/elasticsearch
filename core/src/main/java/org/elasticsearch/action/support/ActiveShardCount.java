@@ -63,8 +63,15 @@ public final class ActiveShardCount implements Writeable {
         return get(value);
     }
 
+    /**
+     * Validates that the instance is valid for the given number of replicas in an index.
+     */
+    public boolean validate(final int numberOfReplicas) {
+        return value <= numberOfReplicas + 1;
+    }
+
     private static ActiveShardCount get(final int value) {
-        switch (validateValue(value)) {
+        switch (value) {
             case ACTIVE_SHARD_COUNT_DEFAULT:
                 return DEFAULT;
             case ALL_ACTIVE_SHARDS:
@@ -85,29 +92,6 @@ public final class ActiveShardCount implements Writeable {
 
     public static ActiveShardCount readFrom(final StreamInput in) throws IOException {
         return get(in.readInt());
-    }
-
-    private static int validateValue(final int value) {
-        if (value < 0 && value != ACTIVE_SHARD_COUNT_DEFAULT && value != ALL_ACTIVE_SHARDS) {
-            throw new IllegalArgumentException("Invalid ActiveShardCount[" + value + "]");
-        }
-        return value;
-    }
-
-    /**
-     * Resolve this instance to an actual integer value for the number of active shard counts.
-     * If {@link ActiveShardCount#ALL} is specified, then the given {@link IndexMetaData} is
-     * used to determine what the actual active shard count should be.  The default value indicates
-     * one active shard.
-     */
-    public int resolve(final IndexMetaData indexMetaData) {
-        if (this == ActiveShardCount.DEFAULT) {
-            return 1;
-        } else if (this == ActiveShardCount.ALL) {
-            return indexMetaData.getNumberOfReplicas() + 1;
-        } else {
-            return value;
-        }
     }
 
     /**
@@ -155,7 +139,7 @@ public final class ActiveShardCount implements Writeable {
             return false;
         }
         for (final IntObjectCursor<IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards()) {
-            if (enoughShardsActive(shardRouting.value, indexMetaData).isEnoughShardsActive() == false) {
+            if (enoughShardsActive(shardRouting.value) == false) {
                 // not enough active shard copies yet
                 return false;
             }
@@ -167,10 +151,14 @@ public final class ActiveShardCount implements Writeable {
      * Returns true iff the active shard count in the shard routing table is enough
      * to meet the required shard count represented by this instance.
      */
-    public EvalResult enoughShardsActive(final IndexShardRoutingTable shardRoutingTable, final IndexMetaData indexMetaData) {
-        final int totalActive = shardRoutingTable.activeShards().size();
-        final int totalRequired = resolve(indexMetaData);
-        return new EvalResult(shardRoutingTable.activeShards().size() >= resolve(indexMetaData), totalActive, totalRequired);
+    public boolean enoughShardsActive(final IndexShardRoutingTable shardRoutingTable) {
+        if (this == ActiveShardCount.ALL) {
+            return shardRoutingTable.allShardsStarted();
+        } else if (this == ActiveShardCount.DEFAULT) {
+            return shardRoutingTable.primaryShard().started();
+        } else {
+            return shardRoutingTable.activeShards().size() >= value;
+        }
     }
 
     @Override
@@ -199,33 +187,6 @@ public final class ActiveShardCount implements Writeable {
                 return "DEFAULT";
             default:
                 return Integer.toString(value);
-        }
-    }
-
-    /**
-     * The result of the evaluation of the active shard copy count against a shard routing table.
-     */
-    public static final class EvalResult {
-        private final boolean enoughShardsActive;
-        private final int totalActive;
-        private final int totalRequired;
-
-        private EvalResult(boolean enoughShardsActive, int totalActive, int totalRequired) {
-            this.enoughShardsActive = enoughShardsActive;
-            this.totalActive = totalActive;
-            this.totalRequired = totalRequired;
-        }
-
-        public boolean isEnoughShardsActive() {
-            return enoughShardsActive;
-        }
-
-        public int getTotalActive() {
-            return totalActive;
-        }
-
-        public int getTotalRequired() {
-            return totalRequired;
         }
     }
 

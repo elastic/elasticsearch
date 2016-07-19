@@ -25,7 +25,6 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -199,6 +198,9 @@ public class ReplicationOperation<
         final String indexName = shardId.getIndexName();
         final ClusterState state = clusterStateSupplier.get();
         final ActiveShardCount waitForActiveShards = request.waitForActiveShards();
+        if (waitForActiveShards == ActiveShardCount.NONE) {
+            return null;  // not waiting for any shards
+        }
         IndexRoutingTable indexRoutingTable = state.getRoutingTable().index(indexName);
         if (indexRoutingTable == null) {
             logger.trace("[{}] index not found in the routing table", shardId);
@@ -209,17 +211,16 @@ public class ReplicationOperation<
             logger.trace("[{}] shard not found in the routing table", shardId);
             return "Shard " + shardId + " not found in the routing table";
         }
-        IndexMetaData indexMetaData = state.getMetaData().index(indexName);
-        assert indexMetaData != null;
-        ActiveShardCount.EvalResult result = waitForActiveShards.enoughShardsActive(shardRoutingTable, indexMetaData);
-
-        if (result.isEnoughShardsActive()) {
+        if (waitForActiveShards.enoughShardsActive(shardRoutingTable)) {
             return null;
         } else {
+            final String resolvedShards = waitForActiveShards == ActiveShardCount.ALL ? Integer.toString(shardRoutingTable.shards().size())
+                                              : waitForActiveShards.toString();
             logger.trace("[{}] not enough active copies to meet shard count of [{}] (have {}, needed {}), scheduling a retry. op [{}], " +
-                         "request [{}]", shardId, waitForActiveShards, result.getTotalActive(), result.getTotalRequired(), opType, request);
-            return "Not enough active copies to meet shard count of [" + waitForActiveShards + "] (have " + result.getTotalActive() +
-                       ", needed " + result.getTotalRequired() + ").";
+                         "request [{}]", shardId, waitForActiveShards, shardRoutingTable.activeShards().size(),
+                         resolvedShards, opType, request);
+            return "Not enough active copies to meet shard count of [" + waitForActiveShards + "] (have " +
+                       shardRoutingTable.activeShards().size() + ", needed " + resolvedShards + ").";
         }
     }
 

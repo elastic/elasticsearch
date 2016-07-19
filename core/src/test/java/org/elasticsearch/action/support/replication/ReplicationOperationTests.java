@@ -20,14 +20,12 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -35,7 +33,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -260,13 +257,9 @@ public class ReplicationOperationTests extends ESTestCase {
         final int assignedReplicas = randomInt(2);
         final int unassignedReplicas = randomInt(2);
         final int totalShards = 1 + assignedReplicas + unassignedReplicas;
-        final IndexMetaData indexMetaData = IndexMetaData.builder(index)
-                                                .settings(Settings.builder().put("index.version.created", Version.CURRENT.id))
-                                                .numberOfReplicas(assignedReplicas + unassignedReplicas)
-                                                .numberOfShards(randomIntBetween(1, 5))
-                                                .build();
-        Request request = new Request(shardId).waitForActiveShards(ActiveShardCount.from(randomIntBetween(0, totalShards)));
-        final boolean passesActiveShardCheck = request.waitForActiveShards().resolve(indexMetaData) <= assignedReplicas + 1;
+        final int activeShardCount = randomIntBetween(0, totalShards);
+        Request request = new Request(shardId).waitForActiveShards(ActiveShardCount.from(activeShardCount));
+        final boolean passesActiveShardCheck = activeShardCount <= assignedReplicas + 1;
 
         ShardRoutingState[] replicaStates = new ShardRoutingState[assignedReplicas + unassignedReplicas];
         for (int i = 0; i < assignedReplicas; i++) {

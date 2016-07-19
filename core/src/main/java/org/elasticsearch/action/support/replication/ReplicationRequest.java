@@ -63,7 +63,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     /**
      * The number of shard copies that must be active before proceeding with the replication action.
      */
-    private ActiveShardCount activeShardCount = ActiveShardCount.DEFAULT;
+    private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
     private long routedBasedOnClusterVersion = 0;
 
@@ -120,7 +120,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     }
 
     public ActiveShardCount waitForActiveShards() {
-        return this.activeShardCount;
+        return this.waitForActiveShards;
     }
 
     /**
@@ -141,8 +141,8 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
      * total number of shard copies (number of replicas + 1).
      */
     @SuppressWarnings("unchecked")
-    public final Request waitForActiveShards(ActiveShardCount activeShardCount) {
-        this.activeShardCount = activeShardCount;
+    public final Request waitForActiveShards(ActiveShardCount waitForActiveShards) {
+        this.waitForActiveShards = waitForActiveShards;
         return (Request) this;
     }
 
@@ -187,7 +187,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         } else {
             shardId = null;
         }
-        activeShardCount = ActiveShardCount.readFrom(in);
+        waitForActiveShards = ActiveShardCount.readFrom(in);
         timeout = new TimeValue(in);
         index = in.readString();
         routedBasedOnClusterVersion = in.readVLong();
@@ -203,7 +203,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         } else {
             out.writeBoolean(false);
         }
-        activeShardCount.writeTo(out);
+        waitForActiveShards.writeTo(out);
         timeout.writeTo(out);
         out.writeString(index);
         out.writeVLong(routedBasedOnClusterVersion);

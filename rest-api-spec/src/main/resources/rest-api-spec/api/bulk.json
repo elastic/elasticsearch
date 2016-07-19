@@ -18,7 +18,7 @@
       "params": {
         "wait_for_active_shards": {
           "type" : "string",
-          "description" : "Explicit active shard count required for the operation"
+          "description" : "Sets the number of shard copies that must be active before proceeding with the bulk operation. Defaults to 1, meaning the primary shard only. Set to `all` for all shard copies, otherwise set to any non-negative value less than or equal to the total number of copies for the shard (number of replicas + 1)" 
         },
         "refresh": {
           "type" : "enum",

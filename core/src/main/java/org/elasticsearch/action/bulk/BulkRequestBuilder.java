@@ -115,8 +115,8 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
      * Sets the number of shard copies that must be active before proceeding with the write.
      * See {@link ReplicationRequest#waitForActiveShards(ActiveShardCount)} for details.
      */
-    public BulkRequestBuilder setWaitForActiveShards(ActiveShardCount activeShardCount) {
-        request.waitForActiveShards(activeShardCount);
+    public BulkRequestBuilder setWaitForActiveShards(ActiveShardCount waitForActiveShards) {
+        request.waitForActiveShards(waitForActiveShards);
         return this;
     }
 

@@ -64,8 +64,8 @@ public abstract class ReplicationRequestBuilder<Request extends ReplicationReque
      * See {@link ReplicationRequest#waitForActiveShards(ActiveShardCount)} for details.
      */
     @SuppressWarnings("unchecked")
-    public RequestBuilder setWaitForActiveShards(ActiveShardCount activeShardCount) {
-        request.waitForActiveShards(activeShardCount);
+    public RequestBuilder setWaitForActiveShards(ActiveShardCount waitForActiveShards) {
+        request.waitForActiveShards(waitForActiveShards);
         return (RequestBuilder) this;
     }
 }

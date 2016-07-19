@@ -75,7 +75,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
 
-    private ActiveShardCount activeShardCount = ActiveShardCount.DEFAULT;
+    private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
     private IndexRequest upsertRequest;
 
@@ -435,15 +435,15 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     public ActiveShardCount waitForActiveShards() {
-        return this.activeShardCount;
+        return this.waitForActiveShards;
     }
 
     /**
      * Sets the number of shard copies that must be active before proceeding with the write.
      * See {@link ReplicationRequest#waitForActiveShards(ActiveShardCount)} for details.
      */
-    public UpdateRequest waitForActiveShards(ActiveShardCount activeShardCount) {
-        this.activeShardCount = activeShardCount;
+    public UpdateRequest waitForActiveShards(ActiveShardCount waitForActiveShards) {
+        this.waitForActiveShards = waitForActiveShards;
         return this;
     }
 
@@ -705,7 +705,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        activeShardCount = ActiveShardCount.readFrom(in);
+        waitForActiveShards = ActiveShardCount.readFrom(in);
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
@@ -740,7 +740,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        activeShardCount.writeTo(out);
+        waitForActiveShards.writeTo(out);
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing);

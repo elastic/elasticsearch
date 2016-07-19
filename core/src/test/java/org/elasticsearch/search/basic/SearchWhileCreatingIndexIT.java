@@ -54,9 +54,8 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
 
     private void searchWhileCreatingIndex(boolean createIndex, int numberOfReplicas) throws Exception {
 
-        // TODO: add a smarter choice based on varying active shard count (when that is randomized)
-        internalCluster().ensureAtLeastNumDataNodes(randomIntBetween(1, numberOfReplicas + 1));
-
+        // TODO: randomize the wait for active shards value on index creation and ensure the appropriate
+        // number of data nodes are started for the randomized active shard count value
         String id = randomAsciiOfLength(5);
         // we will go the primary or the replica, but in a
         // randomized re-creatable manner

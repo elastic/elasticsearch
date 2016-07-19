@@ -69,7 +69,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     List<Object> payloads = null;
 
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
-    private ActiveShardCount activeShardCount = ActiveShardCount.DEFAULT;
+    private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
     private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
 
     private long sizeInBytes = 0;
@@ -436,13 +436,13 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
      * Sets the number of shard copies that must be active before proceeding with the write.
      * See {@link ReplicationRequest#waitForActiveShards(ActiveShardCount)} for details.
      */
-    public BulkRequest waitForActiveShards(ActiveShardCount activeShardCount) {
-        this.activeShardCount = activeShardCount;
+    public BulkRequest waitForActiveShards(ActiveShardCount waitForActiveShards) {
+        this.waitForActiveShards = waitForActiveShards;
         return this;
     }
 
     public ActiveShardCount waitForActiveShards() {
-        return this.activeShardCount;
+        return this.waitForActiveShards;
     }
 
     @Override
@@ -527,7 +527,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        activeShardCount = ActiveShardCount.readFrom(in);
+        waitForActiveShards = ActiveShardCount.readFrom(in);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             byte type = in.readByte();
@@ -552,7 +552,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        activeShardCount.writeTo(out);
+        waitForActiveShards.writeTo(out);
         out.writeVInt(requests.size());
         for (ActionRequest<?> request : requests) {
             if (request instanceof IndexRequest) {

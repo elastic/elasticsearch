@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.IndexShard;
@@ -31,7 +32,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -48,10 +48,12 @@ public class RecoveriesCollection {
 
     private final ESLogger logger;
     private final ThreadPool threadPool;
+    private final Callback<Long> ensureClusterStateVersionCallback;
 
-    public RecoveriesCollection(ESLogger logger, ThreadPool threadPool) {
+    public RecoveriesCollection(ESLogger logger, ThreadPool threadPool, Callback<Long> ensureClusterStateVersionCallback) {
         this.logger = logger;
         this.threadPool = threadPool;
+        this.ensureClusterStateVersionCallback = ensureClusterStateVersionCallback;
     }
 
     /**
@@ -61,7 +63,7 @@ public class RecoveriesCollection {
      */
     public long startRecovery(IndexShard indexShard, DiscoveryNode sourceNode,
                               RecoveryTargetService.RecoveryListener listener, TimeValue activityTimeout) {
-        RecoveryTarget status = new RecoveryTarget(indexShard, sourceNode, listener);
+        RecoveryTarget status = new RecoveryTarget(indexShard, sourceNode, listener, ensureClusterStateVersionCallback);
         RecoveryTarget existingStatus = onGoingRecoveries.putIfAbsent(status.recoveryId(), status);
         assert existingStatus == null : "found two RecoveryStatus instances with the same id";
         logger.trace("{} started recovery from {}, id [{}]", indexShard.shardId(), sourceNode, status.recoveryId());
@@ -174,7 +176,6 @@ public class RecoveriesCollection {
         }
         return cancelled;
     }
-
 
     /**
      * a reference to {@link RecoveryTarget}, which implements {@link AutoCloseable}. closing the reference

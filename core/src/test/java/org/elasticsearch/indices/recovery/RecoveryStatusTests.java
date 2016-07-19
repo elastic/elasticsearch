@@ -51,7 +51,7 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
             @Override
             public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
             }
-        });
+        }, version -> {});
         try (IndexOutput indexOutput = status.openAndPutIndexOutput("foo.bar", new StoreFileMetaData("foo.bar", 8 + CodecUtil.footerLength(), "9z51nw"), status.store())) {
             indexOutput.writeInt(1);
             IndexOutput openIndexOutput = status.getOpenIndexOutput("foo.bar");

@@ -382,8 +382,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         if (recoveryState.getSourceNode().equals(sourceNode) == false) {
                             if (recoveryTargetService.cancelRecoveriesForShard(shardId, "recovery source node changed")) {
                                 // getting here means that the shard was still recovering
-                                logger.debug("{} removing shard (recovery source changed), current [{}], global [{}])",
-                                    shardId, currentRoutingEntry, newShardRouting);
+                                logger.debug("{} removing shard (recovery source changed), current [{}], global [{}], shard [{}])",
+                                    shardId, recoveryState.getSourceNode(), sourceNode, newShardRouting);
                                 indexService.removeShard(shardId.id(), "removing shard (recovery source node changed)");
                             }
                         }

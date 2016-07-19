@@ -139,7 +139,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
                 new BiFunction<IndexShard, DiscoveryNode, RecoveryTarget>() {
                 @Override
                 public RecoveryTarget apply(IndexShard indexShard, DiscoveryNode node) {
-                    return new RecoveryTarget(indexShard, node, recoveryListener) {
+                    return new RecoveryTarget(indexShard, node, recoveryListener, version -> {}) {
                         @Override
                         public void renameAllTempFiles() throws IOException {
                             super.renameAllTempFiles();
@@ -274,7 +274,8 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
             primary.recoverFromStore();
             primary.updateRoutingEntry(ShardRoutingHelper.moveToStarted(primary.routingEntry()));
             for (IndexShard replicaShard : replicas) {
-                recoverReplica(replicaShard, (replica, sourceNode) -> new RecoveryTarget(replica, sourceNode, recoveryListener));
+                recoverReplica(replicaShard,
+                    (replica, sourceNode) -> new RecoveryTarget(replica, sourceNode, recoveryListener, version -> {}));
             }
         }
 
@@ -302,8 +303,8 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
             RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
             StartRecoveryRequest request = new StartRecoveryRequest(replica.shardId(), pNode, rNode,
                 replica.store().getMetadataOrEmpty(), RecoveryState.Type.REPLICA, 0);
-            RecoverySourceHandler recovery = new RecoverySourceHandler(primary, recoveryTarget, request, (int) ByteSizeUnit.MB.toKB(1),
-                logger);
+            RecoverySourceHandler recovery = new RecoverySourceHandler(primary, recoveryTarget, request, () -> 0L, e -> () -> {},
+                (int) ByteSizeUnit.MB.toKB(1), logger);
             recovery.recoverToTarget();
             recoveryTarget.markAsDone();
             replica.updateRoutingEntry(ShardRoutingHelper.moveToStarted(replica.routingEntry()));

@@ -85,7 +85,7 @@ public class RecoveriesCollection {
             RecoveryTarget status = ref.status();
             RecoveryTarget resetRecovery = status.resetRecovery();
             if (onGoingRecoveries.replace(id, status, resetRecovery) == false) {
-                resetRecovery.cancel("replace failed");
+                resetRecovery.cancel("replace failed"); // this is important otherwise we leak a reference to the store
                 throw new IllegalStateException("failed to replace recovery target");
             }
         }

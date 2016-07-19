@@ -87,7 +87,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
 
     private RecoveryTarget(RecoveryTarget copyFrom) { // copy constructor
-        this(copyFrom.indexShard(), copyFrom.sourceNode(), copyFrom.listener, copyFrom.cancellableThreads, copyFrom.recoveryId());
+        this(copyFrom.indexShard, copyFrom.sourceNode, copyFrom.listener, copyFrom.cancellableThreads, copyFrom.recoveryId);
     }
 
     public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryTargetService.RecoveryListener listener) {
@@ -163,17 +163,18 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     /**
      * Closes the current recovery target and returns a
-     * clone to reset the ongoing recovery
+     * clone to reset the ongoing recovery.
+     * Note: the returned target must be canceled, failed or finished
+     * in order to release all it's reference.
      */
     RecoveryTarget resetRecovery() throws IOException {
         ensureRefCount();
-        RecoveryTarget copy = new RecoveryTarget(this);
         if (finished.compareAndSet(false, true)) {
             // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
             decRef();
         }
         indexShard.performRecoveryRestart();
-        return copy;
+        return new RecoveryTarget(this);
     }
 
     /**

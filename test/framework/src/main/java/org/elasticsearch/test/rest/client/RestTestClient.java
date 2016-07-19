@@ -84,7 +84,7 @@ public class RestTestClient implements Closeable {
     private final RestClient restClient;
     private final Version esVersion;
 
-    public RestTestClient(RestSpec restSpec, Settings settings, URL[] urls) throws Exception {
+    public RestTestClient(RestSpec restSpec, Settings settings, URL[] urls) throws IOException {
         assert urls.length > 0;
         this.restSpec = restSpec;
         this.restClient = createRestClient(urls, settings);
@@ -92,7 +92,7 @@ public class RestTestClient implements Closeable {
         logger.info("REST client initialized {}, elasticsearch version: [{}]", urls, esVersion);
     }
 
-    private Version readAndCheckVersion(URL[] urls) throws Exception {
+    private Version readAndCheckVersion(URL[] urls) throws IOException {
         RestApi restApi = restApi("info");
         assert restApi.getPaths().size() == 1;
         assert restApi.getMethods().size() == 1;
@@ -127,7 +127,7 @@ public class RestTestClient implements Closeable {
      * Calls an api with the provided parameters and body
      */
     public RestTestResponse callApi(String apiName, Map<String, String> params, String body, Map<String, String> headers)
-            throws Exception {
+            throws IOException {
 
         if ("raw".equals(apiName)) {
             // Raw requests are bit simpler....

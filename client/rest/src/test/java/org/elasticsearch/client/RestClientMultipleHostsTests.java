@@ -104,7 +104,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
         restClient = new RestClient(httpClient, 10000, new Header[0], httpHosts, failureListener);
     }
 
-    public void testRoundRobinOkStatusCodes() throws Exception {
+    public void testRoundRobinOkStatusCodes() throws IOException {
         int numIters = RandomInts.randomIntBetween(getRandom(), 1, 5);
         for (int i = 0; i < numIters; i++) {
             Set<HttpHost> hostsSet = new HashSet<>();
@@ -120,7 +120,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
         failureListener.assertNotCalled();
     }
 
-    public void testRoundRobinNoRetryErrors() throws Exception {
+    public void testRoundRobinNoRetryErrors() throws IOException {
         int numIters = RandomInts.randomIntBetween(getRandom(), 1, 5);
         for (int i = 0; i < numIters; i++) {
             Set<HttpHost> hostsSet = new HashSet<>();
@@ -153,7 +153,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
         failureListener.assertNotCalled();
     }
 
-    public void testRoundRobinRetryErrors() throws Exception {
+    public void testRoundRobinRetryErrors() throws IOException {
         String retryEndpoint = randomErrorRetryEndpoint();
         try  {
             restClient.performRequest(randomHttpMethod(getRandom()), retryEndpoint);

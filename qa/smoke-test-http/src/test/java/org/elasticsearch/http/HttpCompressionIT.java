@@ -26,6 +26,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.io.IOException;
 import java.util.Collections;
 
 public class HttpCompressionIT extends ESIntegTestCase {
@@ -43,7 +44,7 @@ public class HttpCompressionIT extends ESIntegTestCase {
         return false;
     }
 
-    public void testCompressesResponseIfRequested() throws Exception {
+    public void testCompressesResponseIfRequested() throws IOException {
         ensureGreen();
         try (RestClient client = getRestClient()) {
             Response response = client.performRequest("GET", "/", new BasicHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING));
@@ -52,7 +53,7 @@ public class HttpCompressionIT extends ESIntegTestCase {
         }
     }
 
-    public void testUncompressedResponseByDefault() throws Exception {
+    public void testUncompressedResponseByDefault() throws IOException {
         ensureGreen();
         try (RestClient client = getRestClient()) {
             Response response = client.performRequest("GET", "/");

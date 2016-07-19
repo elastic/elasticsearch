@@ -61,7 +61,7 @@ public class HostsSniffer {
     /**
      * Calls the elasticsearch nodes info api, parses the response and returns all the found http hosts
      */
-    public List<HttpHost> sniffHosts() throws Exception {
+    public List<HttpHost> sniffHosts() throws IOException {
         Response response = restClient.performRequest("get", "/_nodes/http", sniffRequestParams);
         return readHosts(response.getEntity());
     }

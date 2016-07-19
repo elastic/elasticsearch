@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
+import java.io.IOException;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.is;
@@ -52,7 +53,7 @@ public class DetailedErrorsDisabledIT extends HttpSmokeTestCase {
         return true;
     }
 
-    public void testThatErrorTraceParamReturns400() throws Exception {
+    public void testThatErrorTraceParamReturns400() throws IOException {
         try {
             getRestClient().performRequest("DELETE", "/", Collections.singletonMap("error_trace", "true"));
             fail("request should have failed");

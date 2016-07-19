@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.ArrayList;
+import java.io.IOException;
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -56,7 +57,7 @@ public class ResponseHeaderPluginIT extends HttpSmokeTestCase {
         return plugins;
     }
 
-    public void testThatSettingHeadersWorks() throws Exception {
+    public void testThatSettingHeadersWorks() throws IOException {
         ensureGreen();
         try {
             getRestClient().performRequest("GET", "/_protected");

@@ -27,7 +27,7 @@ import java.io.IOException;
  * Exception obtained from a REST call in case the response code indicated an error. Eagerly reads the response body into a string
  * for later optional parsing. Supports parsing the response body when needed and returning specific values extracted from it.
  */
-public class RestTestResponseException extends Exception {
+public class RestTestResponseException extends IOException {
 
     private final RestTestResponse restTestResponse;
     private final ResponseException responseException;

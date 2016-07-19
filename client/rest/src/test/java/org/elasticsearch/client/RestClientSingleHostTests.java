@@ -199,7 +199,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     /**
      * End to end test for ok status codes
      */
-    public void testOkStatusCodes() throws Exception {
+    public void testOkStatusCodes() throws IOException {
         for (String method : getHttpMethods()) {
             for (int okStatusCode : getOkStatusCodes()) {
                 Response response = performRequest(method, "/" + okStatusCode);
@@ -212,7 +212,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     /**
      * End to end test for error status codes: they should cause an exception to be thrown, apart from 404 with HEAD requests
      */
-    public void testErrorStatusCodes() throws Exception {
+    public void testErrorStatusCodes() throws IOException {
         for (String method : getHttpMethods()) {
             //error status codes should cause an exception to be thrown
             for (int errorStatusCode : getAllErrorStatusCodes()) {
@@ -239,7 +239,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         }
     }
 
-    public void testIOExceptions() throws Exception {
+    public void testIOExceptions() throws IOException {
         for (String method : getHttpMethods()) {
             //IOExceptions should be let bubble up
             try {
@@ -263,7 +263,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
      * End to end test for request and response body. Exercises the mock http client ability to send back
      * whatever body it has received.
      */
-    public void testBody() throws Exception {
+    public void testBody() throws IOException {
         String body = "{ \"field\": \"value\" }";
         StringEntity entity = new StringEntity(body);
         for (String method : Arrays.asList("DELETE", "GET", "PATCH", "POST", "PUT")) {
@@ -293,7 +293,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         }
     }
 
-    public void testNullHeaders() throws Exception {
+    public void testNullHeaders() throws IOException {
         String method = randomHttpMethod(getRandom());
         int statusCode = randomStatusCode(getRandom());
         try {
@@ -310,7 +310,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         }
     }
 
-    public void testNullParams() throws Exception {
+    public void testNullParams() throws IOException {
         String method = randomHttpMethod(getRandom());
         int statusCode = randomStatusCode(getRandom());
         try {
@@ -331,7 +331,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
      * End to end test for request and response headers. Exercises the mock http client ability to send back
      * whatever headers it has received.
      */
-    public void testHeaders() throws Exception {
+    public void testHeaders() throws IOException {
         for (String method : getHttpMethods()) {
             Map<String, String> expectedHeaders = new HashMap<>();
             for (Header defaultHeader : defaultHeaders) {
@@ -447,7 +447,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         return request;
     }
 
-    private Response performRequest(String method, String endpoint, Header... headers) throws Exception {
+    private Response performRequest(String method, String endpoint, Header... headers) throws IOException {
         switch(randomIntBetween(0, 2)) {
             case 0:
                 return restClient.performRequest(method, endpoint, headers);

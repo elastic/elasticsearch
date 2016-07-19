@@ -121,8 +121,9 @@ public final class RestClient implements Closeable {
     }
 
     /**
-     * Sends a request to the elasticsearch cluster that the current client points to.
-     * Shortcut to {@link #performRequest(String, String, Map, HttpEntity, Header...)} but without parameters and request body.
+     * Sends a request to the elasticsearch cluster that the current client points to and waits for the corresponding response
+     * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, Header...)} but without parameters
+     * and request body.
      *
      * @param method the http method
      * @param endpoint the path of the request (without host and port)
@@ -132,13 +133,13 @@ public final class RestClient implements Closeable {
      * @throws ClientProtocolException in case of an http protocol error
      * @throws ResponseException in case elasticsearch responded with a status code that indicated an error
      */
-    public Response performRequest(String method, String endpoint, Header... headers) throws Exception {
+    public Response performRequest(String method, String endpoint, Header... headers) throws IOException {
         return performRequest(method, endpoint, Collections.<String, String>emptyMap(), (HttpEntity)null, headers);
     }
 
     /**
-     * Sends a request to the elasticsearch cluster that the current client points to.
-     * Shortcut to {@link #performRequest(String, String, Map, HttpEntity, Header...)} but without request body.
+     * Sends a request to the elasticsearch cluster that the current client points to and waits for the corresponding response
+     * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, Header...)} but without request body.
      *
      * @param method the http method
      * @param endpoint the path of the request (without host and port)
@@ -149,16 +150,15 @@ public final class RestClient implements Closeable {
      * @throws ClientProtocolException in case of an http protocol error
      * @throws ResponseException in case elasticsearch responded with a status code that indicated an error
      */
-    public Response performRequest(String method, String endpoint, Map<String, String> params, Header... headers) throws Exception {
+    public Response performRequest(String method, String endpoint, Map<String, String> params, Header... headers) throws IOException {
         return performRequest(method, endpoint, params, (HttpEntity)null, headers);
     }
 
     /**
-     * Sends a request to the elasticsearch cluster that the current client points to. Blocks until the request is completed and returns
-     * its response of fails by throwing an exception. Selects a host out of the provided ones in a round-robin fashion. Failing hosts
-     * are marked dead and retried after a certain amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times
-     * they previously failed (the more failures, the later they will be retried). In case of failures all of the alive nodes (or dead
-     * nodes that deserve a retry) are retried until one responds or none of them does, in which case an {@link IOException} will be thrown.
+     * Sends a request to the elasticsearch cluster that the current client points to and waits for the corresponding response
+     * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, HttpAsyncResponseConsumer, Header...)}
+     * which doesn't require specifying an {@link HttpAsyncResponseConsumer} instance, {@link HeapBufferedAsyncResponseConsumer}
+     * will be used to consume the response body.
      *
      * @param method the http method
      * @param endpoint the path of the request (without host and port)
@@ -171,7 +171,7 @@ public final class RestClient implements Closeable {
      * @throws ResponseException in case elasticsearch responded with a status code that indicated an error
      */
     public Response performRequest(String method, String endpoint, Map<String, String> params,
-                                   HttpEntity entity, Header... headers) throws Exception {
+                                   HttpEntity entity, Header... headers) throws IOException {
         HttpAsyncResponseConsumer<HttpResponse> responseConsumer = new HeapBufferedAsyncResponseConsumer();
         return performRequest(method, endpoint, params, entity, responseConsumer, headers);
     }
@@ -197,17 +197,16 @@ public final class RestClient implements Closeable {
      */
     public Response performRequest(String method, String endpoint, Map<String, String> params,
                                    HttpEntity entity, HttpAsyncResponseConsumer<HttpResponse> responseConsumer,
-                                   Header... headers) throws Exception {
+                                   Header... headers) throws IOException {
         SyncResponseListener listener = new SyncResponseListener();
         performRequest(method, endpoint, params, entity, responseConsumer, listener, headers);
         return listener.get();
     }
 
     /**
-     * Sends a request to the elasticsearch cluster that the current client points to.
-     * Shortcut to {@link #performRequest(String, String, Map, HttpEntity, HttpAsyncResponseConsumer, ResponseListener, Header...)}
-     * but without parameters, request body and async response consumer. A default response consumer, specifically an instance of
-     * ({@link org.apache.http.nio.protocol.BasicAsyncResponseConsumer} will be created and used.
+     * Sends a request to the elasticsearch cluster that the current client points to. Doesn't wait for the response, instead
+     * the provided {@link ResponseListener} will be notified upon completion or failure. Shortcut to
+     * {@link #performRequest(String, String, Map, HttpEntity, ResponseListener, Header...)} but without parameters and  request body.
      *
      * @param method the http method
      * @param endpoint the path of the request (without host and port)
@@ -219,10 +218,9 @@ public final class RestClient implements Closeable {
     }
 
     /**
-     * Sends a request to the elasticsearch cluster that the current client points to.
-     * Shortcut to {@link #performRequest(String, String, Map, HttpEntity, HttpAsyncResponseConsumer, ResponseListener, Header...)}
-     * but without request body and async response consumer. A default response consumer, specifically an instance of
-     * ({@link org.apache.http.nio.protocol.BasicAsyncResponseConsumer} will be created and used.
+     * Sends a request to the elasticsearch cluster that the current client points to. Doesn't wait for the response, instead
+     * the provided {@link ResponseListener} will be notified upon completion or failure. Shortcut to
+     * {@link #performRequest(String, String, Map, HttpEntity, ResponseListener, Header...)} but without request body.
      *
      * @param method the http method
      * @param endpoint the path of the request (without host and port)
@@ -236,10 +234,11 @@ public final class RestClient implements Closeable {
     }
 
     /**
-     * Sends a request to the elasticsearch cluster that the current client points to.
+     * Sends a request to the elasticsearch cluster that the current client points to. Doesn't wait for the response, instead
+     * the provided {@link ResponseListener} will be notified upon completion or failure.
      * Shortcut to {@link #performRequest(String, String, Map, HttpEntity, HttpAsyncResponseConsumer, ResponseListener, Header...)}
-     * but without an async response consumer, meaning that a {@link org.apache.http.nio.protocol.BasicAsyncResponseConsumer}
-     * will be created and used.
+     * which doesn't require specifying an {@link HttpAsyncResponseConsumer} instance, {@link HeapBufferedAsyncResponseConsumer}
+     * will be used to consume the response body.
      *
      * @param method the http method
      * @param endpoint the path of the request (without host and port)
@@ -256,7 +255,7 @@ public final class RestClient implements Closeable {
 
     /**
      * Sends a request to the elasticsearch cluster that the current client points to. The request is executed asynchronously
-     * and the provided {@link ResponseListener} gets notified whenever it is completed or it fails.
+     * and the provided {@link ResponseListener} gets notified upon request completion or failure.
      * Selects a host out of the provided ones in a round-robin fashion. Failing hosts are marked dead and retried after a certain
      * amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times they previously failed (the more failures,
      * the later they will be retried). In case of failures all of the alive nodes (or dead nodes that deserve a retry) are retried
@@ -541,14 +540,25 @@ public final class RestClient implements Closeable {
             latch.countDown();
         }
 
-        Response get() throws Exception {
-            latch.await();
+        Response get() throws IOException {
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                throw new RuntimeException("thread waiting for the response was interrupted", e);
+            }
             if (response != null) {
                 assert exception == null;
                 return response;
             }
             assert exception != null;
-            throw exception;
+            //try and leave the exception untouched as much as possible but we don't want to just add throws Exception clause everywhere
+            if (exception instanceof IOException) {
+                throw (IOException) exception;
+            }
+            if (exception instanceof  RuntimeException){
+                throw (RuntimeException) exception;
+            }
+            throw new IOException("error while performing request", exception);
         }
     }
 

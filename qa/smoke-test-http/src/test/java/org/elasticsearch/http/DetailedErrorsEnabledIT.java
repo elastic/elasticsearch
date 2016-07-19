@@ -24,6 +24,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.io.IOException;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
@@ -34,7 +35,7 @@ import static org.hamcrest.Matchers.not;
  */
 public class DetailedErrorsEnabledIT extends HttpSmokeTestCase {
 
-    public void testThatErrorTraceWorksByDefault() throws Exception {
+    public void testThatErrorTraceWorksByDefault() throws IOException {
         try {
             getRestClient().performRequest("DELETE", "/", Collections.singletonMap("error_trace", "true"));
             fail("request should have failed");

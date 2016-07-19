@@ -85,7 +85,7 @@ public class HostsSnifferTests extends RestClientTestCase {
         httpServer.stop(0);
     }
 
-    public void testSniffNodes() throws Exception {
+    public void testSniffNodes() throws IOException {
         HttpHost httpHost = new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort());
         try (RestClient restClient = RestClient.builder(httpHost).build()) {
             HostsSniffer.Builder builder = HostsSniffer.builder(restClient).setSniffRequestTimeoutMillis(sniffRequestTimeout);

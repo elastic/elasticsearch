@@ -62,7 +62,7 @@ public class RestTestExecutionContext implements Closeable {
      * Saves the obtained response in the execution context.
      */
     public RestTestResponse callApi(String apiName, Map<String, String> params, List<Map<String, Object>> bodies,
-                                    Map<String, String> headers) throws Exception {
+                                    Map<String, String> headers) throws IOException {
         //makes a copy of the parameters before modifying them for this specific request
         HashMap<String, String> requestParams = new HashMap<>(params);
         for (Map.Entry<String, String> entry : requestParams.entrySet()) {
@@ -105,7 +105,7 @@ public class RestTestExecutionContext implements Closeable {
     }
 
     private RestTestResponse callApiInternal(String apiName, Map<String, String> params, String body, Map<String, String> headers)
-            throws Exception  {
+            throws IOException  {
         return restTestClient.callApi(apiName, params, body, headers);
     }
 

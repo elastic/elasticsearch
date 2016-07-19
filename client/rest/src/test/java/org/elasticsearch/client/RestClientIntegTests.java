@@ -141,7 +141,7 @@ public class RestClientIntegTests extends RestClientTestCase {
      * to set/add headers to the {@link org.apache.http.client.HttpClient}.
      * Exercises the test http server ability to send back whatever headers it received.
      */
-    public void testHeaders() throws Exception {
+    public void testHeaders() throws IOException {
         for (String method : getHttpMethods()) {
             Set<String> standardHeaders = new HashSet<>(
                     Arrays.asList("Connection", "Host", "User-agent", "Date"));
@@ -189,7 +189,7 @@ public class RestClientIntegTests extends RestClientTestCase {
      * out of the box by {@link org.apache.http.client.HttpClient}.
      * Exercises the test http server ability to send back whatever body it received.
      */
-    public void testDeleteWithBody() throws Exception {
+    public void testDeleteWithBody() throws IOException {
         bodyTest("DELETE");
     }
 
@@ -198,11 +198,11 @@ public class RestClientIntegTests extends RestClientTestCase {
      * out of the box by {@link org.apache.http.client.HttpClient}.
      * Exercises the test http server ability to send back whatever body it received.
      */
-    public void testGetWithBody() throws Exception {
+    public void testGetWithBody() throws IOException {
         bodyTest("GET");
     }
 
-    private void bodyTest(String method) throws Exception {
+    private void bodyTest(String method) throws IOException {
         String requestBody = "{ \"field\": \"value\" }";
         StringEntity entity = new StringEntity(requestBody);
         int statusCode = randomStatusCode(getRandom());

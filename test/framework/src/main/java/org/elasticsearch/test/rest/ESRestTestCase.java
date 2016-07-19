@@ -270,7 +270,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     @After
-    public void wipeCluster() throws Exception {
+    public void wipeCluster() throws IOException {
         // wipe indices
         Map<String, String> deleteIndicesArgs = new HashMap<>();
         deleteIndicesArgs.put("index", "*");
@@ -299,7 +299,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * other tests.
      */
     @After
-    public void logIfThereAreRunningTasks() throws Exception {
+    public void logIfThereAreRunningTasks() throws IOException {
         RestTestResponse tasks = adminExecutionContext.callApi("tasks.list", emptyMap(), emptyList(), emptyMap());
         Set<String> runningTasks = runningTasks(tasks);
         // Ignore the task list API - it doens't count against us
@@ -378,7 +378,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         return messageBuilder.toString();
     }
 
-    public void test() throws Exception {
+    public void test() throws IOException {
         //let's check that there is something to run, otherwise there might be a problem with the test section
         if (testCandidate.getTestSection().getExecutableSections().size() == 0) {
             throw new IllegalArgumentException("No executable sections loaded for [" + testCandidate.getTestPath() + "]");

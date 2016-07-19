@@ -26,6 +26,7 @@ import org.elasticsearch.test.rest.RestTestExecutionContext;
 import org.elasticsearch.test.rest.client.RestTestResponse;
 import org.elasticsearch.test.rest.client.RestTestResponseException;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -78,7 +79,7 @@ public class DoSection implements ExecutableSection {
     }
 
     @Override
-    public void execute(RestTestExecutionContext executionContext) throws Exception {
+    public void execute(RestTestExecutionContext executionContext) throws IOException {
 
         if ("param".equals(catchParam)) {
             //client should throw validation error before sending request

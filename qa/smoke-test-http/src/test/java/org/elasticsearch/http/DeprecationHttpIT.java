@@ -77,7 +77,7 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
      * Attempts to do a scatter/gather request that expects unique responses per sub-request.
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/19222")
-    public void testUniqueDeprecationResponsesMergedTogether() throws Exception {
+    public void testUniqueDeprecationResponsesMergedTogether() throws IOException {
         final String[] indices = new String[randomIntBetween(2, 5)];
 
         // add at least one document for each index
@@ -135,7 +135,7 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
      * <p>
      * Re-running this back-to-back helps to ensure that warnings are not being maintained across requests.
      */
-    private void doTestDeprecationWarningsAppearInHeaders() throws Exception {
+    private void doTestDeprecationWarningsAppearInHeaders() throws IOException {
         final boolean useDeprecatedField = randomBoolean();
         final boolean useNonDeprecatedSetting = randomBoolean();
 

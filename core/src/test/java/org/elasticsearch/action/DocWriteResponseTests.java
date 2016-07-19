@@ -17,25 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.script.javascript;
+package org.elasticsearch.action;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.test.rest.ESClientYamlSuiteTestCase;
-import org.elasticsearch.test.rest.RestTestCandidate;
-import org.elasticsearch.test.rest.parser.RestTestParseException;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
-
-public class LangJavaScriptRestIT extends ESClientYamlSuiteTestCase {
-
-    public LangJavaScriptRestIT(@Name("yaml") RestTestCandidate testCandidate) {
-        super(testCandidate);
-    }
-
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
-        return ESClientYamlSuiteTestCase.createParameters(0, 1);
+public class DocWriteResponseTests extends ESTestCase {
+    public void testGetLocation() {
+        DocWriteResponse response = new DocWriteResponse(new ShardId("index", "uuid", 0), "type", "id", 0) {
+            // DocWriteResponse is abstract so we have to sneak a subclass in here to test it.
+        };
+        assertEquals("/index/type/id", response.getLocation(null));
+        assertEquals("/index/type/id?routing=test_routing", response.getLocation("test_routing"));
     }
 }
-

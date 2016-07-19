@@ -435,9 +435,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             boolean hasDifferentSearchQuoteAnalyzer = fieldType().searchAnalyzer().name().equals(fieldType().searchQuoteAnalyzer().name()) == false;
             if (includeDefaults || hasDefaultIndexAnalyzer == false || hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
                 builder.field("analyzer", fieldType().indexAnalyzer().name());
-                if (hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
+                if (includeDefaults || hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
                     builder.field("search_analyzer", fieldType().searchAnalyzer().name());
-                    if (hasDifferentSearchQuoteAnalyzer) {
+                    if (includeDefaults || hasDifferentSearchQuoteAnalyzer) {
                         builder.field("search_quote_analyzer", fieldType().searchQuoteAnalyzer().name());
                     }
                 }

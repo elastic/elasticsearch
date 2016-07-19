@@ -301,6 +301,31 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
 
         mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping,  mapper.mappingSource().toString());
+
+        // special case: default search analyzer
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "string")
+            .field("analyzer", "keyword")
+            .endObject()
+            .endObject().endObject().endObject().string();
+
+        mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping,  mapper.mappingSource().toString());
+
+        // special case: default search analyzer
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "string")
+            .field("analyzer", "default")
+            .field("search_analyzer", "keyword")
+            .endObject()
+            .endObject().endObject().endObject().string();
+
+        mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping,  mapper.mappingSource().toString());
     }
 
     private Map<String, Object> getSerializedMap(String fieldName, DocumentMapper mapper) throws Exception {

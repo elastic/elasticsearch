@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.XPackFeatureSet;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.RolesStore;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -43,7 +44,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     @Nullable
     private final Realms realms;
     @Nullable
-    private final RolesStore rolesStore;
+    private final CompositeRolesStore rolesStore;
     @Nullable
     private final IPFilter ipFilter;
     @Nullable
@@ -52,8 +53,8 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     private final CryptoService cryptoService;
 
     @Inject
-    public SecurityFeatureSet(Settings settings, @Nullable SecurityLicenseState licenseState,
-                              @Nullable Realms realms, NamedWriteableRegistry namedWriteableRegistry, @Nullable RolesStore rolesStore,
+    public SecurityFeatureSet(Settings settings, @Nullable SecurityLicenseState licenseState, @Nullable Realms realms,
+                              NamedWriteableRegistry namedWriteableRegistry, @Nullable CompositeRolesStore rolesStore,
                               @Nullable IPFilter ipFilter, @Nullable AuditTrailService auditTrailService,
                               @Nullable CryptoService cryptoService) {
         this.enabled = Security.enabled(settings);

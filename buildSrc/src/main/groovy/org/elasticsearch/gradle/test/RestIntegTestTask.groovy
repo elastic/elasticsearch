@@ -90,6 +90,7 @@ public class RestIntegTestTask extends RandomizedTestingTask {
                 integTestExternal.environment = [
                     'TEST_ES_SERVER': "${-> node.httpUri()}",
                     'TEST_ES_YAML_DIR': "${-> restTestOutput.asPath}/rest-api-spec/test",
+                    'LANG': 'en_US.UTF-8', // Required by the python tests or they can't parse utf-8 in yaml....
                 ]
                 dependsOn integTestExternal
                 for (Task finalizer : finalizedBy.getDependencies(this)) {

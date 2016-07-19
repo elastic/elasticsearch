@@ -114,6 +114,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
         S3Repository.Repositories.CANNED_ACL_SETTING,
         S3Repository.Repositories.BASE_PATH_SETTING,
         S3Repository.Repositories.USE_THROTTLE_RETRIES_SETTING,
+        S3Repository.Repositories.PATH_STYLE_ACCESS_SETTING,
 
         // Register S3 single repository settings
         S3Repository.Repository.KEY_SETTING,
@@ -129,6 +130,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
         S3Repository.Repository.COMPRESS_SETTING,
         S3Repository.Repository.STORAGE_CLASS_SETTING,
         S3Repository.Repository.CANNED_ACL_SETTING,
-        S3Repository.Repository.BASE_PATH_SETTING);
+        S3Repository.Repository.BASE_PATH_SETTING,
+        S3Repository.Repository.PATH_STYLE_ACCESS_SETTING);
     }
 }

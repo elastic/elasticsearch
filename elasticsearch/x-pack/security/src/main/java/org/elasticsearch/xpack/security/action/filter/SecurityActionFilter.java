@@ -92,7 +92,7 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
         // only restore the context if it is not empty. This is needed because sometimes a response is sent to the user
         // and then a cleanup action is executed (like for search without a scroll)
         final ThreadContext.StoredContext original = threadContext.newStoredContext();
-        final boolean restoreOriginalContext = securityContext.hasAuthentication();
+        final boolean restoreOriginalContext = securityContext.getAuthentication() != null;
         try {
             if (licenseState.authenticationAndAuthorizationEnabled()) {
                 if (AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action)) {

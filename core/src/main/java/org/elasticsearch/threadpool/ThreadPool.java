@@ -33,6 +33,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
@@ -50,7 +51,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -327,7 +327,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
      * @return a ScheduledFuture who's get will return when the task is has been added to its target thread pool and throw an exception if
      *         the task is canceled before it was added to its target thread pool. Once the task has been added to its target thread pool
      *         the ScheduledFuture will cannot interact with it.
-     * @throws java.util.concurrent.RejectedExecutionException {@inheritDoc}
+     * @throws org.elasticsearch.common.util.concurrent.EsRejectedExecutionException
      */
     public ScheduledFuture<?> schedule(TimeValue delay, String executor, Runnable command) {
         if (!Names.SAME.equals(executor)) {
@@ -796,7 +796,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
             if (run) {
                 try {
                     threadPool.schedule(interval, executor, this);
-                } catch (final RejectedExecutionException e) {
+                } catch (final EsRejectedExecutionException e) {
                     onRejection(e);
                 }
             }

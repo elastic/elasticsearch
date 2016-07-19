@@ -836,6 +836,18 @@ public abstract class StreamInput extends InputStream {
         return builder;
     }
 
+    /**
+     * Reads a list of {@link NamedWriteable}s.
+     */
+    public <T extends NamedWriteable> List<T> readNamedWriteableList(Class<T> categoryClass) throws IOException {
+        int count = readVInt();
+        List<T> builder = new ArrayList<>(count);
+        for (int i=0; i<count; i++) {
+            builder.add(readNamedWriteable(categoryClass));
+        }
+        return builder;
+    }
+
     public static StreamInput wrap(byte[] bytes) {
         return wrap(bytes, 0, bytes.length);
     }

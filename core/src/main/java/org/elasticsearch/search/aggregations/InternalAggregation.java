@@ -20,55 +20,35 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 /**
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
  */
-public abstract class InternalAggregation implements Aggregation, ToXContent, Streamable, NamedWriteable {
-    // NORELEASE remove Streamable
-
+public abstract class InternalAggregation implements Aggregation, ToXContent, NamedWriteable {
     /**
      * The aggregation type that holds all the string types that are associated with an aggregation:
      * <ul>
      *     <li>name - used as the parser type</li>
-     *     <li>stream - used as the stream type</li>
      * </ul>
      */
     public static class Type {
-
-        private String name;
-        private BytesReference stream;
+        private final String name;
 
         public Type(String name) {
-            this(name, new BytesArray(name));
-        }
-
-        public Type(String name, String stream) {
-            this(name, new BytesArray(stream));
-        }
-
-        public Type(String name, BytesReference stream) {
             this.name = name;
-            this.stream = stream;
         }
 
         /**
@@ -77,14 +57,6 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
          */
         public String name() {
             return name;
-        }
-
-        /**
-         * @return  The name of the stream type (used for registering the aggregation stream
-         *          (see {@link AggregationStreams#registerStream(AggregationStreams.Stream, BytesReference...)}).
-         */
-        public BytesReference stream() {
-            return stream;
         }
 
         @Override
@@ -118,15 +90,11 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         }
     }
 
+    protected final String name;
 
-    protected String name;
+    protected final Map<String, Object> metaData;
 
-    protected Map<String, Object> metaData;
-
-    private List<PipelineAggregator> pipelineAggregators;
-
-    /** Constructs an un initialized addAggregation (used for serialization) **/
-    protected InternalAggregation() {} // NORELEASE remove when removing Streamable
+    private final List<PipelineAggregator> pipelineAggregators;
 
     /**
      * Constructs an get with a given name.
@@ -145,94 +113,23 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
     protected InternalAggregation(StreamInput in) throws IOException {
         name = in.readString();
         metaData = in.readMap();
-        int size = in.readVInt();
-        if (size == 0) {
-            pipelineAggregators = Collections.emptyList();
-        } else {
-            pipelineAggregators = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                if (in.readBoolean()) {
-                    pipelineAggregators.add(in.readNamedWriteable(PipelineAggregator.class));
-                } else {
-                    BytesReference type = in.readBytesReference();
-                    PipelineAggregator pipelineAggregator = PipelineAggregatorStreams.stream(type).readResult(in);
-                    pipelineAggregators.add(pipelineAggregator);
-                }
-            }
-        }
-    }
-
-    @Override
-    public final void readFrom(StreamInput in) throws IOException {
-        try {
-            getWriteableName(); // Throws UnsupportedOperationException if this aggregation should be read using old style Streams
-            assert false : "Used reading constructor instead";
-        } catch (UnsupportedOperationException e) {
-            // OK
-        }
-        name = in.readString();
-        metaData = in.readMap();
-        int size = in.readVInt();
-        if (size == 0) {
-            pipelineAggregators = Collections.emptyList();
-        } else {
-            pipelineAggregators = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                if (in.readBoolean()) {
-                    pipelineAggregators.add(in.readNamedWriteable(PipelineAggregator.class));
-                } else {
-                    BytesReference type = in.readBytesReference();
-                    PipelineAggregator pipelineAggregator = PipelineAggregatorStreams.stream(type).readResult(in);
-                    pipelineAggregators.add(pipelineAggregator);
-                }
-            }
-        }
-        doReadFrom(in);
-    }
-
-    protected void doReadFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("Use reading constructor instead"); // NORELEASE remove when we remove Streamable
+        pipelineAggregators = in.readNamedWriteableList(PipelineAggregator.class);
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeGenericValue(metaData);
-        out.writeVInt(pipelineAggregators.size());
-        for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
-            // NORELEASE temporary hack to support old style streams and new style NamedWriteable
-            try {
-                pipelineAggregator.getWriteableName(); // Throws UnsupportedOperationException if we should use old style streams.
-                out.writeBoolean(true);
-                out.writeNamedWriteable(pipelineAggregator);
-            } catch (UnsupportedOperationException e) {
-                out.writeBoolean(false);
-                out.writeBytesReference(pipelineAggregator.type().stream());
-                pipelineAggregator.writeTo(out);
-            }
-        }
+        out.writeNamedWriteableList(pipelineAggregators);
         doWriteTo(out);
     }
 
     protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
-    @Override
-    public String getWriteableName() {
-        // NORELEASE remove me when all InternalAggregations override it
-        throw new UnsupportedOperationException("Override on every class");
-    }
 
     @Override
     public String getName() {
         return name;
-    }
-
-    /**
-     * @return The {@link Type} of this aggregation
-     */
-    public Type type() {
-        // NORELEASE remove this method
-        throw new UnsupportedOperationException(getClass().getName() + " used type but should Use getWriteableName instead");
     }
 
     /**

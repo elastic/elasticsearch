@@ -173,13 +173,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-
         }
     }
 

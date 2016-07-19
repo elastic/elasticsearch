@@ -35,7 +35,7 @@ import java.io.IOException;
 public class InternalDateHistogram {
 
     public static final Factory HISTOGRAM_FACTORY = new Factory();
-    static final Type TYPE = new Type("date_histogram", "dhisto");
+    static final Type TYPE = new Type("date_histogram");
 
     static class Bucket extends InternalHistogram.Bucket {
         Bucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, DocValueFormat formatter,

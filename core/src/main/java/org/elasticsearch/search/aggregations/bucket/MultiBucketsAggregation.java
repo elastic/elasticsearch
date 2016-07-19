@@ -40,9 +40,7 @@ public interface MultiBucketsAggregation extends Aggregation {
      * A bucket represents a criteria to which all documents that fall in it adhere to. It is also uniquely identified
      * by a key, and can potentially hold sub-aggregations computed over all documents in it.
      */
-    public interface Bucket extends HasAggregations, ToXContent, Streamable, Writeable {
-        // NORELEASE remove Streamable
-
+    public interface Bucket extends HasAggregations, ToXContent, Writeable {
         /**
          * @return The key associated with the bucket
          */
@@ -65,12 +63,6 @@ public interface MultiBucketsAggregation extends Aggregation {
         Aggregations getAggregations();
 
         Object getProperty(String containingAggName, List<String> path);
-
-        @Override
-        default void readFrom(StreamInput in) throws IOException {
-            // NORELEASE remove me when no Buckets override it
-            throw new UnsupportedOperationException("Prefer the Writeable interface");
-        }
 
         static class SubAggregationComparator<B extends Bucket> implements java.util.Comparator<B> {
 

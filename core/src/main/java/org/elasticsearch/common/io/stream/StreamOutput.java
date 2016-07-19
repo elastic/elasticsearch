@@ -835,4 +835,14 @@ public abstract class StreamOutput extends OutputStream {
             obj.writeTo(this);
         }
     }
+
+    /**
+     * Writes a list of {@link NamedWriteable} objects.
+     */
+    public void writeNamedWriteableList(List<? extends NamedWriteable> list) throws IOException {
+        writeVInt(list.size());
+        for (NamedWriteable obj: list) {
+            writeNamedWriteable(obj);
+        }
+    }
 }

@@ -486,14 +486,6 @@ public class SearchModule extends AbstractModule {
         }
     }
 
-    public void registerPipelineAggregation(Writeable.Reader<? extends PipelineAggregationBuilder> reader,
-            PipelineAggregator.Parser aggregationParser, ParseField aggregationName) {
-        // NORELEASE remove me in favor of the above method
-        pipelineAggregationParserRegistry.register(aggregationParser, aggregationName);
-        namedWriteableRegistry.register(PipelineAggregationBuilder.class, aggregationName.getPreferredName(), reader);
-    }
-
-
     @Override
     protected void configure() {
         if (false == transportClient) {

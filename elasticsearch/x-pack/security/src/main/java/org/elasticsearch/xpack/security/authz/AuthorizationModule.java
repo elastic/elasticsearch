@@ -36,7 +36,7 @@ public class AuthorizationModule extends AbstractSecurityModule.Node {
         bind(NativeRolesStore.class).asEagerSingleton();
         // Then the composite roles store (which combines both) can be bound
         bind(RolesStore.class).to(CompositeRolesStore.class).asEagerSingleton();
-        bind(AuthorizationService.class).to(InternalAuthorizationService.class).asEagerSingleton();
+        bind(AuthorizationService.class).asEagerSingleton();
     }
 
 }

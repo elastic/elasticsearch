@@ -43,7 +43,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
-import org.elasticsearch.xpack.security.authz.InternalAuthorizationService;
+import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
 import org.elasticsearch.xpack.security.SecurityLicenseState;
 import org.elasticsearch.xpack.security.support.Exceptions;
@@ -263,7 +263,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
     }
 
     protected IndicesAccessControl getIndicesAccessControl() {
-        IndicesAccessControl indicesAccessControl = threadContext.getTransient(InternalAuthorizationService.INDICES_PERMISSIONS_KEY);
+        IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationService.INDICES_PERMISSIONS_KEY);
         if (indicesAccessControl == null) {
             throw Exceptions.authorizationError("no indices permissions found");
         }

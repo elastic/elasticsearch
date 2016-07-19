@@ -93,11 +93,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class InternalAuthorizationServiceTests extends ESTestCase {
+public class AuthorizationServiceTests extends ESTestCase {
     private AuditTrailService auditTrail;
     private RolesStore rolesStore;
     private ClusterService clusterService;
-    private InternalAuthorizationService internalAuthorizationService;
+    private AuthorizationService internalAuthorizationService;
     private ThreadContext threadContext;
     private ThreadPool threadPool;
 
@@ -112,7 +112,7 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
 
         IndexNameExpressionResolver nameExpressionResolver = mock(IndexNameExpressionResolver.class);
         when(nameExpressionResolver.resolveDateMathExpression(any(String.class))).thenAnswer(returnsFirstArg());
-        internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService,
+        internalAuthorizationService = new AuthorizationService(Settings.EMPTY, rolesStore, clusterService,
                 auditTrail, new DefaultAuthenticationFailureHandler(), threadPool, nameExpressionResolver);
     }
 
@@ -359,7 +359,7 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         AnonymousUser.initialize(Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "a_all").build());
         IndexNameExpressionResolver nameExpressionResolver = mock(IndexNameExpressionResolver.class);
         when(nameExpressionResolver.resolveDateMathExpression(any(String.class))).thenAnswer(returnsFirstArg());
-        internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail,
+        internalAuthorizationService = new AuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail,
                 new DefaultAuthenticationFailureHandler(), threadPool, nameExpressionResolver);
 
         when(rolesStore.role("a_all")).thenReturn(Role.builder("a_all").add(IndexPrivilege.ALL, "a").build());
@@ -384,13 +384,13 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         ClusterState state = mock(ClusterState.class);
         AnonymousUser.initialize(Settings.builder()
                 .put(AnonymousUser.ROLES_SETTING.getKey(), "a_all")
-                .put(InternalAuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), false)
+                .put(AuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), false)
                 .build());
         User anonymousUser = AnonymousUser.INSTANCE;
         IndexNameExpressionResolver nameExpressionResolver = mock(IndexNameExpressionResolver.class);
         when(nameExpressionResolver.resolveDateMathExpression(any(String.class))).thenAnswer(returnsFirstArg());
-        internalAuthorizationService = new InternalAuthorizationService(
-                Settings.builder().put(InternalAuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), false).build(),
+        internalAuthorizationService = new AuthorizationService(
+                Settings.builder().put(AuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), false).build(),
                 rolesStore, clusterService, auditTrail, new DefaultAuthenticationFailureHandler(), threadPool, nameExpressionResolver);
 
         when(rolesStore.role("a_all")).thenReturn(Role.builder("a_all").add(IndexPrivilege.ALL, "a").build());

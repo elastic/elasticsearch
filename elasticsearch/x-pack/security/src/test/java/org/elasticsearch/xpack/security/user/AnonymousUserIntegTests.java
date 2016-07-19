@@ -10,7 +10,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.security.authz.InternalAuthorizationService;
+import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -26,7 +26,7 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous")
-                .put(InternalAuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), authorizationExceptionsEnabled)
+                .put(AuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), authorizationExceptionsEnabled)
                 .build();
     }
 

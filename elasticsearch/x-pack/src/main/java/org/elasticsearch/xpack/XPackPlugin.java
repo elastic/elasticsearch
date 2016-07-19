@@ -70,7 +70,7 @@ import org.elasticsearch.xpack.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.AuthenticationModule;
-import org.elasticsearch.xpack.security.authc.InternalAuthenticationService;
+import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.support.clock.SystemClock;
@@ -223,8 +223,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         }
         Set<String> headers = new HashSet<>();
         headers.add(UsernamePasswordToken.BASIC_AUTH_HEADER);
-        if (InternalAuthenticationService.RUN_AS_ENABLED.get(settings)) {
-            headers.add(InternalAuthenticationService.RUN_AS_USER_HEADER);
+        if (AuthenticationService.RUN_AS_ENABLED.get(settings)) {
+            headers.add(AuthenticationService.RUN_AS_USER_HEADER);
         }
         headers.addAll(extensionsService.getExtensions().stream()
             .flatMap(e -> e.getRestHeaders().stream()).collect(Collectors.toList()));

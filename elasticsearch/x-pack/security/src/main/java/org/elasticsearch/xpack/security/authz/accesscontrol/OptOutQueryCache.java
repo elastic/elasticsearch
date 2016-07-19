@@ -14,7 +14,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.xpack.security.authz.InternalAuthorizationService;
+import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -50,7 +50,7 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Qu
             throw new IllegalStateException("opting out of the query cache. current request can't be found");
         }
         IndicesAccessControl indicesAccessControl = context.getThreadContext().getTransient(
-                InternalAuthorizationService.INDICES_PERMISSIONS_KEY);
+                AuthorizationService.INDICES_PERMISSIONS_KEY);
         if (indicesAccessControl == null) {
             logger.debug("opting out of the query cache. current request doesn't hold indices permissions");
             return weight;

@@ -36,7 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.DefaultAuthenticationFailureHandler;
-import org.elasticsearch.xpack.security.authz.InternalAuthorizationService;
+import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.permission.SuperuserRole;
 import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
@@ -101,7 +101,7 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(metaData);
 
-        InternalAuthorizationService authzService = new InternalAuthorizationService(settings, rolesStore, clusterService,
+        AuthorizationService authzService = new AuthorizationService(settings, rolesStore, clusterService,
             mock(AuditTrailService.class), new DefaultAuthenticationFailureHandler(), mock(ThreadPool.class),
             indexNameExpressionResolver);
         defaultIndicesResolver = new DefaultIndicesAndAliasesResolver(authzService, indexNameExpressionResolver);

@@ -54,7 +54,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -68,16 +67,20 @@ public class CertificateTool extends SettingCommand {
     private static final String DESCRIPTION = "Simplifies certificate creation for use with the Elastic Stack";
     private static final String DEFAULT_CSR_FILE = "csr-bundle.zip";
     private static final String DEFAULT_CERT_FILE = "certificate-bundle.zip";
-    private static final Pattern ALLOWED_FILENAME_CHAR_PATTERN = Pattern.compile("([a-zA-Z0-9!@#$%^&{}\\[\\]()_+\\-=,.~'` ]+)");
-    private static final int DEFAULT_KEY_SIZE = 2048;
     private static final int FILE_EXTENSION_LENGTH = 4;
     static final int MAX_FILENAME_LENGTH = 255 - FILE_EXTENSION_LENGTH;
+    private static final Pattern ALLOWED_FILENAME_CHAR_PATTERN =
+            Pattern.compile("[a-zA-Z0-9!@#$%^&{}\\[\\]()_+\\-=,.~'` ]{1," + MAX_FILENAME_LENGTH + "}");
+    private static final int DEFAULT_KEY_SIZE = 2048;
+
     private static final ObjectParser<List<CertificateInformation>, CertInfoParseContext> PARSER = new ObjectParser<>("certgen");
     static {
         ConstructingObjectParser<CertificateInformation, CertInfoParseContext> instanceParser =
                 new ConstructingObjectParser<>("instances",
-                        a -> new CertificateInformation((String) a[0], (List<String>) a[1], (List<String>) a[2]));
+                        a -> new CertificateInformation((String) a[0], (String) (a[1] == null ? a[0] : a[1]),
+                                (List<String>) a[2], (List<String>) a[3]));
         instanceParser.declareString(ConstructingObjectParser.constructorArg(), new ParseField("name"));
+        instanceParser.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("filename"));
         instanceParser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), new ParseField("ip"));
         instanceParser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), new ParseField("dns"));
 
@@ -189,12 +192,18 @@ public class CertificateTool extends SettingCommand {
         while (done == false) {
             String name = terminal.readText("Enter instance name: ");
             if (name.isEmpty() == false) {
+                final boolean isNameValidFilename = Name.isValidFilename(name);
+                String filename = terminal.readText("Enter name for directories and files " + (isNameValidFilename ? "[" + name + "]" : "")
+                        + ": " );
+                if (filename.isEmpty() && isNameValidFilename) {
+                    filename = name;
+                }
                 String ipAddresses = terminal.readText("Enter IP Addresses for instance (comma-separated if more than one) []: ");
                 String dnsNames = terminal.readText("Enter DNS names for instance (comma-separated if more than one) []: ");
                 List<String> ipList = Arrays.asList(Strings.splitStringByCommaToArray(ipAddresses));
                 List<String> dnsList = Arrays.asList(Strings.splitStringByCommaToArray(dnsNames));
 
-                CertificateInformation information = new CertificateInformation(name, ipList, dnsList);
+                CertificateInformation information = new CertificateInformation(name, filename, ipList, dnsList);
                 List<String> validationErrors = information.validate();
                 if (validationErrors.isEmpty()) {
                     if (map.containsKey(name)) {
@@ -415,6 +424,11 @@ public class CertificateTool extends SettingCommand {
         terminal.println("    * The minimum required value for each instance is a name. This can simply be the");
         terminal.println("      hostname, which will be used as the Common Name of the certificate. A full");
         terminal.println("      distinguished name may also be used.");
+        terminal.println("    * A filename value may be required for each instance. This is necessary when the");
+        terminal.println("      name would result in an invalid file or directory name. The name provided here");
+        terminal.println("      is used as the directory name (within the zip) and the prefix for the key and");
+        terminal.println("      certificate files. The filename is required if you are prompted and the name");
+        terminal.println("      is not displayed in the prompt.");
         terminal.println("    * IP addresses and DNS names are optional. Multiple values can be specified as a");
         terminal.println("      comma separated string. If no IP addresses or DNS names are provided, you may");
         terminal.println("      disable hostname verification in your SSL configuration.");
@@ -507,8 +521,8 @@ public class CertificateTool extends SettingCommand {
         final List<String> ipAddresses;
         final List<String> dnsNames;
 
-        CertificateInformation(String name, List<String> ipAddresses, List<String> dnsNames) {
-            this.name = Name.fromUserProvidedName(name);
+        CertificateInformation(String name, String filename, List<String> ipAddresses, List<String> dnsNames) {
+            this.name = Name.fromUserProvidedName(name, filename);
             this.ipAddresses = ipAddresses == null ? Collections.emptyList() : ipAddresses;
             this.dnsNames = dnsNames == null ? Collections.emptyList() : dnsNames;
         }
@@ -546,7 +560,7 @@ public class CertificateTool extends SettingCommand {
             this.error = error;
         }
 
-        static Name fromUserProvidedName(String name) {
+        static Name fromUserProvidedName(String name, String filename) {
             if ("ca".equals(name)) {
                 return new Name(name, null, null, "[ca] may not be used as an instance name");
             }
@@ -564,28 +578,16 @@ public class CertificateTool extends SettingCommand {
                 return new Name(name, null, null, error);
             }
 
-            String filename = attemptToConvertFilename(Strings.cleanPath(name));
-            if (filename == null) {
-                return new Name(name, principal, null, "could not convert [" + name + "] to a valid filename");
+            boolean validFilename = isValidFilename(filename);
+            if (validFilename == false) {
+                return new Name(name, principal, null, "[" + filename + "] is not a valid filename");
             }
-            return new Name(name, principal, filename, null);
+            return new Name(name, principal, Strings.cleanPath(filename), null);
         }
 
-        static String attemptToConvertFilename(String name) {
-            StringBuilder builder = new StringBuilder();
-            Matcher matcher = ALLOWED_FILENAME_CHAR_PATTERN.matcher(name);
-            while (matcher.find()) {
-                builder.append(matcher.group(1));
-            }
-
-            if (builder.length() > MAX_FILENAME_LENGTH) {
-                return builder.substring(0, MAX_FILENAME_LENGTH);
-            }
-
-            if (builder.length() > 0) {
-                return builder.toString();
-            }
-            return null;
+        static boolean isValidFilename(String name) {
+            return ALLOWED_FILENAME_CHAR_PATTERN.matcher(Strings.cleanPath(name)).matches()
+                    && name.startsWith(".") == false;
         }
     }
 

@@ -106,6 +106,7 @@ public class CertificateToolTests extends ESTestCase {
         MockTerminal terminal = new MockTerminal();
         for (Entry<String, Map<String, String>> entry : instanceInput.entrySet()) {
             terminal.addTextInput(entry.getKey());
+            terminal.addTextInput("");
             terminal.addTextInput(entry.getValue().get("ip"));
             terminal.addTextInput(entry.getValue().get("dns"));
             count++;
@@ -145,18 +146,22 @@ public class CertificateToolTests extends ESTestCase {
         CertificateInformation certInfo = certInfosMap.get("node1");
         assertEquals(Collections.singletonList("127.0.0.1"), certInfo.ipAddresses);
         assertEquals(Collections.singletonList("localhost"), certInfo.dnsNames);
+        assertEquals("node1", certInfo.name.filename);
 
         certInfo = certInfosMap.get("node2");
         assertEquals(Collections.singletonList("::1"), certInfo.ipAddresses);
         assertEquals(Collections.emptyList(), certInfo.dnsNames);
+        assertEquals("node2", certInfo.name.filename);
 
         certInfo = certInfosMap.get("node3");
         assertEquals(Collections.emptyList(), certInfo.ipAddresses);
         assertEquals(Collections.emptyList(), certInfo.dnsNames);
+        assertEquals("node3", certInfo.name.filename);
 
         certInfo = certInfosMap.get("CN=different value");
         assertEquals(Collections.emptyList(), certInfo.ipAddresses);
         assertEquals(Collections.singletonList("node4.mydomain.com"), certInfo.dnsNames);
+        assertEquals("different file", certInfo.name.filename);
     }
 
     public void testGeneratingCsr() throws Exception {
@@ -309,22 +314,20 @@ public class CertificateToolTests extends ESTestCase {
 
     public void testNameValues() throws Exception {
         // good name
-        Name name = Name.fromUserProvidedName("my instance");
+        Name name = Name.fromUserProvidedName("my instance", "my instance");
         assertEquals("my instance", name.originalName);
         assertNull(name.error);
         assertEquals("CN=my instance", name.x500Principal.getName());
-        assertEquals("my instance", name.originalName);
+        assertEquals("my instance", name.filename);
 
         // too long
         String userProvidedName = randomAsciiOfLength(CertificateTool.MAX_FILENAME_LENGTH + 1);
-        name = Name.fromUserProvidedName(userProvidedName);
+        name = Name.fromUserProvidedName(userProvidedName, userProvidedName);
         assertEquals(userProvidedName, name.originalName);
-        assertNull(name.error);
-        assertEquals(userProvidedName.substring(0, CertificateTool.MAX_FILENAME_LENGTH), name.filename);
-        assertEquals("CN=" + userProvidedName, name.x500Principal.getName());
+        assertThat(name.error, containsString("valid filename"));
 
         // too short
-        name = Name.fromUserProvidedName("");
+        name = Name.fromUserProvidedName("", "");
         assertEquals("", name.originalName);
         assertThat(name.error, containsString("valid filename"));
         assertEquals("CN=", name.x500Principal.getName());
@@ -332,7 +335,7 @@ public class CertificateToolTests extends ESTestCase {
 
         // invalid characters only
         userProvidedName = "<>|<>*|?\"\\";
-        name = Name.fromUserProvidedName(userProvidedName);
+        name = Name.fromUserProvidedName(userProvidedName, userProvidedName);
         assertEquals(userProvidedName, name.originalName);
         assertThat(name.error, containsString("valid DN"));
         assertNull(name.x500Principal);
@@ -340,19 +343,25 @@ public class CertificateToolTests extends ESTestCase {
 
         // invalid for file but DN ok
         userProvidedName = "*";
-        name = Name.fromUserProvidedName(userProvidedName);
+        name = Name.fromUserProvidedName(userProvidedName, userProvidedName);
         assertEquals(userProvidedName, name.originalName);
         assertThat(name.error, containsString("valid filename"));
         assertEquals("CN=" + userProvidedName, name.x500Principal.getName());
         assertNull(name.filename);
 
-        // invalid with valid chars
+        // invalid with valid chars for filename
         userProvidedName = "*.mydomain.com";
-        name = Name.fromUserProvidedName(userProvidedName);
+        name = Name.fromUserProvidedName(userProvidedName, userProvidedName);
         assertEquals(userProvidedName, name.originalName);
-        assertNull(name.error);
+        assertThat(name.error, containsString("valid filename"));
         assertEquals("CN=" + userProvidedName, name.x500Principal.getName());
-        assertEquals(".mydomain.com", name.filename);
+
+        // valid but could create hidden file/dir so it is not allowed
+        userProvidedName = ".mydomain.com";
+        name = Name.fromUserProvidedName(userProvidedName, userProvidedName);
+        assertEquals(userProvidedName, name.originalName);
+        assertThat(name.error, containsString("valid filename"));
+        assertEquals("CN=" + userProvidedName, name.x500Principal.getName());
     }
 
     private PKCS10CertificationRequest readCertificateRequest(Path path) throws Exception {
@@ -399,7 +408,7 @@ public class CertificateToolTests extends ESTestCase {
         boolean valid;
         do {
             name = randomAsciiOfLengthBetween(1, 32);
-            valid = Name.fromUserProvidedName(name).error == null;
+            valid = Name.fromUserProvidedName(name, name).error == null;
         } while (valid == false);
         return name;
     }

@@ -4,8 +4,11 @@ instances:
       - "127.0.0.1"
     dns: "localhost"
   - name: "node2"
+    filename: "node2"
     ip: "::1"
   - name: "node3"
+    filename: "node3"
   - name: "CN=different value"
+    filename: "different file"
     dns:
       - "node4.mydomain.com"

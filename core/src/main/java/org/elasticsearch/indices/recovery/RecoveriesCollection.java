@@ -84,17 +84,9 @@ public class RecoveriesCollection {
             // which is important since we verify files are on disk etc. after we have written them etc.
             RecoveryTarget status = ref.status();
             RecoveryTarget resetRecovery = status.resetRecovery();
-            boolean success = false;
-            try {
-                if (onGoingRecoveries.replace(id, status, resetRecovery) == false) {
-                    throw new IllegalStateException("failed to replace recovery target");
-                }
-                success = true;
-            } finally {
-                if (success == false) {
-                    onGoingRecoveries.remove(id);
-                    resetRecovery.cancel("reset failed");
-                }
+            if (onGoingRecoveries.replace(id, status, resetRecovery) == false) {
+                resetRecovery.cancel("replace failed");
+                throw new IllegalStateException("failed to replace recovery target");
             }
         }
     }

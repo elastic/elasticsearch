@@ -22,7 +22,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
@@ -32,7 +31,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- *
+ * Sub phase within the fetch phase used to fetch things *about* the documents highlghting.
  */
 public interface FetchSubPhase {
 

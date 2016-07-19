@@ -23,11 +23,6 @@
             number_of_shards:   1
             number_of_replicas: 1
 
-  # Wait for yellow
-  - do:
-      cluster.health:
-        wait_for_status: yellow
-
   # Create snapshot
   - do:
       snapshot.create:

@@ -90,9 +90,6 @@
             mappings:
               tweet:
                 _parent: { type: "user" }
-  - do:
-      cluster.health:
-          wait_for_status: yellow
 
   - do:
       index:
@@ -192,9 +189,6 @@
             mappings:
               tweet:
                 _parent: { type: "user" }
-  - do:
-      cluster.health:
-          wait_for_status: yellow
 
   - do:
       index:

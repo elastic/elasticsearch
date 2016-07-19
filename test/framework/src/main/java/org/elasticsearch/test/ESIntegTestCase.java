@@ -23,12 +23,13 @@ import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.http.HttpHost;
-import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -1687,9 +1688,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return Settings.EMPTY;
     }
 
+    protected boolean ignoreExternalCluster() {
+        return false;
+    }
+
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         String clusterAddresses = System.getProperty(TESTS_CLUSTER);
-        if (Strings.hasLength(clusterAddresses)) {
+        if (Strings.hasLength(clusterAddresses) && ignoreExternalCluster() == false) {
             if (scope == Scope.TEST) {
                 throw new IllegalArgumentException("Cannot run TEST scope test with " + TESTS_CLUSTER);
             }
@@ -1707,28 +1712,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             default:
                 throw new ElasticsearchException("Scope not supported: " + scope);
         }
-        NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
-            @Override
-            public Settings nodeSettings(int nodeOrdinal) {
-                return Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).
-                        put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
-            }
 
-            @Override
-            public Collection<Class<? extends Plugin>> nodePlugins() {
-                return ESIntegTestCase.this.nodePlugins();
-            }
-
-            @Override
-            public Settings transportClientSettings() {
-                return ESIntegTestCase.this.transportClientSettings();
-            }
-
-            @Override
-            public Collection<Class<? extends Plugin>> transportClientPlugins() {
-                return ESIntegTestCase.this.transportClientPlugins();
-            }
-        };
 
         boolean supportsDedicatedMasters = getSupportsDedicatedMasters();
         int numDataNodes = getNumDataNodes();
@@ -1740,22 +1724,90 @@ public abstract class ESIntegTestCase extends ESTestCase {
             minNumDataNodes = getMinNumDataNodes();
             maxNumDataNodes = getMaxNumDataNodes();
         }
+        Collection<Class<? extends Plugin>> mockPlugins = getMockPlugins();
+        final NodeConfigurationSource nodeConfigurationSource = getNodeConfigSource();
+        if (addMockTransportService()) {
+            ArrayList<Class<? extends Plugin>> mocks = new ArrayList<>(mockPlugins);
+            // add both mock plugins - local and tcp if they are not there
+            // we do this in case somebody overrides getMockPlugins and misses to call super
+            if (mockPlugins.contains(AssertingLocalTransport.TestPlugin.class) == false) {
+                mocks.add(AssertingLocalTransport.TestPlugin.class);
+            }
+            if (mockPlugins.contains(MockTcpTransportPlugin.class) == false) {
+                mocks.add(MockTcpTransportPlugin.class);
+            }
+            mockPlugins = mocks;
+        }
+        return new InternalTestCluster(seed, createTempDir(), supportsDedicatedMasters, minNumDataNodes, maxNumDataNodes,
+                InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", nodeConfigurationSource, getNumClientNodes(),
+                InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix, mockPlugins, getClientWrapper());
+    }
+
+    protected NodeConfigurationSource getNodeConfigSource() {
         SuppressLocalMode noLocal = getAnnotation(this.getClass(), SuppressLocalMode.class);
         SuppressNetworkMode noNetwork = getAnnotation(this.getClass(), SuppressNetworkMode.class);
-        String nodeMode = InternalTestCluster.configuredNodeMode();
+        Settings.Builder networkSettings = Settings.builder();
+        final boolean isNetwork;
         if (noLocal != null && noNetwork != null) {
             throw new IllegalStateException("Can't suppress both network and local mode");
         } else if (noLocal != null) {
-            nodeMode = "network";
-        } else if (noNetwork != null) {
-            nodeMode = "local";
+            if (addMockTransportService()) {
+                networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
+            }
+            isNetwork = true;
+        } else {
+            if (addMockTransportService()) {
+                networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, AssertingLocalTransport.ASSERTING_TRANSPORT_NAME);
+            } else {
+                networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, "local");
+            }
+            isNetwork = false;
         }
 
-        Collection<Class<? extends Plugin>> mockPlugins = getMockPlugins();
+        NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
+            @Override
+            public Settings nodeSettings(int nodeOrdinal) {
+                return Settings.builder()
+                    .put(NetworkModule.HTTP_ENABLED.getKey(), false)
+                    .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(),
+                        isNetwork ? DiscoveryModule.DISCOVERY_TYPE_SETTING.getDefault(Settings.EMPTY) : "local")
+                    .put(networkSettings.build()).
+                    put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
+            }
 
-        return new InternalTestCluster(nodeMode, seed, createTempDir(), supportsDedicatedMasters, minNumDataNodes, maxNumDataNodes,
-                InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", nodeConfigurationSource, getNumClientNodes(),
-                InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix, mockPlugins, getClientWrapper());
+            @Override
+            public Collection<Class<? extends Plugin>> nodePlugins() {
+                return ESIntegTestCase.this.nodePlugins();
+            }
+
+            @Override
+            public Settings transportClientSettings() {
+                return Settings.builder().put(networkSettings.build())
+                    .put(ESIntegTestCase.this.transportClientSettings()).build();
+            }
+
+            @Override
+            public Collection<Class<? extends Plugin>> transportClientPlugins() {
+                Collection<Class<? extends Plugin>> plugins = ESIntegTestCase.this.transportClientPlugins();
+                if (isNetwork && plugins.contains(MockTcpTransportPlugin.class) == false) {
+                    plugins = new ArrayList<>(plugins);
+                    plugins.add(MockTcpTransportPlugin.class);
+                } else if (isNetwork == false && plugins.contains(AssertingLocalTransport.class) == false) {
+                    plugins = new ArrayList<>(plugins);
+                    plugins.add(AssertingLocalTransport.TestPlugin.class);
+                }
+                return Collections.unmodifiableCollection(plugins);
+            }
+        };
+        return nodeConfigurationSource;
+    }
+
+    /**
+     * Iff this returns true mock transport implementations are used for the test runs. Otherwise not mock transport impls are used.
+     * The defautl is <tt>true</tt>
+     */
+    protected boolean addMockTransportService() {
+        return true;
     }
 
     /**
@@ -1771,7 +1823,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
         final ArrayList<Class<? extends Plugin>> mocks = new ArrayList<>();
         if (randomBoolean()) { // sometimes run without those completely
-            if (randomBoolean()) {
+            if (randomBoolean() && addMockTransportService()) {
                 mocks.add(MockTransportService.TestPlugin.class);
             }
             if (randomBoolean()) {
@@ -1786,9 +1838,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
             if (randomBoolean()) {
                 mocks.add(MockSearchService.TestPlugin.class);
             }
-            if (randomBoolean()) {
-                mocks.add(AssertingLocalTransport.TestPlugin.class);
-            }
+        }
+
+        if (addMockTransportService()) {
+            mocks.add(AssertingLocalTransport.TestPlugin.class);
+            mocks.add(MockTcpTransportPlugin.class);
         }
         mocks.add(TestSeedPlugin.class);
         return Collections.unmodifiableList(mocks);
@@ -1799,7 +1853,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         public List<Setting<?>> getSettings() {
             return Arrays.asList(INDEX_TEST_SEED_SETTING);
         }
-
     }
 
     /**
@@ -2041,11 +2094,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return restClient;
     }
 
-    protected static RestClient createRestClient(CloseableHttpClient httpClient) {
-        return createRestClient(httpClient, "http");
+    protected static RestClient createRestClient(RestClient.HttpClientConfigCallback httpClientConfigCallback) {
+        return createRestClient(httpClientConfigCallback, "http");
     }
 
-    protected static RestClient createRestClient(CloseableHttpClient httpClient, String protocol) {
+    protected static RestClient createRestClient(RestClient.HttpClientConfigCallback httpClientConfigCallback, String protocol) {
         final NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
         final List<NodeInfo> nodes = nodeInfos.getNodes();
         assertFalse(nodeInfos.hasFailures());
@@ -2059,8 +2112,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         }
         RestClient.Builder builder = RestClient.builder(hosts.toArray(new HttpHost[hosts.size()]));
-        if (httpClient != null) {
-            builder.setHttpClient(httpClient);
+        if (httpClientConfigCallback != null) {
+            builder.setHttpClientConfigCallback(httpClientConfigCallback);
         }
         return builder.build();
     }

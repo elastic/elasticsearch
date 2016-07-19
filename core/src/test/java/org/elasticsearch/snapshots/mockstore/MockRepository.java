@@ -300,12 +300,6 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void deleteBlobsByPrefix(String blobNamePrefix) throws IOException {
-                maybeIOExceptionOrBlock(blobNamePrefix);
-                super.deleteBlobsByPrefix(blobNamePrefix);
-            }
-
-            @Override
             public Map<String, BlobMetaData> listBlobs() throws IOException {
                 maybeIOExceptionOrBlock("");
                 return super.listBlobs();

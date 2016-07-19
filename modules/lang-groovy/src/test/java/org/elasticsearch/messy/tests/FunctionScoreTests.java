@@ -61,7 +61,6 @@ public class FunctionScoreTests extends ESIntegTestCase {
 
     public void testScriptScoresNested() throws IOException {
         createIndex(INDEX);
-        ensureYellow();
         index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
         SearchResponse response = client().search(
@@ -82,7 +81,6 @@ public class FunctionScoreTests extends ESIntegTestCase {
 
     public void testScriptScoresWithAgg() throws IOException {
         createIndex(INDEX);
-        ensureYellow();
         index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
         SearchResponse response = client().search(
@@ -100,7 +98,6 @@ public class FunctionScoreTests extends ESIntegTestCase {
     public void testMinScoreFunctionScoreBasic() throws IOException {
         index(INDEX, TYPE, jsonBuilder().startObject().field("num", 2).endObject());
         refresh();
-        ensureYellow();
         float score = randomFloat();
         float minScore = randomFloat();
         SearchResponse searchResponse = client().search(
@@ -136,7 +133,6 @@ public class FunctionScoreTests extends ESIntegTestCase {
             docs.add(client().prepareIndex(INDEX, TYPE, Integer.toString(i)).setSource("num", i + scoreOffset));
         }
         indexRandom(true, docs);
-        ensureYellow();
         Script script = new Script("return (doc['num'].value)");
         int numMatchingDocs = numDocs + scoreOffset - minScore;
         if (numMatchingDocs < 0) {
@@ -172,7 +168,6 @@ public class FunctionScoreTests extends ESIntegTestCase {
     /** make sure min_score works if functions is empty, see https://github.com/elastic/elasticsearch/issues/10253 */
     public void testWithEmptyFunctions() throws IOException, ExecutionException, InterruptedException {
         assertAcked(prepareCreate("test"));
-        ensureYellow();
         index("test", "testtype", "1", jsonBuilder().startObject().field("text", "test text").endObject());
         refresh();
 

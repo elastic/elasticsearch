@@ -59,6 +59,18 @@ public class UpdateRequestTests extends ESTestCase {
         Map<String, Object> params = script.getParams();
         assertThat(params, nullValue());
 
+        // simple verbose script
+        request.source(XContentFactory.jsonBuilder().startObject()
+                .startObject("script").field("inline", "script1").endObject()
+                .endObject());
+        script = request.script();
+        assertThat(script, notNullValue());
+        assertThat(script.getScript(), equalTo("script1"));
+        assertThat(script.getType(), equalTo(ScriptType.INLINE));
+        assertThat(script.getLang(), nullValue());
+        params = script.getParams();
+        assertThat(params, nullValue());
+
         // script with params
         request = new UpdateRequest("test", "type", "1");
         request.source(XContentFactory.jsonBuilder().startObject().startObject("script").field("inline", "script1").startObject("params")

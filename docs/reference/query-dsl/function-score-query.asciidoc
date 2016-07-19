@@ -68,7 +68,7 @@ GET /_search
 
 NOTE: The scores produced by the filtering query of each function do not matter.
 
-If no query is given with a function this is equivalent to specifying
+If no filter is given with a function this is equivalent to specifying
 `"match_all": {}`
 
 First, each document is scored by the defined functions. The parameter

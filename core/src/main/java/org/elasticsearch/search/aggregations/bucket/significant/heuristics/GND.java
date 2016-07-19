@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,7 +32,7 @@ import org.elasticsearch.index.query.QueryShardException;
 import java.io.IOException;
 
 public class GND extends NXYSignificanceHeuristic {
-    public static final ParseField NAMES_FIELD = new ParseField("gnd");
+    public static final String NAME = "gnd";
 
     public GND(boolean backgroundIsSuperset) {
         super(true, backgroundIsSuperset);
@@ -61,7 +60,7 @@ public class GND extends NXYSignificanceHeuristic {
 
     @Override
     public int hashCode() {
-        int result = NAMES_FIELD.getPreferredName().hashCode();
+        int result = NAME.hashCode();
         result = 31 * result + super.hashCode();
         return result;
     }
@@ -96,12 +95,12 @@ public class GND extends NXYSignificanceHeuristic {
 
     @Override
     public String getWriteableName() {
-        return NAMES_FIELD.getPreferredName();
+        return NAME;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(NAMES_FIELD.getPreferredName());
+        builder.startObject(NAME);
         builder.field(BACKGROUND_IS_SUPERSET.getPreferredName(), backgroundIsSuperset);
         builder.endObject();
         return builder;
@@ -140,7 +139,7 @@ public class GND extends NXYSignificanceHeuristic {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(NAMES_FIELD.getPreferredName());
+            builder.startObject(NAME);
             builder.field(BACKGROUND_IS_SUPERSET.getPreferredName(), backgroundIsSuperset);
             builder.endObject();
             return builder;

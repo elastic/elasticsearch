@@ -352,7 +352,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             return Arrays.asList(recovery, bulk, reg, state, ping);
         }
 
-        public synchronized void close() {
+        public synchronized void close() throws IOException {
             closeChannels(allChannels);
         }
     }
@@ -433,7 +433,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     connectedNodes.remove(node);
                     try {
                         logger.debug("disconnecting from [{}], {}", node, reason);
-                        nodeChannels.close();
+                        IOUtils.closeWhileHandlingException(nodeChannels);
                     } finally {
                         logger.trace("disconnected from [{}], {}", node, reason);
                         transportServiceAdapter.raiseNodeDisconnected(node);
@@ -451,15 +451,19 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     protected final void disconnectFromNodeChannel(final Channel channel, final Exception failure) {
         threadPool.generic().execute(() -> {
             try {
-                closeChannels(Collections.singletonList(channel));
-            } finally {
-                for (DiscoveryNode node : connectedNodes.keySet()) {
-                    if (disconnectFromNode(node, channel, ExceptionsHelper.detailedMessage(failure))) {
-                        // if we managed to find this channel and disconnect from it, then break, no need to check on
-                        // the rest of the nodes
-                        break;
+                try {
+                    closeChannels(Collections.singletonList(channel));
+                } finally {
+                    for (DiscoveryNode node : connectedNodes.keySet()) {
+                        if (disconnectFromNode(node, channel, ExceptionsHelper.detailedMessage(failure))) {
+                            // if we managed to find this channel and disconnect from it, then break, no need to check on
+                            // the rest of the nodes
+                            break;
+                        }
                     }
                 }
+            } catch (IOException e) {
+                logger.warn("failed to close channel", e);
             }
         });
     }
@@ -479,7 +483,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             if (nodeChannels != null) {
                 try {
                     logger.debug("disconnecting from [{}] due to explicit disconnect call", node);
-                    nodeChannels.close();
+                    IOUtils.closeWhileHandlingException(nodeChannels);
                 } finally {
                     logger.trace("disconnected from [{}] due to explicit disconnect call", node);
                     transportServiceAdapter.raiseNodeDisconnected(node);
@@ -766,7 +770,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 for (Iterator<NodeChannels> it = connectedNodes.values().iterator(); it.hasNext(); ) {
                     NodeChannels nodeChannels = it.next();
                     it.remove();
-                    nodeChannels.close();
+                    IOUtils.closeWhileHandlingException(nodeChannels);
                 }
 
                 for (Map.Entry<String, List<Channel>> entry : serverChannels.entrySet()) {
@@ -782,7 +786,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     for (Iterator<NodeChannels> it = connectedNodes.values().iterator(); it.hasNext(); ) {
                         NodeChannels nodeChannels = it.next();
                         it.remove();
-                        nodeChannels.close();
+                        IOUtils.closeWhileHandlingException(nodeChannels);
                     }
                 }
 
@@ -800,7 +804,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
     }
 
-    protected void onException(Channel channel, Exception e) {
+    protected void onException(Channel channel, Exception e) throws IOException {
         if (!lifecycle.started()) {
             // ignore
             return;
@@ -845,28 +849,28 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      * @param name the profile name
      * @param address the address to bind to
      */
-    protected abstract Channel bind(String name, InetSocketAddress address);
+    protected abstract Channel bind(String name, InetSocketAddress address) throws IOException;
 
     /**
      * Closes all channels in this list
      */
-    protected abstract void closeChannels(List<Channel> channel);
+    protected abstract void closeChannels(List<Channel> channel) throws IOException;
 
     /**
      * Connects to the given node in a light way. This means we are not creating multiple connections like we do
      * for production connections. This connection is for pings or handshakes
      */
-    protected abstract NodeChannels connectToChannelsLight(DiscoveryNode node);
+    protected abstract NodeChannels connectToChannelsLight(DiscoveryNode node) throws IOException;
 
 
-    protected abstract void sendMessage(Channel channel, BytesReference reference, Runnable sendListener, boolean close);
+    protected abstract void sendMessage(Channel channel, BytesReference reference, Runnable sendListener, boolean close) throws IOException;
 
     /**
      * Connects to the node in a <tt>heavy</tt> way.
      *
      * @see #connectToChannelsLight(DiscoveryNode)
      */
-    protected abstract NodeChannels connectToChannels(DiscoveryNode node);
+    protected abstract NodeChannels connectToChannels(DiscoveryNode node) throws IOException;
 
     /**
      * Called to tear down internal resources
@@ -880,9 +884,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     @Override
     public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request,
                             TransportRequestOptions options) throws IOException, TransportException {
-
         Channel targetChannel = nodeChannel(node, options);
-
         if (compress) {
             options = TransportRequestOptions.builder(options).withCompress(true).build();
         }
@@ -916,7 +918,18 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions);
                 }
             };
-            sendMessage(targetChannel, message, onRequestSent, false);
+            try {
+                sendMessage(targetChannel, message, onRequestSent, false);
+            } catch (IOException ex) {
+                if (nodeConnected(node)) {
+                    throw ex;
+                } else {
+                    // we might got disconnected in between the nodeChannel(node, options) call and the sending -
+                    // in that case throw a subclass of ConnectTransportException since some code retries based on this
+                    // see TransportMasterNodeAction for instance
+                    throw new NodeNotConnectedException(node, "Node not connected");
+                }
+            }
             addedReleaseListener = true;
         } finally {
             IOUtils.close(stream);
@@ -962,7 +975,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         if (compress) {
             options = TransportResponseOptions.builder(options).withCompress(true).build();
         }
-
         byte status = 0;
         status = TransportStatus.setResponse(status); // TODO share some code with sendRequest
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
@@ -1042,7 +1054,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     }
 
     /**
-     * Validates the first N bytes of the message header and returns <code>true</code> if the message is
+     * Validates the first N bytes of the message header and returns <code>false</code> if the message is
      * a ping message and has no payload ie. isn't a real user level message.
      *
      * @throws IllegalStateException if the message is too short, less than the header or less that the header plus the message size

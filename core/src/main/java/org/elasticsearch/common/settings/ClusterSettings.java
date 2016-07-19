@@ -61,7 +61,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.http.HttpTransportSettings;
-import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
@@ -92,7 +91,6 @@ import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
-import org.elasticsearch.transport.netty.NettyTransport;
 import org.elasticsearch.tribe.TribeService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
@@ -216,6 +214,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     GatewayService.RECOVER_AFTER_NODES_SETTING,
                     GatewayService.RECOVER_AFTER_TIME_SETTING,
                     NetworkModule.HTTP_ENABLED,
+                    NetworkModule.HTTP_DEFAULT_TYPE_SETTING,
+                    NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
                     NetworkModule.HTTP_TYPE_SETTING,
                     NetworkModule.TRANSPORT_SERVICE_TYPE_SETTING,
                     NetworkModule.TRANSPORT_TYPE_SETTING,
@@ -241,18 +241,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE,
                     HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH,
                     HttpTransportSettings.SETTING_HTTP_RESET_COOKIES,
-                    NettyHttpServerTransport.SETTING_HTTP_NETTY_MAX_CUMULATION_BUFFER_CAPACITY,
-                    NettyHttpServerTransport.SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
-                    NettyHttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE,
-                    NettyHttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MIN,
-                    NettyHttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MAX,
-                    NettyHttpServerTransport.SETTING_HTTP_WORKER_COUNT,
-                    NettyHttpServerTransport.SETTING_HTTP_TCP_NO_DELAY,
-                    NettyHttpServerTransport.SETTING_HTTP_TCP_KEEP_ALIVE,
-                    NettyHttpServerTransport.SETTING_HTTP_TCP_BLOCKING_SERVER,
-                    NettyHttpServerTransport.SETTING_HTTP_TCP_REUSE_ADDRESS,
-                    NettyHttpServerTransport.SETTING_HTTP_TCP_SEND_BUFFER_SIZE,
-                    NettyHttpServerTransport.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE,
                     HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,
@@ -278,7 +266,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     TransportSettings.BIND_HOST,
                     TransportSettings.PUBLISH_PORT,
                     TransportSettings.PORT,
-                    NettyTransport.WORKER_COUNT,
                     TcpTransport.CONNECTIONS_PER_NODE_RECOVERY,
                     TcpTransport.CONNECTIONS_PER_NODE_BULK,
                     TcpTransport.CONNECTIONS_PER_NODE_REG,
@@ -287,13 +274,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     TcpTransport.PING_SCHEDULE,
                     TcpTransport.TCP_BLOCKING_CLIENT,
                     TcpTransport.TCP_CONNECT_TIMEOUT,
-                    NettyTransport.NETTY_MAX_CUMULATION_BUFFER_CAPACITY,
-                    NettyTransport.NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
-                    NettyTransport.NETTY_RECEIVE_PREDICTOR_SIZE,
-                    NettyTransport.NETTY_RECEIVE_PREDICTOR_MIN,
-                    NettyTransport.NETTY_RECEIVE_PREDICTOR_MAX,
                     NetworkService.NETWORK_SERVER,
-                    NettyTransport.NETTY_BOSS_COUNT,
                     TcpTransport.TCP_NO_DELAY,
                     TcpTransport.TCP_KEEP_ALIVE,
                     TcpTransport.TCP_REUSE_ADDRESS,
@@ -360,8 +341,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Node.NODE_NAME_SETTING,
                     Node.NODE_DATA_SETTING,
                     Node.NODE_MASTER_SETTING,
-                    Node.NODE_LOCAL_SETTING,
-                    Node.NODE_MODE_SETTING,
                     Node.NODE_INGEST_SETTING,
                     Node.NODE_ATTRIBUTES,
                     Node.NODE_LOCAL_STORAGE_SETTING,

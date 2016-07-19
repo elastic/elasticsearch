@@ -98,6 +98,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptModule;
@@ -132,6 +133,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * A node represent a node within a cluster (<tt>cluster.name</tt>). The {@link #client()} can be used
@@ -145,10 +147,6 @@ public class Node implements Closeable {
     public static final Setting<Boolean> NODE_DATA_SETTING = Setting.boolSetting("node.data", true, Property.NodeScope);
     public static final Setting<Boolean> NODE_MASTER_SETTING =
         Setting.boolSetting("node.master", true, Property.NodeScope);
-    public static final Setting<Boolean> NODE_LOCAL_SETTING =
-        Setting.boolSetting("node.local", false, Property.NodeScope);
-    public static final Setting<String> NODE_MODE_SETTING =
-        new Setting<>("node.mode", "network", Function.identity(), Property.NodeScope);
     public static final Setting<Boolean> NODE_INGEST_SETTING =
         Setting.boolSetting("node.ingest", true, Property.NodeScope);
 
@@ -182,6 +180,7 @@ public class Node implements Closeable {
     private final NodeEnvironment nodeEnvironment;
     private final PluginsService pluginsService;
     private final NodeClient client;
+    private final Collection<LifecycleComponent> pluginLifecycleComponents;
 
     /**
      * Constructs a node with the given settings.
@@ -276,7 +275,7 @@ public class Node implements Closeable {
 
             ModulesBuilder modules = new ModulesBuilder();
             // plugin modules must be added here, before others or we can get crazy injection errors...
-            for (Module pluginModule : pluginsService.nodeModules()) {
+            for (Module pluginModule : pluginsService.createGuiceModules()) {
                 modules.add(pluginModule);
             }
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
@@ -286,7 +285,7 @@ public class Node implements Closeable {
             ClusterModule clusterModule = new ClusterModule(settings, clusterService);
             modules.add(clusterModule);
             modules.add(new IndicesModule(namedWriteableRegistry, pluginsService.filterPlugins(MapperPlugin.class)));
-            modules.add(new SearchModule(settings, namedWriteableRegistry, false));
+            modules.add(new SearchModule(settings, namedWriteableRegistry, false, pluginsService.filterPlugins(SearchPlugin.class)));
             modules.add(new ActionModule(DiscoveryNode.isIngestNode(settings), false, settings,
                     clusterModule.getIndexNameExpressionResolver(), settingsModule.getClusterSettings(),
                     pluginsService.filterPlugins(ActionPlugin.class)));
@@ -300,6 +299,9 @@ public class Node implements Closeable {
             resourcesToClose.add(bigArrays);
             modules.add(settingsModule);
             client = new NodeClient(settings, threadPool);
+            Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
+                .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService).stream())
+                .collect(Collectors.toList());
             modules.add(b -> {
                     b.bind(PluginsService.class).toInstance(pluginsService);
                     b.bind(Client.class).toInstance(client);
@@ -314,9 +316,18 @@ public class Node implements Closeable {
                     b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
                     b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                     b.bind(IngestService.class).toInstance(ingestService);
+                    pluginComponents.stream().forEach(p -> b.bind((Class)p.getClass()).toInstance(p));
                 }
             );
             injector = modules.createInjector();
+
+            List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream()
+                .filter(p -> p instanceof LifecycleComponent)
+                .map(p -> (LifecycleComponent)p).collect(Collectors.toList());
+            pluginLifecycleComponents.addAll(pluginsService.getGuiceServiceClasses().stream()
+                .map(injector::getInstance).collect(Collectors.toList()));
+            resourcesToClose.addAll(pluginLifecycleComponents);
+            this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
 
             client.intialize(injector.getInstance(new Key<Map<GenericAction, TransportAction>>() {}));
 
@@ -373,9 +384,7 @@ public class Node implements Closeable {
         logger.info("starting ...");
         // hack around dependency injection problem (for now...)
         injector.getInstance(Discovery.class).setAllocationService(injector.getInstance(AllocationService.class));
-        for (Class<? extends LifecycleComponent> plugin : pluginsService.nodeServices()) {
-            injector.getInstance(plugin).start();
-        }
+        pluginLifecycleComponents.forEach(LifecycleComponent::start);
 
         injector.getInstance(MappingUpdatedAction.class).setClient(client);
         injector.getInstance(IndicesService.class).start();
@@ -460,7 +469,7 @@ public class Node implements Closeable {
             }
         }
 
-        if (settings.getAsBoolean("http.enabled", true)) {
+        if (NetworkModule.HTTP_ENABLED.get(settings)) {
             injector.getInstance(HttpServer.class).start();
         }
 
@@ -469,7 +478,7 @@ public class Node implements Closeable {
 
 
         if (WRITE_PORTS_FIELD_SETTING.get(settings)) {
-            if (settings.getAsBoolean("http.enabled", true)) {
+            if (NetworkModule.HTTP_ENABLED.get(settings)) {
                 HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
                 writePortsFile("http", http.boundAddress());
             }
@@ -491,7 +500,7 @@ public class Node implements Closeable {
 
         injector.getInstance(TribeService.class).stop();
         injector.getInstance(ResourceWatcherService.class).stop();
-        if (settings.getAsBoolean("http.enabled", true)) {
+        if (NetworkModule.HTTP_ENABLED.get(settings)) {
             injector.getInstance(HttpServer.class).stop();
         }
 
@@ -511,9 +520,7 @@ public class Node implements Closeable {
         injector.getInstance(RestController.class).stop();
         injector.getInstance(TransportService.class).stop();
 
-        for (Class<? extends LifecycleComponent> plugin : pluginsService.nodeServices()) {
-            injector.getInstance(plugin).stop();
-        }
+        pluginLifecycleComponents.forEach(LifecycleComponent::stop);
         // we should stop this last since it waits for resources to get released
         // if we had scroll searchers etc or recovery going on we wait for to finish.
         injector.getInstance(IndicesService.class).stop();
@@ -543,7 +550,7 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("node_service"));
         toClose.add(injector.getInstance(NodeService.class));
         toClose.add(() -> stopWatch.stop().start("http"));
-        if (settings.getAsBoolean("http.enabled", true)) {
+        if (NetworkModule.HTTP_ENABLED.get(settings)) {
             toClose.add(injector.getInstance(HttpServer.class));
         }
         toClose.add(() -> stopWatch.stop().start("snapshot_service"));
@@ -577,9 +584,9 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
 
-        for (Class<? extends LifecycleComponent> plugin : pluginsService.nodeServices()) {
-            toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getName() + ")"));
-            toClose.add(injector.getInstance(plugin));
+        for (LifecycleComponent plugin : pluginLifecycleComponents) {
+            toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));
+            toClose.add(plugin);
         }
         toClose.addAll(pluginsService.filterPlugins(Closeable.class));
 

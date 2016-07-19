@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.pipeline.movavg.models;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,7 +37,6 @@ import java.util.Objects;
  */
 public class HoltLinearModel extends MovAvgModel {
     public static final String NAME = "holt";
-    public static final ParseField NAME_FIELD = new ParseField(NAME);
 
     public static final double DEFAULT_ALPHA = 0.3;
     public static final double DEFAULT_BETA = 0.1;
@@ -183,7 +181,7 @@ public class HoltLinearModel extends MovAvgModel {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(MovAvgPipelineAggregationBuilder.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
+        builder.field(MovAvgPipelineAggregationBuilder.MODEL.getPreferredName(), NAME);
         builder.startObject(MovAvgPipelineAggregationBuilder.SETTINGS.getPreferredName());
         builder.field("alpha", alpha);
         builder.field("beta", beta);
@@ -255,7 +253,7 @@ public class HoltLinearModel extends MovAvgModel {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(MovAvgPipelineAggregationBuilder.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
+            builder.field(MovAvgPipelineAggregationBuilder.MODEL.getPreferredName(), NAME);
             builder.startObject(MovAvgPipelineAggregationBuilder.SETTINGS.getPreferredName());
             builder.field("alpha", alpha);
             builder.field("beta", beta);

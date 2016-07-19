@@ -173,6 +173,11 @@ subprojects {
     "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:rpm',
     "org.elasticsearch.distribution.deb:elasticsearch:${version}": ':distribution:deb',
     "org.elasticsearch.test:logger-usage:${version}": ':test:logger-usage',
+    // for transport client
+    "org.elasticsearch.plugin:transport-netty3-client:${version}": ':modules:transport-netty3',
+    "org.elasticsearch.plugin:reindex-client:${version}": ':modules:reindex',
+    "org.elasticsearch.plugin:lang-mustache-client:${version}": ':modules:lang-mustache',
+    "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
   ]
   configurations.all {
     resolutionStrategy.dependencySubstitution { DependencySubstitutions subs ->

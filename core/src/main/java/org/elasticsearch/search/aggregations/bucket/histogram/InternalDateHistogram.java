@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
@@ -26,8 +27,10 @@ import org.elasticsearch.search.aggregations.support.ValueType;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
+import java.io.IOException;
+
 /**
- *
+ * Results of a date_historgram aggregation.
  */
 public class InternalDateHistogram {
 
@@ -35,14 +38,16 @@ public class InternalDateHistogram {
     static final Type TYPE = new Type("date_histogram", "dhisto");
 
     static class Bucket extends InternalHistogram.Bucket {
-
-        Bucket(boolean keyed, DocValueFormat formatter, InternalHistogram.Factory<Bucket> factory) {
-            super(keyed, formatter, factory);
-        }
-
         Bucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, DocValueFormat formatter,
                 InternalHistogram.Factory<Bucket> factory) {
             super(key, docCount, keyed, formatter, factory, aggregations);
+        }
+
+        /**
+         * Read from a stream.
+         */
+        Bucket(StreamInput in, boolean keyed, DocValueFormat formatter, InternalHistogram.Factory<Bucket> factory) throws IOException {
+            super(in, keyed, formatter, factory);
         }
 
         @Override
@@ -94,8 +99,8 @@ public class InternalDateHistogram {
         }
 
         @Override
-        protected InternalDateHistogram.Bucket createEmptyBucket(boolean keyed, DocValueFormat formatter) {
-            return new Bucket(keyed, formatter, this);
+        protected Bucket readBucket(StreamInput in, boolean keyed, DocValueFormat format) throws IOException {
+            return new Bucket(in, keyed, format, this);
         }
     }
 

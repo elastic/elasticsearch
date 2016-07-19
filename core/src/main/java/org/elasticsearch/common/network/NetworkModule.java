@@ -20,8 +20,6 @@
 package org.elasticsearch.common.network;
 
 import org.elasticsearch.action.support.replication.ReplicationTask;
-import org.elasticsearch.client.transport.TransportClientNodesService;
-import org.elasticsearch.client.transport.support.TransportProxyClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
@@ -41,13 +39,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.tasks.RawTaskStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
-import org.elasticsearch.transport.netty.NettyTransport;
 
 /**
  * A module to handle registering and binding all network related classes.
@@ -58,8 +54,9 @@ public class NetworkModule extends AbstractModule {
     public static final String TRANSPORT_SERVICE_TYPE_KEY = "transport.service.type";
     public static final String HTTP_TYPE_KEY = "http.type";
     public static final String LOCAL_TRANSPORT = "local";
-    public static final String NETTY_TRANSPORT = "netty";
 
+    public static final Setting<String> TRANSPORT_DEFAULT_TYPE_SETTING = Setting.simpleString("transport.type.default", Property.NodeScope);
+    public static final Setting<String> HTTP_DEFAULT_TYPE_SETTING = Setting.simpleString("http.type.default", Property.NodeScope);
     public static final Setting<String> HTTP_TYPE_SETTING = Setting.simpleString(HTTP_TYPE_KEY, Property.NodeScope);
     public static final Setting<Boolean> HTTP_ENABLED = Setting.boolSetting("http.enabled", true, Property.NodeScope);
     public static final Setting<String> TRANSPORT_SERVICE_TYPE_SETTING =
@@ -89,16 +86,11 @@ public class NetworkModule extends AbstractModule {
         this.settings = settings;
         this.transportClient = transportClient;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        registerTransportService(NETTY_TRANSPORT, TransportService.class);
+        registerTransportService("default", TransportService.class);
         registerTransport(LOCAL_TRANSPORT, LocalTransport.class);
-        registerTransport(NETTY_TRANSPORT, NettyTransport.class);
         registerTaskStatus(ReplicationTask.Status.NAME, ReplicationTask.Status::new);
         registerTaskStatus(RawTaskStatus.NAME, RawTaskStatus::new);
         registerBuiltinAllocationCommands();
-
-        if (transportClient == false) {
-            registerHttpTransport(NETTY_TRANSPORT, NettyHttpServerTransport.class);
-        }
     }
 
     public boolean isTransportClient() {
@@ -155,15 +147,13 @@ public class NetworkModule extends AbstractModule {
     protected void configure() {
         bind(NetworkService.class).toInstance(networkService);
         bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
-
-        transportServiceTypes.bindType(binder(), settings, TRANSPORT_SERVICE_TYPE_KEY, NETTY_TRANSPORT);
-        String defaultTransport = DiscoveryNode.isLocalNode(settings) ? LOCAL_TRANSPORT : NETTY_TRANSPORT;
-        transportTypes.bindType(binder(), settings, TRANSPORT_TYPE_KEY, defaultTransport);
+        transportServiceTypes.bindType(binder(), settings, TRANSPORT_SERVICE_TYPE_KEY, "default");
+        transportTypes.bindType(binder(), settings, TRANSPORT_TYPE_KEY, TRANSPORT_DEFAULT_TYPE_SETTING.get(settings));
 
         if (transportClient == false) {
             if (HTTP_ENABLED.get(settings)) {
                 bind(HttpServer.class).asEagerSingleton();
-                httpTransportTypes.bindType(binder(), settings, HTTP_TYPE_SETTING.getKey(), NETTY_TRANSPORT);
+                httpTransportTypes.bindType(binder(), settings, HTTP_TYPE_SETTING.getKey(), HTTP_DEFAULT_TYPE_SETTING.get(settings));
             } else {
                 bind(HttpServer.class).toProvider(Providers.of(null));
             }
@@ -184,5 +174,9 @@ public class NetworkModule extends AbstractModule {
         registerAllocationCommand(AllocateStalePrimaryAllocationCommand::new, AllocateStalePrimaryAllocationCommand::fromXContent,
                 AllocateStalePrimaryAllocationCommand.COMMAND_NAME_FIELD);
 
+    }
+
+    public boolean canRegisterHttpExtensions() {
+        return transportClient == false;
     }
 }

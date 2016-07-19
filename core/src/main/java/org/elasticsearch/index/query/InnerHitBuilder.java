@@ -722,4 +722,16 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         }
     }
 
+    static InnerHitBuilder rewrite(InnerHitBuilder original, QueryBuilder rewrittenQuery) {
+        if (original == null) {
+            return null;
+        }
+
+        InnerHitBuilder copy = new InnerHitBuilder(original);
+        copy.query = rewrittenQuery;
+        copy.parentChildType = original.parentChildType;
+        copy.nestedPath = original.nestedPath;
+        return copy;
+    }
+
 }

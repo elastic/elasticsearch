@@ -33,9 +33,9 @@ import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.search.Highlighters;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.highlight.HighlightPhase;
+import org.elasticsearch.search.highlight.Highlighter;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
@@ -44,6 +44,7 @@ import org.elasticsearch.search.internal.SubSearchContext;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Highlighting in the case of the percolate query is a bit different, because the PercolateQuery itself doesn't get highlighted,
@@ -51,7 +52,7 @@ import java.util.List;
  */
 public final class PercolatorHighlightSubFetchPhase extends HighlightPhase {
 
-    public PercolatorHighlightSubFetchPhase(Settings settings, Highlighters highlighters) {
+    public PercolatorHighlightSubFetchPhase(Settings settings, Map<String, Highlighter> highlighters) {
         super(settings, highlighters);
     }
 

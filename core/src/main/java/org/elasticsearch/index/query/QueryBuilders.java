@@ -30,7 +30,6 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.Template;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -619,27 +618,6 @@ public abstract class QueryBuilders {
      */
     public static WrapperQueryBuilder wrapperQuery(byte[] source) {
         return new WrapperQueryBuilder(source);
-    }
-
-    /**
-     * Facilitates creating template query requests using an inline script
-     */
-    public static TemplateQueryBuilder templateQuery(Template template) {
-        return new TemplateQueryBuilder(template);
-    }
-
-    /**
-     * Facilitates creating template query requests using an inline script
-     */
-    public static TemplateQueryBuilder templateQuery(String template, Map<String, Object> vars) {
-        return new TemplateQueryBuilder(new Template(template, ScriptService.ScriptType.INLINE, null, null, vars));
-    }
-
-    /**
-     * Facilitates creating template query requests
-     */
-    public static TemplateQueryBuilder templateQuery(String template, ScriptService.ScriptType templateType, Map<String, Object> vars) {
-        return new TemplateQueryBuilder(new Template(template, templateType, null, null, vars));
     }
 
     /**

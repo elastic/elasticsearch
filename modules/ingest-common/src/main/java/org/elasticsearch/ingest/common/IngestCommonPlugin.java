@@ -28,12 +28,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.TemplateService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptService;
 
 public class IngestCommonPlugin extends Plugin implements IngestPlugin {
 
@@ -44,14 +41,13 @@ public class IngestCommonPlugin extends Plugin implements IngestPlugin {
     }
 
     @Override
-    public Map<String, Processor.Factory> getProcessors(Environment env, ScriptService scriptService,
-                                                        TemplateService templateService) {
+    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         Map<String, Processor.Factory> processors = new HashMap<>();
         processors.put(DateProcessor.TYPE, new DateProcessor.Factory());
-        processors.put(SetProcessor.TYPE, new SetProcessor.Factory(templateService));
-        processors.put(AppendProcessor.TYPE, new AppendProcessor.Factory(templateService));
+        processors.put(SetProcessor.TYPE, new SetProcessor.Factory(parameters.templateService));
+        processors.put(AppendProcessor.TYPE, new AppendProcessor.Factory(parameters.templateService));
         processors.put(RenameProcessor.TYPE, new RenameProcessor.Factory());
-        processors.put(RemoveProcessor.TYPE, new RemoveProcessor.Factory(templateService));
+        processors.put(RemoveProcessor.TYPE, new RemoveProcessor.Factory(parameters.templateService));
         processors.put(SplitProcessor.TYPE, new SplitProcessor.Factory());
         processors.put(JoinProcessor.TYPE, new JoinProcessor.Factory());
         processors.put(UppercaseProcessor.TYPE, new UppercaseProcessor.Factory());
@@ -59,12 +55,12 @@ public class IngestCommonPlugin extends Plugin implements IngestPlugin {
         processors.put(TrimProcessor.TYPE, new TrimProcessor.Factory());
         processors.put(ConvertProcessor.TYPE, new ConvertProcessor.Factory());
         processors.put(GsubProcessor.TYPE, new GsubProcessor.Factory());
-        processors.put(FailProcessor.TYPE, new FailProcessor.Factory(templateService));
+        processors.put(FailProcessor.TYPE, new FailProcessor.Factory(parameters.templateService));
         processors.put(ForEachProcessor.TYPE, new ForEachProcessor.Factory());
         processors.put(DateIndexNameProcessor.TYPE, new DateIndexNameProcessor.Factory());
         processors.put(SortProcessor.TYPE, new SortProcessor.Factory());
         processors.put(GrokProcessor.TYPE, new GrokProcessor.Factory(builtinPatterns));
-        processors.put(ScriptProcessor.TYPE, new ScriptProcessor.Factory(scriptService));
+        processors.put(ScriptProcessor.TYPE, new ScriptProcessor.Factory(parameters.scriptService));
         return Collections.unmodifiableMap(processors);
     }
 

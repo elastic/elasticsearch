@@ -29,6 +29,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -78,27 +79,36 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final AtomicBoolean finished = new AtomicBoolean();
 
     private final ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
-    private final CancellableThreads cancellableThreads = new CancellableThreads();
+    private final CancellableThreads cancellableThreads;
 
     // last time this status was accessed
     private volatile long lastAccessTime = System.nanoTime();
 
     private final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
 
-    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryTargetService.RecoveryListener listener) {
+    private RecoveryTarget(RecoveryTarget copyFrom) { // copy constructor
+        this(copyFrom.indexShard, copyFrom.sourceNode, copyFrom.listener, copyFrom.cancellableThreads, copyFrom.recoveryId);
+    }
 
+    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryTargetService.RecoveryListener listener) {
+        this(indexShard, sourceNode, listener, new CancellableThreads(), idGenerator.incrementAndGet());
+    }
+
+    private RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryTargetService.RecoveryListener listener,
+                           CancellableThreads cancellableThreads, long recoveryId) {
         super("recovery_status");
-        this.recoveryId = idGenerator.incrementAndGet();
+        this.cancellableThreads = cancellableThreads;
+        this.recoveryId = recoveryId;
         this.listener = listener;
         this.logger = Loggers.getLogger(getClass(), indexShard.indexSettings().getSettings(), indexShard.shardId());
         this.indexShard = indexShard;
         this.sourceNode = sourceNode;
         this.shardId = indexShard.shardId();
-        this.tempFilePrefix = RECOVERY_PREFIX + indexShard.recoveryState().getTimer().startTime() + ".";
+        this.tempFilePrefix = RECOVERY_PREFIX + UUIDs.base64UUID() + ".";
         this.store = indexShard.store();
-        indexShard.recoveryStats().incCurrentAsTarget();
         // make sure the store is not released until we are done.
         store.incRef();
+        indexShard.recoveryStats().incCurrentAsTarget();
     }
 
     public long recoveryId() {
@@ -149,6 +159,22 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     public void renameAllTempFiles() throws IOException {
         ensureRefCount();
         store.renameTempFilesSafe(tempFileNames);
+    }
+
+    /**
+     * Closes the current recovery target and returns a
+     * clone to reset the ongoing recovery.
+     * Note: the returned target must be canceled, failed or finished
+     * in order to release all it's reference.
+     */
+    RecoveryTarget resetRecovery() throws IOException {
+        ensureRefCount();
+        if (finished.compareAndSet(false, true)) {
+            // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
+            decRef();
+        }
+        indexShard.performRecoveryRestart();
+        return new RecoveryTarget(this);
     }
 
     /**
@@ -243,39 +269,30 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         return indexOutput;
     }
 
-    public void resetRecovery() throws IOException {
-        cleanOpenFiles();
-        indexShard().performRecoveryRestart();
-    }
-
     @Override
     protected void closeInternal() {
         try {
-            cleanOpenFiles();
+            // clean open index outputs
+            Iterator<Entry<String, IndexOutput>> iterator = openIndexOutputs.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<String, IndexOutput> entry = iterator.next();
+                logger.trace("closing IndexOutput file [{}]", entry.getValue());
+                try {
+                    entry.getValue().close();
+                } catch (Exception e) {
+                    logger.debug("error while closing recovery output [{}]", e, entry.getValue());
+                }
+                iterator.remove();
+            }
+            // trash temporary files
+            for (String file : tempFileNames.keySet()) {
+                logger.trace("cleaning temporary file [{}]", file);
+                store.deleteQuiet(file);
+            }
         } finally {
             // free store. increment happens in constructor
             store.decRef();
             indexShard.recoveryStats().decCurrentAsTarget();
-        }
-    }
-
-    protected void cleanOpenFiles() {
-        // clean open index outputs
-        Iterator<Entry<String, IndexOutput>> iterator = openIndexOutputs.entrySet().iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<String, IndexOutput> entry = iterator.next();
-            logger.trace("closing IndexOutput file [{}]", entry.getValue());
-            try {
-                entry.getValue().close();
-            } catch (Exception e) {
-                logger.debug("error while closing recovery output [{}]", e, entry.getValue());
-            }
-            iterator.remove();
-        }
-        // trash temporary files
-        for (String file : tempFileNames.keySet()) {
-            logger.trace("cleaning temporary file [{}]", file);
-            store.deleteQuiet(file);
         }
     }
 
@@ -394,7 +411,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 indexOutput.close();
             }
             final String temporaryFileName = getTempNameForFile(name);
-            assert Arrays.asList(store.directory().listAll()).contains(temporaryFileName);
+            assert Arrays.asList(store.directory().listAll()).contains(temporaryFileName) :
+                "expected: [" + temporaryFileName + "] in " + Arrays.toString(store.directory().listAll());
             store.directory().sync(Collections.singleton(temporaryFileName));
             IndexOutput remove = removeOpenIndexOutputs(name);
             assert remove == null || remove == indexOutput; // remove maybe null if we got finished

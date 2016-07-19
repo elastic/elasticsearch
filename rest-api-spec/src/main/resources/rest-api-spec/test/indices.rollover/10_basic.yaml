@@ -4,6 +4,7 @@
   - do:
       indices.create:
         index: logs-1
+        wait_for_active_shards: 1
         body:
           aliases:
             logs_index: {}
@@ -32,6 +33,7 @@
   - do:
       indices.rollover:
         alias: "logs_search"
+        wait_for_active_shards: 1
         body:
           conditions:
             max_docs: 1
@@ -48,10 +50,6 @@
         index: logs-2
 
   - is_true: ''
-
-  - do:
-      cluster.health:
-        wait_for_status: yellow
 
   # index into new index
   - do:

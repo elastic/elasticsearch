@@ -92,7 +92,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         globalOrds = valuesSource.globalOrdinalsValues(ctx);
 
         if (acceptedGlobalOrdinals == null && includeExclude != null) {
-            acceptedGlobalOrdinals = includeExclude.acceptedGlobalOrdinals(globalOrds, valuesSource);
+            acceptedGlobalOrdinals = includeExclude.acceptedGlobalOrdinals(globalOrds);
         }
 
         if (acceptedGlobalOrdinals != null) {

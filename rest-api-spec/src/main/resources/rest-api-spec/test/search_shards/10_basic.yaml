@@ -5,10 +5,6 @@
         index: test_1
 
   - do:
-      cluster.health:
-        wait_for_status: yellow
-
-  - do:
       search_shards:
         index:  test_1
         routing: foo

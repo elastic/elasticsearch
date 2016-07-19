@@ -91,7 +91,6 @@ public class TransportIndexAction extends TransportWriteAction<IndexRequest, Ind
         if (autoCreateIndex.shouldAutoCreate(request.index(), state)) {
             CreateIndexRequest createIndexRequest = new CreateIndexRequest();
             createIndexRequest.index(request.index());
-            createIndexRequest.mapping(request.type());
             createIndexRequest.cause("auto(index api)");
             createIndexRequest.masterNodeTimeout(request.timeout());
             createIndexAction.execute(task, createIndexRequest, new ActionListener<CreateIndexResponse>() {

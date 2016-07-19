@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -93,12 +94,14 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
         logger.trace("using cluster state version [{}] to determine shards", state.version());
         // collect relevant shard ids of the requested indices for fetching store infos
         for (String index : concreteIndices) {
+            IndexMetaData indexMetaData = state.metaData().index(index);
             IndexRoutingTable indexShardRoutingTables = routingTables.index(index);
             if (indexShardRoutingTables == null) {
                 continue;
             }
             for (IndexShardRoutingTable routing : indexShardRoutingTables) {
-                ClusterShardHealth shardHealth = new ClusterShardHealth(routing.shardId().id(), routing);
+                final int shardId = routing.shardId().id();
+                ClusterShardHealth shardHealth = new ClusterShardHealth(shardId, routing, indexMetaData);
                 if (request.shardStatuses().contains(shardHealth.getStatus())) {
                     shardIdsToFetch.add(routing.shardId());
                 }

@@ -98,7 +98,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
     }
 
     public void testSimplePreference() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings("number_of_replicas=1").get();
+        client().admin().indices().prepareCreate("test").setSettings("{\"number_of_replicas\": 1}").get();
         ensureGreen();
 
         client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
@@ -131,7 +131,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
     }
 
     public void testReplicaPreference() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings("number_of_replicas=0").get();
+        client().admin().indices().prepareCreate("test").setSettings("{\"number_of_replicas\": 0}").get();
         ensureGreen();
 
         client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
@@ -147,7 +147,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         SearchResponse resp = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica_first").execute().actionGet();
         assertThat(resp.getHits().totalHits(), equalTo(1L));
 
-        client().admin().indices().prepareUpdateSettings("test").setSettings("number_of_replicas=1").get();
+        client().admin().indices().prepareUpdateSettings("test").setSettings("{\"number_of_replicas\": 1}").get();
         ensureGreen("test");
 
         resp = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").execute().actionGet();

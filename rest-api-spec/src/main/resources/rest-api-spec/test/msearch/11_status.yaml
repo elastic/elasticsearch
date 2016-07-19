@@ -3,10 +3,6 @@ setup:
   - do:
       indices.create:
         index: test_1
-  - do:
-      cluster.health:
-        wait_for_status: yellow
-
 ---
 "Check Status":
   - do:

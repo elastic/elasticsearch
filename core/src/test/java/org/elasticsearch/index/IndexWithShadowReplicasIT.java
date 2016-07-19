@@ -277,7 +277,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .build();
 
         prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
-        ensureYellow(IDX);
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
 
@@ -335,7 +334,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .build();
 
         prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
-        ensureYellow(IDX);
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
 
@@ -395,7 +393,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .build();
 
         prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
-        ensureYellow(IDX);
         // Node1 has the primary, now node2 has the replica
         String node2 = internalCluster().startNode(nodeSettings);
         ensureGreen(IDX);
@@ -470,7 +467,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .build();
 
         prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
-        ensureYellow(IDX);
         // Node1 has the primary, now node2 has the replica
         String node2 = internalCluster().startNode(nodeSettings);
         ensureGreen(IDX);
@@ -859,7 +855,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                                        .build();
 
         prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
-        ensureYellow(IDX);
 
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();

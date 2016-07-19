@@ -189,7 +189,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
                 try {
                     parseQuery(testQuery);
                     fail("some parsing exception expected for query: " + testQuery);
-                } catch (ParsingException | Script.ScriptParseException | ElasticsearchParseException e) {
+                } catch (ParsingException | ElasticsearchParseException e) {
                     // different kinds of exception wordings depending on location
                     // of mutation, so no simple asserts possible here
                 } catch (JsonParseException e) {

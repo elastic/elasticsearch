@@ -39,10 +39,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
-import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.net.InetSocketAddress;
 import java.util.concurrent.ConcurrentMap;
@@ -198,13 +198,8 @@ public class UnicastZenPingIT extends ESTestCase {
 
     private NetworkHandle startServices(Settings settings, ThreadPool threadPool, NetworkService networkService, String nodeId,
                                         Version version) {
-        NettyTransport transport = new NettyTransport(settings, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE,
-            new NamedWriteableRegistry(), new NoneCircuitBreakerService()) {
-            @Override
-            protected Version getCurrentVersion() {
-                return version;
-            }
-        };
+        MockTcpTransport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
+            new NoneCircuitBreakerService(), new NamedWriteableRegistry(), networkService, version);
         final TransportService transportService = new TransportService(settings, transport, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();

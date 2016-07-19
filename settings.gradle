@@ -7,6 +7,7 @@ List projects = [
   'docs',
   'client:rest',
   'client:sniffer',
+  'client:transport',
   'client:test',
   'benchmarks',
   'distribution:integ-test-zip',
@@ -24,6 +25,7 @@ List projects = [
   'modules:lang-groovy',
   'modules:lang-mustache',
   'modules:lang-painless',
+  'modules:transport-netty3',
   'modules:reindex',
   'modules:percolator',
   'plugins:analysis-icu',
@@ -56,6 +58,7 @@ List projects = [
   'qa:smoke-test-multinode',
   'qa:smoke-test-plugins',
   'qa:smoke-test-reindex-with-painless',
+  'qa:smoke-test-http',
   'qa:vagrant',
 ]
 

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,14 +32,10 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptParameterParser;
-import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -49,7 +44,6 @@ import java.util.Objects;
  */
 public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScoreFunctionBuilder> {
     public static final String NAME = "script_score";
-    public static final ParseField FUNCTION_NAME_FIELD = new ParseField(NAME);
 
     private final Script script;
 
@@ -113,39 +107,19 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
     public static ScriptScoreFunctionBuilder fromXContent(QueryParseContext parseContext)
             throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
-        ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
         Script script = null;
-        Map<String, Object> vars = null;
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT) {
+            } else {
                 if (parseContext.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
                     script = Script.parse(parser, parseContext.getParseFieldMatcher());
-                } else if ("params".equals(currentFieldName)) { // TODO remove in 3.0 (here to support old script APIs)
-                    vars = parser.map();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), NAME + " query does not support [" + currentFieldName + "]");
                 }
-            } else if (token.isValue()) {
-                if (!scriptParameterParser.token(currentFieldName, token, parser, parseContext.getParseFieldMatcher())) {
-                    throw new ParsingException(parser.getTokenLocation(), NAME + " query does not support [" + currentFieldName + "]");
-                }
             }
-        }
-
-        if (script == null) { // Didn't find anything using the new API so try using the old one instead
-            ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
-            if (scriptValue != null) {
-                if (vars == null) {
-                    vars = new HashMap<>();
-                }
-                script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), vars);
-            }
-        } else if (vars != null) {
-            throw new ParsingException(parser.getTokenLocation(), "script params must be specified inside script object");
         }
 
         if (script == null) {

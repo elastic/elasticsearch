@@ -161,8 +161,6 @@ PUT icu_sample
     }
 }
 
-GET _cluster/health?wait_for_status=yellow
-
 POST icu_sample/_analyze?analyzer=my_analyzer&text=Elasticsearch. Wow!
 --------------------------------------------------
 // CONSOLE
@@ -360,8 +358,6 @@ PUT /my_index
   }
 }
 
-GET _cluster/health?wait_for_status=yellow
-
 GET _search <3>
 {
   "query": {
@@ -480,8 +476,6 @@ PUT icu_sample
     }
   }
 }
-
-GET _cluster/health?wait_for_status=yellow
 
 GET icu_sample/_analyze?analyzer=latin
 {

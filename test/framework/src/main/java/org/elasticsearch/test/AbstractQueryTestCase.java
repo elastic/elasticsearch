@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
@@ -95,7 +94,7 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.script.Script.ScriptParseException;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
@@ -128,7 +127,6 @@ import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
-    private static final GeohashGenerator geohashGenerator = new GeohashGenerator();
     public static final String STRING_FIELD_NAME = "mapped_string";
     protected static final String STRING_FIELD_NAME_2 = "mapped_string_2";
     protected static final String INT_FIELD_NAME = "mapped_int";
@@ -305,7 +303,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 try {
                     parseQuery(testQuery);
                     fail("some parsing exception expected for query: " + testQuery);
-                } catch (ParsingException | ScriptParseException | ElasticsearchParseException e) {
+                } catch (ParsingException | ElasticsearchParseException e) {
                     // different kinds of exception wordings depending on location
                     // of mutation, so no simple asserts possible here
                 } catch (JsonParseException e) {
@@ -685,18 +683,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return (serviceHolder.currentTypes.length == 0) ? MetaData.ALL : randomFrom(serviceHolder.currentTypes);
     }
 
-    public static String randomGeohash(int minPrecision, int maxPrecision) {
-        return geohashGenerator.ofStringLength(random(), minPrecision, maxPrecision);
-    }
-
-    public static class GeohashGenerator extends CodepointSetGenerator {
-        private static final char[] ASCII_SET = "0123456789bcdefghjkmnpqrstuvwxyz".toCharArray();
-
-        public GeohashGenerator() {
-            super(ASCII_SET);
-        }
-    }
-
     protected static Fuzziness randomFuzziness(String fieldName) {
         switch (fieldName) {
             case INT_FIELD_NAME:
@@ -880,14 +866,14 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             scriptSettings.addAll(pluginsService.getPluginSettings());
             scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
             SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, pluginsService.getPluginSettingsFilter());
-            searchModule = new SearchModule(settings, namedWriteableRegistry, false) {
+            searchModule = new SearchModule(settings, namedWriteableRegistry, false, pluginsService.filterPlugins(SearchPlugin.class)) {
                 @Override
                 protected void configureSearch() {
                     // Skip me
                 }
             };
             ModulesBuilder modulesBuilder = new ModulesBuilder();
-            for (Module pluginModule : pluginsService.nodeModules()) {
+            for (Module pluginModule : pluginsService.createGuiceModules()) {
                 modulesBuilder.add(pluginModule);
             }
             modulesBuilder.add(

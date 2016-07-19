@@ -45,9 +45,7 @@ experimental[The `precision_threshold` option is specific to the current interna
 defines a unique count below which counts are expected to be close to
 accurate. Above this value, counts might become a bit more fuzzy. The maximum
 supported value is 40000, thresholds above this number will have the same
-effect as a threshold of 40000.
-Default value depends on the number of parent aggregations that multiple
-create buckets (such as terms or histograms).
+effect as a threshold of 40000. The default values is +3000+.
 
 ==== Counts are approximate
 

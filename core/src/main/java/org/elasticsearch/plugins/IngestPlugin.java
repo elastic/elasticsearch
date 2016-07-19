@@ -22,11 +22,7 @@ package org.elasticsearch.plugins;
 import java.util.Collections;
 import java.util.Map;
 
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.TemplateService;
-import org.elasticsearch.script.ScriptService;
 
 /**
  * An extension point for {@link Plugin} implementations to add custom ingest processors
@@ -40,8 +36,7 @@ public interface IngestPlugin {
      * in pipeline configurations, and the value is a {@link org.elasticsearch.ingest.Processor.Factory}
      * to create the processor from a given pipeline configuration.
      */
-    default Map<String, Processor.Factory> getProcessors(
-        Environment env, ScriptService scriptService, TemplateService templateService) {
+    default Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         return Collections.emptyMap();
     }
 }

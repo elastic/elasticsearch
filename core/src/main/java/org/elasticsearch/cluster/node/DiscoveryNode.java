@@ -48,23 +48,6 @@ import static org.elasticsearch.common.transport.TransportAddressSerializers.add
  */
 public class DiscoveryNode implements Writeable, ToXContent {
 
-    public static boolean isLocalNode(Settings settings) {
-        if (Node.NODE_LOCAL_SETTING.exists(settings)) {
-            return Node.NODE_LOCAL_SETTING.get(settings);
-        }
-        if (Node.NODE_MODE_SETTING.exists(settings)) {
-            String nodeMode = Node.NODE_MODE_SETTING.get(settings);
-            if ("local".equals(nodeMode)) {
-                return true;
-            } else if ("network".equals(nodeMode)) {
-                return false;
-            } else {
-                throw new IllegalArgumentException("unsupported node.mode [" + nodeMode + "]. Should be one of [local, network].");
-            }
-        }
-        return false;
-    }
-
     public static boolean nodeRequiresLocalStorage(Settings settings) {
         boolean localStorageEnable = Node.NODE_LOCAL_STORAGE_SETTING.get(settings);
         if (localStorageEnable == false &&
@@ -98,6 +81,24 @@ public class DiscoveryNode implements Writeable, ToXContent {
     private final Map<String, String> attributes;
     private final Version version;
     private final Set<Role> roles;
+
+
+    /**
+     * Creates a new {@link DiscoveryNode}
+     * <p>
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
+     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
+     * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
+     * and updated.
+     * </p>
+     *
+     * @param id               the nodes unique (persistent) node id. This constructor will auto generate a random ephemeral id.
+     * @param address          the nodes transport address
+     * @param version          the version of the node
+     */
+    public DiscoveryNode(final String id, TransportAddress address, Version version) {
+        this(id, address, Collections.emptyMap(), Collections.emptySet(), version);
+    }
 
     /**
      * Creates a new {@link DiscoveryNode}

@@ -27,15 +27,19 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.fetch.FetchSubPhase;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class PercolatorPlugin extends Plugin implements MapperPlugin, ActionPlugin {
+import static java.util.Collections.singletonList;
+
+public class PercolatorPlugin extends Plugin implements MapperPlugin, ActionPlugin, SearchPlugin {
 
     private final Settings settings;
 
@@ -56,7 +60,11 @@ public class PercolatorPlugin extends Plugin implements MapperPlugin, ActionPlug
 
     public void onModule(SearchModule module) {
         module.registerQuery(PercolateQueryBuilder::new, PercolateQueryBuilder::fromXContent, PercolateQueryBuilder.QUERY_NAME_FIELD);
-        module.registerFetchSubPhase(new PercolatorHighlightSubFetchPhase(settings, module.getHighlighters()));
+    }
+
+    @Override
+    public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
+        return singletonList(new PercolatorHighlightSubFetchPhase(settings, context.getHighlighters()));
     }
 
     @Override

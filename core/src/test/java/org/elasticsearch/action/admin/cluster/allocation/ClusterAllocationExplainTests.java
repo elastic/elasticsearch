@@ -32,7 +32,6 @@ public final class ClusterAllocationExplainTests extends ESSingleNodeTestCase {
     public void testShardExplain() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings("index.number_of_shards", 1, "index.number_of_replicas", 1).get();
-        client().admin().cluster().health(Requests.clusterHealthRequest("test").waitForYellowStatus()).get();
         ClusterAllocationExplainResponse resp = client().admin().cluster().prepareAllocationExplain()
                 .setIndex("test").setShard(0).setPrimary(false).get();
 

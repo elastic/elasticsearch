@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -642,7 +643,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
                     while (iterator.hasNext()) {
                         ShardRouting next = iterator.next();
                         if ("test1".equals(next.index().getName())) {
-                            iterator.removeAndIgnore();
+                            iterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT);
                         }
 
                     }

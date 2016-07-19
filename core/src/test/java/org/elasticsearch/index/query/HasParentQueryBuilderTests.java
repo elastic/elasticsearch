@@ -34,14 +34,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -57,6 +54,8 @@ import static org.hamcrest.CoreMatchers.startsWith;
 public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQueryBuilder> {
     protected static final String PARENT_TYPE = "parent";
     protected static final String CHILD_TYPE = "child";
+
+    boolean requiresRewrite = false;
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
@@ -88,8 +87,12 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
      */
     @Override
     protected HasParentQueryBuilder doCreateTestQueryBuilder() {
-        HasParentQueryBuilder hqb = new HasParentQueryBuilder(PARENT_TYPE,
-                RandomQueryBuilder.createQuery(random()),randomBoolean());
+        QueryBuilder innerQueryBuilder = RandomQueryBuilder.createQuery(random());
+        if (randomBoolean()) {
+            requiresRewrite = true;
+            innerQueryBuilder = new WrapperQueryBuilder(innerQueryBuilder.toString());
+        }
+        HasParentQueryBuilder hqb = new HasParentQueryBuilder(PARENT_TYPE, innerQueryBuilder, randomBoolean());
         if (randomBoolean()) {
             hqb.innerHit(new InnerHitBuilder()
                     .setName(randomAsciiOfLengthBetween(1, 10))
@@ -107,25 +110,25 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         assertEquals(queryBuilder.score() ? ScoreMode.Max : ScoreMode.None, lpq.getScoreMode());
 
         if (queryBuilder.innerHit() != null) {
+            // have to rewrite again because the provided queryBuilder hasn't been rewritten (directly returned from
+            // doCreateTestQueryBuilder)
+            queryBuilder = (HasParentQueryBuilder) queryBuilder.rewrite(context);
+
             SearchContext searchContext = SearchContext.current();
             assertNotNull(searchContext);
-            if (query != null) {
-                Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
-                InnerHitBuilder.extractInnerHits(queryBuilder, innerHitBuilders);
-                for (InnerHitBuilder builder : innerHitBuilders.values()) {
-                    builder.build(searchContext, searchContext.innerHits());
-                }
-                assertNotNull(searchContext.innerHits());
-                assertEquals(1, searchContext.innerHits().getInnerHits().size());
-                assertTrue(searchContext.innerHits().getInnerHits().containsKey(queryBuilder.innerHit().getName()));
-                InnerHitsContext.BaseInnerHits innerHits = searchContext.innerHits()
-                        .getInnerHits().get(queryBuilder.innerHit().getName());
-                assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
-                assertEquals(innerHits.sort().sort.getSort().length, 1);
-                assertEquals(innerHits.sort().sort.getSort()[0].getField(), STRING_FIELD_NAME_2);
-            } else {
-                assertThat(searchContext.innerHits().getInnerHits().size(), equalTo(0));
+            Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
+            InnerHitBuilder.extractInnerHits(queryBuilder, innerHitBuilders);
+            for (InnerHitBuilder builder : innerHitBuilders.values()) {
+                builder.build(searchContext, searchContext.innerHits());
             }
+            assertNotNull(searchContext.innerHits());
+            assertEquals(1, searchContext.innerHits().getInnerHits().size());
+            assertTrue(searchContext.innerHits().getInnerHits().containsKey(queryBuilder.innerHit().getName()));
+            InnerHitsContext.BaseInnerHits innerHits = searchContext.innerHits()
+                    .getInnerHits().get(queryBuilder.innerHit().getName());
+            assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
+            assertEquals(innerHits.sort().sort.getSort().length, 1);
+            assertEquals(innerHits.sort().sort.getSort()[0].getField(), STRING_FIELD_NAME_2);
         }
     }
 
@@ -196,12 +199,23 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 try {
                     parseQuery(testQuery);
                     fail("some parsing exception expected for query: " + testQuery);
-                } catch (ParsingException | ScriptParseException | ElasticsearchParseException e) {
+                } catch (ParsingException | ElasticsearchParseException e) {
                     // different kinds of exception wordings depending on location
                     // of mutation, so no simple asserts possible here
                 } catch (JsonParseException e) {
                     // mutation produced invalid json
                 }
+            }
+        }
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        try {
+            super.testMustRewrite();
+        } catch (UnsupportedOperationException e) {
+            if (requiresRewrite == false) {
+                throw e;
             }
         }
     }

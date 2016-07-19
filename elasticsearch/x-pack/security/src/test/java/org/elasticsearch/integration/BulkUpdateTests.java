@@ -14,7 +14,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -24,6 +23,7 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 
+import java.io.IOException;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
@@ -73,7 +73,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         assertThat(getResponse.getField("bulk updated").getValue(), equalTo("bulk updated"));
     }
 
-    public void testThatBulkUpdateDoesNotLoseFieldsHttp() throws Exception {
+    public void testThatBulkUpdateDoesNotLoseFieldsHttp() throws IOException {
         final String path = "/index1/type/1";
         final Header basicAuthHeader = new BasicHeader("Authorization",
                 UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,

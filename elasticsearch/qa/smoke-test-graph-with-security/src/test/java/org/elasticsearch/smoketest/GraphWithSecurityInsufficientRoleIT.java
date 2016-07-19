@@ -8,6 +8,8 @@ package org.elasticsearch.smoketest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.test.rest.RestTestCandidate;
 
+import java.io.IOException;
+
 import static org.hamcrest.Matchers.containsString;
 
 public class GraphWithSecurityInsufficientRoleIT extends GraphWithSecurityIT {
@@ -16,7 +18,7 @@ public class GraphWithSecurityInsufficientRoleIT extends GraphWithSecurityIT {
         super(testCandidate);
     }
 
-    public void test() throws Exception {
+    public void test() throws IOException {
         try {
             super.test();
             fail("should have failed because of missing role");

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServe
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 
 import javax.net.ssl.SSLHandshakeException;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.cert.CertPathBuilderException;
@@ -57,7 +58,7 @@ public class SslClientAuthTests extends SecurityIntegTestCase {
         return true;
     }
 
-    public void testThatHttpFailsWithoutSslClientAuth() throws Exception {
+    public void testThatHttpFailsWithoutSslClientAuth() throws IOException {
         SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(SSLContexts.createDefault(), NoopHostnameVerifier.INSTANCE);
         try (RestClient restClient = createRestClient(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy), "https")) {
             restClient.performRequest("GET", "/");
@@ -69,7 +70,7 @@ public class SslClientAuthTests extends SecurityIntegTestCase {
         }
     }
 
-    public void testThatHttpWorksWithSslClientAuth() throws Exception {
+    public void testThatHttpWorksWithSslClientAuth() throws IOException {
         Settings settings = Settings.builder()
                 .put(getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient"))
                 .build();
@@ -83,7 +84,7 @@ public class SslClientAuthTests extends SecurityIntegTestCase {
         }
     }
 
-    public void testThatTransportWorksWithoutSslClientAuth() throws Exception {
+    public void testThatTransportWorksWithoutSslClientAuth() throws IOException {
         // specify an arbitrary keystore, that does not include the certs needed to connect to the transport protocol
         Path store = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.jks");
 

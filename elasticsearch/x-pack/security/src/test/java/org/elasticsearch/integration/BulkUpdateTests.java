@@ -6,6 +6,7 @@
 package org.elasticsearch.integration;
 
 import org.apache.http.Header;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
@@ -78,7 +79,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
                 UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
                         new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray())));
 
-        StringEntity body = new StringEntity("{\"test\":\"test\"}", RestClient.JSON_CONTENT_TYPE);
+        StringEntity body = new StringEntity("{\"test\":\"test\"}", ContentType.APPLICATION_JSON);
         Response response = getRestClient().performRequest("PUT", path, Collections.emptyMap(), body, basicAuthHeader);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(201));
 
@@ -91,7 +92,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         }
 
         //update with new field
-        body = new StringEntity("{\"doc\": {\"not test\": \"not test\"}}", RestClient.JSON_CONTENT_TYPE);
+        body = new StringEntity("{\"doc\": {\"not test\": \"not test\"}}", ContentType.APPLICATION_JSON);
         response = getRestClient().performRequest("POST", path + "/_update", Collections.emptyMap(), body, basicAuthHeader);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
 
@@ -106,7 +107,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         flushAndRefresh();
 
         body = new StringEntity("{\"update\": {\"_index\": \"index1\", \"_type\": \"type\", \"_id\": \"1\"}}\n" +
-                "{\"doc\": {\"bulk updated\":\"bulk updated\"}}\n", RestClient.JSON_CONTENT_TYPE);
+                "{\"doc\": {\"bulk updated\":\"bulk updated\"}}\n", ContentType.APPLICATION_JSON);
         response = getRestClient().performRequest("POST", "/_bulk", Collections.emptyMap(), body, basicAuthHeader);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
 

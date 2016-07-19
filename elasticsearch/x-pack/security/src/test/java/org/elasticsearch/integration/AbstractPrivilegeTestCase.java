@@ -7,12 +7,12 @@ package org.elasticsearch.integration;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.StatusLine;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
@@ -78,7 +78,7 @@ public abstract class AbstractPrivilegeTestCase extends SecurityIntegTestCase {
     private static HttpEntity entityOrNull(String body) {
         HttpEntity entity = null;
         if (body != null) {
-            entity = new StringEntity(body, RestClient.JSON_CONTENT_TYPE);
+            entity = new StringEntity(body, ContentType.APPLICATION_JSON);
         }
         return entity;
     }

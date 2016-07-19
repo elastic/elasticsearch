@@ -25,10 +25,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
+
 /**
  * Encapsulation class used to represent the amount of disk used on a node.
  */
@@ -124,6 +125,24 @@ public class DiskUsage implements ToXContent, Writeable {
 
     public long getUsedBytes() {
         return getTotalBytes() - getFreeBytes();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        DiskUsage other = (DiskUsage) o;
+        return Objects.equals(nodeId, other.nodeId) &&
+                Objects.equals(nodeName, other.nodeName) &&
+                Objects.equals(totalBytes, other.totalBytes) &&
+                Objects.equals(freeBytes, other.freeBytes);
+
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(nodeId, nodeName, path, totalBytes, freeBytes);
     }
 
     @Override

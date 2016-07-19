@@ -43,7 +43,7 @@ public class ClusterInfo implements ToXContent, Writeable {
     private final ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage;
     final ImmutableOpenMap<String, Long> shardSizes;
     public static final ClusterInfo EMPTY = new ClusterInfo();
-    private final ImmutableOpenMap<ShardRouting, String> routingToDataPath;
+    final ImmutableOpenMap<ShardRouting, String> routingToDataPath;
 
     protected ClusterInfo() {
        this(ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of());
@@ -68,29 +68,10 @@ public class ClusterInfo implements ToXContent, Writeable {
     }
 
     public ClusterInfo(StreamInput in) throws IOException {
-        int size = in.readInt();
-        Map<String, DiskUsage> leastMap = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            leastMap.put(in.readString(), new DiskUsage(in));
-        }
-
-        size = in.readInt();
-        Map<String, DiskUsage> mostMap = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            mostMap.put(in.readString(), new DiskUsage(in));
-        }
-
-        size = in.readInt();
-        Map<String, Long> sizeMap = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            sizeMap.put(in.readString(), in.readLong());
-        }
-
-        size = in.readInt();
-        Map<ShardRouting, String> routingMap = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            routingMap.put(new ShardRouting(in), in.readString());
-        }
+        Map<String, DiskUsage> leastMap = in.readMap(StreamInput::readString, DiskUsage::new);
+        Map<String, DiskUsage> mostMap = in.readMap(StreamInput::readString, DiskUsage::new);
+        Map<String, Long> sizeMap = in.readMap(StreamInput::readString, StreamInput::readLong);
+        Map<ShardRouting, String> routingMap = in.readMap(ShardRouting::new, StreamInput::readString);
 
         ImmutableOpenMap.Builder<String, DiskUsage> leastBuilder = ImmutableOpenMap.builder();
         this.leastAvailableSpaceUsage = leastBuilder.putAll(leastMap).build();

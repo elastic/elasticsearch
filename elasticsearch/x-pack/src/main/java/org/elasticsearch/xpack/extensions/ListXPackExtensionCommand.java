@@ -16,6 +16,9 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
@@ -37,13 +40,18 @@ class ListXPackExtensionCommand extends SettingCommand {
             throw new IOException("Extensions directory missing: " + resolveXPackExtensionsFile(env));
         }
         terminal.println(VERBOSE, "XPack Extensions directory: " + resolveXPackExtensionsFile(env));
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(resolveXPackExtensionsFile(env))) {
-            for (Path extension : stream) {
-                terminal.println(extension.getFileName().toString());
-                XPackExtensionInfo info =
-                        XPackExtensionInfo.readFromProperties(extension);
-                terminal.println(VERBOSE, info.toString());
+        final List<Path> extensions = new ArrayList<>();
+        try (DirectoryStream<Path> paths = Files.newDirectoryStream(resolveXPackExtensionsFile(env))) {
+            for (Path extension : paths) {
+                extensions.add(extension);
             }
+        }
+        Collections.sort(extensions);
+        for (final Path extension : extensions) {
+            terminal.println(extension.getFileName().toString());
+            XPackExtensionInfo info =
+                    XPackExtensionInfo.readFromProperties(extension);
+            terminal.println(VERBOSE, info.toString());
         }
     }
 

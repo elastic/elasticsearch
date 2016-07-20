@@ -921,14 +921,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             try {
                 sendMessage(targetChannel, message, onRequestSent, false);
             } catch (IOException ex) {
-                if (nodeConnected(node)) {
-                    throw ex;
-                } else {
-                    // we might got disconnected in between the nodeChannel(node, options) call and the sending -
-                    // in that case throw a subclass of ConnectTransportException since some code retries based on this
-                    // see TransportMasterNodeAction for instance
-                    throw new NodeNotConnectedException(node, "Node not connected");
-                }
+                // passing exception handling to deal with this and raise disconnect events and decide the right logging level
+                onException(targetChannel, ex);
+                return;
             }
             addedReleaseListener = true;
         } finally {
@@ -997,9 +992,14 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     transportServiceAdapter.onResponseSent(requestId, action, response, finalOptions);
                 }
             };
-            sendMessage(channel, reference, onRequestSent, false);
+            try {
+                sendMessage(channel, reference, onRequestSent, false);
+            } catch (IOException ex) {
+                // passing exception handling to deal with this and raise disconnect events and decide the right logging level
+                onException(channel, ex);
+                return;
+            }
             addedReleaseListener = true;
-
         } finally {
             IOUtils.close(stream);
             if (!addedReleaseListener) {

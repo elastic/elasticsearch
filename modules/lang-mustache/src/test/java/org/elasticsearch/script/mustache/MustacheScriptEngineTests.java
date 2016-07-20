@@ -19,9 +19,18 @@
 package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.MustacheFactory;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -70,6 +79,27 @@ public class MustacheScriptEngineTests extends ESTestCase {
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"\\\"quick brown\\\"\"}}}, \"negative_boost\": 0.3 } }}",
                     o.utf8ToString());
         }
+    }
+
+    public void testSimple() throws IOException {
+        String templateString = "{" + "\"inline\":{\"match_{{template}}\": {}}," + "\"params\":{\"template\":\"all\"}" + "}";
+        XContentParser parser = XContentFactory.xContent(templateString).createParser(templateString);
+        Script script = Script.parse(parser, new ParseFieldMatcher(false));
+        CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, null, "mustache",
+                qe.compile(null, script.getScript(), Collections.emptyMap()));
+        ExecutableScript executableScript = qe.executable(compiledScript, script.getParams());
+        assertThat(((BytesReference) executableScript.run()).utf8ToString(), equalTo("{\"match_all\":{}}"));
+    }
+
+    public void testParseTemplateAsSingleStringWithConditionalClause() throws IOException {
+        String templateString = "{" + "  \"inline\" : \"{ \\\"match_{{#use_it}}{{template}}{{/use_it}}\\\":{} }\"," + "  \"params\":{"
+                + "    \"template\":\"all\"," + "    \"use_it\": true" + "  }" + "}";
+        XContentParser parser = XContentFactory.xContent(templateString).createParser(templateString);
+        Script script = Script.parse(parser, new ParseFieldMatcher(false));
+        CompiledScript compiledScript = new CompiledScript(ScriptService.ScriptType.INLINE, null, "mustache",
+                qe.compile(null, script.getScript(), Collections.emptyMap()));
+        ExecutableScript executableScript = qe.executable(compiledScript, script.getParams());
+        assertThat(((BytesReference) executableScript.run()).utf8ToString(), equalTo("{ \"match_all\":{} }"));
     }
 
     public void testEscapeJson() throws IOException {

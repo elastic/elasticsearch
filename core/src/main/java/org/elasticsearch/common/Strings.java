@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -501,7 +502,7 @@ public class Strings {
     }
 
     public static Set<String> splitStringByCommaToSet(final String s) {
-        return splitStringToSet(s, ',');
+        return splitStringToSet(s, ',', false);
     }
 
     public static String[] splitStringByCommaToArray(final String s) {
@@ -509,7 +510,27 @@ public class Strings {
         else return s.split(",");
     }
 
-    public static Set<String> splitStringToSet(final String s, final char c) {
+    public static Set<String> splitStringByCommaAndTrim(final String s) {
+        return splitStringToSet(s, ',', true);
+    }
+
+    /**
+     * A convenience method for splitting a delimited string into
+     * a set, while having the option to trim the whitespace after
+     * the delimiter.  Trimming allows splitting strings like "A, B, C"
+     * into ["A","B","C"] instead of ["A", " B", " C"].  The trimming
+     * will *only* apply if the delimiter is not a whitespace character,
+     * even if the option is set to true.
+     *
+     * @param s the string to split
+     * @param c the delimiter to split on
+     * @param trim whether or not to trim the whitespace after the delimiter
+     * @return the set of split strings
+     */
+    public static Set<String> splitStringToSet(final String s, final char c, final boolean trim) {
+        if (s == null || s.isEmpty()) {
+            return Collections.emptySet();
+        }
         final char[] chars = s.toCharArray();
         int count = 1;
         for (final char x : chars) {
@@ -518,10 +539,17 @@ public class Strings {
             }
         }
         final Set<String> result = new HashSet<>(count);
+        final boolean doTrim = trim & Character.isWhitespace(c) == false;
         final int len = chars.length;
         int start = 0;  // starting index in chars of the current substring.
         int pos = 0;    // current index in chars.
         for (; pos < len; pos++) {
+            // if the option is set and the delimiter is a non-whitespace character, and we
+            // have whitespace after the comma, ignore the whitespace
+            if (doTrim && start == pos && Character.isWhitespace(chars[pos])) {
+                start++;
+                continue;
+            }
             if (chars[pos] == c) {
                 int size = pos - start;
                 if (size > 0) { // only add non empty strings

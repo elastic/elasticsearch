@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -72,5 +73,22 @@ public class StringsTests extends ESTestCase {
         toString = Strings.toString(needsEnclosingObject, true);
         assertThat(toString, containsString("\"ok\":\"here\""));
         assertThat(toString, containsString("\"catastrophe\":\"\""));
+    }
+
+    public void testSplitStringToSet() {
+        assertEquals(Strings.splitStringByCommaToSet(null), Sets.newHashSet());
+        assertEquals(Strings.splitStringByCommaToSet(""), Sets.newHashSet());
+        assertEquals(Strings.splitStringByCommaToSet("a,b,c"), Sets.newHashSet("a","b","c"));
+        assertEquals(Strings.splitStringByCommaToSet("a, b, c"), Sets.newHashSet("a"," b"," c"));
+        assertEquals(Strings.splitStringByCommaToSet(" a ,  b,c"), Sets.newHashSet(" a ","  b","c"));
+        assertEquals(Strings.splitStringByCommaToSet("aa, bb, cc"), Sets.newHashSet("aa"," bb"," cc"));
+
+        assertEquals(Strings.splitStringByCommaAndTrim(null), Sets.newHashSet());
+        assertEquals(Strings.splitStringByCommaAndTrim(""), Sets.newHashSet());
+        assertEquals(Strings.splitStringByCommaAndTrim("a,b,c"), Sets.newHashSet("a","b","c"));
+        assertEquals(Strings.splitStringByCommaAndTrim("a, b, c"), Sets.newHashSet("a","b","c"));
+        assertEquals(Strings.splitStringByCommaAndTrim(" a ,  b, c"), Sets.newHashSet("a ","b","c"));
+        assertEquals(Strings.splitStringByCommaAndTrim("aa, bb, cc"), Sets.newHashSet("aa","bb","cc"));
+        assertEquals(Strings.splitStringByCommaAndTrim(" a "), Sets.newHashSet("a "));
     }
 }

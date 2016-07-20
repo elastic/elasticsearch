@@ -20,16 +20,6 @@
 package org.elasticsearch.cloud.aws;
 
 public interface AwsService {
-    /**
-     * Should be either moved to Core if this settings makes sense
-     * Or removed. See https://github.com/elastic/elasticsearch/issues/12809
-     */
-    @Deprecated
-    final class CLOUD {
-        public static final String KEY = "cloud.key";
-        public static final String ACCOUNT = "cloud.account";
-    }
-
     final class CLOUD_AWS {
         public static final String KEY = "cloud.aws.access_key";
         public static final String SECRET = "cloud.aws.secret_key";

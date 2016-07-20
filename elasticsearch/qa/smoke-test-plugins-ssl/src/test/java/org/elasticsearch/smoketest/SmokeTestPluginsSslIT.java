@@ -7,15 +7,16 @@ package org.elasticsearch.smoketest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
+import org.elasticsearch.test.rest.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
-import org.elasticsearch.test.rest.client.RestTestClient;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -26,7 +27,7 @@ import java.nio.file.Path;
 
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
-public class SmokeTestPluginsSslIT extends ESRestTestCase {
+public class SmokeTestPluginsSslIT extends ESClientYamlSuiteTestCase {
 
     private static final String USER = "test_user";
     private static final String PASS = "changeme";
@@ -38,7 +39,7 @@ public class SmokeTestPluginsSslIT extends ESRestTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
-        return ESRestTestCase.createParameters(0, 1);
+        return ESClientYamlSuiteTestCase.createParameters(0, 1);
     }
 
     static Path keyStore;
@@ -65,9 +66,13 @@ public class SmokeTestPluginsSslIT extends ESRestTestCase {
         String token = basicAuthHeaderValue(USER, new SecuredString(PASS.toCharArray()));
         return Settings.builder()
                 .put(ThreadContext.PREFIX + ".Authorization", token)
-                .put(RestTestClient.PROTOCOL, "https")
-                .put(RestTestClient.TRUSTSTORE_PATH, keyStore)
-                .put(RestTestClient.TRUSTSTORE_PASSWORD, KEYSTORE_PASS)
+                .put(ESRestTestCase.TRUSTSTORE_PATH, keyStore)
+                .put(ESRestTestCase.TRUSTSTORE_PASSWORD, KEYSTORE_PASS)
                 .build();
+    }
+
+    @Override
+    protected String getProtocol() {
+        return "https";
     }
 }

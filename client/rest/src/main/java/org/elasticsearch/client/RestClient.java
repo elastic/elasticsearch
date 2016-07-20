@@ -122,7 +122,7 @@ public final class RestClient implements Closeable {
     }
 
     /**
-     * Sends a request to the elasticsearch cluster that the current client points to and waits for the corresponding response
+     * Sends a request to the elasticsearch cluster that the client points to and waits for the corresponding response
      * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, Header...)} but without parameters
      * and request body.
      *
@@ -139,7 +139,7 @@ public final class RestClient implements Closeable {
     }
 
     /**
-     * Sends a request to the elasticsearch cluster that the current client points to and waits for the corresponding response
+     * Sends a request to the elasticsearch cluster that the client points to and waits for the corresponding response
      * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, Header...)} but without request body.
      *
      * @param method the http method
@@ -156,7 +156,7 @@ public final class RestClient implements Closeable {
     }
 
     /**
-     * Sends a request to the elasticsearch cluster that the current client points to and waits for the corresponding response
+     * Sends a request to the elasticsearch cluster that the client points to and waits for the corresponding response
      * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, HttpAsyncResponseConsumer, Header...)}
      * which doesn't require specifying an {@link HttpAsyncResponseConsumer} instance, {@link HeapBufferedAsyncResponseConsumer}
      * will be used to consume the response body.
@@ -178,8 +178,8 @@ public final class RestClient implements Closeable {
     }
 
     /**
-     * Sends a request to the elasticsearch cluster that the current client points to. Blocks until the request is completed and returns
-     * its response of fails by throwing an exception. Selects a host out of the provided ones in a round-robin fashion. Failing hosts
+     * Sends a request to the elasticsearch cluster that the client points to. Blocks until the request is completed and returns
+     * its response or fails by throwing an exception. Selects a host out of the provided ones in a round-robin fashion. Failing hosts
      * are marked dead and retried after a certain amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times
      * they previously failed (the more failures, the later they will be retried). In case of failures all of the alive nodes (or dead
      * nodes that deserve a retry) are retried until one responds or none of them does, in which case an {@link IOException} will be thrown.
@@ -205,7 +205,7 @@ public final class RestClient implements Closeable {
     }
 
     /**
-     * Sends a request to the elasticsearch cluster that the current client points to. Doesn't wait for the response, instead
+     * Sends a request to the elasticsearch cluster that the client points to. Doesn't wait for the response, instead
      * the provided {@link ResponseListener} will be notified upon completion or failure. Shortcut to
      * {@link #performRequest(String, String, Map, HttpEntity, ResponseListener, Header...)} but without parameters and  request body.
      *
@@ -219,7 +219,7 @@ public final class RestClient implements Closeable {
     }
 
     /**
-     * Sends a request to the elasticsearch cluster that the current client points to. Doesn't wait for the response, instead
+     * Sends a request to the elasticsearch cluster that the client points to. Doesn't wait for the response, instead
      * the provided {@link ResponseListener} will be notified upon completion or failure. Shortcut to
      * {@link #performRequest(String, String, Map, HttpEntity, ResponseListener, Header...)} but without request body.
      *
@@ -235,7 +235,7 @@ public final class RestClient implements Closeable {
     }
 
     /**
-     * Sends a request to the elasticsearch cluster that the current client points to. Doesn't wait for the response, instead
+     * Sends a request to the elasticsearch cluster that the client points to. Doesn't wait for the response, instead
      * the provided {@link ResponseListener} will be notified upon completion or failure.
      * Shortcut to {@link #performRequest(String, String, Map, HttpEntity, HttpAsyncResponseConsumer, ResponseListener, Header...)}
      * which doesn't require specifying an {@link HttpAsyncResponseConsumer} instance, {@link HeapBufferedAsyncResponseConsumer}
@@ -255,7 +255,7 @@ public final class RestClient implements Closeable {
     }
 
     /**
-     * Sends a request to the elasticsearch cluster that the current client points to. The request is executed asynchronously
+     * Sends a request to the elasticsearch cluster that the client points to. The request is executed asynchronously
      * and the provided {@link ResponseListener} gets notified upon request completion or failure.
      * Selects a host out of the provided ones in a round-robin fashion. Failing hosts are marked dead and retried after a certain
      * amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times they previously failed (the more failures,

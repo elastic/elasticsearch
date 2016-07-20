@@ -36,11 +36,13 @@ class ListXPackExtensionCommand extends SettingCommand {
         if (Files.exists(resolveXPackExtensionsFile(env)) == false) {
             throw new IOException("Extensions directory missing: " + resolveXPackExtensionsFile(env));
         }
-
-        terminal.println(VERBOSE, "Extensions directory: " + resolveXPackExtensionsFile(env));
+        terminal.println(VERBOSE, "XPack Extensions directory: " + resolveXPackExtensionsFile(env));
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(resolveXPackExtensionsFile(env))) {
             for (Path extension : stream) {
                 terminal.println(extension.getFileName().toString());
+                XPackExtensionInfo info =
+                        XPackExtensionInfo.readFromProperties(extension);
+                terminal.println(VERBOSE, info.toString());
             }
         }
     }

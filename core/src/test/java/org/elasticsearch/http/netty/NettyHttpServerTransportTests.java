@@ -94,4 +94,25 @@ public class NettyHttpServerTransportTests extends ESTestCase {
         assertThat(allowedRequestMethods, equalTo(methods));
         transport.close();
     }
+
+    @Test
+    public void testCorsConfigDefaults() {
+        final Set<String> headers = new HashSet<>(Arrays.asList("X-Requested-With", "Content-Type", "Content-Length"));
+        final Set<String> methods = new HashSet<>(Arrays.asList("OPTIONS", "HEAD", "GET", "POST", "PUT", "DELETE"));
+        final Settings settings = Settings.builder()
+                                      .put(SETTING_CORS_ENABLED, true)
+                                      .put(SETTING_CORS_ALLOW_ORIGIN, "*")
+                                      .put(SETTING_CORS_ALLOW_CREDENTIALS, true)
+                                      .build();
+        final NettyHttpServerTransport transport = new NettyHttpServerTransport(settings, networkService, bigArrays);
+        final CorsConfig corsConfig = transport.getCorsConfig();
+        assertThat(corsConfig.isAnyOriginSupported(), equalTo(true));
+        assertThat(corsConfig.allowedRequestHeaders(), equalTo(headers));
+        final Set<String> allowedRequestMethods = new HashSet<>();
+        for (HttpMethod method : corsConfig.allowedRequestMethods()) {
+            allowedRequestMethods.add(method.getName());
+        }
+        assertThat(allowedRequestMethods, equalTo(methods));
+        transport.close();
+    }
 }

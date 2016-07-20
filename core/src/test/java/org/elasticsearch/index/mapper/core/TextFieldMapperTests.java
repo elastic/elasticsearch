@@ -44,6 +44,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -473,5 +474,33 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         Exception e = expectThrows(MapperParsingException.class, () -> parser.parse("type", new CompressedXContent(mapping)));
         assertEquals("[analyzer] must not have a [null] value", e.getMessage());
+    }
+
+    public void testNotIndexedFieldPositionIncrement() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("field")
+            .field("type", "text")
+            .field("index", false)
+            .field("position_increment_gap", 10)
+            .endObject().endObject().endObject().endObject().string();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> parser.parse("type", new CompressedXContent(mapping)));
+        assertEquals("Cannot set position_increment_gap on field [field] without positions enabled", e.getMessage());
+    }
+
+    public void testAnalyzedFieldPositionIncrementWithoutPositions() throws IOException {
+        for (String indexOptions : Arrays.asList("docs", "freqs")) {
+            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "text")
+                .field("index_options", indexOptions)
+                .field("position_increment_gap", 10)
+                .endObject().endObject().endObject().endObject().string();
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> parser.parse("type", new CompressedXContent(mapping)));
+            assertEquals("Cannot set position_increment_gap on field [field] without positions enabled", e.getMessage());
+        }
     }
 }

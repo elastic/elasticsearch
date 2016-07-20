@@ -677,4 +677,17 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
                 () -> mapper.mappers().getMapper("field").fieldType().fielddataBuilder());
         assertThat(e.getMessage(), containsString("Fielddata is disabled"));
     }
+
+    public void testKeywordFieldPositionIncrement() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("field")
+            .field("type", "string")
+            .field("index", "not_analyzed")
+            .field("position_increment_gap", 10)
+            .endObject().endObject().endObject().endObject().string();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> parser.parse("type", new CompressedXContent(mapping)));
+        assertThat(e.getMessage(), containsString("Cannot set position_increment_gap on not_analyzed field"));
+    }
 }

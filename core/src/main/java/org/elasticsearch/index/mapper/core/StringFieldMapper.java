@@ -164,6 +164,9 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         @Override
         public StringFieldMapper build(BuilderContext context) {
             if (positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
+                if (fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE) {
+                    throw new IllegalArgumentException("Cannot set position_increment_gap on not_analyzed field [" + fieldType.name() + "]");
+                }
                 fieldType.setIndexAnalyzer(new NamedAnalyzer(fieldType.indexAnalyzer(), positionIncrementGap));
                 fieldType.setSearchAnalyzer(new NamedAnalyzer(fieldType.searchAnalyzer(), positionIncrementGap));
                 fieldType.setSearchQuoteAnalyzer(new NamedAnalyzer(fieldType.searchQuoteAnalyzer(), positionIncrementGap));

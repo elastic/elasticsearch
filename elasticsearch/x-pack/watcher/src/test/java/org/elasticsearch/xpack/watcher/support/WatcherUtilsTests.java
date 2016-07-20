@@ -133,7 +133,7 @@ public class WatcherUtilsTests extends ESTestCase {
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
         IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
         QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
-        registry.register(queryParser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
+        registry.register(queryParser, MatchAllQueryBuilder.NAME);
         QueryParseContext context = new QueryParseContext(registry, parser, ParseFieldMatcher.STRICT);
         WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, DEFAULT_SEARCH_TYPE, context, null, null);
 
@@ -220,7 +220,7 @@ public class WatcherUtilsTests extends ESTestCase {
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
         IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
         QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
-        registry.register(queryParser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
+        registry.register(queryParser, MatchAllQueryBuilder.NAME);
         QueryParseContext context = new QueryParseContext(registry, parser, ParseFieldMatcher.STRICT);
         WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, DEFAULT_SEARCH_TYPE, context, null, null);
 

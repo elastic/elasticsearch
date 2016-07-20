@@ -392,10 +392,10 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
         if (SETTING_CORS_ALLOW_CREDENTIALS.get(settings)) {
             builder.allowCredentials();
         }
-        Set<String> strMethods = Strings.splitStringByCommaAndTrim(SETTING_CORS_ALLOW_METHODS.get(settings));
+        Set<String> strMethods = Strings.splitStringByCommaToSet(SETTING_CORS_ALLOW_METHODS.get(settings));
         return builder.allowedRequestMethods(strMethods.stream().map(HttpMethod::valueOf).collect(Collectors.toSet()))
                       .maxAge(SETTING_CORS_MAX_AGE.get(settings))
-                      .allowedRequestHeaders(Strings.splitStringByCommaAndTrim(SETTING_CORS_ALLOW_HEADERS.get(settings)))
+                      .allowedRequestHeaders(Strings.splitStringByCommaToSet(SETTING_CORS_ALLOW_HEADERS.get(settings)))
                       .shortCircuit()
                       .build();
     }

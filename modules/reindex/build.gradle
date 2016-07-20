@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -23,6 +25,19 @@ esplugin {
   hasClientJar = true
 }
 
+Task integTestNetty4 = tasks.create("integTestNetty4", RestIntegTestTask) {
+  suffix = 'Netty4'
+  cluster {
+    setting 'http.type', 'netty4'
+    setting 'transport.type', 'netty4'
+    setting 'reindex.remote.whitelist', 'myself'
+  }
+}
+integTestNetty4.dependsOn(project.bundlePlugin)
+integTestNetty4.clusterConfig.module(project)
+
+integTest.dependsOn integTestNetty4
+
 integTest {
   cluster {
     // Whitelist reindexing from the local node so we can test it.
@@ -35,7 +50,6 @@ run {
   setting 'reindex.remote.whitelist', 'myself'
 }
 
-
 dependencies {
   compile "org.elasticsearch.client:rest:${version}"
   // dependencies of the rest client
@@ -45,6 +59,7 @@ dependencies {
   compile "commons-logging:commons-logging:${versions.commonslogging}"
   // for http - testing reindex from remote
   testCompile project(path: ':modules:transport-netty3', configuration: 'runtime')
+  testCompile project(path: ':modules:transport-netty4', configuration: 'runtime')
 }
 
 dependencyLicenses {

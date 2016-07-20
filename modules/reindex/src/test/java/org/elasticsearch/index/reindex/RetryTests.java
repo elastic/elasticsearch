@@ -37,6 +37,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Netty3Plugin;
+import org.elasticsearch.transport.Netty4Plugin;
 import org.junit.After;
 import org.junit.Before;
 
@@ -60,13 +61,25 @@ public class RetryTests extends ESSingleNodeTestCase {
 
     private List<CyclicBarrier> blockedExecutors = new ArrayList<>();
 
+    private boolean useNetty4;
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        useNetty4 = randomBoolean();
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(ReindexPlugin.class, Netty3Plugin.class, BogusPlugin.class); // we need netty here to http communication
+        return pluginList(
+                ReindexPlugin.class,
+                Netty3Plugin.class,
+                Netty4Plugin.class,
+                BogusPlugin.class);
     }
 
     public static final class BogusPlugin extends Plugin {
-        // se Netty3Plugin.... this runs without the permission from the netty3 module so it will fail since reindex can't set the property
+        // this runs without the permission from the netty module so it will fail since reindex can't set the property
         // to make it still work we disable that check but need to register the setting first
         private static final Setting<Boolean> ASSERT_NETTY_BUGLEVEL = Setting.boolSetting("netty.assert.buglevel", true,
             Setting.Property.NodeScope);
@@ -94,6 +107,10 @@ public class RetryTests extends ESSingleNodeTestCase {
         settings.put(NetworkModule.HTTP_ENABLED.getKey(), true);
         // Whitelist reindexing from the http host we're going to use
         settings.put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "myself");
+        if (useNetty4) {
+            settings.put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME);
+            settings.put(NetworkModule.TRANSPORT_TYPE_KEY, Netty4Plugin.NETTY_TRANSPORT_NAME);
+        }
         return settings.build();
     }
 

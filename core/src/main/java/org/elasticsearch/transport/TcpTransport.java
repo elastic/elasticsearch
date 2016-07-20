@@ -104,7 +104,7 @@ import static org.elasticsearch.common.transport.NetworkExceptionHelper.isCloseC
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
-public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent implements Transport {
+public abstract class TcpTransport<Channel, Buffer> extends AbstractLifecycleComponent implements Transport {
 
     public static final String HTTP_SERVER_WORKER_THREAD_NAME_PREFIX = "http_server_worker";
     public static final String HTTP_SERVER_BOSS_THREAD_NAME_PREFIX = "http_server_boss";
@@ -1058,6 +1058,23 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         return new CompositeBytesReference(header, messageBody, zeroCopyBuffer);
     }
 
+    protected abstract int length(Buffer buffer);
+
+    protected abstract byte get(Buffer buffer, int offset);
+
+    private boolean bufferStartsWith(Buffer buffer, int offset, String method) {
+        char[] chars = method.toCharArray();
+        for (int i = 0; i < chars.length; i++) {
+            if (get(buffer, offset + i) != chars[i]) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    protected abstract StreamInput streamInput(Buffer buffer) throws IOException;
+
     /**
      * Validates the first N bytes of the message header and returns <code>false</code> if the message is
      * a ping message and has no payload ie. isn't a real user level message.
@@ -1067,13 +1084,13 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      * @throws IllegalArgumentException if the message is greater that the maximum allowed frame size. This is dependent on the available
      * memory.
      */
-    public static boolean validateMessageHeader(BytesReference buffer) throws IOException {
+    public boolean validateMessageHeader(Buffer buffer) throws IOException {
         final int sizeHeaderLength = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
-        if (buffer.length() < sizeHeaderLength) {
+        if (length(buffer) < sizeHeaderLength) {
             throw new IllegalStateException("message size must be >= to the header size");
         }
         int offset = 0;
-        if (buffer.get(offset) != 'E' || buffer.get(offset + 1) != 'S') {
+        if (get(buffer, offset) != 'E' || get(buffer, offset + 1) != 'S') {
             // special handling for what is probably HTTP
             if (bufferStartsWith(buffer, offset, "GET ") ||
                 bufferStartsWith(buffer, offset, "POST ") ||
@@ -1089,14 +1106,14 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
             // we have 6 readable bytes, show 4 (should be enough)
             throw new StreamCorruptedException("invalid internal transport message format, got ("
-                + Integer.toHexString(buffer.get(offset) & 0xFF) + ","
-                + Integer.toHexString(buffer.get(offset + 1) & 0xFF) + ","
-                + Integer.toHexString(buffer.get(offset + 2) & 0xFF) + ","
-                + Integer.toHexString(buffer.get(offset + 3) & 0xFF) + ")");
+                + Integer.toHexString(get(buffer, offset) & 0xFF) + ","
+                + Integer.toHexString(get(buffer, offset + 1) & 0xFF) + ","
+                + Integer.toHexString(get(buffer, offset + 2) & 0xFF) + ","
+                + Integer.toHexString(get(buffer, offset + 3) & 0xFF) + ")");
         }
 
         final int dataLen;
-        try (StreamInput input = buffer.streamInput()) {
+        try (StreamInput input = streamInput(buffer)) {
             input.skip(TcpHeader.MARKER_BYTES_SIZE);
             dataLen = input.readInt();
             if (dataLen == PING_DATA_SIZE) {
@@ -1108,26 +1125,15 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         if (dataLen <= 0) {
             throw new StreamCorruptedException("invalid data length: " + dataLen);
         }
-        // safety against too large frames being sent
+        // safety guard against too large frames being sent
         if (dataLen > NINETY_PER_HEAP_SIZE) {
             throw new IllegalArgumentException("transport content length received [" + new ByteSizeValue(dataLen) + "] exceeded ["
                 + new ByteSizeValue(NINETY_PER_HEAP_SIZE) + "]");
         }
 
-        if (buffer.length() < dataLen + sizeHeaderLength) {
+        if (length(buffer) < dataLen + sizeHeaderLength) {
             throw new IllegalStateException("buffer must be >= to the message size but wasn't");
         }
-        return true;
-    }
-
-    private static boolean bufferStartsWith(BytesReference buffer, int offset, String method) {
-        char[] chars = method.toCharArray();
-        for (int i = 0; i < chars.length; i++) {
-            if (buffer.get(offset+ i) != chars[i]) {
-                return false;
-            }
-        }
-
         return true;
     }
 

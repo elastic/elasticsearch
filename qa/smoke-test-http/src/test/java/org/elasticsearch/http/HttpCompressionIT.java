@@ -65,4 +65,5 @@ public class HttpCompressionIT extends ESIntegTestCase {
             assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
         }
     }
+
 }

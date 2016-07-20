@@ -32,6 +32,7 @@ import org.gradle.util.ConfigureUtil
  */
 public class RestIntegTestTask extends RandomizedTestingTask {
 
+    String suffix = ''
     ClusterConfiguration clusterConfig
 
     /** Flag indicating whether the rest tests in the rest spec should be run. */
@@ -56,7 +57,7 @@ public class RestIntegTestTask extends RandomizedTestingTask {
         // copy the rest spec/tests into the test resources
         RestSpecHack.configureDependencies(project)
         project.afterEvaluate {
-            dependsOn(RestSpecHack.configureTask(project, includePackaged))
+            dependsOn(RestSpecHack.configureTask(project, suffix, includePackaged))
         }
         // this must run after all projects have been configured, so we know any project
         // references can be accessed as a fully configured

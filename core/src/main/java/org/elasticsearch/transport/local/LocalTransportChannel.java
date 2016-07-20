@@ -22,9 +22,7 @@ package org.elasticsearch.transport.local;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
@@ -109,16 +107,7 @@ public class LocalTransportChannel implements TransportChannel {
 
     private void sendResponseData(byte[] data) {
         close();
-        try {
-            targetTransport.workers().execute(() -> {
-                ThreadContext threadContext = targetTransport.threadPool.getThreadContext();
-                try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                    targetTransport.messageReceived(data, action, sourceTransport, version, null);
-                }
-            });
-        } catch (EsRejectedExecutionException e) {
-            throw new NodeNotConnectedException(targetTransport.)
-        }
+        targetTransport.receiveMessage(version, data, action, null, sourceTransport);
     }
 
     private void close() {

@@ -500,14 +500,15 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     responseErrors.add(e);
                 }
             });
-        serviceB.registerRequestHandler("test", TestRequest::new, ThreadPool.Names.SAME, (request, channel) -> {
-                try {
-                    channel.sendResponse(new TestResponse());
-                } catch (Exception e) {
-                    // we don't really care what's going on B, we're testing through A
-                    logger.trace("caught exception while res    ponding from node B", e);
-                }
-            });
+        final TransportRequestHandler<TestRequest> ignoringRequestHandler = (request, channel) -> {
+            try {
+                channel.sendResponse(new TestResponse());
+            } catch (Exception e) {
+                // we don't really care what's going on B, we're testing through A
+                logger.trace("caught exception while res    ponding from node B", e);
+            }
+        };
+        serviceB.registerRequestHandler("test", TestRequest::new, ThreadPool.Names.SAME, ignoringRequestHandler);
 
         int halfSenders = scaledRandomIntBetween(3, 10);
         final CyclicBarrier go = new CyclicBarrier(halfSenders * 2 + 1);
@@ -584,7 +585,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             if (i % 3 == 0) {
                 // simulate restart of nodeB
                 serviceB.close();
-                serviceB = buildService("TS_B", version1);
+                MockTransportService newService = buildService("TS_B", version1);
+                newService.registerRequestHandler("test", TestRequest::new, ThreadPool.Names.SAME, ignoringRequestHandler);
+                serviceB = newService;
                 nodeB = new DiscoveryNode("TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), emptySet(), version1);
                 serviceB.connectToNode(nodeA);
                 serviceA.connectToNode(nodeB);

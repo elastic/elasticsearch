@@ -27,8 +27,9 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.disruption.NetworkDisconnectPartition;
-import org.elasticsearch.test.disruption.NetworkPartition;
+import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
+import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
@@ -112,7 +113,9 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
         Set<String> otherNodes = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
         otherNodes.remove(master);
 
-        NetworkPartition partition = new NetworkDisconnectPartition(Collections.singleton(master), otherNodes, random());
+        NetworkDisruption partition = new NetworkDisruption(
+            new TwoPartitions(Collections.singleton(master), otherNodes),
+            new NetworkDisconnect());
         internalCluster().setDisruptionScheme(partition);
 
         logger.info("--> disrupting network");

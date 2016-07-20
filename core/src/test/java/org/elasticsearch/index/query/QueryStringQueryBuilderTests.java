@@ -520,7 +520,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "    \"use_dis_max\" : true,\n" +
                 "    \"tie_breaker\" : 0.0,\n" +
                 "    \"default_operator\" : \"or\",\n" +
-                "    \"auto_generated_phrase_queries\" : false,\n" +
+                "    \"auto_generate_phrase_queries\" : false,\n" +
                 "    \"max_determined_states\" : 10000,\n" +
                 "    \"lowercase_expanded_terms\" : true,\n" +
                 "    \"enable_position_increment\" : true,\n" +

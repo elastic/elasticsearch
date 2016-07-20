@@ -678,16 +678,33 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), containsString("Fielddata is disabled"));
     }
 
-    public void testKeywordFieldPositionIncrement() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field")
-            .field("type", "string")
-            .field("index", "not_analyzed")
-            .field("position_increment_gap", 10)
-            .endObject().endObject().endObject().endObject().string();
+    public void testNonAnalyzedFieldPositionIncrement() throws IOException {
+        for (String index : Arrays.asList("no", "not_analyzed")) {
+            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "string")
+                .field("index", index)
+                .field("position_increment_gap", 10)
+                .endObject().endObject().endObject().endObject().string();
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> parser.parse("type", new CompressedXContent(mapping)));
-        assertThat(e.getMessage(), containsString("Cannot set position_increment_gap on not_analyzed field"));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> parser.parse("type", new CompressedXContent(mapping)));
+            assertEquals("Cannot set position_increment_gap on field [field] without positions enabled", e.getMessage());
+        }
+    }
+
+    public void testAnalyzedFieldPositionIncrementWithoutPositions() throws IOException {
+        for (String indexOptions : Arrays.asList("docs", "freqs")) {
+            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "string")
+                .field("index_options", indexOptions)
+                .field("position_increment_gap", 10)
+                .endObject().endObject().endObject().endObject().string();
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> parser.parse("type", new CompressedXContent(mapping)));
+            assertEquals("Cannot set position_increment_gap on field [field] without positions enabled", e.getMessage());
+        }
     }
 }
